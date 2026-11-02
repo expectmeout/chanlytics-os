@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
 import { motionSettled, sheetFloat } from "../signals";
+import { givenOf, pullHeld } from "../thumb";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -62,25 +63,6 @@ const pullDown = async (page: Page, x: number, y: number, by: number) => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * i) / 6 }] });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 };
-
-/**
- * A thumb down the screen from (x, y) by `by` pixels through the browser's own input (CDP), still down at the end: what
- * the page does under it is read before `letGo`.
- */
-const pullHeld = async (page: Page, x: number, y: number, by: number) => {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-  for (let i = 1; i <= 6; i += 1)
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * i) / 6 }] });
-  return { letGo: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }) };
-};
-
-/** How far down the screen a pull past its end has moved the first box `sel` names (kit motion/page-give.ts): 0 at rest. */
-const givenOf = (page: Page, sel: string) =>
-  page.evaluate(
-    (s) => parseFloat(getComputedStyle(document.querySelector(s)!).translate.split(" ")[1] ?? "") || 0,
-    sel,
-  );
 
 /** How far the route view has moved under a pull: on a page of rows only the rows move, and this stays 0. */
 const pageGiven = (page: Page) => givenOf(page, "#main");

@@ -1033,13 +1033,24 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   html.legacy-on[data-page-top] body {
     overscroll-behavior-y: none;
   }
+  /* An open thread holds its head and its reply box through every pull, at either end, in the browser and on the home
+     screen alike: only the conversation gives (Ruben, 2 Nov 2026: "only thread content can be dragged up and down").
+     The two are stuck to the window, not fixed to the screen, and the screen's band carries whatever is stuck along with
+     the page: a pull down slid the head 250px down the screen, and a pull up lifted the reply box with the page's ground
+     showing under it. So while a thread is open the band is off, and the page draws a pull past either end on the
+     conversation alone (page-give.ts, which `--page-gives` on .ix-th-scroll names, below). A glide stops at an end. */
+  html.legacy-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]),
+  html.legacy-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]) body {
+    overscroll-behavior-y: none;
+  }
   [data-give] {
     will-change: translate;
   }
   /* And where the page draws that pull, on a page of rows only the rows give: what stands over them on the page (the
      buckets, the search, the list's name and its count) holds, as the Calendar's bar holds over its board (Ruben, 19 Oct
      2026: "only the table rows should be draggable down"), and on a page with a foot of its own (a thread's reply box,
-     below) what is stuck to the screen holds, as it holds through the screen's band. The box of rows says so;
+     below) what is stuck to the screen holds, which the screen's band would carry with it (an open thread, above). The
+     box of rows says so;
      page-give.ts moves the first one drawn, and the route view where none is. People's is the table with its foot, so
      the count under the last row goes with them. */
   .main-scroll.pane > .inbox:not([data-takeover]) .ix-threads,
@@ -1314,7 +1325,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   /* An app on the home screen has no pull to refresh, so the screen's own band stays on at the page's top as well: a
      pull there bands as everywhere, with what is fixed holding, and the page draws nothing (page-give.ts asks the
-     root's band). Settings holds still here as anywhere. */
+     root's band). Settings holds still here as anywhere, and an open thread holds its head and reply box (above). */
   html.legacy-on[data-page-top]:not(:has(.settings)),
   html.legacy-on[data-page-top]:not(:has(.settings)) body {
     overscroll-behavior-y: contain;

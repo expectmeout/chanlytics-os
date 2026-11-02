@@ -14,7 +14,15 @@
  * tree it was; its hooks stay in `InboxThread`, in the order they were. The parts are beside it in this folder:
  * header, status, approval, timeline, call, who, composer and veto.
  */
-import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type HTMLAttributes,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import {
   MAILBOX_SENDERS_WORDS,
@@ -36,6 +44,7 @@ import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
+import { GRAB_AT } from "../../kit/motion/swipe";
 import { repliesDoor } from "./shell-thread";
 import type { Approval, RealThread, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
@@ -264,7 +273,7 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
 /**
  * On a phone the reply box stands over the screen's foot, and open it took two thirds of an iPhone: the email under it
  * could not be read unless the draft was erased (2 Nov 2026). So it opens folded, to what is owed and a line of the
- * words, opens as it is pressed or typed into (the foot's own handlers), and folds again as the conversation is pressed or
+ * words, opens as it is tapped or typed into (the foot's own handlers), and folds again as the conversation is pressed or
  * scrolled under the reader's finger. A desk keeps it open: its pane has the room.
  */
 function foldAsRead(el: HTMLElement | null, setFolded: (v: boolean) => void) {
@@ -277,6 +286,26 @@ function foldAsRead(el: HTMLElement | null, setFolded: (v: boolean) => void) {
   return () => {
     el.removeEventListener("pointerdown", fold);
     el.removeEventListener("touchmove", fold);
+  };
+}
+
+/** Where a press on a folded reply box began, by the box: one that lets go near it is a tap, one that travelled a drag. */
+const pressedAt = new WeakMap<Element, { x: number; y: number }>();
+
+/**
+ * Opens the folded reply box on a tap, never at a touch (Ruben, 2 Nov 2026: a drag on the reply box moved it): a thumb
+ * that lands on it on its way up or down the conversation travels past GRAB_AT, or is taken by the browser for a scroll
+ * (pointercancel), and leaves it folded. Pointer events, not a click: the foot is a box of the page's parts, no control.
+ */
+function openOnTap(open: () => void) {
+  return {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => pressedAt.set(e.currentTarget, { x: e.clientX, y: e.clientY }),
+    onPointerCancel: (e: PointerEvent<HTMLElement>) => pressedAt.delete(e.currentTarget),
+    onPointerUp: (e: PointerEvent<HTMLElement>) => {
+      const at = pressedAt.get(e.currentTarget);
+      pressedAt.delete(e.currentTarget);
+      if (at && Math.hypot(e.clientX - at.x, e.clientY - at.y) < GRAB_AT) open();
+    },
   };
 }
 
@@ -625,9 +654,9 @@ export const InboxThread = (props: InboxThreadProps) => {
       <div
         className="ix-th-foot"
         data-folded={folded && thread.real ? "" : undefined}
-        // Pressed or typed into, folded, it opens (foldAsRead): a press on what is owed, on the words or on an act.
+        // Tapped or typed into, folded, it opens (foldAsRead, openOnTap): on what is owed, on the words or on an act.
         onFocus={folded ? () => setFolded(false) : undefined}
-        onPointerDown={folded ? () => setFolded(false) : undefined}
+        {...(folded ? openOnTap(() => setFolded(false)) : {})}
       >
         {thread.real && (
           <div className="ix-th-status" data-testid="ix-th-status">

@@ -661,7 +661,7 @@ test("a held email the receptionist's draft found was a pitch: the dock asks Not
   }
 });
 
-test("on a phone the reply box opens folded and opens as it is pressed or typed into; a desk's stays open (2 Nov 2026: it stood over two thirds of an iPhone)", () => {
+test("on a phone the reply box opens folded and opens as it is tapped or typed into, never at a touch a drag begins with; a desk's stays open (2 Nov 2026: it stood over two thirds of an iPhone)", () => {
   const win = globalThis.window;
   const was = win.matchMedia;
   const thread = vmOf(chat(), asked());
@@ -672,13 +672,29 @@ test("on a phone the reply box opens folded and opens as it is pressed or typed 
     fresh();
     const folded = foot(draw());
     assert.equal(folded.props["data-folded"], "", "folded as the thread opens on a phone");
-    folded.props.onFocus();
+    // A thumb that lands on it on its way up or down the conversation is no tap: it stays folded (Ruben, 2 Nov 2026: a
+    // drag on the reply box moved it). A press is read off the box it lands on, as the browser hands it.
+    const box = {};
+    const press = (props, type, x, y) => props[type]({ currentTarget: box, clientX: x, clientY: y });
+    press(folded.props, "onPointerDown", 200, 700);
+    assert.equal(foot(draw()).props["data-folded"], "", "a touch alone does not open it");
+    press(foot(draw()).props, "onPointerUp", 200, 560);
+    assert.equal(foot(draw()).props["data-folded"], "", "a drag up the screen does not open it");
+    press(foot(draw()).props, "onPointerDown", 200, 700);
+    press(foot(draw()).props, "onPointerCancel", 200, 700);
+    press(foot(draw()).props, "onPointerUp", 200, 700);
+    assert.equal(foot(draw()).props["data-folded"], "", "nor one the browser took for a scroll");
+    press(foot(draw()).props, "onPointerDown", 200, 700);
+    press(foot(draw()).props, "onPointerUp", 202, 703);
+    assert.equal(foot(draw()).props["data-folded"], undefined, "tapped, it opens");
+    fresh();
+    foot(draw()).props.onFocus();
     assert.equal(foot(draw()).props["data-folded"], undefined, "typed into, it opens");
     win.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     fresh();
     const desk = foot(draw());
     assert.equal(desk.props["data-folded"], undefined, "a desk's pane has the room");
-    assert.equal(desk.props.onPointerDown, undefined, "and nothing to open");
+    assert.equal(desk.props.onPointerUp, undefined, "and nothing to open");
   } finally {
     win.matchMedia = was;
   }
