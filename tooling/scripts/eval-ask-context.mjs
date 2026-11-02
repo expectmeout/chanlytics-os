@@ -788,7 +788,7 @@ export function detailShapeFails(e, a) {
     if (widest > e.table_cols_max)
       fails.push(`a table of ${widest} columns, where the column it is drawn in fits ${e.table_cols_max}`);
   }
-  // A chart (the answer canvas, C3): `chart` asks for one (true, or its kind: line, bars); `chart_none` for none.
+  // A chart (the answer canvas, C3): `chart` asks for one (true, or its kind: line, columns, bars); `chart_none` for none.
   const c = a.show.chart;
   if (e.chart && !c) fails.push("no chart where one was asked");
   else if (typeof e.chart === "string" && c && c.kind !== e.chart)

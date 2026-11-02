@@ -129,6 +129,8 @@ export interface MsgEntry {
   time?: string;
   body: string;
   subject?: string;
+  /** The name an email of theirs says it is from (contracts' fromName): the card's sender. */
+  fromName?: string;
   quoted?: string;
   /** What a list or a sales tool put at the foot of an email of theirs (contracts' emailPartsOf). */
   footer?: string;

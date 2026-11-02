@@ -40,6 +40,18 @@ import { person } from "../readers/person";
 const TURNS_TOLD = 12;
 const TURN_CHARS = 220;
 const FACTS_SHOWN = 6;
+/**
+ * How much of the last thing they wrote the model reads: what a reply answers, so a long email is read far enough to know
+ * what it asks. It was the history's 220 characters, and a draft told a sender "your message got cut off partway through"
+ * (2 Nov 2026): the cut was ours.
+ */
+const LAST_CHARS = 1500;
+/** Where words were shortened here for length, said so in them, as a rule tells the model (RULES). */
+const CUT_HERE = " [cut here for length]";
+
+/** Words to `max` characters, said to be cut where they were: the model never takes our cut for theirs. */
+const told = (words: string, max: number): string =>
+  words.length > max ? `${words.slice(0, max).trimEnd()}${CUT_HERE}` : words;
 
 /**
  * What of a person's history a message is written from: what they and the business said and did with each other. The
@@ -66,9 +78,9 @@ interface DraftKnown {
  * (conversations/drafts.ts): a draft kept under an earlier edition is no draft, and is written again when asked for. Moved on
  * with any change to the rules: a call back's brief kept from 19 Oct still told the owner to say "Hi, this is calling from
  * Chanlytics" after #1849 fixed the rule, since a kept draft lives until the customer writes again (the live walk's TODAY-5,
- * 27 Oct 2026).
+ * 27 Oct 2026). 3: what they wrote is read whole enough, our cuts said, and a reply to what was not a customer's is a pitch.
  */
-export const PERSON_DRAFT_RULES = 2;
+export const PERSON_DRAFT_RULES = 3;
 
 const RULES = [
   "You help the owner of a small business write to one of their own customers or contacts, or prepare to phone them.",
@@ -79,12 +91,22 @@ const RULES = [
   "Plain words. No slogans, no flattery, no emoji, no exclamation marks.",
   "If the owner's words do not say enough to write something true and specific (which day, which service, what the news is), ask instead: put at most two short questions in `asks`, each with a short `key`, and leave every other field empty. Ask only what the facts below do not already answer, and never ask again what the owner has answered.",
   "Unless you are asking, always write `note`: one sentence of fact for the business's receptionist, who may answer this person next. Begin it with today's date as given. Say what the owner did and what should happen if the person answers. No price in it.",
+  `Words that end in "${CUT_HERE.trim()}" were shortened here for length, not by them: they wrote more. Never tell them their message was cut off, incomplete or unclear.`,
   DATA_NOT_INSTRUCTIONS,
 ];
+
+/**
+ * A reply to what was not a customer's is no reply: the inbox took a sales pitch for a person, the draft answered it with
+ * the owner's booking link and a promise to get back today, and it waited five days as Needs you (2 Nov 2026). The model
+ * says what it is, and the page offers Not a customer where it would have offered the words. Never for a first message.
+ */
+const PITCH_RULE =
+  "First decide whether what they wrote last is from someone who wants what the business offers, or is already its customer. If it is not (a sales pitch, a vendor or an agency offering a service, an advertising or partnership offer, a newsletter, recruiting, a survey), write no reply: put one short sentence in `pitch` saying what it is and who from, and leave every other field empty. Otherwise leave `pitch` empty.";
 
 function shapeRules(input: DraftInput): string[] {
   if (input.how === "call")
     return [
+      "Leave `pitch` empty.",
       "The owner will phone them. Leave `text` and `subject` empty and write the brief:",
       // Who phones is not known when the brief is written (Today's queue drafts it ahead), and a name may not be invented:
       // the opening read "Hi, this is calling from Chanlytics" (27 Oct 2026).
@@ -95,6 +117,7 @@ function shapeRules(input: DraftInput): string[] {
     ];
   const wire = input.wire ?? "whatsapp";
   return [
+    ...(input.answering ? [PITCH_RULE] : ["Leave `pitch` empty."]),
     `It goes by ${writeWireName(wire)}. Write \`text\`: the message itself, ready to send, with no signature.`,
     wire === "email"
       ? "It is an email: write `subject` too, under nine words, saying what it is about. `text` is under 140 words, in short paragraphs."
@@ -108,12 +131,12 @@ function personLines(who: Who, forTheMember: boolean): string {
   const lines = [`Name: ${who.name}${who.givenName && who.givenName !== who.name ? ` (called ${who.givenName})` : ""}`];
   for (const f of who.facts.slice(0, FACTS_SHOWN)) lines.push(`${f.label}: ${f.value}`);
   const last = who.lastExchange?.customer;
-  if (last) lines.push(`The last thing they wrote (${last.at}): ${last.text.slice(0, TURN_CHARS)}`);
+  if (last) lines.push(`The last thing they wrote (${last.at}): ${told(last.text, LAST_CHARS)}`);
   const turns = who.timeline
     // A message that never reached them (queued, failed or canceled) was not said to them: the draft does not build on it.
     .filter((t) => forTheMember || (SAID_TO_THEM.has(t.kind) && !t.unsent))
     .slice(0, TURNS_TOLD)
-    .map((t) => `${t.day} ${t.time} ${t.who}: ${t.text.slice(0, TURN_CHARS)}`);
+    .map((t) => `${t.day} ${t.time} ${t.who}: ${told(t.text, TURN_CHARS)}`);
   if (turns.length) lines.push("What has happened, newest first:", ...turns);
   // A note for the team alone is the team's: a brief may hold it, a message to the person never does.
   const notes = who.noteList.filter((n) => !n.suggested && (forTheMember || !n.teamOnly)).map((n) => n.body);
@@ -169,6 +192,9 @@ function unasked(written: string, given: string): "priced" | "money" | null {
 /** What is kept of the model's answer: questions alone, or the words, or the brief; a note with no price in it. */
 function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInput): PersonDraftDto {
   const lines = known.who.facts.slice(0, FACTS_SHOWN).map((f) => `${f.label}: ${f.value}`);
+  // What they wrote was not a customer's: said, and nothing written. Only a reply's: a first message is the owner's.
+  const pitch = input.answering && input.how === "message" ? answer.pitch : "";
+  if (pitch) return { asks: [], text: "", subject: "", note: "", brief: null, facts: lines, pitch };
   const wrote = input.how === "call" ? !!answer.opening || answer.points.length > 0 : !!answer.text;
   // A question is asked alone. One the member already answered, beside words that were written, is let go.
   if (answer.asks.length && !(wrote && input.answers?.length)) {
@@ -179,6 +205,7 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInp
       note: "",
       brief: null,
       facts: lines,
+      pitch: "",
     };
   }
   // What the member gave: the plan, their answers, and the draft they hand back to be rewritten, which holds their own
@@ -199,6 +226,7 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInp
         note,
         brief: { opening: answer.opening, points: answer.points, avoid: answer.avoid, ask: answer.ask },
         facts: lines,
+        pitch: "",
       }
     : {
         asks: [],
@@ -207,6 +235,7 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInp
         note,
         brief: null,
         facts: lines,
+        pitch: "",
       };
 }
 
@@ -234,7 +263,11 @@ export async function draftFrom(known: DraftKnown, input: DraftInput): Promise<P
  * What a draft is asked for: the route's input (a first message goes by a wire a yes covers), or a thread's reply, which
  * goes where they last wrote, an Instagram DM among them (drafts.ts draftForThread).
  */
-type DraftInput = Omit<PersonDraftInput, "wire"> & { wire?: WrittenChannel };
+type DraftInput = Omit<PersonDraftInput, "wire"> & {
+  wire?: WrittenChannel;
+  /** A thread's reply to what they wrote (drafts.ts), which may find it was a pitch; never a first message. */
+  answering?: boolean;
+};
 
 /** The route's handle: the person as their page reads them, the business as its settings say it, then the draft. */
 export async function draftForPerson(rc: ReaderContext, id: string, input: DraftInput): Promise<PersonDraftDto> {

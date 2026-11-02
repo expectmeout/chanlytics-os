@@ -12,6 +12,7 @@ export type { NeedYouSayFacts, NotNowChoice } from "./need-you-words";
 export {
   draftHasWords,
   draftIsCurrent,
+  draftPitchOf,
   REPLY_DRAFT_KINDS,
   REPLY_DRAFTS_IDS_MAX,
   REPLY_DRAFTS_NEWEST_MAX,

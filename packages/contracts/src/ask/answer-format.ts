@@ -115,12 +115,17 @@ export const ASK_ANSWER_FORMAT = {
         },
         chart: {
           type: "object",
-          description: `A chart of numbers read this turn, when a picture says it faster than words: kind line for one count over time (a point a day, a week or a month, oldest first), bars for a few things compared, 2 to ${C.points} points, each value a number a tool returned, and the source they were read from. Points empty when nothing is charted, and never the numbers a breakdown or a table already shows.`,
+          description: `A chart of numbers read this turn, when a picture says it faster than words: kind line for counts over time (a point a day, a week or a month, oldest first), columns for counts by day or week (two or three series stack, as the parts of one count), bars for one count over a few things compared, 2 to ${C.points} points (a period longer than that, by the week), each value a number a tool returned, and the source they were read from. Points empty when nothing is charted, and never the numbers a breakdown or a table already shows.`,
           properties: {
             kind: { type: "string", enum: [...ASK_CHART_KINDS] },
             label: {
               type: "string",
               description: `What is counted ("bookings a week", "messages by channel"), at most ${C.label} characters.`,
+            },
+            series: {
+              type: "array",
+              description: `What each point's values are, in their order, at most ${C.series}, each at most ${C.label} characters: one name for one count ("reviews written"), or the parts a read gives apart ("receptionist", "you").`,
+              items: { type: "string" },
             },
             points: {
               type: "array",
@@ -131,15 +136,19 @@ export const ASK_ANSWER_FORMAT = {
                     type: "string",
                     description: `A day, a week, a month or a name, at most ${C.label} characters.`,
                   },
-                  value: { type: "number" },
+                  values: {
+                    type: "array",
+                    description: "One number for each series, in the series' order.",
+                    items: { type: "number" },
+                  },
                 },
-                required: ["label", "value"],
+                required: ["label", "values"],
                 additionalProperties: false,
               },
             },
             source: SOURCE,
           },
-          required: ["kind", "label", "points", "source"],
+          required: ["kind", "label", "series", "points", "source"],
           additionalProperties: false,
         },
         list: {

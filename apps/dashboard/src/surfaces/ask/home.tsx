@@ -15,8 +15,9 @@ import type {
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/legacy-bridge/ask";
 import type { LegacyFlash } from "../legacy-verbs";
-import { BarList } from "../kit/charts/bar";
-import { SegmentBar } from "../kit/charts/card";
+import { BarChart, BarList } from "../kit/charts/bar";
+import { ChartCard, SegmentBar } from "../kit/charts/card";
+import type { ChartConfig, ChartRow } from "../kit/charts/geometry";
 import { LineChart } from "../kit/charts/line";
 import { Icon } from "../kit/icon/icon";
 import type { useAskSpeech } from "./hooks";
@@ -433,25 +434,47 @@ export const AskActs = ({
   );
 };
 
-// A chart of numbers the turn read (contracts AskChart): a line for one count over time, bars for a few things compared,
-// on the chart kit's own parts and its validated palette (kit-globals LineChart, BarList), with where it was read from.
+// Two or three series on the ink ramp's ends and middle, so thin lines read apart; one is the kit's one data hue.
+const ASK_SERIES_COLORS = ["var(--chart-ramp-5)", "var(--chart-ramp-3)", "var(--chart-ramp-1)"];
+
+// A chart of numbers the turn read (contracts AskChart) in the card every chart stands in, with its legend, its Table and
+// its CSV: a line over time, columns by day or week, stacked where there are two or three series, bars for a few things
+// compared, each the chart kit's own part on its validated palette, with where it was read from under the card.
 export const AskChart = ({ c, t, onNav }: { c: Chart; t: LineWords; onNav: (to: string) => void }) => {
+  const config: ChartConfig = {};
+  const keys = c.series.map((label, i) => {
+    const key = `s${i}`;
+    config[key] = { label, color: (c.series.length > 1 && ASK_SERIES_COLORS[i]) || "var(--chart-1)" };
+    return key;
+  });
+  const rows: Array<ChartRow & Record<string, string | number | undefined>> = c.points.map((p) => ({
+    label: p.label,
+    short: p.label,
+    ...Object.fromEntries(keys.map((key, i) => [key, p.values[i]])),
+  }));
   const plot =
-    c.kind === "line" ? (
+    c.kind === "bars" ? (
+      <BarList rows={c.points.map((p, i) => ({ id: String(i), label: p.label, value: p.values[0] ?? 0 }))} />
+    ) : c.kind === "columns" ? (
+      <BarChart data={rows} keys={keys} config={config} height={140} ariaLabel={c.label} />
+    ) : (
       <LineChart
-        data={c.points.map((p) => ({ label: p.label, short: p.label, v: p.value }))}
-        keys={[{ key: "v", fill: true }]}
-        config={{ v: { label: c.label, color: "var(--chart-1)" } }}
+        data={rows}
+        keys={keys.map((key) => ({ key, fill: keys.length === 1 }))}
+        config={config}
         height={140}
         ariaLabel={c.label}
       />
-    ) : (
-      <BarList rows={c.points.map((p, i) => ({ id: String(i), label: p.label, value: p.value }))} />
     );
+  const table = {
+    columns: [c.kind === "bars" ? t.chartName : t.chartWhen, ...c.series],
+    rows: c.points.map((p) => [p.label, ...p.values]),
+  };
   return (
     <div className="ask-chart" data-testid="ask-chart" data-kind={c.kind}>
-      <span className="ask-chart-title">{c.label}</span>
-      {plot}
+      <ChartCard title={c.label} config={config} legend={keys.length > 1 ? null : false} table={table}>
+        {plot}
+      </ChartCard>
       <span className="ask-breakdown-from">
         {t.from} {c.source.label}
         {c.source.door ? (

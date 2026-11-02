@@ -293,3 +293,23 @@ test("the read takes thread ids only, and no more than a card draws", async () =
   );
   await refused(drafts.GET.run(get(`ids=${many.join(",")}`), ctx), "validation", 400);
 });
+
+test("a kept draft that found they were not a customer is read back with what it found, and no words (2 Nov 2026)", async () => {
+  const pitch = "A vendor offering a booking app.";
+  const row = { ...kept(C1, M1, ""), words: { ...kept(C1, M1, "").words, pitch } };
+  const tables = () => ({
+    memberships: [membership("owner")],
+    conversations: [conversation(C1)],
+    messages: [said(M1, C1, "2026-10-23T11:00:00Z")],
+    escalations: [],
+    conversation_drafts: [row],
+  });
+  const read = await dataOf(await drafts.GET.run(get(`ids=${C1}`), ctxFor(tables())));
+  assert.deepEqual(
+    read.drafts.map((d) => [d.words.text, d.words.pitch]),
+    [["", pitch]],
+  );
+  // Asked for again, the kept one answers: it was written under these rules, for their newest message.
+  const again = await dataOf(await draft.POST.run(post({ kind: "reply" }), ctxFor(tables(), { id: C1 })));
+  assert.deepEqual([again.words.pitch, asked], [pitch, 0], "kept, and no model asked");
+});

@@ -248,3 +248,46 @@ test("a message is written from what was said and done with them, never from the
   await draftFrom(known, { how: "call", about: "tell them Saturday opened up" });
   assert.match(told(), /Asked for a refund twice/);
 });
+
+test("a reply to what was not a customer's says what it is and writes nothing; a first message is never one", async () => {
+  // A sales pitch the inbox took for a person was answered with the owner's booking link (2 Nov 2026).
+  const said = "A Reddit ad rep pitching holiday ad space.";
+  answerWith({ ...EMPTY, text: "Hi, thanks for reaching out.", note: "Replied.", pitch: said });
+  const reply = await draftFrom(KNOWN, { how: "message", wire: "email", about: "reply", answering: true });
+  assert.deepEqual(
+    [reply.pitch, reply.text, reply.subject, reply.note],
+    [said, "", "", ""],
+    "said, and nothing written",
+  );
+  assert.match(JSON.stringify(calls[0].request.system), /a sales pitch, a vendor/, "the reply is told how to tell one");
+  // The owner writing first: there is nothing of theirs to be a pitch, so the rule is not told and its answer not kept.
+  calls = [];
+  answerWith({ ...EMPTY, text: "Hi Robin, Saturday morning opened up.", pitch: said });
+  const first = await draftFrom(KNOWN, { how: "message", wire: "sms", about: "tell them Saturday opened up" });
+  assert.deepEqual([first.pitch, first.text], ["", "Hi Robin, Saturday morning opened up."]);
+  assert.doesNotMatch(JSON.stringify(calls[0].request.system), /a sales pitch, a vendor/);
+});
+
+test("what they wrote last is read far enough to answer, and where it is cut, the cut is said to be ours", async () => {
+  // Read to 220 characters with nothing said of the cut, a draft told a sender their message "got cut off partway
+  // through" (2 Nov 2026).
+  const long = `Finding the perfect gift can feel like a lot. ${"More than half of shoppers plan ahead. ".repeat(60)}End.`;
+  const known = {
+    ...KNOWN,
+    who: { ...KNOWN.who, lastExchange: { customer: { text: long, at: "Oct 28" }, reply: null } },
+  };
+  answerWith({ ...EMPTY, text: "Hi, thanks." });
+  await draftFrom(known, { how: "message", wire: "email", about: "reply", answering: true });
+  const sent = told();
+  assert.ok(sent.includes(long.slice(0, 1400)), "well past the history's line or two");
+  assert.match(sent, /\[cut here for length\]/, "the cut, said where it is");
+  assert.match(sent, /shortened here for length, not by them/, "and the rule that says whose cut it is");
+  calls = [];
+  answerWith({ ...EMPTY, text: "Hi Robin, Saturday works." });
+  await draftFrom(KNOWN, { how: "message", wire: "sms", about: "reply", answering: true });
+  assert.doesNotMatch(
+    JSON.stringify(calls[0].request.messages),
+    /\[cut here for length\]/,
+    "nothing said of a cut not made",
+  );
+});

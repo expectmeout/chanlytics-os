@@ -619,3 +619,99 @@ test("a snoozed thread's band names the request still standing in its own words,
   assert.match(errored, /The receptionist hit an error — a holding message went out\. That's still waiting for you\./);
   assert.equal(errored.split("—").length - 1, 1, "REGRESSION: one dash, the label's own");
 });
+
+test("a held email the receptionist's draft found was a pitch: the dock asks Not a customer? with what it is, an owner's act opens their page, and no words are put in the box (2 Nov 2026)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Our 2027 holiday report says...", 40))] });
+  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
+  const pitch = "A Reddit ad rep pitching holiday ad space.";
+  const kept = {
+    conversation_id: "c1",
+    kind: "reply",
+    for_message_id: "m1",
+    words: { text: "", subject: "", brief: null, asks: [], pitch },
+    made_at: ago(30),
+  };
+  const win = globalThis.window;
+  const was = win.mayAtLeast;
+  const opened = [];
+  try {
+    setSurfaceValue("reply_drafts", { drafts: [kept], complete: true, fetchedAt: Date.now() });
+    win.mayAtLeast = () => true;
+    const pane = paneOf(vmOf(dto, esc), { onOpenClient: (id) => opened.push(id) });
+    const dock = find(pane, byTestId("ix-needs-you"));
+    assert.match(
+      textOf(dock),
+      /^Not someone you serve\? — A Reddit ad rep pitching holiday ad space\./,
+      "what it is, first",
+    );
+    const act = find(pane, byTestId("ix-dock-not-a-customer"));
+    assert.equal(textOf(act), "Not a customer");
+    act.props.onClick();
+    assert.deepEqual(opened, [vmOf(dto, esc).clientId], "their page, opened with Not a person asked");
+    assert.equal(find(pane, (n) => n.type === "textarea").props.value, "", "no words of a reply in the box");
+    assert.equal(find(pane, byTestId("ix-first-email")), undefined, "the dock asks it: not again by the email");
+    // Not an owner: the reply box and Hand back are theirs, and the act is not.
+    win.mayAtLeast = () => false;
+    assert.equal(find(paneOf(vmOf(dto, esc)), byTestId("ix-dock-not-a-customer")), undefined);
+  } finally {
+    win.mayAtLeast = was;
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
+test("on a phone the reply box opens folded and opens as it is pressed or typed into; a desk's stays open (2 Nov 2026: it stood over two thirds of an iPhone)", () => {
+  const win = globalThis.window;
+  const was = win.matchMedia;
+  const thread = vmOf(chat(), asked());
+  const draw = () => again(() => InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp" } }));
+  const foot = (tree) => find(tree, hasClass("ix-th-foot"));
+  try {
+    win.matchMedia = (q) => ({ matches: q.includes("720px"), addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const folded = foot(draw());
+    assert.equal(folded.props["data-folded"], "", "folded as the thread opens on a phone");
+    folded.props.onFocus();
+    assert.equal(foot(draw()).props["data-folded"], undefined, "typed into, it opens");
+    win.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const desk = foot(draw());
+    assert.equal(desk.props["data-folded"], undefined, "a desk's pane has the room");
+    assert.equal(desk.props.onPointerDown, undefined, "and nothing to open");
+  } finally {
+    win.matchMedia = was;
+  }
+});
+
+test("a draft taller than the box is read from its first line, and what the member types keeps its place", async () => {
+  const { growWithWords } = await import(`${S}/inbox/thread/send-words.tsx`);
+  const field = { style: {}, scrollHeight: 640, scrollTop: 380 };
+  const doc = globalThis.document;
+  try {
+    globalThis.document = { activeElement: null };
+    growWithWords({ current: field }, true);
+    assert.equal(field.scrollTop, 0, "a draft put in opens at its greeting, not its end");
+    field.scrollTop = 380;
+    globalThis.document = { activeElement: field };
+    growWithWords({ current: field }, true);
+    assert.equal(field.scrollTop, 380, "typing keeps the place");
+  } finally {
+    globalThis.document = doc;
+  }
+});
+
+test("someone known only by their address: the card says the name their email gives, and their face wears the mail glyph once (2 Nov 2026)", () => {
+  const leah = { id: "p9", display_name: null, wa_profile_name: null, phone_e164: null, email: "leah@example.com" };
+  const mail = (m) => ({
+    ...m,
+    channel: "email",
+    meta: { email: { from: "leah@example.com", from_name: "Leah Pitt" } },
+  });
+  const dto = chat({ contact: leah, last_wa_inbound_at: null, messages: [mail(wrote("m1", "A quick question.", 40))] });
+  const thread = vmOf(dto, { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) });
+  assert.equal(thread.who, "leah@example.com", "the head says the address, all that is known of them");
+  const pane = paneOf(thread, { channelLabels: { email: "Email" } });
+  assert.match(textOf(find(pane, byTestId("tl-email-from"))), /^Leah Pitt/, "the card, the name the email gives");
+  assert.equal(find(pane, byTestId("ix-th-wire")), undefined, "a mail face wears no mail badge");
+});

@@ -40,6 +40,7 @@ import { repliesDoor } from "./shell-thread";
 import type { Approval, RealThread, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
 import { Composer } from "./composer";
+import { keptPitchNow } from "./kept-draft";
 import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
 import { composerAside, ThreadStatus, type Stale, type StatusProps } from "./status";
@@ -260,6 +261,25 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
   };
 }
 
+/**
+ * On a phone the reply box stands over the screen's foot, and open it took two thirds of an iPhone: the email under it
+ * could not be read unless the draft was erased (2 Nov 2026). So it opens folded, to what is owed and a line of the
+ * words, opens as it is pressed or typed into (the foot's own handlers), and folds again as the conversation is pressed or
+ * scrolled under the reader's finger. A desk keeps it open: its pane has the room.
+ */
+function foldAsRead(el: HTMLElement | null, setFolded: (v: boolean) => void) {
+  if (!el) return undefined;
+  const fold = () => {
+    if (ixPhone()) setFolded(true);
+  };
+  el.addEventListener("pointerdown", fold, { passive: true });
+  el.addEventListener("touchmove", fold, { passive: true });
+  return () => {
+    el.removeEventListener("pointerdown", fold);
+    el.removeEventListener("touchmove", fold);
+  };
+}
+
 /** Archive asks first: it closes the customer's request. */
 function archiveAsk(p: Held, thread: Thread, setAskArchive: (v: boolean) => void) {
   const { onArchive } = p;
@@ -441,6 +461,8 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
   const clientId = thread.clientId;
   const row = personOnThread(thread.conversationId, clientId)?.row ?? null;
   if (!clientId || !row || demoSession() || thread.archived || thread.primaryChannel !== "email") return null;
+  // The dock asks it, where the receptionist's draft found it was not a customer's (status.tsx notACustomerAct).
+  if (keptPitchNow(thread)) return null;
   if (!mayAtLeast("owner") || row.threads > 1 || row.deal || row.nextVisitLine || row.lastVisitLine) return null;
   return (
     <div className="ix-first-email" data-testid="ix-first-email">
@@ -544,6 +566,11 @@ export const InboxThread = (props: InboxThreadProps) => {
   }, [drawn, entries]);
   // A long thread is drawn from its newest entries, and the ones before as its top is scrolled near (earlier.ts).
   const earlier = useEarlierAsScrolled(waiting ? null : thread, focusMessageId, scrollRef);
+  // The reply box folded on a phone as each thread opens (foldAsRead), open on a desk.
+  const [folded, setFolded] = useState(() => ixPhone());
+  const threadId = thread ? thread.id : null;
+  useEffect(() => setFolded(ixPhone()), [threadId]);
+  useEffect(() => foldAsRead(scrollRef.current, setFolded), [drawn]);
   if (!thread) return <InboxEmpty quiet={props.nothingOpen === "quiet"} />;
 
   const decided = !!thread.resolution;
@@ -565,6 +592,7 @@ export const InboxThread = (props: InboxThreadProps) => {
     onArchive: thread.real && held.onArchive ? () => setAskArchive(true) : null,
     asking,
     setAsking,
+    onOpenClient,
   };
   if (!waiting && seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
   const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);
@@ -594,7 +622,13 @@ export const InboxThread = (props: InboxThreadProps) => {
       {scrollBody(held, thread, { scrollRef, statusProps, rowsAt: { newestSaid, seenAt, ...earlier } })}
       {/* The foot: what the thread needs from you and the reply box. One box on a phone, standing over the screen's foot
           as the window scrolls the conversation under it (mobile.css); on a desk no box at all (display: contents). */}
-      <div className="ix-th-foot">
+      <div
+        className="ix-th-foot"
+        data-folded={folded && thread.real ? "" : undefined}
+        // Pressed or typed into, folded, it opens (foldAsRead): a press on what is owed, on the words or on an act.
+        onFocus={folded ? () => setFolded(false) : undefined}
+        onPointerDown={folded ? () => setFolded(false) : undefined}
+      >
         {thread.real && (
           <div className="ix-th-status" data-testid="ix-th-status">
             <ThreadStatus {...statusProps} />

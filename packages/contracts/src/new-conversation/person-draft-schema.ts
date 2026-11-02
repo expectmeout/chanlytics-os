@@ -53,6 +53,7 @@ export const PersonDraftAnswerSchema = z.object({
   points: z.array(z.string().trim().max(300)).max(6),
   avoid: z.array(z.string().trim().max(300)).max(6),
   ask: z.string().trim().max(300),
+  pitch: z.string().trim().max(300).default(""),
 });
 export type PersonDraftAnswer = z.infer<typeof PersonDraftAnswerSchema>;
 
