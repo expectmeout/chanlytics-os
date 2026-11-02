@@ -1,7 +1,7 @@
 /**
  * Today's queue: everything that asks for a person, in one row grammar —
  * WhatsApp handoffs, callers who need a call back, reply windows closing,
- * calls worth an ear — the longest wait first, capped, each with its one verb
+ * calls worth an ear — by what each is worth, the longest wait among equals, capped, each with its one verb
  * and, where the state asks it, a second. The standing line stays above; the
  * rows live in the queue, drawn by the same component as People's strip.
  */
@@ -217,17 +217,18 @@ const waitingSearch = search(
 );
 const runningSearch = search("s-run", "Independent pharmacies near 78704", round());
 
-test("one queue, longest wait first: the handoff, the call-back, the closing window, the call worth an ear — each in the strip's grammar with its own verb", () => {
+test("one queue, by what each is worth: the call-back, the handoff, the closing window, the call worth an ear — each in the strip's grammar with its own verb", () => {
   const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW);
   const rows = vm.queue.rows;
   assert.deepEqual(
     rows.map((r) => r.kind),
-    ["handoff", "callback", "window", "call"],
+    ["callback", "handoff", "window", "call"],
+    "a call back before a reply, whatever the wait (needYouOrder)",
   );
   assert.equal(vm.queue.more, 0);
   assert.equal(vm.queue.windows, 1, "the closing window is said as a window; the call worth an ear is nobody waiting");
 
-  const handoff = rows[0];
+  const handoff = rows[1];
   assert.deepEqual(
     [handoff.who, handoff.channel, handoff.when, handoff.quoted, handoff.warn],
     ["Daniela R.", "WhatsApp", "waited 2h", true, true],
@@ -238,7 +239,7 @@ test("one queue, longest wait first: the handoff, the call-back, the closing win
   assert.deepEqual(handoff.cta, { label: "Open and reply", to: "inbox/th-cv1" });
   assert.deepEqual(handoff.also, { label: "Snooze", verb: "snooze", conversationId: "cv1", escalationId: "e1" });
 
-  const callback = rows[1];
+  const callback = rows[0];
   assert.deepEqual(
     [callback.who, callback.channel, callback.quoted, callback.tone],
     ["Ana", "Phone", false, "escalated"],
@@ -289,10 +290,10 @@ test("a search waiting on its owner is a row in the queue, by its wait, with one
   const rows = vm.queue.rows;
   assert.deepEqual(
     rows.map((r) => r.kind),
-    ["search", "handoff", "callback", "window", "call"],
-    "three hours waited sorts before the handoff's two; the running search is nobody waiting",
+    ["callback", "search", "handoff", "window", "call"],
+    "a call back first; then three hours waited sorts before the handoff's two; the running search is nobody waiting",
   );
-  const row = rows[0];
+  const row = rows[1];
   assert.deepEqual(
     [row.who, row.channel, row.when, row.quoted, row.tone, row.warn, row.conversationId, row.callId],
     ["Personal trainers in Austin", "Leads", "waited 3h", false, "escalated", false, null, null],
@@ -318,7 +319,7 @@ test("a search waiting on its owner is a row in the queue, by its wait, with one
   ]) {
     assert.deepEqual(
       before.queue.rows.map((r) => r.kind),
-      ["handoff", "callback", "window", "call"],
+      ["callback", "handoff", "window", "call"],
     );
     assert.equal(before.queue.searches, 0);
     assert.ok(!before.queue.parts.some((p) => p.includes("search")));
@@ -341,7 +342,7 @@ test("a lead who tried their own receptionist is a row (decision 0079), after ev
   const rows = vm.queue.rows;
   assert.deepEqual(
     rows.map((r) => r.kind),
-    ["handoff", "callback", "window", "call", "tried"],
+    ["callback", "handoff", "window", "call", "tried"],
     "a hot lead, never a person waiting: after everyone",
   );
   const row = rows.at(-1);
@@ -395,6 +396,29 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
   assert.deepEqual([quiet.queue.empty.testid, quiet.queue.empty.sub], ["today-queue-empty-ok", "nothing needs you"]);
 });
 
+test("the six are the six worth most: an ask to book from today is drawn first, ahead of a week's old waits", () => {
+  const old = Array.from({ length: 7 }, (_, i) => ({
+    id: `o${i}`,
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: `2026-08-2${i}T12:00:00Z`,
+    conversation_id: "cv1",
+  }));
+  const asks = { ...escalations[0], id: "b1", reason: "booking_reply", created_at: "2026-09-06T13:50:00Z" };
+  const rows = toTodayVM(metrics(), conversations, [...old, asks], [], NOW).queue.rows;
+  assert.deepEqual(
+    [rows[0].id, rows[0].booking],
+    ["q-b1", true],
+    "sorted by the longest wait alone, the old waits took the six",
+  );
+  assert.deepEqual(
+    rows.filter((r) => r.booking).map((r) => r.id),
+    ["q-b1"],
+    "an ask to book alone is one",
+  );
+});
+
 /* ------------------------------ the queue, drawn ------------------------------ */
 
 // Today's queue is TSX (surfaces/today/pages/queue.tsx, with the runs in queue-runs.tsx), drawn by import over the day the
@@ -436,7 +460,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   // waits on you, and drawn only once its line is opened.
   assert.deepEqual(
     testids,
-    ["queue-handoff", "queue-callback", "queue-window"],
+    ["queue-callback", "queue-handoff", "queue-window"],
     "the row component the manifest loaded first is the one the queue draws, once for each of the day's rows that waits",
   );
   // The runs are drawn by queue-runs.tsx (the queue's own file holds no such text): one waiting for a word, one about to send.

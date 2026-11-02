@@ -20,6 +20,16 @@ function leftWords(seconds: number): string {
 }
 
 /**
+ * "Not a person", said where a program's mail taken for a person is met (decision 0080): on their row here, on their
+ * page and on their thread's Actions (mailbox-senders.ts MAILBOX_SENDERS_WORDS reads it). Kept in this module, which
+ * every workspace load carries for Today, so offering it on a row moves nothing of the senders' list into that load.
+ */
+export const NOT_A_PERSON_WORDS = {
+  act: "Not a person…",
+  actHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People",
+} as const;
+
+/**
  * What the section says, row by row. What Ask prepared is headed by what it is, then whose (the refined canvas, 31 Oct
  * 2026): "Reply · drafted by Ask" over words that go to them, which the member types in where they stand; "Call notes ·
  * only you see these" over words that are read and never sent, which is why nothing there is typed in.

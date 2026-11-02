@@ -162,6 +162,11 @@ export interface TodayQueueRowVM {
    * shuts cannot be answered later and an old wait still can. Null or absent where nothing closes.
    */
   clock_ms?: number | null;
+  /**
+   * On a handoff of someone asking to book (a time they picked by text, decision 0061, or an ask for one): what puts it
+   * before everyone else waiting (need-you-groups.ts needYouOrder). Absent on every other row.
+   */
+  booking?: boolean;
 }
 
 /** What an empty queue MEANS for this workspace: the colour rides with a glyph and the words. */
