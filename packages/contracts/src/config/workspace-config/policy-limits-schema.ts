@@ -11,6 +11,11 @@ export const PolicyLimitsSchema = z
     max_replies_day: z.number().int().min(1).max(200).optional(),
     pause_hours: z.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
     /**
+     * How long someone handed to the team may wait before Today says their wait in the amber, in whole hours: the
+     * owner's own target (contracts answerWithinHoursOf). Absent is a day.
+     */
+    answer_within_hours: z.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
+    /**
      * How long the receptionist WAITS before its own reply goes out, in ms.
      *
      * Only meaningful when mode is 'veto'. A text channel is not a phone

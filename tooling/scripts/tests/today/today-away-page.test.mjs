@@ -71,6 +71,7 @@ const byClass = (tree, cls) => find(tree, (n) => String(n.props?.className || ""
 test("the head is the bell's badge and the foot accounts for the rest", () => {
   const rows = [queued("cv-1", "Zoe Martin"), queued("cv-2", "Daniela Reyes"), news("n:3", "1 new rating on Google")];
   const tree = draw(rows, ["cv-1", "cv-2"]);
+  assert.equal(byTestId(tree, "today-away").props["data-empty"], undefined, "a card with rows reaches the work's foot");
   const head = byClass(tree, "tq-count");
   assert.equal(textOf(head).trim(), String(unreadCount(rows)), "the card's head and the bell's badge are one number");
   assert.equal(textOf(head).trim(), "3");
@@ -97,6 +98,9 @@ test('nothing unread anywhere is the one state that may say "All caught up."', (
   const tree = draw([{ ...news("n:1", "old"), unread: false }], []);
   const line = byTestId(tree, "today-away-empty");
   assert.ok(textOf(line).includes("All caught up."));
+  // A card that says nothing happened keeps its own height: the side's last pane stretched it to the work's foot, a tall
+  // white box round one line (the 10/10 read, 2 Nov 2026; dashboard-a-v2.css).
+  assert.equal(byTestId(tree, "today-away").props["data-empty"], true, "said empty, so the side does not stretch it");
   assert.equal(find(line, (n) => n.type === Icon).props.name, "check");
   assert.equal(textOf(byClass(tree, "tq-count")).trim(), "0");
 });

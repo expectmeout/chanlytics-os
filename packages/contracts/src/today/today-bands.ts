@@ -368,8 +368,9 @@ export const TODAY_PHONE_WORDS = {
   /** A run that went out today, in the day's rest: "went out at 9:00 AM", and a playbook's "ran at 9:00 AM". */
   wentOut: (clock: string, ran = false) => `${ran ? "ran" : "went out"} at ${clock}`,
   /**
-   * Each of the day's four figures by its short name, for a phone's one row of numbers (0076): the figure's own label is a
-   * desk's ("answered by the receptionist"), and its clause and receipt say the rest when it is pressed.
+   * Each of the day's four figures by its short name, for the row of numbers on a desk's head and a phone's card alike
+   * (0076): the figure's own label ("answered by the receptionist") is its title, and its clause and receipt say the rest
+   * when it is pressed.
    */
   figure: { booked: "booked", messages: "messages", answered: "answered", calls: "calls", new: "new people" },
   worth: "Worth a look",

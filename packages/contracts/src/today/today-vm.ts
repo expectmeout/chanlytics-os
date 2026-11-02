@@ -167,6 +167,11 @@ export interface TodayQueueRowVM {
    * before everyone else waiting (need-you-groups.ts needYouOrder). Absent on every other row.
    */
   booking?: boolean;
+  /**
+   * On a hold's row: why it was handed to you, in a few words ("asked for a person"), which its open card says beside the
+   * name (the 10/10 read, 2 Nov 2026: it was behind an unexplained mark). Absent on every other row.
+   */
+  why?: string;
 }
 
 /** What an empty queue MEANS for this workspace: the colour rides with a glyph and the words. */

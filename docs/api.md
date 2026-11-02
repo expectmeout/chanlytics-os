@@ -2099,6 +2099,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `max_llm_tokens_day` | number | no |  |
 | `max_replies_day` | number | no |  |
 | `pause_hours` | number | no |  |
+| `answer_within_hours` | number | no |  |
 
 ## preview-claims
 
