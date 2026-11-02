@@ -79,6 +79,23 @@ test("Up next is a reply that goes on its own, else the nearest clock, else the 
   assert.deepEqual(ids(needYouGroupsOf([long, closing]).next), ["closing"]);
 });
 
+test("Up next is what is worth most under a week: someone asking to book, a call back, a lead's reply, then the rest, the longest wait among equals", () => {
+  const plain = row("plain", "handoff", { act: "reply", waitedMs: 3 * DAY_MS });
+  const lead = row("lead", "reply", { waitedMs: 2 * HOUR_MS });
+  const call = row("call", "callback", { waitedMs: HOUR_MS });
+  const asks = row("asks", "handoff", { act: "reply", booking: true, waitedMs: 20 * MIN_MS });
+  const picked = row("picked", "handoff", { act: "confirm", waitedMs: 10 * MIN_MS });
+  const stale = row("stale", "handoff", { act: "confirm", booking: true, waitedMs: 9 * DAY_MS });
+  const nextOf = (rows) => ids(needYouGroupsOf(rows).next);
+  assert.deepEqual(nextOf([stale, plain, lead, call, asks]), ["asks"], "asking to book, before an older wait");
+  assert.deepEqual(nextOf([plain, asks, picked]), ["asks"], "two asks to book: the longer wait");
+  assert.deepEqual(nextOf([plain, lead, call]), ["call"], "a call back, before a lead's reply");
+  assert.deepEqual(nextOf([plain, lead]), ["lead"], "a lead who answered, before a plain wait");
+  assert.deepEqual(nextOf([plain, stale]), ["plain"], "a booking asked for past a week waits behind a fresh word");
+  const window = row("window", "window", { clock_ms: HOUR_MS, waitedMs: 3 * HOUR_MS });
+  assert.deepEqual(nextOf([asks, window]), ["window"], "a near clock first: it cannot be answered later");
+});
+
 test("every row is in one group at most, and the groups ask again answer the same", () => {
   const rows = [
     row("a", "handoff", { waitedMs: 8 * DAY_MS }),

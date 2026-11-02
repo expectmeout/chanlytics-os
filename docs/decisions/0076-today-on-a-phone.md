@@ -114,3 +114,10 @@ Listen stands beside the bell on a phone and beside the greeting on a desk (the 
 sentence's end; the cuts are chips; on a phone Need you has no pane of its own, each group's name standing over a pane of
 its own and To do and Ask found one pane of two rows; Up next's draft is on the inset's ground with Edit beside Send, and
 a row's note mark stands after its name rather than on a line of its own; a tap no longer leaves a row lit.
+
+Ranked by value (2 Nov 2026, after the 7 in 10 read of Today against the field): Need you's one order (contracts
+`needYouOrder`) is the queue's before its six are cut, and Up next is its first. A near clock first; then the waits under a
+week before those past it; then what each is worth, someone asking to book (a time they picked, or an ask for one: the row's
+`booking`) before a call back, before a lead's reply to a reach-out, before the rest; the longest wait among equals. Sorted
+by the longest wait alone, a week's old mail took the six and the new asks were a count at the foot. An email's row says
+Not a person under Not now's times, the owner's, as the thread's Actions do (decision 0080).

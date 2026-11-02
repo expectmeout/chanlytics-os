@@ -9,6 +9,7 @@ import {
   forwardingConfirmationOf,
   type BookingTool,
   type EmailClaim,
+  type MailboxSenderVerdict,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
 import type { Json } from "@chanlytics/db";
@@ -166,6 +167,14 @@ export interface EmailIngestPorts {
    * address, or an email to both). A connected mailbox's own intake answers false.
    */
   readByMailbox(tenantId: string, addresses: readonly string[]): Promise<boolean>;
+  /**
+   * What the workspace said of the sender (00483 mailbox_senders, by address and then by domain: contracts
+   * senderVerdictOf), or null where it said nothing. It comes before what the email claims (decision 0080's order): one
+   * said to be automated ("Not a person") is not taken in, as a connected mailbox leaves it where it is, so the person
+   * the owner deleted is not made again, nor put in front of them; one said to be a person is asked of, whatever it
+   * claims. Absent on a connected mailbox's own intake, whose sorting asked it before the email was scheduled.
+   */
+  senderSaid?(tenantId: string, address: string): Promise<MailboxSenderVerdict | null>;
   now(): number;
 }
 
@@ -180,6 +189,7 @@ export type EmailIngestOutcome =
   | "not_a_conversation"
   | "our_own"
   | "erased_person"
+  | "left_as_said"
   | "no_sender"
   | "gone";
 
@@ -236,6 +246,13 @@ export async function ingestEmail(
   // nothing is lost, and nothing is booked on a stranger's word.
   const aside = await keptAside(ports, mailbox, email, { address, at });
   if (aside) return aside;
+  // What the workspace said of the sender, before what the email claims: "Not a person" holds on this road as on a
+  // connected mailbox's, and the address still heard from its forward, so it is stamped.
+  const word = await senderWordOf(ports, mailbox.tenant_id, address);
+  if (word === "automated") {
+    await ports.received(mailbox.id, at);
+    return "left_as_said";
+  }
   const taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation"> =
     claim === "booking_notice" || claim === "forwarding_confirmation" ? "automated" : claim;
 
@@ -264,7 +281,7 @@ export async function ingestEmail(
   // so a failed read or a failed schedule is the job's to try again, and the next try finds the reading scheduled.
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
 
-  const flagged = flaggedAs(taken, claim, reachOut);
+  const flagged = flaggedAs(taken, claim, reachOut || word === "person");
   if (flagged)
     await flagForAPerson(ports, email, {
       tenantId: mailbox.tenant_id,
@@ -285,20 +302,30 @@ export async function ingestEmail(
   return flagged ? "kept_for_a_person" : "kept_quietly";
 }
 
+/** What the workspace said of the sender, or null where it said nothing, or this road does not ask (senderSaid). */
+async function senderWordOf(
+  ports: EmailIngestPorts,
+  tenantId: string,
+  address: string,
+): Promise<MailboxSenderVerdict | null> {
+  return (await ports.senderSaid?.(tenantId, address)) ?? null;
+}
+
 /**
  * Whether a kept email asks a person, and in whose words, or null for one kept quietly. A person's email does; so does
- * a reply to a reach-out, whatever it claims (the reading tells the owner what it meant), and a tool's notice or a
- * forwarding check the intake could not trust, which is about the business's own appointments or settings. An
- * automatic reply and a program's own mail (a notification, a list, a no-reply sender's) are kept for the record, and
- * nobody is asked to answer them, as a connected mailbox leaves them where they are (edge mailbox-sorting.ts).
+ * one that is `asked` of whatever it claims (a reply to a reach-out, whose reading tells the owner what it meant, or a
+ * sender the workspace said is a person), and a tool's notice or a forwarding check the intake could not trust, which is
+ * about the business's own appointments or settings. An automatic reply and a program's own mail (a notification, a
+ * list, a no-reply sender's) are kept for the record, and nobody is asked to answer them, as a connected mailbox leaves
+ * them where they are (edge mailbox-sorting.ts).
  */
 function flaggedAs(
   taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation">,
   claim: EmailClaim,
-  reachOut: boolean,
+  asked: boolean,
 ): "person" | "automated" | null {
   if (taken === "auto_reply") return null;
-  return taken === "person" || reachOut || claim !== "automated" ? taken : null;
+  return taken === "person" || asked || claim !== "automated" ? taken : null;
 }
 
 /**

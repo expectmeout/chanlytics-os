@@ -109,4 +109,9 @@ Left list's `about`; the Actions item; the migration replayed with its erasure l
 
 - **The person behind a relayed message:** bring them in (their thread, what they asked), on both roads; their address
   from the Reply-To or the model's reading. The intake resolves a person by From today (core `email-ingest.ts`).
-- **The people who came in before this:** sort them again and offer them in one list (his taps, for now).
+- **The people who came in before this:** sort them again and offer them in one list (his taps, for now). Since 2 Nov
+  2026 a tap is where he meets them: an email's row in Today's Need you says Not a person under Not now's times, the
+  owner's, opening the person's page with it asked; and the hosted address reads what the workspace said of a sender
+  before what the email claims (core `email-ingest.ts`, the port `senderSaid`), so a sender said not to be a person is not
+  taken in again on either road, and one said to be a person is asked of whatever it claims. The rest of the order
+  (talks, a reading kept, others' word) is still the connected mailbox's alone.
