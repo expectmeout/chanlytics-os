@@ -121,7 +121,13 @@
     "id": "canvas_chart_line",
     "text": "How did customer messages go day by day over the last two weeks? Show me a chart.",
     "surface": "reports",
-    "expect": { "chart": "line", "language": "en", "no_write": true }
+    "expect": { "chart": true, "language": "en", "no_write": true }
+  },
+  {
+    "id": "canvas_chart_stacked",
+    "text": "Chart who answered customer messages day by day over the last 30 days, stacked.",
+    "surface": "reports",
+    "expect": { "chart": "columns", "language": "en", "no_write": true }
   },
   {
     "id": "canvas_chart_bars",

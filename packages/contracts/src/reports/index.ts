@@ -157,7 +157,7 @@ export type {
   ReportVM,
   ReportWeekVM,
 } from "./reports";
-export { isReviewsLedgerDto, reviewsAreOnRecord, reviewsWindowOf } from "./review-record";
+export { isReviewsLedgerDto, reviewsAreOnRecord, reviewsWindowOf, weekTotals } from "./review-record";
 export type { ReviewsLedgerDto } from "./review-record";
 export { REVIEWS_WAITING_SHOWN, toReviewsReportVM } from "./review-report";
 export type { ReviewsReportDto, ReviewsReportVM, ReviewWaitingVM } from "./review-report";

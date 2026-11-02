@@ -212,6 +212,34 @@ function reviewsStarMixOf(current: readonly ReviewWrittenDto[]): ReviewsStarMix 
   };
 }
 
+/** The calendar weeks from `since` to `until`, Monday to Sunday, the two at the ends clipped to them. */
+function calendarWeeks(since: string, until: string): Array<{ first: string; last: string }> {
+  const weeks: Array<{ first: string; last: string }> = [];
+  for (let monday = mondayOf(since); monday <= until; monday = shiftKey(monday, 7)) {
+    const sunday = shiftKey(monday, 6);
+    weeks.push({ first: monday < since ? since : monday, last: sunday > until ? until : sunday });
+  }
+  return weeks;
+}
+
+/**
+ * A day series added up by calendar week, for a period no chart holds by the day: the keys asked, each week named by its
+ * first day in the series. A count of each week (weekOf averages a series into weekdays, a different question).
+ */
+export function weekTotals<K extends string>(
+  days: ReadonlyArray<{ day: string } & Record<K, number>>,
+  keys: readonly K[],
+): Array<ReturnType<typeof dayPointOf> & Record<K, number>> {
+  const first = days.at(0);
+  const last = days.at(-1);
+  if (!first || !last) return [];
+  return calendarWeeks(first.day, last.day).map((week) => {
+    const inWeek = days.filter((d) => d.day >= week.first && d.day <= week.last);
+    const totals = Object.fromEntries(keys.map((k) => [k, sumOf(inWeek.map((d) => d[k]))]));
+    return { ...dayPointOf(week.first), ...(totals as Record<K, number>) };
+  });
+}
+
 /**
  * Reviews written per week of the period, clipped to it, and only the weeks the history on record covers from their first
  * day. From the period's per-day count, which also feeds the New figure's spark (the shared weekOf averages a series into
@@ -223,17 +251,12 @@ function reviewsWeeksOf(
   today: string,
   h: ReviewsHistory,
 ): ReviewsWeekVM[] {
-  const weeks: ReviewsWeekVM[] = [];
-  for (let monday = mondayOf(since); monday <= today; monday = shiftKey(monday, 7)) {
-    const first = monday < since ? since : monday;
-    if (!historyReaches(h, first)) continue;
-    const sunday = shiftKey(monday, 6);
-    const last = sunday > today ? today : sunday;
+  return calendarWeeks(since, today).flatMap(({ first, last }) => {
+    if (!historyReaches(h, first)) return [];
     let written = 0;
     for (let day = first; day <= last; day = shiftKey(day, 1)) written += perDay.get(day) ?? 0;
-    weeks.push({ ...dayPointOf(first), written });
-  }
-  return weeks;
+    return [{ ...dayPointOf(first), written }];
+  });
 }
 
 /**
