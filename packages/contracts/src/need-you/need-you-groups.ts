@@ -1,8 +1,10 @@
 /**
  * Need you's groups (the redesign of 1 Nov 2026): the queue's rows (today-queue.ts) said by what each asks of you and
- * where it stands. One thing is Up next: the first row with a clock (a reply your receptionist sends on its own, a reply
- * window that shuts within two hours), else the oldest who has waited under a week, since a window that shuts cannot be
- * answered later and an old wait still can. The rest of the people wait on you, oldest first; a search waiting for an
+ * where it stands. One thing is Up next: the first in Need you's order (needYouOrder), which is what is worth most to
+ * the business now. A row with a clock first (a reply your receptionist sends on its own, a reply window that shuts
+ * within two hours), since a window that shuts cannot be answered later and an old wait still can; then whoever has
+ * waited under a week, by what their row is worth (a booking, a call back, a lead's reply to a reach-out, then the
+ * rest), the longest wait first among equals. The rest of the people wait on you in that order; a search waiting for an
  * answer waits for your OK, with the runs the page adds there; whoever has waited past a week is folded at the end. A
  * call worth a listen and a lead who tried their preview are Ask found's, worth a look and nobody waiting on you.
  *
@@ -24,7 +26,7 @@ export const NEED_YOU_CLOCK_MS = 2 * HOUR_MS;
 export const NEED_YOU_OLD_MS = 7 * DAY_MS;
 
 /** The row's facts the groups read. */
-type GroupRow = Pick<TodayQueueRowVM, "kind" | "act" | "clock_ms" | "waitedMs">;
+type GroupRow = Pick<TodayQueueRowVM, "kind" | "act" | "clock_ms" | "waitedMs" | "booking">;
 
 /**
  * What a row asks of you: a call back, or a hold whose reason asks for one, is a call; a search waiting for an answer is
@@ -42,6 +44,39 @@ export function needYouVerbOf(r: Pick<TodayQueueRowVM, "kind" | "act">): NeedYou
 export const clockIsNear = (r: Pick<TodayQueueRowVM, "clock_ms">): boolean =>
   typeof r.clock_ms === "number" && r.clock_ms <= NEED_YOU_CLOCK_MS;
 
+/** Whether a row has waited past a week, which folds it at the end (a reply that goes on its own never has). */
+const waitedPastAWeek = (r: Pick<TodayQueueRowVM, "kind" | "waitedMs">): boolean =>
+  r.kind !== "held" && r.waitedMs >= NEED_YOU_OLD_MS;
+
+/**
+ * What a row is worth to the business beside the others, the most first (2 Nov 2026: "rank by value"): someone asking to
+ * book (a time they picked, or an ask for one), then a call back, then a lead who answered a reach-out, then anyone else
+ * waiting on a word, with a search waiting for your answer by its wait among them (the sweep stops it after a day), and
+ * what Ask found last.
+ */
+function needYouWorthOf(r: Pick<TodayQueueRowVM, "kind" | "act" | "booking">): number {
+  if (r.booking || r.act === "confirm") return 0;
+  const verb = needYouVerbOf(r);
+  if (verb === "call") return 1;
+  if (r.kind === "reply") return 2;
+  return verb ? 3 : 4;
+}
+
+/**
+ * Need you's order, the queue's and Up next's: a clock near enough first, the nearest before the rest; then the waits
+ * under a week before those past it; then what each is worth (needYouWorthOf); the longest wait first among equals.
+ */
+export function needYouOrder(a: GroupRow, b: GroupRow): number {
+  const near = Number(clockIsNear(b)) - Number(clockIsNear(a));
+  if (near) return near;
+  if (clockIsNear(a)) return (a.clock_ms ?? 0) - (b.clock_ms ?? 0);
+  const old = Number(waitedPastAWeek(a)) - Number(waitedPastAWeek(b));
+  if (old) return old;
+  const worth = needYouWorthOf(a) - needYouWorthOf(b);
+  if (worth) return worth;
+  return b.waitedMs - a.waitedMs;
+}
+
 /** Need you's rows by where each stands, each group in the queue's order; Ask found's apart. */
 export interface NeedYouGroups<T> {
   next: T[];
@@ -53,22 +88,16 @@ export interface NeedYouGroups<T> {
 }
 
 /**
- * The rows by where each stands. Up next is one row (a reply that goes on its own first, then the nearest clock, else the
- * oldest under a week, else the first of the rest), the people after it wait on you or, past a week, are folded at the
- * end, and a search waits for your OK. Asked again over the same rows it answers the same, so a row acted on this visit,
- * kept where it stood, stays in its group.
+ * The rows by where each stands. Up next is one row (a reply that goes on its own first, then the first in Need you's
+ * order), the people after it wait on you or, past a week, are folded at the end, and a search waits for your OK. Asked
+ * again over the same rows it answers the same, so a row acted on this visit, kept where it stood, stays in its group.
  */
 export function needYouGroupsOf<T extends GroupRow>(rows: readonly T[]): NeedYouGroups<T> {
   const people = rows.filter((r) => {
     const verb = needYouVerbOf(r);
     return verb === "reply" || verb === "call";
   });
-  const next =
-    people.find((r) => r.kind === "held") ??
-    people.find(clockIsNear) ??
-    people.find((r) => r.waitedMs < NEED_YOU_OLD_MS) ??
-    people[0] ??
-    null;
+  const next = people.find((r) => r.kind === "held") ?? [...people].sort(needYouOrder)[0] ?? null;
   const rest = people.filter((r) => r !== next);
   return {
     next: next ? [next] : [],

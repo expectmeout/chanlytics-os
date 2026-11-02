@@ -7,7 +7,7 @@ export {
   needYouWaitOf,
 } from "./need-you-groups";
 export type { NeedYouGroupId, NeedYouGroups, NeedYouVerb } from "./need-you-groups";
-export { NEED_YOU_WORDS, needYouSay, notNowChoices, sendCountdown } from "./need-you-words";
+export { NEED_YOU_WORDS, needYouSay, NOT_A_PERSON_WORDS, notNowChoices, sendCountdown } from "./need-you-words";
 export type { NeedYouSayFacts, NotNowChoice } from "./need-you-words";
 export {
   draftHasWords,
