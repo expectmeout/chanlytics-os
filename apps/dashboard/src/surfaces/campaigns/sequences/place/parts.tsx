@@ -31,5 +31,6 @@ export function PlaceWord(p: {
 /** One lead's place (GET leads/:id/place): painted from the last answer this tab holds, read again behind, and after a press. */
 export function useLeadPlace(leadId: string | null, again: number) {
   const read = useSequenceRead(leadId, verbs.place, verbs.peekPlace, { again });
-  return read.state === "read" ? { read: true, place: read.data } : { read: false, place: null };
+  if (read.state === "read") return { read: true, failed: null, place: read.data };
+  return { read: false, failed: read.state === "failed" ? read.why : null, place: null };
 }

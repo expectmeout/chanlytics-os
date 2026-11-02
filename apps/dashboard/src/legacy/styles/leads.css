@@ -1439,7 +1439,8 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-dock-b { flex: none; justify-content: center; height: 44px; touch-action: manipulation; }
 .lw-dock-b.is-wide { flex: 1 1 auto; }
 .lw-dock-w { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lw-dock-l { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; padding-left: 10px; font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-reading { padding: 14px var(--lw-gut) 0; }
+.lw-read { display: flex; flex-direction: column; animation: lw-rise var(--duration-base) var(--ease-out) both; }
 .lw-dock-go, .lw-split { flex: 1 1 auto; display: flex; min-width: 0; }
 .lw-split { gap: 2px; }
 .lw-dock-go > .lw-dock-b, .lw-split > .lw-dock-b { flex: 1 1 auto; min-width: 0; }
@@ -1459,7 +1460,7 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-phone .lw-dock .lw-dock-b, .lw-phone .lw-dock .lw-x { height: var(--control-h-touch); }
 .lw-phone .lw-dock .lw-dock-b { font-size: var(--text-base); }
 .lw-phone .lw-dock .lw-x { width: var(--control-h-touch); }
-/* Something being read beside the line: a small ring turning, standing still under reduced motion. */
+/* Something under way: a small ring turning, standing still under reduced motion. */
 .lw-spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--line-strong); border-top-color: var(--accent); border-radius: var(--radius-circle); animation: lw-spin 0.9s linear infinite; }
 @keyframes lw-spin { to { rotate: 1turn; } }
 @media (prefers-reduced-motion: reduce) { .lw-spin { animation: none; } }
@@ -1621,7 +1622,7 @@ button.ld-slot-btn { cursor: pointer; }
 @keyframes lw-rise { from { transform: translateY(4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .lw-turn { animation: lw-fade var(--duration-base) linear both; }
-  .lw-step, .lw-end, .lw-undo { animation: none; }
+  .lw-step, .lw-end, .lw-undo, .lw-read { animation: none; }
 }
 @keyframes lw-fade { from { opacity: 0; } }
 

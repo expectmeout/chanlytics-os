@@ -564,7 +564,6 @@ const dockFacts = (over = {}) => ({
   canCall: true,
   canLater: true,
   closed: null,
-  reading: false,
   ...over,
 });
 const dockOf = (over) => leadDockOf(dockFacts(over));
@@ -577,7 +576,6 @@ test("the dock for a lead to decide on: Not a fit, Later and Add to the pick wit
   assert.deepEqual(acts(ready), ["add"]);
   assert.equal(ready.primary.label, D.addTo("Bookstore intro"));
   assert.equal(ready.primary.split, true, "▾ beside Add: the picker, one press away");
-  assert.equal(ready.line, null, "a dock is for pressing: the card says why");
   const none = dockOf({ pick: null });
   assert.deepEqual(acts(none), ["pick"]);
   assert.equal(none.primary.label, D.addToOne);
@@ -589,7 +587,7 @@ test("the dock for a lead to decide on: Not a fit, Later and Add to the pick wit
 
 test("the dock in the other states: Call first, To review, another sequence, a closed lead", () => {
   const phone = dockOf({ state: "phone" });
-  assert.deepEqual([acts(phone), phone.line], [["call"], null], "the card says there is no email");
+  assert.deepEqual(acts(phone), ["call"], "the card says there is no email");
   assert.deepEqual(acts(dockOf({ state: "phone", canCall: false })), []);
   const review = dockOf({ state: "review" });
   assert.deepEqual(acts(review), ["exclude", "keep"]);
@@ -609,7 +607,6 @@ test("the dock in the other states: Call first, To review, another sequence, a c
   const bounced = dockOf({ state: "closed", closed: { title: "Their address bounced", line: "", fix: "call" } });
   assert.equal(bounced.primary.act, "call", "the door left is the way on");
   assert.equal(dockOf({ state: "closed", closed: { title: "Gone", line: "", fix: null } }), null, "no fix, no dock");
-  assert.equal(dockOf({ reading: true }).waiting, true, "their place still being read: nothing to take back");
 });
 
 test("Approve says what it does: every email an OK sends, and it waits while an opening is written", () => {
