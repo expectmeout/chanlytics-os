@@ -296,6 +296,7 @@ export const ROUTE_KEYS = [
   "POST sequences/[id]/leave",
   "POST sequences/[id]/move",
   "POST sequences/[id]/return",
+  "POST sequences/[id]/rewrite",
   "POST sequences/[id]/steps",
   "POST sequences/[id]/steps/[step]/test",
   "POST sequences/[id]/steps/[step]/words",
