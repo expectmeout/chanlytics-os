@@ -1,7 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
-import { motionSettled } from "../signals";
-import { givenOf, pullHeld } from "../thumb";
+import { givenOf, motionSettled, pullHeld } from "../signals";
 
 /**
  * An open thread on a phone holds its head and its reply box under every pull, and only the conversation gives (Ruben,

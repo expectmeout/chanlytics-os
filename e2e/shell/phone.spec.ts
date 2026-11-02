@@ -1,8 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
-import { motionSettled, sheetFloat } from "../signals";
-import { givenOf, pullHeld } from "../thumb";
+import { givenOf, motionSettled, pullHeld, sheetFloat } from "../signals";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
