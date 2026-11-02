@@ -17,6 +17,7 @@ import {
   READ_BY,
   changeTargets,
   databaseSuitesOf,
+  holds,
   isDatabaseSuite,
   partsOf,
   testTargets,
@@ -235,10 +236,10 @@ test("every path READ_BY names holds files, and every test it names is one", () 
       TRACKED.some((f) => (f === target || f.startsWith(`${target}/`)) && f.endsWith(".test.mjs")),
       `${target} is no test and holds none: move the entry with the test`,
     );
-    for (const prefix of reads)
+    for (const read of reads)
       assert.ok(
-        TRACKED.some((f) => f.startsWith(prefix)),
-        `${target}: ${prefix} holds no file: move it with the code`,
+        TRACKED.some((f) => holds(read, f)),
+        `${target}: ${read} holds no file: move it with the code`,
       );
   }
 });
@@ -270,6 +271,36 @@ test("a change the hearing tests trace or run runs them, which no such path name
     shell.includes("tooling/scripts/tests/shell") && !shell.includes(hearing),
     "tests/shell covers its hearing",
   );
+});
+
+test("a stylesheet anywhere in the dashboard runs the style tests, which no such path names; the code beside it does not", () => {
+  // 1 Nov 2026: #2018's two rules in today/phone/phone.css broke styles/has-subjects.test.mjs, and its path named no
+  // `styles`, so the red waited for #2019, which touched legacy/styles/.
+  const styles = `${T}/styles`;
+  for (const f of [
+    "apps/dashboard/src/surfaces/today/phone/phone.css",
+    "apps/dashboard/src/surfaces/kit/kit.css",
+    "apps/dashboard/src/legacy-bridge/legacy.css",
+    "apps/dashboard/app/globals.css",
+  ])
+    assert.ok(run(f).includes(styles), f);
+  for (const f of ["apps/dashboard/src/surfaces/today/phone/end.tsx", "apps/dashboard/package.json"])
+    assert.ok(!run(f).includes(styles), f);
+  const { targets } = picked("apps/dashboard/src/surfaces/today/phone/phone.css");
+  const runs = REACH.tests.filter((t) => targets.some((x) => t === x || t.startsWith(`${x}/`)));
+  assert.ok(runs.length <= BUDGET, `${runs.length} of ${REACH.tests.length}`);
+});
+
+test("a stylesheet of legacy/styles runs layout-measure, which walks that folder; one outside it does not", () => {
+  const measure = `${T}/shell/layout-measure.test.mjs`;
+  assert.ok(run("apps/dashboard/src/legacy/styles/leads.css").includes(measure));
+  assert.ok(!run("apps/dashboard/src/surfaces/today/phone/phone.css").includes(measure));
+});
+
+test("a graph already built is the one the change is read against, since building it takes seconds", () => {
+  const reached = `${T}/ai/ask-effort.test.mjs`;
+  const graph = { tests: [reached], testsReaching: () => new Map([[reached, 1]]) };
+  assert.ok(changeTargets(["a-file-nothing-imports.txt"], TRACKED, graph).targets.includes(reached));
 });
 
 test("a change to contracts' sources runs the browser entry's test, which no such path names; an app's file does not", () => {
