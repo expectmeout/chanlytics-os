@@ -59,7 +59,8 @@ const ST_GROUPS: Readonly<Record<string, { match: readonly string[]; tabs: reado
       // The same count the sidebar badge, the phone tab, the tab's title and the phone app show: the one number
       // (surfaces/needs-you.ts, read through `window.useNeedsYou`), handed in by the strip, never a second reading of it.
       // It counts what needs you, so it is amber, as the Needs you pill is (tone.ts warn). None of the three says a tip.
-      { id: "inbox", label: "Needs you", to: "inbox", tone: "warn", badge: (needs) => needs || null },
+      // Named for the page: the list under it opens on its own Needs you, and the two stood one over the other.
+      { id: "inbox", label: "Inbox", to: "inbox", tone: "warn", badge: (needs) => needs || null },
       { id: "conversations", label: "Conversations", to: "conversations" },
       // With the bridge running the pulse is the real thing: a call in progress under the heartbeat rule, so the tab does
       // not pulse for a phantom the page has already dropped. The seeded pulse stays demo-only.

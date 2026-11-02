@@ -236,7 +236,7 @@ function callHead(c: ConversationRow, onBack: (() => void) | null) {
                 title={THREAD_PANE_WORDS.more}
                 aria-label={THREAD_PANE_WORDS.moreFor(c.who)}
               >
-                <Icon name="more" size={16} />
+                <Icon name="chevron-down" size={16} />
               </Button>
             }
             label={THREAD_PANE_WORDS.moreFor(c.who)}
