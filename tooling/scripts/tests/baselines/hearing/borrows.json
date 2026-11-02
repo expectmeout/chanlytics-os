@@ -70,7 +70,7 @@
   "setup/first-run": "live settings setup",
   "setup/rows": "",
   "today": "ask_morning broadcasts calendar google people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins workspace",
-  "today/need-you": "ask_morning calendar google people reply_drafts",
+  "today/need-you": "ask_morning calendar google people reply_drafts settings",
   "today/pages": "ask_morning broadcasts calendar google people playbooks reach_out_replies reports_headline settings setup today today_pins",
   "today/phone": "calendar google people today",
   "waits": "today"

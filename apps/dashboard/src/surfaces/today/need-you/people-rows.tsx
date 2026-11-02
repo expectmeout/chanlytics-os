@@ -2,14 +2,15 @@
  * Need you's rows (decision 0071), each in the kit's one row grammar (AttnRow) with its work under its words: the people
  * and the team's own to-dos, then Ask's ideas and the reviews to answer. Since the redesign of 1 Nov 2026 a row says four
  * things and no state line: who, what they want behind the glyph of the wire it came by, how long they have waited or when
- * its clock runs out, and the verb, with Ask's mark where Ask prepared it; why it was handed to you is behind the row's
- * mark. One row is the focus and draws its work in place (the queue's `focus`: on a phone the card, the first open row;
+ * its clock runs out (in the amber past the business's own target), and the verb, with Ask's mark where Ask prepared it;
+ * why it was handed to you is said beside the name once the row is open. One row is the focus and draws its work in place (the queue's `focus`: on a phone the card, the first open row;
  * on a desk the one opened, Up next until another is), its act the page's coral; a row acted on keeps its work, its
  * receipt and its undo, for the visit; every other row is drawn short and opens itself with its verb.
  */
 import type { ReactElement } from "react";
 import {
   NEED_YOU_WORDS as W,
+  answerWithinMsOf,
   namesAPerson,
   needYouVerbOf,
   needYouWaitOf,
@@ -22,6 +23,7 @@ import {
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Icon } from "../../kit/icon/icon";
 import { businessTrailFor } from "../../people/business-trail";
+import { surfaceValue } from "../../surface-values";
 import type { Nav, VerbKind } from "../../waits/wait-rows";
 import type { Flash } from "../shell";
 import { useDraft } from "./drafts";
@@ -95,16 +97,23 @@ function VerbWords({ row, may, words }: { row: TodayQueueRowVM; may: boolean; wo
   );
 }
 
-/** Why a row was handed to you and since when, behind its mark: had once, never printed in the line (AttnRow `note`). */
-const whyNoteOf = (r: TodayQueueRowVM): string =>
-  [r.reason, r.since, r.status.find((s) => s.startsWith("reply window closes"))].filter(Boolean).join(" · ");
+/**
+ * The business's own target for answering people (Settings › Autonomy, "Answer people within"), from the settings read
+ * the page borrows: a wait past it is the amber. A day until that read lands, as before an owner could set it.
+ */
+function answerWithin(): number {
+  const reply = surfaceValue("settings")?.policies?.rows.find((r) => r.class === "reply");
+  return answerWithinMsOf(reply?.limits);
+}
 
 /** The queue's rows, worked in place where they are the focus, short where they are not. */
 export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx): ReactElement[] {
   const phone = c.phone ?? null;
+  const within = answerWithin();
   return rows.map((r) => {
     const face = namesAPerson(r) ? { person: { name: r.who, initials: r.initials } } : { initials: r.initials };
-    // Someone waiting on you says no state line: how long is beside the name and why is behind the row's mark. Your own
+    // Someone waiting on you says no state line: how long is beside the name, and why it was handed over is said beside it
+    // once the row is open (row.why), never behind a mark nobody could read (the 10/10 read, 2 Nov 2026). Your own
     // to-do keeps its line (a step's day and whom it is for, a visit's "Did they come?"), which is what it says, and so does
     // a search waiting for your OK, as the runs beside it do ("nothing is spent while it waits").
     const verb = needYouVerbOf(r);
@@ -115,12 +124,12 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       trail: namesAPerson(r) ? businessTrailFor(r.person_id) : null,
       // The wire is the glyph before what they want, and its name is the glyph's words for a screen reader.
       via: { glyph: VIA_GLYPH[r.channel], words: [r.channel, r.via].filter(Boolean).join(", ") },
-      wait: needYouWaitOf(r, W.held.goesAlone),
+      wait: needYouWaitOf(r, W.held.goesAlone, within),
       sentence: r.sentence,
       quoted: r.quoted,
       lead: r.lead,
       status: waits ? [] : r.status,
-      note: waits ? whyNoteOf(r) : "",
+      note: "",
       tone: r.tone,
       testid: `queue-${r.kind}`,
     };
@@ -170,6 +179,7 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       <AttnRow
         key={r.id}
         {...common}
+        meta={waits ? (r.why ?? "") : ""}
         cta={null}
         also={null}
         onOpen={card && phone ? () => phone.walk(r.id) : () => c.nav(r.cta.to)}
