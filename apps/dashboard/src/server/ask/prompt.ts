@@ -84,7 +84,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
 
 const NOTHING = { kind: "none", id: "", label: "" };
 const NO_BREAKDOWN = { label: "", total: 0, parts: [], source: NOTHING };
-const NO_CHART = { kind: "bars", label: "", points: [], source: NOTHING };
+const NO_CHART = { kind: "bars", label: "", series: [], points: [], source: NOTHING };
 const NO_LIST = { style: "bullets", entries: [] };
 const REPORTS = { kind: "page", id: "reports", label: "Reports, past 7 days" };
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  ASK_ANSWER_CAPS,
   AppError,
   REPORT_PERIOD_IDS,
   isThinShare,
@@ -16,6 +17,7 @@ import {
   toReportVM,
   toReviewsReportVM,
   reviewRoute,
+  weekTotals,
   type CampaignLensVM,
   type CampaignReportVM,
   type PeopleReportVM,
@@ -153,12 +155,41 @@ function campaignsSaid(lens: CampaignLensVM) {
   };
 }
 
+/** Whether a day series is longer than a chart's points: it is said by the week too, and a chart draws the weeks. */
+const overAChart = (days: readonly unknown[]): boolean => days.length > ASK_ANSWER_CAPS.points;
+
+/** The reviews written week by week as their card draws them, or that card's words for why it has no weeks. */
+const weeklySaid = (rv: ReviewsReportVM) =>
+  rv.weekly
+    ? { line: rv.lines.weekly, rows: rv.weekly.points.map((w) => ({ week: w.label, written: w.written })) }
+    : { empty: rv.lines.weekly ?? rv.lines.historyTitle };
+
+/**
+ * What the listing's daily readings gained as their card draws it, from the first day one reaches (a day before it is no
+ * day of none gained), by the week where a chart cannot hold the days; or the card's words for why it has no days.
+ */
+function gainedSaid(rv: ReviewsReportVM) {
+  const { points, total, sinceLabel, words } = rv.google.gained;
+  if (!points.length || total === null) return { empty: rv.lines.gainedEmpty };
+  const days = points.slice(
+    Math.max(
+      0,
+      points.findIndex((p) => p.label === sinceLabel),
+    ),
+  );
+  const rows = overAChart(days)
+    ? weekTotals(days, ["gained"]).map((w) => ({ week: w.label, gained: w.gained }))
+    : days.map((p) => ({ day: p.label, gained: p.gained }));
+  return { line: words.head, rows };
+}
+
 /**
  * The Reviews lens as the page draws it (Reports, lens 1): the sentence at its head and its figures, made once by
- * toReviewsReportVM, and, where the owner's Business Profile has handed over the reviews, the mix of the period's stars
- * and how many wait for a reply. From the five reviews Google shows of a public listing there is the head and the
- * listing's four figures alone, with what the Business Profile would add (`connect`) where none is connected, and with
- * no listing linked there is `linked: false` and the words the fold has for it.
+ * toReviewsReportVM, and, where the owner's Business Profile has handed over the reviews, the mix of the period's stars,
+ * the weeks they were written and how many wait for a reply. From the five reviews Google shows of a public listing
+ * there is the head, the listing's four figures and what its readings gained, with what the Business Profile would add
+ * (`connect`) where none is connected, and with no listing linked there is `linked: false` and the words the fold has
+ * for it.
  */
 function reviewsSaid(t: ToolContext, rv: ReviewsReportVM) {
   if (rv.empty) return { linked: false, words: rv.lines.empty };
@@ -174,11 +205,12 @@ function reviewsSaid(t: ToolContext, rv: ReviewsReportVM) {
     tiles: rv.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.compare })),
   };
   if (rv.source === "places")
-    return { ...said, latest: rv.latest.slice(0, 5).map(reviewOf), connect: rv.lines.connect };
+    return { ...said, gained: gainedSaid(rv), latest: rv.latest.slice(0, 5).map(reviewOf), connect: rv.lines.connect };
   return {
     ...said,
     // The mix as the card says it (the line holds how many were rated) and its five rows; null where there is none to say.
     stars: rv.stars ? { line: rv.lines.mix, rows: rv.stars.rows.map(shownRow) } : null,
+    weekly: weeklySaid(rv),
     // `held` is of the oldest waiting, the only ones whose held replies are read (the page lists them).
     waiting: {
       count: rv.waiting.total,
@@ -359,6 +391,7 @@ function overviewSaid(
   booking: ReturnType<typeof toBookingReportVM> | null,
   deals: ReturnType<typeof toDealReportVM>,
 ) {
+  const days = vm.answered.points;
   return {
     empty: vm.empty,
     tiles: vm.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.delta?.text ?? null })),
@@ -373,9 +406,18 @@ function overviewSaid(
     calls: { total: vm.calls.total, minutes: vm.calls.minutes, voicemail: vm.calls.voicemail },
     new_people: vm.people.total,
     escalation_reasons: vm.reasons.slice(0, 5).map((r) => `${r.label}: ${r.value}`),
-    by_day: vm.answered.points
-      .slice(-14)
-      .map((p) => ({ day: p.short, in: p.in, receptionist: p.ai, you: p.you, unanswered: p.none })),
+    by_day: days.map((p) => ({ day: p.label, in: p.in, receptionist: p.ai, you: p.you, unanswered: p.none })),
+    ...(overAChart(days)
+      ? {
+          by_week: weekTotals(days, ["in", "ai", "you", "none"]).map((w) => ({
+            week: w.label,
+            in: w.in,
+            receptionist: w.ai,
+            you: w.you,
+            unanswered: w.none,
+          })),
+        }
+      : {}),
     // Asked, then booked: the page's one conversion line, its headline ("12 of 40 booked", "Nobody asked") where the
     // calendar was read, else the page's own sentence for why there is nothing to count. Null: that line's read failed.
     booking: booking ? (booking.present ? booking.headline : booking.sub) : null,
@@ -475,7 +517,7 @@ async function getReport(
 
 export const reportTool = defineRead({
   name: "report",
-  description: `The Reports page for any window its period control picks -- a period (${PERIODS_SAID}: month is the days since the 1st), days picked (from and to, YYYY-MM-DD, at most ninety, ending today at the latest), or a shortcut (yesterday, last_week, last_month), 30d where none is named -- and only the lenses asked for (lenses: overview, campaigns, reviews, cold_email, receptionist, people; every one where none is named). The overview: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, the Deals section where a deal was ever recorded, and the Campaigns lens, as the page says it: head is its sentence; figures are the people sent to, the share of the messages delivered, the share of those people who wrote back, and the yeses and stops after a campaign, each against the period before; funnel is what was sent, delivered, read (WhatsApp's alone) and answered, counted in messages (a person sent three is three messages here and one in figures); by_channel is the same by channel where more than one sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); sources are the five that sent the most; window is the period's, from the database's ledger: held (who was held back, and why), runs_stopped (the runs that failed or were canceled), failed_sends (why sends failed after they left), by_message (who wrote back to each message), send_to_first_reply (how soon the first reply came) and wait_for_your_ok (how long approvals waited); stuck is what is stuck now, whatever period is picked: the runs waiting for your OK, the failed runs, the replies waiting on you, the messages Meta stopped and your WhatsApp number; a share is said only of five or more and a count under that, and a mix with nothing to draw says the page's words in empty; window is null where the database does not keep the ledger yet and stuck where it does not keep what is stuck, each with an error beside it where its read failed, and a part of window the database did not count is null too; campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post), the oldest five waiting in rows and the newest five in latest, each with its id; reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: strip is the emails the reach-outs wrote, the share that landed and the number that bounced, each against the period before; emails is what was written, delivered and bounced, counted in emails; businesses is the businesses written to and how many wrote back, were interested, booked or said no, counted in businesses as they stand now (each counts once, at the last email that wrote to it, and an outcome is set against nothing before); angles is who wrote back, as they stand now, by the opening of the last email; handed is the line on the businesses handed to the owner, null where none were, and empty says nothing was written; reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. The Receptionist lens is in receptionist, as the page says it: what became of the replies held before they went out (hold), what customers asked about (topics), the languages the receptionist wrote in where it wrote in more than one, how the calls someone spoke on ended, the booking link and how many of the people it went to have booked since (link), your first reply after a handover and the time to settle one (handover), the missed calls answered within an hour (missed), what came while the business was closed and how many of those the receptionist answered (closed), and what is stuck now (stuck: who waits on you, call-backs, the replies held back), with held_back giving the reasons the send door refused a reply; receptionist says available false where the database does not keep these numbers yet, and error where they could not be read. The People lens is in people, as the page says it: head is its sentence; window is the period, counted in people (one who wrote ten times is one): reached (who reached you, how many were new, the yeses won and the stops, each against the period before), channels (how they reached you), first_came (how the new ones first came), yeses and stops (who gave them), steps_done (the steps finished and how many on their day) and email_stopped (the addresses that stopped working); book is everyone as they stand now, whatever period is picked: wires (the ways they reach you), fresh (how long since they last wrote or called, with quiet saying how many have been quiet over 30 days), stuck (the steps overdue and due today, and the email that stopped working) and stand (how many said yes to messages, can receive offers, opted out or are quiet); a mix with nothing to draw says the page's words in empty; people says window null where the database does not keep the period's numbers yet, book null where the people could not be counted, available false where neither could be read, and error where they could not be read. Call it for how a period went or for a trend, naming only the lenses the question needs; the today tool has the day itself and its counts, and the Reports page on screen already holds this. An empty period says so in empty; a window the report cannot answer is an error, said in the page's words.`,
+  description: `The Reports page for any window its period control picks -- a period (${PERIODS_SAID}: month is the days since the 1st), days picked (from and to, YYYY-MM-DD, at most ninety, ending today at the latest), or a shortcut (yesterday, last_week, last_month), 30d where none is named -- and only the lenses asked for (lenses: overview, campaigns, reviews, cold_email, receptionist, people; every one where none is named). The overview: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, by_day (every day of the period) and, where the period has more days than a chart holds, by_week (the same added up by the week), the booking line (asked, then booked) where the calendar is read, the Deals section where a deal was ever recorded, and the Campaigns lens, as the page says it: head is its sentence; figures are the people sent to, the share of the messages delivered, the share of those people who wrote back, and the yeses and stops after a campaign, each against the period before; funnel is what was sent, delivered, read (WhatsApp's alone) and answered, counted in messages (a person sent three is three messages here and one in figures); by_channel is the same by channel where more than one sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); sources are the five that sent the most; window is the period's, from the database's ledger: held (who was held back, and why), runs_stopped (the runs that failed or were canceled), failed_sends (why sends failed after they left), by_message (who wrote back to each message), send_to_first_reply (how soon the first reply came) and wait_for_your_ok (how long approvals waited); stuck is what is stuck now, whatever period is picked: the runs waiting for your OK, the failed runs, the replies waiting on you, the messages Meta stopped and your WhatsApp number; a share is said only of five or more and a count under that, and a mix with nothing to draw says the page's words in empty; window is null where the database does not keep the ledger yet and stuck where it does not keep what is stuck, each with an error beside it where its read failed, and a part of window the database did not count is null too; campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, weekly (the reviews written week by week, as far back as the record reaches), and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post), the oldest five waiting in rows and the newest five in latest, each with its id; where none is connected, gained is what the listing's daily readings gained, by the day from the first reading, or by the week where a chart cannot hold the days; each of those two says the page's words in empty where it has nothing to draw; reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: strip is the emails the reach-outs wrote, the share that landed and the number that bounced, each against the period before; emails is what was written, delivered and bounced, counted in emails; businesses is the businesses written to and how many wrote back, were interested, booked or said no, counted in businesses as they stand now (each counts once, at the last email that wrote to it, and an outcome is set against nothing before); angles is who wrote back, as they stand now, by the opening of the last email; handed is the line on the businesses handed to the owner, null where none were, and empty says nothing was written; reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. The Receptionist lens is in receptionist, as the page says it: what became of the replies held before they went out (hold), what customers asked about (topics), the languages the receptionist wrote in where it wrote in more than one, how the calls someone spoke on ended, the booking link and how many of the people it went to have booked since (link), your first reply after a handover and the time to settle one (handover), the missed calls answered within an hour (missed), what came while the business was closed and how many of those the receptionist answered (closed), and what is stuck now (stuck: who waits on you, call-backs, the replies held back), with held_back giving the reasons the send door refused a reply; receptionist says available false where the database does not keep these numbers yet, and error where they could not be read. The People lens is in people, as the page says it: head is its sentence; window is the period, counted in people (one who wrote ten times is one): reached (who reached you, how many were new, the yeses won and the stops, each against the period before), channels (how they reached you), first_came (how the new ones first came), yeses and stops (who gave them), steps_done (the steps finished and how many on their day) and email_stopped (the addresses that stopped working); book is everyone as they stand now, whatever period is picked: wires (the ways they reach you), fresh (how long since they last wrote or called, with quiet saying how many have been quiet over 30 days), stuck (the steps overdue and due today, and the email that stopped working) and stand (how many said yes to messages, can receive offers, opted out or are quiet); a mix with nothing to draw says the page's words in empty; people says window null where the database does not keep the period's numbers yet, book null where the people could not be counted, available false where neither could be read, and error where they could not be read. Call it for how a period went or for a trend, naming only the lenses the question needs; the today tool has the day itself and its counts, and the Reports page on screen holds its figures and not its series, so a chart of it reads them here. An empty period says so in empty; a window the report cannot answer is an error, said in the page's words.`,
   input: z.object({
     period: z.enum(REPORT_PERIOD_IDS).optional().describe(`A period by name: ${PERIODS_SAID}.`),
     from: z.string().optional().describe("The first day of days picked, YYYY-MM-DD, with to."),

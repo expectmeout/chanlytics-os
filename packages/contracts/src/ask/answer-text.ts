@@ -419,48 +419,91 @@ export function answerPlain(text: string, spoken = false): string {
 
 /* ------------------------------------------------------------- the chart */
 
-/** A chart's kind: a line for one count over time, bars for a few things compared. */
-export const ASK_CHART_KINDS = ["line", "bars"] as const;
+/**
+ * A chart's kind, each a part of the chart kit and nothing freer: a line for counts over time, columns for counts by day
+ * or week (two or three series stack, as the parts of one count), bars for a few things compared.
+ */
+export const ASK_CHART_KINDS = ["line", "columns", "bars"] as const;
 
 /**
- * A chart of numbers this turn read (the answer canvas, C3): a line for one count over time, or bars for a few things
- * compared, drawn with the chart kit and its validated palette. Drawn only with its source grounded and two points or
- * more (answerChart), so every number on it is one a reader returned.
+ * A chart of numbers this turn read (the answer canvas, C3), drawn with the chart kit and its validated palette. Drawn
+ * only with its source grounded and two points or more (answerChart), so every number on it is one a reader returned.
  */
 export interface AskChart {
   kind: (typeof ASK_CHART_KINDS)[number];
   /** What is counted ("bookings a week", "messages by channel"). */
   label: string;
-  points: Array<{ label: string; value: number }>;
+  /** What each value of a point is, in its order: one name, up to three. */
+  series: string[];
+  /** The days of a month at most, so a 30-day report draws whole; a longer period is drawn by the week. */
+  points: Array<{ label: string; values: number[] }>;
   source: AskSource;
+}
+
+/** A chart as an answer stored it before it had series: one value to a point. */
+type AskChartBefore = Omit<AskChart, "series" | "points"> & {
+  series?: undefined;
+  points: Array<{ label: string; value: number }>;
+};
+
+/** A stored chart as the page draws one: one from before series is one series, named by its label. */
+export function storedChart(c: AskChart | AskChartBefore): AskChart {
+  if (c.series) return c;
+  return { ...c, series: [c.label], points: c.points.map((p) => ({ label: p.label, values: [p.value] })) };
 }
 
 /** A chart's words: one line, its spacing folded, cut at `n`. */
 const chartWords = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
 
+/** A number a chart may draw: finite, at or over 0. */
+const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/** The model's chart's series: the names it gave, at most `caps.series`; with none, its label is the one count. */
+function chartSeries(raw: unknown, label: string, caps: { label: number; series: number }): string[] {
+  const named = (Array.isArray(raw) ? raw : []).map((s: unknown) => chartWords(s, caps.label)).filter(Boolean);
+  return named.length ? named.slice(0, caps.series) : [label];
+}
+
 /**
- * The model's chart, read: its kind, its label and its points (a label each, a finite value at or over 0), the newest
- * `caps.points` of a line and the first of bars, and its source as `ground` grounds it; none with no label, fewer than
- * two points or a source this turn did not read.
+ * The model's chart, read: its kind, its label, its series and its points (a label each and a finite value at or over 0
+ * for every series, or the point goes), the newest `caps.points` over time and the first of bars, and its source as
+ * `ground` grounds it; none with no label, fewer than two points or a source this turn did not read. Bars are one series
+ * each (the kit's BarList), so two or three are columns: no series is left out.
  */
 export function answerChart(
   raw: unknown,
   ground: (source: unknown) => AskSource | null,
-  caps: { label: number; points: number },
+  caps: { label: number; points: number; series: number },
 ): AskChart | null {
   const c = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const kind = ASK_CHART_KINDS.find((k) => k === c.kind);
   const label = chartWords(c.label, caps.label);
+  const series = chartSeries(c.series, label, caps);
+  const asked = ASK_CHART_KINDS.find((k) => k === c.kind);
+  const kind = asked === "bars" && series.length > 1 ? "columns" : asked;
   const all = (Array.isArray(c.points) ? c.points : []).flatMap((p: unknown) => {
     const q = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
     const name = chartWords(q.label, caps.label);
-    const value = typeof q.value === "number" && Number.isFinite(q.value) && q.value >= 0 ? q.value : null;
-    return name && value !== null ? [{ label: name, value }] : [];
+    const given: unknown[] = Array.isArray(q.values) ? q.values.slice(0, series.length) : [];
+    const values = given.filter(isCount);
+    return name && values.length === series.length ? [{ label: name, values }] : [];
   });
-  const points = kind === "line" ? all.slice(-caps.points) : all.slice(0, caps.points);
+  const points = kind === "bars" ? all.slice(0, caps.points) : all.slice(-caps.points);
   if (!kind || !label || points.length < 2) return null;
   const source = ground(c.source);
-  return source ? { kind, label, points, source } : null;
+  return source ? { kind, label, series, points, source } : null;
+}
+
+/** Every word and number a chart says, for the "not from your data" check (answerWords). */
+export const chartSaid = (c: AskChart): string[] => [
+  c.label,
+  ...c.series,
+  ...c.points.flatMap((p) => [p.label, ...p.values.map(String)]),
+];
+
+/** A chart as Copy says it: its series named where there are two or more, then each point's values in their order. */
+function chartCopy(c: AskChart): string {
+  const named = c.series.length > 1 ? ` (${c.series.join(", ")})` : "";
+  return `${c.label}${named}: ${c.points.map((p) => `${p.label} ${p.values.join(" / ")}`).join(", ")}`;
 }
 
 /* ------------------------------------------------- the answer's words, read */
@@ -491,7 +534,7 @@ export function answerCopy(a: AskAnswer): string {
   return [
     answerText(a),
     ...(b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
-    ...(c ? [`${c.label}: ${c.points.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
+    ...(c ? [chartCopy(c)] : []),
     ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
     ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" · ")),
   ]

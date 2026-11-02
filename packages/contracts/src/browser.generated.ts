@@ -377,7 +377,7 @@ export { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf, isReportDays, isReportPeriod, mo
 export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
 export { BOOKED_ENDED_META, bookedTileOf, compareWords, deltaOf, fmtSeconds, isThinShare, pointsDelta, REPORT_MIN_N, shareSaid } from "./reports/report-tiles";
 export { channelsOf, daysWords, endedOn, fmtDay, headlineOf, hoursOf, priorOf, quantile, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, reportHourWords, runningTotal, speedOf, toReportVM, weekOf } from "./reports/reports";
-export { isReviewsLedgerDto, reviewsAreOnRecord, reviewsWindowOf } from "./reports/review-record";
+export { isReviewsLedgerDto, reviewsAreOnRecord, reviewsWindowOf, weekTotals } from "./reports/review-record";
 export { REVIEWS_WAITING_SHOWN, toReviewsReportVM } from "./reports/review-report";
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";

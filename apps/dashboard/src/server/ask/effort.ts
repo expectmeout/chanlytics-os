@@ -33,9 +33,15 @@ import type { turnMeter } from "./turn-end";
  */
 
 /**
- * The calls that write a draft: an offer's or a setup's plan, a plan across pages, a sequence made whole, a standing
- * rule, a new message, a cold email sequence, a lead search's plan. A change to one that is there (its words, a step,
- * its clock) is no draft.
+ * The calls that write a draft, each named as calledName gives it: an offer's or a setup's plan, a plan across pages, a
+ * sequence made whole, a standing rule, a new message, a cold email sequence. A change to one that is there (its words, a
+ * step, its clock) is no draft.
+ *
+ * A lead search's plan is no draft (2 Nov 2026): it fills in a form the planner checks, and writes nothing a customer
+ * reads. Its entry here named no call, so every plan Ask has made was made at the turn's own effort, the only cards
+ * anyone approved in the month to 2 Nov among them. Raised, a plan would pay a round of the turn people wait longest on:
+ * the round is set aside with the search that found the tool, and asked again from the top at the draft's effort. To
+ * raise it, add "propose_lead_search.find" here and change the test that holds this (ask/tools/draft-effort.test.mjs).
  */
 const DRAFT_CALLS: ReadonlySet<string> = new Set([
   "propose_plan.offer",
@@ -44,7 +50,6 @@ const DRAFT_CALLS: ReadonlySet<string> = new Set([
   "propose_sequence.moment",
   "propose_sequence.message",
   "propose_sequence.cold_email",
-  "propose_lead_search",
 ]);
 
 const isDraftCall = (b: RoundBlock): boolean => b.type === "tool_use" && DRAFT_CALLS.has(calledName(b.name, argsOf(b)));

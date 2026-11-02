@@ -1724,8 +1724,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
     review(4, "2026-08-15T10:00:00Z", { reply_text: "Thanks!", replied_at: "2026-08-15T12:00:00Z" }),
     review(5, "2026-09-13T10:00:00Z", { origin: "places", rating: 1 }),
   ];
-  // What reviews_ledger answers for the profile's four (the database counts in SQL: google-reviews-ledger.db.test.mjs): the
-  // one the receptionist answered, the one that waits with the reply it held, and the two answered by their owner.
+  // What reviews_ledger answers for the profile's four (the database counts in SQL: google-reviews-ledger.db.test.mjs).
   const drawn = ({ tenant_id: _tenant, last_seen_at: _seen, ...row }) => row;
   const ledger = (a) => ({
     timezone: TZ,
@@ -1759,7 +1758,9 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
     const tc = newToolContext(ctxFor(t, { ...rpcs, reviews_ledger: ledger, ...over }), A, "owner", TZ, NOW);
     const out = await runTool(tc, { name: "report", input: { period: "7d" } });
     assert.equal(out.isError, false, out.result);
-    return JSON.parse(out.result);
+    const said = JSON.parse(out.result);
+    const { weekly: _weeks, gained: _days, ...reviews } = said.reviews; // ask/charts/report-series.test.mjs
+    return { ...said, reviews };
   };
 
   // The Business Profile holds the reviews: its head, its five figures, the mix, and who waits.
@@ -1837,8 +1838,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
   });
   assert.deepEqual((await run(unsynced)).reviews, { ...places, connect: null });
 
-  // No listing linked: that, and the fold's words for it (the lens's own, what a deployment that can look a listing up offers),
-  // which a person reads as nothing to say, never as no reviews. The model need not lean on the tool's description alone.
+  // No listing linked: that, and the fold's words for it, which a person reads as nothing to say, never as no reviews.
   const unlinked = await run(tables());
   const nothingLinked = toReviewsReportVM(
     {
