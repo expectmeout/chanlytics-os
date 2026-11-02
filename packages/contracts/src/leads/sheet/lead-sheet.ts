@@ -31,6 +31,10 @@ import type { SequenceState } from "../../sequences/sequence";
 /** The sheet's words: its head, its sections, the picker, New, and the pile's end. */
 export const LEAD_SHEET_WORDS = {
   label: "About this lead",
+  /** Said after a beat where a read is slow: nothing under the name is drawn before the reads that decide it. */
+  reading: "Reading where they stand",
+  /** What failed, where their place could not be read (the kit's FailedRead). */
+  unread: "where they stand",
   raise: "Show everything about them",
   lower: "Back to half",
   close: "Close",

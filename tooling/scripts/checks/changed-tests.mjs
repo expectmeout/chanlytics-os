@@ -14,7 +14,7 @@
  *     sources, a barrel by the names asked of it, and the paths a test reads by name), nearest first, while the run
  *     stays within BUDGET test files;
  *   - a file in a tree a test reads whole, that test, which no import of it names (READ_BY: the hearing tests, the
- *     browser's entry);
+ *     browser's entry, the style tests, layout-measure);
  *   - the folders that hold the repository's own rules and ratchets, always (ALWAYS): the five reds were all there.
  * The imports are the rule of 29 Oct 2026: on 28 Oct five tests went red on main, each importing what a pull request
  * changed (#1882's Campaigns reader, #1895's notification kinds, #1890's surface registry twice, #1900's routes), and
@@ -60,17 +60,21 @@ export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TE
 export const BUDGET = 800;
 
 /**
- * Tests that read whole trees, which no import of theirs names, each with what it reads (a tree ends in "/"): the trees
- * as the file that names them says them, that file, and the test's baselines. The hearing tests follow every route
- * through the tracer's trees (trace-routes.mjs SCOPES, and schema.sql) and run the dashboard's browser code and
- * contracts, and their two hand-kept lists (reads-not-heard.json, on-demand-reads.json) were blind to a change no path of
- * theirs named. The browser's entry is generated from every barrel the generator finds by walking contracts' sources
- * (gen/contracts-browser-entry.mjs): an export added to one changed the entry, and nothing ran its test (the eval-truth
- * pass, 17 Oct 2026). The graph sees neither: a tree walked is read by no name. The appointment words' count, which
- * every tree a reader reads could move (#1574, #1579, #1599 and #1602-#1604 each wrote "visit" in without running it,
- * and main went red, 13-15 Oct 2026), is check:debt's since 28 October 2026, and CI measures it on every pull request;
- * the page tests of one word (journey/one-page-one-word.test.mjs) import the modules they read, and the graph follows
- * them.
+ * Tests that read whole trees, which no import of theirs names, each with what it reads (a tree ends in "/", and one
+ * kind of file in it is "<tree>/**.css"): the trees as the file that names them says them, that file, and the test's
+ * baselines. The hearing tests follow every route through the tracer's trees (trace-routes.mjs SCOPES, and schema.sql)
+ * and run the dashboard's browser code and contracts, and their two hand-kept lists (reads-not-heard.json,
+ * on-demand-reads.json) were blind to a change no path of theirs named. The browser's entry is generated from every
+ * barrel the generator finds by walking contracts' sources (gen/contracts-browser-entry.mjs): an export added to one
+ * changed the entry, and nothing ran its test (the eval-truth pass, 17 Oct 2026). The style tests read every stylesheet
+ * of the dashboard's, wherever it sits (has-subjects, touch-hover, page-light/paper-at-the-edges, kit-css, and through
+ * the measures style-measures), and only a path with a `styles` folder in it named them: #2018's two rules in
+ * today/phone/phone.css broke has-subjects, and the red waited for #2019, which touched legacy/styles/ (1 Nov 2026).
+ * layout-measure walks that one folder, and no stylesheet's path names tests/shell. The graph sees none of these: a
+ * tree walked is read by no name. The appointment words' count, which every tree a reader reads could move (#1574,
+ * #1579, #1599 and #1602-#1604 each wrote "visit" in without running it, and main went red, 13-15 Oct 2026), is
+ * check:debt's since 28 October 2026, and CI measures it on every pull request; the page tests of one word
+ * (journey/one-page-one-word.test.mjs) import the modules they read, and the graph follows them.
  */
 export const READ_BY = {
   [`${TESTS}/shipping/browser-entry.test.mjs`]: ["packages/contracts/src/"],
@@ -83,7 +87,15 @@ export const READ_BY = {
     `${TESTS}/baselines/hearing/`,
     `${TESTS}/baselines/writes/`,
   ],
+  [`${TESTS}/styles`]: ["apps/dashboard/**.css"],
+  [`${TESTS}/shell/layout-measure.test.mjs`]: ["apps/dashboard/src/legacy/styles/"],
 };
+
+/** Whether what READ_BY names takes in a file: the file itself, a tree, or one kind of file at any depth of a tree. */
+export function holds(read, file) {
+  const [start, end = ""] = read.split("**");
+  return file.startsWith(start) && file.endsWith(end);
+}
 
 /**
  * What to run for a set of changed paths, given the folders of tooling/scripts/tests that hold tests: the files and
@@ -92,8 +104,7 @@ export const READ_BY = {
 export function testTargets(changed, testFolders) {
   const targets = new Set(ALWAYS);
   for (const file of changed) {
-    for (const [target, reads] of Object.entries(READ_BY))
-      if (reads.some((r) => file.startsWith(r))) targets.add(target);
+    for (const [target, reads] of Object.entries(READ_BY)) if (reads.some((r) => holds(r, file))) targets.add(target);
     if (file.startsWith(`${TESTS}/`)) {
       const folder = file.split("/")[3];
       if (/\.test\.mjs$/.test(file)) targets.add(file);
@@ -198,9 +209,11 @@ function runParts(parts, flags, failed = 0) {
   child.on("exit", (code, signal) => runParts(rest, flags, failed || (signal ? 1 : (code ?? 1))));
 }
 
-/** What a change runs: the targets its paths name and the tests its imports reach, as they stand in the checkout. */
-export function changeTargets(changed, files) {
-  const reach = reachOf({ files, read: readTracked });
+/**
+ * What a change runs: the targets its paths name and the tests its imports reach, as they stand in the checkout.
+ * Building the graph takes seconds, so a caller that holds one hands it in.
+ */
+export function changeTargets(changed, files, reach = reachOf({ files, read: readTracked })) {
   const picked = withReached(testTargets(changed, foldersWithTests(files)), reach.testsReaching(changed), reach.tests);
   // A test the change deleted (or renamed away from) is no file to run.
   return { ...picked, targets: picked.targets.filter((t) => fs.existsSync(path.join(ROOT, t))) };
