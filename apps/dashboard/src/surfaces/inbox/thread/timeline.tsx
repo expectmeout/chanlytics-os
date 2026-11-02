@@ -686,7 +686,8 @@ const TlMsgEntry = (props: TlMsgEntryProps) => {
       <ThreadCall
         call={tlCallFor(entry.messageId)}
         note={entry.body}
-        at={entry.at}
+        // Its time alone, as every bubble says it (bubbleCorner): the day is the divider above it.
+        at={entry.time || entry.at}
         mid={entry.messageId}
         focus={focus}
         open={focus || newest}

@@ -325,7 +325,8 @@ const wire = (tree, el) => {
   return node;
 };
 const spoken = (tree) => all(tree, byTestId("tl-spoken"));
-const words = (n) => textOf(find(n, hasClass("tl-msg-body")));
+// What was said, in the bubble beside who said it (for a screen reader) and its moment in the corner.
+const words = (n) => textOf(find(n, hasClass("tl-spoken-words")));
 
 test("a call is part of its conversation: what it was on one card, its lines as the thread's own bubbles, where it ended", () => {
   calls(toCallVM(callDto(), ZONE, NOW));
@@ -691,7 +692,7 @@ test("a whisper is the owner's own words, marked as theirs, with no moment in th
   }
 });
 
-test("a thread opens where a call began when a call is the newest thing said; at a message it was opened at; else at its newest", () => {
+test("a thread opens where a call or an email began when it is the newest thing said; at a message it was opened at; else at its newest", () => {
   const opensAt = ixOpensAt;
   assert.equal(
     opensAt(emily()),
@@ -710,6 +711,22 @@ test("a thread opens where a call began when a call is the newest thing said; at
   );
   assert.equal(flagged.timeline.at(-1).type, "event");
   assert.equal(opensAt(flagged), "e1");
+  // An email is read from its sender and its subject: the newest thing said, it opens at its top, as a call does.
+  const mailed = toInboxThreadVM(
+    conv([note(), m("m3", 30, { channel: "email", meta: { email: { subject: "Saturday" } } })]),
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.equal(opensAt(mailed), "m3");
+  // Only while it is the newest thing said: a message after it, and the thread opens at its newest, as ever.
+  const answered = toInboxThreadVM(
+    conv([note(), m("m3", 30, { channel: "email", meta: { email: { subject: "Saturday" } } }), m("m4", 20)]),
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.equal(opensAt(answered), null);
 });
 
 test("the line being said is kept in view without moving the thread under the reader: one under the player comes out just below it", () => {

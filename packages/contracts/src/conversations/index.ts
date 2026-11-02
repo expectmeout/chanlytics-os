@@ -111,7 +111,7 @@ export {
   writtenChannelOf,
 } from "./thread-channel";
 export type { ThreadChannel, WrittenChannel } from "./thread-channel";
-export { formatWaited, inboxThreadClock, shortTime } from "./thread-clock";
+export { formatWaited, inboxThreadClock, shortTime, waitedSaid } from "./thread-clock";
 export {
   contactMeta,
   contactName,

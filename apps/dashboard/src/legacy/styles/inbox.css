@@ -1218,8 +1218,13 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
+/* Its words on the card's edge where no recording stands before it, as the email's Show whole email stands, and its
+   focus ring clear of them. */
 .tl-call-open {
   flex: none;
+  gap: 4px;
+  padding: 6px 8px;
+  margin-inline: -8px;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
@@ -1253,11 +1258,10 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
 .tl-call.listening .tl-msg.tl-spoken:not(.now) .tl-msg-body { opacity: 0.72; }
 .tl-msg.tl-spoken.whisper .tl-msg-body { font-style: italic; }
 .tl-spoken-whisper { color: var(--ink-dim); }
-.tl-spoken-t { position: relative; padding: 0; border: 0; background: none; font: inherit; font-size: 10.5px; color: var(--ink-dim); cursor: pointer; }
-@media (hover: hover) { .tl-spoken-t:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; } }
-.tl-spoken-t:focus-visible { outline: none; border-radius: var(--radius-xs); box-shadow: var(--focus-ring); }
-.tl-spoken-t::after { content: ""; position: absolute; inset: -12px -10px; }
-.tl-msg.tl-spoken.now .tl-spoken-t { color: var(--ink); font-weight: 600; }
+/* A line's moment is the bubble's own stamp in its corner (.tl-stamp), a press that plays from it. */
+@media (hover: hover) { .tl-spoken-t:hover { text-decoration: underline; text-underline-offset: 2px; } }
+.tl-spoken-t:focus-visible { border-radius: var(--radius-xs); }
+.tl-msg.tl-spoken.now .tl-spoken-t { color: var(--ink); font-weight: var(--weight-semibold); }
 /* Who spoke, for a screen reader: the side says it to the eye. */
 .tl-spoken-who { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 html.legacy-on .tl-call-play, html.legacy-on .tl-call-open, html.legacy-on .tl-spoken-t, html.legacy-on .tl-call-file,
@@ -2037,7 +2041,7 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 /* A text field shows where the keys go: the composer and the search set outline:none and moved only a border (I3). */
 .ix-composer-text:focus-visible { box-shadow: var(--focus-field-edged); }
 /* Heard, not seen: the countdown's hold and send, for a screen reader (I3). */
-.ix-veto-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ix-veto-said, .ix-wait-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ====================================================================
    THE THREAD'S STATUS — by the reply box, one state at a time
@@ -2107,6 +2111,8 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
    their words; the chip is what gives way when the line is short (it squeezed "Phone" out on a 375px phone). */
 .ix-th-sub { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
 .ix-th-sub .ix-th-meta { flex: none; }
+/* After where it stands, what gives way is the fact and the wire, to an ellipsis: they ran on under Snooze. */
+.ix-th-sub > :is(.ix-th-fact, .ix-th-on) { flex: 0 1 auto; min-width: 0; overflow: hidden; }
 /* One fact about them after where it stands ("· Northwind Media"): it gives way, its words ending in an ellipsis. */
 .ix-th-fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .ix-th-fact-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -2223,6 +2229,12 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   .ix-thread.active .ix-thread-check {
     pointer-events: auto;
   }
+  /* The open row is not a picked one: where the list stands beside the thread (768), its face was a 36px empty box. A
+     tap's hover stays on the row it opened, so only a pick or the keyboard's focus shows it there. */
+  .ix-thread.active:not(.selected, :focus-visible) .ix-thread-check {
+    opacity: 0;
+    pointer-events: none;
+  }
   /* One gap between the lines, in place of each line's own margin. The single track is minmax(0, 1fr) and not the
      1fr a grid gives by default: a grid item's automatic minimum is its content, so a name beside two pills grew
      the line past the row's right edge instead of ellipsing. */
@@ -2267,6 +2279,12 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   }
   .ix-thread-foot {
     gap: var(--row-gap);
+  }
+  /* What it asks of you (or why it was flagged) is the row's third line, on the facts' line: the row is the one row every
+     list draws (e2e/shell/phone.spec.ts), and at the said line's height it stood 86 where People's is 84. */
+  .ix-thread-todo,
+  .ix-thread-line3 ~ .ix-thread-subject {
+    line-height: var(--row-facts-line);
   }
 }
 
@@ -2661,6 +2679,30 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 /* A desk's acts on the conversation, and More beside them: outlined, the tile's corners, 36px. */
 .ix-th-desk-act {
   border-radius: var(--radius-tile);
+}
+/* The name is the head's one thing that never gives way first: the doors beside it (their work, their visit) shrink
+   to an ellipsis before it does, and in a pane no wider than 640 Snooze and Archive are their glyphs alone, squares as
+   More is, their words their names and their tips. The pane's width, not the window's: with the sidebar and the
+   person's rail beside it the pane is 449px at 1440, where the line under the name ran under Snooze, and at 1024
+   without them the name read "Maya ..." beside both words whole. */
+.ix-th-head-main > .ix-th-who {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+.ix-th-head-main > :is(.ix-th-works, .ix-th-visit-door) {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+@container ixpane (max-width: 640px) {
+  .ix-th-desk-act {
+    width: var(--control-h-lg);
+    padding: 0;
+    justify-content: center;
+  }
+  .ix-th-desk-act-words {
+    display: none;
+  }
 }
 .ix-th-actions .ix-th-more {
   width: var(--control-h-lg);

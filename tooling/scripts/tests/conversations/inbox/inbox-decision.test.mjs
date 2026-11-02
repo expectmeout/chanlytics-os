@@ -221,7 +221,10 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   const rosaRow = rowOf(tree, "Rosa Díaz");
   const wait = find(rosaRow, hasClass("ix-thread-wait"));
   assert.equal(textOf(wait), "8d", "REGRESSION: it read waiting 10869m");
-  assert.equal(wait.props.title, "waiting 8d", "what the bare figure is, on a hover");
+  assert.equal(wait.props.title, "Waiting 8d", "what the bare figure is, on a hover");
+  // The figure is the eye's; the row's name, which a screen reader reads, says it whole.
+  assert.equal(wait.props["aria-hidden"], "true");
+  assert.equal(textOf(find(rosaRow, hasClass("ix-wait-said"))), "Waiting 8d");
   // The wait is the figure alone in the mono face; what it asks of you is the coral line under her words (the thread
   // canvas's list, 1 Nov 2026), so no second tone stands beside it.
   assert.ok(!wait.props.className.includes("warn"), "no amber beside the coral");
