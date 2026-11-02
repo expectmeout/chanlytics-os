@@ -104,7 +104,9 @@ export const useLeadPeekAddress = (a: {
     peek: string | null | undefined;
     asked: string | null;
     pushed: boolean;
-  }>({ view: undefined, peek: undefined, asked: null, pushed: false });
+    /** The lead the address asked for, until the page holds it: no write-back undoes it meanwhile. */
+    opening: string | null;
+  }>({ view: undefined, peek: undefined, asked: null, pushed: false, opening: null });
   useEffect(() => {
     const at = peekAddr.current;
     if (at.view !== viewRoute || at.peek !== addrPeek) {
@@ -115,6 +117,7 @@ export const useLeadPeekAddress = (a: {
       // The lead the address names takes the cursor too: the cursor this tab kept for the view (usePlPlace) would
       // otherwise walk the peek, and the address, off it on the next draw.
       if (peekId !== addrPeek) {
+        at.opening = addrPeek;
         a.setPeekId(addrPeek);
         if (addrPeek) a.setCursor(addrPeek);
         a.setPeekMode("info");
@@ -123,7 +126,17 @@ export const useLeadPeekAddress = (a: {
       }
       return;
     }
-    if (peekId === addrPeek) return;
+    if (peekId === addrPeek) {
+      at.opening = null;
+      return;
+    }
+    // The lead the address just asked for, not held yet: the page is on its way to it, and the address stands. React's
+    // effects, run twice in development, ran this again over the draw before it landed, and wrote the address over without
+    // it. The view's place ran again first, so the cursor is said again.
+    if (!peekId && addrPeek && at.opening === addrPeek) {
+      a.setCursor(addrPeek);
+      return;
+    }
     // The view's chips stay in the address under an open lead (00500): opening one narrows nothing away.
     const want = leadsRoute({
       searchId: leadView.searchId,
