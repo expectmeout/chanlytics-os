@@ -500,6 +500,8 @@ const SEND_DECIDED_WORDS: Record<string, string> = {
   rewrite: "A held email to a lead was sent back to be written again",
   skip: "A held email to a lead was skipped",
   not_a_fit: "A held email to a lead was dropped: the lead is not a fit",
+  // Undo of a rewrite (00505): the opening it replaced is back.
+  rewrite_undone: "An email to a lead got its earlier opening back",
 };
 
 /** Which calls a kept number forwards (contracts FORWARDING_MODES), in an owner's words. */
@@ -532,7 +534,7 @@ const recordChangedWords = (p: Record<string, unknown>): string | null => {
 
 /**
  * Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082), and a
- * waiting run's whose every send left it before anyone answered (00504).
+ * waiting run's whose every send left it before anyone answered (00511).
  */
 const CANCELED_BY_SYSTEM: Readonly<Record<string, string>> = {
   day_passed: "Skipped a run whose day had passed",

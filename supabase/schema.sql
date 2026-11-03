@@ -7514,12 +7514,14 @@ begin
   update public.lead_search_members
      set judgment = '{}'::jsonb, reason = '', blanked_at = coalesce(blanked_at, now())
    where lead_id = p_lead_id;
-  -- What a reach-out wrote from the lead's record, and the checker's note on it (00391). The send keeps its state, its
-  -- reason and the digest of the words it checked.
+  -- What a reach-out wrote from the lead's record, and the checker's note on it (00391), and what its owner asked of
+  -- its opening with the one it replaced and what its website said (00505). The send keeps its state, its reason and the
+  -- digest of the words it checked.
   update public.sequence_sends
-     set opening = null, angle = null, hold_detail = null
+     set opening = null, angle = null, hold_detail = null, rewrite_asked = null, website_says = null
    where sequence_sends.lead_id is not null and ( tenant_id = v_tenant and lead_id = p_lead_id
-     and (opening is not null or angle is not null or hold_detail is not null));
+     and (opening is not null or angle is not null or hold_detail is not null or rewrite_asked is not null
+          or website_says is not null));
   -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
   update public.sequence_sends
@@ -7544,7 +7546,7 @@ end $$;
 -- Name: FUNCTION lead_blank(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), a reach-out''s drafts, one still waiting skipped as its lead gone (00429), and a company''s people and key (00430), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), a reach-out''s drafts, one still waiting skipped as its lead gone (00429), and a company''s people and key (00430), and what its owner asked of an opening with the one it replaced (00505), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
 
 
 --
@@ -24074,21 +24076,29 @@ COMMENT ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id 
 
 
 --
--- Name: reach_out_send_decide(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: reach_out_send_decide(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) RETURNS jsonb
+CREATE FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text, p_change text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
-  v_send public.sequence_sends%rowtype;
-  v_run  text;
+  v_send   public.sequence_sends%rowtype;
+  v_run    text;
+  v_change text := nullif(btrim(coalesce(p_change, '')), '');
+  v_was    jsonb;
 begin
   if auth.uid() is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
   select * into v_send from public.sequence_sends where sequence_sends.lead_id is not null and ( id = p_send_id) for update;
   if not found or not public.is_acting_member(v_send.tenant_id) then
     raise exception 'Email not found.' using errcode = 'P0002';
+  end if;
+  if v_change is not null and p_decision is distinct from 'rewrite' then
+    raise exception 'Only a rewrite takes words.' using errcode = '22023';
+  end if;
+  if char_length(coalesce(v_change, '')) > 280 then
+    raise exception 'Say it in 280 characters or fewer.' using errcode = '22023';
   end if;
   select state into v_run from public.sequence_batches where id = v_send.batch_id;
   if v_run is null or v_run not in ('pending_approval', 'scheduled', 'sending') then
@@ -24113,7 +24123,19 @@ begin
       if public.reach_out_given_up(v_send.created_at) then
         raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
       end if;
+      -- The opening it replaces, as it stood, kept once: a second press while the first is written undoes to the first.
+      v_was := case
+        when v_send.opening is null and v_send.rewrite_asked ? 'was' then v_send.rewrite_asked->'was'
+        when v_send.opening is null then null
+        else jsonb_build_object('opening', v_send.opening, 'angle', v_send.angle, 'facts_used', to_jsonb(v_send.facts_used),
+                                'state', v_send.state, 'reason', v_send.reason, 'hold_detail', v_send.hold_detail,
+                                'checked_at', v_send.checked_at, 'checked_words', v_send.checked_words)
+      end;
       perform public.reach_out_recheck(array[p_send_id], v_send.tenant_id);
+      update public.sequence_sends
+         set rewrite_asked = jsonb_strip_nulls(jsonb_build_object('change', v_change, 'by', auth.uid(), 'at', now(),
+                                                                  'was', v_was))
+       where sequence_sends.lead_id is not null and ( id = p_send_id) and state = 'planned';
     when 'skip' then
       update public.sequence_sends set state = 'skipped', reason = 'owner_skipped' where sequence_sends.lead_id is not null and ( id = p_send_id);
     when 'not_a_fit' then
@@ -24125,6 +24147,69 @@ begin
   end case;
   return jsonb_build_object('send_id', p_send_id, 'decision', p_decision);
 end $$;
+
+
+--
+-- Name: FUNCTION reach_out_send_decide(p_send_id uuid, p_decision text, p_change text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text, p_change text) IS 'A member''s answer to one held or waiting email of a live run: include it, rewrite its opening (with what should change, 280 characters at most, kept on the send with the opening it replaced, 00505), skip it, or set its business aside as not a fit.';
+
+
+--
+-- Name: reach_out_send_rewrite_undo(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_send_rewrite_undo(p_send_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_send public.sequence_sends%rowtype;
+  v_run  text;
+  v_was  jsonb;
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
+  select * into v_send from public.sequence_sends where sequence_sends.lead_id is not null and ( id = p_send_id) for update;
+  if not found or not public.is_acting_member(v_send.tenant_id) then
+    raise exception 'Email not found.' using errcode = 'P0002';
+  end if;
+  select state into v_run from public.sequence_batches where id = v_send.batch_id;
+  if v_run is null or v_run not in ('pending_approval', 'scheduled', 'sending') then
+    raise exception 'That run is over.' using errcode = '22023';
+  end if;
+  if v_send.state not in ('held', 'planned') then
+    raise exception 'That email has gone.' using errcode = '22023';
+  end if;
+  v_was := v_send.rewrite_asked->'was';
+  if v_was is null or jsonb_typeof(v_was) <> 'object' or nullif(v_was->>'opening', '') is null then
+    raise exception 'There is no earlier opening to put back.' using errcode = '22023';
+  end if;
+  -- As it stood before the press: its words, the check's reading of them and its state. The version moves on, so a
+  -- check still writing the rewrite writes nothing (recordCheck writes only onto the version it read).
+  update public.sequence_sends
+     set opening = v_was->>'opening',
+         angle = v_was->>'angle',
+         facts_used = coalesce(array(select jsonb_array_elements_text(coalesce(v_was->'facts_used', '[]'::jsonb))), '{}'),
+         state = case when v_was->>'state' = 'held' then 'held' else 'planned' end,
+         reason = v_was->>'reason',
+         hold_detail = v_was->>'hold_detail',
+         checked_at = (v_was->>'checked_at')::timestamptz,
+         checked_words = v_was->>'checked_words',
+         check_gen = check_gen + 1, claimed_at = null, check_started_at = null, check_after = null,
+         check_tries = 0, check_first_at = null,
+         rewrite_asked = null
+   where sequence_sends.lead_id is not null and ( id = p_send_id);
+  return jsonb_build_object('send_id', p_send_id, 'opening', v_was->>'opening',
+                            'state', case when v_was->>'state' = 'held' then 'held' else 'planned' end);
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_send_rewrite_undo(p_send_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_send_rewrite_undo(p_send_id uuid) IS 'A member''s Undo of Rewrite the opening (00505): the opening it replaced and how it stood (its reading, state and hold), back, while the email waits in a live run; a check still writing the rewrite writes nothing.';
 
 
 --
@@ -26922,6 +27007,8 @@ CREATE TABLE public.sequence_sends (
     draft jsonb,
     said_at timestamp with time zone,
     said_by uuid,
+    rewrite_asked jsonb,
+    website_says text,
     CONSTRAINT sequence_sends_attempts_check CHECK (((attempts >= 0) AND ((lead_id IS NULL) OR (attempts <= 20)))),
     CONSTRAINT sequence_sends_channel_check CHECK (((channel IS NULL) OR (channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])))),
     CONSTRAINT sequence_sends_check_is_whole CHECK ((((opening IS NULL) OR ((char_length(opening) >= 1) AND (char_length(opening) <= 400))) AND ((angle IS NULL) OR ((char_length(angle) >= 1) AND (char_length(angle) <= 40))) AND ((hold_detail IS NULL) OR (char_length(hold_detail) <= 120)) AND ((checked_words IS NULL) OR ((char_length(checked_words) >= 1) AND (char_length(checked_words) <= 64))) AND ((check_tries >= 0) AND (check_tries <= 100)) AND (check_gen >= 0) AND (cardinality(facts_used) <= 12) AND (included_for <@ ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text]))),
@@ -26931,9 +27018,11 @@ CREATE TABLE public.sequence_sends (
     CONSTRAINT sequence_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
     CONSTRAINT sequence_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
     CONSTRAINT sequence_sends_reason_check CHECK (((lead_id IS NULL) OR (reason IS NULL) OR (char_length(reason) <= 60))),
+    CONSTRAINT sequence_sends_rewrite_asked_shape CHECK (((rewrite_asked IS NULL) OR ((jsonb_typeof(rewrite_asked) = 'object'::text) AND (((rewrite_asked -> 'change'::text) IS NULL) OR (jsonb_typeof((rewrite_asked -> 'change'::text)) = 'null'::text) OR ((char_length((rewrite_asked ->> 'change'::text)) >= 1) AND (char_length((rewrite_asked ->> 'change'::text)) <= 280))) AND (octet_length((rewrite_asked)::text) <= 4000)))),
     CONSTRAINT sequence_sends_sent_is_dated CHECK (((lead_id IS NULL) OR (state <> 'sent'::text) OR (sent_at IS NOT NULL))),
     CONSTRAINT sequence_sends_someone CHECK (((lead_id IS NOT NULL) OR (contact_id IS NOT NULL))),
-    CONSTRAINT sequence_sends_state_check CHECK ((state = ANY (ARRAY['planned'::text, 'held'::text, 'claimed'::text, 'queued'::text, 'drafted'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'handed'::text])))
+    CONSTRAINT sequence_sends_state_check CHECK ((state = ANY (ARRAY['planned'::text, 'held'::text, 'claimed'::text, 'queued'::text, 'drafted'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'handed'::text]))),
+    CONSTRAINT sequence_sends_website_says_shape CHECK (((website_says IS NULL) OR ((char_length(website_says) >= 1) AND (char_length(website_says) <= 800))))
 );
 
 
@@ -26998,6 +27087,20 @@ COMMENT ON COLUMN public.sequence_sends.said_at IS 'When the owner said this dra
 --
 
 COMMENT ON COLUMN public.sequence_sends.said_by IS 'The member who said it (00429).';
+
+
+--
+-- Name: COLUMN sequence_sends.rewrite_asked; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.rewrite_asked IS 'What its owner asked when they pressed Rewrite the opening (00505): {change, by, at, was}, where change is their words (280 characters at most) or null and was the opening it replaced with how it stood, for Undo. The check reads it: the listing''s fact is not offered again and the writer is told. Cleared by Undo and by lead_blank.';
+
+
+--
+-- Name: COLUMN sequence_sends.website_says; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.website_says IS 'What the business''s own website said when the check last read it for this email (00505), so writing its opening again reads no page. Null where it was never read, or said nothing. Cleared by lead_blank.';
 
 
 --
@@ -28555,7 +28658,7 @@ end $$;
 -- Name: FUNCTION sequence_sends_end_emptied_runs(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_sends_end_emptied_runs() IS 'A run waiting for an OK with no send left to go is canceled (00504): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
+COMMENT ON FUNCTION public.sequence_sends_end_emptied_runs() IS 'A run waiting for an OK with no send left to go is canceled (00511): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
 
 
 --
@@ -29308,10 +29411,10 @@ end $$;
 
 
 --
--- Name: sequence_unchecked(integer, integer, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: sequence_unchecked(integer, integer, integer, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS TABLE(send jsonb, check_gen integer, template_id uuid, template_language text, signed_by text, included_for text[], business_name text, category text, city text, region text, rating numeric, reviews integer, website_host text, hours jsonb, about text, email text, why_it_fits text, what_you_asked text, site_listings integer, name_listings integer, email_domain_shared boolean, reviews_dist jsonb, claimed boolean)
+CREATE FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid DEFAULT NULL::uuid, p_send_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(send jsonb, check_gen integer, template_id uuid, template_language text, signed_by text, included_for text[], business_name text, category text, city text, region text, rating numeric, reviews integer, website_host text, hours jsonb, about text, email text, why_it_fits text, what_you_asked text, site_listings integer, name_listings integer, email_domain_shared boolean, reviews_dist jsonb, claimed boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -29335,9 +29438,11 @@ begin
        and b.state in ('pending_approval', 'scheduled', 'sending') and p.state = 'running' and r.state = 'running'
        and (s.check_after is null or s.check_after <= now())
        and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-       and (b.state = 'pending_approval'
+       -- A send a person pressed is checked now, whatever its day (00505); the clock's own wait for its day otherwise.
+       and (p_send_ids is not null or b.state = 'pending_approval'
             or s.send_at <= now() + make_interval(mins => greatest(coalesce(p_ahead_minutes, 0), 0)))
        and (p_tenant_id is null or s.tenant_id = p_tenant_id)
+       and (p_send_ids is null or s.id = any (p_send_ids))
   ), picked as (
     select c.id from candidates c
      where c.turn <= p_per_workspace
@@ -29376,10 +29481,10 @@ end $$;
 
 
 --
--- Name: FUNCTION sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) IS 'The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, each with its words'' step, the name its sequence signs with, the holds its owner included it past and its business''s record (00197 reach_out_unchecked over sequence_sends). Service role only (0060).';
+COMMENT ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) IS 'The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, each with its words'' step, the name its sequence signs with, the holds its owner included it past and its business''s record (00197 reach_out_unchecked over sequence_sends); with p_send_ids, those sends alone and whatever their day (00505: the check of a pressed rewrite). Service role only (0060).';
 
 
 --
@@ -49222,12 +49327,21 @@ GRANT ALL ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_i
 
 
 --
--- Name: FUNCTION reach_out_send_decide(p_send_id uuid, p_decision text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_send_decide(p_send_id uuid, p_decision text, p_change text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) TO authenticated;
-GRANT ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) TO service_role;
+REVOKE ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text, p_change text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text, p_change text) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text, p_change text) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_send_rewrite_undo(p_send_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_send_rewrite_undo(p_send_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_send_rewrite_undo(p_send_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_send_rewrite_undo(p_send_id uuid) TO service_role;
 
 
 --
@@ -49978,11 +50092,11 @@ GRANT ALL ON FUNCTION public.sequence_steps_words_changed() TO service_role;
 
 
 --
--- Name: FUNCTION sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) TO service_role;
 
 
 --

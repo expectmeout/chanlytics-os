@@ -8,12 +8,11 @@
 import { clockNear, clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
-import { runDraftedEmails, runHeldEmails } from "../waits/waits";
+import { toSendRunsOf, type WaitingToSend } from "../waits/to-send";
 import { RUN_OPEN_WORDS, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms";
 import { composeLinksOf, type ComposeLinks } from "./owner/compose";
 import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
-import { reachOutRootOf } from "./reach-out-rules";
 import { approvalWordsOf, stepLabel } from "./reach-out-sheet";
 import { TO_SEND_ROUTE, runRoute } from "../sequences/sequence-address";
 import { waitingAnswersOf } from "../sequences/sequence-held";
@@ -277,23 +276,6 @@ export const REACH_OUT_TO_SEND_LABELS = {
   already: (state: string) => (state === "sent" ? "Already said: it went." : "Already said: it was left out."),
 } as const;
 
-/** A run as Sent's list holds it (BroadcastVM), as far as the one To send reads it. */
-export interface ToSendRunLike {
-  id: string;
-  state: string;
-  scheduled_for: string;
-  /** How many of a going run's emails are handed to its owner (waits.ts runDraftedEmails, 00429). */
-  drafted?: number | null;
-  /** Whose run it is: a reach-out's run names its reach-out (reachOutRootOf), so a first email and its nudge are one. */
-  audience?: unknown;
-}
-
-/** One To send's numbers: the emails handed over, and the reach-outs they come from (a run's steps are one reach-out). */
-export interface ToSendCount {
-  count: number;
-  from: number;
-}
-
 /** The one To send's own words: Today's row that opens it, and Sent's pane that lists every run's emails. */
 export const TO_SEND_ALL_WORDS = {
   title: "To send",
@@ -335,45 +317,6 @@ export const TO_SEND_ALL_WORDS = {
   /** What a role that may not is told it cannot do here (gateTitle): the run's own list's words. */
   gated: REACH_OUT_TO_SEND_LABELS.gated,
 } as const;
-
-/**
- * Every going run with emails handed to its owner (00429), as one To send: the runs, the oldest first, with how many of
- * their emails wait in all. Null when none has one. Each run's own emails are its detail's (toSendWordsOf), read as its
- * part of the list is drawn.
- */
-export function toSendAllOf<R extends ToSendRunLike>(runs: readonly R[]): ({ runs: R[] } & ToSendCount) | null {
-  const waiting = runs
-    .filter((r) => runDraftedEmails(r) > 0)
-    .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for) || a.id.localeCompare(b.id));
-  if (waiting.length === 0) return null;
-  return {
-    runs: waiting,
-    count: waiting.reduce((n, r) => n + runDraftedEmails(r), 0),
-    // A reach-out's runs are its steps' (a first email, a nudge): counted as the one reach-out they are.
-    from: new Set(waiting.map((r) => reachOutRootOf(r.audience) ?? r.id)).size,
-  };
-}
-
-/** A run waiting for you, as the doors to the waiting runs read it: whether its check holds emails too, and its sequence. */
-type WaitingToSend = ToSendRunLike & { held?: number | null; sequence_id?: string | null };
-
-/**
- * The runs waiting for you that fold into the one To send's row on Today: two or more going runs whose emails are handed
- * to their owner, none of them holding emails for a say too (a held email is answered on its run, its own row). Null
- * where fewer would fold, and each is its own run's row. The row says the list it opens: every email handed over and
- * every run with one (`count`, `from`: toSendAllOf), a run that holds emails too among them.
- */
-export function toSendRunsOf<R extends WaitingToSend>(waiting: readonly R[]): ({ runs: R[] } & ToSendCount) | null {
-  const folded = waiting.filter((r) => runHeldEmails(r) === 0 && runDraftedEmails(r) > 0);
-  const all = toSendAllOf(waiting);
-  return all && folded.length > 1 ? { runs: folded, count: all.count, from: all.from } : null;
-}
-
-/** The door from a run's own To send to the one list: where two or more runs hand emails over, its numbers. */
-export function toSendEveryOf<R extends ToSendRunLike>(runs: readonly R[]): ToSendCount | null {
-  const all = toSendAllOf(runs);
-  return all && all.runs.length > 1 ? { count: all.count, from: all.from } : null;
-}
 
 /**
  * Where a door to the runs waiting for you goes (Today's queue head): the run, at its home, where one waits; To send, the

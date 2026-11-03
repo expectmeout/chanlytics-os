@@ -573,7 +573,7 @@ test("what is not a number: never the traffic the figures say, nor a reply that 
   );
   // A run that went out is said in the day, at the time it went, with what it has earned so far.
   const day = draw(DayZone);
-  const run = broadcasts().rows[2];
+  const run = W.__BROADCASTS.rows[2]; // the run drawn: a second broadcasts() can fall a minute later
   const done = byTestId(day, "today-day-went");
   assert.ok(done, "a run that went out, in the day");
   const at = W.__clock.time(Date.parse(run.started_at));

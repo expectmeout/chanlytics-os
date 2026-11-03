@@ -8,7 +8,7 @@
  *   3. Auto-add: a sequence draws its search's ready leads without a press, never one put off for later; one taken out
  *      stays out, and Put back brings it in again; the add door says such a lead is in already.
  *   4. Move: a lead nothing was sent to leaves one sequence as moved and joins another; one written to stays.
- *   4a. A run with nothing left to send waits on nobody (00504): a run waiting for an OK ends once its last email leaves
+ *   4a. A run with nothing left to send waits on nobody (00511): a run waiting for an OK ends once its last email leaves
  *      (a move, a Take out), and the page no longer says it waits; one email still planned keeps it waiting.
  *   5. Skip this email from step 2 moves the lead on to the next step; at step 1 it still leaves.
  *   5a. Put back (00502): a lead nothing reached goes back on its list, its first email free; one written to keeps its step.

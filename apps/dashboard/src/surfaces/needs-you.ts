@@ -25,9 +25,7 @@ import {
   runsThatWait,
   waitRowsOf,
   waitsOf,
-  withReplies,
   type BroadcastVM,
-  type ReachOutRepliesDto,
   type TodayQueueRowVM,
   type TodayVM,
   type WaitingThread,
@@ -40,12 +38,6 @@ import { demoSession } from "./inbox/shell";
 import { IX_STORE, VW_STORE, inboxData } from "./inbox/store";
 import type { Thread } from "./inbox/types";
 import { surfaceValue } from "./surface-values";
-
-/**
- * The readings of reach-out replies as the Inbox's surface holds them (reach-out/replies.ts), none when unread: the ones
- * Today's queue is read with (today/helpers.ts), read here directly so the shell carries no more of Today than the count.
- */
-const repliesReadNow = () => (globalThis as { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];
 
 /**
  * A thread as the count reads it: a real one by the Inbox's own rule, with the hold this tab has made; a seeded one (a
@@ -137,8 +129,10 @@ function stillWaits(r: TodayQueueRowVM, nowMs: number): boolean {
  * as Today's read makes them and this tab has worked them (contracts needYouGroupsOf: Up next, who waits on you, what
  * waits for your OK), and the rows of the runs an approval can still send, as the list draws them (contracts waitRowsOf:
  * a batch To send, the runs waiting for an OK folded into one); your own to-dos and whoever waited past a week never.
- * Every page reads Today (today/override.ts), so this is no read of its own. Null while Today has not been read; a demo
- * session counts its seeded threads, as the mockup always did.
+ * A reach-out's reply that Need you draws in its handoff's place (contracts withReplies) keeps that row's id, wait and
+ * clock, and both are a person waiting, so the count reads the rows as Today's read has them, and leaves the replies'
+ * rows to the page that draws them. Every page reads Today (today/override.ts), so this is no read of its own. Null
+ * while Today has not been read; a demo session counts its seeded threads, as the mockup always did.
  */
 export function needsYouNow(nowMs: number = Date.now()): number | null {
   if (typeof window !== "undefined" && demoSession()) {
@@ -147,7 +141,7 @@ export function needsYouNow(nowMs: number = Date.now()): number | null {
   }
   const today = surfaceValue("today");
   if (!today) return null;
-  const rows = withReplies(today.queue.rows, repliesReadNow()).filter((r) => stillWaits(r, nowMs));
+  const rows = today.queue.rows.filter((r) => stillWaits(r, nowMs));
   return needYouCountOf(needYouGroupsOf(rows), waitRowsOf(waitingRunsNow(nowMs)).length);
 }
 

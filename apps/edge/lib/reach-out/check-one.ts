@@ -35,6 +35,8 @@ import {
   readingUserContent,
   reachOutCountryOf,
   wordsNeedOpening,
+  type OpeningAsked,
+  type RewriteStep,
   type OpeningRecord,
   type OpeningVerdict,
   type OpeningWorkspace,
@@ -141,10 +143,21 @@ export interface CheckInput {
    */
   fact?: WrittenOpening | null;
   /**
+   * What its owner asked when they pressed Rewrite the opening (00505 rewrite_asked): the listing's fact is not offered
+   * again, and the writer is told what was turned down and what should change. Null, or absent, where nobody asked.
+   */
+  asked?: OpeningAsked | null;
+  /**
    * What the business's own website says (siteReaderOf): read once, and only where the writer is asked, so a listing's
    * fact that passes reads no site; the writer and the reader then read the same record. Absent where it has none.
    */
   site?: () => Promise<string | null>;
+  /**
+   * Said as the check takes each step (00505: a pressed rewrite shows them as they happen): writing, checking, and
+   * writing again where the reader refused it. Reading the site is the site's own to say (check.ts), since only a page
+   * read anew takes time.
+   */
+  onStep?: (step: RewriteStep) => void;
   /**
    * The holds this send's owner included it, or its lead in this chain, past (the planner's union over the lead's sends):
    * one an Include carries (contracts HOLDS_INCLUDED_FOR_CHAIN) is never made again; the rest covered one email (R7).
@@ -162,6 +175,8 @@ export type CheckOutcome =
       hold: ReachOutHold | null;
       detail: string | null;
       rewritten: boolean;
+      /** What the business's website said, where the writer was asked and the site read (the send keeps it, 00505). */
+      site: string | null;
       tokens: Tokens;
       calls: number;
     }
@@ -217,6 +232,7 @@ export async function checkOne(
   // The reader's verdict on an opening against the record, after code's own reading of it: the call every opening takes,
   // a fact's and each one the writer wrote; an outcome where the check ends there.
   const verdictOn = async (o: WrittenOpening): Promise<OpeningVerdict | CheckOutcome> => {
+    i.onStep?.("checking");
     const r = await call(
       readingSystemPrompt(),
       readingUserContent({ record, opening: o.opening }),
@@ -236,8 +252,9 @@ export async function checkOne(
   let rewritten = false;
   // An opening the listing's own fields say (decision 0078): read once, by the reader, as every opening is. It stands
   // where it passes, and where its hold is one no rewrite changes (the business's language); one the reader or code
-  // cannot back is the writer's to write, as an opening with no fact is.
-  if (i.needsOpening && i.fact) {
+  // cannot back is the writer's to write, as an opening with no fact is. An owner who pressed Rewrite turned the
+  // listing's sentence down already: theirs goes to the writer.
+  if (i.needsOpening && i.fact && !i.asked) {
     const v = await verdictOn(i.fact);
     if ("kind" in v) return v;
     if (v.ok || !v.rewrite) {
@@ -250,9 +267,10 @@ export async function checkOne(
     record = await withWebsite(i);
     let retry: { opening: string; why: string } | undefined;
     for (let round = 0; round < 2; round += 1) {
+      i.onStep?.(round === 0 ? "writing" : "again");
       const w = await call(
         openingSystemPrompt(),
-        openingUserContent({ record, workspace: i.workspace, words: i.words, retry }),
+        openingUserContent({ record, workspace: i.workspace, words: i.words, asked: i.asked, retry }),
         OPENING_SCHEMA,
         400,
       );
@@ -299,7 +317,7 @@ export async function checkOne(
     hold = code.hold;
     detail = code.detail;
   }
-  return { kind: "checked", opening, hold, detail, rewritten, tokens, calls };
+  return { kind: "checked", opening, hold, detail, rewritten, site: record.website_says ?? null, tokens, calls };
 }
 
 /** A listing's hours ([{day, hours}], 00144), as words the writer can lean on. */
