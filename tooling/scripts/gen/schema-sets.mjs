@@ -44,7 +44,7 @@ select t.relname::text as tbl,
    and pg_get_constraintdef(c.oid) like '%= ANY (ARRAY[%'
 union all
 -- A closed set a table holds rather than a CHECK: the column references the table's key, and the set is its rows
--- (jobs.kind references job_kinds, 00515: a new kind is a row, never a CHECK swap and a rewrite of the ledger).
+-- (jobs.kind references job_kinds, 00526: a new kind is a row, never a CHECK swap and a rewrite of the ledger).
 select 'jobs', 'kind', to_jsonb(array(select k.kind from public.job_kinds k order by k.kind))
  order by 1, 2`;
 

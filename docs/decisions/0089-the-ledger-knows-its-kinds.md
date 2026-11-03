@@ -2,7 +2,7 @@
 
 **Status:** Built on the lane `jobs/the-ledger-finished` from main's `6c4da4d1d`, 3 November 2026, on Ruben's approval of
 the PRD (`Claude Video/docs/2026-11-03-prd-the-job-ledger-finished.md`, "continue all phases end to end"), with the
-decisions D1-D9 taken as the PRD recommends. Migrations 00515 to 00518 (claimed at the push; built as 00506 to 00509). Not yet
+decisions D1-D9 taken as the PRD recommends. Migrations 00526 to 00529 (built as 00506 to 00509, claimed as 00515 to 00518, moved above 00525 when #2075 applied it first). Not yet
 merged. Where this note and the code disagree, the code wins.
 
 ## Context
@@ -27,7 +27,7 @@ jobs_guard in the database), and its loose ends were at its edges, read on main 
 
 ## Decision
 
-1. **A kind is one row and one policy.** `job_kinds` (00515) holds each kind's lane, once-only rule (`once_parts`, and
+1. **A kind is one row and one policy.** `job_kinds` (00526) holds each kind's lane, once-only rule (`once_parts`, and
    `once_kept`: held while kept, or only while live) and pause; `jobs.kind` references it and the CHECK goes. A trigger
    before every insert (`jobs_take_their_kind`) writes the lane and the key from the row, whoever the writer is, so a SQL
    function's insert and packages/jobs' are held alike and the rule is spelled once. `jobs.lane` becomes a plain column
@@ -42,15 +42,15 @@ jobs_guard in the database), and its loose ends were at its edges, read on main 
    run that never started); `deferJob` writes that, so a waiting retry is withdrawn, cancelled and erased as any
    scheduled row is.
 4. **One key index for the kept kinds.** `jobs_dedupe_kept` holds what `jobs_email_ingest_uq`, `jobs_lead_collect_once`
-   and `jobs_reply_read_once` held (decision 0033, step 3): built online and alone in its file (00517), and the first and
-   third dropped only once it is valid (00518). `jobs_lead_collect_once` stays: three SQL writers (`lead_collect_commit`,
+   and `jobs_reply_read_once` held (decision 0033, step 3): built online and alone in its file (00528), and the first and
+   third dropped only once it is valid (00529). `jobs_lead_collect_once` stays: three SQL writers (`lead_collect_commit`,
    `lead_round_stop`, `lead_search_remove`) name its columns in `on conflict`, which no other index answers; it goes when
    they are next written. A lead round's start and each batch of its checks keep 00506's rule: keyed by the writer that
    asks (packages/jobs `askedKeyOf`, `lead_collect_commit`), never by the trigger, so a door's own start
    (`lead_round_answer`) is never refused for one already waiting. A requeued copy names the job it copies (`requeue_of`): once per failed job by design, where a
    whole-payload equality missed a copy made inside a request.
 5. **Ids, not people, where either deploy order allows.** A reply's words are not copied onto its job (`never`), and the
-   receptionist's draft is queued with its job in one statement (00516 `queue_send`), its address frozen on the row
+   receptionist's draft is queued with its job in one statement (00527 `queue_send`), its address frozen on the row
    (`meta.to`), which the send reads first. A member's reply keeps its order (the message, its receipt, then its job), by
    design: a kill before the receipt must not send, and its orphan is the deadman's. A text's answer job keeps the
    provider's message, from which the inbound phase runs again; an erasure now reaches it while it waits.
@@ -65,7 +65,7 @@ jobs_guard in the database), and its loose ends were at its edges, read on main 
 8. **Lateness and the clock.** A member's reply carries `stale_after` (its grace plus `MEMBER_REPLY_STALE_MS`, 30
    minutes, D3); past it the send door refuses it as too late and its thread is handed to the person. `jobs-tick` asks
    every two seconds: a row that came due in the last three knocks at once, the rest of the ledger is asked every ten.
-9. **Broadcasts.** A run the ledger hands to a fresh one tells nobody (D5); `finish_broadcast` (00516) marks a run sent and
+9. **Broadcasts.** A run the ledger hands to a fresh one tells nobody (D5); `finish_broadcast` (00527) marks a run sent and
    writes its event in one statement.
 10. **Removed.** `job_capacity` and its clause (D4); the deploy-order shims for 00333 and 00352 in packages/jobs and
     packages/db.

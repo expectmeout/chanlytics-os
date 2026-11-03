@@ -923,7 +923,7 @@ const sequenceOfFirstStep = (tables, row) => ({
  * state by its family. The row is filled in place and answered.
  */
 /**
- * Each kind's job_kinds row (00515) as jobs_take_their_kind reads it: its lane, the parts of its once-only key (null: no
+ * Each kind's job_kinds row (00526) as jobs_take_their_kind reads it: its lane, the parts of its once-only key (null: no
  * rule; [] the kind alone) and whether the key holds while the row is kept. jobs/job-kinds.test.mjs holds this to the
  * migration's own seed.
  */
@@ -948,7 +948,7 @@ export const FAKE_JOB_KINDS = {
   event_deliver: [2, null, false],
 };
 
-/** A job's once-only key as job_dedupe_key_of (00515) spells it, or null. */
+/** A job's once-only key as job_dedupe_key_of (00526) spells it, or null. */
 function fakeDedupeKey(kind, tenantId, payload) {
   const rule = FAKE_JOB_KINDS[kind];
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
@@ -973,7 +973,7 @@ function fakeDedupeKey(kind, tenantId, payload) {
 }
 
 function filledBySequenceTriggers(tables, table, row) {
-  // A job's lane and its once-only key, as jobs_take_their_kind writes them before the insert (00515), whoever wrote it.
+  // A job's lane and its once-only key, as jobs_take_their_kind writes them before the insert (00526), whoever wrote it.
   if (table === "jobs" && FAKE_JOB_KINDS[row.kind]) {
     const [lane, , kept] = FAKE_JOB_KINDS[row.kind];
     const p = row.payload && typeof row.payload === "object" ? row.payload : {};
@@ -1452,7 +1452,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return rows.map((m) => m.id).sort();
     },
     /**
-     * A queued reply and its outbound_send job, written together or not at all (00516 queue_send): a fault on
+     * A queued reply and its outbound_send job, written together or not at all (00527 queue_send): a fault on
      * `messages.insert` or `jobs.insert` refuses the whole door, with nothing of it kept. Answers the message's id.
      */
     queue_send: ({ p_message, p_due_at, p_payload }) => {
@@ -1491,7 +1491,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return m.id;
     },
     /**
-     * A run marked sent and its broadcast.sent written together (00516 finish_broadcast): only a run still sending moves,
+     * A run marked sent and its broadcast.sent written together (00527 finish_broadcast): only a run still sending moves,
      * and only then is the event written. Answers whether it moved.
      */
     finish_broadcast: ({ p_tenant_id, p_id, p_event }) => {

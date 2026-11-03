@@ -45,7 +45,17 @@
     "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
     "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
     "00504": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, a run with nothing to send waits on nobody), open and not on main when an opening is written again as its owner says took 00505; record drops this once #2061 lands",
-    "00511": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, renumbered from 00504), not on production when the onboarding lane (#2069) applied 00512 to 00514; it lands above them"
+    "00511": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, renumbered from 00504), not on production when the onboarding lane (#2069) applied 00512 to 00514; it lands above them",
+    "00515": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
+    "00516": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
+    "00517": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
+    "00518": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
+    "00519": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00520": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00521": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -517,9 +527,10 @@
     "00512_the_trial_covers_everything.sql": "e65ee89f1817d3c8c703afa4fc82977e838a5d84d4128cd371e66a1a1d24a070",
     "00513_a_workspace_s_setup_choices_are_its_own.sql": "eb4f1914515a3ed5712b1c748089656a29d8952ca9bbe30d13616da25491922f",
     "00514_going_live_is_one_write.sql": "a2fb906b77ba80c43c511fe0c832bba6b7783bea4d4f24906c743af879c2c6e0",
-    "00515_the_ledger_knows_its_kinds.sql": "2211ad40bdd5ff2efa1d0f5689ca5f2e730257e9f6b4ec156e5346508f8e3ece",
-    "00516_a_send_is_queued_with_its_job.sql": "7a1ab497ef617cf7ffd9d938419f62dd3d5c54c5dffc912abc9dea7fccd13bcf",
-    "00517_one_index_keeps_each_kept_kind_once.sql": "7b1f72d74e1dc93d6b7e1e5079f5e8b43d0d3dd05fb85afc894a942054fc3fab",
-    "00518_the_bespoke_once_keys_go.sql": "a0d9d55e5aa30d806a02083e3d5d442b0006228d3f128c1834ec0c2697d8993f"
+    "00525_a_trial_s_leads_count_at_every_door.sql": "8eda60503f14b70666756671ee89650f631064547d51c01df273e7f80b477c63",
+    "00526_the_ledger_knows_its_kinds.sql": "901e87e3a95fea0e59ec3515bb8c2ed6b4b1310caaa26518dd06c5072646caad",
+    "00527_a_send_is_queued_with_its_job.sql": "7f40ca8abfb23527e8a304ac7db3781b7e07cd9d0528b985e0753363dc5ccb0c",
+    "00528_one_index_keeps_each_kept_kind_once.sql": "6467a05226b3b69d68a9c39b650da7f85eb0fc287f36ee3fadbfe3dba56731e5",
+    "00529_the_bespoke_once_keys_go.sql": "8dc2be45d0a26350129862acaa6a408bf00af4a94229dc2b7c61b3f63d62ab29"
   }
 }

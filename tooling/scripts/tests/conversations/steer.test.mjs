@@ -58,7 +58,7 @@ test("one writer for a held draft, used by the handler and the steer", () => {
   assert.ok(q.includes('export type DraftSource = "veto_window" | "low_confidence" | "steered";'));
   assert.ok(
     q.includes("queueSend("),
-    "the draft and its job in one statement (00516 queue_send): one never stands without the other",
+    "the draft and its job in one statement (00527 queue_send): one never stands without the other",
   );
   const wa = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(wa.includes("const id = await queueDraft("));

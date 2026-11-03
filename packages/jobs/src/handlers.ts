@@ -125,7 +125,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
           email: isEmailRequest(request) ? request : null,
           ownEmail: isEmailRequest(own) ? own : undefined,
           leadId: typeof leadId === "string" && leadId ? leadId : null,
-          // Where it goes, frozen on the row when it was queued (00516 queue_send): the ledger keeps no copy.
+          // Where it goes, frozen on the row when it was queued (00527 queue_send): the ledger keeps no copy.
           to: typeof meta?.to === "string" && meta.to ? meta.to : null,
         };
       },
@@ -601,7 +601,7 @@ async function previewBuild(ctx: JobContext, job: ClaimedJob): Promise<void | { 
 }
 
 /**
- * canary: the ledger's own proof that it runs (00515, decision 0089). It does nothing: that a row scheduled by pg_cron was
+ * canary: the ledger's own proof that it runs (00526, decision 0089). It does nothing: that a row scheduled by pg_cron was
  * claimed, run and completed is the whole of what it proves, and sweep_status judges it by its newest done row, so
  * /api/health says so from outside.
  */

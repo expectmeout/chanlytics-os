@@ -271,7 +271,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   jobs: {
     // A thrown error can quote the recipient a provider refused.
     ...all(scrubbedBy("jobs_scrub", "erase_contact"), "payload", "last_error"),
-    // Ids only (job_dedupe_key_of, 00515: the parts each kind names in job_kinds).
+    // Ids only (job_dedupe_key_of, 00526: the parts each kind names in job_kinds).
     dedupe_key: NOT_PERSONAL,
   },
   lead_counters: { period: NOT_PERSONAL },

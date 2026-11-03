@@ -4,7 +4,7 @@
  *   scheduled --claim_due_jobs--> fired --completeJob--> done
  *     ^   |                         |  \-----failJob------> failed
  *     |   |                         |
- *     |   |                         \--deferJob: back to wait for its next try, its attempts kept (00515)
+ *     |   |                         \--deferJob: back to wait for its next try, its attempts kept (00526)
  *     \---|-------------------------/
  *         \--------cancelJob---------> canceled
  *
@@ -301,7 +301,7 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
 
 /**
  * Put a job back to wait for its next try, due once `untilIso` passes: one that threw (retryWait), or one whose kind this
- * runner does not know (UNKNOWN_KIND_WAIT_MS). It goes back to scheduled (00515), so 'fired' means running, and
+ * runner does not know (UNKNOWN_KIND_WAIT_MS). It goes back to scheduled (00526), so 'fired' means running, and
  * cancelJobsFor, withdraw_queued and an erasure's cancel take a waiting retry as they take any scheduled row. Why is kept
  * on the row. The same compare-and-swap as the exits, so false means this run no longer holds it.
  *

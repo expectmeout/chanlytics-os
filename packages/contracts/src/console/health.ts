@@ -84,7 +84,7 @@ export interface HealthDto {
   clocks: HealthClockDto[] | null;
   backlog: number | null;
   failed_jobs: FailedJobDto[] | null;
-  /** The ledger now (jobs_ledger_now, 00515); absent from a server before it. */
+  /** The ledger now (jobs_ledger_now, 00526); absent from a server before it. */
   ledger?: LedgerNowDto | null;
   pages: OperatorPageDto[] | null;
   /** The nightly roll-up's days (platform_metrics), the window's. */

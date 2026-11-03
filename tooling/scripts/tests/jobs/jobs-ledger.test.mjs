@@ -174,7 +174,7 @@ test("a job put back to wait for its next try keeps its claim and why, and waits
   assert.deepEqual(
     [jobs[0].state, jobs[0].due_at, jobs[0].lease_until, jobs[0].attempts, jobs[0].last_error.length],
     ["scheduled", "2026-01-01T00:05:00Z", null, 1, 500],
-    "scheduled again (00515): fired means running, so a waiting retry can be withdrawn; its claims counted; why bounded",
+    "scheduled again (00526): fired means running, so a waiting retry can be withdrawn; its claims counted; why bounded",
   );
   // From here it is a scheduled row like any other: a run that held it no longer does.
   assert.equal(await deferJob(db, { id: "j1", attempts: 1 }, "2026-01-01T00:35:00Z", "late"), false);

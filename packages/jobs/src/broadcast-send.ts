@@ -465,7 +465,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
         return HELD_WHEN_COUNTED.filter((_, i) => (counts[i] ?? 0) > 0);
       },
-      // Marked sent with its tally on the ledger in one statement (00516 finish_broadcast): the state moved first and the
+      // Marked sent with its tally on the ledger in one statement (00527 finish_broadcast): the state moved first and the
       // event after, so an event that could not be written threw out of a run that had finished, and its owner was told
       // it stopped partway. Another chain of the same run that finished it first wrote the run's event; this one writes none.
       finish: async (id, tally) => {

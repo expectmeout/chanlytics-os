@@ -43,7 +43,7 @@ interface DraftLog {
 }
 
 export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: DraftLog): Promise<string | null> {
-  // The draft and its job in one statement (00516 queue_send): both are written or neither is. The draft used to be
+  // The draft and its job in one statement (00527 queue_send): both are written or neither is. The draft used to be
   // written, then its job, so a run killed between the two left a queued reply nothing would send, and a job that failed
   // to be written left one the caller (correctly sending the same words at once) had to withdraw. A write that fails
   // now leaves nothing to undo, and the caller sends the words itself.

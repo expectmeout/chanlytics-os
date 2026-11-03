@@ -1,4 +1,4 @@
--- 00516 · A send is queued with its job, and a run that finished says so once (decision 0089).
+-- 00527 · A send is queued with its job, and a run that finished says so once (decision 0089).
 --
 --   queue_send        the receptionist's held reply and its outbound_send job in one transaction. The draft used to be
 --                     written, then its job: a run killed between the two left a queued reply nothing would send, found
@@ -44,7 +44,7 @@ end $$;
 revoke all on function public.queue_send(jsonb, timestamptz, jsonb) from public, anon, authenticated;
 grant execute on function public.queue_send(jsonb, timestamptz, jsonb) to service_role;
 comment on function public.queue_send(jsonb, timestamptz, jsonb) is
-  'A queued reply and its outbound_send job, written together or not at all (00516): the message (id, tenant_id, conversation_id, contact_id, channel, sender, type, body, meta) queued, its thread stamped, its job due at p_due_at with p_payload and the message''s id. Answers the message''s id. The service role''s alone.';
+  'A queued reply and its outbound_send job, written together or not at all (00527): the message (id, tenant_id, conversation_id, contact_id, channel, sender, type, body, meta) queued, its thread stamped, its job due at p_due_at with p_payload and the message''s id. Answers the message''s id. The service role''s alone.';
 
 create or replace function public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb)
 returns boolean
@@ -71,4 +71,4 @@ end $$;
 revoke all on function public.finish_broadcast(uuid, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.finish_broadcast(uuid, uuid, jsonb) to service_role;
 comment on function public.finish_broadcast(uuid, uuid, jsonb) is
-  'A run that sent its last batch: marked sent, with its event (broadcast.sent and its tally, as packages/db builds every event row), in one transaction (00516). False when it was not sending (another chain finished it, or it was stopped), and then nothing is written. The service role''s alone.';
+  'A run that sent its last batch: marked sent, with its event (broadcast.sent and its tally, as packages/db builds every event row), in one transaction (00527). False when it was not sending (another chain finished it, or it was stopped), and then nothing is written. The service role''s alone.';

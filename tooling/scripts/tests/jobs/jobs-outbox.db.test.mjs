@@ -221,13 +221,13 @@ test("the database refuses every transition the machine does not have", { skip }
   );
   const waits = await db.from("jobs").update({ state: "scheduled", lease_until: null }).eq("id", running).select("id");
   assert.equal(waits.error, null, waits.error?.message);
-  assert.equal(waits.data.length, 1, "fired -> scheduled: a retry waits for its next try, its attempts kept (00515)");
+  assert.equal(waits.data.length, 1, "fired -> scheduled: a retry waits for its next try, its attempts kept (00526)");
 });
 
 test("a retired kind can no longer be queued", { skip }, async () => {
   for (const kind of ["snooze_wake", "pause_expire"]) {
     const { error } = await db.from("jobs").insert({ tenant_id: tenantId, kind, due_at: ahead(60), payload: {} });
-    assert.match(error?.message ?? "", /jobs_kind_fkey/, `${kind}: no job_kinds row (00515)`);
+    assert.match(error?.message ?? "", /jobs_kind_fkey/, `${kind}: no job_kinds row (00526)`);
   }
 });
 

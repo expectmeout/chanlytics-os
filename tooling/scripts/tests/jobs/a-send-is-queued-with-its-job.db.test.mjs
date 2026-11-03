@@ -1,5 +1,5 @@
 /**
- * Two writes that are one fact, written in one statement (00516, decision 0089), on this machine's Postgres:
+ * Two writes that are one fact, written in one statement (00527, decision 0089), on this machine's Postgres:
  *
  *   queue_send        the receptionist's held reply and the outbound_send job that sends it: both or neither. A run killed
  *                     between the two used to leave a queued reply nothing would send, found ten minutes later.

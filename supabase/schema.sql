@@ -2956,7 +2956,7 @@ $$;
 -- Name: FUNCTION claim_due_jobs(p_limit integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a paused kind is left where it is (00515). Takes back a fired row whose lease ran out with attempts + 1.';
+COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a paused kind is left where it is (00526). Takes back a fired row whose lease ran out with attempts + 1.';
 
 
 --
@@ -5887,7 +5887,7 @@ end $$;
 -- Name: FUNCTION finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) IS 'A run that sent its last batch: marked sent, with its event (broadcast.sent and its tally, as packages/db builds every event row), in one transaction (00516). False when it was not sending (another chain finished it, or it was stopped), and then nothing is written. The service role''s alone.';
+COMMENT ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) IS 'A run that sent its last batch: marked sent, with its event (broadcast.sent and its tally, as packages/db builds every event row), in one transaction (00527). False when it was not sending (another chain finished it, or it was stopped), and then nothing is written. The service role''s alone.';
 
 
 --
@@ -7243,7 +7243,7 @@ end $$;
 -- Name: FUNCTION job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) IS 'The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00515), or null when it carries none. The one spelling of the rule.';
+COMMENT ON FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) IS 'The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. The one spelling of the rule.';
 
 
 --
@@ -7275,7 +7275,7 @@ end $$;
 -- Name: FUNCTION job_kind_pause(p_kind text, p_why text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.job_kind_pause(p_kind text, p_why text) IS 'Pauses a job kind (00515): no claim takes its rows until it is resumed, and they wait where they are. The reason is the operator''s, said on Health. Answers {kind, paused_at} or {error: no_reason | unknown_kind}. The Console''s act, on the service role.';
+COMMENT ON FUNCTION public.job_kind_pause(p_kind text, p_why text) IS 'Pauses a job kind (00526): no claim takes its rows until it is resumed, and they wait where they are. The reason is the operator''s, said on Health. Answers {kind, paused_at} or {error: no_reason | unknown_kind}. The Console''s act, on the service role.';
 
 
 --
@@ -7304,7 +7304,7 @@ end $$;
 -- Name: FUNCTION job_kind_resume(p_kind text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.job_kind_resume(p_kind text) IS 'Resumes a paused job kind (00515) and asks the tick for what waited. Answers {kind, resumed} or {error: unknown_kind}. The Console''s act, on the service role.';
+COMMENT ON FUNCTION public.job_kind_resume(p_kind text) IS 'Resumes a paused job kind (00526) and asks the tick for what waited. Answers {kind, resumed} or {error: unknown_kind}. The Console''s act, on the service role.';
 
 
 --
@@ -7327,7 +7327,7 @@ $$;
 -- Name: FUNCTION jobs_backlog(p_wait interval); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_backlog(p_wait interval) IS 'How many jobs the claim could take and has not for longer than p_wait (default two minutes): scheduled rows past their due time and fired rows past their lease (00515), a paused kind''s left out (Health names those). Zero when the heartbeat is draining.';
+COMMENT ON FUNCTION public.jobs_backlog(p_wait interval) IS 'How many jobs the claim could take and has not for longer than p_wait (default two minutes): scheduled rows past their due time and fired rows past their lease (00526), a paused kind''s left out (Health names those). Zero when the heartbeat is draining.';
 
 
 --
@@ -7346,7 +7346,7 @@ begin
     if OLD.state = 'scheduled' and NEW.state not in ('fired', 'canceled') then
       raise exception 'a scheduled job may only be fired or canceled (% refused)', NEW.state;
     end if;
-    -- A run that threw puts its job back to wait for its next try (00515), with its claims counted as they were, or one
+    -- A run that threw puts its job back to wait for its next try (00526), with its claims counted as they were, or one
     -- fewer for a run that never started (a kind this runner did not know): the next claim counts on from there.
     if OLD.state = 'fired' and NEW.state = 'scheduled' and NEW.attempts > OLD.attempts then
       raise exception 'a job put back to wait keeps its attempts (% -> % refused)', OLD.attempts, NEW.attempts;
@@ -7363,7 +7363,7 @@ end $$;
 -- Name: FUNCTION jobs_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00515); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00526); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
 
 
 --
@@ -7411,7 +7411,7 @@ $$;
 -- Name: FUNCTION jobs_ledger_now(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_ledger_now() IS 'What the Console''s Health draws of the ledger now (00515): by lane, how many run, are due, wait for a retry and ran past their lease, and the oldest due in seconds; by kind, its lane, its pause and its last day''s failed and done; when the canary last finished. The service role''s alone.';
+COMMENT ON FUNCTION public.jobs_ledger_now() IS 'What the Console''s Health draws of the ledger now (00526): by lane, how many run, are due, wait for a retry and ran past their lease, and the oldest due in seconds; by kind, its lane, its pause and its last day''s failed and done; when the canary last finished. The service role''s alone.';
 
 
 --
@@ -8275,8 +8275,9 @@ begin
     if v_round.state = 'ended' then
       v_month   := public.lead_month(v_round.tenant_id, now());
       v_counter := public.lead_counter_take(v_round.tenant_id, 'allowance', v_month);
-      -- The month is full: the member stays Needs review with its address now known good, for Keep to count later.
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      -- The allowance is full (lead_allowance: a trial's own while on a trial, 00525): the member stays Needs review
+      -- with its address now known good, for Keep to count later.
+      if v_counter.used + v_counter.reserved + 1 > public.lead_allowance(v_round.tenant_id) then
         continue;
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
@@ -9273,6 +9274,7 @@ declare
   l         public.leads;
   v_month   text;
   v_counter public.lead_counters;
+  v_cap     numeric;
   v_before  jsonb;
   v_after   jsonb;
   v_op      uuid;
@@ -9327,13 +9329,17 @@ begin
     elsif not (m.class = 'review' or (m.class = 'qualified' and not m.counted)) then
       return jsonb_build_object('error', 'state', 'class', m.class);
     end if;
-    -- Keep and Put back count, through the month's allowance (§0.2).
+    -- Keep and Put back count, through the month's allowance (§0.2): a trial's own while on a trial (lead_allowance,
+    -- 00525), refused in lead_reserve's words for it.
     if not m.counted then
       v_month := public.lead_month(s.tenant_id, now());
       v_counter := public.lead_counter_take(s.tenant_id, 'allowance', v_month);
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      v_cap := public.lead_allowance(s.tenant_id);
+      if v_counter.used + v_counter.reserved + 1 > v_cap then
         return jsonb_build_object('error', 'month_leads_used', 'left', 0,
-          'sentence', 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.');
+          'sentence', case when v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads')
+            then 'Your free trial includes ' || v_cap || ' leads, and they are found. Start your plan from Billing to find more.'
+            else 'You have found this month''s ' || v_cap || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.' end);
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
       v_counts := true;
@@ -9964,7 +9970,7 @@ end $$;
 -- Name: FUNCTION lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the workspace''s allowance (lead_allowance: the trial''s while on a trial, else the month''s; 00512) and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3). The trial''s cap is held here, where a search''s money leaves; a Keep, a check''s commit and an imported list keep the month''s.';
+COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the workspace''s allowance (lead_allowance: the trial''s while on a trial, else the month''s; 00512) and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3). The trial''s cap is held here, where a search''s money leaves, and where a lead counts without a reservation (00525): a Keep or a Put back (lead_member_move) and a check''s commit after its round ended (lead_check_commit).';
 
 
 --
@@ -10968,6 +10974,8 @@ declare
   v_pday     text;
   v_err      jsonb;
   v_left     integer;
+  v_cap      numeric;
+  v_trial    boolean;
   v_plan     jsonb;
   v_search   uuid;
   v_round    uuid;
@@ -11080,9 +11088,18 @@ begin
     if v_err is not null then
       if v_err->>'error' = 'month_leads_used' then
         v_left := coalesce((v_err->>'left')::integer, 0);
+        -- The allowance lead_reserve counted against (00525): a trial's own is said in the trial's words, as lead_reserve says it.
+        v_cap := public.lead_allowance(p_tenant_id);
+        v_trial := v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads');
         return jsonb_build_object('error', 'month_leads_used', 'left', v_left,
-          'sentence', case when v_left <= 0
-            then 'This month''s ' || public.lead_cap('month_leads') || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+          'sentence', case
+            when v_trial and v_left <= 0
+              then 'Your free trial includes ' || v_cap || ' leads, and they are used: a list counts each address that checks out. Start your plan from Billing to import more.'
+            when v_trial
+              then 'This list has ' || v_n || ' addresses to check and your free trial has ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
+                || ' left; a list counts each address that checks out. Import at most ' || v_left || ' now, or start your plan from Billing to import them all.'
+            when v_left <= 0
+              then 'This month''s ' || v_cap || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
             else 'This list has ' || v_n || ' addresses to check and you have ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
               || ' left this month; a list counts each address that checks out. Import at most ' || v_left || ' now, or the rest when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.' end);
       end if;
@@ -21433,7 +21450,7 @@ end $$;
 -- Name: FUNCTION queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) IS 'A queued reply and its outbound_send job, written together or not at all (00516): the message (id, tenant_id, conversation_id, contact_id, channel, sender, type, body, meta) queued, its thread stamped, its job due at p_due_at with p_payload and the message''s id. Answers the message''s id. The service role''s alone.';
+COMMENT ON FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) IS 'A queued reply and its outbound_send job, written together or not at all (00527): the message (id, tenant_id, conversation_id, contact_id, channel, sender, type, body, meta) queued, its thread stamped, its job due at p_due_at with p_payload and the message''s id. Answers the message''s id. The service role''s alone.';
 
 
 --
@@ -26914,7 +26931,7 @@ $$;
 -- Name: FUNCTION schedule_canary(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.schedule_canary() IS 'Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00515). pg_cron calls it every minute (jobs-canary).';
+COMMENT ON FUNCTION public.schedule_canary() IS 'Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00526). pg_cron calls it every minute (jobs-canary).';
 
 
 --
@@ -31373,7 +31390,7 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
            ok.at                                  as last_ok,
            lt.status                              as last_status,
            lt.message                             as last_message,
-           -- Judged by job (00515): when the newest row of its kind was done, and whether any workspace of ours is
+           -- Judged by job (00526): when the newest row of its kind was done, and whether any workspace of ours is
            -- there for the clock to schedule it in.
            case when e.judged_by = 'job' then
              (select max(d.updated_at) from public.jobs d where d.kind = e.kind and d.state = 'done')
@@ -31400,7 +31417,7 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
         when not o.job_active then
           'the cron job ' || o.jobname || ' is disabled'
 
-        -- Judged by the work it puts on the ledger: its newest done row (00515).
+        -- Judged by the work it puts on the ledger: its newest done row (00526).
         when o.judged_by = 'job' and not coalesce(o.job_watched, false) then
           null
         when o.judged_by = 'job' and o.max_silence is null then
@@ -34769,7 +34786,7 @@ CREATE TABLE public.job_kinds (
 -- Name: TABLE job_kinds; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.job_kinds IS 'One row a job kind (00515, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role''s alone.';
+COMMENT ON TABLE public.job_kinds IS 'One row a job kind (00526, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role''s alone.';
 
 
 --
@@ -37762,7 +37779,7 @@ COMMENT ON COLUMN public.sweep_status.woken_at IS 'When a row written to the led
 -- Name: COLUMN sweep_status.kind; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sweep_status.kind IS 'For a clock judged by job (00515): the job kind whose newest done row says whether the ledger is running its work.';
+COMMENT ON COLUMN public.sweep_status.kind IS 'For a clock judged by job (00526): the job kind whose newest done row says whether the ledger is running its work.';
 
 
 --
@@ -40028,7 +40045,7 @@ CREATE UNIQUE INDEX jobs_dedupe_kept ON public.jobs USING btree (dedupe_key) WHE
 -- Name: INDEX jobs_dedupe_kept; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON INDEX public.jobs_dedupe_kept IS 'A subject held once while its row is kept and not failed (job_kinds.once_kept, 00515, 00517): a webhook replayed after the work was done finds it, and a failed row never blocks a replay.';
+COMMENT ON INDEX public.jobs_dedupe_kept IS 'A subject held once while its row is kept and not failed (job_kinds.once_kept, 00526, 00528): a webhook replayed after the work was done finds it, and a failed row never blocks a replay.';
 
 
 --

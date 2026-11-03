@@ -1,9 +1,9 @@
 /**
- * The ledger now (decision 0089): what Health's "The ledger now" draws from jobs_ledger_now (00515), by lane and by
+ * The ledger now (decision 0089): what Health's "The ledger now" draws from jobs_ledger_now (00526), by lane and by
  * kind, and each lane in words. Pure: the reader hands it rows.
  */
 
-/** One lane of the ledger now (jobs_ledger_now, 00515): how many run, are due, wait for a retry and ran past their lease. */
+/** One lane of the ledger now (jobs_ledger_now, 00526): how many run, are due, wait for a retry and ran past their lease. */
 export interface LedgerLaneDto {
   lane: number;
   running: number;
@@ -32,7 +32,7 @@ export const LEDGER_LANE_WORDS: Record<number, string> = {
   [-1]: "No lane",
 };
 
-/** What the ledger holds now (00515): by lane, by kind, and when its own canary last finished. */
+/** What the ledger holds now (00526): by lane, by kind, and when its own canary last finished. */
 export interface LedgerNowDto {
   lanes: LedgerLaneDto[];
   kinds: LedgerKindDto[];

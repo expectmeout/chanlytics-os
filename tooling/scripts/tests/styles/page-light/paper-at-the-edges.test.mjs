@@ -286,7 +286,7 @@ test("the light gives way at one line on the screen, whatever page stands on it"
   }
 });
 
-/** A selector written as its parts read: `html:has(.app-root)`, `.frame-top::before`, `.main-scroll.pane > .calendar > .cal-head::after`. */
+/** A selector written as its parts read: `html:has(.app-root)`, `.frame-top::before`, `.carry-ground`. */
 function selectorText(selector) {
   return selector
     .map((c) => {
@@ -337,16 +337,10 @@ test("the picture is painted by one rule, whose subjects are every painter, a sc
   assert.equal(file, MOBILE, "in the phone's sheet");
   assert.deepEqual(
     rule.selectors.map(selectorText),
-    [
-      "html:has(…)",
-      ".pg-light",
-      ".frame-top::before",
-      ".frame-top::after",
-      ".carry-ground",
-      ".main-scroll.pane > .calendar > .cal-head::before",
-      ".main-scroll.pane > .calendar > .cal-head::after",
-    ],
-    "its subjects: the document, the window's layer, the frame's top, the carry sheet, the Calendar's bar",
+    ["html:has(…)", ".pg-light", ".frame-top::before", ".frame-top::after", ".carry-ground"],
+    // The Calendar's bar laid its own copy while it stuck in the page; it is the frame's top's now (kit/head/standing.ts
+    // `under`), and stands on the top's (Ruben's recording, 3 Nov 2026: stuck, it stepped under the thumb).
+    "its subjects: the document, the window's layer, the frame's top, the carry sheet",
   );
   const sizes = decls.filter((d) => d.property === "background-size");
   assert.ok(sizes.length > 0 && isScreen(sizes.at(-1)), "laid 100vw by 100lvh: one picture, wherever it is drawn");

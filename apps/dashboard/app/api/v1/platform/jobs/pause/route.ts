@@ -4,7 +4,7 @@ import { healthPauseKind } from "@/server/platform/health";
 
 /**
  * POST /api/v1/platform/jobs/pause — {kind, paused, why}: a kind of background work paused, so no claim takes it and
- * its work waits where it is, or resumed, so what waited is due at once (decision 0089, 00515). The incident lever, said
+ * its work waits where it is, or resumed, so what waited is due at once (decision 0089, 00526). The incident lever, said
  * on Health while it holds and in the Admin log.
  */
 export const POST = write({

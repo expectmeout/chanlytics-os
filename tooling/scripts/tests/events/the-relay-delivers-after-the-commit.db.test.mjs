@@ -263,7 +263,7 @@ test("an outbox row asks for the tick, as a due job does", { skip }, () => {
       update public.sweep_status set woken_at = now() - interval '11 seconds' where sweep = 'jobs';
       seen := seen || jsonb_build_object('polls', public.trigger_jobs_tick() is not null);`);
   assert.equal(seen.knocks, 1, "the event's outbox row knocked once");
-  assert.equal(seen.at_once, false, "the two-second clock does not ask again on the knock's heels (00515)");
+  assert.equal(seen.at_once, false, "the two-second clock does not ask again on the knock's heels (00526)");
   assert.equal(seen.polls, true, "and the poll knocks while the outbox is not empty, ten seconds on");
 });
 

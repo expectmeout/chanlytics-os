@@ -912,9 +912,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .pg-light,
   .frame-top::before,
   .frame-top::after,
-  .carry-ground,
-  .main-scroll.pane > .calendar > .cal-head::before,
-  .main-scroll.pane > .calendar > .cal-head::after {
+  .carry-ground {
     background-color: var(--surface-page-fill);
     background-image: var(--surface-page-ground);
     background-repeat: no-repeat;
@@ -1204,11 +1202,11 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
 
   /* The Calendar: its days as long as they are (the agenda's list, a month of dots and its day, the board at its hours),
-     the window scrolling them. Its bar (the range and the steps) sticks under the frame's top on the page's own ground,
-     as the top stands, so no scroll takes them off the screen (25 Sep 2026), with the top's band under it once the page
-     has gone under (data-under); a week's and a day's heads stick under the bar, as far down as it is tall (--cal-bar-h,
-     calendar-page.tsx). The board's pane clips its rounded top without being a box that scrolls, so its heads stick to
-     the window. */
+     the window scrolling them. Its bar (the range and the steps) is the frame's top's, under the row of views (kit/head
+     standing.ts `under`, calendar-page.tsx), so no scroll takes it off the screen and it holds as still as the top: stuck
+     in the page under the top, it stepped a pixel or two under the thumb as the window scrolled, where the top held still
+     (Ruben's recording, 3 Nov 2026). A week's and a day's heads stick under the top. The board's pane clips its rounded
+     top without being a box that scrolls, so its heads stick to the window. */
   .main-scroll.pane > .calendar,
   .main-scroll.pane > .calendar .cal-pane,
   .main-scroll.pane > .calendar .cal-body {
@@ -1222,39 +1220,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow-x: clip;
   }
   .main-scroll.pane > .calendar :is(.cal-corner, .cal-dayhead) {
-    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + var(--cal-bar-h, 0px));
-  }
-  .main-scroll.pane > .calendar > .cal-head {
-    position: sticky;
     top: calc(var(--frame-top-at) + var(--frame-top, 0px));
-    z-index: 4;
-  }
-  .main-scroll.pane > .calendar > .cal-head::before,
-  .main-scroll.pane > .calendar > .cal-head::after {
-    content: "";
-    position: absolute;
-    left: calc(50% - 50vw);
-    width: 100vw;
-    z-index: -1;
-    pointer-events: none;
-  }
-  .main-scroll.pane > .calendar > .cal-head::before {
-    top: calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px)));
-    bottom: 0;
-  }
-  .main-scroll.pane > .calendar > .cal-head::after {
-    top: 100%;
-    height: 14px;
-    background-position: 0 calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px) + var(--cal-bar-h, 0px)));
-    opacity: 0;
-    mask-image: linear-gradient(#000, transparent);
-    transition: opacity var(--duration-fast) var(--ease-out);
-  }
-  .main:has(> .frame-top[data-under]) > .main-scroll > .calendar > .cal-head::after {
-    opacity: 1;
-  }
-  .main:has(> .main-scroll > .calendar) > .frame-top::after {
-    display: none;
   }
 
   /* An open sequence or message (Campaigns' split, data-open): its body as long as what it holds, its capsule 12px under

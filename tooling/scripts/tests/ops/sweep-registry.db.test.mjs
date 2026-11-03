@@ -65,7 +65,7 @@ const EVERY_CLOCK = {
   google: "google-listings-sweep",
   health: "sweep-health",
   jobs: "jobs-tick",
-  // The ledger's own job, every minute (00515): judged by the newest one done, so a clock that ran proves nothing alone.
+  // The ledger's own job, every minute (00526): judged by the newest one done, so a clock that ran proves nothing alone.
   jobs_canary: "jobs-canary",
   lines: "lines-sweep",
   partitions: "events-partition-precreate",
@@ -151,7 +151,7 @@ const RUN_JUDGED = [
   "snoozes",
   "sweep_voice_sessions",
 ];
-/** The clocks judged by the job they put on the ledger, the newest one done (00515): the canary. */
+/** The clocks judged by the job they put on the ledger, the newest one done (00526): the canary. */
 const JOB_JUDGED = ["jobs_canary"];
 
 let db;
@@ -355,7 +355,7 @@ test(
       insert into public.mailbox_connections (tenant_id, provider, provider_account, address, host, from_name)
            values (t, 'google', 'every-clock-' || tag, 'hello@every-clock-' || tag || '.example.com',
                    'every-clock-' || tag || '.example.com', 'Every clock');
-      -- jobs: one due, and the ledger's clock not woken in the last ten seconds (00515 paces it): the stack's own cron may
+      -- jobs: one due, and the ledger's clock not woken in the last ten seconds (00526 paces it): the stack's own cron may
       -- have knocked a moment ago.
       insert into public.jobs (tenant_id, kind, due_at) values (t, 'push_receipts', now() - interval '1 minute');
       update public.sweep_status set woken_at = null where sweep = 'jobs';

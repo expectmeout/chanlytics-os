@@ -1387,7 +1387,7 @@ Foreign keys:
 
 ### job_kinds
 
-One row a job kind (00515, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role's alone.
+One row a job kind (00526, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role's alone.
 
 - Owned by: `packages/db/src/jobs.ts`
 - Primary key: `kind`
@@ -3474,7 +3474,7 @@ One row per pg_cron -> pg_net sweep: the last request id (joins net._http_respon
 | `judged_by` | text | no | `'request'::text` | request: judged on the HTTP request it enqueued and what the edge answered. run: judged on cron.job_run_details, for the jobs that never leave the database. |
 | `registered_at` | timestamp with time zone | no | `now()` | A run-judged clock that has never run is healthy until max_silence has passed since it was registered. |
 | `woken_at` | timestamp with time zone | yes |  | When a row written to the ledger last asked for this sweep itself (jobs_wake, 00333): one ask a second, whatever the writers do. |
-| `kind` | text | yes |  | For a clock judged by job (00515): the job kind whose newest done row says whether the ledger is running its work. |
+| `kind` | text | yes |  | For a clock judged by job (00526): the job kind whose newest done row says whether the ledger is running its work. |
 
 ### templates
 

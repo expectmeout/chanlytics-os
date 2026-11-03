@@ -492,7 +492,7 @@ export async function failOpenDelivery(
 }
 
 /**
- * A run that sent its last batch: marked sent, and its broadcast.sent with the tally written, in one transaction (00516
+ * A run that sent its last batch: marked sent, and its broadcast.sent with the tally written, in one transaction (00527
  * finish_broadcast). The state used to move first and the event after, so an event that could not be written threw out
  * of a run that had finished, and its owner was told it stopped partway. False when the run was not sending (another
  * chain finished it first, or it was stopped), and then nothing was written. Throws when the write failed.

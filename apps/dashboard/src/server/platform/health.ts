@@ -142,7 +142,7 @@ async function pagesRead(office: BackOffice): Promise<OperatorPageDto[]> {
   return healthRowsOf(await healthPages(office.db, HEALTH_ROWS.pages));
 }
 
-/** The ledger now (jobs_ledger_now, 00515): by lane, by kind, and the canary's last finish. */
+/** The ledger now (jobs_ledger_now, 00526): by lane, by kind, and the canary's last finish. */
 async function ledgerRead(office: BackOffice): Promise<LedgerNowDto> {
   const raw = healthRowsOf(await healthLedgerNow(office.db));
   const j: Record<string, unknown> = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
@@ -292,7 +292,7 @@ export async function healthRequeueKind(
 }
 
 /**
- * Pause or resume a kind of background work (00515 job_kind_pause, job_kind_resume): paused, no claim takes its rows and
+ * Pause or resume a kind of background work (00526 job_kind_pause, job_kind_resume): paused, no claim takes its rows and
  * they wait where they are; resumed, what waited is due at once. The incident lever: a provider answering garbage, a run
  * that should not go on, a handler a deploy broke. The reason is said on Health and in the Admin log.
  */

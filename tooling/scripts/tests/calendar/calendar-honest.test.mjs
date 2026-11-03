@@ -420,10 +420,10 @@ const page = (props = {}) => {
   globalThis.clearInterval = () => {};
   try {
     const drawn = CalendarPage({ ...addr, ...props });
-    // The frame draws the page's act on its row of views (board-parts.tsx calendarAct: the bar on a desk, Settings on a
-    // phone): here it hangs from the page's node, so a search of the page finds it where a person does, beside the board.
-    const act = standingSaid()?.act;
-    return act ? { ...drawn, props: { ...drawn.props, children: [...(drawn.props.children ?? []), act] } } : drawn;
+    // What the page hands the frame (its act; on a phone the bar under the views) hangs from its node, beside the board.
+    const put = [standingSaid()?.act, standingSaid()?.under].filter(Boolean);
+    const kids = put.length ? [...(drawn.props.children ?? []), ...put] : null;
+    return kids ? { ...drawn, props: { ...drawn.props, children: kids } } : drawn;
   } finally {
     globalThis.setInterval = si;
     globalThis.clearInterval = ci;
