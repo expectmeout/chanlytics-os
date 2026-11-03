@@ -65,6 +65,9 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
+    // The nightly says every request's touches (apps/dashboard/src/server/server-timing.ts TOUCHES_ALL_HEADER): the refresh
+    // map's derivation reads them (tooling/scripts/ops/write-shadow.mjs; decision 0058 stage C).
+    ...(process.env.E2E_TOUCHES_ALL ? { extraHTTPHeaders: { "x-touches-said": "all" } } : {}),
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

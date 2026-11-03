@@ -252,6 +252,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "workspace_logo_lookup",
   "workspace_logo_remove_failed",
   "workspace_logo_store_failed",
+  "workspace_marks_not_kept",
   "workspace_rename_refused",
   "write_receipt_unkept",
   "you_are_live_tell_failed",

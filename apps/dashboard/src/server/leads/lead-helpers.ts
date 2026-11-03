@@ -9,7 +9,7 @@ import {
   wallClockAt,
   type IdeaAbout,
 } from "@chanlytics/contracts";
-import type { Database } from "@chanlytics/db";
+import { leadAllowanceOf, type Database } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import type { RouteContext } from "../with-route";
 import { storedConfigOf } from "../workspace/config-row";
@@ -53,8 +53,13 @@ export async function monthUsed(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   period: string,
-): Promise<{ allowance: number; budget: number }> {
-  const { data, error } = await ctx.supabase.rpc("lead_month_used", { p_tenant_id: tenantId, p_period: period });
+): Promise<{ allowance: number; budget: number; cap: number }> {
+  // The month's whole is the workspace's allowance (00512's lead_allowance: the trial's while on a trial, decision
+  // 0090), read beside what the month has taken, so the number left is the one lead_reserve holds.
+  const [{ data, error }, cap] = await Promise.all([
+    ctx.supabase.rpc("lead_month_used", { p_tenant_id: tenantId, p_period: period }),
+    leadAllowanceOf(ctx.supabase, tenantId),
+  ]);
   if (error) throw new Error(`lead_month_used: ${error.message}`);
   const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
   const taken = (kind: "allowance" | "budget") => {
@@ -64,7 +69,7 @@ export async function monthUsed(
         : null;
     return n(c?.used) + n(c?.reserved);
   };
-  return { allowance: taken("allowance"), budget: taken("budget") };
+  return { allowance: taken("allowance"), budget: taken("budget"), cap };
 }
 
 /**

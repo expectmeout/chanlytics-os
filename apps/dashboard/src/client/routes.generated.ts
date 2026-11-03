@@ -43,6 +43,7 @@ export const ROUTES = {
   "GET calls": { method: "GET", path: "/api/v1/calls" },
   "GET calls/[id]/export": { method: "GET", path: "/api/v1/calls/[id]/export" },
   "GET calls/[id]/recording": { method: "GET", path: "/api/v1/calls/[id]/recording" },
+  "GET changes": { method: "GET", path: "/api/v1/changes" },
   "GET channels": { method: "GET", path: "/api/v1/channels" },
   "GET channels/instagram": { method: "GET", path: "/api/v1/channels/instagram" },
   "GET channels/instagram/callback": { method: "GET", path: "/api/v1/channels/instagram/callback" },
@@ -344,6 +345,7 @@ export const ROUTES = {
   "PUT sequences/[id]/chain": { method: "PUT", path: "/api/v1/sequences/[id]/chain" },
   "PUT sequences/[id]/steps/[step]": { method: "PUT", path: "/api/v1/sequences/[id]/steps/[step]" },
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
+  "PUT setup/choices": { method: "PUT", path: "/api/v1/setup/choices" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
   "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
   "PUT workspaces/accent": { method: "PUT", path: "/api/v1/workspaces/accent" },
@@ -393,6 +395,7 @@ export type Routes = {
   "GET calls": typeof import("../../app/api/v1/calls/route").GET;
   "GET calls/[id]/export": typeof import("../../app/api/v1/calls/[id]/export/route").GET;
   "GET calls/[id]/recording": typeof import("../../app/api/v1/calls/[id]/recording/route").GET;
+  "GET changes": typeof import("../../app/api/v1/changes/route").GET;
   "GET channels": typeof import("../../app/api/v1/channels/route").GET;
   "GET channels/instagram": typeof import("../../app/api/v1/channels/instagram/route").GET;
   "GET channels/instagram/callback": typeof import("../../app/api/v1/channels/instagram/callback/route").GET;
@@ -694,6 +697,7 @@ export type Routes = {
   "PUT sequences/[id]/chain": typeof import("../../app/api/v1/sequences/[id]/chain/route").PUT;
   "PUT sequences/[id]/steps/[step]": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/route").PUT;
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
+  "PUT setup/choices": typeof import("../../app/api/v1/setup/choices/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
   "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;
   "PUT workspaces/accent": typeof import("../../app/api/v1/workspaces/accent/route").PUT;

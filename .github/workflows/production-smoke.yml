@@ -110,6 +110,14 @@ jobs:
             if [ "$attempt" -lt 10 ]; then sleep 30; fi
           done
           echo "code=$code" >> "$GITHUB_OUTPUT"
+      - if: steps.turn.outputs.smoke == 'yes'
+        name: An anonymous caller is refused the workspaces' topics
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        # --allow-public until Realtime's "Allow public access" is off (decision 0019's owed switch; the page-open PRD, S1).
+        run: node tooling/scripts/checks/realtime-probe.mjs --allow-public
       - if: steps.turn.outputs.smoke == 'yes' && steps.smoke.outputs.code != '0'
         name: Say so where the next merger will see it
         shell: bash

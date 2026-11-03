@@ -1263,8 +1263,9 @@ CREATE FUNCTION public.billing_may_spend(p_tenant_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- contracts maySpend: a workspace invoiced by hand may; on Stripe only an active plan; no billing row, never.
-  select coalesce((select b.mode <> 'stripe' or b.status = 'active'
+  -- contracts maySpend for the finder's kind (SPEND_STATUSES.leads): a workspace invoiced by hand may; on Stripe a trial
+  -- or a plan; no billing row, never.
+  select coalesce((select b.mode <> 'stripe' or b.status in ('trialing', 'active')
                      from public.billing_accounts b
                     where b.tenant_id = p_tenant_id), false)
 $$;
@@ -1274,7 +1275,7 @@ $$;
 -- Name: FUNCTION billing_may_spend(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may incur a cost on the platform''s account: contracts'' maySpend, restated once in SQL (00364). mode direct may; mode stripe only with status active; no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
+COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may spend on the finder: contracts'' maySpend(mode, status, "leads"), restated once in SQL (00364, 00512). mode direct may; mode stripe with status trialing or active (decision 0090: the trial covers everything); no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
 
 
 --
@@ -2430,6 +2431,91 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads, among them what the open hold is for), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00406, 00409).';
+
+
+--
+-- Name: capability_activate(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user  uuid := auth.uid();
+  v_first boolean;
+  v_at    timestamptz := now();
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'disconnect') then
+    raise exception 'Only an owner can switch a channel on.' using errcode = '42501';
+  end if;
+  if p_capability is null or p_capability not in ('voice', 'whatsapp', 'sms') then
+    raise exception 'No such capability.' using errcode = '22023';
+  end if;
+  -- The first of any channel, ever: the moment the first run's Finish tells the owner they are live.
+  v_first := not exists (select 1 from public.capability_activations where tenant_id = p_tenant_id);
+  insert into public.capability_activations (tenant_id, capability, activated_at, activated_by, deactivated_at, note)
+  values (p_tenant_id, p_capability, v_at, v_user, null, left(p_note, 200))
+  on conflict (tenant_id, capability) do update
+     set activated_at = excluded.activated_at,
+         activated_by = excluded.activated_by,
+         deactivated_at = null,
+         note = excluded.note;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'capability.activated', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('capability', p_capability, 'by', v_user));
+  return jsonb_build_object('capability', p_capability, 'activated_at', v_at, 'first', v_first);
+end $$;
+
+
+--
+-- Name: FUNCTION capability_activate(p_tenant_id uuid, p_capability text, p_note text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) IS 'An owner (or the partner who brought it) switches a channel on (00108, 00514): the activation row and capability.activated in one transaction, on the member''s session. Returns {capability, activated_at, first}: first is true for the workspace''s first activation of any channel, when the first run''s Finish says it is live.';
+
+
+--
+-- Name: capability_deactivate(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_at   timestamptz := now();
+  v_n    integer;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'disconnect') then
+    raise exception 'Only an owner can switch a channel off.' using errcode = '42501';
+  end if;
+  update public.capability_activations
+     set deactivated_at = v_at
+   where tenant_id = p_tenant_id and capability = p_capability and deactivated_at is null;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then
+    return jsonb_build_object('error', 'not_activated');
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'capability.deactivated', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('capability', p_capability, 'by', v_user));
+  return jsonb_build_object('capability', p_capability, 'deactivated_at', v_at);
+end $$;
+
+
+--
+-- Name: FUNCTION capability_deactivate(p_tenant_id uuid, p_capability text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) IS 'An owner (or the partner who brought it) takes a channel''s activation back (00108, 00514): the row''s deactivated_at and capability.deactivated in one transaction. {error: not_activated} when none stood. The row stays; the history does.';
 
 
 --
@@ -7433,8 +7519,11 @@ begin
          facts = jsonb_set(jsonb_set(facts, '{people}', v_people), '{addressee}', to_jsonb(p_person)),
          version = version + 1
    where id = v_lead.id;
-  if v_state is null then
-    perform public.lead_check_ask(v_lead.tenant_id, v_round, array[v_lead.id]);
+  -- Its check, asked only with room in this month's and today's searching (00506); without it the address waits as not
+  -- checked, for Check again once there is.
+  if v_state is null and not public.lead_check_ask(v_lead.tenant_id, v_round, array[v_lead.id]) then
+    v_state := 'unknown';
+    update public.leads set email_state = 'unknown' where id = v_lead.id;
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (v_lead.tenant_id, 'lead.addressee_chosen', 'lead', 'lead', v_lead.id,
@@ -7479,6 +7568,34 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) IS 'The never-again list for addresses (Reach out Part 5, G9): each asked address, lower-cased and trimmed, that an email row holds, or whose domain (after its last "@") a domain row holds. The one predicate the send door''s facts, the audience and the finder ask. Service role only.';
+
+
+--
+-- Name: lead_allowance(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_allowance(p_tenant_id uuid) RETURNS numeric
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- A member reads their own workspace's; the service role (no session: lead_reserve asked by the edge) any.
+  if auth.uid() is not null and not public.may_read_workspace(p_tenant_id) then
+    raise exception 'Not a member of this workspace.' using errcode = '42501';
+  end if;
+  -- contracts leadAllowanceFor: the trial's leads while the workspace is on a trial, else the month's.
+  return case when exists (select 1 from public.billing_accounts b
+                            where b.tenant_id = p_tenant_id and b.mode = 'stripe' and b.status = 'trialing')
+              then public.lead_cap('trial_leads') else public.lead_cap('month_leads') end;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lead_allowance(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_allowance(p_tenant_id uuid) IS 'The leads a workspace may count this month (00512, decision 0090): lead_cap(''trial_leads'') while its billing says trialing, else lead_cap(''month_leads''). contracts'' leadAllowanceFor; lead_reserve asks it, and the Leads page reads the same number. A member reads their own workspace''s alone (may_read_workspace); it says a cap, never a row.';
 
 
 --
@@ -7700,6 +7817,7 @@ declare
 begin
   v := case p_name
     when 'month_leads'      then 500   -- Qualified leads a workspace finds in its month (LEAD_MONTHLY_ALLOWANCE)
+    when 'trial_leads'      then 50    -- ... while its billing says trialing (LEAD_TRIAL_ALLOWANCE, decision 0090)
     when 'month_usd'        then 25    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
     when 'day_usd'          then 10    -- ... in its day (LEAD_DAY_CAP_USD)
     when 'platform_day_usd' then 50    -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
@@ -7802,6 +7920,7 @@ declare
   v_ids  uuid[] := '{}';
   v_r    record;
   v_err  jsonb;
+  v_held integer := 0;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -7835,9 +7954,18 @@ begin
       ) m
      group by m.round_id
   loop
-    perform public.lead_check_ask(p_tenant_id, v_r.round_id, v_r.lead_ids);
-    v_ids := v_ids || v_r.lead_ids;
+    -- Asked only with room in this month's and today's searching (00506): a check is money, as a search is.
+    if public.lead_check_ask(p_tenant_id, v_r.round_id, v_r.lead_ids) then
+      v_ids := v_ids || v_r.lead_ids;
+    else
+      v_held := v_held + cardinality(v_r.lead_ids);
+    end if;
   end loop;
+  -- Nothing asked because there was no room: the owner reads why, in the words a search is refused in.
+  if cardinality(v_ids) = 0 and v_held > 0 then
+    return coalesce(public.lead_spend_room(p_tenant_id, public.lead_check_estimate(v_held)),
+      jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.'));
+  end if;
   return jsonb_build_object('scheduled', cardinality(v_ids), 'skipped', cardinality(p_lead_ids) - cardinality(v_ids));
 end $$;
 
@@ -7853,13 +7981,17 @@ COMMENT ON FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[])
 -- Name: lead_check_ask(uuid, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) RETURNS void
+CREATE FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 begin
   if cardinality(coalesce(p_lead_ids, '{}'::uuid[])) = 0 then
-    return;
+    return false;
+  end if;
+  -- The check is money (00506): asked only with room in this month's and today's searching, as a search is.
+  if public.lead_spend_room(p_tenant_id, public.lead_check_estimate(cardinality(p_lead_ids))) is not null then
+    return false;
   end if;
   update public.leads set email_state = 'checking'
    where tenant_id = p_tenant_id and id = any (p_lead_ids) and email_state <> 'checking';
@@ -7867,6 +7999,7 @@ begin
   values (p_tenant_id, 'lead_check', now(),
           jsonb_build_object('round_id', p_round_id, 'batch', 0, 'again', gen_random_uuid()::text,
                              'lead_ids', to_jsonb(p_lead_ids)));
+  return true;
 end $$;
 
 
@@ -7874,7 +8007,7 @@ end $$;
 -- Name: FUNCTION lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) IS 'The mailbox check of the named leads under one of their rounds (00430): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
+COMMENT ON FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) IS 'The mailbox check of the named leads under one of their rounds (00430): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. Asked only with room in this month''s and today''s searching (00506, lead_spend_room for lead_check_estimate): true when asked, false when there is none, and then nothing is written. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
 
 
 --
@@ -7929,8 +8062,9 @@ begin
     if v_round.state = 'ended' then
       v_month   := public.lead_month(v_round.tenant_id, now());
       v_counter := public.lead_counter_take(v_round.tenant_id, 'allowance', v_month);
-      -- The month is full: the member stays Needs review with its address now known good, for Keep to count later.
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      -- The allowance is full (lead_allowance: a trial's own while on a trial, 00525): the member stays Needs review
+      -- with its address now known good, for Keep to count later.
+      if v_counter.used + v_counter.reserved + 1 > public.lead_allowance(v_round.tenant_id) then
         continue;
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
@@ -7969,8 +8103,14 @@ begin
     select r.usage_usd into v_prev from public.lead_runs r where r.id = p_run_id and r.round_id = p_round_id for update;
     if found and p_usage_usd > v_prev then
       v_delta := p_usage_usd - v_prev;
-      perform public.lead_settle_usage(v_round.tenant_id, v_round.month, v_round.day, v_round.platform_day, v_delta,
-        case when v_round.state = 'ended' then 0 else v_round.cost_reserved_usd - v_round.cost_usd end);
+      if v_round.state = 'ended' then
+        -- A re-check after its round ended is spent when it runs (00506), as lead_collect_commit settles it.
+        perform public.lead_settle_usage(v_round.tenant_id, public.lead_month(v_round.tenant_id, now()),
+          public.lead_day(v_round.tenant_id, now()), to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), v_delta, 0);
+      else
+        perform public.lead_settle_usage(v_round.tenant_id, v_round.month, v_round.day, v_round.platform_day, v_delta,
+          v_round.cost_reserved_usd - v_round.cost_usd);
+      end if;
       -- An ended round is final (its trigger refuses a change): the month's counters carry the cents, the round's own cost stays what it ended at.
       if v_round.state <> 'ended' then
         update public.lead_rounds set cost_usd = cost_usd + v_delta where id = p_round_id;
@@ -7992,6 +8132,27 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lead_check_commit(p_round_id uuid, p_run_id uuid, p_results jsonb, p_usage_usd numeric, p_last boolean) IS 'A batch of mailbox answers ([{lead_id, email_state, checked_at}]) from the check run p_run_id: each lead''s state is set (never a blanked or erased one); a member of the round held in review by the email standard alone, whose address now checks out, is Qualified -- counted through the round''s reservation while the round runs, and through the month''s allowance the way Keep is once the round has ended (Check again, 00145; it stays in review when the month is full). The run''s usage settles by its total so far (E4). p_last ends the round with the ending left pending, or by its target. Returns {ok, qualified, counted, ended}.';
+
+
+--
+-- Name: lead_check_estimate(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_check_estimate(p_addresses integer) RETURNS numeric
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Contracts' checkPerEmailUsd (0.00089) with LEAD_ESTIMATE_MARGIN (1.3), as the checker's cap reads them
+  -- (core check.ts checkerCapOf); lead-check-price.test.mjs holds the two to each other.
+  select round(greatest(coalesce(p_addresses, 0), 0) * 0.00089 * 1.3, 4)
+$$;
+
+
+--
+-- Name: FUNCTION lead_check_estimate(p_addresses integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_check_estimate(p_addresses integer) IS 'What checking p_addresses addresses may cost (00506): contracts'' price an address with the estimate''s room, held to them by lead-check-price.test.mjs.';
 
 
 --
@@ -8173,8 +8334,15 @@ begin
   v_usage := (p_page->>'usage_usd')::numeric;
   if v_usage is not null and v_usage > v_run.usage_usd then
     v_delta := v_usage - v_run.usage_usd;
-    perform public.lead_settle_usage(v_round.tenant_id, v_month, v_round.day, v_round.platform_day, v_delta,
-      case when v_round.state = 'ended' then 0 else v_round.cost_reserved_usd - v_round.cost_usd end);
+    if v_round.state = 'ended' then
+      -- A re-check after its round ended is spent when it runs (00506): this month's budget and today's two days,
+      -- which its door asked for room in (lead_check_ask), never the round's own, long given back.
+      perform public.lead_settle_usage(v_round.tenant_id, public.lead_month(v_round.tenant_id, now()),
+        public.lead_day(v_round.tenant_id, now()), to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), v_delta, 0);
+    else
+      perform public.lead_settle_usage(v_round.tenant_id, v_month, v_round.day, v_round.platform_day, v_delta,
+        v_round.cost_reserved_usd - v_round.cost_usd);
+    end if;
     -- An ended round is final (its trigger refuses a change): the month's counters carry a re-check's cents, the round's own cost stays what it ended at.
     if v_round.state <> 'ended' then
       update public.lead_rounds set cost_usd = cost_usd + v_delta where id = v_round.id;
@@ -8187,15 +8355,29 @@ begin
   update public.lead_runs
      set read_offset = p_to_offset,
          items_seen  = coalesce((p_page->>'items_seen')::integer, items_seen),
+         -- The places it read and paid for that the workspace already held (00506), so what a main phase pays twice
+         -- for its probe's places can be measured.
+         already_yours = already_yours + greatest(coalesce((p_page->>'already_yours')::integer, 0), 0),
          state       = coalesce(p_page->>'run_state', state),
          finished_at = case when coalesce(p_page->>'run_state', state) in ('succeeded', 'failed', 'aborted', 'timed_out') then coalesce(finished_at, now()) else finished_at end
    where id = p_run_id;
   v_next := p_page->'next';
   if v_next is not null and jsonb_typeof(v_next) = 'object' then
     if v_next->>'kind' = 'lead_check' then
-      insert into public.jobs (tenant_id, kind, due_at, payload)
+      -- The round's checks, written with the move that sends it to them (00506, PRD §0.5): batch 0 unless one is named,
+      -- under the key packages/jobs writes, so the sweep carrying the round on beside this job checks the batch once.
+      insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
       values (v_round.tenant_id, 'lead_check', now() + make_interval(secs => coalesce((v_next->>'run_after_seconds')::integer, 0)),
-              jsonb_build_object('round_id', v_round.id, 'batch', coalesce((v_next->>'batch')::integer, 1)));
+              jsonb_build_object('round_id', v_round.id, 'batch', coalesce((v_next->>'batch')::integer, 0)),
+              'lead_check:' || v_round.id || ':round:' || coalesce((v_next->>'batch')::integer, 0))
+      on conflict do nothing;
+    elsif v_next->>'kind' = 'lead_round_start' then
+      -- The main phase, written with the probe's pass (00506), as lead_round_answer writes it with an answer.
+      insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
+      values (v_round.tenant_id, 'lead_round_start', now() + make_interval(secs => coalesce((v_next->>'run_after_seconds')::integer, 0)),
+              jsonb_build_object('round_id', v_round.id, 'resume', true),
+              'lead_round_start:' || v_round.id)
+      on conflict do nothing;
     else
       insert into public.jobs (tenant_id, kind, due_at, payload)
       values (v_round.tenant_id, 'lead_collect', now() + make_interval(secs => coalesce((v_next->>'run_after_seconds')::integer, 0)),
@@ -8879,6 +9061,7 @@ declare
   l         public.leads;
   v_month   text;
   v_counter public.lead_counters;
+  v_cap     numeric;
   v_before  jsonb;
   v_after   jsonb;
   v_op      uuid;
@@ -8933,13 +9116,17 @@ begin
     elsif not (m.class = 'review' or (m.class = 'qualified' and not m.counted)) then
       return jsonb_build_object('error', 'state', 'class', m.class);
     end if;
-    -- Keep and Put back count, through the month's allowance (§0.2).
+    -- Keep and Put back count, through the month's allowance (§0.2): a trial's own while on a trial (lead_allowance,
+    -- 00525), refused in lead_reserve's words for it.
     if not m.counted then
       v_month := public.lead_month(s.tenant_id, now());
       v_counter := public.lead_counter_take(s.tenant_id, 'allowance', v_month);
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      v_cap := public.lead_allowance(s.tenant_id);
+      if v_counter.used + v_counter.reserved + 1 > v_cap then
         return jsonb_build_object('error', 'month_leads_used', 'left', 0,
-          'sentence', 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.');
+          'sentence', case when v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads')
+            then 'Your free trial includes ' || v_cap || ' leads, and they are found. Start your plan from Billing to find more.'
+            else 'You have found this month''s ' || v_cap || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.' end);
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
       v_counts := true;
@@ -9528,13 +9715,20 @@ declare
   v_day       public.lead_counters;
   v_platform  public.lead_counters;
   v_left      numeric;
+  v_cap       numeric := public.lead_allowance(p_tenant_id);
+  v_trial     boolean := v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads');
 begin
   v_allowance := public.lead_counter_take(p_tenant_id, 'allowance', p_month);
-  if v_allowance.used + v_allowance.reserved + p_leads > public.lead_cap('month_leads') then
-    v_left := greatest(public.lead_cap('month_leads') - v_allowance.used - v_allowance.reserved, 0);
+  if v_allowance.used + v_allowance.reserved + p_leads > v_cap then
+    v_left := greatest(v_cap - v_allowance.used - v_allowance.reserved, 0);
     return jsonb_build_object('error', 'month_leads_used', 'left', v_left::integer,
-      'sentence', case when v_left <= 0
-        then 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+      'sentence', case
+        when v_trial and v_left <= 0
+          then 'Your free trial includes ' || v_cap || ' leads, and they are found. Start your plan from Billing to find more.'
+        when v_trial
+          then 'Your free trial has ' || v_left::integer || ' leads left. Find ' || v_left::integer || ' now, or start your plan from Billing to find all ' || p_leads || '?'
+        when v_left <= 0
+          then 'You have found this month''s ' || v_cap || ' leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
         else 'You have ' || v_left::integer || ' leads left this month. Find ' || v_left::integer || ' now, or all ' || p_leads || ' when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '?' end);
   end if;
   v_budget := public.lead_counter_take(p_tenant_id, 'budget', p_month);
@@ -9563,7 +9757,7 @@ end $$;
 -- Name: FUNCTION lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the month''s allowance and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
+COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the workspace''s allowance (lead_allowance: the trial''s while on a trial, else the month''s; 00512) and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3). The trial''s cap is held here, where a search''s money leaves, and where a lead counts without a reservation (00525): a Keep or a Put back (lead_member_move) and a check''s commit after its round ended (lead_check_commit).';
 
 
 --
@@ -9691,7 +9885,10 @@ CREATE FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) RETURNS bo
     SET search_path TO 'public'
     AS $$
 declare
-  r public.lead_rounds;
+  r       public.lead_rounds;
+  v_judge numeric := 0;
+  v_out   numeric;
+  v_take  numeric;
 begin
   if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused') then
     raise exception 'not one of the nine endings: %', p_ending using errcode = '22023';
@@ -9700,15 +9897,36 @@ begin
   if not found or r.state = 'ended' then
     return false;
   end if;
+  -- What judging the round cost (00506, PRD §0.2: the budget bounds judging too): every call of its judge and of the
+  -- second model that screens or shadows it, as the usage ledger keeps them under the round. It is settled as used in
+  -- the round's month and days, out of what the round still had reserved, and only the rest goes back.
+  select coalesce(sum(u.usd), 0) into v_judge
+    from public.ai_usage u
+   where u.purpose = 'lead_judge' and u.subject_id = p_round_id and u.tenant_id = r.tenant_id;
+  v_out  := greatest(r.cost_reserved_usd - r.cost_usd, 0);
+  v_take := least(v_judge, v_out);
   update public.lead_rounds
-     set state = 'ended', ending = p_ending, ended_at = now(), waiting_since = null
+     set state = 'ended', ending = p_ending, ended_at = now(), waiting_since = null, judge_usd = v_judge
    where id = p_round_id;
+  if v_judge > 0 then
+    perform public.lead_settle_usage(r.tenant_id, r.month, r.day, r.platform_day, v_judge, v_take);
+  end if;
   perform public.lead_release(r.tenant_id, r.month, r.day, r.platform_day,
-    greatest(r.allowance_reserved - r.allowance_used, 0), greatest(r.cost_reserved_usd - r.cost_usd, 0));
+    greatest(r.allowance_reserved - r.allowance_used, 0), v_out - v_take);
+  -- No address of the round is left waiting for a check that will never come (00506): one still 'checking' when its
+  -- round ends (a question unanswered, a stop, a round the sweep had to end) did not answer, so Check again can take
+  -- it. One another live round of its is still checking is left to that round.
+  update public.leads l
+     set email_state = 'unknown', email_checked_at = coalesce(l.email_checked_at, now())
+   where l.tenant_id = r.tenant_id and l.email_state = 'checking'
+     and exists (select 1 from public.lead_search_members m where m.round_id = p_round_id and m.lead_id = l.id)
+     and not exists (select 1 from public.lead_search_members o
+                       join public.lead_rounds x on x.id = o.round_id
+                      where o.lead_id = l.id and x.id <> p_round_id and x.state <> 'ended');
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (r.tenant_id, 'lead.round', 'lead', 'lead_round', p_round_id,
           jsonb_build_object('search_id', r.search_id, 'seq', r.seq, 'state', 'ended', 'ending', p_ending,
-                             'counted', r.allowance_used, 'cost_usd', r.cost_usd));
+                             'counted', r.allowance_used, 'cost_usd', r.cost_usd, 'judge_usd', v_judge));
   return true;
 end $$;
 
@@ -9717,7 +9935,47 @@ end $$;
 -- Name: FUNCTION lead_round_end(p_round_id uuid, p_ending text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the nine endings: state ended, ended_at, and what it reserved and did not use goes back to the counters. True once; false when already ended.';
+COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the nine endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. True once; false when already ended.';
+
+
+--
+-- Name: lead_round_end_stuck(uuid, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  r public.lead_rounds;
+begin
+  -- The sweep read the round, its runs and their jobs in three reads: under the round's own lock, look again.
+  select * into r from public.lead_rounds where id = p_round_id for update;
+  if not found or r.state in ('ended', 'waiting_on_owner') or r.state_since is distinct from p_since then
+    return false;
+  end if;
+  if exists (select 1 from public.lead_runs x
+              where x.round_id = p_round_id and x.state in ('claimed', 'starting', 'running', 'unknown')) then
+    return false;
+  end if;
+  if exists (select 1 from public.jobs j
+              where j.tenant_id = r.tenant_id and j.state in ('scheduled', 'fired')
+                and ((j.kind in ('lead_round_start', 'lead_check') and j.payload->>'round_id' = p_round_id::text
+                      and j.payload->>'again' is null)
+                  or (j.kind = 'lead_collect'
+                      and j.payload->>'run_id' in (select x.id::text from public.lead_runs x where x.round_id = p_round_id)))) then
+    return false;
+  end if;
+  -- The ending it had pending is the true one; the sweep's is only for a round that had none.
+  return public.lead_round_end(p_round_id, coalesce(r.ending_pending, p_ending));
+end $$;
+
+
+--
+-- Name: FUNCTION lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) IS 'The lead sweep''s ending of a round nothing can carry on (00506, core nextStepOf): under the round''s lock it ends it only while it has not moved since p_since, waits on no question, has no run at the provider and no job of its own on its way, and then with the ending it had pending, else p_ending. True when it ended it. Service role only.';
 
 
 --
@@ -9971,6 +10229,8 @@ begin
     ) then
       raise exception 'lead_rounds.state % -> % refused', OLD.state, NEW.state;
     end if;
+    -- When the round last moved (00506): what the lead sweep measures a quiet round from.
+    NEW.state_since := now();
   end if;
   -- The plan a round runs is the plan it ran, except the one amendment
   -- Include makes while the round waits (§0.5 the only in-place change).
@@ -9987,7 +10247,7 @@ end $$;
 -- Name: FUNCTION lead_rounds_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_rounds_guard() IS 'queued -> probing | running | ended; probing -> waiting_on_owner | running | checking | ended; waiting_on_owner -> running | ended; running -> checking | ended; checking -> ended; ended is final. One live round per search; a later round needs a signed-in person; the plan changes only while waiting, as version + 1.';
+COMMENT ON FUNCTION public.lead_rounds_guard() IS 'queued -> probing | running | ended; probing -> waiting_on_owner | running | checking | ended; waiting_on_owner -> running | ended; running -> checking | ended; checking -> ended; ended is final. One live round per search; a later round needs a signed-in person; the plan changes only while waiting, as version + 1. Every change of state stamps state_since (00506).';
 
 
 --
@@ -10021,7 +10281,7 @@ begin
      where not exists (select 1 from public.notifications n
                         where n.tenant_id = NEW.tenant_id and n.kind = 'leads_question' and n.subject_id = NEW.id::text)
     returning id into v_id;
-  elsif NEW.state = 'ended' and coalesce(OLD.state, '') <> 'ended' and coalesce(NEW.ending, '') not in ('stopped', 'question_unanswered') then
+  elsif NEW.state = 'ended' and coalesce(OLD.state, '') <> 'ended' and coalesce(NEW.ending, '') <> 'stopped' then
     select count(*)::integer into v_n from public.lead_search_members m
      where m.round_id = NEW.id and m.class = 'qualified' and m.blanked_at is null;
     -- Whether the source returned anything at all, in any class: the strip's "seen" (00491).
@@ -10033,6 +10293,8 @@ begin
                        else left('Your list ' || v_name || ' could not be checked', 200) end
                 when NEW.ending = 'source_failed' and not v_seen then
                   left('Your search for ' || v_name || ' didn''t run: the source couldn''t start it', 200)
+                when NEW.ending = 'question_unanswered' then
+                  left('Your search for ' || v_name || ' ended: it waited a day for your answer', 200)
                 when NEW.ending = 'source_failed' then
                   left('Your search for ' || v_name || ' stopped: the source stopped answering', 200)
                 else left('Your search for ' || v_name || ' is done', 200) end,
@@ -10499,6 +10761,8 @@ declare
   v_pday     text;
   v_err      jsonb;
   v_left     integer;
+  v_cap      numeric;
+  v_trial    boolean;
   v_plan     jsonb;
   v_search   uuid;
   v_round    uuid;
@@ -10611,9 +10875,18 @@ begin
     if v_err is not null then
       if v_err->>'error' = 'month_leads_used' then
         v_left := coalesce((v_err->>'left')::integer, 0);
+        -- The allowance lead_reserve counted against (00525): a trial's own is said in the trial's words, as lead_reserve says it.
+        v_cap := public.lead_allowance(p_tenant_id);
+        v_trial := v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads');
         return jsonb_build_object('error', 'month_leads_used', 'left', v_left,
-          'sentence', case when v_left <= 0
-            then 'This month''s ' || public.lead_cap('month_leads') || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+          'sentence', case
+            when v_trial and v_left <= 0
+              then 'Your free trial includes ' || v_cap || ' leads, and they are used: a list counts each address that checks out. Start your plan from Billing to import more.'
+            when v_trial
+              then 'This list has ' || v_n || ' addresses to check and your free trial has ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
+                || ' left; a list counts each address that checks out. Import at most ' || v_left || ' now, or start your plan from Billing to import them all.'
+            when v_left <= 0
+              then 'This month''s ' || v_cap || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
             else 'This list has ' || v_n || ' addresses to check and you have ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
               || ' left this month; a list counts each address that checks out. Import at most ' || v_left || ' now, or the rest when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.' end);
       end if;
@@ -11222,8 +11495,7 @@ begin
   -- whyCannotSpend(mode, status, SPEND_LEADS), word for word; requireSpend's own words for no row.
   return jsonb_build_object('error', 'payment_required', 'sentence', case
     when b.tenant_id is null then 'This workspace has no billing record. Open Billing to set one up.'
-    when b.status = 'none' then 'Start your plan from Billing before finding leads.'
-    when b.status = 'trialing' then 'Your free trial doesn''t cover finding leads. Start your plan from Billing, then find leads.'
+    when b.status = 'none' then 'Start your free trial from Billing before finding leads.'
     when b.status = 'incomplete' then 'Your card is not confirmed yet. Finish checkout in Billing, then try again.'
     when b.status = 'past_due' then 'Your last payment did not go through. Update the card in Billing, then try again.'
     when b.status in ('paused', 'canceled', 'incomplete_expired') then 'This workspace is not subscribed. Start it again from Billing before finding leads.'
@@ -11235,7 +11507,44 @@ end $$;
 -- Name: FUNCTION lead_spend_refusal(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364, 00512). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+
+
+--
+-- Name: lead_spend_room(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v public.lead_counters;
+begin
+  -- lead_reserve's three dollar caps, in its lock order, in this month and today, reserving nothing: for a spend of
+  -- cents that settles as it runs (a mailbox check asked again), which a search's reservation does not hold.
+  v := public.lead_counter_take(p_tenant_id, 'budget', public.lead_month(p_tenant_id, now()));
+  if v.used + v.reserved + p_usd > public.lead_cap('month_usd') then
+    return jsonb_build_object('error', 'budget_used',
+      'sentence', 'This month''s searching is used up. It renews on ' || public.lead_renews_on(p_tenant_id) || '.');
+  end if;
+  v := public.lead_counter_take(p_tenant_id, 'day', public.lead_day(p_tenant_id, now()));
+  if v.used + v.reserved + p_usd > public.lead_cap('day_usd') then
+    return jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.');
+  end if;
+  v := public.lead_counter_take(null, 'day', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'));
+  if v.used + v.reserved + p_usd > public.lead_cap('platform_day_usd') then
+    return jsonb_build_object('error', 'day_cap', 'sentence', 'Searching is busy today. Try again tomorrow.');
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION lead_spend_room(p_tenant_id uuid, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) IS 'Whether this month''s budget, the workspace''s day and the platform''s day each have room for p_usd (00506), in lead_reserve''s lock order and with its caps (lead_cap), reserving nothing: null when they do, else {error: budget_used | day_cap, sentence}. For a spend of cents that settles as it runs, a mailbox check asked again (lead_check_ask). Service role and definer doors only.';
 
 
 --
@@ -14885,6 +15194,30 @@ CREATE FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[
    where rr.tenant_id = p_tenant_id and rr.lead_contact_id = any (p_contact_ids)
      and rr.claim = 'owner' and rr.undone_at is null
 $$;
+
+
+--
+-- Name: page_freshness(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.page_freshness(p_days integer DEFAULT 7) RETURNS TABLE(metric text, page text, part text, reports bigint, total double precision)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select v.metric, v.page, v.part, count(*), sum(v.value)
+    from public.page_vitals v
+   where v.metric in ('FEED_DOWN', 'FEED_BACK', 'READ_FAILED')
+     and v.at >= now() - make_interval(days => greatest(1, least(p_days, 30)))
+   group by v.metric, v.page, v.part
+   order by v.metric, sum(v.value) desc;
+$$;
+
+
+--
+-- Name: FUNCTION page_freshness(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.page_freshness(p_days integer) IS 'What tabs could not hear or read over the last p_days (00509; the page-open PRD, L7): for each metric (FEED_DOWN ms, FEED_BACK, READ_FAILED by surface), page and part, how many reports and their total. Counts and durations only. The service role''s.';
 
 
 --
@@ -28658,7 +28991,7 @@ end $$;
 -- Name: FUNCTION sequence_sends_end_emptied_runs(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_sends_end_emptied_runs() IS 'A run waiting for an OK with no send left to go is canceled (00511): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
+COMMENT ON FUNCTION public.sequence_sends_end_emptied_runs() IS 'A run waiting for an OK with no send left to go is canceled (00532): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
 
 
 --
@@ -30372,6 +30705,54 @@ COMMENT ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text
 
 
 --
+-- Name: setup_choice_set(uuid, jsonb, text, text[], boolean, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb DEFAULT NULL::jsonb, p_whatsapp text DEFAULT NULL::text, p_marks text[] DEFAULT NULL::text[], p_clear_phone boolean DEFAULT false, p_version integer DEFAULT NULL::integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_row  public.setup_choices;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'settings') then
+    raise exception 'Only an owner can set the workspace up.' using errcode = '42501';
+  end if;
+  insert into public.setup_choices (tenant_id) values (p_tenant_id) on conflict (tenant_id) do nothing;
+  select * into v_row from public.setup_choices where tenant_id = p_tenant_id for update;
+  if p_version is not null and v_row.version <> p_version then
+    return jsonb_build_object('error', 'stale', 'version', v_row.version);
+  end if;
+  update public.setup_choices
+     set phone      = case when p_clear_phone then null else coalesce(p_phone, phone) end,
+         whatsapp   = coalesce(p_whatsapp, whatsapp),
+         marks      = (select coalesce(array_agg(distinct x order by x), '{}')
+                         from unnest(marks || coalesce(p_marks, '{}')) as x),
+         version    = version + 1,
+         updated_by = v_user,
+         updated_at = now()
+   where tenant_id = p_tenant_id
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('fields', jsonb_build_array('setup_choices'), 'by', v_user, 'version', v_row.version));
+  return jsonb_build_object('phone', v_row.phone, 'whatsapp', v_row.whatsapp, 'marks', to_jsonb(v_row.marks),
+                            'version', v_row.version);
+end $$;
+
+
+--
+-- Name: FUNCTION setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) IS 'A member with the settings permission (an owner, or the partner who brought it) keeps what the first run chose for the workspace (00513, decision 0091): the number''s choice (or p_clear_phone to take it away), where WhatsApp answers, and marks added. p_version, when given, must be the row''s, else {error: stale, version}. Writes settings.changed (fields setup_choices). Returns the row as it now stands.';
+
+
+--
 -- Name: setup_request(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31656,6 +32037,31 @@ COMMENT ON FUNCTION public.tenants_zone_guard() IS 'A workspace''s zone, written
 
 
 --
+-- Name: trial_use(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trial_use(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select jsonb_build_object(
+    'call_seconds', coalesce((select sum(greatest(c.duration_ms, 0)) / 1000
+                                from public.calls c
+                                join public.tenants t on t.id = c.tenant_id
+                               where c.tenant_id = p_tenant_id and c.created_at >= t.created_at), 0)::bigint,
+    'replies', (select count(*) from public.messages m
+                 where m.tenant_id = p_tenant_id and m.direction = 'outbound' and m.sender = 'ai'))
+$$;
+
+
+--
+-- Name: FUNCTION trial_use(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trial_use(p_tenant_id uuid) IS 'What a workspace has used of what a trial includes (00512, decision 0090): {call_seconds, replies}, the calls'' spoken seconds and the receptionist''s own outbound messages since the workspace was made. The edge''s trial sweep reads it for the workspaces on a trial and starts the plan when contracts'' trialSpentOf says spent. The service role''s.';
+
+
+--
 -- Name: trigger_calendar_sweep(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32448,6 +32854,39 @@ COMMENT ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to da
 
 
 --
+-- Name: workspace_notices_since(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) RETURNS TABLE(event text, payload jsonb)
+    LANGUAGE plpgsql
+    SET search_path TO ''
+    AS $$
+declare
+  v_topic text := 'workspace:' || p_tenant_id::text || ':changes';
+begin
+  perform set_config('realtime.topic', v_topic, true);
+  return query
+    select m.event, m.payload
+      from realtime.messages m
+     where m.topic = v_topic
+       and m.extension = 'broadcast'
+       -- The row's own clock (the sending transaction's start) for the partitions; the notice's own (its commit, 00507)
+       -- for the moment asked. A transaction an hour long is longer than any the product runs.
+       and m.inserted_at >= (p_since at time zone 'utc') - interval '1 hour'
+       and coalesce((m.payload ->> 'at')::timestamptz, m.inserted_at at time zone 'utc') >= p_since
+     order by m.inserted_at, m.id
+     limit 201;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) IS 'Decision 0019 step 4 (00508): the notices told on a workspace''s topic since a moment, read by a member as Realtime would admit them (workspace_changes_member_read), at most 201 (the 201st says there were more). A tab catches up on its load and on a rejoin. Never a row.';
+
+
+--
 -- Name: workspace_partner(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32495,6 +32934,40 @@ COMMENT ON FUNCTION public.workspace_partner(p_tenant uuid) IS 'The owner''s vie
 
 
 --
+-- Name: workspace_tell_at_commit(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_tell_at_commit() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  kept record;
+begin
+  -- The row as it stands now, not as it was inserted: a deferred trigger is handed the inserted row, and a later statement
+  -- of the transaction may have added to what it tells (00510's threads).
+  delete from public.workspace_notices_pending where id = new.id returning topic, event, payload into kept;
+  if not found then
+    return null;
+  end if;
+  -- The clock now, at the commit: a read that began before it may not hold the change; one that began after it does.
+  perform realtime.send(
+    kept.payload || jsonb_build_object('at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+    kept.event,
+    kept.topic,
+    true);
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_tell_at_commit(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_tell_at_commit() IS 'Decision 0019 (00507): sends one notice a statement kept for its workspace, at the commit, with the commit''s clock as `at`, and deletes its row. A deferred constraint trigger on workspace_notices_pending.';
+
+
+--
 -- Name: workspace_tell_changes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32503,16 +32976,16 @@ CREATE FUNCTION public.workspace_tell_changes() RETURNS trigger
     SET search_path TO ''
     AS $$
 declare
-  -- What this transaction has told already. Its notices all become visible at its commit, together, so a second
-  -- notice of a workspace's table and event (and a call's same statuses) would tell a tab nothing more: a loop of
-  -- statements, as the lead finder's commits are, tells each workspace once, not once a row. A savepoint rolled back
-  -- takes its notices and this memory of them back with it.
+  -- What this transaction has told already. Its notices all go at its commit, together, so a second notice of a
+  -- workspace's table and event (and a call's same statuses) would tell a tab nothing more: a loop of statements, as the
+  -- lead finder's commits are, tells each workspace once, not once a row. A thread's notice gathers the threads instead
+  -- (00510). A savepoint rolled back takes its notices and this memory of them back with it.
   told text := coalesce(current_setting('chanlytics.workspace_told', true), '');
   had text := told;
   w record;
   said text;
-  -- When this statement told (UTC, to the millisecond), the clock a tab compares with the read it started (0047).
-  noted_at text := to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+  v_topic text;
+  threads jsonb;
 begin
   -- A trigger's argument names the column its table's changes are judged by (calls: status), carried as the distinct
   -- values the statement left; every other table's notice is its name and the operation alone.
@@ -32522,13 +32995,46 @@ begin
     select c.tenant_id, jsonb_agg(distinct to_jsonb(c) ->> tg_argv[0]) from changed c where tg_nargs > 0 group by c.tenant_id
   loop
     said := '|' || w.tenant_id::text || ' ' || tg_table_name || ' ' || tg_op || coalesce(' ' || w.statuses::text, '') || '|';
-    continue when strpos(told, said) > 0;
+    v_topic := 'workspace:' || w.tenant_id::text || ':changes';
+    -- The threads this statement touched in this workspace, where its table is one a thread is made of. Read through
+    -- to_jsonb: the function serves every watched table, and a column one table lacks may not be named.
+    threads := case
+      when tg_table_name = 'conversations' then
+        (select jsonb_agg(distinct to_jsonb(c) ->> 'id') from changed c where c.tenant_id = w.tenant_id)
+      when tg_table_name in ('messages', 'escalations', 'calls') then
+        (select jsonb_agg(distinct to_jsonb(c) ->> 'conversation_id') from changed c
+          where c.tenant_id = w.tenant_id and to_jsonb(c) ->> 'conversation_id' is not null)
+      else null
+    end;
+    if strpos(told, said) > 0 then
+      -- Told already in this transaction: its threads join the notice kept for the commit, or the notice names none.
+      if tg_table_name in ('messages', 'conversations', 'escalations', 'calls') then
+        update public.workspace_notices_pending p
+           set payload = case
+             when threads is null or not (p.payload ? 'threads') then p.payload - 'threads'
+             when (select count(*) from (select jsonb_array_elements_text(p.payload -> 'threads')
+                                         union select jsonb_array_elements_text(threads)) u) > 50 then p.payload - 'threads'
+             else jsonb_set(p.payload, '{threads}', (select jsonb_agg(distinct t) from (
+                    select jsonb_array_elements_text(p.payload -> 'threads') as t
+                    union select jsonb_array_elements_text(threads)) u))
+           end
+         where p.topic = v_topic
+           and p.event = tg_op
+           and p.payload ->> 'table' = tg_table_name
+           and (p.payload -> 'statuses') is not distinct from w.statuses;
+      end if;
+      continue;
+    end if;
     told := told || said;
-    perform realtime.send(
-      jsonb_strip_nulls(jsonb_build_object('table', tg_table_name, 'op', tg_op, 'statuses', w.statuses, 'at', noted_at)),
+    insert into public.workspace_notices_pending (topic, event, payload)
+    values (
+      v_topic,
       tg_op,
-      'workspace:' || w.tenant_id::text || ':changes',
-      true);
+      jsonb_strip_nulls(jsonb_build_object(
+        'table', tg_table_name,
+        'op', tg_op,
+        'statuses', w.statuses,
+        'threads', case when jsonb_array_length(coalesce(threads, '[]')) between 1 and 50 then threads end)));
   end loop;
   if told <> had then
     perform set_config('chanlytics.workspace_told', told, true);
@@ -32541,7 +33047,7 @@ end $$;
 -- Name: FUNCTION workspace_tell_changes(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.workspace_tell_changes() IS 'Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column its values, and the clock when it was told (at, 0047); once per transaction for each. Never a row.';
+COMMENT ON FUNCTION public.workspace_tell_changes() IS 'Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column its values, and for a thread''s four tables the threads touched (threads, at most 50, gathered across the transaction; 00510); once per transaction for each, kept in workspace_notices_pending and sent at the commit with the commit''s clock as `at` (00507). Never a row.';
 
 
 --
@@ -32570,14 +33076,11 @@ begin
     return null;
   end if;
   perform set_config('chanlytics.workspace_told', told || said, true);
-  perform realtime.send(
-    jsonb_build_object(
-      'table', tg_table_name,
-      'op', tg_op,
-      'at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-    tg_op,
+  insert into public.workspace_notices_pending (topic, event, payload)
+  values (
     'workspace:' || tenant::text || ':changes',
-    true);
+    tg_op,
+    jsonb_build_object('table', tg_table_name, 'op', tg_op));
   return null;
 end $$;
 
@@ -32586,7 +33089,7 @@ end $$;
 -- Name: FUNCTION workspace_tell_row_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): the table, the operation and the clock when it was told, once per transaction for each workspace, table and event. Never a row.';
+COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): the table and the operation, once per transaction for each workspace, table and event, kept in workspace_notices_pending and sent at the commit with the commit''s clock as `at` (00507). Never a row.';
 
 
 --
@@ -34107,6 +34610,7 @@ CREATE TABLE public.lead_platform (
     prices_checked_at timestamp with time zone,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     cards_on text[] DEFAULT ARRAY['local_businesses'::text] NOT NULL,
+    prices jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT lead_platform_id_check CHECK (id),
     CONSTRAINT lead_platform_note_check CHECK ((char_length(note) <= 200))
 );
@@ -34124,6 +34628,13 @@ COMMENT ON TABLE public.lead_platform IS 'One row. searches_on is the kill switc
 --
 
 COMMENT ON COLUMN public.lead_platform.cards_on IS 'The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it.';
+
+
+--
+-- Name: COLUMN lead_platform.prices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_platform.prices IS 'Each lead source''s event prices by actor and event, as the price watch last read them (00506): the baseline the next daily read is compared with, a rise past a tenth or a new charge paged to the platform, since the cards'' prices (contracts LEAD_CARDS) and the SQL ceiling are written by hand.';
 
 
 --
@@ -34236,6 +34747,8 @@ CREATE TABLE public.lead_rounds (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     platform_day text DEFAULT to_char((now() AT TIME ZONE 'UTC'::text), 'YYYY-MM-DD'::text) NOT NULL,
     nearby jsonb DEFAULT '[]'::jsonb NOT NULL,
+    state_since timestamp with time zone DEFAULT now() NOT NULL,
+    judge_usd numeric(10,4) DEFAULT 0 NOT NULL,
     CONSTRAINT lead_rounds_allowance_reserved_check CHECK ((allowance_reserved >= 0)),
     CONSTRAINT lead_rounds_allowance_used_check CHECK ((allowance_used >= 0)),
     CONSTRAINT lead_rounds_answered_check CHECK ((answered = ANY (ARRAY['keep'::text, 'include'::text, 'stop'::text]))),
@@ -34284,6 +34797,20 @@ COMMENT ON COLUMN public.lead_rounds.nearby IS 'Where to look next when the roun
 
 
 --
+-- Name: COLUMN lead_rounds.state_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.state_since IS 'When the round last moved (00506): set by lead_rounds_guard on every change of state. The lead sweep carries a round quiet since then on (core nextStepOf), and ends one nothing can carry on through lead_round_end_stuck.';
+
+
+--
+-- Name: COLUMN lead_rounds.judge_usd; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.judge_usd IS 'What judging the round cost (00506): the usage ledger''s lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month''s budget and both days.';
+
+
+--
 -- Name: lead_runs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -34310,6 +34837,7 @@ CREATE TABLE public.lead_runs (
     usage_usd numeric(10,4) DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     finished_at timestamp with time zone,
+    already_yours integer DEFAULT 0 NOT NULL,
     CONSTRAINT lead_runs_purpose_check CHECK ((purpose = ANY (ARRAY['discover'::text, 'check'::text]))),
     CONSTRAINT lead_runs_read_offset_check CHECK ((read_offset >= 0)),
     CONSTRAINT lead_runs_state_check CHECK ((state = ANY (ARRAY['claimed'::text, 'starting'::text, 'running'::text, 'succeeded'::text, 'failed'::text, 'aborted'::text, 'timed_out'::text, 'unknown'::text])))
@@ -34321,6 +34849,13 @@ CREATE TABLE public.lead_runs (
 --
 
 COMMENT ON TABLE public.lead_runs IS 'One provider execution: a discover run per term, a check run per batch of addresses. Written ''claimed'' (the row exists), claimed by a dispatch token before the provider is called (E1), leased by owner token and generation while a page is read (E3); the webhook token is made with the row and never rewritten.';
+
+
+--
+-- Name: COLUMN lead_runs.already_yours; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_runs.already_yours IS 'Places the run read and paid for that the workspace already held, skipped as yours (00506): what a main phase pays again for its probe''s places, measured before anything is changed for it.';
 
 
 --
@@ -35573,7 +36108,7 @@ CREATE TABLE public.page_vitals (
     CONSTRAINT page_vitals_detail_check CHECK (((jsonb_typeof(detail) = 'object'::text) AND (pg_column_size(detail) <= 2048))),
     CONSTRAINT page_vitals_device_check CHECK ((device = ANY (ARRAY['desk'::text, 'phone'::text]))),
     CONSTRAINT page_vitals_id_check CHECK ((id ~ '^[A-Za-z0-9-]{1,64}$'::text)),
-    CONSTRAINT page_vitals_metric_check CHECK ((metric = ANY (ARRAY['LCP'::text, 'INP'::text, 'CLS'::text, 'FCP'::text, 'TTFB'::text, 'READY'::text, 'SETTLED'::text]))),
+    CONSTRAINT page_vitals_metric_check CHECK ((metric = ANY (ARRAY['LCP'::text, 'INP'::text, 'CLS'::text, 'FCP'::text, 'TTFB'::text, 'READY'::text, 'SETTLED'::text, 'FEED_DOWN'::text, 'FEED_BACK'::text, 'READ_FAILED'::text]))),
     CONSTRAINT page_vitals_page_check CHECK ((page ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
     CONSTRAINT page_vitals_part_check CHECK ((part ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
     CONSTRAINT page_vitals_value_check CHECK (((value >= (0)::double precision) AND (value <= (600000)::double precision)))
@@ -36771,6 +37306,31 @@ COMMENT ON COLUMN public.sequences.once IS 'A message sent once, kept as a draft
 
 
 --
+-- Name: setup_choices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.setup_choices (
+    tenant_id uuid NOT NULL,
+    phone jsonb,
+    whatsapp text,
+    marks text[] DEFAULT '{}'::text[] NOT NULL,
+    version integer DEFAULT 0 NOT NULL,
+    updated_by uuid,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT setup_choices_marks CHECK ((marks <@ ARRAY['receptionist-met'::text, 'rehearse-skipped'::text, 'channels-seen'::text])),
+    CONSTRAINT setup_choices_phone_shape CHECK (((phone IS NULL) OR ((jsonb_typeof(phone) = 'object'::text) AND (phone ? 'way'::text)))),
+    CONSTRAINT setup_choices_whatsapp CHECK (((whatsapp IS NULL) OR (whatsapp = ANY (ARRAY['same'::text, 'own'::text, 'later'::text]))))
+);
+
+
+--
+-- Name: TABLE setup_choices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.setup_choices IS 'What the first run chose for the workspace (00513, decision 0091): the number and how calls reach it (phone, contracts SetupPhoneWant), where WhatsApp answers, and the marks that say a step was done (marks: receptionist-met, rehearse-skipped, channels-seen). One row a workspace; members read it, setup_choice_set writes it, and the edge reads it to buy the number once the plan starts.';
+
+
+--
 -- Name: support_reports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -37250,6 +37810,39 @@ COMMENT ON TABLE public.waitlist IS 'People who asked for a workspace while sign
 --
 
 COMMENT ON COLUMN public.waitlist.invited_at IS 'When an invite was sent. Null means still waiting, and the partial index on that predicate is what makes the queue cheap to read.';
+
+
+--
+-- Name: workspace_notices_pending; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public.workspace_notices_pending (
+    id bigint NOT NULL,
+    topic text NOT NULL,
+    event text NOT NULL,
+    payload jsonb NOT NULL
+);
+
+
+--
+-- Name: TABLE workspace_notices_pending; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.workspace_notices_pending IS 'The notices a transaction will tell its workspaces at its commit (00507, decision 0019): written by workspace_tell_changes and workspace_tell_row_change, sent and deleted by workspace_tell_at_commit, a deferred constraint trigger, so a notice''s clock is its commit''s. Empty at rest; no session but the writing one ever sees a row.';
+
+
+--
+-- Name: workspace_notices_pending_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.workspace_notices_pending ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.workspace_notices_pending_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -38420,6 +39013,14 @@ ALTER TABLE ONLY public.sequences
 
 
 --
+-- Name: setup_choices setup_choices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_pkey PRIMARY KEY (tenant_id);
+
+
+--
 -- Name: support_reports support_reports_number_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -38548,10 +39149,25 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: workspace_notices_pending workspace_notices_pending_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_notices_pending
+    ADD CONSTRAINT workspace_notices_pending_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ai_usage_at; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ai_usage_at ON public.ai_usage USING btree (created_at);
+
+
+--
+-- Name: ai_usage_lead_judge_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ai_usage_lead_judge_subject ON public.ai_usage USING btree (subject_id) WHERE (purpose = 'lead_judge'::text);
 
 
 --
@@ -41208,6 +41824,13 @@ CREATE TRIGGER tenants_zone_guard BEFORE INSERT OR UPDATE OF timezone ON public.
 
 
 --
+-- Name: workspace_notices_pending workspace_notices_told_at_commit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER workspace_notices_told_at_commit AFTER INSERT ON public.workspace_notices_pending DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.workspace_tell_at_commit();
+
+
+--
 -- Name: appointments workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -43733,6 +44356,14 @@ ALTER TABLE ONLY public.sequences
 
 
 --
+-- Name: setup_choices setup_choices_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: support_reports support_reports_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -45361,6 +45992,21 @@ CREATE POLICY sequences_member_select ON public.sequences FOR SELECT TO authenti
 
 
 --
+-- Name: setup_choices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.setup_choices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: setup_choices setup_choices_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY setup_choices_member_select ON public.setup_choices FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: support_reports; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -45463,6 +46109,12 @@ ALTER TABLE public.voice_agents ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: workspace_notices_pending; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.workspace_notices_pending ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: -
@@ -45843,6 +46495,24 @@ GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p
 REVOKE ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION capability_activate(p_tenant_id uuid, p_capability text, p_note text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) TO authenticated;
+GRANT ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) TO service_role;
+
+
+--
+-- Name: FUNCTION capability_deactivate(p_tenant_id uuid, p_capability text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) TO authenticated;
+GRANT ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) TO service_role;
 
 
 --
@@ -46778,6 +47448,15 @@ GRANT ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addre
 
 
 --
+-- Name: FUNCTION lead_allowance(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_blank(p_lead_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -46852,6 +47531,14 @@ GRANT ALL ON FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p
 
 REVOKE ALL ON FUNCTION public.lead_check_commit(p_round_id uuid, p_run_id uuid, p_results jsonb, p_usage_usd numeric, p_last boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_check_commit(p_round_id uuid, p_run_id uuid, p_results jsonb, p_usage_usd numeric, p_last boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_check_estimate(p_addresses integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_check_estimate(p_addresses integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_check_estimate(p_addresses integer) TO service_role;
 
 
 --
@@ -47166,6 +47853,14 @@ GRANT ALL ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) TO s
 
 
 --
+-- Name: FUNCTION lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_round_rejudge(p_round_id uuid, p_plan_version integer, p_places jsonb, p_judgment jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47365,6 +48060,14 @@ GRANT ALL ON FUNCTION public.lead_site_key(p_host text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_spend_room(p_tenant_id uuid, p_usd numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) TO service_role;
 
 
 --
@@ -47969,6 +48672,14 @@ GRANT ALL ON FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_
 
 REVOKE ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION page_freshness(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.page_freshness(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.page_freshness(p_days integer) TO service_role;
 
 
 --
@@ -50224,6 +50935,15 @@ GRANT ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path te
 
 
 --
+-- Name: FUNCTION setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) TO authenticated;
+GRANT ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) TO service_role;
+
+
+--
 -- Name: FUNCTION setup_request(p_tenant_id uuid, p_what text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50512,6 +51232,14 @@ GRANT ALL ON FUNCTION public.tenants_zone_guard() TO service_role;
 
 
 --
+-- Name: FUNCTION trial_use(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trial_use(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trial_use(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION trigger_calendar_sweep(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50705,12 +51433,29 @@ GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to 
 
 
 --
+-- Name: FUNCTION workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION workspace_partner(p_tenant uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.workspace_partner(p_tenant uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_tell_at_commit(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_tell_at_commit() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_tell_at_commit() TO service_role;
 
 
 --
@@ -52260,6 +53005,14 @@ GRANT UPDATE(mode) ON TABLE public.sequences TO authenticated;
 
 
 --
+-- Name: TABLE setup_choices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.setup_choices TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.setup_choices TO service_role;
+
+
+--
 -- Name: TABLE support_reports; Type: ACL; Schema: public; Owner: -
 --
 
@@ -52381,6 +53134,20 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.voice_agents TO service_role;
 --
 
 GRANT ALL ON TABLE public.waitlist TO service_role;
+
+
+--
+-- Name: TABLE workspace_notices_pending; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workspace_notices_pending TO service_role;
+
+
+--
+-- Name: SEQUENCE workspace_notices_pending_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.workspace_notices_pending_id_seq TO service_role;
 
 
 --

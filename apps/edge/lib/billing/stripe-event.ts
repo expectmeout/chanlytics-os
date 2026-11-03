@@ -28,6 +28,7 @@ import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { logger } from "../log.js";
+import { startChosenLine } from "../lines/chosen-line.js";
 import {
   applySubscription,
   completeEvent,
@@ -229,6 +230,7 @@ async function onSubscription(event: SubscriptionEvent, d: Delivery): Promise<An
   const unapplied = await answerIfSuperseded(d, named, full);
   if (unapplied) return unapplied;
   const r = await applySubscription(d.db, row, full, event.type);
+  await startChosenLineOn(d, row.tenant_id, row.status, r.status);
   return () => d.done(json(200, { ok: true, status: r.status, switched: r.switched }));
 }
 
@@ -316,7 +318,24 @@ async function onCheckoutCompleted(event: EventOf<"checkout.session.completed">,
   const unapplied = await answerIfSuperseded(d, row.stripe_subscription_id, sub);
   if (unapplied) return unapplied;
   const r = await applySubscription(d.db, row, sub, event.type);
+  await startChosenLineOn(d, row.tenant_id, row.status, r.status);
   return () => d.done(json(200, { ok: true, status: r.status }));
+}
+
+/** A trial or a plan running: what starts the number the workspace chose. */
+const STARTED: ReadonlySet<string> = new Set(["trialing", "active"]);
+
+/**
+ * The trial or the plan started (trialing or active from anything else): the number the workspace chose starts too
+ * (decision 0091), so money taken is service started whether or not the tab that paid is still open. Never throws; the
+ * lines sweep asks again within the quarter hour for what this could not start.
+ */
+async function startChosenLineOn(d: Delivery, tenantId: string, before: string, after: string): Promise<void> {
+  if (STARTED.has(before) || !STARTED.has(after)) return;
+  const r = await startChosenLine(d.db, tenantId);
+  if (r.kind === "started") d.L.info("chosen_line_started", { tenant_id: tenantId, line_id: r.lineId, via: "billing" });
+  else if (r.kind === "none" && r.why === "failed")
+    d.L.error("chosen_line_failed", { tenant_id: tenantId, detail: r.detail ?? null, via: "billing" });
 }
 
 async function onTrialWillEnd(event: EventOf<"customer.subscription.trial_will_end">, d: Delivery): Promise<Answer> {

@@ -206,6 +206,8 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
         <span id="pg-act" />
         {primaryAction}
       </div>
+      {/* What the page stands under its views, in the frame's top with them (the Calendar's bar on a phone). */}
+      <div className="pg-under-slot" id="pg-under" />
     </PageSlot>
   );
 };

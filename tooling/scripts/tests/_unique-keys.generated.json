@@ -2921,6 +2921,18 @@
       "where": null
     },
     {
+      "table": "setup_choices",
+      "name": "setup_choices_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "support_reports",
       "name": "support_reports_number_key",
       "primary": false,
@@ -3138,6 +3150,18 @@
     {
       "table": "waitlist",
       "name": "waitlist_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "workspace_notices_pending",
+      "name": "workspace_notices_pending_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [

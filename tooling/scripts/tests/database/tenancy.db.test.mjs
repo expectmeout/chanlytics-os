@@ -261,6 +261,8 @@ before(async () => {
   });
   ctx.segment = await seed("segments", { tenant_id: A, name: "tenancy segment" });
   await seed("segment_members", { tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact }, null);
+  // The workspace's first-run choices (00513): one row a workspace, which setup_choice_set writes.
+  await seed("setup_choices", { tenant_id: A, whatsapp: "same" }, null);
   await seed("deals", { tenant_id: A, contact_id: ctx.contact, stage: "proposed" }, null);
   await seed("person_notes", { tenant_id: A, contact_id: ctx.contact, body: "tenancy note" }, null);
   // The appointments record and the notices ledger (00345): members read; the booking_read job writes.
@@ -772,6 +774,8 @@ const TENANT_TABLES = {
     () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
   ],
   segments: ["member", () => ({ tenant_id: A, name: "stranger segment" })],
+  // What the first run chose for the workspace (00513, decision 0091): its members read it; setup_choice_set writes.
+  setup_choices: ["member", () => ({ tenant_id: A, whatsapp: "later" })],
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],
   person_notes: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, body: "stranger note" })],
@@ -1029,6 +1033,8 @@ const OTHER_TABLES = {
   client_errors: "none", // the errors pages hit (00469): no workspace, a hash of who; the service role's alone
   platform_admins: "none",
   rate_hits: "none",
+  // A transaction's notices kept for its commit (00507): empty at rest, each row deleted as it is told; the service role's alone.
+  workspace_notices_pending: "empty",
   sweep_status: "none",
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
   job_capacity: "none", // how many jobs naming a key may run at once (00335): platform-wide rows, the service role's alone
@@ -1276,13 +1282,15 @@ test(
     const raised = await partner.client.from("partners").update({ share_bp: 10000 }).eq("id", ctx.partner).select("id");
     if (!raised.error && raised.data.length > 0) note("partners", "a partner raised their own share");
 
-    for (const table of Object.keys(OTHER_TABLES).filter((t) => OTHER_TABLES[t] === "none")) {
+    for (const table of Object.keys(OTHER_TABLES).filter((t) => ["none", "empty"].includes(OTHER_TABLES[t]))) {
       const counted = await db.from(table).select("*", { count: "exact", head: true });
       if (counted.error) {
         note(table, `the service role could not count: ${counted.error.message}`);
         continue;
       }
-      if (!(counted.count >= 1)) note(table, "nothing to read, so the proof would be vacuous");
+      // A table empty at rest proves its scope by the grant alone (below): no member may even ask.
+      if (OTHER_TABLES[table] === "none" && !(counted.count >= 1))
+        note(table, "nothing to read, so the proof would be vacuous");
       const asViewer = await seen(viewer.client, table, []);
       const asOwner = await seen(owner.client, table, []);
       if (!nothing(asViewer)) note(table, `the service role's table was readable by a member (${asViewer})`);

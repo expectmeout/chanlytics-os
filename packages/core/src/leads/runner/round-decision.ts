@@ -1,6 +1,8 @@
 /**
  * What follows when a run's last item is committed: the probe's question or its pass, or the main phase's ending
- * and where to look next. The collect (collect.ts) asks it, and commits the answer with the page.
+ * and where to look next. The collect (collect.ts) asks it, and commits the answer with the page: the round's move and
+ * the job that carries it on (the checks, or the main phase) are one transaction (PRD §0.5), so a function killed after
+ * the commit leaves nothing unwritten. `after` is only what is said once it is true (the question's mail).
  */
 
 import type { LeadRunState } from "@chanlytics/contracts";
@@ -10,6 +12,9 @@ import type { CollectPage, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } 
 import { afterProbe } from "../question";
 import { nearbyFor } from "./places";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
+
+/** The round's first batch of mailbox checks, written with the page that sends the round to them. */
+const FIRST_CHECK = { kind: "lead_check", batch: 0, run_after_seconds: 0 } as const;
 
 interface Decision {
   round: CollectPage["round"];
@@ -44,8 +49,7 @@ async function roundDecision(
   const counted = countedNow + Math.min(countable, Math.max(0, round.allowance_reserved - round.allowance_used));
   const toChecks: Decision = {
     round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" },
-    next: null,
-    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0),
+    next: FIRST_CHECK,
   };
 
   if (phase === "probe") {
@@ -73,8 +77,7 @@ async function roundDecision(
     // The probe passed: the round runs on to the plan's count (the door raised the target the same way for an answered question).
     return {
       round: { state: "running", question: null, ending: null, target: targetOf(round) },
-      next: null,
-      after: () => p.schedule("lead_round_start", { round_id: round.id, resume: true }, 0),
+      next: { kind: "lead_round_start", resume: true, run_after_seconds: 0 },
     };
   }
   // The main phase is over: the ending, pending the checks (a stopped round says so through stopRun).
@@ -100,8 +103,7 @@ async function roundDecision(
       ending_pending: ending,
       ...(nearby.length ? { nearby } : {}),
     },
-    next: null,
-    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0),
+    next: FIRST_CHECK,
   };
 }
 

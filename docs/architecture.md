@@ -397,6 +397,30 @@ service role in the dashboard (the `service-role` measure).
 A forbidden UPDATE does not raise under RLS; it matches zero rows and reports
 success, so every permission-sensitive update selects and counts.
 
+## A new workspace, from sign-up to answering
+
+How a business comes in, and the one place each part of it is decided (decisions 0073, 0090, 0091):
+
+- **The way in.** `POST /api/v1/signup` makes an unconfirmed auth user on the public key (`apps/dashboard/src/server/platform/signup.ts`);
+  the person who enters the code makes the workspace through `create_workspace` (a definer function, the one audited
+  place the privilege exists). A lead's preview (`preview_claim`), a partner's set-up (`create_workspace_for_business`)
+  and its hand-over (`handover_accept`) are the other doors. What follows any of them is `workspaceBegun`
+  (`apps/dashboard/src/server/workspace/workspace-create.ts`).
+- **The steps.** Contracts' `setupSteps` folds Setup's facts (`setupDtoFor`) with the workspace's choices
+  (`setup_choices`, `withWorkspaceChoices`) and the member's own put-offs; `firstRunOf` reads which of the five steps
+  is done from that, on every draw. Nothing stores "done".
+- **The money.** One spend rule by kind (`maySpend`, `SPEND_STATUSES`), asked by the route wrapper (`requireSpend`),
+  the edge's doors and SQL (`billing_may_spend`); one trial (`trialDaysFor`); what a trial includes (`TRIAL_INCLUDES`),
+  watched by the lines sweep (`trial_use`, `apps/edge/lib/billing/trial-use.ts`).
+- **The service.** Stripe's webhook starting the trial asks `startChosenLine` (`apps/edge/lib/lines/chosen-line.ts`),
+  which buys the number the workspace chose and queues its saga; the lines sweep asks again while one is owed.
+- **Going live.** `capability_activate` records the owner's word, one write with its event; the receptionist answers a
+  channel from the moment it connects.
+
+Held by `tooling/scripts/tests/setup/` (the steps, the pages), `tooling/scripts/tests/billing/may-spend.test.mjs`
+(the spend rule), `tooling/scripts/tests/auth/` (sign-up and creation) and `tooling/scripts/tests/partners/` (the
+hand-over).
+
 ## The shell
 
 The operator UI is TSX. Each page is a surface, a folder under `apps/dashboard/src/surfaces/` beside the kit and the
@@ -459,8 +483,12 @@ API's nouns do not all agree yet; `docs/glossary.md` lists them.
   it opens) is listed, with how it stays fresh and why that is enough, in
   `tooling/scripts/tests/baselines/on-demand-reads.json`, which may only fall (`docs/debt.md`). One read is out at a
   time for each surface, so the newest read lands last (`surface-data.ts` `activateOverride`); the workspace's own
-  topic says what changed (decision 0019) and each tab
-  re-reads only the surface that changed. A surface that hears a record only on its page hears it where its page's row
+  topic says what changed (decision 0019), each notice at its transaction's commit with the commit's clock (00507), a
+  thread's naming the threads it touched (00510, which the Inbox reads by id rather than its list), and each tab re-reads
+  only the surface that changed. What a tab could not hear (while it loaded, while its feed was down) it
+  catches up on as it joins and joins again: the topic's notices since then, read back (`GET changes`, 00508,
+  `apps/dashboard/src/legacy-bridge/hearing/catch-up.ts`) and heard as live ones are, or everything read again where they
+  cannot all be said. A surface that hears a record only on its page hears it where its page's row
   in `PAGE_HEARS` (`apps/dashboard/src/legacy-bridge/hearing/page-hears.ts`, read through `surface-registry.ts`, one row
   per family of addresses) names it, and keeps it for its page elsewhere; the goldens under
   `tooling/scripts/tests/baselines/hearing/` say what every page reads, and at what cost, for each notice (decision 0058).
@@ -695,7 +723,7 @@ Every path is from the repository's root, and
 | A write sent twice                     | `apps/dashboard/src/server/route.ts` (`onceForKey`: the key, its hash, the kept answer), `apps/dashboard/src/client/api.ts` (`once`, one key per intent), `supabase/migrations/00340_a_write_s_answer_is_kept_a_day.sql`; decision 0035                                                                                                                     |
 | What an erasure reaches                | `packages/db/src/erasure/registry.ts` (each personal column's strategy and the legs), `packages/jobs/src/erasure.ts` (the legs in order, and the job that finishes a stopped one) over `packages/db/src/erasure/legs.ts` (what each leg reads and writes), `supabase/migrations/00341_a_note_keeps_nothing_of_a_person_erased_elsewhere.sql`; decision 0036 |
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                                                                                                                                                                                                                                 |
-| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                                                                                                                                                       |
+| The lead finder                        | `docs/lead-finder.md` (as built), `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                                                                                                                             |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,ask-answer}.ts`                                                                                                                                                                                                                                                                         |
 | The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/{feed,availability}.ts`, `apps/edge/api/cron/calendar.ts`                                                                                                                                                                                                                           |
 | A time, a day or a time zone           | `packages/contracts/src/calendar/zone-math.ts` (the one reading of a zone: `zoneParts`, `dayInZone`, `dayPlusInZone`, `usableZone`; the `zone-readers` measure holds it), `packages/contracts/src/shared/clock.ts` (the words a page says a time in), `packages/contracts/src/calendar/day-keys.ts` (a day key stepped, a day in words)                     |

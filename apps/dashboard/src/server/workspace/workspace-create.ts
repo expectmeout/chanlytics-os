@@ -14,11 +14,12 @@ import {
   pendingCodeOf,
   InviteCodeSchema,
   partnerCodeFromCookie,
+  WORKSPACE_MARKS,
 } from "@chanlytics/contracts";
-import { createWorkspaceFn, membershipCountOf } from "@chanlytics/db";
+import { createWorkspaceFn, membershipCountOf, setSetupChoices } from "@chanlytics/db";
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/platform/signup";
-import { giveFirstAlertAddress } from "@/server/workspace/first-alert";
+import { giveFirstAlertAddress, giveOwnerAlertAddress } from "@/server/workspace/first-alert";
 import { env } from "@/server/env";
 import { log } from "@/server/log";
 import type { RouteContext } from "@/server/with-route";
@@ -78,6 +79,8 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
     ctx.supabase,
     partnerCode ? { ...args, p_partner_code: partnerCode } : args,
   );
+  // A database without the partner's argument yet makes the workspace without it, and the drop is logged (0012): the
+  // workspace is made whichever deploys first.
   if (error && partnerCode && noSuchSignature(error.code, error.message)) {
     log.error("partner_code_dropped", { code: partnerCode, error: error.message });
     ({ data, error } = await createWorkspaceFn(ctx.supabase, args));
@@ -94,23 +97,50 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
   // A call that raised nothing answers one row; none is the database's fault, not a workspace to hand over.
   if (!data) throw new Error("create_workspace answered no row");
 
-  // The platform mailbox hears about a new workspace from here, and from the
-  // partner's door for one set up for a business (partner-account.ts, 0016).
-  // Bounded and best-effort: the workspace exists whether or not the notice
-  // gets through.
-  await notifyPlatformSignup(data.id, ctx.email ?? "", ctx.userId);
-
-  // The creator hears from their own workspace: their address is its first alert
-  // address, the one Settings › Notifications shows and changes. Without it every
-  // "a customer needs you" went to the platform, redacted, and the owner was never
-  // told. Best effort, like the notice above.
-  await giveFirstAlertAddress(ctx.supabase, data.id, ctx.email, ctx.userId);
-
-  await clearPendingWorkspace(ctx);
+  // What follows every workspace made, in one place (workspaceBegun): the platform's notice, the creator's address
+  // as its first alert address, and sign-up's answers cleared.
+  await workspaceBegun(ctx, data.id, { by: "created", notify: ctx.email ?? "", alertTo: ctx.email ?? null });
 
   // Returned in the same shape /api/v1/workspaces lists, so the client can put
   // it straight into its workspace list without a second round trip.
   return { workspace: data };
+}
+
+/**
+ * What follows a workspace made, whichever way it was made (the onboarding PRD's item 7): the platform's notice, its
+ * first alert address, the first run's marks it earned kept on the workspace (decision 0091), and sign-up's answers
+ * cleared from the user's metadata. One place, so no way in forgets one: made from the create screen (`created`), a
+ * lead's preview made theirs (`claimed`), set up by a partner for a business (`partner`, the address the owner is
+ * invited at, beside any the partner keeps), or accepted from a partner (`accepted`, told to the platform at set-up).
+ * Each is best effort: the workspace exists whether or not any of them lands.
+ */
+export async function workspaceBegun(
+  ctx: RouteContext,
+  tenantId: string,
+  how: {
+    by: "created" | "claimed" | "partner" | "accepted";
+    /** The address the platform's notice names; null where the platform was told already. */
+    notify: string | null;
+    /** Whose address goes on the alert list. */
+    alertTo: string | null;
+    /** The first run's marks the workspace earned (a preview rehearsed and met). */
+    marks?: readonly string[];
+  },
+): Promise<void> {
+  if (how.notify !== null) await notifyPlatformSignup(tenantId, how.notify, ctx.userId);
+  // The first alert address: the creator's own, or the owner's beside any address the partner chose. Without one,
+  // every "a customer needs you" went to the platform, redacted, and the owner was never told.
+  if (how.by === "created" || how.by === "claimed")
+    await giveFirstAlertAddress(ctx.supabase, tenantId, how.alertTo, ctx.userId);
+  else await giveOwnerAlertAddress(ctx.supabase, tenantId, how.alertTo, ctx.userId);
+  const marks = (how.marks ?? []).filter((m): m is (typeof WORKSPACE_MARKS)[number] =>
+    (WORKSPACE_MARKS as readonly string[]).includes(m),
+  );
+  if (marks.length) {
+    const { error } = await setSetupChoices(ctx.supabase, { p_tenant_id: tenantId, p_marks: marks });
+    if (error) log.error("workspace_marks_not_kept", { tenant_id: tenantId, error: error.message });
+  }
+  if (how.by === "created" || how.by === "claimed") await clearPendingWorkspace(ctx);
 }
 
 /**
@@ -119,7 +149,7 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
  * workspace" screen would offer a name already taken. Best effort: metadata that would not clear must not fail a
  * workspace made.
  */
-export async function clearPendingWorkspace(ctx: RouteContext): Promise<void> {
+async function clearPendingWorkspace(ctx: RouteContext): Promise<void> {
   if (!pendingWorkspaceOf(ctx.metadata)) return;
   try {
     const { error: clearErr } = await ctx.supabase.auth.updateUser({ data: { [PENDING_WORKSPACE_KEY]: null } });

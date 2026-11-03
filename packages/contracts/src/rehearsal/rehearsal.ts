@@ -156,9 +156,17 @@ export const REHEARSAL_TOOL_WORDS = {
 } as const;
 
 /** What a refusal to spend says a rehearsal's call was for (the route wrapper's requireSpend). */
-export const SPEND_REHEARSE: SpendWords = { before: "rehearsing your receptionist", can: "rehearse your receptionist" };
+export const SPEND_REHEARSE: SpendWords = {
+  kind: "rehearse",
+  before: "rehearsing your receptionist",
+  can: "rehearse your receptionist",
+};
 /** And a review, or a fix routed by the model. */
-export const SPEND_REVIEW: SpendWords = { before: "reviewing a conversation", can: "review a conversation" };
+export const SPEND_REVIEW: SpendWords = {
+  kind: "rehearse",
+  before: "reviewing a conversation",
+  can: "review a conversation",
+};
 
 /** Every word the Rehearse surface says, outside the review and the fix. */
 export const REHEARSE_WORDS = {

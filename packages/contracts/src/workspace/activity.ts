@@ -534,7 +534,7 @@ const recordChangedWords = (p: Record<string, unknown>): string | null => {
 
 /**
  * Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082), and a
- * waiting run's whose every send left it before anyone answered (00511).
+ * waiting run's whose every send left it before anyone answered (00532).
  */
 const CANCELED_BY_SYSTEM: Readonly<Record<string, string>> = {
   day_passed: "Skipped a run whose day had passed",

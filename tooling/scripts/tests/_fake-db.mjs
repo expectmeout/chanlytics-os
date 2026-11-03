@@ -158,6 +158,16 @@ function equalsCell(have, val) {
   return have === val;
 }
 
+/** SQL's LIKE: % is any run, _ one character, and a NULL matches nothing. */
+function likes(value, pattern) {
+  if (value == null) return false;
+  const source = String(pattern)
+    .split("")
+    .map((ch) => (ch === "%" ? ".*" : ch === "_" ? "." : ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    .join("");
+  return new RegExp(`^${source}$`).test(String(value));
+}
+
 function matches(row, filters, defaults = {}) {
   // A column a row leaves out has its default in the database (jobs.state is 'scheduled'), and a filter reads that.
   const read = (r, col) => {
@@ -283,9 +293,13 @@ function matches(row, filters, defaults = {}) {
                                 return cell(row, c) != null && listValues(v).includes(String(cell(row, c)));
                               throw new Error(`fakeDb: or() clause ${clause} is not modelled`);
                             })
-                          : (() => {
-                              throw new Error(`fakeDb: no filter called ${op}()`);
-                            })(),
+                          : // PostgREST's `.like(col, "r%")`: modelled for the lead sweep, which reads a run's
+                            // finished collects only where it wrote them (likes, above).
+                            op === "like"
+                            ? likes(read(row, col), val)
+                            : (() => {
+                                throw new Error(`fakeDb: no filter called ${op}()`);
+                              })(),
   );
 }
 
@@ -1097,6 +1111,36 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const r = (tables.business_records ?? []).find((x) => x.tenant_id === p_tenant_id);
       return r ? !String(r.ein ?? "").trim() : null;
     },
+    // The leads a workspace may count this month (00512's lead_allowance, decision 0090): the trial's while its
+    // billing says trialing, else the month's, as contracts' leadAllowanceFor says.
+    lead_allowance: ({ p_tenant_id }) => {
+      const b = (tables.billing_accounts ?? []).find((x) => x.tenant_id === p_tenant_id);
+      return b && b.mode === "stripe" && b.status === "trialing" ? 50 : 500;
+    },
+    // What the first run chose for the workspace, kept through its door (00513's setup_choice_set, decision 0091): a
+    // null argument keeps what is there, marks only add, the version compared when given.
+    setup_choice_set: ({ p_tenant_id, p_phone, p_whatsapp, p_marks, p_clear_phone, p_version }) => {
+      const row =
+        (tables.setup_choices ?? []).find((x) => x.tenant_id === p_tenant_id) ??
+        insertRow("setup_choices", { tenant_id: p_tenant_id, marks: [], version: 0 });
+      if (p_version != null && row.version !== p_version) return { error: "stale", version: row.version };
+      row.phone = p_clear_phone ? null : (p_phone ?? row.phone ?? null);
+      row.whatsapp = p_whatsapp ?? row.whatsapp ?? null;
+      row.marks = [...new Set([...(row.marks ?? []), ...(p_marks ?? [])])].sort();
+      row.version = (row.version ?? 0) + 1;
+      return { phone: row.phone, whatsapp: row.whatsapp, marks: row.marks, version: row.version };
+    },
+    // What a trial used (00512's trial_use): its calls' spoken seconds and the receptionist's own replies.
+    trial_use: ({ p_tenant_id }) => ({
+      call_seconds: Math.floor(
+        (tables.calls ?? [])
+          .filter((c) => c.tenant_id === p_tenant_id)
+          .reduce((sum, c) => sum + Math.max(0, Number(c.duration_ms) || 0), 0) / 1000,
+      ),
+      replies: (tables.messages ?? []).filter(
+        (m) => m.tenant_id === p_tenant_id && m.direction === "outbound" && m.sender === "ai",
+      ).length,
+    }),
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
       const of = (kind) => {
@@ -1912,6 +1956,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       },
       contains(col, val) {
         q.filters.push(["contains", col, val]);
+        return proxy;
+      },
+      like(col, pattern) {
+        q.filters.push(["like", col, pattern]);
         return proxy;
       },
       is(col, val) {

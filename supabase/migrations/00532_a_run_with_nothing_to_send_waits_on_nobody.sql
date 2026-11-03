@@ -1,4 +1,4 @@
--- 00511 · A run with nothing to send waits on nobody (3 Nov 2026).
+-- 00532 · A run with nothing to send waits on nobody (3 Nov 2026).
 --
 -- A run made to wait for its owner's OK (pending_approval) ends only by their word: approved, it is released; skipped, it
 -- is canceled. Nothing else ever closes one. The reach-out clock finishes a run that went (reach_out_finishable: scheduled
@@ -55,7 +55,7 @@ begin
 end $$;
 
 comment on function public.sequence_sends_end_emptied_runs() is
-  'A run waiting for an OK with no send left to go is canceled (00511): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
+  'A run waiting for an OK with no send left to go is canceled (00532): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
 
 revoke all on function public.sequence_sends_end_emptied_runs() from public, anon, authenticated;
 

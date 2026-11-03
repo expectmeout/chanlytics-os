@@ -5,7 +5,7 @@
  * door given a tenant keeps to it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
+import { maySpend, type BillingMode, type BillingStatus, type SpendKind } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { emailWordsFrom } from "./reach-out-sheet";
 import { withdrawQueued } from "./control";
@@ -610,11 +610,12 @@ export async function recordCheck(
 }
 
 /**
- * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
- * may not. The one reading of it: the step's run (run-context.ts), the check and the dashboard's chains ask it. A read that fails throws:
- * "we could not check" is not "yes".
+ * Whether a workspace may spend now (contracts maySpend, by the spend's kind: reach-out and a plan's own reads the
+ * number's row, the finder its leads'): a paused workspace, or one with no billing row, may not. The one reading of it:
+ * the step's run (run-context.ts), the check, the dashboard's chains, the finder's runner and the rehearsal's window ask
+ * it. A read that fails throws: "we could not check" is not "yes".
  */
-export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boolean> {
+export async function workspaceMaySpend(db: Db, tenantId: string, kind: SpendKind = "number"): Promise<boolean> {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
@@ -622,7 +623,7 @@ export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boole
   if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || !billing.data) return false;
-  return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus);
+  return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus, kind);
 }
 
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */

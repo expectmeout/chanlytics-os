@@ -76,8 +76,8 @@ export { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows, readAllRowsByKey } from "./page
 export type { Page } from "./paged";
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
-export { narrowedUpdates, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
-export type { SubscribeOptions } from "./realtime";
+export { narrowedUpdates, noticesSince, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
+export type { SubscribeOptions, ToldNotice } from "./realtime";
 export { askJournalDayRows, askJournalDue, journalMemberNames, keepAskJournal } from "./repositories/ask/journal";
 export type { AskJournalDueRow, JournalDecisionRow, JournalEventRow } from "./repositories/ask/journal";
 export {
@@ -421,7 +421,9 @@ export type {
   WithdrawReason,
 } from "./repositories/control";
 export {
+  activateCapabilityFn,
   createWorkspaceFn,
+  deactivateCapabilityFn,
   getTenantConfig,
   getTenantConfigAsMember,
   lineForwardingSet,
@@ -437,14 +439,19 @@ export {
   replyTokensSince,
   setPersonReplyMode,
   setPolicyMode,
+  setSetupChoices,
+  setupChoicesOf,
   setWorkspaceLogo,
   startPlaybook,
+  trialingWorkspaceIds,
+  trialUseOf,
   updatePlaybook,
   workspaceAnswersOnItsOwn,
   workspaceIdsOf,
   workspaceNamed,
   workspaceOpenToCustomers,
   workspacePublicSlug,
+  workspacesWithANumberChosen,
   workspaceZoneOf,
   writePlaybookChange,
 } from "./repositories/control-plane";
@@ -457,6 +464,8 @@ export type {
   PolicyRecord,
   PublicWorkspaceRead,
   PutTenantConfigResult,
+  SetupChoiceSetArgs,
+  SetupChoicesRow,
   TenantConfigRow,
 } from "./repositories/control-plane";
 export { dealOnFile, openDealsOf, recordDeal, yesesSince } from "./repositories/deals";
@@ -557,17 +566,20 @@ export {
   ideasBasis,
   ideasClockAndLanguage,
   keepIdeas,
+  keepLeadPrices,
   leadAddresseeChoose,
+  leadAllowanceOf,
   leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,
   leadPeopleSearchCreate,
+  leadPricesSeen,
   leadViewCounts,
   readIdeaHistory,
   readLeadOne,
   saveIdeasLine,
 } from "./repositories/leads";
-export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember } from "./repositories/leads";
+export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./repositories/leads";
 export {
   addToList,
   archiveList,

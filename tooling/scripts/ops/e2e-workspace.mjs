@@ -1405,8 +1405,8 @@ async function convergeLeads(db, T, ownerId, now) {
   }
 
   // The search that stopped to ask. Its round is made now, so that while it is queued and probing no sweep could
-  // call it stuck (planLeadSweep: an hour old with nothing live), and is dated back only once it waits, a state the
-  // sweep ends only after a day (end_question, from waiting_since).
+  // carry it on (planLeadSweep: quiet ten minutes since it last moved, with nothing of its own live), and is dated back
+  // only once it waits, a state the sweep ends only after a day (end_question, from waiting_since).
   const waitingSince = new Date(now - WAITING_FOR_MS).toISOString();
   const asked = new Date(now - WAITING_FOR_MS - 5 * 60_000).toISOString();
   const waiting = must(

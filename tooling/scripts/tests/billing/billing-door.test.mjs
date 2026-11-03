@@ -425,25 +425,24 @@ test("checkout: a fresh workspace gets a customer made in its name and a Checkou
     [[{ name: "Harbor Moving", email: "ada@example.com", metadata: { tenant_id: A } }]],
     "the customer is the workspace, in its name, with the owner's address and the workspace on it",
   );
+  const [[asked, options]] = s.asked("checkout.sessions.create");
   assert.deepEqual(
-    s.asked("checkout.sessions.create"),
-    [
-      [
-        {
-          mode: "subscription",
-          customer: "cus_new",
-          client_reference_id: A,
-          line_items: [{ price: "price_1", quantity: 1 }],
-          subscription_data: { metadata: { tenant_id: A }, trial_period_days: 14 },
-          allow_promotion_codes: true,
-          success_url: BILLING_PAGE("harbor", "success"),
-          cancel_url: BILLING_PAGE("harbor", "cancel"),
-          metadata: { tenant_id: A },
-        },
-      ],
-    ],
+    asked,
+    {
+      mode: "subscription",
+      customer: "cus_new",
+      client_reference_id: A,
+      line_items: [{ price: "price_1", quantity: 1 }],
+      subscription_data: { metadata: { tenant_id: A }, trial_period_days: 14 },
+      allow_promotion_codes: true,
+      success_url: BILLING_PAGE("harbor", "success"),
+      cancel_url: BILLING_PAGE("harbor", "cancel"),
+      metadata: { tenant_id: A },
+    },
     "subscription mode, the trial applied, the workspace on the subscription and the session, and back to Billing with the outcome in a word",
   );
+  // Two presses inside ten minutes, from one door and one way of paying, are Stripe's one session.
+  assert.match(options.idempotencyKey, new RegExp(`^checkout:${A}:billing:hosted:\\d+$`));
   assert.equal(
     t.billing_accounts[0].stripe_customer_id,
     "cus_new",
@@ -523,7 +522,7 @@ test("F4: checkout comes back to the first run when it is asked to, from a close
   assert.deepEqual(await back(null), [BILLING_PAGE("harbor", "success"), BILLING_PAGE("harbor", "cancel")]);
 });
 
-test("the first run's checkout takes no trial: it is the phone step's, and a number starts the plan -- Billing's own still offers the trial", async () => {
+test("one trial from every door (decision 0090): the first run's Go live and Billing's own both start the trial", async () => {
   const sessionFor = async (ret) => {
     use(tables());
     const s = stripe({
@@ -534,7 +533,11 @@ test("the first run's checkout takes no trial: it is the phone step's, and a num
     return s.asked("checkout.sessions.create")[0][0];
   };
   const plan = await sessionFor("start");
-  assert.deepEqual(plan.subscription_data, { metadata: { tenant_id: A } }, "no trial_period_days: charged today");
+  assert.deepEqual(
+    plan.subscription_data,
+    { metadata: { tenant_id: A }, trial_period_days: 14 },
+    "the trial covers the number",
+  );
   const billing = await sessionFor("billing");
   assert.deepEqual(billing.subscription_data, { metadata: { tenant_id: A }, trial_period_days: 14 });
 });
