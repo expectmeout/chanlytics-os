@@ -82,7 +82,13 @@ function signedByInstagramApp(request: Request, raw: string): boolean {
     doorLog.error("ig_missing_app_secret");
     return false;
   }
-  return metaSignatureValid(raw, request.headers.get(META_SIGNATURE_HEADER), secrets);
+  // The Meta app's retiring secret beside it while a rotation is under way, never on its own.
+  const previous = env.META_APP_SECRET_PREVIOUS;
+  return metaSignatureValid(
+    raw,
+    request.headers.get(META_SIGNATURE_HEADER),
+    previous ? [...secrets, previous] : secrets,
+  );
 }
 
 /** Kept as it came, before the verdict (decision 0032): Meta names no delivery, so the key is the body's digest. */

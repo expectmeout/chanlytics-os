@@ -141,6 +141,19 @@ async function requestOf(
   return turn.escalate ? turn : { ...turn, escalate: true, escalationReason: "booking_reply" };
 }
 
+/**
+ * WhatsApp's "typing..." on the customer's message while the model writes, where the answer goes at once (the mode in
+ * force is auto, so nothing waits in a veto window the indicator would outlast): a courtesy, so it is not awaited and its
+ * failure is nobody's. Never on a text or a DM, whose wires have none.
+ */
+export function showTyping(at: Answering): void {
+  const { ports, channel, replyMode, rt, isEnvDefault, n, L } = at;
+  if (!ports.typing || channel !== "whatsapp" || replyMode !== "auto" || !ports.env.modelKey) return;
+  ports.typing(ports.waCfg(rt, isEnvDefault), n.externalId).catch((e: unknown) => {
+    L.warn("wa_typing_failed", { error: errField(e) });
+  });
+}
+
 /** The model composes and layer two checks the words, or, with no model key, the fallback goes. */
 export async function modelTurn(
   at: Answering,
@@ -205,6 +218,8 @@ export async function modelTurn(
           // A second model is put the customer's own words in shadow, when it is on (contracts shadowWordsOf).
           shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption }),
           ...(takes ? { bookingRequests: true } : {}),
+          // The turn's end (./context.ts): a model that has not answered by then has not answered.
+          endsAtMs: at.endsAtMs,
         },
       );
       usage = r.usage;

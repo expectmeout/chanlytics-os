@@ -90,6 +90,8 @@ export interface BrainCall {
   shadowText?: string;
   /** This turn takes booking requests (decision 0061): the schema carries the two fields, and the reply what they say. */
   bookingRequests?: boolean;
+  /** When the turn must have its answer by (ms since the epoch; core's BrainCall): each asking gets what is left. */
+  endsAtMs?: number;
 }
 
 /**
@@ -231,7 +233,7 @@ async function answerReply(
     messages,
   };
   const ask = (): Promise<Asked> =>
-    askOnce(purpose, base, forWhom, stamp, fallbackText, call?.bookingRequests === true);
+    askOnce(purpose, base, forWhom, stamp, fallbackText, call?.bookingRequests === true, call?.endsAtMs);
 
   const conversationId = call?.subjectId ?? null;
   if (!call?.tenantId || !conversationId) return (await ask()).reply;
@@ -278,14 +280,19 @@ async function askOnce(
   stamp: BrainStamp,
   fallbackText: string,
   bookingRequests = false,
+  endsAtMs?: number,
 ): Promise<Asked> {
   const L = logger();
   let structured = true;
+  // What is left of the turn, asked again at each asking: the plain retry after a refused format gets only the rest.
+  const bound = (): { deadlineMs?: number } =>
+    endsAtMs === undefined ? {} : { deadlineMs: Math.max(1, endsAtMs - Date.now()) };
   // A turn that takes booking requests is sent the record with the two fields (decision 0061); every other, the record.
   const schema = bookingRequests ? brainOutputSchemaFor({ bookingRequests }) : BRAIN_OUTPUT_JSON_SCHEMA;
   let r = await callModel(
     {
       purpose,
+      ...bound(),
       body: {
         ...base,
         output_config: { effort: "low", format: { type: "json_schema", schema } },
@@ -296,7 +303,7 @@ async function askOnce(
   if (r && r.outcome !== "held" && formatRejected(r)) {
     L.error("brain_format_rejected", { error: r.error.slice(0, 200) });
     structured = false;
-    r = await callModel({ purpose, body: { ...base, output_config: { effort: "low" } } }, forWhom);
+    r = await callModel({ purpose, ...bound(), body: { ...base, output_config: { effort: "low" } } }, forWhom);
   }
   // No key, or a workspace that may not pay: the caller checked the key before asking, so this is a failure to answer.
   if (!r || r.outcome === "held") throw new Error("the receptionist had no model to ask");

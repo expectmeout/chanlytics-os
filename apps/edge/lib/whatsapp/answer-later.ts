@@ -78,7 +78,7 @@ function speakingOnce(db: Db, job: ClaimedJob, ports: InboundPorts): InboundPort
  * workspace. Throws when the payload names no message, the number is another workspace's now, or a read failed: the
  * ledger tries again until the job has spoken, and after that the sweep hands the message to a person.
  */
-export async function answerWhatsapp(db: Db, job: ClaimedJob): Promise<void> {
+export async function answerWhatsapp(db: Db, job: ClaimedJob, deadline?: number): Promise<void> {
   const wa = job.payload.wa as { message?: WaRawMessage; value?: WaChangeValue } | null | undefined;
   const m = wa?.message;
   if (!m?.id || !m.from) throw new Error("inbound_answer: the payload names no WhatsApp message");
@@ -91,5 +91,5 @@ export async function answerWhatsapp(db: Db, job: ClaimedJob): Promise<void> {
     throw new Error("inbound_answer: the number written to is another workspace's now");
   logger({ tenant_id: job.tenant_id }).info("wa_answer_taken_up", { id: m.id, from_tail: phoneTail(m.from) });
   const arrival = { inbound: inboundFromWhatsapp(m, value), carrier: null, isEnvDefault: isEnvNumber(phoneNumberId) };
-  await answerArrival(arrival, routed, speakingOnce(db, job, realPorts()));
+  await answerArrival(arrival, routed, speakingOnce(db, job, realPorts()), deadline);
 }

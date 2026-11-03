@@ -35,7 +35,7 @@ import { ingestMessage, recordMessage } from "./ingest";
 import { modeInForce, firstGates } from "./gates";
 import { seeingOf, unreadableGate, wordsOf, photoOf } from "./unreadable";
 import { tooLate, confirmedYes, heldForThePerson } from "./reply-gates";
-import { modelTurn } from "./model-turn";
+import { modelTurn, showTyping } from "./model-turn";
 import { planTheHold, heldOrKept, sendNow } from "./dispatch";
 import { claimTheTurn, stillOurs } from "./turn";
 // TYPES ONLY: the one inbound shape is the channels package's, and this verb speaks it. A VALUE from channels would be a
@@ -74,11 +74,17 @@ export type InboundInput = InboundAt &
     | { inbound: InboundMessage & { channel: "instagram" }; carrier: InboundCarrier<"instagram"> }
   );
 
-/** Where a message arrived. */
+/** Where a message arrived, and when its turn must have its answer by. */
 interface InboundAt {
   tenantId: string | null;
   routed: RoutedChannel | null;
   isEnvDefault: boolean;
+  /**
+   * The job's deadline (ms since the epoch), when the ledger gives one: the turn is held to it and to TURN_BUDGET_MS from
+   * its start, whichever comes first (./context.ts), so a slow model ends in the holding reply and a person, never in a
+   * function killed with the customer unanswered.
+   */
+  endsAtMs?: number;
 }
 
 /**
@@ -111,6 +117,7 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   const shown = await photoOf(at, seen);
   if (!shown) return;
   if ((await claimTheTurn(at, shown.photo)) !== GO) return;
+  showTyping(at);
   const turn = await modelTurn(at, bodyText, shown.photo);
   if ((await stillOurs(at, turn, shown.photo)) !== GO) return;
   const hold = await planTheHold(at, turn);

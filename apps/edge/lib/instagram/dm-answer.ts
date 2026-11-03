@@ -57,7 +57,7 @@ export async function recordThenAnswerDm(
  * workspace's now, or a read failed: the ledger tries again until the job has spoken, and after that the sweep hands the
  * DM to a person.
  */
-export async function answerDm(db: Db, job: ClaimedJob): Promise<void> {
+export async function answerDm(db: Db, job: ClaimedJob, deadline?: number): Promise<void> {
   const ig = job.payload.ig as { account?: unknown; item?: IgMessaging; profile_name?: unknown } | null | undefined;
   const account = typeof ig?.account === "string" ? ig.account : "";
   if (!account || !ig?.item) throw new Error("inbound_answer: the payload names no Instagram DM");
@@ -71,5 +71,10 @@ export async function answerDm(db: Db, job: ClaimedJob): Promise<void> {
   if (read.outcome === "unavailable")
     throw new Error(`inbound_answer: the account's token could not be read: ${read.error}`);
   logger({ tenant_id: job.tenant_id }).info("ig_answer_taken_up", { id: message.externalId });
-  await answerArrival({ inbound: message, carrier: instagramCarrier(read, () => markSpoke(db, job)) }, routed);
+  await answerArrival(
+    { inbound: message, carrier: instagramCarrier(read, () => markSpoke(db, job)) },
+    routed,
+    undefined,
+    deadline,
+  );
 }

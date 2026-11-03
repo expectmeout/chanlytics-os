@@ -63,7 +63,8 @@ const L = logger();
 
 /**
  * Meta's signature over the raw body, with the app's secret (channels metaSignatureValid, the one check both Meta
- * webhooks ask). Fail-closed: a missing secret is a config error, never a verification skip.
+ * webhooks ask), or the one being retired while a rotation is under way (META_APP_SECRET_PREVIOUS). Fail-closed: a
+ * missing secret is a config error, never a verification skip, and the old secret alone opens nothing.
  */
 function signedByMeta(request: Request, raw: string): boolean {
   const secret = env.META_APP_SECRET;
@@ -71,7 +72,8 @@ function signedByMeta(request: Request, raw: string): boolean {
     L.error("wa_missing_app_secret");
     return false;
   }
-  return metaSignatureValid(raw, request.headers.get(META_SIGNATURE_HEADER), [secret]);
+  const previous = env.META_APP_SECRET_PREVIOUS;
+  return metaSignatureValid(raw, request.headers.get(META_SIGNATURE_HEADER), previous ? [secret, previous] : [secret]);
 }
 
 /**

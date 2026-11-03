@@ -178,6 +178,8 @@ export interface BrainCall {
    * picked is written in. Absent on every other turn, which is sent exactly the record.
    */
   bookingRequests?: boolean;
+  /** When the turn must have its answer by (ms since the epoch): the model is asked for no longer than is left, its fallback included. */
+  endsAtMs?: number;
 }
 
 /** A booking the receptionist asks for, as the sink opens it with its hold (decision 0061). */
@@ -404,6 +406,11 @@ export interface InboundPorts {
   ): Promise<"sent" | "suppressed" | "unaddressed" | "failed">;
   /** WhatsApp's wire from a workspace's credentials. */
   sender(cfg: WaConfig | null): Sender | null;
+  /**
+   * WhatsApp's typing indicator on the customer's message, while the model writes (channels sendTypingIndicator): a
+   * courtesy that never fails a turn. Absent in an adapter that has none: nothing is shown.
+   */
+  typing?(cfg: WaConfig | null, messageId: string): Promise<unknown>;
   /** The model, loaded only when there is a key: it is the one import that pulls the SDK. */
   brain(): Promise<{
     generateReply(

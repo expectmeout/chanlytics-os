@@ -181,7 +181,7 @@ function speakingOnce(db: Db, job: ClaimedJob, sender: SmsSender): SmsSender {
  * sender says so on the job's row the moment before the provider is called (speakingOnce), and a run that dies or
  * throws after that is never repeated, since the reply naming the message may not have been written yet.
  */
-export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
+export async function answerText(db: Db, job: ClaimedJob, deadline?: number): Promise<void> {
   const fields = job.payload.text;
   const inbound: SmsInbound | null =
     fields !== null && typeof fields === "object" ? smsInboundFrom(fields as Record<string, string>) : null;
@@ -194,5 +194,5 @@ export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
   const carrier = carrierFor(held, sender && speakingOnce(db, job, sender));
   const L = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
   L.info("sms_answer_taken_up", { held });
-  await answerArrival({ inbound: inboundFromSms(inbound, receivedAt), carrier }, routed);
+  await answerArrival({ inbound: inboundFromSms(inbound, receivedAt), carrier }, routed, undefined, deadline);
 }

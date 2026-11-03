@@ -325,7 +325,8 @@ export function world(over = {}) {
     // `resume` is a job taken up again with no door before it (a runner that died mid-turn).
     const taken = async () => {
       if (!resume && !(await recordArrival(arrivalOf(m), routed, all))) return;
-      return answerArrival(arrivalOf(m), routed, all);
+      // The job's deadline, when a case gives one (`endsAtMs`), as the ledger hands it over.
+      return answerArrival(arrivalOf(m), routed, all, over.endsAtMs);
     };
     const out = await taken().finally(unbind);
     // The rule behind every stamp (contracts HANDLED_OUTCOMES), in both directions, over EVERY message the world

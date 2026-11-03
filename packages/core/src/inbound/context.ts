@@ -14,7 +14,7 @@ import type { IngestResult, Json } from "@chanlytics/db";
 import type { Delivered } from "../deliver";
 import { replyPosture } from "./reply-posture";
 import type { EscalateOutcome, InboundChannel, InboundHandoff, InboundPorts, InboundSink } from "./ports";
-import { MAX_REPLIES_PER_DAY } from "./steps";
+import { MAX_REPLIES_PER_DAY, TURN_BUDGET_MS } from "./steps";
 import type { ThreadState } from "./thread";
 import type { InboundInput } from "./answer";
 
@@ -36,6 +36,8 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   const channel: InboundChannel = carrier?.channel ?? "whatsapp";
   const db = ports.db();
   const t0 = Date.now();
+  // When this turn must have its answer by: the job's deadline, never more than TURN_BUDGET_MS after the turn began.
+  const endsAtMs = Math.min(input.endsAtMs ?? Number.POSITIVE_INFINITY, t0 + TURN_BUDGET_MS);
   // Bound once, here, where the tenant becomes known. Every line below carries
   // it, which is the only way that stays true as this function changes. The wire too: the lines keep their wa_ names
   // (the names are the contract alerting greps for), so `channel` is what tells a text's or a DM's from WhatsApp's, and
@@ -88,6 +90,7 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
     channel,
     db,
     t0,
+    endsAtMs,
     L,
     rt,
     posture,

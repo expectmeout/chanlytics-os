@@ -14,6 +14,7 @@ import {
   policyAskClass,
   resolveFacts,
   POLICY_MODE_WORDS,
+  SECOND_MS,
 } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits, PolicyMode } from "@chanlytics/contracts";
 
@@ -26,6 +27,12 @@ export function modeSaid(mode: string): string {
 }
 
 export const MAX_REPLIES_PER_DAY = 20; // per thread
+/**
+ * The longest a reply turn may take from its start to the model's answer: the job's function stops at sixty seconds
+ * (apps/edge/vercel.json, api/jobs/tick.ts), and the send, the hold and the stamp come after the answer. The ledger's own
+ * deadline is usually sooner (jobs ledger.ts YIELD_AT_MS from the tick's start), and the turn is held to whichever is first.
+ */
+export const TURN_BUDGET_MS = 40 * SECOND_MS;
 export const STALE_MS = 10 * 60 * 1000; // "late" — worth noting in the log
 export const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers, not the bot
 

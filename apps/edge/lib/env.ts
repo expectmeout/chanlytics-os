@@ -57,6 +57,10 @@ export const env = {
   get META_APP_SECRET() {
     return trimmedEnv(process.env.META_APP_SECRET);
   },
+  /** The app secret being retired, while Meta's deliveries may still be signed with it: set for a rotation, then unset. */
+  get META_APP_SECRET_PREVIOUS() {
+    return trimmedEnv(process.env.META_APP_SECRET_PREVIOUS);
+  },
   get META_APP_ID() {
     return trimmedEnv(process.env.META_APP_ID);
   },

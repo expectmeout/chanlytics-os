@@ -183,7 +183,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               calendar: { feedNames: feedNamesFor(db) }, // a reminder asks the owner's calendar beside the record
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
-              inbound: { answer: (claimed) => answerInboundJob(db, claimed) },
+              inbound: { answer: (claimed, deadline) => answerInboundJob(db, claimed, deadline) },
               // A freed time offered to the people who asked and never booked (decision 0082): the workspace's step on
               // slot_opened runs through the run the sweep uses, which lives here.
               freedTimes: { offer: (tenantId, freed) => offerFreedTime(db, tenantId, freed) },

@@ -761,6 +761,7 @@ export const LOG_EVENTS = [
   "wa_templates_list_failed",
   "wa_templates_synced",
   "wa_turn_unreadable",
+  "wa_typing_failed",
   "wa_unrecorded_alert_failed",
   "wa_unroutable",
   "wa_waba_event",

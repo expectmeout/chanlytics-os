@@ -24,7 +24,7 @@ import type { InboundMessage } from "../packages/channels.js";
 import type { Database, IngestResult, Json, RoutedChannel } from "../packages/db.js";
 import { answerInbound, recordInbound, type InboundCarrier } from "../packages/core.js";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
-import { errField, logger, type LogEvent } from "../log.js";
+import { errField, logger } from "../log.js";
 import { corePorts, realPorts, type InboundPorts } from "./ports.js";
 
 /**
@@ -58,17 +58,19 @@ export function recordArrival(
  * answers it while it is unprocessed and no reply names it (core answerInbound). The job hands in its own
  * ports or carrier, whose sender marks the job as having spoken before the provider is called (./answer-job.ts).
  */
-export function answerArrival(a: Arrival, routed: RoutedChannel, ports: InboundPorts = realPorts()): Promise<void> {
+export function answerArrival(
+  a: Arrival,
+  routed: RoutedChannel,
+  ports: InboundPorts = realPorts(),
+  /** When the turn must have its answer by (the job's deadline, ms since the epoch): core caps it at TURN_BUDGET_MS. */
+  endsAtMs?: number,
+): Promise<void> {
   const isEnvDefault = envDefaultOf(a);
-  return answerInbound({ ...a, tenantId: routed.tenantId, routed, isEnvDefault }, corePorts(ports));
+  return answerInbound(
+    { ...a, tenantId: routed.tenantId, routed, isEnvDefault, ...(endsAtMs === undefined ? {} : { endsAtMs }) },
+    corePorts(ports),
+  );
 }
-
-/** What each wire's door says when its message's job could not be written: the names are the contract (lib/log.ts). */
-const UNSCHEDULED: Record<Arrival["inbound"]["channel"], LogEvent> = {
-  whatsapp: "wa_answer_unscheduled",
-  sms: "sms_answer_unscheduled",
-  instagram: "ig_answer_unscheduled",
-};
 
 /**
  * The door's whole half: the message recorded, and its answer scheduled as its job, due now (its row wakes the ledger,
@@ -98,10 +100,12 @@ export async function recordThenSchedule(
   try {
     await scheduleJobOnce(db, { tenantId: routed.tenantId, kind: "inbound_answer", dueAt: new Date(), payload });
   } catch (e) {
-    logger({ tenant_id: routed.tenantId }).warn(UNSCHEDULED[a.inbound.channel], {
-      id: a.inbound.externalId,
-      error: errField(e),
-    });
+    // Each wire's door says it in its own name, as it always has: the names are the contract (lib/log.ts).
+    const L = logger({ tenant_id: routed.tenantId });
+    const said = { id: a.inbound.externalId, error: errField(e) };
+    if (a.inbound.channel === "whatsapp") L.warn("wa_answer_unscheduled", said);
+    else if (a.inbound.channel === "sms") L.warn("sms_answer_unscheduled", said);
+    else L.warn("ig_answer_unscheduled", said);
   }
   return ing;
 }

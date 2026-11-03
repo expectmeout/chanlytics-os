@@ -19,8 +19,8 @@ import { answerText } from "../sms/inbound-text.js";
 
 type Db = SupabaseClient<Database>;
 
-/** An answer job, by what its door recorded. */
-export function answerInboundJob(db: Db, job: ClaimedJob): Promise<void> {
-  if (job.payload.wa) return answerWhatsapp(db, job);
-  return job.payload.ig ? answerDm(db, job) : answerText(db, job);
+/** An answer job, by what its door recorded; its turn answered by `deadline` when the ledger gives one (core answer.ts). */
+export function answerInboundJob(db: Db, job: ClaimedJob, deadline?: number): Promise<void> {
+  if (job.payload.wa) return answerWhatsapp(db, job, deadline);
+  return job.payload.ig ? answerDm(db, job, deadline) : answerText(db, job, deadline);
 }

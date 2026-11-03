@@ -364,3 +364,22 @@ test("the dial reaches the policy row through the pane and the bridge", async ()
   }
   // Conversations draws the one thread, this button included (one-thread.test.mjs).
 });
+
+test("a turn's end bounds the model: a model that never answers is given up at the turn's end, with no fallback asked past it", async () => {
+  const { hang } = await import("../ai/_model-world.mjs");
+  const api = scripted(hang(), hang());
+  setModelFetch(api.fetch);
+  const began = Date.now();
+  // The job's deadline is 60 ms away: the first try gets what is left, and too little is left for the fallback's.
+  await assert.rejects(
+    generateReply([], "when do you open?", "System.", "Hold on.", undefined, undefined, undefined, undefined, {
+      tenantId: null,
+      endsAtMs: began + 60,
+    }),
+  );
+  assert.ok(
+    Date.now() - began < 1_500,
+    `given up at the turn's end, not the route's twenty seconds (${Date.now() - began} ms)`,
+  );
+  assert.equal(api.calls.length, 1, "and no fallback is asked with no time left for it");
+});
