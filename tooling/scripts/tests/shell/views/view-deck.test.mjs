@@ -174,6 +174,7 @@ test("how far a page travels is the token's: its own width where the token says 
   assert.equal(travelOf("100%", 375), 375);
   assert.equal(travelOf(" 56px ", 1034), 56);
   assert.equal(travelOf("", 1034), 56, "a page with no token travels a desk's length");
+  assert.equal(travelOf(" none ", 375), 0, "and one that holds still, nowhere");
 });
 
 /* ------------------------------------ a change of view ----------------------------------- */
@@ -306,6 +307,27 @@ test("a view that says no side is left alone, and what it replaced is not put ba
   assert.equal(b.anims.length, 0);
   assert.deepEqual(a.parentNode, null);
   assert.equal(b.parentNode.put.length, 0);
+});
+
+// A view whose page draws each view in place says it holds still (`--view-travel: none`): the Calendar's days on a phone,
+// where every end of a move stepped a pixel on an iPhone (spec 2026-11-03, a still Calendar on a phone).
+test("a view that holds still is cut in: a press, its arrival and a finger move and fade nothing", () => {
+  const w = world({ token: "none" });
+  const seat = w.deck.view("frame");
+  const a = view();
+  seat(a);
+  assert.equal(w.deck.leave(1), null, "a press starts nothing");
+  assert.equal(a.anims.length, 0);
+  assert.equal(w.deck.walks(), true, "a finger still walks the strip over it");
+  assert.equal(w.deck.drag(-120), 0);
+  assert.equal(a.style.transform, undefined, "and nothing follows the finger");
+  assert.equal(a.style.opacity, undefined);
+  assert.equal(w.deck.settle(), null);
+  const b = view({ dataset: { slide: "next" }, parentNode: a.parentNode });
+  replace(seat, a, b);
+  assert.equal(b.anims.length, 0, "the next is there at once");
+  assert.equal(b.parentNode.put.length, 0, "and what it replaced is not put back");
+  assert.equal(w.waits.length, 0, "nothing waits to come back");
 });
 
 test("a second press starts from where the page is, on a timeline of its own", () => {
@@ -513,12 +535,14 @@ test("what was scrolled in the page leaving is where it was in its copy", () => 
   assert.equal(list.scrollTop, 420);
 });
 
-test("where the window scrolls, a view in place of another comes in under what stands over it: the top, and its own margin", () => {
-  // On a phone the Calendar's bar sticks under the frame's top, over its days. Day's board scrolled the window to now,
-  // and the Month came in under the frame's top alone, its row of days' names under the bar (Ruben's recording, 3 Nov
-  // 2026). A view says what of its page stands over it as its scroll margin, as the browser's own scrolls read it.
+test("where the window scrolls, a view in place of another comes in under the frame's top; one that holds still is its page's", () => {
   const root = { computed: { scrollPaddingTop: "146px" } };
-  const styleOf = (el) => ({ overflowY: "visible", scrollPaddingTop: "0px", scrollMarginTop: "0px", ...el?.computed });
+  const styleOf = (el) => ({
+    overflowY: "visible",
+    scrollPaddingTop: "0px",
+    getPropertyValue: (name) => (name === "--view-travel" ? (el?.travel ?? "100%") : ""),
+    ...el?.computed,
+  });
   const scrolls = [];
   const kept = {
     window: globalThis.window,
@@ -529,6 +553,7 @@ test("where the window scrolls, a view in place of another comes in under what s
   globalThis.getComputedStyle = styleOf;
   globalThis.window = {
     getComputedStyle: styleOf,
+    matchMedia: () => ({ matches: false }),
     scrollY: 300,
     history: {},
     scrollTo: (_x, y) => scrolls.push(["to", y]),
@@ -536,25 +561,22 @@ test("where the window scrolls, a view in place of another comes in under what s
   };
   try {
     const page = view();
-    const day = view();
-    const month = view({
-      rect: { left: 10, top: 152, width: 375, height: 600 },
-      computed: { scrollMarginTop: "50px" },
-    });
-    const pane = view({ rect: { left: 10, top: 100, width: 375, height: 600 } });
-    page.inside = [day, month, pane];
+    const lens = view();
+    const next = view({ rect: { left: 10, top: 100, width: 375, height: 600 } });
+    const days = view({ rect: { left: 10, top: 100, width: 375, height: 600 }, travel: "none" });
+    page.inside = [lens, next, days];
     viewDeck.view("a frame under test")(page);
     const seat = viewDeck.view("a page's views under test");
-    seat(day);
+    seat(lens);
     scrolls.length = 0;
-    replace(seat, day, month);
-    assert.deepEqual(scrolls, [["by", -44]], "its top at the bar's foot: 146 for the frame's top and 50 for the bar");
+    replace(seat, lens, next);
+    assert.deepEqual(scrolls, [["by", -46]], "its top just under the frame's top, where the page had gone past it");
     scrolls.length = 0;
-    replace(seat, month, pane);
+    replace(seat, next, days);
     assert.deepEqual(
       scrolls,
-      [["by", -46]],
-      "a view with no margin of its own comes in under the frame's top, as before",
+      [],
+      "the Calendar's page puts its days where they stand (calendar/board-dom.ts standAfter)",
     );
   } finally {
     for (const [name, value] of Object.entries(kept)) {
