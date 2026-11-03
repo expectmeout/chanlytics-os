@@ -1,8 +1,9 @@
 /**
  * The arithmetic the Ask scripts share (eval-ask.mjs, ask-day.mjs): a spread
  * over a list of timings, and a Wilson interval on a pass rate, so a run of
- * twenty-eight cases says "27 of 28 (95%: 82–99%)" and not "96%". Pure;
- * executed in tooling/scripts/tests/ask/ask-stats.test.mjs.
+ * twenty-eight cases says "27 of 28 (95%: 82–99%)" and not "96%"; and the two
+ * rules a turn's stored shape fails it on (DEGRADED). Pure; executed in
+ * tooling/scripts/tests/ask/ask-stats.test.mjs.
  */
 
 /** The median and the slowest tenth of the numbers that exist in `xs`. */
@@ -143,10 +144,39 @@ export function streamOf(says, finalMs, finalSay) {
 }
 
 /**
+ * The ways a turn can run degraded, read off its stored shape (AskTurnShape, ask_messages.content.shape) once the run
+ * has read it, each with the sentence the judge fails the turn with (eval-ask.mjs). `format`: the API refused the
+ * answer's format and the loop let it go and asked the round again without it (refusals.ts, D15; the log's
+ * ask_format_rejected), so the answer came as prose with nothing red: on 2 November 2026 #2046's chart took the format
+ * past the API's limit, every turn ran so for twenty hours, and every eval passed. `note`: the answer was written as
+ * text while the answer tool stood, which is a note the model wrote to itself and not the answer (#2051). A turn
+ * stored before either key has no `format` and no `answer_tool`, and says nothing; a tool's answer, cards alone
+ * (`answer_in` null) and text where no tool was offered are the turn as designed.
+ */
+const DEGRADED = {
+  format: {
+    when: (s) => s.format === false,
+    fail: "the turn ran without its answer format: the API refused it and the loop let it go (ask_format_rejected)",
+  },
+  note: {
+    when: (s) => s.answer_tool === true && s.answer_in === "text",
+    fail: "the answer was written as text while the answer tool stood: a note the model wrote to itself, not the answer",
+  },
+};
+
+/** What a turn's stored shape fails it for (DEGRADED), each rule's sentence; none for a shape the run could not read. */
+export const degradedFails = (shape) =>
+  Object.values(DEGRADED)
+    .filter((d) => shape && d.when(shape))
+    .map((d) => d.fail);
+
+/**
  * The stream checks over a run's turns that answered (rows with `rounds`, `first_ms`, `stream` and the stored shape's
  * `answer_in`), by how many rounds each took: how many previews, first words, the last preview's wait for the final,
  * and how many streamed (three previews or more); then the jumps, the previews that leaked JSON, the lost line breaks,
- * and how each answer was written (the answer tool's input, text, or none: cards alone or a failure).
+ * how each answer was written (the answer tool's input, text, or none: cards alone or a failure), and how many turns
+ * ran degraded by each of DEGRADED's rules, over every row with a shape, since a spoken turn streams nothing and is
+ * failed all the same.
  */
 export function streamSummary(rows) {
   const answered = rows.filter((r) => r.stream);
@@ -166,5 +196,8 @@ export function streamSummary(rows) {
     lines_lost: answered.filter((r) => r.stream.lines_lost).length,
     show_streamed: answered.filter((r) => r.stream.show_previews > 0).length,
     via: { tool: via("tool"), text: via("text"), none: via(null), unread: answered.filter((r) => !r.shape).length },
+    degraded: Object.fromEntries(
+      Object.entries(DEGRADED).map(([k, d]) => [k, rows.filter((r) => r.shape && d.when(r.shape)).length]),
+    ),
   };
 }

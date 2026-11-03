@@ -14,7 +14,13 @@
  * figure or a breakdown, and a breakdown that adds up (the spec's 10.2); the
  * shape a case asks for (a list, a count, a length, emoji, capitals, never an
  * apology for the format: shapeAskedFails), and no line the preview drew lost
- * when the answer landed (previewJudged).
+ * when the answer landed (previewJudged). Once the run has read each answered
+ * turn's stored shape (ask_messages.content.shape), a turn that ran degraded
+ * fails on it (ask-stats.mjs DEGRADED): its answer format refused by the API
+ * and let go, or its answer written as text while the answer tool stood, a
+ * note the model wrote to itself. Nothing else goes red for either: on 2
+ * November 2026 #2046 took the format past the API's limit, every turn ran
+ * without it for twenty hours, and every eval passed.
  * Each run times the first words (a `say` or a v1 `delta`) and the final,
  * keeps every `say` with when it came, and checks how the answer streamed
  * (ask-stats.mjs streamOf: how many previews, whether the last one met the
@@ -96,7 +102,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor, priceOf } from "@chanlytics/contracts";
-import { pct, roundBands, spread, streamOf, streamSummary, wilson } from "./ask-stats.mjs";
+import { degradedFails, pct, roundBands, spread, streamOf, streamSummary, wilson } from "./ask-stats.mjs";
 import { askSpoken, spokenFails } from "./eval-ask-spoken.mjs";
 import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
@@ -150,8 +156,13 @@ const SURFACE = process.env.SURFACE || null;
 const MUST_NEVER = process.env.MUST_NEVER === "1";
 /** What the run's workspace holds, comma-separated, in a case's `needs` words: a case needing anything else is skipped. */
 const HAS = (process.env.EVAL_WORKSPACE_HAS ?? "").match(/[a-z_]+/g) ?? [];
-/** The baseline cost of one turn (spec §9): what the announcement multiplies before a turn is spent. */
-const PER_TURN = 0.012;
+/**
+ * What one eval turn costs, as measured, for the announcement before a turn is spent: the mean of a cold-ish eval turn,
+ * each in a thread of its own, from 38 turns on 3 November 2026 ($5.42 the run, $0.13 to $0.15 a turn; $0.08 a turn
+ * back to back in the weekly, where turns in a row share the cache). The spec's $0.012 (§9) is a warm production turn's
+ * target, not an eval turn's: 20 turns announced at it as $0.24 cost $3.06 on 3 November 2026.
+ */
+const PER_TURN = 0.15;
 
 /**
  * The run ends once the terminal has taken all it said: a Windows terminal writes stdout and stderr asynchronously,
@@ -912,7 +923,6 @@ run: for (let rep = 1; rep <= REPS; rep++) {
     if (!why && thirdRefusal(second.r, second.row)) break run;
   }
 }
-const passed = results.filter((r) => r.pass).length;
 // The timings are the turns that answered: a request that threw records 0 ms, and a zero pulls every median down.
 const answered = results.filter((r) => r.message);
 const first = spread(answered.map((r) => r.first_ms));
@@ -920,17 +930,6 @@ const trace = spread(answered.map((r) => r.first_trace_ms));
 const whole = spread(answered.map((r) => r.final_ms));
 const median = spread(answered.map((r) => r.latency_ms)).median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
-// The turns a reviewer would mark and the gate does not fail (the judge's notes: a figure that repeats a breakdown's
-// total, a setup's tools out of their order), each note said under its row below.
-const noted = results.filter((r) => r.notes?.length).length;
-// A must-never case passes only when it passed every repetition (pass^k, spec 5.10): both turns of one that has two.
-const mustNever = [...new Set(results.filter((r) => r.must_never).map((r) => r.id))];
-const mustNeverHeld = mustNever.filter((id) => results.filter((r) => r.id === id).every((r) => r.pass)).length;
-// A case of two turns held when both passed on one repetition: each repetition of it is one conversation, counted so.
-const pairs = results
-  .filter((r) => r.turn === 2)
-  .map((two) => [results.find((one) => one.turn === 1 && one.id === two.id && one.rep === two.rep), two]);
-const pairsHeld = pairs.filter(([one, two]) => one?.pass && two.pass).length;
 // The edge writes a turn's last usage row as its stream settles, a moment after the final lands.
 await new Promise((res) => setTimeout(res, 5_000));
 const usage = summarizeUsage(await usageRows(rest, tenantId, startedAt), results.filter((r) => r.message).length);
@@ -944,7 +943,30 @@ const shapes = await turnShapes(
   shapesUnread = e instanceof Error ? e.message : String(e);
   return new Map();
 });
-for (const r of answered) r.shape = shapes.get(r.message.id) ?? null;
+// A turn that ran degraded fails on its stored shape (ask-stats.mjs DEGRADED): its answer format refused by the API and
+// let go, or its answer written as text while the answer tool stood. The judge could not see either when the turn
+// landed, so its row said PASS then; the verdict is said again here, the way a turn's is.
+for (const r of answered) {
+  r.shape = shapes.get(r.message.id) ?? null;
+  const degraded = degradedFails(r.shape);
+  if (!degraded.length) continue;
+  r.fails.push(...degraded);
+  r.pass = false;
+  process.stderr.write(`FAIL ${nameOf(r)} by its stored shape\n     ${degraded.join("\n     ")}\n`);
+}
+// What passed, counted once every shape has been read: a turn that ran degraded fails above, not where it landed.
+const passed = results.filter((r) => r.pass).length;
+// The turns a reviewer would mark and the gate does not fail (the judge's notes: a figure that repeats a breakdown's
+// total, a setup's tools out of their order), each note said under its row below.
+const noted = results.filter((r) => r.notes?.length).length;
+// A must-never case passes only when it passed every repetition (pass^k, spec 5.10): both turns of one that has two.
+const mustNever = [...new Set(results.filter((r) => r.must_never).map((r) => r.id))];
+const mustNeverHeld = mustNever.filter((id) => results.filter((r) => r.id === id).every((r) => r.pass)).length;
+// A case of two turns held when both passed on one repetition: each repetition of it is one conversation, counted so.
+const pairs = results
+  .filter((r) => r.turn === 2)
+  .map((two) => [results.find((one) => one.turn === 1 && one.id === two.id && one.rep === two.rep), two]);
+const pairsHeld = pairs.filter(([one, two]) => one?.pass && two.pass).length;
 const reported = results.reduce((s, r) => s + (r.rounds ?? 0), 0);
 const dollars = (n) => (n === null ? "unpriced" : `$${n.toFixed(n < 1 ? 3 : 2)}`);
 const interval = (k, n) => {
@@ -982,7 +1004,8 @@ console.log(
     `\n  stream checks: last preview jumped from the final ${streamed.jumps} · previews showing JSON or an escape ${streamed.leaks}` +
     ` · line breaks lost at the final ${streamed.lines_lost} · Show drawn while writing ${streamed.show_streamed}` +
     ` · answered through the answer tool ${streamed.via.tool}, as text ${streamed.via.text}, none ${streamed.via.none}` +
-    (streamed.via.unread ? ` (${streamed.via.unread} shapes unread)` : ""),
+    (streamed.via.unread ? ` (${streamed.via.unread} shapes unread)` : "") +
+    ` · ran degraded: format refused ${streamed.degraded.format}, note to itself ${streamed.degraded.note}`,
 );
 console.log(
   roundBands(answered.flatMap((r) => (r.shape ? [r.shape] : [])))
