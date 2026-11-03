@@ -428,8 +428,6 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   website_read: { stopped: "Your website could not be read", to: "admin/receptionist" },
   preview_build: { stopped: "A lead's preview could not be made", to: "clients/leads" },
   erasure_finish: { stopped: "Erasing a person stopped partway: delete them again", to: "clients" },
-  // The ledger's own proof that it runs (00515). Not sent (packages/jobs KIND_POLICY: told elsewhere): Health and
-  // /api/health say a canary that stopped finishing; these are the words should it ever be.
   canary: { stopped: "The background work's own check did not finish", to: "today" },
 };
 

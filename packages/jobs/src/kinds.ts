@@ -66,13 +66,13 @@ export interface KindPolicy {
 const TWICE = [2 * MIN_MS, 10 * MIN_MS] as const;
 const SLOW_TWICE = [5 * MIN_MS, 30 * MIN_MS] as const;
 const ONCE = [2 * MIN_MS] as const;
-const NEVER = [] as const;
+const NO_FIELDS = [] as const;
 
 export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // A reply, a member's or the receptionist's: the send claims its row before the wire, and a run that died may have sent.
   outbound_send: {
     speaks: true,
-    retryWaitsMs: NEVER,
+    retryWaitsMs: NO_FIELDS,
     told: "owner",
     settles: "ledger",
     wires: true,
@@ -83,7 +83,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // One batch of a run: a person is claimed on their row before the wire; a dying run is handed to a fresh one.
   broadcast_send: {
     speaks: true,
-    retryWaitsMs: NEVER,
+    retryWaitsMs: NO_FIELDS,
     told: "owner",
     settles: "ledger",
     wires: true,
@@ -94,7 +94,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // The line's saga reads its own receipts; its stuck rule and the lines sweep take a saga that stopped.
   line_provision: {
     speaks: false,
-    retryWaitsMs: NEVER,
+    retryWaitsMs: NO_FIELDS,
     told: "owner",
     settles: "nothing",
     wires: false,
@@ -229,7 +229,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // The business's website, read for Check (00479): kept only once read, so a run that died leaves the last read.
   website_read: {
     speaks: false,
-    retryWaitsMs: NEVER,
+    retryWaitsMs: NO_FIELDS,
     told: "owner",
     settles: "nothing",
     wires: false,
@@ -262,7 +262,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   // The ledger's own proof that it runs (00515): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,
-    retryWaitsMs: NEVER,
+    retryWaitsMs: NO_FIELDS,
     told: "elsewhere",
     settles: "nothing",
     wires: false,

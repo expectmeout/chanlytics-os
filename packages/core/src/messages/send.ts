@@ -71,7 +71,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // loudly, leaving the customer un-messaged rather than reached over the
   // wrong wire.
   const channel = (msg.channel ?? "whatsapp") as Channel;
-  const to = addressOf(msg.to, channel, p);
+  const to = whereItGoes(msg.to, channel, p);
   const resumes = resumesOf(p);
   const staleAfter = staleAfterOf(p);
   // A person's own message that begins a conversation (payload.starts, core conversations/begin.ts): a start at the
@@ -180,7 +180,7 @@ function staleAfterOf(p: SendQueuedCommand["payload"]): number | null {
  * either deploy order. A job that says neither was scheduled wrongly: it fails, and the tick settles the row and tells
  * the owner.
  */
-function addressOf(frozen: string | null | undefined, channel: Channel, p: SendQueuedCommand["payload"]): string {
+function whereItGoes(frozen: string | null | undefined, channel: Channel, p: SendQueuedCommand["payload"]): string {
   const to = frozen || (channel === "email" ? p.to_email : channel === "instagram" ? p.to_instagram : p.to_phone);
   if (to) return to;
   const what = channel === "email" ? "address" : channel === "instagram" ? "Instagram id" : "number";
