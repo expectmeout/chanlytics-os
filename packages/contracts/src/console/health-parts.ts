@@ -4,7 +4,6 @@
  * the connections that are not healthy. From one read (platform_health_parts, 00469), every row keyed by whether its
  * workspace is ours. Pure.
  */
-import { CALL_ENDING_MENDS, CALL_ENDING_PLATFORM_WORDS } from "../voice/call-endings-platform";
 import type { ModelPurpose } from "../ai/models";
 import { creditRanOut } from "../ai/usage";
 import { capitalize } from "../shared/words";
@@ -22,7 +21,13 @@ export interface HealthPartsDto {
   days: number;
   sends: Array<Keyed & { channel: string; status: string; n: number }>;
   send_errors: Array<Keyed & { channel: string; code: string; title: string | null; n: number; last_at: string }>;
-  calls: Array<Keyed & { status: string; reason: string; n: number; last_at: string }>;
+  /**
+   * Each ending's calls, in the platform's words: the server attaches `words` and `mend` from the one table of endings
+   * (voice/call-endings-platform.ts, callEndingOf), so a page loads the words of the endings it draws, never the table.
+   */
+  calls: Array<
+    Keyed & { status: string; reason: string; n: number; last_at: string; words: string; mend: string | null }
+  >;
   webhooks: Array<Keyed & { provider: string; door: string; n: number; unverified: number; last_at: string }>;
   billing: Array<{ type: string; state: string; n: number; last_at: string }>;
   model: Array<Keyed & { purpose: string; outcome: string; n: number; usd: number }>;
@@ -205,12 +210,6 @@ export function sendsOf(parts: HealthPartsDto | null, scope: HealthScope): Sends
 
 // ----------------------------------------------------------------------------------------------------- calls
 
-/** A call's end, in words: the provider's reason as a person says it (the one table's platform half, voice/call-endings-platform.ts). */
-const CALL_REASON_WORDS: Record<string, string> = CALL_ENDING_PLATFORM_WORDS;
-
-/** The reasons that are ours to mend, never a caller's choice: the table's platform endings and what mends each. */
-const CALL_TROUBLE: Record<string, string> = CALL_ENDING_MENDS;
-
 export interface CallsVM {
   total: number;
   connected: number;
@@ -222,7 +221,9 @@ export interface CallsVM {
 
 export function callsOf(parts: HealthPartsDto | null, scope: HealthScope): CallsVM {
   const rows = inScopeRows(parts?.calls, scope);
-  const reasonWords = (r: string) => CALL_REASON_WORDS[r] ?? (r ? r.replace(/_/g, " ") : "no reason given");
+  // A call's end in words, and what mends it when it is ours: as the server read them off the one table.
+  const said = new Map(rows.map((r) => [r.reason, r]));
+  const reasonWords = (r: string) => said.get(r)?.words ?? (r ? r.replace(/_/g, " ") : "no reason given");
   const byReason = new Map<string, { n: number; last: string[] }>();
   for (const r of rows) {
     const k = r.reason;
@@ -240,7 +241,7 @@ export function callsOf(parts: HealthPartsDto | null, scope: HealthScope): Calls
         reason,
         words: reasonWords(reason),
         n: mine.reduce((n, r) => n + r.n, 0),
-        why: CALL_TROUBLE[reason] ?? "The call failed on the voice provider's side.",
+        why: said.get(reason)?.mend ?? "The call failed on the voice provider's side.",
         lastMs: latest(mine.map((r) => r.last_at)),
         ours: side ?? false,
       };
