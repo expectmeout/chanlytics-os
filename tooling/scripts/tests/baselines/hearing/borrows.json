@@ -1,5 +1,5 @@
 {
-  ".": "broadcasts inbox reach_out_replies settings today workspace",
+  ".": "broadcasts inbox settings today workspace",
   "ask": "inbox live settings",
   "ask/line": "",
   "calendar": "calendar calendar_runs",
