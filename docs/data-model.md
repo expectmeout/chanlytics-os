@@ -635,8 +635,8 @@ Foreign keys:
 | `note_checked_at` | timestamp with time zone | yes |  | When the note sweep looked at this call (0007): once, after its analysis; null until then. |
 | `activity_started_at` | timestamp with time zone | yes |  | When the call's Live Activity was started on the workspace's phones. Set once by an UPDATE ... WHERE activity_started_at IS NULL, so a redelivered call_started starts nothing twice. |
 | `config_version` | integer | yes |  | The settings version the call was composed from (tenant_config_versions), as the inbound webhook answered it in the call's metadata (decision 0069): what a review judges the call against. Null for calls before 00476, and for one whose start could not be planned. |
-| `guard_corrected_at` | timestamp with time zone | yes |  | When a price the receptionist said aloud was corrected on the live call. Set once by an UPDATE ... WHERE guard_corrected_at IS NULL, so a call whose turns reach two instances is corrected once (00519). |
-| `notice_told_at` | timestamp with time zone | yes |  | When the owner's notice of the call went out in full: the bell, the phones and the mail (notified_at is the claim that it is owed). Null with notified_at set is a notice the calls sweep still owes (00519). |
+| `guard_corrected_at` | timestamp with time zone | yes |  | When a price the receptionist said aloud was corrected on the live call. Set once by an UPDATE ... WHERE guard_corrected_at IS NULL, so a call whose turns reach two instances is corrected once (00530). |
+| `notice_told_at` | timestamp with time zone | yes |  | When the owner's notice of the call went out in full: the bell, the phones and the mail (notified_at is the claim that it is owed). Null with notified_at set is a notice the calls sweep still owes (00530). |
 
 Foreign keys:
 

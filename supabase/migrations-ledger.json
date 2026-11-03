@@ -46,10 +46,20 @@
     "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
     "00504": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, a run with nothing to send waits on nobody), open and not on main when an opening is written again as its owner says took 00505; record drops this once #2061 lands",
     "00511": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, renumbered from 00504), not on production when the onboarding lane (#2069) applied 00512 to 00514; it lands above them",
-    "00515": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
-    "00516": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
-    "00517": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
-    "00518": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above"
+    "00515": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00516": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00517": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00518": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00519": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00520": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00521": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00526": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, 00526 to 00529: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, #2072, a call tells its owner once and keeps only what it needs) took 00530 and 00531; it lands here or above",
+    "00527": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, 00526 to 00529: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, #2072, a call tells its owner once and keeps only what it needs) took 00530 and 00531; it lands here or above",
+    "00528": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, 00526 to 00529: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, #2072, a call tells its owner once and keeps only what it needs) took 00530 and 00531; it lands here or above",
+    "00529": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, 00526 to 00529: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, #2072, a call tells its owner once and keeps only what it needs) took 00530 and 00531; it lands here or above"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -521,7 +531,8 @@
     "00512_the_trial_covers_everything.sql": "e65ee89f1817d3c8c703afa4fc82977e838a5d84d4128cd371e66a1a1d24a070",
     "00513_a_workspace_s_setup_choices_are_its_own.sql": "eb4f1914515a3ed5712b1c748089656a29d8952ca9bbe30d13616da25491922f",
     "00514_going_live_is_one_write.sql": "a2fb906b77ba80c43c511fe0c832bba6b7783bea4d4f24906c743af879c2c6e0",
-    "00519_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "2eaff72ee67287b47c18e65738f48dbeaa1cdcdcfd9b8b45a80b4e4e492ed7eb",
-    "00520_the_notices_a_call_owes_are_found_by_their_own_index.sql": "20a4342fc9484c5d381486e25a632ffc7996f9a47da9ee7aec644591e5d02677"
+    "00525_a_trial_s_leads_count_at_every_door.sql": "8eda60503f14b70666756671ee89650f631064547d51c01df273e7f80b477c63",
+    "00530_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "714bae015abeccf83e9051d6e1e119050a54bb2c94a24a9bcdcba5e123b7ceba",
+    "00531_the_notices_a_call_owes_are_found_by_their_own_index.sql": "4b9ee24206c26f33f2e25d81a8ef5d56803f10c401aba2402aee7c3b4a8e2ff2"
   }
 }

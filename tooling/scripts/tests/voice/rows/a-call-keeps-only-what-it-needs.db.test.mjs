@@ -1,5 +1,5 @@
 /**
- * What a call row keeps, and the two claims it carries (00519, decision 0092), proved on a real Postgres:
+ * What a call row keeps, and the two claims it carries (00530, decision 0092), proved on a real Postgres:
  *   - scrub_call_raw keeps an allowlist of the provider's payload: never the facts and memory the call was briefed
  *     with, the SIP headers, the telephony ids, the transcripts or the recording links; a payload that is not an
  *     object keeps nothing;

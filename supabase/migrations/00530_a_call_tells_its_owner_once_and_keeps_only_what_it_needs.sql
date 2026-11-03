@@ -14,14 +14,14 @@
 --                             rewrites it.
 --   trigger_call_reconcile    Wakes the sweep for a missed call's thread line, and for a notice claimed and not told.
 --
--- The index the sweep finds an owed notice by is 00520's, alone in its file: calls takes a write for every call.
+-- The index the sweep finds an owed notice by is 00531's, alone in its file: calls takes a write for every call.
 
 alter table public.calls
   add column if not exists guard_corrected_at timestamptz,
   add column if not exists notice_told_at timestamptz;
 
-comment on column public.calls.guard_corrected_at is 'When a price the receptionist said aloud was corrected on the live call. Set once by an UPDATE ... WHERE guard_corrected_at IS NULL, so a call whose turns reach two instances is corrected once (00519).';
-comment on column public.calls.notice_told_at is 'When the owner''s notice of the call went out in full: the bell, the phones and the mail (notified_at is the claim that it is owed). Null with notified_at set is a notice the calls sweep still owes (00519).';
+comment on column public.calls.guard_corrected_at is 'When a price the receptionist said aloud was corrected on the live call. Set once by an UPDATE ... WHERE guard_corrected_at IS NULL, so a call whose turns reach two instances is corrected once (00530).';
+comment on column public.calls.notice_told_at is 'When the owner''s notice of the call went out in full: the bell, the phones and the mail (notified_at is the claim that it is owed). Null with notified_at set is a notice the calls sweep still owes (00530).';
 
 -- The notices claimed before this file were told the way they were told then.
 update public.calls set notice_told_at = notified_at where notified_at is not null and notice_told_at is null;
@@ -170,7 +170,7 @@ begin
     conversation_id      = coalesce(calls.conversation_id, excluded.conversation_id),
     -- the audit copy keeps the analysis: a retried call_ended landing after
     -- call_analyzed ranks equal and must not replace the richer payload; and
-    -- a delivery that carries none (a live transcript turn, 00519) keeps what
+    -- a delivery that carries none (a live transcript turn, 00530) keeps what
     -- the row has rather than rewriting it on every turn
     raw                  = case
                              when excluded.raw = '{}'::jsonb then calls.raw
@@ -237,13 +237,13 @@ begin
           and updated_at < now() - interval '5 minutes'
           and recording->>'fetch_state' = 'pending'
           and coalesce((recording->>'attempts')::int, 0) < 3)
-      -- a call that ended without an analysis still owes the thread a line, and so does a missed call (00519)
+      -- a call that ended without an analysis still owes the thread a line, and so does a missed call (00530)
       or (status in ('ended', 'error', 'not_connected')
           and message_id is null
           and conversation_id is not null
           and coalesce(ended_at, started_at, created_at) < now() - interval '15 minutes')
       -- a notice claimed and not told in full (a mail that failed, deliveries the provider stopped retrying): finished
-      -- by the sweep for two days after it was claimed (00519)
+      -- by the sweep for two days after it was claimed (00530)
       or (notified_at is not null
           and notice_told_at is null
           and notified_at < now() - interval '10 minutes'

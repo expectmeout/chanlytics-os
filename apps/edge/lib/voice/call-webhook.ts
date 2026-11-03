@@ -727,7 +727,7 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   try {
     if (!routed) await deadLetter(db, n);
     else {
-      // The provider's payload is kept as the call ends and is analysed (scrub_call_raw's allowlist, 00519): a live turn
+      // The provider's payload is kept as the call ends and is analysed (scrub_call_raw's allowlist, 00530): a live turn
       // carries none, so the row keeps what it has instead of rewriting it on every turn.
       const keepsPayload = event === "call_ended" || event === "call_analyzed";
       const res = await ingestCall(db, routed.tenantId, n, keepsPayload ? call : undefined);

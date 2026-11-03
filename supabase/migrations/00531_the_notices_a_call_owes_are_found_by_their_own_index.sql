@@ -1,6 +1,6 @@
--- 00520 · The notices a call owes are found by their own index (decision 0092).
+-- 00531 · The notices a call owes are found by their own index (decision 0092).
 --
--- A notice claimed and not told (calls.notified_at set, notice_told_at null, 00519) is the calls sweep's to finish, and
+-- A notice claimed and not told (calls.notified_at set, notice_told_at null, 00530) is the calls sweep's to finish, and
 -- trigger_call_reconcile wakes the sweep for one between ten minutes and two days old. Both read the calls owed a notice
 -- by notified_at; this partial index holds only those, so it stays as small as the notices still owed.
 --

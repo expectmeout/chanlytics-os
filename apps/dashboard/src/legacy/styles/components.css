@@ -2758,6 +2758,15 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 #pg-act {
   display: contents;
 }
+/* What the page stands under its views, in the frame's top with them (kit/head/standing.ts `under`: the Calendar's range
+   and steps on a phone): a row of its own the slot's width, under the views and the act; nothing where nothing is said. */
+.pg-under-slot {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.pg-under-slot:empty {
+  display: none;
+}
 /* Reports' head is the container its period measures itself against (reports.css): the capsule says its word where the
    head has the room and is the glyph's circle where it has not, by the head's own width, as the Calendar's bar does it
    (calendar.css `cal-bar`). `--rpt-when-w` is the capsule's one width, which the place for it keeps before it is drawn. */

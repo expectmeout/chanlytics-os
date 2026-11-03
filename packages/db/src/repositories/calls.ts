@@ -19,7 +19,7 @@
  *     markCallNoticeTold says the owner's notice went out in full (notice_told_at), so the calls sweep can finish one
  *     whose mail was owed (callsOwedANotice).
  * The provider's recording URL is never written to a row: every member of the workspace reads every call row they may
- * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00519) members may not
+ * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00530) members may not
  * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
 import type { SchemaSet } from "@chanlytics/contracts";
@@ -365,7 +365,7 @@ export async function callsOwedAnAnalysis(
 }
 
 /**
- * Claim the one correction a spoken price earns on a live call (guard_corrected_at, 00519): true for the first
+ * Claim the one correction a spoken price earns on a live call (guard_corrected_at, 00530): true for the first
  * delivery that finds the breach, false once claimed, so a call whose turns land on two instances is corrected once,
  * where an in-memory set corrected it on each. Throws on a database error: the delivery is retried, and the claim
  * still holds the correction to one.
@@ -383,7 +383,7 @@ export async function claimGuardCorrection(db: Db, tenantId: string, callId: str
 }
 
 /**
- * Say the owner's notice of a call went out in full: the bell, the phones and the mail (notice_told_at, 00519). The
+ * Say the owner's notice of a call went out in full: the bell, the phones and the mail (notice_told_at, 00530). The
  * claim (notified_at) says the notice is owed and kept; this says it was told. A write that fails is logged: the sweep
  * then asks the notice again, and notifyOnce finds it told and sends nothing twice.
  */
@@ -401,7 +401,7 @@ export async function markCallNoticeTold(db: Db, tenantId: string, callId: strin
  * The calls whose owner's notice was claimed and not told in full (a mail that failed, a delivery Retell stopped
  * retrying), oldest first, at most `limit`: claimed between `fromMs` and `toMs` ago. The calls sweep asks the provider for
  * each and settles it again, and notifyOnce sends only the mail still owed (decision 0048). trigger_call_reconcile wakes
- * the sweep on the same window (00519). A read that fails throws.
+ * the sweep on the same window (00530). A read that fails throws.
  */
 export async function callsOwedANotice(
   db: Db,
@@ -536,7 +536,7 @@ export async function canaryCallFacts(
 
 /**
  * The provider's ids of a person's calls, read while their rows still stand: what the erasure asks the voice provider to
- * delete (decision 0036's provider leg, 00519). A read that fails throws: the leg is best effort, and its caller says so.
+ * delete (decision 0036's provider leg, 00530). A read that fails throws: the leg is best effort, and its caller says so.
  */
 export async function retellCallIdsOf(db: Db, tenantId: string, contactId: string): Promise<string[]> {
   const { data, error } = await tenantDb(db, tenantId)

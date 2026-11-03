@@ -3,7 +3,7 @@
  * Postgres: ingest_call under the four events Retell sends -- call_started, transcript_updated, call_ended,
  * call_analyzed -- in all twenty-four orders, each delivered twice, as the webhook hands them (the provider's payload
  * only as the call ends and is analysed). Every order ends the same: one row, ended, its analysis kept, its whole
- * transcript, its seconds metered once, and of the payload only the allowlist (scrub_call_raw, 00519). Two deliveries at
+ * transcript, its seconds metered once, and of the payload only the allowlist (scrub_call_raw, 00530). Two deliveries at
  * once meter it once (the advisory lock).
  *
  * Local only: it writes calls, and refuses a database that is not on this machine.

@@ -335,7 +335,7 @@ test("PATCH partner: the daily letter on or off through the caller's own door, i
   assert.deepEqual(asked, [{ p_on: false }, { p_on: true }, { p_on: true }]);
 });
 
-test("a new workspace: the cookie's code goes to the function only with the person's yes", async () => {
+test("a new workspace: the cookie's code goes to the function only with the person's yes, and on a database without the argument the call is made again without it", async () => {
   const made = [];
   const row = (a) => ({
     id: C,
@@ -366,6 +366,26 @@ test("a new workspace: the cookie's code goes to the function only with the pers
   const bare = ctxFor(tables(), { create_workspace: (a) => (made.push(a), row(a)) });
   await create.POST.run(send("POST", { name: "Harbor Two" }), bare);
   assert.deepEqual(made, [{ p_name: "Harbor Two", p_timezone: undefined }], "no cookie, no argument");
+
+  made.length = 0;
+  const older = ctxFor(tables(), {
+    create_workspace: (a) => {
+      made.push(a);
+      if ("p_partner_code" in a)
+        throw Object.assign(
+          new Error("Could not find the function public.create_workspace(p_name, p_partner_code, p_timezone)"),
+          { code: "PGRST202" },
+        );
+      return row(a);
+    },
+  });
+  const out = await create.POST.run(send("POST", { name: "Harbor Two", partner: "ada" }, cookie), older);
+  assert.equal(out.workspace.slug, "harbor-two", "the workspace is made whichever deploys first");
+  assert.deepEqual(
+    made.map((a) => "p_partner_code" in a),
+    [true, false],
+    "once with the code, then without: the drop is logged, never a refusal",
+  );
 });
 
 test("where you are: each workspace with the caller's role in it, and whether they are a partner", async () => {

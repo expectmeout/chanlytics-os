@@ -1,7 +1,7 @@
 # 0092 · A call is proven every day, tells its owner once, and keeps only what it needs
 
 **Status:** Built on the lane `cm-voice-ten` (`voice/to-a-ten`) from main's `6c4da4d1d`, 3 November 2026, on Ruben's word
-("continue all lanes end to end"), from the plan `Claude Video/docs/2026-11-03-voice-to-a-ten.md`. Migrations 00519 and 00520
+("continue all lanes end to end"), from the plan `Claude Video/docs/2026-11-03-voice-to-a-ten.md`. Migrations 00530 and 00531
 (working numbers until the push claims them). Not on main yet. The canary places no call until its four settings and the
 GitHub secret are set; the shared secret stays open until `RETELL_DOORS_SIGNED` is set.
 
@@ -77,7 +77,7 @@ none longer than two minutes, and what held it back was what nothing watched or 
 
 ## Steps (either deploy order unless said)
 
-1. Migrations 00519 and 00520 first: the two columns, the allowlist and its backfill, `ingest_call`, the wake rule,
+1. Migrations 00530 and 00531 first: the two columns, the allowlist and its backfill, `ingest_call`, the wake rule,
    then the owed notices' index, built concurrently in its own file.
    An edge from before writes neither new column; this edge needs them.
 2. The edge and the dashboard, together or in either order: the dashboard's erasure asks the edge's new door, and an
