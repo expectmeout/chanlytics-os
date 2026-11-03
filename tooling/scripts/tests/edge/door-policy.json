@@ -524,6 +524,13 @@
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
+    "POST /api/cron/texts": {
+      "wrapper": "sweepDoor",
+      "sweep": "texts",
+      "verb": "sweepUnheardTexts in apps/edge/lib/sms/texts-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
     "GET /api/diag": {
       "wrapper": "door",
       "knock": "authorizeAdmin",

@@ -32161,6 +32161,34 @@ COMMENT ON FUNCTION public.trigger_sweep_health() IS 'Asks the edge to judge the
 
 
 --
+-- Name: trigger_texts_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_texts_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (
+    select 1 from public.lines l
+     where l.provider <> 'carrier' and l.voice_state <> 'failed' and l.e164 is not null
+  ) then
+    return public.request_sweep('texts', '/api/cron/texts');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('texts', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_texts_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_texts_sweep() IS 'The texts sweep''s clock (00517): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
+
+
+--
 -- Name: wake_stale_snoozes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -50561,6 +50589,14 @@ GRANT ALL ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zo
 
 REVOKE ALL ON FUNCTION public.trigger_sweep_health() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_sweep_health() TO service_role;
+
+
+--
+-- Name: FUNCTION trigger_texts_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_texts_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_texts_sweep() TO service_role;
 
 
 --

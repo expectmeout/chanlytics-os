@@ -64,6 +64,7 @@ const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const { smsSenderFor } = await import(at("apps/edge/lib/sms/sms.ts"));
 const { deliver } = await import(at("packages/core/dist/index.js"));
 const hook = await import(at("apps/edge/api/inbound-sms.ts"));
+const { sweepUnheardTexts } = await import(at("apps/edge/lib/sms/texts-sweep.ts"));
 const { answerText } = await import(at("apps/edge/lib/sms/inbound-text.ts"));
 const { dispatchJob } = await import(at("packages/jobs/dist/index.js"));
 
@@ -1143,4 +1144,44 @@ test("a one-time code is never kept, whatever its verdict: one that comes to a l
       "a customer's text refused here is kept for the replay after a fix; a code is not: a replay of it would answer nothing",
     );
   });
+});
+
+/* ------------------------------------------- a text the door could not take in */
+
+test("a text Twilio could not hand the door is taken in by the texts sweep's knock: signed with the line's token, kept, and answered by its job as the late text it is", async () => {
+  const w = world();
+  const db = w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  const fields = w.form(from);
+  // Twilio's own record of the line: the text arrived three hours ago, while the door answered 503.
+  const sentAt = Date.now() - 3 * 60 * 60 * 1000;
+  const record = [{ sid: fields.MessageSid, from, body: fields.Body, atMs: sentAt }];
+  const knocks = [];
+  const answer = await sweepUnheardTexts(
+    { db, L: { info() {}, warn() {}, error() {} }, started: Date.now() },
+    {
+      door: async (request) => {
+        knocks.push(request.url);
+        return hook.POST(request, event());
+      },
+      provider: { name: "twilio", provider: { recentTexts: async () => record } },
+      origin: "https://chanlytics-messaging.vercel.app",
+      now: Date.now,
+    },
+  );
+  assert.deepEqual(knocks, [DOOR], "the door Twilio posts to");
+  assert.deepEqual(await answer.json(), { ok: true, lines: 1, read: 1, unheard: 1, taken: 1, failed: 0 });
+  assert.equal(seen.ingested.length, 1, "its signature held, and the words are on record");
+  const [job] = w.tables.jobs ?? [];
+  assert.equal(job?.kind, "inbound_answer", "its answer is a job, as any text's is");
+  assert.equal(job.payload.received_at, sentAt, "it carries the time Twilio says it was sent");
+  await runAnswers();
+  assert.equal(job.state, "done");
+  assert.deepEqual(w.left().texts, [], "three hours late: nothing is said automatically");
+  assert.deepEqual(
+    seen.escalations.map((e) => e.reason),
+    ["stale"],
+    "it is held for a person as the late text it is",
+  );
 });

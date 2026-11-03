@@ -131,7 +131,10 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   const { line, acct, routed, held } = verdict;
   const carrier = carrierFor(held, held ? null : smsSenderFor(line, acct));
   L.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
-  const receivedAt = Date.now();
+  // When it was sent: now, as Twilio posts a text the moment it arrives; or, when the texts sweep knocks again for one the
+  // door could not take in, the time Twilio's record says (./texts-sweep.ts), so a text that waited out an outage meets
+  // the stale gate as late as it is.
+  const receivedAt = sentAtOf(form) ?? Date.now();
   const message = inboundFromSms(inbound, receivedAt);
   try {
     // Recorded, and answered by its job.
@@ -148,6 +151,15 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     return twiml(after.status);
   }
   return twiml(200);
+}
+
+/**
+ * The time the texts sweep says a text was sent (`DateSent`, a field of its own knock, covered by the signature like every
+ * other, which Twilio's own post does not carry), when it is a time that has passed; null otherwise.
+ */
+function sentAtOf(form: Record<string, string>): number | null {
+  const at = Date.parse(form.DateSent ?? "");
+  return Number.isFinite(at) && at <= Date.now() ? at : null;
 }
 
 /** The fields smsInboundFrom reads, picked from Twilio's form: what a text's job carries of it, and nothing else. */

@@ -507,6 +507,7 @@
     "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097",
     "00503_a_held_reply_goes_now_on_a_member_s_word.sql": "d146d35b50cabf0036dc908583c0ec44738c34288bab59f800cfb407fc7816f8",
     "00515_a_message_and_the_yes_it_carries_are_kept_together.sql": "bfc64f52e4f4b33fa892d40ea2152669780b4899d1136c01b7612975efdc9ce9",
-    "00516_an_address_a_customer_gives_is_kept_where_none_is.sql": "99c81e160495bde950b86bef8eec0193a83591d10fcb5f506cfa79b52b6e4479"
+    "00516_an_address_a_customer_gives_is_kept_where_none_is.sql": "99c81e160495bde950b86bef8eec0193a83591d10fcb5f506cfa79b52b6e4479",
+    "00517_a_text_twilio_could_not_hand_us_is_taken_in.sql": "dc10d060c96eada5a24eeda6f2671bd6e6c93d79f79b3d1b4932aa7210cd88f6"
   }
 }

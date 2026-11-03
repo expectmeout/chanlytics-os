@@ -11088,6 +11088,7 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
+      trigger_texts_sweep: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
       wear_found_look: {
         Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }

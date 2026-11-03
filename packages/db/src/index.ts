@@ -67,14 +67,14 @@ export {
   releaseQueuedSend,
 } from "./jobs";
 export type { AssembleDecision, JobToRequeue } from "./jobs";
-export { businessOnRecordOf, filedNamesOf, ownLineOf } from "./lines";
+export { businessOnRecordOf, filedNamesOf, linesThatText, ownLineOf } from "./lines";
 export { DB_REQUEST_HEADER, namedFetch, observeDb, touchOfCall } from "./observe";
 export type { DbLog, DbObserver, DbTouch } from "./observe";
 export { migrationHead, platformDay } from "./ops";
 export type { MigrationHead, PlatformDayPromises } from "./ops";
 export { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows, readAllRowsByKey } from "./paged";
 export type { Page } from "./paged";
-export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
+export { keepProviderEvent, providerEventOf, scrubProviderEvents, textsAlreadyHeard } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export { narrowedUpdates, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
 export type { SubscribeOptions } from "./realtime";

@@ -113,4 +113,8 @@ export const CLOCKS = {
     fn: "wake_stale_snoozes",
   },
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
+  texts: {
+    kind: "reconcile",
+    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00517)",
+  },
 };

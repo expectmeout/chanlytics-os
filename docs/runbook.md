@@ -1333,8 +1333,10 @@ gone). The door keeps the delivery as it came (the intake ledger), records the m
 yeses it carries), schedules its answer as one `inbound_answer` job and answers the provider; the job takes the message
 up again through the whole order ([inbound-gates.md](inbound-gates.md)) and answers it by its deadline
 (`TURN_BUDGET_MS`, forty seconds of a sixty-second function). Two messages from one person in one delivery are two jobs,
-and the newer one answers both (the reply turn, 00284). A message the door could not record is a 503: Meta sends it again for up to seven days, and Twilio retries nothing on
-its own (below). One whose job could not be written is the deadman sweep's.
+and the newer one answers both (the reply turn, 00284). A message the door could not record is a 503: Meta sends it again for up to seven days; Twilio retries nothing, so the
+texts sweep reads each line's own record from Twilio every ten minutes and knocks on the door again for every text the
+database never heard (`texts-sweep`, 00517, `apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
+is the deadman sweep's.
 
 ## A customer says nobody answered
 
@@ -1364,8 +1366,11 @@ the door, another for the job), in this order; where it stops is the answer.
    reason. A reply the provider took and did not deliver is the message row's status (`failed`), and the thread is held
    `send_failed`.
 
-A text Twilio could not hand us at all (our door was down) is not in our logs. Twilio keeps its own record of the
-line's texts, and a kept delivery of any wire can knock on its own door again once the cause is fixed:
+A text Twilio could not hand us at all (our door was down) is taken in by the texts sweep once the database answers
+again: `text_unheard_taken_in` names its line and when Twilio says it was sent, and a text that waited more than two
+hours is held for a person as late (`wa_stale_escalated`), never answered as if it had just arrived. The sweep reads the
+last day of each line's record, newest first, twenty texts a line a tick; a longer outage, or a busier line, is read
+from Twilio's console. A delivery any wire's door kept can knock on its own door again once a cause is fixed:
 `POST /api/admin/intake/replay` (decision 0032), which the replay gate makes safe to repeat.
 
 ## Read what the receptionist was told
