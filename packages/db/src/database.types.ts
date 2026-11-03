@@ -7009,6 +7009,44 @@ export type Database = {
           },
         ]
       }
+      setup_choices: {
+        Row: {
+          marks: string[]
+          phone: Json | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+          whatsapp: string | null
+        }
+        Insert: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Update: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setup_choices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_reports: {
         Row: {
           created_at: string
@@ -7063,44 +7101,6 @@ export type Database = {
             foreignKeyName: "support_reports_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      setup_choices: {
-        Row: {
-          marks: string[]
-          phone: Json | null
-          tenant_id: string
-          updated_at: string
-          updated_by: string | null
-          version: number
-          whatsapp: string | null
-        }
-        Insert: {
-          marks?: string[]
-          phone?: Json | null
-          tenant_id: string
-          updated_at?: string
-          updated_by?: string | null
-          version?: number
-          whatsapp?: string | null
-        }
-        Update: {
-          marks?: string[]
-          phone?: Json | null
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-          version?: number
-          whatsapp?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "setup_choices_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -8316,6 +8316,7 @@ export type Database = {
         Args: { p_addresses: string[]; p_tenant_id: string }
         Returns: string[]
       }
+      lead_allowance: { Args: { p_tenant_id: string }; Returns: number }
       lead_blank: { Args: { p_lead_id: string }; Returns: number }
       lead_bulk: {
         Args: {
@@ -8327,7 +8328,6 @@ export type Database = {
         }
         Returns: Json
       }
-      lead_allowance: { Args: { p_tenant_id: string }; Returns: number }
       lead_cap: { Args: { p_name: string }; Returns: number }
       lead_card_live: { Args: { p_card: string }; Returns: boolean }
       lead_cards_live: { Args: never; Returns: string[] }
@@ -11141,6 +11141,7 @@ export type Database = {
           version: number
         }[]
       }
+      trial_use: { Args: { p_tenant_id: string }; Returns: Json }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_channel_quality_sweep: { Args: never; Returns: number }
@@ -11160,7 +11161,6 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
-      trial_use: { Args: { p_tenant_id: string }; Returns: Json }
       wake_stale_snoozes: { Args: never; Returns: number }
       wear_found_look: {
         Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }

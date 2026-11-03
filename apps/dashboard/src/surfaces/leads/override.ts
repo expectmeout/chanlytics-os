@@ -37,7 +37,8 @@ export const leadsOverride: SurfaceOverride = {
   // Heard while Leads is on screen, read once as it comes back (PAGE_HEARS): a running search, a page every few seconds, was
   // read in every tab whatever page was open (the wiring's second audit, S10-5).
   // Each row says where its lead stands in a sequence (00459 sequence_places_of): the sequences, batches and replies too.
-  ...declareReads("leads", { reads: ["lead", "campaign", "send", "reach_out"], fresh: "its-page" }),
+  // The month's allowance is the plan's (00512 lead_allowance: a trial's 50 until it pays): a trial ending moves it.
+  ...declareReads("leads", { reads: ["lead", "campaign", "send", "reach_out", "billing"], fresh: "its-page" }),
   debounceMs: 800,
   apply: async () => (await leadsCode()).applyLeads(),
 };
