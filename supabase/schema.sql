@@ -8062,8 +8062,9 @@ begin
     if v_round.state = 'ended' then
       v_month   := public.lead_month(v_round.tenant_id, now());
       v_counter := public.lead_counter_take(v_round.tenant_id, 'allowance', v_month);
-      -- The month is full: the member stays Needs review with its address now known good, for Keep to count later.
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      -- The allowance is full (lead_allowance: a trial's own while on a trial, 00525): the member stays Needs review
+      -- with its address now known good, for Keep to count later.
+      if v_counter.used + v_counter.reserved + 1 > public.lead_allowance(v_round.tenant_id) then
         continue;
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
@@ -9060,6 +9061,7 @@ declare
   l         public.leads;
   v_month   text;
   v_counter public.lead_counters;
+  v_cap     numeric;
   v_before  jsonb;
   v_after   jsonb;
   v_op      uuid;
@@ -9114,13 +9116,17 @@ begin
     elsif not (m.class = 'review' or (m.class = 'qualified' and not m.counted)) then
       return jsonb_build_object('error', 'state', 'class', m.class);
     end if;
-    -- Keep and Put back count, through the month's allowance (§0.2).
+    -- Keep and Put back count, through the month's allowance (§0.2): a trial's own while on a trial (lead_allowance,
+    -- 00525), refused in lead_reserve's words for it.
     if not m.counted then
       v_month := public.lead_month(s.tenant_id, now());
       v_counter := public.lead_counter_take(s.tenant_id, 'allowance', v_month);
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      v_cap := public.lead_allowance(s.tenant_id);
+      if v_counter.used + v_counter.reserved + 1 > v_cap then
         return jsonb_build_object('error', 'month_leads_used', 'left', 0,
-          'sentence', 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.');
+          'sentence', case when v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads')
+            then 'Your free trial includes ' || v_cap || ' leads, and they are found. Start your plan from Billing to find more.'
+            else 'You have found this month''s ' || v_cap || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.' end);
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
       v_counts := true;
@@ -9751,7 +9757,7 @@ end $$;
 -- Name: FUNCTION lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the workspace''s allowance (lead_allowance: the trial''s while on a trial, else the month''s; 00512) and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3). The trial''s cap is held here, where a search''s money leaves; a Keep, a check''s commit and an imported list keep the month''s.';
+COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the workspace''s allowance (lead_allowance: the trial''s while on a trial, else the month''s; 00512) and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3). The trial''s cap is held here, where a search''s money leaves, and where a lead counts without a reservation (00525): a Keep or a Put back (lead_member_move) and a check''s commit after its round ended (lead_check_commit).';
 
 
 --
@@ -10755,6 +10761,8 @@ declare
   v_pday     text;
   v_err      jsonb;
   v_left     integer;
+  v_cap      numeric;
+  v_trial    boolean;
   v_plan     jsonb;
   v_search   uuid;
   v_round    uuid;
@@ -10867,9 +10875,18 @@ begin
     if v_err is not null then
       if v_err->>'error' = 'month_leads_used' then
         v_left := coalesce((v_err->>'left')::integer, 0);
+        -- The allowance lead_reserve counted against (00525): a trial's own is said in the trial's words, as lead_reserve says it.
+        v_cap := public.lead_allowance(p_tenant_id);
+        v_trial := v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads');
         return jsonb_build_object('error', 'month_leads_used', 'left', v_left,
-          'sentence', case when v_left <= 0
-            then 'This month''s ' || public.lead_cap('month_leads') || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+          'sentence', case
+            when v_trial and v_left <= 0
+              then 'Your free trial includes ' || v_cap || ' leads, and they are used: a list counts each address that checks out. Start your plan from Billing to import more.'
+            when v_trial
+              then 'This list has ' || v_n || ' addresses to check and your free trial has ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
+                || ' left; a list counts each address that checks out. Import at most ' || v_left || ' now, or start your plan from Billing to import them all.'
+            when v_left <= 0
+              then 'This month''s ' || v_cap || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
             else 'This list has ' || v_n || ' addresses to check and you have ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
               || ' left this month; a list counts each address that checks out. Import at most ' || v_left || ' now, or the rest when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.' end);
       end if;
