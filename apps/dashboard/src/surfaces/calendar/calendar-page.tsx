@@ -15,7 +15,7 @@
  * A real workspace draws what the seam gives (`useSurface("calendar")`); a demo session draws the same page from the sample
  * (sample.ts); before either, the board's frame, still, so the page has its shape while the weeks are read (CAL-25).
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   MIN_MS,
   appointmentWords,
@@ -30,18 +30,17 @@ import { useStanding } from "../kit/head/standing";
 import { keepHeightOn } from "../kit/motion/page-scroll";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
-import { canDo, navigate, onAPhone } from "../legacy-verbs";
+import { canDo, holdStill, navigate, onAPhone, touchSwipe } from "../legacy-verbs";
 import { usePartShown, useSurface, useSurfaceFailed } from "../use-surface";
 import { visitWordHere } from "../workspace-word";
 import { refreshAct, swipePagesOf } from "./acts";
 import { calendarDayRoute, calendarViewNamed, calendarViewOf } from "./address";
 import { CrAgenda, CrAgendaDay, CrBoard, CrMonth, type ViewAct } from "./blocks";
 import { calendarAct, calendarHead, heldEmailsSheet, noticeSlot, rulesSheet } from "./board-parts";
-import { crPhone } from "./board-dom";
+import { crPhone, standAfter, type DaysChange } from "./board-dom";
 import { RunSheet } from "./marks";
 import { keptShow, wantRuns } from "./runs-surface";
 import { useCalendarDemo } from "./demo";
-import { touchSwipeStaying } from "./shell-verbs";
 import type { CalendarSurface } from "./surface";
 import type { CalendarFrame } from "./types";
 import {
@@ -263,6 +262,7 @@ function CalendarReal({
         f.unread = true;
       }
   const shown = view === "day" ? frames.filter((f) => f.key === anchor) : frames;
+  const now = hourNow(vm, nowMs);
   const service = vm.services.find((s) => s.name === serviceName) || null;
   // The phone tool's and the assistant's rule (offerFor): a service's own length, or a consultation's when it needs one
   // first (C5b). Open times are drawn only while Show draws them.
@@ -321,10 +321,11 @@ function CalendarReal({
     const head = page ? page.querySelector<HTMLElement>(":scope > .cal-head") : null;
     return page && head ? keepHeightOn(head, page, "--cal-bar-h") : undefined;
   }, []);
+  useStandAfter(root, view, anchor, boardNowAt(view, now, shown, vm.hours.start));
 
   return (
     // Days on their way dim by the one rule every page uses (components.css [data-loading] [data-dims]): after a beat,
-    // so a window the tab holds, painted at once, never flickers.
+    // so a window the tab holds, painted at once, never flickers. A phone's stay as they are (calendar.css).
     <div
       ref={root}
       className="calendar"
@@ -334,18 +335,19 @@ function CalendarReal({
     >
       {calendarHead(bar)}
       {/* On a phone the bar sticks over the days, under the frame's strip of views, and the window scrolls them
-          (mobile.css, "The window scrolls"); a swipe across the days walks to the next or previous days. It is the pane's own touch
+          (mobile.css, "The window scrolls"); a swipe across the days walks to the next or previous days, drawn in place as
+          ‹ and › draw them, with nothing following the finger (acts.tsx swipePagesOf). It is the pane's own touch
           (data-own-drag), so the strip's pager never walks the views under the same finger. On a desk this box is display:
           contents and the page scrolls as one. */}
       <div
         className="cal-pane"
         data-testid="cal-pane"
         data-own-drag
-        {...touchSwipeStaying({ pages: swipePagesOf(move), when: crPhone })}
+        {...touchSwipe({ pages: swipePagesOf(move), when: crPhone })}
       >
         {noticeSlot({ vm, service, refreshing, refreshNow, covered, failedSpan, spanKey, read, pending, openHeld })}
         {/* The view: the element the deck moves when a tab of the strip is pressed (kit/motion/view-deck.ts), as Reports'
-            lens body is, arriving from its tab's side. */}
+            lens body is, arriving from its tab's side; on a phone it holds still (calendar.css, useStandAfter). */}
         <div
           key={view}
           ref={viewDeck.view("calendar")}
@@ -355,7 +357,7 @@ function CalendarReal({
           aria-busy={pending ? "true" : "false"}
           data-testid="cal-body"
         >
-          {viewBody({ view, frames, shown, anchor, vm, fit, service, a, phone, st, nowMs, show })}
+          {viewBody({ view, frames, shown, anchor, vm, fit, service, a, phone, st, now, show })}
         </div>
       </div>
 
@@ -416,6 +418,41 @@ function overlays(p: {
   );
 }
 
+/** The now line and a block's phase at the board's own minute (useMinute), on the day the read calls today. */
+function hourNow(vm: CalendarSurface["vm"], nowMs: number): number | null {
+  const clock = clockInZone(vm.timezone, nowMs);
+  return vm.days.some((d) => d.today) ? clock.hh + clock.mm / 60 : null;
+}
+
+/** Where now stands down a board (Day, Week) that holds today, in hours from its top; null where it holds none. */
+function boardNowAt(view: string, now: number | null, shown: CalendarFrame[], start: number): number | null {
+  const board = view === "day" || view === "week";
+  return board && now !== null && shown.some((f) => f.today) ? now - start : null;
+}
+
+/**
+ * Where the page stands after a change of view or of days (board-dom.ts standAfter): in the commit before its paint, once
+ * the board's hour is set (blocks.tsx useHourFit, an effect of the board under it). On a phone every change is drawn in
+ * place, and this says where; a board opens at now once for each view.
+ */
+function useStandAfter(root: RefObject<HTMLDivElement | null>, view: string, anchor: string, nowAt: number | null) {
+  const was = useRef<{ view: string; anchor: string; opened: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const prev = was.current;
+    const change: DaysChange = !prev ? "first" : prev.view !== view ? "view" : prev.anchor !== anchor ? "days" : null;
+    const page = root.current;
+    const opened = standAfter({
+      body: page ? page.querySelector(":scope > .cal-pane > .cal-body") : null,
+      bar: page ? page.querySelector(":scope > .cal-head") : null,
+      change,
+      board: view === "day" || view === "week",
+      nowAt,
+      opened: !!prev && prev.view === view && prev.opened,
+    });
+    was.current = { view, anchor, opened };
+  }, [root, view, anchor, nowAt]);
+}
+
 /** Whether Today is where the board stands: this month in Month, a week holding today in Week, else the day itself. */
 function onTodayOf(view: string, anchor: string, todayKey: string, shown: CalendarFrame[]): boolean {
   if (view === "month") return anchor.slice(0, 7) === todayKey.slice(0, 7);
@@ -435,16 +472,14 @@ function viewBody(p: {
   a: ViewAct;
   phone: boolean;
   st: ReturnType<typeof useCalendarState>;
-  nowMs: number;
+  /** The hour now on the day the read calls today (hourNow). */
+  now: number | null;
   show: CalendarShow;
 }) {
-  const { view, frames, shown, anchor, vm, fit, service, a, phone, st, show } = p;
+  const { view, frames, shown, anchor, vm, fit, service, a, phone, st, now, show } = p;
   const feedOk = vm.feed.state === "ok";
   // A day pressed in the month on a desk is that day's address, in Day view: Back returns to the month.
   const openDay = (key: string) => navigate(calendarDayRoute(key));
-  // The now line and a block's phase at the board's own minute (useMinute), on the day the read calls today.
-  const clock = clockInZone(vm.timezone, p.nowMs);
-  const now = vm.days.some((d) => d.today) ? clock.hh + clock.mm / 60 : null;
   const agenda = { feedOk, fit, service, offer: vm.offer, now, openOn: show.open, todayKey: vm.today, a };
   if (view === "month") {
     const picked = phone ? (st.monthPick ?? anchor) : null;
@@ -455,7 +490,7 @@ function viewBody(p: {
         monthKey={anchor.slice(0, 7)}
         feedOk={feedOk}
         fit={fit}
-        onDay={phone ? st.setMonthPick : openDay}
+        onDay={phone ? (key, from) => holdStill(from, () => st.setMonthPick(key)) : openDay}
         a={a}
         picked={picked}
         under={day ? <CrAgendaDay {...agenda} day={day} /> : null}

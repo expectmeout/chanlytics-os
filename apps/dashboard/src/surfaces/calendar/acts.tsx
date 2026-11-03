@@ -4,9 +4,10 @@
  * acts on and returns the handler the page hands its control: plain functions the page calls, never hooks. The booking
  * link is copied in place by the kit's Menu (board-parts.tsx), and the hours and rules are a sheet.
  */
-import type { StayingPage, useLegacyToast } from "../legacy-verbs";
+import type { useLegacyToast } from "../legacy-verbs";
 import { surfaceValue } from "../surface-values";
 import { OWN_TOUCH } from "../kit/view-tabs/own-touch";
+import type { ViewPage } from "../kit/view-tabs/pager";
 import { flushChange } from "./shell-verbs";
 import { calendar } from "./verbs";
 
@@ -52,17 +53,22 @@ export function refreshAct(p: { refreshing: boolean; setRefreshing: (on: boolean
 }
 
 /**
- * A swipe across the days walks them on a phone (kit/motion/swipe.ts touchSwipe, a page that stays): the step ‹ and › take, drawn at
- * once so the next days are what comes in. Never from what keeps its own touch: the strips' one list (the kit's
- * OWN_TOUCH: a dialog, a sheet, a menu, a toast), but for the pane itself (`el`), which says it keeps its own touch so the
- * frame's strip of views does not walk under the same finger.
+ * A swipe across the days walks them on a phone (kit/motion/swipe.ts touchSwipe, read as every page's swipe is: past a
+ * third, or a flick): the step ‹ and › take, drawn at once, in place. Nothing follows the finger, settles back or comes in
+ * from a side: every end of a move stepped the days a pixel on an iPhone (spec 2026-11-03, a still Calendar on a phone).
+ * Never from what keeps its own touch: the strips' one list (the kit's OWN_TOUCH: a dialog, a sheet, a menu, a toast), but
+ * for the pane itself (`el`), which says it keeps its own touch so the frame's strip of views does not walk under the
+ * same finger.
  */
 export function swipePagesOf(move: (n: number) => void) {
-  return (el: Element, from: EventTarget | null): StayingPage | null => {
+  return (el: Element, from: EventTarget | null): ViewPage | null => {
     const near = from as { closest?: (selector: string) => unknown } | null;
     const owner = near && near.closest ? near.closest(OWN_TOUCH) : null;
     return owner && owner !== el
       ? null
-      : { prev: true, next: true, stays: true, go: (step: number) => flushChange(() => move(step)) };
+      : { prev: true, next: true, drag: stayPut, settle: stayPut, go: (step) => flushChange(() => move(step)) };
   };
 }
+
+/** What the days do under a finger: nothing. */
+const stayPut = (): void => {};
