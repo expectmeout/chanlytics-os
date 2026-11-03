@@ -45,6 +45,9 @@ import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { GRAB_AT } from "../../kit/motion/swipe";
+import { glideHeight } from "../../kit/motion/use-height-glide";
+import { dockSwipe } from "../../kit/sheet/rests";
+import { SheetHandle, type SheetRestControl } from "../../kit/sheet/sheet";
 import { repliesDoor } from "./shell-thread";
 import type { Approval, RealThread, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
@@ -306,6 +309,31 @@ function openOnTap(open: () => void) {
       pressedAt.delete(e.currentTarget);
       if (at && Math.hypot(e.clientX - at.x, e.clientY - at.y) < GRAB_AT) open();
     },
+  };
+}
+
+/**
+ * A phone's reply box under a thumb, as a sheet with two rests is (Ruben, 3 Nov 2026: "it should also work like the drawer
+ * sheets"): the sheet's handle at its top, a button that opens it or folds it away, and a pull up that opens it or down
+ * that folds it (kit sheet/rests.ts dockSwipe), its height gliding between the two (the thread's effect). It is marked as
+ * taking its own drag, so the page draws no pull of its own from it (page-give.ts). A desk's has none: its pane has room.
+ */
+function footDock(folded: boolean, setFolded: (v: boolean) => void, on: boolean) {
+  if (!on) return { props: {}, handle: null };
+  const rest: SheetRestControl = {
+    at: folded ? "half" : "full",
+    onRest: (at) => setFolded(at === "half"),
+    turn: { up: THREAD_PANE_WORDS.replyOpen, down: THREAD_PANE_WORDS.replyFold },
+  };
+  const pull = dockSwipe({
+    open: !folded,
+    onOpen: () => setFolded(false),
+    onFold: () => setFolded(true),
+    when: ixPhone,
+  });
+  return {
+    props: { "data-dock": "", "data-own-drag": "", ...pull },
+    handle: <SheetHandle rest={rest} testid="ix-th-foot" />,
   };
 }
 
@@ -600,6 +628,8 @@ export const InboxThread = (props: InboxThreadProps) => {
   const threadId = thread ? thread.id : null;
   useEffect(() => setFolded(ixPhone()), [threadId]);
   useEffect(() => foldAsRead(scrollRef.current, setFolded), [drawn]);
+  const footRef = useRef<HTMLDivElement>(null);
+  useEffect(() => (ixPhone() && footRef.current ? glideHeight(footRef.current) : undefined), [drawn]);
   if (!thread) return <InboxEmpty quiet={props.nothingOpen === "quiet"} />;
 
   const decided = !!thread.resolution;
@@ -625,6 +655,7 @@ export const InboxThread = (props: InboxThreadProps) => {
   };
   if (!waiting && seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
   const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);
+  const dock = footDock(folded, setFolded, !!thread.real && ixPhone());
 
   return (
     // On a phone the thread is the screen, and a thumb carries it back to its list (ixSwipeBack).
@@ -652,12 +683,15 @@ export const InboxThread = (props: InboxThreadProps) => {
       {/* The foot: what the thread needs from you and the reply box. One box on a phone, standing over the screen's foot
           as the window scrolls the conversation under it (mobile.css); on a desk no box at all (display: contents). */}
       <div
+        ref={footRef}
         className="ix-th-foot"
         data-folded={folded && thread.real ? "" : undefined}
         // Tapped or typed into, folded, it opens (foldAsRead, openOnTap): on what is owed, on the words or on an act.
         onFocus={folded ? () => setFolded(false) : undefined}
         {...(folded ? openOnTap(() => setFolded(false)) : {})}
+        {...dock.props}
       >
+        {dock.handle}
         {thread.real && (
           <div className="ix-th-status" data-testid="ix-th-status">
             <ThreadStatus {...statusProps} />

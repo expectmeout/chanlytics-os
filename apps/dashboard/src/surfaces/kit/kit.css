@@ -4595,7 +4595,10 @@ a.list-row {
   .sheet-rests[data-rest="half"] > .rec-sheet-body {
     margin-bottom: var(--sheet-rest);
   }
-  .sheet-rests > .sheet-handle {
+  /* The handle that turns a sheet between its rests, or a docked foot between folded and open (rests.ts dockSwipe), is a
+     button that says which it is (aria-expanded): its bar is its look, never the house's floor for a button, and its
+     press reaches a thumb's 44px by the margin round it. */
+  .sheet-handle[aria-expanded] {
     position: relative;
     min-width: 0;
     min-height: 0;
@@ -4603,12 +4606,12 @@ a.list-row {
     border: 0;
     cursor: pointer;
   }
-  .sheet-rests > .sheet-handle::after {
+  .sheet-handle[aria-expanded]::after {
     content: "";
     position: absolute;
     inset: -20px -24px;
   }
-  .sheet-rests > .sheet-handle:focus-visible {
+  .sheet-handle[aria-expanded]:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
   }

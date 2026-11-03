@@ -325,6 +325,9 @@ export const THREAD_PANE_WORDS = {
   takeMeta: "The receptionist pauses, and your team sees you have it",
   /** Over the reply box's words while they are the receptionist's draft, unchanged: whose they are. */
   drafted: "Drafted by the receptionist",
+  /** The handle on a phone's reply box, a button that opens it or folds it away, named by where it goes. */
+  replyOpen: "Open the reply",
+  replyFold: "Fold the reply away",
   more: "More",
   moreFor: (who: string) => `More for the conversation with ${who}`,
   groupConversation: "This conversation",

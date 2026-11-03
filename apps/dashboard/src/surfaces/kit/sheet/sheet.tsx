@@ -237,10 +237,17 @@ function jobParts(p: SheetProps & { shape: "job" }) {
   );
 }
 
+/** Where a sheet with two rests stands, what moves it, and the handle's name for each way it goes. */
+export type SheetRestControl = NonNullable<SheetProps["rest"]>;
+
 /**
  * The handle: a mark of the pull, or, on a sheet with two rests, a button that turns it to the other, said by where it
- * goes.
+ * goes. A foot docked with two rests draws the same one (an open thread's reply box on a phone, rests.ts dockSwipe).
  */
+export function SheetHandle({ rest, testid }: { rest?: SheetRestControl; testid?: string }) {
+  return handleOf(rest, testid);
+}
+
 function handleOf(rest: SheetProps["rest"], testid: string | undefined) {
   if (!rest) return <div className="sheet-handle" aria-hidden="true" />;
   const to: SheetRest = rest.at === "half" ? "full" : "half";
