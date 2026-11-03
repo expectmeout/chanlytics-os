@@ -259,11 +259,9 @@ export const env = {
   get ELEVENLABS_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.ELEVENLABS_WEBHOOK_SECRET);
   },
-  /**
-   * Switch: the lead judge's screen (decision 0085), the second model asked first and a place it is sure is left out never
-   * judged ('1' for every workspace, or a comma-separated list of workspace ids), with its key set; anything else asks
-   * the judge everything, as before.
-   */
+  /** Switch: the lead judge's screen (decision 0085), the second model asked first and a place it is sure is left out
+   * never judged ('1' for every workspace, or a comma-separated list of workspace ids), with its key set; anything else
+   * asks the judge everything, as before. Listed in contracts ai/flags.ts with its sunset (00506). */
   get TYPESAFE_SCREEN() {
     return trimmedEnv(process.env.TYPESAFE_SCREEN);
   },

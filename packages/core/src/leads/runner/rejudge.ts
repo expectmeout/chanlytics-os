@@ -162,6 +162,7 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
           0,
         ),
       round,
+      () => !outOfTime(p, JUDGE_MARGIN_MS),
     );
     // A call refused twice leaves its places as they were; the others are committed together.
     const answered = calls.filter((c) => !c.judged.refused);

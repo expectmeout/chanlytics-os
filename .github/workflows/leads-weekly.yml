@@ -1,0 +1,100 @@
+name: The lead finder's weekly search
+
+# One real search against production, once a week (the lead finder's refinement, 3 November 2026). Nothing else runs
+# the finder against its providers on a schedule: the nightly's paid lead specs skip (E2E_PAID_LEADS is unset), and the
+# finder's pinned builds, its webhook's token, the judge, the mailbox checker, the "done" notice and the page that
+# repaints are proven together only when an owner searches, and none did for thirty days before this was written.
+#
+# The run's own workspace is listed on the platform's switch (decision 30, the seed writes it), so a search runs there
+# while searching is off for everyone else. One spec: "a small search runs end to end", six bike shops by phone, from
+# Ask's card, to its ending, then removed. About $0.30 of the source and the judge, and one Ask turn (about $0.30 at what
+# a watched turn cost on 2 November 2026); the spec fails a round that spent $0.50 or more.
+#
+# On unless the repository variable LEADS_WEEKLY is "off" (Settings, Secrets and variables, Actions, Variables): one
+# word stops it, with no deploy. A run started by hand runs whatever the variable says. A red run keeps one issue open
+# and assigned to the repository's owner (tooling/scripts/ops/rolling-issue.mjs); a week that holds closes it. The
+# Playwright report is kept as the run's artifact.
+on:
+  schedule:
+    # Early on a Sunday, an hour after Ask's weekly turns: the shared group below runs them one after the other.
+    - cron: "23 2 * * 0"
+  workflow_dispatch:
+
+# The nightly's own group, so this never runs beside it or Ask's weekly: its converge (e2e-workspace.mjs) puts the
+# workspace's leads back to the seed's six, and a search across it would be removed under it.
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  search:
+    name: A real search against production
+    if: ${{ vars.LEADS_WEEKLY != 'off' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    env:
+      E2E_USER_EMAIL: e2e-owner@example.com
+      E2E_MEMBER_EMAIL: e2e-member@example.com
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:install
+      - name: The run's own workspace, in its known state
+        run: node --import tsx tooling/scripts/ops/e2e-workspace.mjs --apply
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+      # No retry: a retry of a paid spec spends again.
+      - name: One search, end to end
+        id: search
+        shell: bash
+        env:
+          CI: "true"
+          REQUIRE_SERVICE_CREDENTIALS: "1"
+          E2E_PAID_LEADS: "1"
+          E2E_BASE_URL: https://app.chanlytics.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+        run: |
+          set +e
+          pnpm e2e e2e/leads.spec.ts --grep "a small search runs end to end" --retries=0 2>&1 | tee leads-search.txt
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      - name: Keep what the search did
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: leads-weekly
+          path: |
+            leads-search.txt
+            playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Say so, where a person will see it
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CODE: ${{ steps.search.outputs.code }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          said=$(grep -sE '^ +[0-9]+ (failed|flaky|passed|skipped)|✘' leads-search.txt || true)
+          if [ "$CODE" = "0" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state green --title "The lead finder's weekly search failed" --match "The lead finder's weekly search"
+          else
+            { echo "The weekly search did not end as it should. Read the report: a pinned build, the webhook, the judge or the checker."; echo "$said"; } > leads-weekly.md
+            node tooling/scripts/ops/rolling-issue.mjs --state red --title "The lead finder's weekly search failed" --match "The lead finder's weekly search" --body-file leads-weekly.md --assignee "$OWNER"
+          fi
