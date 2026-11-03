@@ -28,6 +28,7 @@ import {
   CALL_ANALYSIS_FIELDS,
   CALL_FEEL,
   CALL_HANDBOOK,
+  CALL_LIMITS,
 } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf } from "../_log-lines.mjs";
@@ -517,7 +518,7 @@ const agentOnShell = (id, llm) => ({
   webhook_events: [...VOICE_WEBHOOK_EVENTS],
   webhook_timeout_ms: VOICE_WEBHOOK_TIMEOUT_MS,
   opt_in_signed_url: true,
-  data_storage_retention_days: 90,
+  ...CALL_LIMITS,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
@@ -700,10 +701,13 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
     assert.deepEqual(
       reads.map((r) => [r.filters.find(([, c]) => c === "kind")[2], r.limit, r.desc]),
       [
+        // Each voice door's knocks of the last week (decision 0092), then the last few as they were, then deliveries.
+        ["webhook.auth", 1000, true],
         ["webhook.auth", 5, true],
         ["webhook.delivery", 20, true],
       ],
     );
+    assert.deepEqual(body.retellAuth.doors, {}, "rows that name no provider are no voice door's knock");
   } finally {
     retell.restore();
   }

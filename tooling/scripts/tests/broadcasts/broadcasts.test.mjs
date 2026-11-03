@@ -363,9 +363,8 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
       h.includes("wa_profile_name, email, email_marketing"),
     "the person's row still carries what the run needs",
   );
-  // A finished run is db's door now (events.ts finishBroadcast, 00527 finish_broadcast): marked sent and its broadcast.sent
-  // with the tally written in one statement, run against the database by a-send-is-queued-with-its-job.db.test.mjs.
-  assert.ok(h.includes("await finishBroadcast(db, job.tenant_id, id, tally)"));
+  // The run marked sent and its broadcast.sent with the tally, in one transaction (00527 finish_broadcast, decision 0089).
+  assert.ok(h.includes("finishBroadcast(db, job.tenant_id, id, tally)"));
   // Not one port answers from a read whose error it dropped. Every one of them
   // is a question the run then acts on, and `{ data }` alone turns a read that
   // failed into a confident wrong answer -- always in the direction of a real

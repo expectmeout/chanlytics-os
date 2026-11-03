@@ -59,6 +59,9 @@
           "api/admin/mailboxes.ts": {
             "maxDuration": 60
           },
+          "api/admin/voice/erase-calls.ts": {
+            "maxDuration": 60
+          },
           "api/admin/voice-converge.ts": {
             "maxDuration": 30
           },
@@ -183,6 +186,9 @@
             "maxDuration": 30
           },
           "api/retell-inbound.ts": {
+            "maxDuration": 30
+          },
+          "api/voice-canary.ts": {
             "maxDuration": 30
           },
           "api/admin/hand-over.ts": {

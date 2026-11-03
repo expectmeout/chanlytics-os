@@ -490,13 +490,15 @@ export const MEMBER_REPLY_STALE_MS = 30 * MIN_MS;
  * progress that hung up days ago. A status flag is a claim; this is the
  * evidence.
  *
- * Ten minutes, not ninety seconds, and the difference is a deployment fact
- * rather than a preference: with only `call_started` and `call_ended`
- * configured on the Retell webhook, nothing touches the row between them, so a
- * tight bound would declare every ordinary call dead a minute into it. Enabling
- * the `transcript_updated` event — which fires on every turn — makes the
- * heartbeat continuous and this bound effectively tight, at which point it can
- * come down.
+ * Ten minutes, and it stays ten now that `transcript_updated` is on every line
+ * (decision 0092). A turn refreshes the row, but a call can go quiet with
+ * nobody gone: a caller on hold, a warm transfer bridged to the owner's phone,
+ * a long silence the agent waits out. What clears a quiet call is the calls
+ * sweep, which asks the provider once a call has been quiet for five minutes
+ * and runs every five (calls-sweep.ts SETTLE_MS): a call still up is
+ * re-ingested and heard from again, one that ended is closed. So a call quiet
+ * for up to ten minutes may still be live, and a bound below the sweep's
+ * cadence would drop real calls from Live while they run.
  *
  * This is a DISPLAY guard, not the fix. It bounds how long a phantom can be
  * shown; only reconciling against the provider makes the row itself honest.

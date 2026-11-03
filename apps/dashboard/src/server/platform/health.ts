@@ -33,6 +33,7 @@ import {
 import { requeueFailedJob } from "@chanlytics/jobs";
 import {
   AppError,
+  callEndingOf,
   DAY_MS,
   errorIdOf,
   type ClientErrorDto,
@@ -126,7 +127,16 @@ function isHealthParts(v: unknown): v is HealthPartsDto {
 async function partsRead(office: BackOffice, days: number): Promise<HealthPartsDto> {
   const parts = healthRowsOf(await healthParts(office.db, days));
   if (!isHealthParts(parts)) throw new Error("platform_health_parts answered a shape Health does not read");
-  return parts;
+  // Each ending in the platform's words and what mends it, from the one table (contracts callEndingOf): the page reads
+  // them off the rows, and loads no table of every ending the provider names.
+  const read: HealthPartsDto = parts;
+  return { ...read, calls: read.calls.map((r) => ({ ...r, ...endingSaid(r.reason) })) };
+}
+
+/** An ending as Health says it: its words in a sentence, and what mends it where it is ours. */
+function endingSaid(reason: string | null): { words: string; mend: string | null } {
+  const ending = callEndingOf(reason);
+  return { words: ending?.platform ?? "no reason given", mend: ending?.mend ?? null };
 }
 
 async function workspacesRead(office: BackOffice): Promise<HealthWorkspaceDto[]> {

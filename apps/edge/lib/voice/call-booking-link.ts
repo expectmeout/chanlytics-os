@@ -42,8 +42,9 @@ import { isRehearsalCall, rehearsalOfToolCall, rehearsalRouting } from "./rehear
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { effectiveReplyMode, deliver, whatsappSender, type Delivered } from "../packages/core.js";
 import {
+  linkSentOnCall,
   messageByExternalId,
-  resolveChannel,
+  resolveChannelDetailed,
   resolveOutboundTarget,
   personReplyMode,
   templatesToSend,
@@ -63,7 +64,7 @@ import {
   SECOND_MS,
 } from "../packages/contracts.js";
 import { refusalScript } from "../packages/core.js";
-import { refusedOutLoud, voiceDoorAuth } from "./voice-door-auth.js";
+import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
 import {
   gateOnTheCall,
   linkByText,
@@ -169,6 +170,10 @@ async function sentOutLoud(leg: LinkLeg, wamid: string | null): Promise<Response
  * the knock under the switch (11 Oct 2026). Only a call back is offered.
  */
 const KNOCK_REFUSED = "I can't send anything just now. Take the caller's name and say someone will call them back.";
+
+/** Spoken when this call already sent the link: it is on its way, and one more would be the same message twice. */
+const ALREADY_SENT =
+  "The booking link was already sent on this call. Tell them it is on its way and should be on their phone in a moment.";
 
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =
@@ -329,11 +334,30 @@ async function whatsappFailed(leg: LinkLeg, out: Extract<Delivered, { outcome: "
   });
 }
 
+/**
+ * One link a call to one person (decision 0092): a tool call the provider asks again, or a caller who asks twice, is told
+ * the link is on its way. A link that failed is not counted: asking again is how the caller gets it by text.
+ */
+async function alreadySentOnThisCall(leg: LinkLeg, callId: string | undefined): Promise<Response | null> {
+  if (!callId) return null;
+  const sent = await linkSentOnCall(leg.db, {
+    tenantId: leg.at.tenantId,
+    conversationId: leg.contact.conversationId,
+    source: VOICE_SEND_SOURCE,
+    callId,
+  });
+  if (!sent) return null;
+  leg.L.info("retell_fn_already_sent", { tenant_id: leg.at.tenantId });
+  return json(200, { result: ALREADY_SENT });
+}
+
 export async function sendBookingLinkOnCall(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
   // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
-  if (!voiceDoorAuth("fn", request, raw).ok) return refusedOutLoud("fn", KNOCK_REFUSED);
+  const knock = voiceDoorAuth("fn", request, raw);
+  await keepKnock("fn", knock);
+  if (!knock.ok) return refusedOutLoud("fn", KNOCK_REFUSED);
 
   const { call, args } = toolCallOf(raw);
 
@@ -375,9 +399,12 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
     return json(200, { result: CANNOT_SEND });
   }
 
-  const routed = await resolveChannel(db, "voice", call.agent_id);
+  // "The database said no" and "did not answer" are told apart in the log (resolveChannelDetailed); the caller hears the
+  // same either way.
+  const lookup = await resolveChannelDetailed(db, "voice", call.agent_id);
+  const routed = lookup.channel;
   if (!routed) {
-    L.error("retell_fn_unknown_agent", { agent_id: call.agent_id });
+    L.error("retell_fn_unknown_agent", { agent_id: call.agent_id, lookup_failed: lookup.lookupFailed });
     return json(200, { result: CANNOT_SEND });
   }
 
@@ -461,6 +488,8 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
       // The text is written in the language the WhatsApp message was approved in: the one the owner chose for it.
       language: booking?.language ?? null,
     };
+    const again = await alreadySentOnThisCall(leg, call.call_id);
+    if (again) return again;
     // The caller said they do not use WhatsApp on this number, or there is no message Meta approved: WhatsApp has none.
     if (args.by === "text" || !booking)
       return await withoutWhatsapp(leg, args.by === "text" ? "caller_asked" : "no_template");

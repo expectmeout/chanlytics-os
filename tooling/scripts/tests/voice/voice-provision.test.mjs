@@ -73,13 +73,14 @@ test("the agent body carries the product's voice and every setting the pipeline 
   assert.deepEqual(body.webhook_events, ["call_started", "call_ended", "call_analyzed", "transcript_updated"]);
   assert.equal(body.webhook_timeout_ms, 20000);
   assert.equal(body.opt_in_signed_url, true);
-  assert.equal(body.data_storage_retention_days, 90);
+  assert.equal(body.data_storage_retention_days, 7, "a week at the provider (CALL_LIMITS, decision 0092)");
   assert.equal(body.end_call_after_silence_ms, 30000);
+  assert.equal(body.max_call_duration_ms, 20 * 60_000, "twenty minutes a call");
   assert.deepEqual(
     body.post_call_analysis_data.map((f) => f.name),
     ["caller_wanted", "outcome", "follow_up", "caller_name", "caller_email", "topic", "language"],
   );
-  assert.deepEqual(planAgentSettings(body, { retentionDays: 90 }).drift, [], "the agent converger plans nothing");
+  assert.deepEqual(planAgentSettings(body).drift, [], "the agent converger plans nothing");
   assert.equal(agentSettingsDrift(body).converged, true);
   const noVersion = voiceAgentCreateBody({ llmId: "llm_abc", llmVersion: null, agentName: "x" }, S, FN_URL);
   assert.deepEqual(

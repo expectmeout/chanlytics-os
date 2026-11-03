@@ -5,7 +5,7 @@
  * the edge; nothing here knows it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { callSecondsSince, type Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
 import { deployment } from "../env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
@@ -22,6 +22,22 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? billingAccountDto(data) : null;
+}
+
+/**
+ * The phone receptionist's minutes since the month began (UTC), rounded up, as the member reads the events (decision
+ * 0092): what Settings › Billing says the voice provider was paid for. Null when the read failed: the page says nothing
+ * then, rather than a zero it does not know.
+ */
+export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
+  const now = new Date();
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  try {
+    return Math.ceil((await callSecondsSince(db, tenantId, since)) / 60);
+  } catch (e) {
+    log.warn("billing_minutes_unread", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
 }
 
 /**

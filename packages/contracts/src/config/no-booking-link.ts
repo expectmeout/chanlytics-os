@@ -5,7 +5,7 @@
  * decision 2, 24 Sep 2026): the price comes before anyone books, so its receptionist takes what the team needs to
  * follow up. Where it would have sent the link for someone to book, it asks for this one list instead: the prompt on
  * both channels (config.ts), the openings it offers and a price correction on a call (availability.ts, whisper.ts),
- * and the phone's two tools (apps/edge/api/retell-fn.ts, retell-availability.ts). However the receptionist comes to
+ * and the phone's two tools (apps/edge/lib/voice/call-booking-link.ts, availability-tool.ts). However the receptionist comes to
  * it, it asks for the same things. Where the link was one offer among others -- a call back, a professional's advice,
  * a change to an appointment already booked -- the others stand alone.
  *

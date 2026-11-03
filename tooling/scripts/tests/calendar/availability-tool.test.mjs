@@ -335,7 +335,7 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   );
   const edge = readCode("apps/edge/lib/voice/availability-tool.ts");
   assert.ok(
-    edge.includes('voiceDoorAuth("availability", request, raw).ok'),
+    edge.includes('voiceDoorAuth("availability", request, raw)'),
     "the door is guarded as the other two Retell doors are (voice-door-auth.test.mjs runs it)",
   );
   assert.ok(edge.includes("filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null })"));

@@ -464,21 +464,25 @@ export {
   callSummaryLine,
   createAgent,
   createAgentVersion,
+  createPhoneCall,
   createPhoneNumber,
   createRetellLlm,
   createWebCall,
   deleteAgent,
+  deleteCall,
   deletePhoneNumber,
   deleteRetellLlm,
   fetchRecording,
   getAgent,
   getAgentRaw,
   getCall,
+  getConcurrency,
   getPhoneNumber,
   getRetellLlm,
   importPhoneNumber,
   listCalls,
   liveTurns,
+  MISSED_CALL_LINE,
   normalizeCall,
   parseTranscriptText,
   publishAgentVersion,
@@ -486,9 +490,8 @@ export {
   updateAgent,
   updateLiveCall,
   updatePhoneNumber,
+  updateRetellLlm,
   verifyRetellSignature,
-  webCallBody,
-  webCallMadeOf,
 } from "./voice/voice-retell";
 export type {
   ListCallsPage,
@@ -498,11 +501,11 @@ export type {
   RetellAgentConfig,
   RetellCall,
   RetellCallRead,
+  RetellConcurrency,
   RetellConfig,
   RetellLlmConfig,
   RetellTranscriptTurn,
   RetellWrite,
-  WebCallMade,
 } from "./voice/voice-retell";
 export {
   agentSettingsDrift,
@@ -510,6 +513,7 @@ export {
   CALL_ANALYSIS_FIELDS,
   CALL_FEEL,
   CALL_HANDBOOK,
+  CALL_LIMITS,
   CALLER_UNKNOWN,
   desiredVoiceShell,
   FACTS_UNAVAILABLE,
@@ -536,6 +540,8 @@ export type {
   VoiceConvergencePlan,
   VoiceShellTarget,
 } from "./voice/voice-shell";
+export { webCallBody, webCallMadeOf } from "./voice/voice-web-call";
+export type { WebCallMade } from "./voice/voice-web-call";
 export {
   contactsSyncedOf,
   fetchMediaBytes,

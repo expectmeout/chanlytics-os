@@ -33,9 +33,11 @@ import {
   CALL_OUTCOMES,
   greetingFor,
   GREETING_DEFAULT,
+  MIN_MS,
   PHONE_VOICE_DEFAULT,
   POLICY_COVERS,
   RETELL_MODELS,
+  SECOND_MS,
 } from "@chanlytics/contracts";
 
 /** The opening line and its unnamed default: contracts' (greeting.ts), so the first run can show it; said here too. */
@@ -259,7 +261,9 @@ function subsetEqual(live: unknown, desired: unknown): boolean {
  * result of this function and, with --apply, sends exactly `llmPatch`. Extra
  * default variables on the live LLM are kept (merged), not deleted; tools the
  * shell does not know are reported and would be REPLACED by an apply, which
- * is why they are listed by name in the plan.
+ * is why they are listed by name in the plan. A header is ours, never the
+ * provider's default: a live tool carrying one the shell does not set (the
+ * shared secret once the doors read the signature alone) differs, by its name.
  */
 export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarget): VoiceConvergencePlan {
   const drift: string[] = [];
@@ -307,6 +311,13 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
           : "";
       drift.push(`tool ${want.name} differs${what}`);
       toolsDiffer = true;
+      continue;
+    }
+    const wanted = (want.headers as Record<string, string> | undefined) ?? {};
+    const extra = Object.keys((have.headers as Record<string, string> | undefined) ?? {}).filter((k) => !(k in wanted));
+    if (extra.length) {
+      drift.push(`tool ${want.name} carries a header the shell does not set (${extra.join(", ")}): an apply drops it`);
+      toolsDiffer = true;
     }
   }
   const unknownTools = liveTools.map((t) => t.name).filter((n) => !desired.general_tools.some((t) => t.name === n));
@@ -320,14 +331,25 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
 /**
  * The diagnostic's view: on the shell or not, and why not. Strings only —
  * this is printed by /api/diag, and the live tools carry a secret header.
+ *
+ * `secretRetired`: the edge opens the voice doors for Retell's signature alone (RETELL_DOORS_SIGNED, edge
+ * voice-door-auth.ts signatureOnly). Until then a booking tool with no `x-fn-secret` header is refused, so its absence
+ * is the drift; once the secret is retired, a header still carrying it is a secret left in the provider's dashboard,
+ * so its presence is. The target drops the header either way the switch says.
  */
-export function voiceShellDrift(live: LiveVoiceLlm, fnUrl: string): { converged: boolean; drift: string[] } {
+export function voiceShellDrift(
+  live: LiveVoiceLlm,
+  fnUrl: string,
+  secretRetired = false,
+): { converged: boolean; drift: string[] } {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
   const url = typeof booking?.url === "string" ? booking.url : fnUrl;
   const headers = (booking?.headers as Record<string, string> | undefined) ?? null;
-  const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers));
+  const plan = planVoiceConvergence(live, desiredVoiceShell(url, secretRetired ? null : headers));
   const drift = [...plan.drift];
-  if (booking && !headers) drift.push("send_booking_link has no x-fn-secret header — the edge will refuse it");
+  // Once retired, a tool still carrying the header is the plan's own drift: a header the shell does not set.
+  if (!secretRetired && booking && !headers)
+    drift.push("send_booking_link has no x-fn-secret header — the edge will refuse it");
   return { converged: drift.length === 0, drift };
 }
 
@@ -340,6 +362,20 @@ export const VOICE_WEBHOOK_EVENTS = ["call_started", "call_ended", "call_analyze
 export const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
 /** What Retell applies when webhook_events is absent. */
 const RETELL_DEFAULT_EVENTS = ["call_started", "call_ended", "call_analyzed"];
+
+/**
+ * How long one call may run, how long a silent line is held, and how long the provider keeps a call (decision 0092).
+ * One provider account answers every workspace's line and the platform pays it by the minute, so a line left open or a
+ * robocaller once cost up to an hour a call (the provider's default, which provisioning pinned). Our own copy -- the
+ * row, the transcript, the audio in the private bucket -- is the record minutes after a call ends (the copy retries
+ * for two days at most, call-recording.ts RECORDING_DEFER_LIMIT_MS), so the provider keeps a call a week, not ninety
+ * days: less of a customer's call sits where an erasure has to ask for it.
+ */
+export const CALL_LIMITS = {
+  max_call_duration_ms: 20 * MIN_MS,
+  end_call_after_silence_ms: 30 * SECOND_MS,
+  data_storage_retention_days: 7,
+} as const;
 
 /**
  * What the agent's post-call analysis fills in after every call, in the
@@ -436,6 +472,9 @@ export interface LiveAgentSettings {
   webhook_timeout_ms?: number | null;
   opt_in_signed_url?: boolean | null;
   data_storage_retention_days?: number | null;
+  /** How long a call may run, and a silent line be held; unset is the provider's default (an hour; ten minutes). */
+  max_call_duration_ms?: number | null;
+  end_call_after_silence_ms?: number | null;
   post_call_analysis_data?: unknown[] | null;
   /** A locale, a list of them, or the deprecated "multi" (stored as its ten locales); unset is en-US. */
   language?: string | string[] | null;
@@ -467,8 +506,9 @@ export interface AgentPlan {
  * and refetches a fresh link through get-call when a copy has to retry, so a
  * link that expires costs it nothing.
  *
- * Retention is NOT drift. How long the provider keeps a call is a product
- * decision, applied only when the converger is told a number.
+ * The call's limits are drift (CALL_LIMITS, decision 0092): the longest a
+ * call may run, a silent line's end, and the days the provider keeps a call,
+ * which the converger may be told otherwise (`retentionDays`).
  */
 export function planAgentSettings(
   live: LiveAgentSettings,
@@ -521,16 +561,18 @@ export function planAgentSettings(
     );
     patch.webhook_url = live.webhook_url.split("?")[0];
   }
-  if (opts.retentionDays !== undefined && live.data_storage_retention_days !== opts.retentionDays) {
-    if (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1 || opts.retentionDays > 730) {
-      drift.push(`retention must be a whole number of days from 1 to 730, not ${opts.retentionDays}`);
+  const retentionDays = opts.retentionDays ?? CALL_LIMITS.data_storage_retention_days;
+  if (live.data_storage_retention_days !== retentionDays) {
+    if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 730) {
+      drift.push(`retention must be a whole number of days from 1 to 730, not ${retentionDays}`);
     } else {
       drift.push(
-        `data_storage_retention_days is ${live.data_storage_retention_days ?? "unset (kept forever)"}; asked for ${opts.retentionDays}`,
+        `data_storage_retention_days is ${live.data_storage_retention_days ?? "unset (kept forever)"}; the product keeps ${retentionDays}`,
       );
-      patch.data_storage_retention_days = opts.retentionDays;
+      patch.data_storage_retention_days = retentionDays;
     }
   }
+  planCallLimits(live, drift, patch);
   planFirstSeconds(live, opts.locales, drift, patch);
   planCallFeel(live, drift, patch);
   return { drift, agentPatch: Object.keys(patch).length ? patch : null, notes: agentNotes(live) };
@@ -566,6 +608,15 @@ export const CALL_HANDBOOK = {
   echo_verification: true,
   speech_normalization: true,
 } as const;
+
+/** The longest a call may run and a silent line's end (CALL_LIMITS): what the platform pays the provider for. */
+function planCallLimits(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {
+  for (const key of ["max_call_duration_ms", "end_call_after_silence_ms"] as const) {
+    if (live[key] === CALL_LIMITS[key]) continue;
+    drift.push(`${key} is ${String(live[key] ?? "unset")}; the product's is ${CALL_LIMITS[key]}`);
+    patch[key] = CALL_LIMITS[key];
+  }
+}
 
 /** The call's feel: each setting the product holds, and the handbook's presets merged into what the line has. */
 function planCallFeel(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {

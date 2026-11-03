@@ -454,7 +454,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
 
   const get = readCode("apps/dashboard/app/api/v1/billing/route.ts");
-  assert.ok(get.includes("billingFor(ctx.supabase, member.tenantId), billingReadiness()"));
+  assert.match(get, /billingFor\(ctx\.supabase, member\.tenantId\),\s*billingReadiness\(\)/);
   for (const [file, role] of [
     ["checkout", "owner"],
     ["portal", "owner"],
