@@ -1325,22 +1325,48 @@ The day's numbers are in the back office ("Each workspace's day", `platform_metr
 before); the health sweep pages `answer_rate_zero` when a workspace's customers wrote all day and nobody answered. Who
 played a call's recording is a decision (`open_recording`, one per member per call per hour) on Settings, Activity.
 
-## Answer WhatsApp after the acknowledgement
+## A message is answered after the acknowledgement
 
-A WhatsApp message is answered inside Meta's request, under the function's sixty seconds. A workspace named in the
-edge's `WHATSAPP_ANSWERS_AS_JOBS` (workspace ids, comma-separated, or `all`) takes the road a text takes instead:
-the webhook records the message, schedules its answer as an `inbound_answer` job and answers 200, and the job answers
-it (`apps/edge/lib/whatsapp/answer-later.ts`). Unset is the default, and changes nothing.
+Every message the receptionist answers, on WhatsApp, a text or an Instagram DM, is recorded at its door and answered by
+its job (decision 0031, since 3 Nov 2026 for WhatsApp too; the switch that tried it, `WHATSAPP_ANSWERS_AS_JOBS`, is
+gone). The door keeps the delivery as it came (the intake ledger), records the message (`ingest_inbound`, with the
+yeses it carries), schedules its answer as one `inbound_answer` job and answers the provider; the job takes the message
+up again through the whole order ([inbound-gates.md](inbound-gates.md)) and answers it by its deadline
+(`TURN_BUDGET_MS`, forty seconds of a sixty-second function). Two messages from one person in one delivery are two jobs,
+and the newer one answers both (the reply turn, 00284). A message the door could not record is a 503: Meta sends it again for up to seven days, and Twilio retries nothing on
+its own (below). One whose job could not be written is the deadman sweep's.
 
-To try it: name one workspace on the edge's production environment and redeploy the edge (an environment variable is
-read by a new deployment). Write to that workspace's number. In the logs, `wa_inbound` then `wa_answer_taken_up`
-under one request id, and the reply's own lines after it; in the ledger, one `inbound_answer` row for the message,
-`done`. To go back: remove the workspace from the variable and redeploy. A message recorded before the change is
-still answered by its job.
+## A customer says nobody answered
 
-What to watch while it is on: `wa_answer_unscheduled` (the job could not be written: the message is the deadman
-sweep's to hand to a person, within a quarter of an hour), and a reply's lateness on the heartbeat's line
-(`reply_late_ms`), which pages past a minute.
+Find the message first: the customer's number and roughly when. Then read the trail in the logs (one `request_id` for
+the door, another for the job), in this order; where it stops is the answer.
+
+1. **The door.** `wa_inbound` (`sms_inbound`, `ig_inbound`) with the message's id. Absent: the delivery never
+   reached us, or was refused before it was read. `bad_signature` (a 401) is a secret that does not match the app's;
+   `wa_unroutable` / `wa_skip_unroutable` is a number no workspace holds, or one switched off (the platform is told once
+   a window); `wa_skip_routing_failed` is a database read that failed, answered 503 so the provider sends it again.
+2. **Set aside on purpose.** `short_code_set_aside`, `one_time_code_set_aside` or `wa_skip_allowlist` (the
+   environment's own pilot number only): recorded, and not the receptionist's to answer.
+3. **Recorded, its answer scheduled.** `wa_answer_unscheduled` (`sms_answer_unscheduled`, `ig_answer_unscheduled`)
+   means the job could not be written: the message waits for the deadman sweep, which flags the thread and tells the
+   owner within a quarter of an hour (`unfinished_inbound_flagged`, and a "A customer wrote and nothing answered"
+   notice). `ingest_pg_failed` means the message itself was not kept: the door answered 503.
+4. **The job.** `wa_answer_taken_up` names the message. Then exactly one gate's line says where it stopped, and
+   [inbound-gates.md](inbound-gates.md) says what each means: `wa_skip_opt_out` (a STOP: nothing may be sent),
+   `wa_held_by_policy` (the mode in force holds it for a person), `wa_skip_paused` (a person on the team has the
+   thread), `wa_skip_ratecap`, `wa_skip_workspace_paused`, `wa_skip_budget`, `wa_stale_escalated` (more than two
+   hours late), `wa_superseded` (a newer message of the thread answered both), and the rest. A gate that asks a person
+   leaves an escalation in the Inbox with its reason.
+5. **The model.** `brain_failed` (an error, or the job's deadline reached: the holding words went, and the thread is
+   the owner's as `brain_error`), or `wa_no_model` (no key: the platform is paged once a window).
+6. **The words.** `wa_replied` is a reply the provider accepted; `wa_reply_queued` a reply waiting in the hold window
+   (veto, or low confidence); `wa_refused_at_wire` the send door's no (consent, a person's hold, a pause), with its
+   reason. A reply the provider took and did not deliver is the message row's status (`failed`), and the thread is held
+   `send_failed`.
+
+A text Twilio could not hand us at all (our door was down) is not in our logs. Twilio keeps its own record of the
+line's texts, and a kept delivery of any wire can knock on its own door again once the cause is fixed:
+`POST /api/admin/intake/replay` (decision 0032), which the replay gate makes safe to repeat.
 
 ## Read what the receptionist was told
 
