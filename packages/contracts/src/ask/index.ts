@@ -1,5 +1,5 @@
 /** Ask, the workspace assistant: its limits, the answer as the Line draws it, the model it runs on and a turn's shape. */
-export { ASK_ANSWER_FORMAT } from "./answer-format";
+export { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } from "./answer-format";
 export { answerSoFar, partialSay, stoppedAnswer } from "./answer-stream";
 export type { AskSayPreview, AskShowPreview } from "./answer-stream";
 export {

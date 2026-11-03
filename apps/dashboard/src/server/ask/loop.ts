@@ -1,6 +1,6 @@
 import "server-only";
 import {
-  ASK_ANSWER_FORMAT,
+  ASK_ANSWER_TEXT_FORMAT,
   ASK_MAX_ROUNDS,
   ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TURN_BUDGET_MS,
@@ -24,7 +24,7 @@ import type { RouteContext } from "../with-route";
 import type { ReaderContext } from "../readers";
 import { log } from "@/server/log";
 import { GatewayRefused, type GatewayRefusal } from "./gateway";
-import { DROP_EVENTS, dropFor, letGo, refusalSaid, type Offer } from "./refusals";
+import { DROP_EVENTS, answerHasItsWay, dropFor, letGo, refusalSaid, type Offer } from "./refusals";
 import {
   ACT_TOOL_NAMES,
   buildProposal,
@@ -83,7 +83,7 @@ import { LAST_ROUND_WORDS, answerInput, everyCallAnswered, roundAnswer } from ".
  * (context.ts), with the reads the question names of another page and the
  * row the scope names (cross-page.ts); then the model is asked with the
  * read tools and the act tools, and either calls them or writes the answer:
- * the answer is text in the Line's shape (ASK_ANSWER_FORMAT, structured
+ * the answer is text in the Line's shape (ASK_ANSWER_TEXT_FORMAT, structured
  * output), or the answer tool's input where ASK_ANSWER_TOOL is on. Reads run
  * as the person, in parallel, and go back as one message. An act tool never
  * acts: it checks and proposes, and may share a round with the answer. Say
@@ -268,7 +268,7 @@ export function turnHead(model: AskModelProfile, role: MembershipRole, facts: Wo
     tool_choice: { type: "auto" as const },
     output_config: {
       effort: model.effort,
-      format: { type: "json_schema" as const, schema: ASK_ANSWER_FORMAT as unknown as Record<string, unknown> },
+      format: { type: "json_schema" as const, schema: ASK_ANSWER_TEXT_FORMAT as unknown as Record<string, unknown> },
     },
   };
 }
@@ -639,7 +639,7 @@ async function roundOf(
   }
 
   // The answer, if this round wrote one, and its calls with the answer tool's apart (tools/answer.ts).
-  const split = roundAnswer(blocks, turn.offer.format);
+  const split = roundAnswer(blocks, answerHasItsWay(turn.offer));
   const { used, answered, calls } = split;
   // A draft begun at the turn's own effort is set aside, its calls unrun, and the round asked again at the draft's
   // (effort.ts): the question did not say it was one.

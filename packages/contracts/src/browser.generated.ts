@@ -40,7 +40,7 @@ export { ASK_SENDS, PROPOSAL_WORDS } from "./ask-proposals/spec";
 export { CUSTOMER_MESSAGE_SKILL } from "./ask-skills/customer-message/skill";
 export { ASK_SKILL_IDS, isAskSkillId, skillGuide, skillsAsked } from "./ask-skills/registry";
 export { craftSystem, guideBlock, SKILL_CRAFT_MAX_TOKENS, SKILL_CRAFT_PURPOSES, SKILL_GUIDE_MAX } from "./ask-skills/skill";
-export { ASK_ANSWER_FORMAT } from "./ask/answer-format";
+export { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } from "./ask/answer-format";
 export { answerSoFar, partialSay, stoppedAnswer } from "./ask/answer-stream";
 export { answerBlocks, answerCopy, answerPlain, answerRuns, answerSpoken, answerText, claimsWrite, cleanAnswer, FOLLOWUP_ECHO, isUngrounded, listSpoken, navigateLabel, nextNotAsked, sameQuestion, unquoted } from "./ask/answer-text";
 export { ASK_CAPS, ASK_CORE_TOOLS_CHARS_CEILING, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_SCOPE_KINDS, ASK_SELECTION_MAX, ASK_SPEECH_MAX_CHARS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_SURFACES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, askCardLapsed, askColumnOf, isVoiceEndReason, scopeFromRoute, SPEECH_PURPOSES, VOICE_END_REASONS } from "./ask/ask";
