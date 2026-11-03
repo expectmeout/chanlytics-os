@@ -3,7 +3,7 @@
  * where the board opens, and whether a field has the keys. The date picker is the kit's (kit/datepicker), not the
  * browser's.
  */
-import { isDocumentScroller, scrollerOf } from "../kit/motion/page-scroll";
+import { documentScroller, isDocumentScroller, scrollerOf, viewTop } from "../kit/motion/page-scroll";
 
 /** A phone opens on the agenda: a week grid is four times a phone's width. */
 export const crPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
@@ -29,15 +29,15 @@ export type DaysChange = "first" | "view" | "days" | null;
 /**
  * Where the page stands after a change, the one rule (spec 2026-11-03, a still Calendar on a phone), run in the commit
  * before its paint: on a phone every change is drawn in place (calendar.css, the view holds still), so the page decides.
- * After a new view, or new days in the Agenda or the Month, the days' top is put just under the bar where the page had
- * gone past it; a board (Day, Week) keeps its hours across days, since its heads stick. Then a board that holds today
+ * After a new view, or new days in the Agenda or the Month, the days' top is put just under what stands over the page
+ * (the frame's top, the bar under its views: the document's scroll padding, mobile.css) where the page had gone past it;
+ * a board (Day, Week) keeps its hours across days, since its heads stick. Then a board that holds today
  * opens at now, once for the view (boardToNow). A desk's views scroll in a box of their own. Says whether the board has
  * opened at now.
  */
 export function standAfter(p: {
-  /** The view's element, and the bar that sticks over it on a phone. */
+  /** The view's element. */
   body: Element | null;
-  bar: Element | null;
   change: DaysChange;
   /** Whether the view is a board (Day, Week). */
   board: boolean;
@@ -46,12 +46,10 @@ export function standAfter(p: {
   /** Whether the board has opened at now in this view. */
   opened: boolean;
 }): boolean {
-  const { body, bar, change, board, nowAt } = p;
+  const { body, change, board, nowAt } = p;
   if (!body) return p.opened;
-  if (bar && crPhone() && (change === "view" || (change === "days" && !board))) {
-    // Where the bar sticks, not where it stands now: near the foot of a shorter page it was pushed up out of its place
-    // (10px in WebKit, after the Agenda's next days at y 400), and the days came to rest that much under it.
-    const foot = (Number.parseFloat(getComputedStyle(bar).top) || 0) + bar.getBoundingClientRect().height;
+  if (crPhone() && (change === "view" || (change === "days" && !board))) {
+    const foot = viewTop(documentScroller());
     const top = body.getBoundingClientRect().top;
     if (top < foot) window.scrollBy(0, top - foot);
   }

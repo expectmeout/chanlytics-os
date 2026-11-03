@@ -1566,12 +1566,13 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withoutBuys =
       pool || NAMES[old] === "report" || NAMES[old] === "workspace.settings" ? drop(dealt, "tenants.select") : dealt;
     const withOneDealRead = NAMES[old] === "sequences.moments" ? drop(withoutBuys, "deals.select") : withoutBuys;
-    // 2 Nov 2026 (0076): Today's metrics read what was booked beside the function (bookings.ts); bytes unchanged.
+    // 0076: Today reads what was booked (bookings.ts); 00512: a lead plan, the month's allowance. Bytes unchanged.
     const booked = old === "get_today" ? ["events.select", "appointments.select"] : [];
+    const allowance = leadPlan && !want.isError ? ["rpc:lead_allowance"] : [];
     const reads =
       NAMES[old] === "report"
         ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withOneDealRead))))
-        : [...withOneDealRead, ...booked];
+        : [...withOneDealRead, ...booked, ...allowance];
     const [gotResult, wantResult] = withoutStoredWords(
       old,
       ...(NAMES[old] === "sequences.moments"

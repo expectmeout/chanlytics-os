@@ -27,7 +27,6 @@ import {
   type CalendarRunsDto,
 } from "@chanlytics/contracts";
 import { useStanding } from "../kit/head/standing";
-import { keepHeightOn } from "../kit/motion/page-scroll";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
 import { canDo, holdStill, navigate, onAPhone, touchSwipe } from "../legacy-verbs";
@@ -70,8 +69,9 @@ interface CalendarAddress {
 
 /**
  * The board's frame before its first read (CAL-25): the bar's place and the board's, still, saying it is reading. It drew
- * nothing at all, and the strip of views stood over an empty page until the weeks landed. On a desk the bar is the act on
- * the row of views (board-parts.tsx calendarAct), so the reading is said there, and the board stands where it will.
+ * nothing at all, and the strip of views stood over an empty page until the weeks landed. The bar is the frame's (the act
+ * on the row of views on a desk, board-parts.tsx calendarAct; under it on a phone, calendarHead), so the reading is said
+ * there, and the board stands where it will.
  */
 function ColdFrame() {
   const phone = onAPhone();
@@ -80,14 +80,19 @@ function ColdFrame() {
       Reading…
     </span>
   );
-  useStanding(phone ? null : { act: <div className="cal-act cal-bar-cold">{reading}</div> });
+  useStanding(
+    phone
+      ? {
+          under: (
+            <div className="cal-head">
+              <div className="cal-bar cal-bar-cold">{reading}</div>
+            </div>
+          ),
+        }
+      : { act: <div className="cal-act cal-bar-cold">{reading}</div> },
+  );
   return (
     <div className="calendar" data-testid="calendar-cold" data-loading="">
-      {phone ? (
-        <div className="cal-head">
-          <div className="cal-bar cal-bar-cold">{reading}</div>
-        </div>
-      ) : null}
       <div className="cal-pane">
         <div className="cal-body cal-body-cold" aria-busy="true" />
       </div>
@@ -311,16 +316,11 @@ function CalendarReal({
     many: appointmentWords(word).Many,
     phone,
   };
-  // The bar on a desk, and Settings on a phone, stand on the frame's row of views (board-parts.tsx calendarAct).
-  useStanding({ act: calendarAct(bar) });
-  // On a phone the bar sticks under the frame's top as the window scrolls the days, and a week's or a day's heads stick
-  // under it: as far down as it is tall (mobile.css, --cal-bar-h).
+  // The bar is the frame's: on a desk the act on its row of views, Settings there on a phone with the range and the steps
+  // under the row (board-parts.tsx calendarAct, calendarHead), in the frame's top, which holds still as the window scrolls
+  // the days: stuck in the page under the top, the bar stepped a pixel or two under the thumb (Ruben, 3 Nov 2026).
+  useStanding({ act: calendarAct(bar), under: calendarHead(bar) });
   const root = useRef<HTMLDivElement | null>(null);
-  useLayoutEffect(() => {
-    const page = root.current;
-    const head = page ? page.querySelector<HTMLElement>(":scope > .cal-head") : null;
-    return page && head ? keepHeightOn(head, page, "--cal-bar-h") : undefined;
-  }, []);
   useStandAfter(root, view, anchor, boardNowAt(view, now, shown, vm.hours.start));
 
   return (
@@ -333,8 +333,7 @@ function CalendarReal({
       data-loading={pending ? "" : undefined}
       data-peek={open && !phone ? "" : undefined}
     >
-      {calendarHead(bar)}
-      {/* On a phone the bar sticks over the days, under the frame's strip of views, and the window scrolls them
+      {/* On a phone the bar stands in the frame's top, over the days, under the frame's strip of views, and the window scrolls them
           (mobile.css, "The window scrolls"); a swipe across the days walks to the next or previous days, drawn in place as
           ‹ and › draw them, with nothing following the finger (acts.tsx swipePagesOf). It is the pane's own touch
           (data-own-drag), so the strip's pager never walks the views under the same finger. On a desk this box is display:
@@ -443,7 +442,6 @@ function useStandAfter(root: RefObject<HTMLDivElement | null>, view: string, anc
     const page = root.current;
     const opened = standAfter({
       body: page ? page.querySelector(":scope > .cal-pane > .cal-body") : null,
-      bar: page ? page.querySelector(":scope > .cal-head") : null,
       change,
       board: view === "day" || view === "week",
       nowAt,

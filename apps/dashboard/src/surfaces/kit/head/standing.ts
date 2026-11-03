@@ -29,6 +29,12 @@ interface Standing {
   /** The page's own act, at the right of the row of views; the frame's act where the page names none. */
   act?: ReactNode;
   /**
+   * What stands under the row of views, in the frame's top with it: the Calendar's range and steps on a phone, which stood
+   * stuck in the page under the top and stepped a pixel or two under the thumb as the window scrolled, where the frame's
+   * top held still (Ruben's recording, 3 Nov 2026). Nothing where the page says nothing there.
+   */
+  under?: ReactNode;
+  /**
    * What stands beside the name: the page's one quiet act of its own (Today's Listen). On a phone it stands in the date's
    * row, beside the bell, where the name has no room for it and the sentence under it no break (the Today canvas, 1 Nov
    * 2026: Listen ended the sentence and stood a capsule's height over its second line).
