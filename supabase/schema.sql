@@ -29243,6 +29243,46 @@ COMMENT ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid,
 
 
 --
+-- Name: sequence_sends_end_emptied_runs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_sends_end_emptied_runs() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- The runs of the sends whose state moved (a transition table takes no column list, so the statement is any update),
+  -- each ended with the system's decision beside it, as the sweep's skip of a late run is recorded (core cancel.ts:
+  -- cancel_broadcast, its name, what it was, and why), so the Activity page and the run's sheet say why it ended.
+  with ended as (
+    update public.sequence_batches b
+       set state = 'canceled'
+     where b.state = 'pending_approval'
+       and b.id in (select distinct c.batch_id
+                      from changed_sends c
+                      join sends_were w on w.id = c.id
+                     where c.batch_id is not null and c.state is distinct from w.state)
+       and not exists (select 1 from public.sequence_sends s
+                        where s.batch_id = b.id
+                          and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted'))
+    returning b.id, b.tenant_id, b.name
+  )
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  select e.tenant_id, 'broadcast', e.id, 'cancel_broadcast', 'system', null,
+         jsonb_build_object('name', e.name, 'was', 'pending_approval', 'reason', 'nothing_to_send')
+    from ended e;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_sends_end_emptied_runs(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_sends_end_emptied_runs() IS 'A run waiting for an OK with no send left to go is canceled (00532): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
+
+
+--
 -- Name: sequence_sends_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -41977,6 +42017,13 @@ CREATE TRIGGER sequence_enrollments_set_moved_at BEFORE UPDATE ON public.sequenc
 
 
 --
+-- Name: sequence_sends sequence_sends_end_emptied_runs; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequence_sends_end_emptied_runs AFTER UPDATE ON public.sequence_sends REFERENCING OLD TABLE AS sends_were NEW TABLE AS changed_sends FOR EACH STATEMENT EXECUTE FUNCTION public.sequence_sends_end_emptied_runs();
+
+
+--
 -- Name: sequence_sends sequence_sends_enrol; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -51051,6 +51098,14 @@ GRANT ALL ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_
 REVOKE ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_sends_end_emptied_runs(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_sends_end_emptied_runs() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_sends_end_emptied_runs() TO service_role;
 
 
 --

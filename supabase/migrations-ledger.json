@@ -44,8 +44,8 @@
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
     "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
     "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
-    "00504": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, a run with nothing to send waits on nobody), open and not on main when an opening is written again as its owner says took 00505; record drops this once #2061 lands",
-    "00511": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, renumbered from 00504), not on production when the onboarding lane (#2069) applied 00512 to 00514; it lands above them",
+    "00504": "a run with nothing to send waits on nobody was written as 00504 (#2061) and landed as 00532, above the head production and main had then (00525) and the numbers cm-job-ledger and cm-voice-ten had claimed",
+    "00511": "a run with nothing to send waits on nobody was renumbered from 00504 to 00511 (#2061), fell below production's head when the onboarding lane (#2069) applied 00512 to 00514, and landed as 00532",
     "00515": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
     "00516": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
     "00517": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
@@ -533,6 +533,7 @@
     "00528_one_index_keeps_each_kept_kind_once.sql": "6467a05226b3b69d68a9c39b650da7f85eb0fc287f36ee3fadbfe3dba56731e5",
     "00529_the_bespoke_once_keys_go.sql": "8dc2be45d0a26350129862acaa6a408bf00af4a94229dc2b7c61b3f63d62ab29",
     "00530_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "714bae015abeccf83e9051d6e1e119050a54bb2c94a24a9bcdcba5e123b7ceba",
-    "00531_the_notices_a_call_owes_are_found_by_their_own_index.sql": "4b9ee24206c26f33f2e25d81a8ef5d56803f10c401aba2402aee7c3b4a8e2ff2"
+    "00531_the_notices_a_call_owes_are_found_by_their_own_index.sql": "4b9ee24206c26f33f2e25d81a8ef5d56803f10c401aba2402aee7c3b4a8e2ff2",
+    "00532_a_run_with_nothing_to_send_waits_on_nobody.sql": "b87b90ff2e1415e18858489617fc27f60b616defa3ca4feb475e0d62417c52c9"
   }
 }

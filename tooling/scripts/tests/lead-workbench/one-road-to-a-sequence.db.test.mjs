@@ -8,6 +8,8 @@
  *   3. Auto-add: a sequence draws its search's ready leads without a press, never one put off for later; one taken out
  *      stays out, and Put back brings it in again; the add door says such a lead is in already.
  *   4. Move: a lead nothing was sent to leaves one sequence as moved and joins another; one written to stays.
+ *   4a. A run with nothing left to send waits on nobody (00532): a run waiting for an OK ends once its last email leaves
+ *      (a move, a Take out), and the page no longer says it waits; one email still planned keeps it waiting.
  *   5. Skip this email from step 2 moves the lead on to the next step; at step 1 it still leaves.
  *   5a. Put back (00502): a lead nothing reached goes back on its list, its first email free; one written to keeps its step.
  *   6. One reader: sequence_places, and the place of one lead (sequence_place) and of many (sequence_places_of), say what
@@ -364,6 +366,60 @@ test(
     refusedWith(
       await as.owner.c.rpc("sequence_move", { p_tenant_id: A, p_lead_id: W.b, p_to_root: target.id }),
       "23505",
+    );
+  },
+);
+
+test(
+  "a run with nothing left to send waits on nobody: it ends once its last email leaves, and not before",
+  { skip },
+  async () => {
+    // Two leads, each with a first email planned in one run waiting for its owner's OK.
+    const [x, y, z] = [await lead(), await lead(), await lead()];
+    for (const id of [x, y, z]) await member(W.F, id);
+    const made = ok(await create(as.owner, { name: "Bookshops, take four", from: W.intro, lead_ids: [x, y] }, true));
+    const [first] = await stepsOf(made.id);
+    const run = await planRun(made.id, first.id, [x, y]);
+    const runState = async () => ok(await db.from("sequence_batches").select("state").eq("id", run).single()).state;
+    // What the sequence's page says of it (reach_out_search_lines): the run waiting for an OK, or none.
+    const waitingRun = async () =>
+      ok(
+        await as.owner.c.rpc("reach_out_search_lines", {
+          p_tenant_id: A,
+          p_search_id: (await rootOf(made.id)).lead_search_id,
+        }),
+      ).waiting_run_id;
+    assert.equal(await runState(), "pending_approval");
+    assert.equal(await waitingRun(), run, "the page says it waits for an OK");
+    // x moves to another sequence: y's email is still planned, so the run still waits.
+    const other = ok(await create(as.owner, { name: "Bookshops, take five", from: W.intro, lead_ids: [z] }));
+    ok(await as.owner.c.rpc("sequence_move", { p_tenant_id: A, p_lead_id: x, p_to_root: other.id }));
+    assert.deepEqual([(await sendOf(run, x)).state, await runState()], ["skipped", "pending_approval"]);
+    // y taken out: nothing of the run is left to send, so the run ends, and nothing waits for an OK.
+    ok(
+      await as.owner.c.rpc("sequence_leave", {
+        p_tenant_id: A,
+        p_sequence_id: made.id,
+        p_enrollment_ids: [],
+        p_lead_ids: [y],
+      }),
+    );
+    assert.equal((await sendOf(run, y)).state, "skipped");
+    assert.equal(await runState(), "canceled", "emptied, it waits on nobody");
+    assert.equal(await waitingRun(), null, "and the page no longer says it waits");
+    // Its end is the system's decision, with why, as the sweep's skip of a late run is recorded (cancel_broadcast).
+    const why = ok(
+      await db
+        .from("decisions")
+        .select("verb, actor_type, payload")
+        .eq("tenant_id", A)
+        .eq("subject_type", "broadcast")
+        .eq("subject_id", run),
+    );
+    assert.deepEqual(
+      why.map((d) => [d.verb, d.actor_type, d.payload?.reason]),
+      [["cancel_broadcast", "system", "nothing_to_send"]],
+      "recorded once, as the system's, with why",
     );
   },
 );
