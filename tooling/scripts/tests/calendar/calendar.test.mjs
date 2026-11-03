@@ -529,6 +529,15 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     ),
     "on a phone the days arrive with the page, as they will stand",
   );
+  // And a view that comes in for another stops under the bar that sticks over the days, not only under the frame's top
+  // (kit/motion/view-deck.ts): after Day's board had scrolled to now, the Month came in with its row of names under the
+  // bar (Ruben's recording, 3 Nov 2026).
+  assert.ok(
+    blocksOf(css, "@media (max-width: 720px) {").some((b) =>
+      /\.main-scroll > \.calendar \.cal-body \{[^}]*scroll-margin-top: var\(--cal-bar-h, 0px\);/.test(b),
+    ),
+    "a view comes in under the bar",
+  );
 });
 
 test("the board drawn right: overlapping blocks take lanes, a block outside the hours widens the grid, and a person's thread rides with the block", () => {

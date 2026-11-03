@@ -97,7 +97,8 @@ interface DeckEnv {
   windowOf?(el: HTMLElement): { screen: number } | null;
   /**
    * A view that arrived, where the window scrolls it, put at its top: the window's own for the outermost view (the
-   * frame's page), else the view's top under what stands over the page, if the page had gone past it.
+   * frame's page), else the view's top under what stands over the page and its own scroll margin, if the page had gone
+   * past it.
    */
   toTop?(el: HTMLElement, nested: boolean): void;
 }
@@ -708,8 +709,13 @@ export const viewDeck: Deck = createDeck({
       if (window.scrollY > 0) window.scrollTo(0, 0);
       return;
     }
-    // Just under what stands over the page (the frame's top on a phone: the document's scroll-padding, mobile.css).
-    const under = Number.parseFloat(getComputedStyle(documentScroller()).scrollPaddingTop) || 0;
+    // Just under what stands over the page (the frame's top on a phone: the document's scroll-padding, mobile.css), and
+    // under what of its own page stands over the view, which it says as its scroll margin, as the browser's own scrolls
+    // read it: the Calendar's bar sticks over its days, and after Day's board had scrolled to now the Month came in with
+    // its row of days' names under the bar (Ruben's recording, 3 Nov 2026).
+    const under =
+      (Number.parseFloat(getComputedStyle(documentScroller()).scrollPaddingTop) || 0) +
+      (Number.parseFloat(getComputedStyle(el).scrollMarginTop) || 0);
     const top = el.getBoundingClientRect().top;
     if (top < under) window.scrollBy(0, top - under);
   },
