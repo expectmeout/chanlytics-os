@@ -224,6 +224,26 @@ const key = (row, k) =>
 
 /* ---------------------------------- the rule ---------------------------------- */
 
+test("on a phone the rows stand whole on the first frame, as the Inbox's do; at a desk they still fade in", () => {
+  const arrive = (phone) => {
+    freshTree();
+    draw();
+    const box = find(tree, (n) => n.props?.className === "cv-rows");
+    const runs = [];
+    const row = { animate: (frames) => (runs.push(frames), { cancel() {} }), getAnimations: () => [] };
+    const keep = globalThis.matchMedia;
+    globalThis.matchMedia = (q) => ({ matches: phone && q.includes("900px") });
+    try {
+      box.props.ref({ querySelectorAll: () => [row] });
+    } finally {
+      globalThis.matchMedia = keep;
+    }
+    return runs.length;
+  };
+  assert.equal(arrive(true), 0, "on a phone the row is there, nothing plays");
+  assert.equal(arrive(false), 1, "at a desk it fades in");
+});
+
 test("a row is picked by whose it is: the thread an act goes to, the person a mark is on -- and a row with neither is nobody's to pick", () => {
   const said = { unread: true, archived: () => false };
   assert.deepEqual(

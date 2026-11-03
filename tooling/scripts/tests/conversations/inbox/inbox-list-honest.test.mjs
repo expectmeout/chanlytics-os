@@ -519,6 +519,31 @@ test("the rows rise in once, on the list's first draw, as People's do (kit/motio
   );
 });
 
+test("on a phone the rows stand whole on the first frame, their lines with them; at a desk they still fade in", () => {
+  // Each row's fade ended with its first letters and its mail glyphs stepping a device pixel, down the list a beat apart,
+  // and the line over every other row stood missing until then, where People's rows land clean under the same fade
+  // (Ruben's recording, 2 Nov 2026).
+  const arrive = (phone) => {
+    fresh();
+    const box = find(
+      again(() => InboxList(listProps())),
+      (n) => n.props?.role === "listbox",
+    );
+    const runs = [];
+    const row = { animate: (frames) => (runs.push(frames), { cancel() {} }), getAnimations: () => [] };
+    const keep = globalThis.matchMedia;
+    globalThis.matchMedia = (q) => ({ matches: phone && q.includes("900px") });
+    try {
+      box.props.ref({ querySelectorAll: () => [row] });
+    } finally {
+      globalThis.matchMedia = keep;
+    }
+    return runs.length;
+  };
+  assert.equal(arrive(true), 0, "on a phone the row is there, nothing plays");
+  assert.equal(arrive(false), 1, "at a desk it fades in");
+});
+
 test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on the open one, arrows and J/K open and focus the row on screen, Enter opens, Space selects -- and a screen reader hears a list", () => {
   const opened = [];
   const toggled = [];

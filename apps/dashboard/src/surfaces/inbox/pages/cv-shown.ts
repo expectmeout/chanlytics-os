@@ -25,9 +25,10 @@ export function useShownCvRows(
     keep: open >= 0 ? [open - 1, open, open + 1] : [0],
   });
   const { listRef } = shown;
-  // The first rows rise in as the list arrives, as the Inbox's and People's do (kit/motion/use-rows-arrive.ts); the rows
-  // the window draws after, as the list is scrolled, come as they are.
-  const arrive = useRowsArrive<HTMLDivElement>(":scope > .cv-row");
+  // At a desk the first rows fade in as the list arrives, as the Inbox's and People's do; on a phone they stand whole on
+  // the first frame, as the Inbox's do (kit/motion/use-rows-arrive.ts). The rows the window draws after, as the list is
+  // scrolled, come as they are.
+  const arrive = useRowsArrive<HTMLDivElement>(":scope > .cv-row", { onPhone: false });
   const ref = useCallback(
     (el: HTMLDivElement | null) => {
       swap.current = el;

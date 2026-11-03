@@ -218,10 +218,10 @@ export function InboxList(props: InboxListProps) {
   // buckets); otherwise the parent already scoped `threads` to bucket/view.
   const visible = visibleRows({ query, allThreads, threads });
   const shown = useShownThreads(visible, activeThreadId ?? null, base.density);
-  // The first rows rise in as the list arrives, as People's do (kit/motion/use-rows-arrive.ts); the rows the window
-  // draws after, as the list is scrolled, come as they are. One ref on the rows' element gives it to the kit and to the
-  // window.
-  const arrive = useRowsArrive<HTMLDivElement>(":scope > .ix-thread");
+  // At a desk the first rows fade in as the list arrives, as People's do; on a phone they stand whole on the first frame
+  // (kit/motion/use-rows-arrive.ts). The rows the window draws after, as the list is scrolled, come as they are. One ref
+  // on the rows' element gives it to the kit and to the window.
+  const arrive = useRowsArrive<HTMLDivElement>(":scope > .ix-thread", { onPhone: false });
   const { listRef } = shown;
   const rowsRef = useCallback(
     (el: HTMLDivElement | null) => {
