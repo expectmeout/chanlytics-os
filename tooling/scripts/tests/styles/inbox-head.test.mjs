@@ -9,7 +9,7 @@ import { installLegacyReact } from "../_legacy-react.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const { inboxStanding } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
-const { pageDateline, pageDatelineParts } =
+const { pageDateline, pageDatelineParts, pageDatelineShort } =
   await import("../../../../apps/dashboard/src/surfaces/kit/head/dateline.ts");
 const { PageHead } = await import("../../../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 
@@ -33,8 +33,10 @@ test("the dateline is the day and the time in the business's zone, not the machi
   assert.equal(pageDateline(NOW, ZONE), "Friday, October 2 · 4:02 PM");
   assert.equal(pageDateline(NOW, "Asia/Tokyo"), "Saturday, October 3 · 5:02 AM");
   // The day and the hour apart: a phone's head says the day alone (the canvases' phone boards; kit.css hides the hour's
-  // span), and the line is the two joined, so neither can drift from the other.
+  // span), and the line is the two joined, so neither can drift from the other. Today's phone head says the hour, its day
+  // short to leave room for Listen and the bell (Standing `dateHour`; the Today canvas: "Tue, Nov 3 · 8:05 AM").
   assert.deepEqual(pageDatelineParts(NOW, ZONE), { day: "Friday, October 2", time: "4:02 PM" });
+  assert.deepEqual(pageDatelineShort(NOW, ZONE), { day: "Fri, Oct 2", time: "4:02 PM" });
 });
 
 test("the standing sentence counts what waits on you and names the oldest's hour", () => {
@@ -107,6 +109,17 @@ test("a page's quiet act stands after its name, on the name's line, and the sent
   assert.equal(beside.props.className, "pg-beside");
   assert.deepEqual([beside.props.children].flat(), ["Listen"]);
   assert.equal(sentence.props.className, "pg-sentence");
+});
+
+test("what stands under the sentence, as quiet as it, follows it on the name's line (Today's Since you looked); nothing where a page says none", () => {
+  const head = PageHead({ title: "Good morning", sentence: "4 need you.", stacked: true, after: "Since 9:40 PM" });
+  const [, line] = head.props.children;
+  const [, sentence, after] = line.props.children;
+  assert.equal(sentence.props.className, "pg-sentence");
+  assert.equal(after.props.className, "pg-after", "under the sentence, after it");
+  assert.deepEqual([after.props.children].flat(), ["Since 9:40 PM"]);
+  const [, bare] = PageHead({ title: "Good morning", sentence: "4 need you.", stacked: true }).props.children;
+  assert.equal(bare.props.children[2], null);
 });
 
 test("the oldest's time says its day when it is not today, as Today's headline says the same wait (the 2 Oct 2026 audit, A5)", () => {

@@ -64,6 +64,11 @@ export const ASK_FINDING_WORDS = {
     line: (last: Earned, before: Earned) =>
       `${last.replied} of ${last.sent} replied to the last batch, ${before.replied} of ${before.sent} to those before it.`,
     door: "Look at it",
+    /** Ask found's row (Today in three zones, 2 Nov 2026): its tag, its sentence with the numbers, and why. */
+    tag: "Replies fell",
+    sentence: (name: string, last: Earned, before: Earned) =>
+      `${name} drew ${last.replied} of ${last.sent} ${last.sent === 1 ? "reply" : "replies"}, down from ${before.replied} of ${before.sent}.`,
+    why: "Its last batch, against those before it.",
   },
   steady: {
     line: (batches: number) =>
@@ -138,7 +143,14 @@ export function repliesFellCard(f: Extract<AskFinding, { kind: "replies_fell" }>
     title: W.title(f.name),
     summary: line,
     line,
-    payload: { door: W.door, to: sequenceRoute(f.sequenceId) },
+    // The row Ask found draws of it says the numbers in its sentence (askFoundOf's noticedRow); Ask's own card says its line.
+    payload: {
+      door: W.door,
+      to: sequenceRoute(f.sequenceId),
+      tag: W.tag,
+      sentence: W.sentence(f.name, f.last, f.before),
+      why: W.why,
+    },
     undo: null,
   };
 }
@@ -154,8 +166,20 @@ export function restedOf(view: unknown): AskRested {
 /** Whether a member has set this card aside for now. */
 export const isRested = (rested: AskRested, id: string, today: string): boolean => (rested[id] ?? "") > today;
 
-/** The rests with this one added until a week from `today`, those that have run out let go. */
+/**
+ * The most rests a member keeps at once: the view that holds them is a small object (PUT views/:page refuses one past
+ * 2,000 characters), and 25 of the longest key, a steady finding's, come to about 1,700.
+ */
+const REST_KEPT = 25;
+
+/**
+ * The rests with this one added until a week from `today`: those that have run out let go, and past REST_KEPT the ones
+ * that run out soonest, so the oldest come back a little early rather than the newest press refused.
+ */
 export function restedWith(rested: AskRested, id: string, today: string): AskRested {
-  const live = Object.entries(rested).filter(([, until]) => until > today);
+  const live = Object.entries(rested)
+    .filter(([key, until]) => key !== id && until > today)
+    .sort(([, a], [, b]) => (a < b ? 1 : a > b ? -1 : 0))
+    .slice(0, REST_KEPT - 1);
   return Object.fromEntries([...live, [id, dayAfterDays(today, ASK_IDEA_REST_DAYS)]]);
 }

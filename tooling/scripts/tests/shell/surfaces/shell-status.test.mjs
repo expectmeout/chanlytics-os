@@ -658,8 +658,17 @@ const mount = (hash) => {
   return { tree, title: globalThis.document.title };
 };
 
+/** Today's read as the one count reads it (surfaces/needs-you.ts): a person waiting under a week, each a row of Need you. */
+const waitingToday = (...ids) => ({
+  standing: { paused: false },
+  queue: {
+    rows: ids.map((id) => ({ id: `q-${id}`, kind: "handoff", conversationId: id, who: id, waitedMs: 3_600_000 })),
+  },
+});
+
 test("the shell names the tab from the crumbs it draws, counts what needs you, and puts the line directly under the top bar", () => {
   shell.installShell(win);
+  // The crumb names Rosa from the Inbox's thread; the number in front is Need you's two people.
   setSurfaceValue("inbox", {
     THREADS: [
       { id: "th-9", who: "Rosa", state: "needs" },
@@ -667,6 +676,7 @@ test("the shell names the tab from the crumbs it draws, counts what needs you, a
       { id: "th-3", state: "done" },
     ],
   });
+  setSurfaceValue("today", waitingToday("th-9", "th-2"));
   const { tree, title } = mount("#/inbox/th-9");
   assert.equal(title, "(2) Rosa · Inbox · Chanlytics");
   // The top bar and the bars under it stand in the frame's top, over the page (surfaces/frame/shell-chrome.tsx `.frame-top`).
@@ -680,6 +690,7 @@ test("the shell names the tab from the crumbs it draws, counts what needs you, a
   assert.equal(at("LiveCallBar"), at("Topbar") + 1, "a call in progress, first");
   assert.equal(at(win.ShellStatusBar), at("Topbar") + 2, "then the line, above the page, on a phone as on a desk");
   setSurfaceValue("inbox", { THREADS: [] });
+  setSurfaceValue("today", undefined);
 });
 
 test("on a real workspace a crumb, and so the tab, never names the demo's people or lists", () => {
@@ -728,7 +739,7 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   clearPeople();
 });
 
-test("the tab counts a real thread only when it needs you: one a teammate is answering, or one you have, is not waiting on you", () => {
+test("the tab counts Need you's rows alone: a thread a teammate is answering, or one you have, flagged in the Inbox, is not waiting on you", () => {
   shell.installShell(win);
   setSurfaceValue("inbox", {
     THREADS: [
@@ -737,12 +748,15 @@ test("the tab counts a real thread only when it needs you: one a teammate is ans
       { id: "th-3", real: true, state: "escalated", needsYou: false, takenOver: true, claimedByOther: false },
     ],
   });
+  // Today's read holds the one who waits on you: the teammate's and your own are no row of Need you.
+  setSurfaceValue("today", waitingToday("th-1"));
   assert.equal(
     mount("#/inbox").title,
     "(1) Inbox · Chanlytics",
     "REGRESSION: a teammate's thread was counted as needing you until the Inbox itself mounted",
   );
   setSurfaceValue("inbox", { THREADS: [] });
+  setSurfaceValue("today", undefined);
 });
 
 test("REGRESSION: the tab keeps its name when the layout's own title lands after the shell's -- a page loaded cold said 'Chanlytics OS' until something it counted changed", () => {
@@ -1345,6 +1359,51 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
     );
   } finally {
     deep = true;
+    delete globalThis.usePPToast;
+  }
+});
+
+test("the bell's close is the member looking: opening it marks nothing, closing it by its button or the popover's own close marks every row seen, once (Today in three zones, 2 Nov 2026)", () => {
+  shell.installShell(win);
+  globalThis.usePPToast = () => [null, () => {}];
+  let seen = 0;
+  const row = {
+    id: "n-1",
+    kind: "booking",
+    title: "1 booked",
+    message: "Tove Lind, Thu 10:00 AM",
+    at: 0,
+    unread: true,
+    actions: [],
+  };
+  win.__notifs = {
+    feed: () => [row],
+    alerts: () => null,
+    onChange: () => () => undefined,
+    older: () => 0,
+    seenAll: () => {
+      seen += 1;
+    },
+  };
+  const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
+  const draw = () => win.Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  try {
+    deep = true;
+    cells = [];
+    frames.begin();
+    bellOf(draw()).props.onClick();
+    frames.begin();
+    const open = draw();
+    assert.equal(seen, 0, "open: New holds while the popover is up");
+    bellOf(open).props.onClick();
+    assert.equal(seen, 1, "closed by its button: every row seen, and Since you looked starts again from now");
+    frames.begin();
+    bellOf(draw()).props.onClick();
+    frames.begin();
+    find(draw(), (n) => typeof n.props?.onClose === "function" && "onReadAll" in n.props).props.onClose();
+    assert.equal(seen, 2, "closed by the popover (a press outside, Escape): the same");
+  } finally {
+    delete win.__notifs;
     delete globalThis.usePPToast;
   }
 });

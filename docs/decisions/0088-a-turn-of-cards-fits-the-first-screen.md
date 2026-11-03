@@ -30,7 +30,9 @@ rig's: eight rows to its five.
 5. **The answer does not say it again.** A line of the answer that only repeats a hold of a card still waiting is not
    drawn (`wordsLessHolds`, by the line's words, whatever its marks). Copy and Read aloud keep the whole answer. A model's
    paraphrase is its own words and stays, so the rule that sets up cards tells it to leave a hold out of the answer beside
-   them (`prompt-rules.ts`). _Undo: the rule's last sentence._
+   them (`prompt-rules.ts`), and a card's result names what holds it, beside its title, alone and as a plan's step
+   (`holdsSaid`, since the lane `ask/cold-email-card-holds`, 3 November 2026: before it the model read a hold only in a
+   lone card's summary, and a plan's steps by their titles). _Undo: the rule's last sentence, and `holds` in the result._
 6. **A sheet keeps what no press turns on behind Details** (`AskCardSheet` row `aside`). What goes out, to whom, when and by
    what channel never is, nor is a hold. On a campaign, Other messages and Sends are aside: its first batch waits for an OK
    whatever the mode, so neither changes what a press does. Open waits behind Details too, so a phone's acts are one row of
@@ -73,7 +75,11 @@ ground as painted with the words hidden, at both widths and in both themes: 5.4:
   4 of those held a hold; none of the 4 said it again. No run before the rule holds those turns to compare. On most card
   turns the model never reads a hold: cards alone are answered by code, an answer beside a card is written before its
   result, and a plan's result holds its steps' titles. A cold email's card has no holds, and both such turns still said
-  its hand-over line, beside the mailbox to connect, which the card does not say.
+  its hand-over line, beside the mailbox to connect, which the card does not say. Since the lane
+  `ask/cold-email-card-holds` (3 November 2026) the cold email's card carries that hand-over as its sheet's hold
+  (`act/leads/cold-email-card.ts`: each email handed to the owner to send from their own inbox, where no mailbox sends
+  it or they asked to), its rows beside it, and a result names its holds (item 5); the mailbox to connect stays the
+  answer's, which no card carries. One real turn of `setup_leads_refused` is owed to show the answer without the line.
 - **The answer may no longer say that each run waits.** The setup rule still asks for it, but none of those 4 answers
   did, and with item 6 that row is behind Details. It changes no press: the first batch waits for an OK whatever the
   answer says.

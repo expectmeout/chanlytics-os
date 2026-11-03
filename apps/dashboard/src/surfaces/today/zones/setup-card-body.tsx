@@ -6,7 +6,7 @@
  * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported; each row's Skip is this
  * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useState, type ReactNode } from "react";
 import {
   FIRST_RUN_HELPERS,
   SETUP_CARD_WORDS,
@@ -26,7 +26,7 @@ import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
 import { useWaitsOnToday } from "../../needs-you";
-import { useQueueHoldsCoral } from "../queue-coral";
+import { holdsCoral, useQueueHoldsCoral } from "../queue-coral";
 
 /**
  * While a step is open: the one row that opens the first run. Its act is the page's coral while nobody waits on the
@@ -222,6 +222,13 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   const waiting = needs || queued;
   const [folded, toggle] = useFold();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
+  // Its first act is the page's coral while nothing before it in the walk holds it and it draws one: told, so Ask found
+  // goes quiet beside it (queue-coral.ts). A folded card draws none and hands it on; so does a card gone for the week.
+  const holds = !!card && !waiting && !folded && (!!card.start || card.rows.length > 0);
+  useLayoutEffect(() => {
+    holdsCoral("setup", holds);
+  }, [holds]);
+  useLayoutEffect(() => () => holdsCoral("setup", false), []);
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
   // The day a week put off now ends, on the business's clock: said in Skip's menu before the press, and after Hide.

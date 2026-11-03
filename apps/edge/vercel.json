@@ -236,6 +236,9 @@
           "api/admin/playbooks-run.ts": {
             "maxDuration": 60
           },
+          "api/admin/calendar/freed-time.ts": {
+            "maxDuration": 60
+          },
           "api/admin/voice/session.ts": {
             "maxDuration": 60
           },

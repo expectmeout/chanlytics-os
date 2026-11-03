@@ -1,5 +1,5 @@
 /**
- * What Glass puts above Today (surfaces/today/pages/today-head.tsx, the plan's step 5.4, canvas E3): the greeting by the
+ * What Glass puts above Today (surfaces/today/zones/head.tsx, the plan's step 5.4, canvas E3): the greeting by the
  * hour in the business's zone to the member's first name (said by Today's address from the frame's first draw,
  * surfaces/today/chrome.ts), stacked over its one sentence (what that sentence says is contracts' todayHeadLine, held by
  * today-phone-words.test.mjs, and how the page tells it, by today-page.test.mjs).

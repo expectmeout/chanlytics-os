@@ -117,6 +117,8 @@ const HEARD_BEFORE = {
     "billing_accounts",
     "contacts",
     "appointments",
+    // The runs GET today carries (Today in three zones, 2 Nov 2026): a batch made, approved, stopped or finished.
+    "sequence_batches",
   ],
   people: [
     "messages",

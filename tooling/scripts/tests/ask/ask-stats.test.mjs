@@ -1,7 +1,10 @@
 /**
  * The arithmetic the Ask scripts share (eval-ask.mjs, ask-day.mjs): a spread
  * over timings and a Wilson interval on a pass rate. Pure; executed here. And
- * which cases eval-ask.mjs keeps for the weekly run, through the script itself.
+ * which cases eval-ask.mjs keeps for the weekly run, and what it says a run
+ * will cost, through the script itself; and what a turn's stored shape keeps
+ * for the judge (eval-ask-context.mjs turnShapes), since the context module's
+ * own test file is at its length.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -243,4 +246,104 @@ test("MUST_NEVER=1 asks the must-never cases alone, the weekly run's, and says s
   const none = list([one("b", false)]);
   assert.equal(none.status, 2);
   assert.match(none.stderr, /no cases match ONLY\/SURFACE\/MUST_NEVER/);
+});
+
+test("a turn that ran degraded fails by its stored shape (eval-ask.mjs, once the run has read it): the answer format refused and let go, or an answer written as text while the answer tool stood; a tool's answer, cards alone, no tool offered, a turn from before the keys and no shape at all fail nothing", async () => {
+  const { degradedFails } = await import("../../ask-stats.mjs");
+  const refused = degradedFails({ format: false, answer_tool: true, answer_in: "tool" });
+  assert.equal(refused.length, 1);
+  assert.match(
+    refused[0],
+    /format.*refused/,
+    "the API refused the format and the loop let it go (ask_format_rejected)",
+  );
+  const note = degradedFails({ format: true, answer_tool: true, answer_in: "text" });
+  assert.equal(note.length, 1);
+  assert.match(note[0], /as text while the answer tool stood/, "a note the model wrote to itself");
+  assert.equal(degradedFails({ format: false, answer_tool: true, answer_in: "text" }).length, 2, "both, each said");
+  assert.deepEqual(degradedFails({ format: true, answer_tool: true, answer_in: "tool" }), []);
+  assert.deepEqual(
+    degradedFails({ format: true, answer_tool: true, answer_in: null }),
+    [],
+    "cards alone, or a failure: no answer was written",
+  );
+  assert.deepEqual(
+    degradedFails({ format: true, answer_tool: false, answer_in: "text" }),
+    [],
+    "no answer tool offered: text is how it answers",
+  );
+  assert.deepEqual(
+    degradedFails({ tokens: { input: 1, output: 1, cache_read: 0, cache_creation: 0 }, answer_in: "text" }),
+    [],
+    "a turn stored before the keys (D15's format, the answer tool): nothing is known of it",
+  );
+  assert.deepEqual(degradedFails(null), [], "a shape the run could not read");
+});
+
+test("the stream checks count the turns that ran degraded, by the same two rules the judge fails them on: the format refused, a note to itself; a turn with no shape counts toward neither, and a spoken turn, which streams nothing, still counts", () => {
+  const row = (shape, stream = { previews: 1, last_to_final_ms: 100, meets: "same", leaks: 0, lines_lost: false }) => ({
+    rounds: 1,
+    first_ms: 1000,
+    stream,
+    shape,
+  });
+  const s = streamSummary([
+    row({ format: false, answer_tool: true, answer_in: "tool" }),
+    row({ format: false, answer_tool: true, answer_in: "text" }),
+    row({ format: true, answer_tool: true, answer_in: "text" }),
+    row({ format: true, answer_tool: true, answer_in: "tool" }),
+    row({ format: false, answer_tool: true, answer_in: "tool" }, null),
+    row(null),
+  ]);
+  assert.deepEqual(s.degraded, { format: 3, note: 2 });
+  assert.deepEqual(s.via, { tool: 2, text: 2, none: 0, unread: 1 }, "the stream's own checks are the streamed turns'");
+});
+
+test("a turn's stored shape keeps whether its answer format held and how many rounds hit the cap (SHAPE_FIELDS: format, cap_hits), so a turn that ran degraded can be failed once the run has read it", async () => {
+  const { turnShapes } = await import("../../eval-ask-context.mjs");
+  const id = "7d3b1c2e-5a4f-4b6c-8d9e-0f1a2b3c4d5e";
+  const tokens = { input: 6, output: 3446, cache_read: 96529, cache_creation: 24406 };
+  const stored = {
+    tokens,
+    cache_hit: 0.8,
+    follow_up: false,
+    since_last_ms: null,
+    replay: "none",
+    answer_tool: true,
+    answer_in: "tool",
+    format: false,
+    cap_hits: 1,
+    rounds: 3,
+    warm: "hit",
+  };
+  const rest = async (path) => {
+    assert.match(path, /^ask_messages\?id=in\.\(/);
+    return [{ id, shape: stored }];
+  };
+  const { rounds, warm, ...kept } = stored;
+  assert.ok(rounds && warm, "the shape holds more than the judge keeps");
+  assert.deepEqual((await turnShapes(rest, [id])).get(id), kept);
+});
+
+test("--list prices the run at what an eval turn cost, as measured (eval-ask.mjs PER_TURN), never at the spec's target: two turns are $0.30", () => {
+  const file = path.join(os.tmpdir(), `eval-ask-per-turn-${process.pid}.json`);
+  const one = (id) => ({ id, text: id, surface: "today", expect: { no_write: true } });
+  writeFileSync(file, JSON.stringify([one("a"), one("b")]));
+  // The runner's own switches, were any set where the suite runs: both cases, once each.
+  const env = { ...process.env };
+  for (const k of ["MUST_NEVER", "ONLY", "SURFACE", "REPS"]) delete env[k];
+  try {
+    const run = spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list", file], {
+      cwd: ROOT,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(
+      run.stdout,
+      /^2 cases, 2 turns × 1 = 2 turns ≈ \$0\.30 at \$0\.15 a turn, as measured \(eval-ask\.mjs PER_TURN\)$/m,
+    );
+  } finally {
+    rmSync(file, { force: true });
+  }
 });

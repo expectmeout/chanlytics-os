@@ -82,8 +82,8 @@ closing rule half built. The amendment finishes both, in the shape above, with t
    every hold with its thread. A question is judged by Leads. The phone's icon leaves out what the bell reads as settled
    (`settledNoticeIds`).
 4. **The bell says what it does not list.** The bell lists its newest sixty rows (`BELL_LIST_ROWS`); the server counts
-   the unread rows past them (`NotificationsDto.unread`), and the badge, the away card and the bell say them, with Mark
-   all read as the act that clears them.
+   the unread rows past them (`NotificationsDto.unread`), and the badge, Since you looked and the bell say them, with
+   Mark all read, or closing the bell, as the act that clears them.
 
 Held emails in a going reach-out run count on the badge (Ruben, 13 October 2026): they go nowhere until the owner
 says, so they wait on a person. A going run whose check holds emails is one wait, however many it holds, as a run
@@ -114,3 +114,27 @@ the close.
    - the reviews the notices name (`reviewsNamed`).
 
    A hold and a lead's question are closed by the server itself (point 2 above).
+
+## Amended 2 November 2026 · The one count is Need you's rows
+
+Today in three zones (Ruben's word on the canvas of 2 Nov 2026, https://claude.ai/artifact/AwcTtpQ71E8D2x8CizCuAB: "I
+approve ... 100% parity with the canvas"): how many need you is every row of Today's Need you above To do still open (Up
+next, who waits on you, what waits for your OK) and the runs an approval can still send (contracts `needYouCountOf` over
+`needYouGroupsOf`). Your own to-dos and whoever waited past a week are never counted. The head, the sidebar's badge, the
+strip's Inbox tab, the phone's tab and the tab's title read it from Today's read, which every page already makes
+(`surfaces/needs-you.ts` `needsYouNow`); the parts the Inbox's threads hold (holds, held sends, runs) are still read for
+the pages that say them apart. The number goes up the day it lands: a closing window, a search's question, a reply that
+never reached them and a held thread that wrote again now count, each a row.
+
+The runs count as the list draws them: a batch To send, and the runs waiting for an OK folded into one row, each one
+row (contracts `waitRowsOf`). A row acted on in the tab (a reply sent or stopped, a thread snoozed) leaves the count the
+moment it is pressed, as it leaves Need you's own (`needsYouActed`), and so does a reply the tab held in the Inbox or one
+past its deadline; the head reads the one count, so it and the badge never part. The Inbox page's own Needs you chip
+still counts the rows its list holds, so it never says a number over a list that does not hold it: a hold past a week
+stands in that list and is no part of the one count.
+
+The bell's close is the member looking: `seen_at` moves, the badge clears, and Since you looked, the line under Today's
+head that replaced the away card, starts again from now (the canvas's Head board, Build L4); the rows past the bell's
+newest sixty, which it only counts, are marked seen with the rest. Opening it marks nothing, so New holds while it is
+open. A warning in Today's band (number health, a stopped line or mailbox, billing) reads New alone, so it leaves the band
+once the bell has been closed over it, though it may still be true; the bell keeps it.

@@ -1,7 +1,9 @@
 /**
  * What Today says on a phone (the phone canvas, 28 Oct 2026; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md):
  * the head's one sentence under the greeting, on a desk and a phone alike since the redesign of 1 Nov 2026 (what leads,
- * then the rest), never "Nothing needs you" over something that waits (S7-1); the day as a bar over every visit that stands, with now on it, and the line over it; a call-back's row saying
+ * then the rest; never "Nothing needs you" over something that waits, S7-1, is held by
+ * today-record/one-count-of-what-needs-you.test.mjs); the day as a bar over every visit that stands, with now on it, and
+ * the line over it; a call-back's row saying
  * what happened, its ask said once; and Change it with Ask on Ask's own draft, the draft door taking the member's words.
  * All of it pure, in contracts.
  */
@@ -25,36 +27,42 @@ import { NOW, escalation, metrics, waiting } from "../today-record/_world.mjs";
 const calm = (over = {}) => ({ also: [], traffic: null, handled_all: false, answered: null, ...over });
 const calmHead = (c) => ({ headline: "Nothing needs you.", detail: null, tone: "calm", calm: c });
 
-test("someone waits: how many lead, in the badge's number, then what Ask prepared, else the oldest wait", () => {
+test("someone waits: how many lead, the one count, then what Ask prepared and what cannot wait; after closing, how today went", () => {
   const needs = {
     headline: "4 conversations need you.",
     detail: "The oldest has been waiting since 2:26 PM.",
     tone: "needs",
     calm: null,
   };
-  // His phone (1 Nov 2026): "4 conversations need you" as a second headline over "2 campaign runs are waiting for your
-  // say", while the badge said 6. One number now, the badge's, and the runs are in it.
-  assert.deepEqual(todayHeadLine(needs, 6, null), {
-    lead: "6 need you.",
-    rest: "The oldest has been waiting since 2:26 PM.",
-  });
+  // Today in three zones (2 Nov 2026): the one count (Need you's rows above To do), and the sentence follows the rows.
   assert.deepEqual(
-    todayHeadLine(needs, 6, "Ask drafted 3 replies, and Dana's reply window closes at 11:52 AM."),
-    { lead: "6 need you.", rest: "Ask drafted 3 replies, and Dana's reply window closes at 11:52 AM." },
-    "what Ask prepared and the one thing that cannot wait, in place of the oldest wait",
+    todayHeadLine(needs, 6, null),
+    { lead: "6 need you.", rest: null },
+    "nothing prepared, nothing closing",
+  );
+  assert.deepEqual(
+    todayHeadLine(needs, 6, "Ask drafted 3 replies, and Dana's window closes at 11:52 AM."),
+    { lead: "6 need you.", rest: "Ask drafted 3 replies, and Dana's window closes at 11:52 AM." },
+    "what Ask prepared and the one thing that cannot wait",
   );
   assert.equal(todayHeadLine(needs, 1, null).lead, "1 needs you.");
+  assert.deepEqual(
+    todayHeadLine(needs, 1, "Ask drafted a reply.", null, "Today: 4 booked, 31 of 34 answered by the receptionist."),
+    { lead: "1 needs you.", rest: "Today: 4 booked, 31 of 34 answered by the receptionist." },
+    "after closing the day turned: how today went is the rest",
+  );
 });
 
-test("only runs wait: they are in the count, and what else waits and the day's traffic are the rest", () => {
-  const c = calm({ also: ["One reply window is closing."], traffic: "4 messages" });
-  assert.deepEqual(todayHeadLine(calmHead(c), 2, null), {
+test("runs are in the count like any row, and the rest is what the rows hold", () => {
+  assert.deepEqual(todayHeadLine(calmHead(calm({ traffic: "4 messages" })), 2, null), {
     lead: "2 need you.",
-    rest: "One reply window is closing. 4 messages today.",
+    rest: null,
   });
-  assert.deepEqual(todayHeadLine(calmHead(calm()), 1, null), { lead: "1 needs you.", rest: null });
+  assert.deepEqual(todayHeadLine(calmHead(calm()), 1, "Ask drafted a reply"), {
+    lead: "1 needs you.",
+    rest: "Ask drafted a reply.",
+  });
 });
-
 test("a call-back's sentence is what happened: its ask is the row's state line and its Call, said once", () => {
   const todo = unansweredCallTodo({
     direction: "inbound",
@@ -91,39 +99,34 @@ test("a line that is down leads, and how many need you as well is the rest", () 
   });
 });
 
-test("a calm day with nothing waiting: Nothing needs you, and what came in and how it was answered is the rest", () => {
+test("nobody waits: Nothing needs you, and that's everyone; a quiet day says what is listening; after closing, how it went", () => {
   const c = calm({
     traffic: "9 messages from 6 people",
     handled_all: true,
-    answered: "answered 9 of the 9 on its own, typically in about 20s.",
+    answered: "answered 9 of the 9 on its own.",
   });
-  assert.deepEqual(todayHeadLine(calmHead(c), 0, null), {
-    lead: "Nothing needs you.",
-    rest: "The receptionist handled everything — 9 messages from 6 people today. It answered 9 of the 9 on its own, typically in about 20s.",
-  });
+  assert.deepEqual(todayHeadLine(calmHead(c), 0, null), { lead: "Nothing needs you.", rest: "That's everyone." });
   assert.deepEqual(
-    todayHeadLine(calmHead(calm()), 0, null, "WhatsApp and Phone are connected."),
-    { lead: "Nothing needs you.", rest: "WhatsApp and Phone are connected." },
+    todayHeadLine(calmHead(calm()), 0, null, {
+      headline: "Nothing needs you.",
+      sub: "The receptionist is on. Last message Tuesday 4:12 PM, answered in 22s.",
+    }),
+    { lead: "Nothing needs you.", rest: "The receptionist is on. Last message Tuesday 4:12 PM, answered in 22s." },
     "a quiet day says what is listening",
   );
-  assert.equal(
-    todayHeadLine(calmHead(calm({ traffic: "2 messages", answered: "answered 1 of the 2 on its own." })), 0, null).rest,
-    "2 messages today. The receptionist answered 1 of the 2 on its own.",
-    "the receptionist named where the words before it did not",
+  assert.deepEqual(
+    todayHeadLine(calmHead(calm()), 0, null, {
+      headline: "Nothing can come in yet.",
+      sub: "Connect a line and your receptionist starts answering.",
+    }),
+    { lead: "Nothing can come in yet.", rest: "Connect a line and your receptionist starts answering." },
+    "a workspace with no line says so",
+  );
+  assert.deepEqual(
+    todayHeadLine(calmHead(c), 0, null, null, "Today: 4 booked, 31 of 34 answered by the receptionist."),
+    { lead: "Nothing needs you.", rest: "Today: 4 booked, 31 of 34 answered by the receptionist." },
   );
 });
-
-test("REGRESSION (S7-1): never Nothing needs you over a search or a closing window", () => {
-  const also = calm({
-    also: ["A search is waiting on your answer.", "One reply window is closing."],
-    traffic: "4 messages",
-  });
-  assert.deepEqual(todayHeadLine(calmHead(also), 0, null), {
-    lead: "A search is waiting on your answer.",
-    rest: "One reply window is closing. 4 messages today.",
-  });
-});
-
 /* ------------------------------------------------ the day */
 
 const item = (id, from, to, phase) => ({
@@ -208,7 +211,7 @@ test("the line beside the date: closed and why, booked through with the next ope
   );
 });
 
-test("today's frame carries the bar over every visit that stands, the card's cap leaving none out of it", () => {
+test("each frame carries the bar over every visit that stands, the card's cap leaving none out of it, now only on today's", () => {
   const block = (id, t) => ({ id, t, dur: 60, time: `${t}:00`, title: "Gloss", service: "Gloss", person: null });
   const day = (today, blocks) => ({
     key: today ? "2026-09-18" : "2026-09-19",
@@ -241,7 +244,9 @@ test("today's frame carries the bar over every visit that stands, the card's cap
   assert.equal(today.bar.parts.filter((p) => p.phase !== "gap").length, 7, "every visit, past the card's five");
   assert.equal(today.bar.now, 6 / 12);
   assert.deepEqual(today.items.at(-1).at, { from: 17, to: 18 }, "a visit's place in hours");
-  assert.equal(tomorrow.bar, null, "tomorrow has none");
+  // Tomorrow carries its bar too, which the day draws once it has turned (the canvas's evening), with no now on it.
+  assert.equal(tomorrow.bar.now, null, "no now on tomorrow");
+  assert.equal(tomorrow.bar.parts.filter((p) => p.phase !== "gap").length, 1, "its one visit");
 });
 
 /* ------------------------------------------------ Change it with Ask */

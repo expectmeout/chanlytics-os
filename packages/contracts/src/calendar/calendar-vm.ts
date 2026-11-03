@@ -211,8 +211,11 @@ export interface CalendarVM {
    */
   source: CalendarSourceVM;
   stats: { events: number; windows: number; next: string };
-  /** How far ahead the receptionist offers times: `days` from today, through the day `until` ("Sep 21"). */
-  offer: { days: number; until: string; label: string };
+  /**
+   * How far ahead the receptionist offers times (`days` from today, through the day `until`, "Sep 21") and the shortest it
+   * offers, `slot` minutes (the booking rules'): Today's Offer it offers no freed part shorter.
+   */
+  offer: { days: number; until: string; label: string; slot: number };
   rules: string;
   /** The same rules as separate phrases. */
   ruleParts: string[];

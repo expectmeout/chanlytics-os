@@ -1,9 +1,9 @@
 /**
  * The Inbox's rules, said once (moved from pages/inbox.jsx and pages/thread-pane.jsx, decision 0015, step 3): what waits
  * on you, the bucket a thread sits in, the order a bucket stands in, a draft's own key in the veto store, and the
- * thread a route names. The pages read them, and so does the selector the sidebar's badge, the strip's tab, the title and the
- * phone read (needs-you.ts, through `ixWaiting`), so no two of them can say different numbers; the standalone mockup gets
- * `ixWaitsOnYou` from legacy-globals.ts.
+ * thread a route names. The pages read them, and so does needs-you.ts for the parts it says apart (through `ixWaiting`):
+ * the Inbox's band and head, and Ask's Right now, so no two of them can say different numbers (the badge's one count is
+ * Today's rows above To do, 0048 amended 2 Nov 2026); the standalone mockup gets `ixWaitsOnYou` from legacy-globals.ts.
  */
 import { replyWaitsOnYou, threadWait, type WaitingThread } from "@chanlytics/contracts";
 import { VW_STORE, type VetoState } from "./store";
@@ -11,12 +11,15 @@ import type { RealThread, Thread, ThreadState } from "./types";
 
 // ---- A draft counting down, by its own record ----
 
+/** A real draft's record in the veto store, by the message it is: what the Inbox holds it under, and Today reads. */
+export const vetoKeyOf = (messageId: string): string => `draft:${messageId}`;
+
 /**
  * A draft's own record in the veto store: a hold belongs to the draft it held. Kept against the thread, the next
  * draft on that thread read "Held — manual send" while the server sent it (I3). A seeded draft keeps the thread's.
  */
 export const ixDraftKey = (t: Thread): string =>
-  t.real && t.veto && t.veto.messageId ? `draft:${t.veto.messageId}` : t.id;
+  t.real && t.veto && t.veto.messageId ? vetoKeyOf(t.veto.messageId) : t.id;
 
 export const ixHeld = (state: Record<string, VetoState>, t: Thread): boolean => !!state[ixDraftKey(t)]?.held;
 
@@ -49,8 +52,8 @@ export const ixSending = (t: Thread | null | undefined, nowMs: number = Date.now
 
 /**
  * A real thread as contracts' count reads it (waits.ts WaitingThread): the answer its view model carries, and the reply
- * counting down with whether THIS tab has held it, the one thing only a tab knows. The Inbox's chip and list, and the badge
- * (needs-you.ts), ask contracts' `threadWait` of this, so none of them can count a thread the others do not.
+ * counting down with whether THIS tab has held it, the one thing only a tab knows. The Inbox's chip and list, and the parts
+ * needs-you.ts says apart, ask contracts' `threadWait` of this, so none of them can count a thread the others do not.
  */
 export const ixWaiting = (t: RealThread): WaitingThread => ({
   needsYou: !!t.needsYou,

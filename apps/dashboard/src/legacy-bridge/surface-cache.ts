@@ -143,7 +143,7 @@ function readCacheBlob(own = false): CacheBlob | null {
 /**
  * What goes first when the slot is over its size: what the page on screen does not draw, the biggest first, then the
  * biggest of the rest. A reload is most often of the page on screen, and the biggest went whatever it was: on a workspace
- * of 330 people and 144 threads that was People, which Today draws (Worth a look, the pinned lists, a step due), while the
+ * of 330 people and 144 threads that was People, which Today draws (Ask found, the pinned lists, a step due), while the
  * Inbox's threads and Conversations' stayed, 1.2 MB between them, which Today does not draw. Every reload of Today waited
  * for People's read (production, 28 Oct 2026: the page drawn at 680 ms, Worth a look at 2,651).
  */

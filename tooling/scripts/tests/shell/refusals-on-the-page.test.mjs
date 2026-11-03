@@ -315,7 +315,7 @@ test("problems found before saving: nothing is sent, each box says what it needs
 
 // Today's queue is TSX (decision 0015): it draws the kit's AttnRow, reads the day over the seam, and asks its verbs of the
 // wire (surfaces/inbox/verbs.ts over window.fetch), which this test answers.
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -452,7 +452,7 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
   );
   cells = [];
   frames.begin();
-  const tree = AgentCommand();
+  const tree = NeedYou();
   // The rows the queue drew, as the props it handed the kit's row.
   const rows = [];
   walk(tree, (n) => {

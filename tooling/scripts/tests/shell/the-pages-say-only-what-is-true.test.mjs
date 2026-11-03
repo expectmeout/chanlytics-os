@@ -375,10 +375,9 @@ Object.assign(globalThis.window, {
   dispatchEvent() {},
 });
 // Today's pages are TSX (decision 0015): they draw the kit's AttnRow and read the day over the seam.
-const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
-const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day-card.tsx");
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { TodayAlertBand } = await import("../../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
+const { DayZone } = await import("../../../../apps/dashboard/src/surfaces/today/zones/day.tsx");
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const todayWith = (channels) =>
@@ -405,15 +404,11 @@ const mountToday = (vm) => {
   setSurfaceValue("today", vm);
   cells = [];
   frames.begin();
-  const hero = textOf(HeroBrief());
+  const hero = textOf(TodayAlertBand());
   cells = [];
   frames.begin();
-  // The day's card sits under the work; the hero is the line above it, drawn only while a line is down.
-  const recap = textOf(TodayCard());
-  cells = [];
-  frames.begin();
-  const queue = textOf(AgentCommand());
-  return { hero, recap, queue };
+  const queue = textOf(NeedYou());
+  return { hero, queue };
 };
 
 test("REGRESSION: while a line is down, Today never says nothing needs you -- the hero and the queue say what the dark line does with what reaches it", () => {
@@ -423,22 +418,16 @@ test("REGRESSION: while a line is down, Today never says nothing needs you -- th
   assert.ok(!hero.includes("Queue clear"), hero);
   assert.ok(!queue.includes("All caught up"), queue);
   assert.ok(!queue.includes("nothing needs you"), `the queue's own heading does not reassure either: ${queue}`);
-  assert.ok(hero.includes(down.standing.alert), `the line above the work carries the dark line: ${hero}`);
-  assert.ok(
-    queue.includes(
-      "Nothing in the queue. WhatsApp is disconnected — messages to it are neither answered nor recorded.",
-    ),
-    queue,
-  );
+  assert.ok(hero.includes(down.standing.alert), `the band above the work carries the dark line: ${hero}`);
+  // Today in three zones (2 Nov 2026): Need you with nothing in it is no pane at all; the head leads with the dark line.
+  assert.equal(queue, "", `nothing waits: no pane of reassurance under the band: ${queue}`);
 });
 
-test("with every line up and nothing waiting, the reassurance stands", () => {
+test("with every line up and nothing waiting, nothing above or in the work says it: the head does, once", () => {
   const { hero, queue } = mountToday(todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
-  // The reassurance is the queue's own, said once: a chip above it said it again, over the work it describes.
-  assert.equal(hero, "", `nothing above the work says it too: ${hero}`);
-  assert.ok(queue.includes("All caught up — the receptionist is answering on its own."), queue);
+  assert.equal(hero, "", `nothing above the work: ${hero}`);
+  assert.equal(queue, "", `and no pane that says nothing waits: ${queue}`);
 });
-
 /* ---------------- the Inbox: Hold all, and a missing link ---------------- */
 
 globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
@@ -782,7 +771,7 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
     frames.begin();
     // A run that went out today is a line of the day, at the time it went (day-card.tsx; Your brief's line until the
     // redesign of 1 Nov 2026), drawn with or without a calendar.
-    const said = textOf(TodayDay());
+    const said = textOf(DayZone());
     assert.ok(
       said.includes("went out at 1:30 AM · 8 sent, 1 replied") && said.includes("Spring offer"),
       `REGRESSION: yesterday in New York, so not said at all: ${said}`,

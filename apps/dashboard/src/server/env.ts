@@ -71,9 +71,9 @@ const SCHEMA = {
   UNSUBSCRIBE_ORIGIN: optionalText,
   EMAIL_DOMAIN: optionalText,
 
-  // Google's OAuth state, the providers switch, Ask's model.
+  // Google's OAuth state, the providers switch (every provider, or the model alone), Ask's model.
   GOOGLE_OAUTH_STATE_SECRET: optionalText,
-  EDGE_PROVIDERS: oneOf(["live"]),
+  EDGE_PROVIDERS: oneOf(["live", "model"]),
   ASK_MODEL: optionalText,
   ASK_EFFORT: optionalText,
   ASK_SPEED: optionalText,
@@ -225,9 +225,15 @@ interface Deployment {
   /**
    * Whether this deployment may reach the real providers through the edge:
    * buy a number, file a registration, connect a WhatsApp number, sync
-   * templates, open Checkout, speak into a live call, run the model.
+   * templates, open Checkout, speak into a live call, send.
    */
   providersLive: boolean;
+  /**
+   * Whether this deployment may ask the model through the edge's gateway (ask/gateway.ts streamModel): Ask's turns
+   * and their warm, and the drafts and craft calls asked through the same door. It spends the model key and sends
+   * nothing. True wherever providersLive is, and on a laptop or a preview that says EDGE_PROVIDERS=model.
+   */
+  modelLive: boolean;
 }
 
 /**
@@ -242,11 +248,17 @@ interface Deployment {
  * here" (reason: "preview"). An unset VERCEL_ENV is a laptop, never
  * production: the guard once fired only when the variable was set, and
  * plain local dev mirrored pauses into the live store.
+ *
+ * EDGE_PROVIDERS=model opens the model alone (3 Nov 2026): a laptop pointed at production's edge, holding its
+ * EDGE_CALL_SECRET, runs real Ask turns from a branch before it lands, while every provider door still answers "not
+ * here". Until then `live` was the only word that let a laptop ask the model, and it opened every door with it, so
+ * nobody set it against production and a change to Ask's prompt or answer format was measured only after it shipped.
  */
 export function deploymentFrom(source: { VERCEL_ENV?: string; EDGE_PROVIDERS?: string }): Deployment {
   const name: DeploymentEnv =
     source.VERCEL_ENV === "production" || source.VERCEL_ENV === "preview" ? source.VERCEL_ENV : "development";
-  return { env: name, providersLive: name === "production" || source.EDGE_PROVIDERS === "live" };
+  const providersLive = name === "production" || source.EDGE_PROVIDERS === "live";
+  return { env: name, providersLive, modelLive: providersLive || source.EDGE_PROVIDERS === "model" };
 }
 
 /** This deployment, decided as the server starts: its variables change only with a redeploy. */

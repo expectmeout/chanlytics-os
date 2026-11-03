@@ -7,31 +7,35 @@
  * the cancel's re-read, and whichever sent last was on screen. The Needs-you tab beside Conversations counted again off the
  * Inbox's rows, and the shell started from a copy of the same filter.
  *
- * They all read this now: a selector over the Inbox's threads, which hold every hold and every held send and the one thing
- * only the Inbox knows (a reply this tab has just held), and over the runs the campaigns surface holds that wait for a word.
- * It sends nothing and keeps nothing: the surfaces it is made of move, and a reader that asks again is told the same thing.
- * The sum is contracts' (waits.ts `needsYouCount`), and a thread's part in it is `threadWait`, which the Inbox's chip and
- * Today's headline ask too. Its parts are read here too (`needsYouParts`), by every page that says them: Today's head and
- * its sub-line, the Inbox's band for the runs and its head, Ask's Right now and the phone's widget, so no page says
- * "nothing needs you" over a part the badge counts (the wiring's second audit, S7-1 and S7-2). A run counts only while an
- * approval can still send it (contracts runWaitsOnYou, by the business's days), and a hold whose thread the Inbox could not
- * read counts too (UNREAD_HOLDS: unknown is not handled).
+ * They all read this now (`needsYouNow`): since Today in three zones (2 Nov 2026), the rows of Need you above To do, as
+ * Today's read makes them and as this tab has worked them, and the rows of the runs an approval can still send, so the
+ * badge and the head say one number over the rows the list draws. It sends nothing and keeps nothing of its own: the
+ * surfaces it is made of move, and a reader that asks again is told the same thing. The parts the Inbox's threads hold are
+ * read here too (`needsYouParts`: holds, held sends, runs), by the pages that say them apart: the Inbox's band for the runs
+ * and its head, and Ask's Right now; the phone's widget only while the one count is unknown. A run counts only while an
+ * approval can still send it (contracts runWaitsOnYou, by the business's days), and a hold whose thread the Inbox could
+ * not read counts in the parts too (UNREAD_HOLDS: unknown is not handled).
  */
 import { useSyncExternalStore } from "react";
 import {
+  needYouCountOf,
+  needYouGroupsOf,
   needsYouCount,
+  replyWaitsOnYou,
   runsThatWait,
+  waitRowsOf,
   waitsOf,
   type BroadcastVM,
+  type TodayQueueRowVM,
   type TodayVM,
   type WaitingThread,
   type Waits,
 } from "@chanlytics/contracts";
 import { onSurfaceMoved } from "@/legacy-bridge/surface-status";
 import { approvalDaysNow } from "./campaigns/broadcasts/when-words";
-import { ixWaiting, ixWaitsOnYou } from "./inbox/rules";
+import { ixWaiting, ixWaitsOnYou, vetoKeyOf } from "./inbox/rules";
 import { demoSession } from "./inbox/shell";
-import { IX_STORE, inboxData } from "./inbox/store";
+import { IX_STORE, VW_STORE, inboxData } from "./inbox/store";
 import type { Thread } from "./inbox/types";
 import { surfaceValue } from "./surface-values";
 
@@ -78,19 +82,73 @@ export function needsYouParts(nowMs: number = Date.now()): Waits | null {
 /** Days for a count with no runs to judge: never read, since no run is asked of them. */
 const NO_DAYS = { today: "", sendsOn: "" };
 
+/** The rows of Need you this tab has acted on this visit, by row and by thread (`needsYouActed`). */
+interface ActedHere {
+  rows: ReadonlySet<string>;
+  threads: ReadonlySet<string>;
+}
+const NONE_ACTED: ActedHere = { rows: new Set(), threads: new Set() };
+let actedHere: ActedHere = NONE_ACTED;
+
+const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((x) => b.has(x));
+
 /**
- * How many things wait on you now, or null while the Inbox has not been read (needsYouParts, summed by contracts'
- * needsYouCount).
+ * The rows Need you keeps as acted on this visit (a reply sent, a reply stopped, a thread snoozed: zones/need-you.tsx),
+ * told by the list as it keeps them, none once it goes. They leave the count the moment they are pressed, as they leave
+ * the list's, before the read that follows agrees; and a thread kept stands for itself, so the read's other row of it (a
+ * reply stopped, read again as its closing window) is not counted either, as the list does not draw it.
  */
-export function needsYouNow(nowMs: number = Date.now()): number | null {
-  const p = needsYouParts(nowMs);
-  return p ? needsYouCount(p) : null;
+export function needsYouActed(rows: ReadonlyArray<Pick<TodayQueueRowVM, "id" | "conversationId">>): void {
+  const next: ActedHere = rows.length
+    ? {
+        rows: new Set(rows.map((r) => r.id)),
+        threads: new Set(rows.flatMap((r) => (r.conversationId ? [r.conversationId] : []))),
+      }
+    : NONE_ACTED;
+  if (sameSet(next.rows, actedHere.rows) && sameSet(next.threads, actedHere.threads)) return;
+  actedHere = next;
+  moved();
 }
 
 /**
- * The parts for Today's page, which may stand before the Inbox is read: the live parts when there are any (`live`, the
- * hook's), else the brief's own (its holds and sends) with the runs the campaigns surface holds. One fallback, for the
- * head, the queue and the phone's widget alike.
+ * Whether a row of Today's read still waits, as this tab knows: not acted on in Need you, and, for a reply counting down,
+ * by the one rule (contracts standing.ts replyWaitsOnYou): not one this tab has held in the Inbox (the one thing only a tab
+ * knows, inbox/rules.ts ixHeld) before the cancel's re-read lands, nor one past its deadline, which is going out in the
+ * owner's name.
+ */
+function stillWaits(r: TodayQueueRowVM, nowMs: number): boolean {
+  if (actedHere.rows.has(r.id) || (r.conversationId && actedHere.threads.has(r.conversationId))) return false;
+  if (r.kind !== "held" || !r.held) return true;
+  const held = !!VW_STORE.state[vetoKeyOf(r.held.message_id)]?.held;
+  return replyWaitsOnYou({ endsAtMs: r.held.sends_at_ms, held }, nowMs);
+}
+
+/**
+ * How many need you now: the one count (decision 0048 as amended by Today in three zones, 2 Nov 2026), which the head,
+ * the sidebar's badge, the strip's Inbox tab, the phone's tab and the tab's title all say. Need you's rows above To do,
+ * as Today's read makes them and this tab has worked them (contracts needYouGroupsOf: Up next, who waits on you, what
+ * waits for your OK), and the rows of the runs an approval can still send, as the list draws them (contracts waitRowsOf:
+ * a batch To send, the runs waiting for an OK folded into one); your own to-dos and whoever waited past a week never.
+ * A reach-out's reply that Need you draws in its handoff's place (contracts withReplies) keeps that row's id, wait and
+ * clock, and both are a person waiting, so the count reads the rows as Today's read has them, and leaves the replies'
+ * rows to the page that draws them. Every page reads Today (today/override.ts), so this is no read of its own. Null
+ * while Today has not been read; a demo session counts its seeded threads, as the mockup always did.
+ */
+export function needsYouNow(nowMs: number = Date.now()): number | null {
+  if (typeof window !== "undefined" && demoSession()) {
+    const p = needsYouParts(nowMs);
+    return p ? needsYouCount(p) : null;
+  }
+  const today = surfaceValue("today");
+  if (!today) return null;
+  const rows = today.queue.rows.filter((r) => stillWaits(r, nowMs));
+  return needYouCountOf(needYouGroupsOf(rows), waitRowsOf(waitingRunsNow(nowMs)).length);
+}
+
+/**
+ * The parts the phone's widget says while the one count is unknown (app-bridge.ts), which may stand before the Inbox is
+ * read: the live parts when there are any (`live`, the hook's), else the brief's own (its holds and sends) with the runs
+ * the campaigns surface holds.
  */
 export function needsYouOnToday(vm: Pick<TodayVM, "needsYou">, live: Waits | null = needsYouParts()): Waits {
   return (
@@ -111,14 +169,14 @@ function moved(): void {
 }
 
 /**
- * Hear the count's sources move (the Inbox's threads, the campaigns' runs, and what only the Inbox's page knows:
- * `needsYouMoved`); ask `needsYouNow` again when told. Told on a move, not on a change of the number, so a reader keeps what
- * it last drew until it compares. Answers the stop.
+ * Hear the count's sources move (Today's read, the Inbox's threads, the campaigns' runs, the rows Need you has acted on:
+ * `needsYouActed`, and what only the Inbox's page knows: `needsYouMoved`); ask `needsYouNow` again when told. Told on a
+ * move, not on a change of the number, so a reader keeps what it last drew until it compares. Answers the stop.
  */
 export function hearNeedsYou(fn: () => void): () => void {
   if (!wired) {
     wired = true;
-    onSurfaceMoved(["inbox", "broadcasts"], moved);
+    onSurfaceMoved(["today", "inbox", "broadcasts"], moved);
     // A demo session's decisions are the session's, not a read's: the store says so with this one event (inbox/store.ts).
     if (typeof window !== "undefined" && demoSession()) window.addEventListener("inbox:decisions", moved);
   }
@@ -143,14 +201,11 @@ export function useNeedsYou(): number | null {
 }
 
 /**
- * Whether anyone waits on the owner, as Today's queue counts them (needsYouOnToday): the Inbox's parts once it is read, the
- * day's own figures before, which is all a cold Today has. Today's order and its setup card read this one answer: they read
- * two (the page the queue's count, the card the Inbox's alone), and on a cold load the card folded a moment after the page.
+ * Whether anyone waits on the owner: the one count (needsYouNow) above none. Today's order and its setup card read this
+ * one answer, so setting up never stands over a person waiting.
  */
 export function useWaitsOnToday(): boolean {
-  const live = useNeedsYouParts();
-  const day = surfaceValue("today");
-  return day ? needsYouCount(needsYouOnToday(day, live)) > 0 : !!live && needsYouCount(live) > 0;
+  return (useNeedsYou() ?? 0) > 0;
 }
 
 /** The parts, as a hook: drawn again when a part changes (a hold becomes a held send, a run is approved), by nothing else. */

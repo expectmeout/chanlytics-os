@@ -108,7 +108,7 @@ note with a day, not a new kind of record. `person_notes` gains `due_on`, `done_
   due among what waits, over every group, saying no group's worth; the peek's fact for a step about the person
   (one that names their deal is the deal card's, said there once); a line on the board's card and a fact on the
   phone's. Today: the steps due as rows of the queue, three at most, the rest one row to People's Steps due, in every
-  workspace, calendar or not (`today-steps.ts todaySteps`, `withSteps`; each opens the person, and its verb is Done, the
+  workspace, calendar or not (`today-to-do.ts todaySteps`, `withSteps`; each opens the person, and its verb is Done, the
   thread's). They were the head of the day panel, which canvas E3 dropped on 1 October 2026 without re-homing them; they came
   back as queue rows on 11 October 2026 (0047, task 1.3 of the wiring plan), and the day pane stays dropped. The thread: a step whose day has come, under
   the head, with Done, which answers as the deal card's does. Ask: `propose_deal` takes `next_step` with

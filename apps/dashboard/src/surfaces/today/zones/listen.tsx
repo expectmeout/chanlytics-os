@@ -1,9 +1,9 @@
 /**
  * Listen: Your brief read aloud in Ask's one voice (the one-way speech: the words on screen, spoken as the vendor makes
  * them, nobody speaking back; docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026), with
- * how long it takes to hear beside it. It stands at the end of the head's one sentence on a desk and a phone alike
- * (pages/today-head.tsx; the redesign of 1 Nov 2026): Your brief's pane went, since all it said the page says where it
- * is acted on, and its words are what Listen reads and Ask is handed (useBriefWords).
+ * how long it takes to hear beside it. It stands beside the greeting on a desk and beside the bell on a phone (head.tsx;
+ * Today in three zones, 2 Nov 2026): Your brief's pane went, since all it said the page says where it is acted on, and its
+ * words are what Listen reads and Ask is handed (useBriefWords).
  *
  * Listen was a conversation with the agent asked "Brief me on today" (3 Oct): nine seconds of silence before the model
  * said what the page already showed, a second tap that hung up, and the browser's robotic voice whenever the agent could
@@ -26,7 +26,7 @@ import { surfaceValue } from "../../surface-values";
 import { runsPending } from "../../waits/run-acts";
 import { TODAY_HELPERS } from "../helpers";
 import { askSpeech, useMoved } from "../shell";
-import { useDayVm } from "./day";
+import { useDayVm } from "./day-vm";
 
 /**
  * Your brief's words, over what the page already holds: the day's view model, the day's own, and the runs waiting for a word
@@ -62,7 +62,7 @@ type SpeechState = "idle" | "loading" | "speaking";
 const noWatch = () => () => {};
 const idle = (): SpeechState => "idle";
 
-/** Why the voice could not be had, said once for the page, beside Listen at the end of the head's sentence. */
+/** Why the voice could not be had, said once for the page, beside Listen where the head places it. */
 let whyNow: string | null = null;
 const whyWatchers = new Set<() => void>();
 const watchWhy = (on: () => void) => {
@@ -129,8 +129,8 @@ export function useSpeech(text: string | null): Speech {
 }
 
 /**
- * Listen, at the end of the head's sentence: the play glyph, the word and how long it takes to hear, and Stop while it
- * plays. The kit's quiet secondary button, placed by the page (phone.css .today-listen).
+ * Listen, beside the greeting (the kit head's `beside`; beside the bell on a phone): the play glyph, the word and how long
+ * it takes to hear, and Stop while it plays. The kit's quiet secondary button, placed by the frame's head.
  */
 export function listenButton(speech: Speech, line: string) {
   const busy = speech.state !== "idle";

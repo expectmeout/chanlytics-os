@@ -359,7 +359,12 @@ function useBell(flash: Flash) {
   const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];
   const unread = shown.filter((n) => n.unread).length + tbOlderOf(real);
   const ping = useBellPing(unread, real, notifs);
-  const closeBell = useCallback(() => setOpenNotifs(false), []);
+  // The bell's press is the member looking (Today in three zones, 2 Nov 2026): once it closes, what it held is seen, and
+  // Today's Since you looked starts again from now. Never on a look at Today alone.
+  const closeBell = useCallback(() => {
+    setOpenNotifs(false);
+    real?.seenAll();
+  }, [real]);
   const acts = bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, closeBell });
   return { real, shown, unread, ping, openNotifs, setOpenNotifs, closeBell, alertState, acts };
 }
@@ -378,7 +383,7 @@ const tbBell = (b: BellState) => {
         aria-label={b.unread > 0 ? `Notifications, ${b.unread} unread` : "Notifications"}
         aria-haspopup="dialog"
         aria-expanded={b.openNotifs}
-        onClick={() => b.setOpenNotifs((v) => !v)}
+        onClick={() => (b.openNotifs ? b.closeBell() : b.setOpenNotifs(true))}
       >
         <Glyph name="bell" />
         {b.unread > 0 && <span className="tb-bell-badge tally tally-icon">{b.unread}</span>}

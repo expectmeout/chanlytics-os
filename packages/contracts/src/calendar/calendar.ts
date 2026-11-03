@@ -337,7 +337,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const nowMs = now.getTime();
   // How far ahead the receptionist offers: the days freeWindows walks, today and max_days_ahead - 1 after it.
   // A day past the last of them has no open times however free it is, and says so rather than looking booked (C1).
-  const offerDays = { ...BOOKING_DEFAULTS, ...(dto.rules ?? {}) }.max_days_ahead;
+  const { max_days_ahead: offerDays, slot_min: offerSlot } = { ...BOOKING_DEFAULTS, ...(dto.rules ?? {}) };
   const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
   // Whether the business has said when it is open at all (availability.ts hasHours). Without hours no day is Closed: a
   // workspace that never set them saw every day banded "Closed" over its bookings (CAL-2). A closure is still closed.
@@ -483,7 +483,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     },
     source,
     stats: { events, windows: windowCount, next },
-    offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
+    offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil), slot: offerSlot },
     rules: rulesLine(dto.rules),
     ruleParts: ruleParts(dto.rules),
     hoursLines: hoursLines(dto.hours),

@@ -365,7 +365,7 @@ test("a lead who tried their own receptionist is a row (decision 0079), after ev
     );
 });
 
-test("the cap and the rest: six rows on Today, the rest counted for the Inbox link; a quiet day has an empty queue", () => {
+test("every row reaches the page, which caps by group; the people past five are counted for the Inbox link; a quiet day has an empty queue", () => {
   const many = Array.from({ length: 8 }, (_, i) => ({
     id: `e${i}`,
     reason: "human_token",
@@ -375,9 +375,11 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
     conversation_id: "cv1",
   }));
   const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 8 } }), conversations, many, [], NOW);
-  assert.equal(vm.queue.rows.length, 6);
-  assert.equal(vm.queue.more, 3, "eight handoffs and the closing window: six shown, three more");
-  assert.equal(vm.queue.windows, 1, "and the closing window is a window, never one of the people who need you");
+  // Today in three zones (2 Nov 2026): the rows are all handed over; Need you draws Up next and five waiting
+  // (contracts NEED_YOU_CAPS) and says the rest at its foot, which more_people counts.
+  assert.equal(vm.queue.rows.length, 9, "eight handoffs and the closing window, every one");
+  assert.equal(vm.queue.more_people, 3, "past Up next and the five waiting, three more");
+  assert.equal(vm.queue.windows, 1, "and the closing window is a window row of its own");
   const quiet = toTodayVM(
     metrics({
       period: { ...metrics().period, messages_in: 0, calls: 0, messages_out_you: 0 },
@@ -421,12 +423,11 @@ test("the six are the six worth most: an ask to book from today is drawn first, 
 
 /* ------------------------------ the queue, drawn ------------------------------ */
 
-// Today's queue is TSX (surfaces/today/pages/queue.tsx, with the runs in queue-runs.tsx), drawn by import over the day the
+// Today's Need you is TSX (surfaces/today/zones/need-you.tsx, the runs its To decide rows), drawn by import over the day the
 // seam holds (surface-values.ts); its row is the kit's (surfaces/kit/attention/attn-row.tsx).
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
-const { SubTabs } = await import("../../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /** The queue drawn over a day and the runs the broadcasts surface holds: the rows it handed the kit's row, by testid. */
@@ -435,7 +436,7 @@ const rowsDrawn = (vm, runs) => {
   Object.assign(globalThis, { __BROADCASTS: runs ? { rows: runs } : undefined });
   fresh();
   try {
-    const tree = again(() => AgentCommand());
+    const tree = again(() => NeedYou());
     return { tree, testids: all(tree, (n) => n.type === AttnRow).map((n) => n.props.testid) };
   } finally {
     setSurfaceValue("today", undefined);
@@ -529,16 +530,16 @@ test("the wiring: one row component for People and Today, the queue in the comma
     ),
     "People says it on the row, once",
   );
-  const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue.tsx");
+  const queue = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
   for (const s of [
     'data-testid="today-queue"',
     // The day is the seam's (surface-values.ts), where the JSX read window.TODAY_DATA.
     'surfaceValue("today")',
-    "<TodayQueue vm={vm} />",
+    "<NeedYouList vm={vm} />",
     "vm.queue.rows",
     // A reach-out's reply read redraws the queue: it is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7).
-    // Ask's morning and Google's reviews do too: Ask found and To do are lines of it (decision 0071).
-    'useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "ask_morning", "google", "settings"])',
+    // Google's reviews and People's steps do too: To do is a group of it (Today in three zones).
+    'useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "google", "settings"])',
   ])
     assert.ok(queue.includes(s), s);
   assert.ok(
@@ -546,15 +547,6 @@ test("the wiring: one row component for People and Today, the queue in the comma
     "the queue, not a command bar; the seed is gone",
   );
   assert.ok(!queue.includes("tq-count"), "no count over rows that say it");
-  const brief = readCode("apps/dashboard/src/surfaces/today/pages/brief.tsx");
-  for (const gone of [
-    "needsYou.rows.slice(0, 2)",
-    "earCalls.map",
-    "liveCalls.map",
-    "windowClosing.rows",
-    "<RunsWaiting",
-  ])
-    assert.ok(!brief.includes(gone), `${gone} left the hero`);
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
   assert.ok(css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
   const attn = readRaw("apps/dashboard/src/legacy/styles/clients.css");
@@ -761,7 +753,7 @@ const lateSearch = search(
   round({ state: "waiting_on_owner", question: QUESTION, waiting_since: "2026-09-06T13:50:00Z", counted: 25 }),
 );
 
-test("the queue counts the people past the six apart from the calls and the searches that sort after them, and the brief says all of it", () => {
+test("the queue counts the people past Up next and the five apart from the calls and the searches, and the brief says all of it", () => {
   const { people, asking } = crowd(9);
   const vm = toTodayVM(
     metrics({ now: { ...metrics().now, escalations_open: 9 } }),
@@ -771,11 +763,11 @@ test("the queue counts the people past the six apart from the calls and the sear
     NOW,
     [lateSearch],
   );
-  assert.equal(vm.queue.rows.length, 6);
-  assert.equal(vm.queue.more, 8, "everything past the six: three people, the search and four calls");
-  assert.equal(vm.queue.more_people, 3, "the people past the six, nothing else");
-  assert.equal(vm.queue.calls, 4, "every call worth a listen, though none is among the six drawn");
-  assert.equal(vm.queue.searches, 1, "and the search, though it sorts after nine people");
+  // Every row is handed over (Today in three zones): the page caps by group, Up next and five waiting.
+  assert.equal(vm.queue.rows.length, 14, "nine people, the search and four calls");
+  assert.equal(vm.queue.more_people, 3, "the people past Up next and the five, nothing else");
+  assert.equal(vm.queue.calls, 4, "every call worth a listen: Ask found's");
+  assert.equal(vm.queue.searches, 1, "and the search, To decide's");
   const words = todayBriefWords(vm, null, []).text;
   assert.match(words, /Person 0, Person 1, Person 2 and 6 more need you\./, `${words}: nine people, three named`);
   assert.doesNotMatch(words, /and 11 more|and 8 more/, "REGRESSION: the calls and the search were counted as people");
@@ -805,46 +797,37 @@ test("a person and four calls: the brief says one person needs you, not 'and 4 m
     [0, 1, 2, 3, 4, 5, 6].map(voicemail),
     NOW,
   );
-  assert.equal(vm.queue.more, 2, "one person and seven calls: six shown, two more");
   assert.equal(vm.queue.more_people, 0);
   const words = todayBriefWords(vm, null, []).text;
   assert.match(words, /^Person 0 needs you, waiting since 1:00 AM\./, words);
   assert.match(words, /7 calls are worth a listen\./, words);
 });
 
-test("Need you cuts its rows by what each asks of you, says no count of its own, and its foot counts only the people it could not hold", () => {
+test("the brief says who the head counts: a hold past a week is Older, neither named nor counted among who needs you", () => {
+  const { people, asking } = crowd(3);
+  // Flagged twelve days ago: Need you's Older, which the one count leaves out (need-you-groups.ts).
+  asking[2] = { ...asking[2], created_at: "2026-08-25T05:00:00Z" };
+  const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 3 } }), people, asking, [], NOW);
+  const words = todayBriefWords(vm, null, []).text;
+  assert.match(words, /Person 0 and Person 1 need you\./, words);
+  assert.doesNotMatch(words, /Person 2|and 1 more/, `REGRESSION: Listen counted a hold the head leaves out: ${words}`);
+});
+
+test("Need you says no count of its own and cuts nothing: its groups are the cut, and its foot counts only the people past the five", () => {
   // Two need you, a reply window is closing and a call is worth a listen. How many need you is the head's sentence, the
-  // badge's number (today-head.tsx): the queue's own disc counted the call, then the window (decision 0048).
+  // badge's number (Today in three zones: Need you's rows above To do, needs-you.ts).
   const four = toTodayVM(metrics(), conversations, escalations, calls, NOW);
   assert.equal(four.queue.rows.length, 4);
   const head = rowsDrawn(four);
   assert.equal(byTestId(head.tree, "today-queue-count"), null, "the queue says no count of its own: the head says it");
-  // Three rows a glance takes in: no strip to cut them (the 10/10 read, 2 Nov 2026: three chips over two rows).
   assert.equal(
-    find(head.tree, (n) => n.type === SubTabs),
+    find(head.tree, (n) => String(n.props?.className ?? "").includes("ny-cuts")),
     null,
-    "no strip over three rows",
+    "no strip of chips over the rows: the groups say what each asks (the canvas of 2 Nov 2026)",
   );
-  // Two people more: the strip, All with no figure (a window is a row the badge does not count), then each verb with
-  // rows: the handoffs and the closing window are replies, the call back a call.
-  const more = crowd(2);
-  const cut = rowsDrawn(
-    toTodayVM(metrics(), [...conversations, ...more.people], [...escalations, ...more.asking], calls, NOW),
-  );
-  const strip = find(cut.tree, (n) => n.type === SubTabs).props;
-  assert.deepEqual(
-    strip.tabs.map((t) => [t.label, t.count ?? null]),
-    [
-      ["All", null],
-      ["Reply", 4],
-      ["Call", 1],
-    ],
-  );
-  assert.equal(strip.value, "all", "everything, until a cut is picked");
-  // The call worth a listen is Ask found's line, which says it before it is opened.
+  // The call worth a listen is Ask found's, a zone of its own: never a row of who waits on you.
   assert.ok(!head.testids.includes("queue-call"), "a call worth a listen is no row of who waits on you");
-  assert.match(textOf(byTestId(head.tree, "today-found-line")), /Ask found.*a call worth a listen/);
-  // Six people and four calls: the six are drawn, and the foot says nothing of the calls, which live in Conversations.
+  // Six people and four calls: Up next and the five waiting are drawn, and the foot says nothing of the calls.
   const { people, asking } = crowd(6);
   const busy = toTodayVM(
     metrics({ now: { ...metrics().now, escalations_open: 6 } }),
@@ -853,7 +836,7 @@ test("Need you cuts its rows by what each asks of you, says no count of its own,
     [0, 1, 2, 3].map(voicemail),
     NOW,
   );
-  assert.equal(busy.queue.more, 4, "the four calls sit past the six rows");
+  assert.equal(busy.queue.more_people, 0, "Up next and five waiting hold the six");
   const drawn = rowsDrawn(busy);
   assert.equal(drawn.testids.length, 6, "the six people, in their groups");
   assert.equal(
@@ -861,9 +844,7 @@ test("Need you cuts its rows by what each asks of you, says no count of its own,
     null,
     "REGRESSION: it said 6 more in the Inbox, counting four calls that live in Conversations",
   );
-  assert.match(textOf(byTestId(drawn.tree, "today-found-line")), /4 calls worth a listen/);
 });
-
 test("an email's row says what it is about, then their words without the signature (the email canvas, 27 Oct 2026)", () => {
   // The email that came in on production, as it was kept: Need you quoted his signature and Gmail's picture stand-in.
   const body =

@@ -17,6 +17,14 @@
         "aud": "/api/admin/calendar/feed"
       }
     },
+    "POST /api/admin/calendar/freed-time": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/calendar/freed-time.ts",
+      "knock_args": {
+        "aud": "/api/admin/calendar/freed-time"
+      }
+    },
     "POST /api/admin/email/alert-test": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

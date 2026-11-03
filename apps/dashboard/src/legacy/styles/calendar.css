@@ -694,8 +694,15 @@
   .main-scroll > .calendar .cal-body:has(> .cal-scroll)::after {
     bottom: -1px;
   }
+  /* The days arrive with the page, as they will stand, as the Inbox's rows do (inbox-list.tsx): faded in, the Agenda's
+     stood a pixel low under the bar and jumped up as cal-in ended, where the bar over them stood still (Ruben's
+     recording, 3 Nov 2026). A view that comes in for another stops under the bar, as tall as it is (--cal-bar-h,
+     calendar-page.tsx), not only under the frame's top (kit/motion/view-deck.ts): after Day's board had scrolled to now,
+     the Month came in with its row of days' names under the bar. */
   .main-scroll > .calendar .cal-body {
     overscroll-behavior: contain;
+    animation: none;
+    scroll-margin-top: var(--cal-bar-h, 0px);
   }
   .main-scroll > .calendar .cal-scroll {
     padding: 0;
@@ -719,9 +726,12 @@
   }
   /* The week: seven days across the pane under a 40px gutter of hours, the heads stacked, the blocks lozenges with the
      name alone; a closure or an all-day event waits for Day view, where the head has the room to say it (the column's
-     band says closed here). */
+     band says closed here). Its days are whole pixels wide, the last taking what is left, and its heads whole pixels
+     tall (below): seven shares of a phone's width, and a head of the leading's quarter pixels, put every line of the
+     week between two pixels, and it stepped a pixel as a slide ended, where the Day and the Agenda, on whole pixels,
+     stood still (Ruben, 3 Nov 2026). */
   .main-scroll > .calendar .cal-grid:not(.cal-grid-day) {
-    grid-template-columns: var(--space-10) repeat(7, minmax(0, 1fr));
+    grid-template-columns: var(--space-10) repeat(6, round(calc((100% - var(--space-10)) / 7), 1px)) minmax(0, 1fr);
     min-width: 0;
   }
   .main-scroll > .calendar .cal-grid.cal-grid-day {
@@ -736,6 +746,9 @@
     gap: 0;
     width: 100%;
     min-height: 0;
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) :is(.cal-dow, .cal-date) {
+    line-height: round(calc(var(--leading-normal) * 1em), 1px);
   }
   .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-dayhead > :not(:first-child) {
     display: none;
@@ -774,6 +787,10 @@
   }
   .main-scroll > .calendar .cal-month-row {
     flex: 1 1 0;
+  }
+  /* Its days whole pixels wide, the last taking what is left, as the week's are (above). */
+  .main-scroll > .calendar :is(.cal-month-head, .cal-month-row) {
+    grid-template-columns: repeat(6, round(calc(100% / 7), 1px)) minmax(0, 1fr);
   }
   /* But a month of dots over the day picked (D7) stands at its own height, and the day's rows follow it: the body scrolls
      the two as one where the room is short. */

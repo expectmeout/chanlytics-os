@@ -27,6 +27,7 @@ import {
   NO_ACTION,
   actAction,
   defineActions,
+  holdsSaid,
   offeredTo,
   proposeMany,
   refuse,
@@ -296,7 +297,14 @@ async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOu
     if (!card || "refusal" in card) return refuse(`Step ${s.n} (${s.kind}): ${card?.refusal ?? "it made no card"}`);
     cards.push(id ? { ...card, plan: { id, step: s.n, of, silent: s.silent, after: s.after } } : card);
   }
-  const steps = planned.steps.map((s, i) => ({ n: s.n, kind: s.kind, card: cards[i]?.title ?? "", silent: s.silent }));
+  // Each step as the model is told it: its card's title, and what holds that card (holdsSaid), which the answer leaves out.
+  const steps = planned.steps.map((s, i) => ({
+    n: s.n,
+    kind: s.kind,
+    card: cards[i]?.title ?? "",
+    silent: s.silent,
+    ...holdsSaid(cards[i]),
+  }));
   return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words, planned.lead ?? null);
 }
 
@@ -432,7 +440,13 @@ async function proposeSteps(
       : [...new Set([...silentAt.slice(0, i).flatMap((s, k) => (s ? [k + 1] : [])), ...named])].sort((a, b) => a - b);
     return { ...c, plan: { id, step: n, of, silent, after: waits } };
   });
-  const steps = stamped.map((c) => ({ n: c.plan.step, kind: c.kind, card: c.title, silent: c.plan.silent }));
+  const steps = stamped.map((c) => ({
+    n: c.plan.step,
+    kind: c.kind,
+    card: c.title,
+    silent: c.plan.silent,
+    ...holdsSaid(c),
+  }));
   const words =
     asked.words?.trim() ||
     `${of} steps: ${stamped.filter((c) => c.plan.silent).length} that change only what you keep, approved together, then each send on its own.`;

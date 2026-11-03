@@ -444,7 +444,7 @@ export function announcement(cases, reps, perTurn) {
   const notes = cases.filter((c) => secondTurn(c)?.between === "approve").length * reps;
   const snoozes = cases.filter((c) => secondTurn(c)?.between === "snooze").length * reps;
   lines.push(
-    `${cases.length} cases, ${turns.length} turns × ${reps} = ${turns.length * reps} turns ≈ ${cost(turns.length)} at the baseline $${perTurn} a turn (spec §9)` +
+    `${cases.length} cases, ${turns.length} turns × ${reps} = ${turns.length * reps} turns ≈ ${cost(turns.length)} at $${perTurn} a turn, as measured (eval-ask.mjs PER_TURN)` +
       (warms ? `, and ${warms} warms (POST ask/warm, no model)` : "") +
       (notes ? `; ${notes} settings note(s) approved between the turns and put back` : "") +
       (snoozes ? `; ${snoozes} thread(s) snoozed between the turns and woken` : ""),
@@ -585,8 +585,9 @@ function heldAt(payload, at) {
  * in a setup); `card_fields_absent` fails a card of the kind that holds anything at a path into its payload, dotted
  * (`versions.sms`: a message written with a text version, which an offer never has), and `card_fields_present` one that
  * holds nothing there (`until`: a change asked to end on a day that names none), null holding nothing either way;
- * `card_fields_each` fails each value named at a path that no card of the kind holds (`language` en_US and es: a message
- * asked for "in Spanish too" is two cards, never the Spanish one alone);
+ * `card_fields_each` fails each value named at a path that no card of the kind holds (`language` es: a message asked for
+ * "in Spanish too" beside an English one the Library holds is the Spanish card alone; `chain.owner_sends` true: a cold
+ * email with no mailbox connected is handed to the owner to send, decision 0059);
  * `card_text_excludes` fails a card of the kind whose payload says any of the words, in any case (an offer's send that
  * types "next month" into a message read on the 1st, or the ask itself, "I want to offer");
  * `next_any` fails unless one of the answer's next questions holds one of the words (a campaign on a list made in the
@@ -1243,9 +1244,22 @@ export async function usageRows(rest, tenantId, since) {
 /**
  * What a turn's stored shape (AskTurnShape, ask_messages.content.shape) says of its cost and its memory: its tokens by
  * kind, its cache hit, whether it followed another turn and how long after, and how its history was sent, once PR 5.4
- * records that (`replay`).
+ * records that (`replay`); and of how it ran: whether the answer tool was offered and how the answer was written
+ * (`answer_tool`, `answer_in`), whether its answer format held (`format`, false once the API refused it, D15) and how
+ * many rounds stopped at the cap (`cap_hits`). The judge fails a turn that ran degraded on the first three
+ * (ask-stats.mjs degradedFails) once the run has read them.
  */
-const SHAPE_FIELDS = ["tokens", "cache_hit", "follow_up", "since_last_ms", "replay", "answer_tool", "answer_in"];
+const SHAPE_FIELDS = [
+  "tokens",
+  "cache_hit",
+  "follow_up",
+  "since_last_ms",
+  "replay",
+  "answer_tool",
+  "answer_in",
+  "format",
+  "cap_hits",
+];
 /** Message ids named in one read: a much longer `in.(…)` list is a URI PostgREST refuses (about two hundred ids). */
 const IDS_PER_READ = 50;
 

@@ -19,7 +19,7 @@ interface AskWaitingRow {
 }
 
 /**
- * Who is waiting, as Today's queue draws them (TodayVM.queue.rows, six at most): the holds (`people`), how many more
+ * Who is waiting, as Today's queue draws them (TodayVM.queue.rows, every row the queue holds): the holds (`people`), how many more
  * wait past those (the holds and the replies counting down that the queue does not draw), the runs waiting for a yes,
  * the searches waiting for an answer, and the reply windows closing. Null is a queue not read yet: nobody is claimed to
  * be waiting.

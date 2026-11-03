@@ -6,7 +6,7 @@
  * the rows for the rest) keep their one door.
  */
 import type { ReactNode } from "react";
-import type { AppointmentWord, TodayQueueRowVM } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { CallWork, RequestWork, StepWork } from "./call-work";
 import { HeldWork } from "./held-work";
 import type { WorkProps } from "./parts";
@@ -29,10 +29,11 @@ export function opensToWork(r: TodayQueueRowVM): boolean {
   return r.kind === "callback" || (REPLY_KINDS.has(r.kind) && !!r.conversationId);
 }
 
-/** The press a short row opens itself with, by its kind. */
+/** The press a short row opens itself with, by its kind: a reply that never reached them goes again. */
 export function shortLabel(r: TodayQueueRowVM): string {
   if (r.request) return "Answer";
   if (r.kind === "callback") return "Call back";
+  if (r.failed) return W.failed.retry;
   return "Reply";
 }
 
@@ -56,6 +57,8 @@ export function workOf(
   if (r.kind === "held") return <HeldWork key={r.held?.message_id ?? r.id} {...props} />;
   if (r.request) return <RequestWork {...props} />;
   if (r.kind === "callback") return <CallWork {...props} />;
+  // A reply that never reached them: the words that failed, theirs and kept, sent again as written with Try again.
+  if (r.failed) return <ReplyWork {...props} what={W.failed.what} by={W.failed.kept} sendWord={W.failed.retry} />;
   if (REPLY_KINDS.has(r.kind)) return <ReplyWork {...props} />;
   if (r.kind === "visit") return <VisitWork {...props} word={extra.word} />;
   if (r.kind === "step") return <StepWork {...props} onDone={extra.stepDone} />;

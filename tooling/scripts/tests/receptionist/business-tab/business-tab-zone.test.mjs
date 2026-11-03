@@ -197,9 +197,10 @@ test("what it calls a booking is saved through the workspace's own route: only w
         "the active workspace's word, and no other's; the zone as it was",
       );
       assert.deepEqual(heard, ["workspace:changed"]);
-      // Settings, People, Reports and Today (whose day reads the metrics) are read again once the word is saved.
+      // Settings, People, Reports and Today (whose one read says the word since Today in three zones) are read again once
+      // the word is saved.
       const patched = srv.asked.indexOf("PATCH workspaces");
-      for (const read of ["GET settings", "GET contacts", "GET reports", "GET metrics"])
+      for (const read of ["GET settings", "GET contacts", "GET reports", "GET today"])
         assert.ok(srv.asked.indexOf(read) > patched, `${read} after the save: ${srv.asked.join(", ")}`);
       // The zone's own door is the same courier, for the zone alone.
       srv.bodies.length = 0;

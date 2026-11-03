@@ -99,8 +99,8 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     ),
   );
   assert.ok(
-    readRaw("apps/dashboard/src/surfaces/today/phone/phone.css").includes(
-      ".tpw-words {\n  flex: 1 1 auto;\n  min-width: 0;\n}",
+    readRaw("apps/dashboard/src/surfaces/today/zones/zones.css").includes(
+      ".tz-alert > span {\n  flex: 1 1 auto;\n  min-width: 0;\n}",
     ),
     "a long warning wraps beside its glyph, not under it",
   );

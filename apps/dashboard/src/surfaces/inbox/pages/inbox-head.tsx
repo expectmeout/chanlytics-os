@@ -33,9 +33,9 @@ const waitBegan = (t: Thread, nowMs: number): number | null =>
  * "5 need you · 1 draft on its way", or "Nothing needs you". A draft on its way is a thread that waits on you for its
  * seconds, so it is among the ones who need you. The oldest's time says its day when it is not today, as Today's
  * headline says the same wait ("since yesterday 8:00 AM"): a bare hour read as this morning's on a wait of three days.
- * `beside` are the badge's parts the threads do not hold: holds whose thread could not be read (each a customer who may
- * be waiting, so counted among those who need you) and campaign runs waiting for your word ("No customer needs you · 1
- * run waiting"), said after the rest.
+ * `beside` are the parts of what waits that the threads do not hold: holds whose thread could not be read (each a
+ * customer who may be waiting, so counted among those who need you) and campaign runs waiting for your word ("No customer
+ * needs you · 1 run waiting"), said after the rest.
  */
 export function inboxStanding(
   threads: Thread[],

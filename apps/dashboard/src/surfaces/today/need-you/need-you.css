@@ -1,22 +1,10 @@
-/* Today's Need you, with Ask (decision 0071; the redesign of 1 Nov 2026): the strip that cuts it by what each row asks of you,
-   its groups under their small heads, a row drawn short (who, what they want behind the wire's glyph, how long they have
-   waited or when its clock runs out, and the verb) or open with what Ask prepared under its words, the presses at its
-   foot, a send counting down, what became of it, and the two lines at its foot. The kit draws every control (the strip,
-   the inset panel, the field, the meter, the menu, the button); this places them and says the words around them. Every
-   value is a token. */
+/* Today's Need you, with Ask (decision 0071; Today in three zones, 2 Nov 2026): its groups under their small heads, a row
+   drawn short (who, what they want behind the wire's glyph, how long they have waited or when its clock runs out, and
+   the verb) or open with what Ask prepared under its words, the presses at its foot, a send counting down, and what
+   became of it. The kit draws every control (the inset panel, the field, the meter, the menu, the button); this places
+   them and says the words around them. Every value is a token. */
 
-/* The chips that cut Need you (the kit's SubTabs as chips; the canvas of 1 Nov 2026): under the head on a desk, at the
-   rows' edge; under the page's head on a phone, where Need you has no pane of its own (phone.css). */
-.ny-cuts {
-  margin: var(--space-2) 0 6px;
-}
-@media (max-width: 720px) {
-  .ny-cuts {
-    margin: 0;
-  }
-}
-
-/* The groups: each its small head in the mono face over its rows, the first under the strip. */
+/* The groups: each its small head in the mono face over its rows, the first under the pane's head. */
 .ny-groups {
   gap: var(--space-1);
 }
@@ -44,12 +32,6 @@
 /* "Waiting on you · 2", as the canvas says a group's count after its name. */
 .ny-group-n::before {
   content: "·\00a0";
-}
-.ny-group-act {
-  margin-left: auto;
-}
-.ny-group-ask {
-  flex: 1 1 100%;
 }
 
 /* How long they have waited, or when the row's clock runs out, by itself at the name line's right: the dim ink, amber
@@ -214,90 +196,11 @@
   color: var(--accent);
 }
 
-/* The two lines at Need you's foot (need-you/groups.tsx): a line each, To do and Ask found, side by side on a desk while
-   both are closed, one over the other once either opens or on a phone; a line opened lays its rows under it. */
-.ny-foot-lines {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-2);
-  padding: var(--space-3) 0 18px;
-}
-.ny-foot-lines:empty {
-  display: none;
-}
-@media (min-width: 721px) {
-  .ny-foot-lines:not(:has([aria-expanded="true"])):has(> :nth-child(2)) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.ny-more {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.today-queue .ny-more > .ny-line {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto 14px;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  height: auto;
-  min-height: 56px;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: var(--radius-xl);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-depth);
-  color: var(--ink-muted);
-  text-align: left;
-}
-.ny-line-glyph {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-lg);
-  background: var(--surface-pane-fill);
-  color: var(--ink-muted);
-}
-.ny-line-words {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.ny-line-words > b {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-}
-.ny-line-words > span {
-  overflow: hidden;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-regular);
-  color: var(--ink-dim);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.ny-line-n {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  color: var(--ink-muted);
-}
-.ny-more > .tq-list {
-  padding-top: var(--space-1);
-}
 /* Ask found's ideas have no face (dashboard-a-v2.css gives faces to Need you's rows), so an idea's row is one column: its
    work goes under its words across it. Placed in the column a face would leave, it stood beside them, and the words had
    108px (the 30 Oct 2026 review, item 6). */
 [data-testid="today-ask-found"] :is([data-testid="queue-idea"], [data-testid="queue-finding"]) > .cl-attn-work {
   grid-column: 1 / -1;
-}
-/* What came of the ideas approved lately, under those still open: quiet, and nothing to press. */
-.ny-came {
-  display: grid;
-  gap: var(--space-1);
-  padding-top: var(--space-2);
 }
 
 /* What the row prepared (the refined canvas, 31 Oct 2026; the 23 Oct canvas's .wr-draft and .wr-brief): words that go to
@@ -419,10 +322,10 @@
 .today-queue .cl-attn-sentence > b {
   font-weight: var(--weight-medium);
 }
-/* A new campaign's rules behind Details (idea-work.tsx IdeaDetails): what holds it first, in the warn ink, then a row a
-   fact on a key column, as Ask's own card draws its sheet (ask.css .ask-spec). */
+/* A new campaign's rules under Ask found's line (idea-work.tsx CardSheet): what holds it first, in the warn ink, then a
+   row a fact on a key column, as Ask's own card draws its sheet (ask.css .ask-spec). */
 .ny-idea-hold {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   color: var(--warn-ink);

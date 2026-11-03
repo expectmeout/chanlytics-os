@@ -21,15 +21,12 @@ export {
   reachOutRunMoving,
   reachOutRunWordsOf,
   TO_SEND_ALL_WORDS,
-  toSendAllOf,
-  toSendEveryOf,
   toSendRowOf,
-  toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,
   waitingRunsDoor,
 } from "./reach-out-approval";
-export type { ToSendCount, ToSendRowVM, ToSendRunLike } from "./reach-out-approval";
+export type { ToSendRowVM } from "./reach-out-approval";
 export { BOOKED_SEEN_CAP, bookedSeenOf } from "./reach-out-booked";
 export type { BookedSeen } from "./reach-out-booked";
 export {
