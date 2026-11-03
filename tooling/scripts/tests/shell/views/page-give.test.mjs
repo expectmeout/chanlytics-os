@@ -5,14 +5,15 @@
  * The window scrolls a page on a phone, and past its ends the screen's own band carries it on and back, with what is
  * fixed holding: a glide that reaches an end and a thumb that scrolls on past one are the screen's, and nothing here
  * moves for them (1 Nov 2026: the bounce the page drew after a glide could never take over from the screen's own
- * without a stall or a jump). One pull is not the band's: a thumb pulling down a page at rest at its top, which Safari
- * takes for its pull to refresh, sliding the frame's top down with the page (Ruben, 19 Oct 2026). So while the page
- * rests at its top the root is marked and the band is off there (mobile.css), and that pull is drawn by the page: on
- * the band's curve, its rows alone where the page names them, and home on the band's spring, a web animation.
+ * without a stall or a jump). A thumb's pull is not the band's: a thumb pulling a page past its top, from rest there or
+ * from a scroll that reaches it, is Safari's pull to refresh, sliding the frame's top down with the page (Ruben, 19 Oct
+ * 2026; 2 Nov 2026). So while a thumb is on the screen, and while the page rests at its top, the root is marked and the
+ * band is off (mobile.css), and a thumb's pull past an end is drawn by the page: on the band's curve, its rows alone
+ * where the page names them, and home on the band's spring, a web animation.
  *
  * Run against the module itself, on a window, a page and touches that answer what it asks of them: a clock, timers and
  * animations that run only as the test lets time pass (`play`, `wait`), and a root whose band is what mobile.css makes
- * it (off while marked at its top; on in an app on the home screen).
+ * it (off while marked under a thumb or at its top; on in an app on the home screen).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -81,6 +82,8 @@ const element = (name, css = {}, parent = null) => {
 /** How far down the screen a translate puts a box ("0 37.5px" as written, "0px 37.5px" as read back): 0 for none. */
 const yOf = (translate) => Number(/^0(?:px)? (-?[\d.e+-]+)px$/.exec(translate ?? "")?.[1] ?? 0);
 
+/** The root's mark while a thumb is on the screen, which turns the screen's band off. */
+const THUMB_DOWN = "data-thumb-down";
 /** The root's mark while the page rests at its top, and how long the window stands still there before it rests. */
 const PAGE_TOP = "data-page-top";
 const REST_MS = 120;
@@ -137,8 +140,10 @@ const phone = ({ tall = 800, long = 2000, at = 0, root = {}, reduced = false, st
   /** Where a box is drawn now: where its animation has it, else where its own style puts it. */
   const movedOf = (box) => (box.anim ? alongAt(box.anim, clock) : yOf(box.style.translate));
   const moved = () => movedOf(main);
-  /** The root's band as mobile.css makes it. */
-  const band = () => root.overscrollBehaviorY ?? (standalone ? "contain" : PAGE_TOP in html.attrs ? "none" : "contain");
+  /** The root's band as mobile.css makes it: off under a thumb and at rest at the top, except in an installed app. */
+  const band = () =>
+    root.overscrollBehaviorY ??
+    (standalone ? "contain" : THUMB_DOWN in html.attrs || PAGE_TOP in html.attrs ? "none" : "contain");
   const win = {
     innerHeight: tall,
     scrollY: at,
@@ -218,7 +223,9 @@ const phone = ({ tall = 800, long = 2000, at = 0, root = {}, reduced = false, st
   };
   const playing = (box) => box.anim !== null;
   const marked = () => PAGE_TOP in html.attrs;
+  const thumb = () => THUMB_DOWN in html.attrs;
   return {
+    thumb,
     win,
     html,
     main,
@@ -341,18 +348,56 @@ test("let go still pulling, it goes on a little before it comes home; let go at 
   for (let i = 1; i < settled.length; i += 1) assert.ok(settled[i] <= settled[i - 1], "straight home");
 });
 
-test("where the screen's band is on, the band is the screen's: an app on the home screen, a pull that reaches the top from a scroll", () => {
+test("a thumb on the screen turns the band off while it is down: a scroll up to the top under it is drawn by the page, never taken for a refresh", () => {
+  const p = phone({ at: 300 });
+  assert.equal(p.marked(), false);
+  assert.equal(p.band(), "contain", "scrolled down with no thumb on it: a glide bands with the screen");
+  const f = p.finger().down(180, 300);
+  assert.equal(p.thumb(), true, "a thumb lands");
+  assert.equal(p.band(), "none", "and the band is off for as long as it is down");
+  p.scrollTo(0);
+  for (let y = 312; y <= 450; y += 12) f.to(180, y);
+  assert.ok(p.moved() > 20, `the thumb that scrolled up to the top and pulls on is drawn by the page (${p.moved()})`);
+  assert.equal(p.main.dataset.give, "held");
+  f.up(STILL);
+  assert.equal(p.thumb(), false, "lifted, the band is the screen's again, in time for a glide");
+  assert.equal(p.main.dataset.give, "back");
+  p.play(1200);
+  assert.equal(p.main.style.translate, "");
+});
+
+test("a tap marks and unmarks; two thumbs keep the mark until the last lifts; one landing on a page out on the band leaves the band on", () => {
+  const tap = phone({ at: 300 });
+  tap.finger().down(180, 400).up();
+  assert.equal(tap.thumb(), false);
+  assert.equal(tap.band(), "contain");
+
+  const two = phone({ at: 300 });
+  const one = { identifier: 1, clientX: 100, clientY: 300 };
+  const other = { identifier: 2, clientX: 200, clientY: 300 };
+  two.heard.touchstart({ target: two.row, touches: [one], changedTouches: [one] });
+  two.heard.touchstart({ target: two.row, touches: [one, other], changedTouches: [other] });
+  two.heard.touchend({ target: two.row, touches: [other], changedTouches: [one] });
+  assert.equal(two.thumb(), true, "one thumb still down");
+  two.heard.touchend({ target: two.row, touches: [], changedTouches: [other] });
+  assert.equal(two.thumb(), false);
+
+  const banding = phone({ at: -40 });
+  const f = banding.finger().down(180, 300);
+  assert.equal(banding.thumb(), false, "a band turned off under it would snap the page home");
+  assert.equal(banding.band(), "contain");
+  f.up();
+});
+
+test("in an app on the home screen a thumb leaves the band on: a pull at the top bands with the screen, and the page draws nothing", () => {
   const app = phone({ standalone: true });
   assert.equal(app.marked(), true);
-  pull(app, 150);
-  assert.equal(app.moved(), 0, "no pull to refresh there: the screen bands at its top too, with what is fixed holding");
-  assert.equal(app.main.dataset.give, undefined);
-
-  const scrolled = phone({ at: 300 });
-  const f = scrolled.finger().down(180, 300);
-  scrolled.scrollTo(0);
+  const f = app.finger().down(180, 300);
+  assert.equal(app.thumb(), true);
+  assert.equal(app.band(), "contain", "no pull to refresh there");
   for (let y = 312; y <= 450; y += 12) f.to(180, y);
-  assert.equal(scrolled.moved(), 0, "a thumb that scrolled up to the top and pulls on bands with the screen");
+  assert.equal(app.moved(), 0, "the screen bands at its top too, with what is fixed holding");
+  assert.equal(app.main.dataset.give, undefined);
   f.up();
 });
 
@@ -485,10 +530,12 @@ test("a second finger lets the page go home; stopping lets it go, takes the root
   assert.equal(p.main.dataset.give, "back");
   p.play(1200);
   pull(p, 150);
+  assert.equal(p.thumb(), true, "a thumb is still down");
   p.stop();
   assert.equal(p.main.style.translate, "", "let go at once");
   assert.equal(p.main.dataset.give, undefined);
   assert.equal(p.marked(), false, "the screen's band is the stylesheet's alone again");
+  assert.equal(p.thumb(), false);
   assert.deepEqual(Object.keys(p.heard), [], "every listener removed");
 });
 

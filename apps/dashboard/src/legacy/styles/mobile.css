@@ -1017,20 +1017,23 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      while the page bands. It was off from 19 Oct 2026 and drawn by the page, which could never take over from the
      screen's glide without a stall or a jump (1 Nov 2026: "it flickers, it glitches"). `contain`, not auto: Android's
      Chrome draws its band and never pulls the page to reload it.
-     But for the one pull it is not given: a thumb pulling down a page at rest at its top, which Safari takes for its
-     pull to refresh, sliding the screen down with the frame's top in it (Ruben, 19 Oct 2026: on the Inbox and People
-     the date, the name and the strip came down with the rows) and reloading the app when let go far enough. While the
-     page rests there (data-page-top on the root, page-give.ts) the band is off, and the page draws that pull itself:
-     on the band's curve while the thumb is down (data-give="held", on a layer of its own), and home on the band's
-     spring once it lets go ("back", a web animation, so no transition eases it), at once where motion is reduced. An
-     app on the home screen has no pull to refresh, and keeps its band there too (below, the installed app). Where a box
-     under the thumb scrolls itself (a sheet's, a reply box's words) that box gives as it always did. */
+     But not under a thumb: a thumb pulling a page past its top, from rest there or from a scroll that reaches it, is
+     Safari's pull to refresh, which slides the screen down with the frame's top in it (Ruben, 19 Oct 2026: on the Inbox
+     and People the date, the name and the strip came down with the rows; 2 Nov 2026: a scroll up to the top "wants to
+     activate ... to refresh the page") and reloads the app when let go far enough. Only a thumb can start it. So while
+     a thumb is on the screen (data-thumb-down on the root, page-give.ts), and while the page rests at its top
+     (data-page-top, so a pull begun there is off the band before the thumb's mark reaches the screen), the band is off
+     and the page draws a thumb's pull itself: on the band's curve while the thumb is down (data-give="held", on a layer
+     of its own), and home on the band's spring once it lets go ("back", a web animation, so no transition eases it), at
+     once where motion is reduced; let go, the band is the screen's again for the glide. An app on the home screen has no
+     pull to refresh, and keeps its band under a thumb too (below, the installed app). Where a box under the thumb
+     scrolls itself (a sheet's, a reply box's words) that box gives as it always did. */
   html.legacy-on,
   html.legacy-on body {
     overscroll-behavior-y: contain;
   }
-  html.legacy-on[data-page-top],
-  html.legacy-on[data-page-top] body {
+  html.legacy-on:is([data-thumb-down], [data-page-top]),
+  html.legacy-on:is([data-thumb-down], [data-page-top]) body {
     overscroll-behavior-y: none;
   }
   /* An open thread holds its head and its reply box through every pull, at either end, in the browser and on the home
@@ -1323,11 +1326,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   :root {
     --frame-top-at: calc(env(safe-area-inset-top, 0px) - 10px);
   }
-  /* An app on the home screen has no pull to refresh, so the screen's own band stays on at the page's top as well: a
-     pull there bands as everywhere, with what is fixed holding, and the page draws nothing (page-give.ts asks the
-     root's band). Settings holds still here as anywhere, and an open thread holds its head and reply box (above). */
-  html.legacy-on[data-page-top]:not(:has(.settings)),
-  html.legacy-on[data-page-top]:not(:has(.settings)) body {
+  /* An app on the home screen has no pull to refresh, so the screen's own band stays on under a thumb and at the page's
+     top as well: a pull there bands as everywhere, with what is fixed holding, and the page draws nothing (page-give.ts
+     asks the root's band). Settings holds still here as anywhere, and an open thread holds its head and reply box
+     (above). */
+  html.legacy-on:is([data-thumb-down], [data-page-top]):not(:has(.settings)),
+  html.legacy-on:is([data-thumb-down], [data-page-top]):not(:has(.settings)) body {
     overscroll-behavior-y: contain;
   }
 }
