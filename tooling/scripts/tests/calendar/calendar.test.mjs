@@ -538,6 +538,28 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     ),
     "a view comes in under the bar",
   );
+  // The week's and the month's lines stand on whole pixels: seven columns of a phone's width were 52.7px each and the
+  // week's heads 52.25px tall, and the Week and the Month stepped a pixel as a slide ended, where the Day and the Agenda,
+  // on whole pixels, stood still (Ruben, 3 Nov 2026). The columns are whole and the last takes what is left; the heads'
+  // lines are the house's leading, rounded.
+  const phone = blocksOf(css, "@media (max-width: 720px) {").join("\n");
+  const wholeColumns = (rest) => `repeat(6, round(calc(${rest} / 7), 1px)) minmax(0, 1fr)`;
+  assert.ok(
+    phone.includes(`grid-template-columns: var(--space-10) ${wholeColumns("(100% - var(--space-10))")};`),
+    "the week's seven days, on whole pixels",
+  );
+  assert.match(
+    phone,
+    new RegExp(
+      `\\.main-scroll > \\.calendar :is\\(\\.cal-month-head, \\.cal-month-row\\) \\{[^}]*grid-template-columns: ${wholeColumns("100%").replace(/[()]/g, "\\$&")};`,
+    ),
+    "the month's seven days, on whole pixels",
+  );
+  assert.match(
+    phone,
+    /\.cal-grid:not\(\.cal-grid-day\) :is\(\.cal-dow, \.cal-date\) \{[^}]*line-height: round\(calc\(var\(--leading-normal\) \* 1em\), 1px\);/,
+    "the week's heads, whole pixels tall",
+  );
 });
 
 test("the board drawn right: overlapping blocks take lanes, a block outside the hours widens the grid, and a person's thread rides with the block", () => {
