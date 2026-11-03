@@ -43,6 +43,7 @@ test("what stays under baselines/ is a decision or a reviewed list, and the regi
     "coverage.json",
     "hearing/",
     "on-demand-reads.json",
+    "page-speed-budgets.json",
     "reads-not-heard.json",
     "writes/",
   ]);

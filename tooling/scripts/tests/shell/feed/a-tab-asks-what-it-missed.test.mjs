@@ -48,8 +48,14 @@ test("the notices since a moment, each a table, an event, its statuses and its c
   assert.deepEqual(
     got.notices,
     [
-      { table: "messages", event: "INSERT", statuses: null, at: "2026-11-03T12:00:01.000Z" },
-      { table: "calls", event: "UPDATE", statuses: ["ongoing", "ended"], at: "2026-11-03T12:00:02.000Z" },
+      { table: "messages", event: "INSERT", statuses: null, at: "2026-11-03T12:00:01.000Z", threads: null },
+      {
+        table: "calls",
+        event: "UPDATE",
+        statuses: ["ongoing", "ended"],
+        at: "2026-11-03T12:00:02.000Z",
+        threads: null,
+      },
     ],
     "a row that names no table is no notice",
   );
