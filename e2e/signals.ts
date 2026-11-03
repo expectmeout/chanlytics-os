@@ -314,3 +314,23 @@ export async function motionSettled(page: Page): Promise<void> {
     ),
   );
 }
+
+/**
+ * A thumb down the screen from (x, y) by `by` pixels (up it where `by` is negative), through the browser's own input
+ * (CDP), still down at the end: what the page does under it is read before `letGo`.
+ */
+export async function pullHeld(page: Page, x: number, y: number, by: number) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 6; i += 1)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * i) / 6 }] });
+  return { letGo: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }) };
+}
+
+/** How far down the screen a pull past its end has moved the first box `sel` names (kit motion/page-give.ts): 0 at rest. */
+export async function givenOf(page: Page, sel: string): Promise<number> {
+  return page.evaluate(
+    (s) => parseFloat(getComputedStyle(document.querySelector(s)!).translate.split(" ")[1] ?? "") || 0,
+    sel,
+  );
+}

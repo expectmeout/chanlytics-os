@@ -18,9 +18,11 @@
  * played by the compositor. What gives is the page's rows where the page says which box holds them (the custom property
  * `--page-gives`: the Inbox's threads, Conversations' rows, People's table, an open thread's conversation), so the bar,
  * the search and the count over them hold (Ruben, 19 Oct 2026: "only the table rows should be draggable down"), and so
- * does what is stuck to the screen's foot (a thread's reply box), as it holds through the screen's band; else the route
- * view. An app on the home screen has no pull to refresh and keeps its band at the top too (mobile.css), so nothing
- * here moves there.
+ * does what is stuck to the screen's foot (a thread's reply box); else the route view. An app on the home screen has no
+ * pull to refresh and keeps its band at the top too (mobile.css), so nothing here moves there. But the screen's band
+ * carries what is stuck to the window along with the page, so an open thread keeps the band off at both of its ends, on
+ * the home screen too, and its conversation alone gives past either (mobile.css; Ruben, 2 Nov 2026: the head and the
+ * reply box went with the page).
  *
  * Nothing here knows a page; it asks the styles. A pull is drawn where the root's band is off (its overscroll-behavior-y
  * is none) and the window scrolls the page (the route view, the document's `main`, is no box of its own); where nothing

@@ -214,7 +214,8 @@ const pulledDown = (el: HTMLElement, by: string | null): void => {
 const movesOf = (way: Way | null | undefined, move: string): string =>
   way === "down" ? `transform ${move}, ${SHEET_DOWN} ${move}` : `transform ${move}`;
 
-const GRAB_AT = 8;
+/** How far a touch goes before it says its way, in pixels: short of it, a press that lets go is a tap. */
+export const GRAB_AT = 8;
 /** The longest a let-go takes to leave, and the shortest: a fast finger's is shorter, never shorter than this. */
 const LEAVE_MS = 180;
 const LEAVE_MIN_MS = 120;
