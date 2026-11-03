@@ -105,7 +105,7 @@ test("a send Twilio refuses pages the platform: the answer path was not tried", 
   await w.run();
   assert.deepEqual(
     w.pages.map((p) => p.key),
-    ["canary_send_failed"],
+    ["text_canary_send_failed"],
   );
 });
 
@@ -120,9 +120,9 @@ test("a later tick judges the text: answered and gone passes; each failure pages
   for (const [messages, passed, key] of [
     [[inbound, reply("delivered")], true, null],
     [[inbound, reply("sent")], true, null],
-    [[], false, "canary_not_taken_in"],
-    [[inbound], false, "canary_no_reply"],
-    [[inbound, reply("failed")], false, "canary_reply_failed"],
+    [[], false, "text_canary_not_taken_in"],
+    [[inbound], false, "text_canary_no_reply"],
+    [[inbound, reply("failed")], false, "text_canary_reply_failed"],
   ]) {
     const w = world({ record: late, messages });
     const answer = await (await w.run()).json();

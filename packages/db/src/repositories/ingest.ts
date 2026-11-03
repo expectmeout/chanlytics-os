@@ -37,7 +37,7 @@ export interface IngestInboundParams {
   optIn?: boolean;
   /**
    * The customer texted the OFFERS keyword specifically: a second, separate answer (contracts consent.ts), kept by
-   * ingest_inbound with the message, in its transaction (00515), and never under a stop that stands after it.
+   * ingest_inbound with the message, in its transaction (00521), and never under a stop that stands after it.
    */
   optInMarketing?: boolean;
 }
@@ -86,7 +86,7 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   } as never);
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data as unknown as IngestResult;
-  // The yes a message carries is kept with it (00515), and a yes to offers under a stop is not: said, once, by the visit
+  // The yes a message carries is kept with it (00521), and a yes to offers under a stop is not: said, once, by the visit
   // that kept the message, so "I wrote YES OFFERS and nothing happened" has an answer.
   if (p.optInMarketing && out.is_new && stoppedNow(out))
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
@@ -120,12 +120,12 @@ export async function answerOfMessage(db: Db, externalId: string): Promise<{ kep
   return { kept: true, reply: reply?.status ?? null };
 }
 
-/** What became of an address a customer wrote in their own message (note_person_email, 00516). */
+/** What became of an address a customer wrote in their own message (note_person_email, 00522). */
 export type EmailNoted = "kept" | "had_one" | "taken" | "not_found";
 
 /**
  * An address a customer gave in their own words, kept on their row only where none is on file: one call, under the row's
- * lock (00516). Another person here holding it is `taken` and never moved: the owner merges them. A write that fails
+ * lock (00522). Another person here holding it is `taken` and never moved: the owner merges them. A write that fails
  * throws.
  */
 export async function noteEmailTheyGave(

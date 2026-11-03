@@ -506,9 +506,9 @@
     "00501_a_stopped_erasure_finishes.sql": "6bb9bed2b8523bb7ca1b7e2b6150169c637ad7d4f82580e0de5cdd3a77159ad5",
     "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097",
     "00503_a_held_reply_goes_now_on_a_member_s_word.sql": "d146d35b50cabf0036dc908583c0ec44738c34288bab59f800cfb407fc7816f8",
-    "00515_a_message_and_the_yes_it_carries_are_kept_together.sql": "bfc64f52e4f4b33fa892d40ea2152669780b4899d1136c01b7612975efdc9ce9",
-    "00516_an_address_a_customer_gives_is_kept_where_none_is.sql": "99c81e160495bde950b86bef8eec0193a83591d10fcb5f506cfa79b52b6e4479",
-    "00517_a_text_twilio_could_not_hand_us_is_taken_in.sql": "dc10d060c96eada5a24eeda6f2671bd6e6c93d79f79b3d1b4932aa7210cd88f6",
-    "00518_the_wires_are_proved_once_a_day.sql": "c4a0d7201eaa96d91148fb1ff11fd86360c6087b69d053f09d8bf4221ad4c93c"
+    "00521_a_message_and_the_yes_it_carries_are_kept_together.sql": "6824f71380c88eb36aea7848011be5b5277f4a63d9ba23e389f1732bb556ac1c",
+    "00522_an_address_a_customer_gives_is_kept_where_none_is.sql": "ea001478e4d1f4454c624a3b30eac0a5ce8c3b1b5b6bbfc9733c35c6941d1f42",
+    "00523_a_text_twilio_could_not_hand_us_is_taken_in.sql": "52d562af52e9f7386955ab47e9a949ac851f46df022be05f26a6b7ccc910fd19",
+    "00524_the_wires_are_proved_once_a_day.sql": "f99d65a274cb029974f9e351940e70dceaf6f170525b780a66608e08513a6702"
   }
 }

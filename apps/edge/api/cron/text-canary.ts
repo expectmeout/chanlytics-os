@@ -1,5 +1,5 @@
 /**
- * The daily text canary's door: pg_cron asks it at 14:00 and 14:15 UTC ('canary', 00518) with the sweep key, and it
+ * The daily text canary's door: pg_cron asks it at 14:00 and 14:15 UTC ('text-canary', 00524) with the sweep key, and it
  * answers what the canary says.
  *
  * sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks the key; the canary is sweepCanary
@@ -9,4 +9,4 @@
 import { sweepDoor } from "../../lib/ops/sweep-door.js";
 import { sweepCanary } from "../../lib/sms/canary.js";
 
-export const POST = sweepDoor({ sweep: "canary" }, sweepCanary);
+export const POST = sweepDoor({ sweep: "text_canary" }, sweepCanary);

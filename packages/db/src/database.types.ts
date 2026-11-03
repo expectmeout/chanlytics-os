@@ -11071,7 +11071,6 @@ export type Database = {
       }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
-      trigger_canary_sweep: { Args: never; Returns: number }
       trigger_channel_quality_sweep: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }
       trigger_google_sweep: { Args: never; Returns: number }
@@ -11089,6 +11088,7 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
+      trigger_text_canary_sweep: { Args: never; Returns: number }
       trigger_texts_sweep: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
       wear_found_look: {

@@ -27,9 +27,9 @@ export const CLOCKS = {
     why: "parses each feed hourly to add people and stamp booked leads; appointment events from push sync replace it, the iCal read a fallback (0002)",
   },
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
-  canary: {
+  text_canary: {
     kind: "judge",
-    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00518)",
+    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00524)",
   },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
   deadman: {
@@ -119,6 +119,6 @@ export const CLOCKS = {
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
   texts: {
     kind: "reconcile",
-    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00517)",
+    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00523)",
   },
 };

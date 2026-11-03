@@ -143,7 +143,7 @@ async function setAside(cx: InboundContext): Promise<boolean> {
 export async function recordMessage(cx: InboundContext): Promise<IngestResult | undefined> {
   if (await setAside(cx)) return undefined;
   // The door that calls this schedules the message's answer next, and that job takes the message in again. The yeses it
-  // carries are kept with it here, in the ingest's own transaction (00515), so nothing is left for the job to write.
+  // carries are kept with it here, in the ingest's own transaction (00521), so nothing is left for the job to write.
   const ing = await ingestOrSay(cx);
   return ing.is_new ? ing : undefined;
 }

@@ -343,7 +343,7 @@ How many phases are left: three lanes (0046), with Phase 0's four switches besid
 every WhatsApp message is recorded at its door and answered by its `inbound_answer` job, as a text and a DM are, and
 the switch that tried it (`WHATSAPP_ANSWERS_AS_JOBS`) and the in-request road are deleted (open question 2 above).
 The three doors share one adapter (`apps/edge/lib/inbound/arrival.ts`: record, then schedule); a turn ends by its job's
-deadline; a message and the yeses it carries are kept in one transaction (00515); every gate that asks a person hands
+deadline; a message and the yeses it carries are kept in one transaction (00521); every gate that asks a person hands
 the message over one way (core `handToAPerson`); and the order a message is taken through is said once, as data (core
 `INBOUND_GATES`, written out as `docs/inbound-gates.md`).
 

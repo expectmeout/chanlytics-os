@@ -1,4 +1,4 @@
--- 00517 · A text Twilio could not hand us is taken in from Twilio's own record (the inbound review, B2).
+-- 00523 · A text Twilio could not hand us is taken in from Twilio's own record (the inbound review, B2).
 --
 -- Twilio posts a text to the door once and retries nothing: a text that arrived while the database was down was
 -- answered 503 and lost. Twilio keeps every text a line received, so a clock reads each line's record and knocks on the
@@ -33,7 +33,7 @@ begin
 end $$;
 revoke execute on function public.trigger_texts_sweep() from public, anon, authenticated;
 comment on function public.trigger_texts_sweep() is
-  'The texts sweep''s clock (00517): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
+  'The texts sweep''s clock (00523): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
 
 insert into public.sweep_status (sweep, jobname, max_silence, judged_by, requested_at) values
   ('texts', 'texts-sweep', interval '45 minutes', 'request', now())

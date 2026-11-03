@@ -16,7 +16,7 @@
  * door's replay gate (ingest_inbound) makes a second knock a no-op. A picture's bytes are not in the record read here, so
  * a picture message comes back as its words alone.
  *
- * pg_cron asks for it every ten minutes ('texts-sweep', 00517) while a line that can text exists; the work is bounded by
+ * pg_cron asks for it every ten minutes ('texts-sweep', 00523) while a line that can text exists; the work is bounded by
  * time (TEXTS_YIELD_AT_MS from the door's first line), and the tick ends in one texts_swept with its counts.
  */
 import { HOUR_MS, MIN_MS, oneTimeCodeOf } from "../packages/contracts.js";

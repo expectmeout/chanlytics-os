@@ -122,11 +122,11 @@ const EVERY_CLOCK = {
   // A review the mirror has not seen for its days, and a closed invitation (00392): nightly, judged by their runs.
   purge_google_reviews: "purge-google-reviews",
   purge_invitations: "purge-invitations",
-  // The texts Twilio could not hand the door (00517): a ten-minute clock that asks the edge only when a line that can
+  // The texts Twilio could not hand the door (00523): a ten-minute clock that asks the edge only when a line that can
   // text exists, and records that it looked otherwise.
   texts: "texts-sweep",
-  // The daily text canary (00518): 14:00 and 14:15 UTC, always asking the edge, which says it is off until it is set.
-  canary: "canary",
+  // The daily text canary (00524): 14:00 and 14:15 UTC, always asking the edge, which says it is off until it is set.
+  text_canary: "text-canary",
   // The receptionist's kept turns and the prompts they read (00401): nightly, thirty days on, judged by its run.
   purge_model_turns: "purge-model-turns",
   // A workspace's old settings (00402): nightly, 400 days after a version is replaced, judged by its run.
@@ -352,7 +352,7 @@ test(
       insert into public.mailbox_connections (tenant_id, provider, provider_account, address, host, from_name)
            values (t, 'google', 'every-clock-' || tag, 'hello@every-clock-' || tag || '.example.com',
                    'every-clock-' || tag || '.example.com', 'Every clock');
-      -- texts: a line that can text (00517).
+      -- texts: a line that can text (00523).
       insert into public.lines (tenant_id, provider, e164, voice_state)
            values (t, 'twilio', '+1555019' || lpad((abs(hashtext(tag)) % 10000)::text, 4, '0'), 'none');
       -- jobs: one due.

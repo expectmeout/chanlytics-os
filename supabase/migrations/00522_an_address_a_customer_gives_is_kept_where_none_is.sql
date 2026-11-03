@@ -1,4 +1,4 @@
--- 00516 · An address a customer gives is kept where none is on file (the inbound review, C11).
+-- 00522 · An address a customer gives is kept where none is on file (the inbound review, C11).
 --
 -- A customer who writes their email address in a message has it kept on their row (core's ingest, contracts
 -- addressInMessage), never over one already there. The edge read the row, then called set_person_email, which
@@ -47,4 +47,4 @@ revoke all on function public.note_person_email(uuid, uuid, text) from public, a
 grant execute on function public.note_person_email(uuid, uuid, text) to service_role;
 
 comment on function public.note_person_email(uuid, uuid, text) is
-  'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00516): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
+  'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00522): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';

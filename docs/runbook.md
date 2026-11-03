@@ -1335,23 +1335,23 @@ up again through the whole order ([inbound-gates.md](inbound-gates.md)) and answ
 (`TURN_BUDGET_MS`, forty seconds of a sixty-second function). Two messages from one person in one delivery are two jobs,
 and the newer one answers both (the reply turn, 00284). A message the door could not record is a 503: Meta sends it again for up to seven days; Twilio retries nothing, so the
 texts sweep reads each line's own record from Twilio every ten minutes and knocks on the door again for every text the
-database never heard (`texts-sweep`, 00517, `apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
+database never heard (`texts-sweep`, 00523, `apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
 is the deadman sweep's.
 
 ## Turn on the daily text canary
 
 Once a day, at 14:00 UTC, the edge texts the platform's own line from a number of the platform's own, and at 14:15 it
 checks that the door took the text in and the receptionist's reply left; any gap pages the platform under its own key
-(`canary_not_taken_in`, `canary_no_reply`, `canary_reply_failed`, `canary_send_failed`), and a pass is one
-`canary_ok` line (`apps/edge/lib/sms/canary.ts`, the clock `canary`, 00518). It costs two texts a day.
+(`text_canary_not_taken_in`, `text_canary_no_reply`, `text_canary_reply_failed`, `text_canary_send_failed`), and a pass is one
+`text_canary_ok` line (`apps/edge/lib/sms/canary.ts`, the clock `text_canary`, 00524). It costs two texts a day.
 
-It is off until both of the edge's settings are set (`canary_off` says so):
+It is off until both of the edge's settings are set (`text_canary_off` says so):
 
 1. Buy a number on the master Twilio account for the canary, and put it in a Messaging Service of its own with **no
    inbound request URL** (the receptionist's reply to it must come back to nobody: our door knows no line for it).
 2. Set `CANARY_SMS_SERVICE` to that service's SID and `CANARY_SMS_TO` to the platform workspace's own line (one whose
    receptionist answers on Sends it), on the edge's production environment, and redeploy the edge.
-3. The next 14:00 sends; read `canary_sent`, then `canary_ok` at 14:15.
+3. The next 14:00 sends; read `text_canary_sent`, then `text_canary_ok` at 14:15.
 
 ## A customer says nobody answered
 

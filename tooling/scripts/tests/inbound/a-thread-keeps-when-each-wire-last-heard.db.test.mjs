@@ -265,10 +265,10 @@ test(
       ],
       merge_people: ["00451", "    delete from conversations where id = m_conv.id;"],
     };
-    // The migration whose body the database runs: 00484's, or a newer one's that re-created it since. 00515 keeps
+    // The migration whose body the database runs: 00484's, or a newer one's that re-created it since. 00521 keeps
     // ingest_inbound's yeses with its message, and intake/a-delivery-taken-in-again-changes-no-consent.db.test.mjs holds
     // its body to 00484's.
-    const runs = { ingest_inbound: "00515", merge_people: "00484" };
+    const runs = { ingest_inbound: "00521", merge_people: "00484" };
     for (const [name, [from, before]] of Object.entries(recreated)) {
       const header = `create or replace function public.${name}(`;
       const source = bodyIn(migration(from), header);

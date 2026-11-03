@@ -405,13 +405,6 @@
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
-    "POST /api/cron/canary": {
-      "wrapper": "sweepDoor",
-      "sweep": "canary",
-      "verb": "sweepCanary in apps/edge/lib/sms/canary.ts",
-      "knock": "authorizeCron",
-      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
-    },
     "POST /api/cron/channel-quality": {
       "wrapper": "door",
       "knock": "authorizeCron",
@@ -528,6 +521,13 @@
       "wrapper": "sweepDoor",
       "sweep": "registrations",
       "verb": "sweepRegistrations in apps/edge/lib/lines/registrations-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/text-canary": {
+      "wrapper": "sweepDoor",
+      "sweep": "text_canary",
+      "verb": "sweepCanary in apps/edge/lib/sms/canary.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },

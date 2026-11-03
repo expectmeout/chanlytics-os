@@ -238,7 +238,7 @@ test(
 );
 
 test(
-  "note_person_email: an address a customer gave is kept only where none is on file, never moved from another person, in one call (00516)",
+  "note_person_email: an address a customer gave is kept only where none is on file, never moved from another person, in one call (00522)",
   { skip },
   async () => {
     const note = async (id, email, tenant = tenantId) => {

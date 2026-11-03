@@ -57,14 +57,13 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // sweep of the mailboxes a business connected (decision 0056).
   // 00486 added 'instagram_tokens', the daily refresh of each connected Instagram account's token (decision 0001, step 8).
   // 00497 added 'previews', the hourly end of each lead's preview past its thirty days (decision 0079).
-  // 00517 added 'texts', the ten-minute read of each line's received texts from Twilio, and 00518 'canary', the daily
+  // 00523 added 'texts', the ten-minute read of each line's received texts from Twilio, and 00524 'text_canary', the daily
   // text to the platform's own line (the inbound review of 3 Nov 2026, B2 and D6).
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
       "calendar",
       "calls",
-      "canary",
       "channel_quality",
       "deadman",
       "google",
@@ -101,6 +100,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "registration",
       "snoozes",
       "sweep_voice_sessions",
+      "text_canary",
       "texts",
     ],
   );
@@ -148,7 +148,6 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
   assert.deepEqual(data.map((r) => r.sweep).sort(), [
     "calendar",
     "calls",
-    "canary",
     "channel_quality",
     "deadman",
     "google",
@@ -185,6 +184,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "registration",
     "snoozes",
     "sweep_voice_sessions",
+    "text_canary",
     "texts",
   ]);
   // Belt and braces, in case a future migration ever widens the set.
