@@ -66,12 +66,15 @@ export { REACH_OUT_DECISIONS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_SAID_OUTCOM
 export type {
   ReachOutChainDto,
   ReachOutChainReportDto,
+  ReachOutCheckLine,
+  ReachOutDecideDto,
   ReachOutDecision,
   ReachOutDraftedSend,
   ReachOutHeldSend,
   ReachOutMailboxChoice,
   ReachOutMailboxFacts,
   ReachOutNextFacts,
+  ReachOutOpeningDto,
   ReachOutPeopleCountsDto,
   ReachOutPreviewDto,
   ReachOutReachDto,
@@ -125,6 +128,7 @@ export type {
 export {
   OPENING_SCHEMA,
   OPENING_UNSTATED,
+  openingAskedOf,
   openingSystemPrompt,
   openingUserContent,
   openingVerdict,
@@ -135,7 +139,7 @@ export {
   readingSystemPrompt,
   readingUserContent,
 } from "./reach-out-opening";
-export type { OpeningVerdict, OpeningWorkspace, Reading } from "./reach-out-opening";
+export type { OpeningAsked, OpeningVerdict, OpeningWorkspace, Reading } from "./reach-out-opening";
 export {
   awayUntilOf,
   isReplyIntent,
@@ -236,6 +240,7 @@ export type { ColdEnding, DraftLeadFacts, OutreachLeadFacts, ReachOutSignsWith, 
 export type { SlotWorkspace } from "./reach-out-rules";
 export { ReachOutChainSchema, ReachOutStepSchema } from "./reach-out-schemas";
 export {
+  ReachOutCheckSchema,
   ReachOutDecideSchema,
   ReachOutPreviewSchema,
   ReachOutReplySaidSchema,

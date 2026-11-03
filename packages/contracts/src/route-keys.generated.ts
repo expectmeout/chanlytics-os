@@ -275,6 +275,8 @@ export const ROUTE_KEYS = [
   "POST reach-out-replies/[id]/undo",
   "POST reach-out-sends/[id]/decide",
   "POST reach-out-sends/[id]/said",
+  "POST reach-out-sends/[id]/undo-rewrite",
+  "POST reach-out-sends/check",
   "POST reach-outs",
   "POST reach-outs/[id]/leads",
   "POST reach-outs/[id]/leads/check",

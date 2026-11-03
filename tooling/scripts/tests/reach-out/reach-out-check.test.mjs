@@ -275,6 +275,22 @@ test("a listing with a fact is read once, by the reader: its opening is the fact
   assert.doesNotMatch(m.asked[0].system, /You write the first sentence/, "the one call is the reader's");
 });
 
+test("an owner who pressed Rewrite turned the fact down: the writer writes, told what was turned down and what should change (00505)", async () => {
+  const m = scripted(WROTE("Austin Movers has been family-run since 2009."), READ());
+  const asked = { was: FACT.opening, change: "Lean on how long they have been around" };
+  const out = await checkOne(input({ fact: FACT, asked }), m.ask, open);
+  assert.deepEqual([out.kind, out.hold, out.calls], ["checked", null, 2]);
+  assert.equal(out.opening.opening, "Austin Movers has been family-run since 2009.");
+  assert.match(
+    m.asked[0].system,
+    /You write the first sentence/,
+    "the first call is the writer's, not the fact's reader",
+  );
+  assert.ok(m.asked[0].user.includes(`The owner turned this opening down: ${FACT.opening}`));
+  assert.ok(m.asked[0].user.includes("The owner asks: Lean on how long they have been around"));
+  assert.match(m.asked[1].user, /The sentence: Austin Movers has been family-run since 2009\./, "the reader reads it");
+});
+
 test("a fact the reader finds in another language is held for its language, with no writer", async () => {
   const m = scripted(READ({ language: "es" }));
   const out = await checkOne(input({ fact: FACT }), m.ask, open);
@@ -520,7 +536,8 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
           s.checked_at == null &&
           (s.check_after == null || s.check_after <= now) &&
           (s.check_started_at == null || s.check_started_at < ago(2 * MIN)) &&
-          (!a.p_tenant_id || s.tenant_id === a.p_tenant_id);
+          (!a.p_tenant_id || s.tenant_id === a.p_tenant_id) &&
+          (!a.p_send_ids || a.p_send_ids.includes(s.id));
         const perWorkspace = new Map();
         const picked = [];
         for (const s of tables.reach_out_sends.filter(free)) {
@@ -893,4 +910,124 @@ test("a tick tells the owner of a live run it held a send in, once, with the run
   w.tables.reach_out_sends.push(send({ lead_id: "liar", broadcast_id: "run-2" }));
   const third = await tick(w, byBusiness({ "Liar Movers": [...lie(), ...lie()] }).ask, { notice });
   assert.deepEqual([third.noticed, told.length], [0, 1]);
+});
+
+/* ------------------------------------------------------------- a pressed rewrite, checked now (00505) -- */
+
+test("a press checks its own sends alone, now: its owner's ask reaches the writer, and the clock's chores wait", async () => {
+  const pressed = send({
+    lead_id: "pressed",
+    rewrite_asked: { change: "Mention the piano moves", by: "u1", at: ago(MIN), was: { opening: "A 4.9 says it." } },
+  });
+  const other = send({ lead_id: "other" });
+  // A check_unavailable hold an hour old: the clock would put it back; a press leaves it to the clock.
+  const stale = send({ lead_id: "stale", state: "held", reason: "check_unavailable", updated_at: ago(2 * HOUR_AGO) });
+  const w = world({ sends: [pressed, other, stale], records: { pressed: record("Pressed Movers") } });
+  const m = byBusiness({ "Pressed Movers": [WROTE("Pressed Movers is family-run since 2009."), READ()] });
+  const out = await tick(w, m.ask, { tenantId: T, sendIds: [pressed.id] });
+  assert.deepEqual([out.read, out.checked, out.released, out.noticed], [1, 1, 0, 0], JSON.stringify(out));
+  assert.equal(w.row(pressed.id).opening, "Pressed Movers is family-run since 2009.");
+  assert.deepEqual([w.row(other.id).checked_at, w.row(other.id).check_started_at], [null, null], "not leased");
+  assert.equal(w.row(stale.id).state, "held", "the clock's release waits for the clock");
+  assert.ok(m.calls[0].includes("The owner turned this opening down: A 4.9 says it."));
+  assert.ok(m.calls[0].includes("The owner asks: Mention the piano moves"));
+});
+
+test("a press hears each step as the check takes it, and what their website said is kept, so writing it again reads no page", async () => {
+  const pages = [];
+  const before = setSitePageReader(async (url) => {
+    pages.push(url);
+    return {
+      url,
+      html: '<title>Kept Movers</title><meta name="description" content="Pianos since 2009">',
+      markdown: "",
+    };
+  });
+  try {
+    const asked = { change: null, by: "u1", at: ago(MIN), was: { opening: "A 4.9 says it." } };
+    const pressed = send({ lead_id: "kept", rewrite_asked: asked });
+    const w = world({ sends: [pressed], records: { kept: record("Kept Movers") } });
+    const steps = [];
+    const onStep = (id, step) => steps.push([id, step]);
+    const m = byBusiness({
+      "Kept Movers": [
+        WROTE("Loved by locals."),
+        READ({ backed: false, unbacked: "Loved by locals" }),
+        WROTE("Kept Movers has moved pianos since 2009."),
+        READ(),
+      ],
+    });
+    await tick(w, m.ask, { tenantId: T, sendIds: [pressed.id], onStep });
+    assert.deepEqual(steps, [
+      [pressed.id, "reading"],
+      [pressed.id, "writing"],
+      [pressed.id, "checking"],
+      [pressed.id, "again"],
+      [pressed.id, "checking"],
+    ]);
+    assert.equal(pages.length, 1, "their page read once, for the writer and the reader alike");
+    assert.equal(w.row(pressed.id).website_says, "Kept Movers · Pianos since 2009", "kept with the email");
+    // Pressed again: the kept words are the writer's, no page is read, and no reading is said.
+    Object.assign(w.row(pressed.id), { checked_at: null, check_started_at: null, rewrite_asked: asked });
+    steps.length = 0;
+    const again = byBusiness({ "Kept Movers": [WROTE("Kept Movers moves pianos with care."), READ()] });
+    await tick(w, again.ask, { tenantId: T, sendIds: [pressed.id], onStep });
+    assert.deepEqual(
+      steps.map(([, s]) => s),
+      ["writing", "checking"],
+    );
+    assert.equal(pages.length, 1, "no second read");
+    assert.ok(again.calls[0].includes("website_says: Kept Movers · Pianos since 2009"));
+  } finally {
+    setSitePageReader(before);
+  }
+});
+
+test("the pressed check's door acts for the workspace its token names, on one to twenty email ids", async () => {
+  const { checkPressedSends } = await import(at("apps/edge/lib/reach-out/check-sweep.ts"));
+  // A press asks for at most twenty (contracts REWRITE_NOW_MAX): one more is refused.
+  const { setPg } = await import(at("apps/edge/lib/pg.ts"));
+  const token = (workspace) => ({ ok: true, via: "token", workspace, user: "u1" });
+  const id = "11111111-aaaa-4aaa-8aaa-111111111111";
+  const status = async (auth, body) => {
+    const r = await checkPressedSends(auth, body);
+    return [r.status, (await r.json()).error];
+  };
+  assert.deepEqual(await status(token(null), { send_ids: [id] }), [400, "bad_tenant"]);
+  assert.deepEqual(await status(token(T), {}), [400, "bad_request"]);
+  assert.deepEqual(await status(token(T), { send_ids: [] }), [400, "bad_request"]);
+  assert.deepEqual(await status(token(T), { send_ids: [id, "not-an-id"] }), [400, "bad_request"]);
+  const many = Array.from({ length: 21 }, (_, i) => `11111111-aaaa-4aaa-8aaa-${String(i).padStart(12, "0")}`);
+  assert.deepEqual(await status(token(T), { send_ids: many }), [400, "bad_request"]);
+  const key = process.env.ANTHROPIC_API_KEY;
+  try {
+    delete process.env.ANTHROPIC_API_KEY;
+    assert.deepEqual(await status(token(T), { send_ids: [id] }), [503, "check_unset"]);
+    process.env.ANTHROPIC_API_KEY = "not-a-real-credential";
+    // Its own workspace's sends alone: another workspace's id leases nothing.
+    const theirs = send({ tenant_id: T2, lead_id: "theirs" });
+    const w = world({ sends: [theirs] });
+    setPg(w.db);
+    const r = await checkPressedSends(token(T), { send_ids: [theirs.id] });
+    assert.equal(r.status, 400, "a fixture id that is not a UUID is refused before any read");
+    theirs.id = "22222222-aaaa-4aaa-8aaa-222222222222";
+    const ok = await checkPressedSends(token(T), { send_ids: [theirs.id] });
+    assert.deepEqual([ok.status, (await ok.json()).read], [200, 0]);
+    assert.equal(w.row(theirs.id).check_started_at, null);
+    // As a stream: JSON lines, the steps as they come (none here), then the counts.
+    const streamed = await checkPressedSends(token(T), { send_ids: [theirs.id], stream: true });
+    assert.deepEqual([streamed.status, streamed.headers.get("content-type")], [200, "application/x-ndjson"]);
+    const lines = (await streamed.text())
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    assert.deepEqual(
+      lines.map((l) => [l.t, l.read]),
+      [["done", 0]],
+    );
+  } finally {
+    if (key === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = key;
+    setPg(null);
+  }
 });

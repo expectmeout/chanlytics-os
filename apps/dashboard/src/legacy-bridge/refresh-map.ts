@@ -101,6 +101,9 @@ const draftsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? 
 // The Sequences list counts a batch's replies by their messages (0060): a person erased takes theirs with them. Read where it
 // is drawn, left for its page elsewhere.
 const sequencesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([sequencesOverride]) : []);
+// One held email answered moves its run and its lead, never its chain (the row's counts are its report, read on open), and
+// the Needs you of its sequence where the Sequences page is drawn; its rewrite's check, now, and its Undo the same (00505).
+const heldEmailMoves = () => [broadcastsOverride, playbooksOverride, leadsOverride, ...sequencesIfDrawn()];
 // What the Reviews lens says of a review's reply mode (whether its composer asks the receptionist for a draft) is made wrong by a mode
 // saved, which is saved on Autonomy or from a chip, never from the lens: read where the lens is on screen, forgotten elsewhere
 // (the wiring's second audit, W-review-facts-rules-9: a mode saved read the lens nobody had open).
@@ -427,14 +430,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   "PUT reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
   "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
-  // One held email decided moves its run and its lead, never its chain (the row's counts are its report, read on open),
-  // and the Needs you of its sequence where the Sequences page is drawn.
-  "POST reach-out-sends/[id]/decide": () => [
-    broadcastsOverride,
-    playbooksOverride,
-    leadsOverride,
-    ...sequencesIfDrawn(),
-  ],
+  "POST reach-out-sends/[id]/decide": heldEmailMoves,
+  "POST reach-out-sends/check": heldEmailMoves,
+  "POST reach-out-sends/[id]/undo-rewrite": heldEmailMoves,
   // An email its owner said went (00429): its run and its lead, the person it made and the email on their thread, and the
   // reach-out's people; one left out moves the run alone, which the same reads cover.
   "POST reach-out-sends/[id]/said": () => [

@@ -20,7 +20,7 @@ import type {
 } from "@chanlytics/contracts";
 import { MIN_MS, detectLanguage, refusalOf, type AskOpeningsView, type SpeechPurpose } from "@chanlytics/contracts";
 import { api } from "../api";
-import { unwrap, type Api } from "../../client/api";
+import { readLines, unwrap, type Api } from "../../client/api";
 
 /**
  * A turn's lines. `say` is the answer's Say as written so far, with Show's figures and rows once each has closed
@@ -43,21 +43,8 @@ export interface OpeningsView {
   instead?: AskOpeningsView["instead"];
 }
 
-/** Read a stream of JSON lines, one event per line, across chunk boundaries. */
-export async function readLines(body: ReadableStream<Uint8Array>, on: (line: string) => void): Promise<void> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let carry = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    carry += decoder.decode(value, { stream: true });
-    const lines = carry.split("\n");
-    carry = lines.pop() ?? "";
-    for (const l of lines) if (l.trim()) on(l);
-  }
-  if (carry.trim()) on(carry);
-}
+/** Read a stream of JSON lines, one event per line, across chunk boundaries: the typed client's, said once. */
+export { readLines };
 
 /** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
 const TURN_MS = 300_000;

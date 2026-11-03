@@ -289,7 +289,74 @@ test("an email the check held is decided, and one handed over said of, through o
     "Bloom Bar is left out of this batch",
     "Bloom Bar is set aside: not a fit",
   ]);
-  assert.equal(decide.undo, undefined, "an email let go may be on its way: nothing to undo");
+  // A rewrite says what should change (00505); the words go only with a rewrite.
+  assert.deepEqual(commit("sequence_send_decide", { send_id: SEND, decision: "rewrite", change: " Shorter " }).body, {
+    decision: "rewrite",
+    change: "Shorter",
+  });
+  assert.deepEqual(commit("sequence_send_decide", { send_id: SEND, decision: "rewrite", change: "  " }).body, {
+    decision: "rewrite",
+  });
+  assert.deepEqual(commit("sequence_send_decide", { send_id: SEND, decision: "skip", change: "Shorter" }).body, {
+    decision: "skip",
+  });
+  // Its opening is written then, by the check of that email (the verb's second call), unless the place that pressed
+  // writes it itself and says each step (check: false, campaigns/reach-out/rewrite-ask.tsx).
+  const then = (payload) => decide.then(card("sequence_send_decide", payload).card, {});
+  assert.deepEqual(then({ send_id: SEND, decision: "rewrite" }), {
+    route: "POST reach-out-sends/check",
+    body: { send_ids: [SEND] },
+  });
+  assert.equal(then({ send_id: SEND, decision: "rewrite", check: false }), null);
+  assert.equal(then({ send_id: SEND, decision: "include" }), null, "only a rewrite is written");
+  // What the check came back with, said; one still being written, or waiting on a paused sequence, says so.
+  const rewriteCard = card("sequence_send_decide", { send_id: SEND, decision: "rewrite", name: "Bloom Bar" }).card;
+  const now = (over) => ({
+    send_id: SEND,
+    opening: "Bloom Bar opens at 7.",
+    written: true,
+    held: null,
+    paused: false,
+    undo: true,
+    ...over,
+  });
+  const rewrote = (t) => decide.receipt(rewriteCard, {}, t);
+  assert.deepEqual(
+    [
+      rewrote({ ok: true, data: { sends: [now()] } }),
+      rewrote({ ok: true, data: { sends: [now({ held: "unbacked_fact" })] } }),
+      rewrote({ ok: true, data: { sends: [now({ opening: null, written: false, paused: true })] } }),
+      rewrote({ ok: true, data: { sends: [now({ opening: null, written: false })] } }),
+      rewrote({ ok: false, message: "The edge could not be reached." }),
+    ],
+    [
+      "Bloom Bar's new opening is written",
+      "Bloom Bar's new opening is written, and the check held it",
+      "Bloom Bar's opening is written again once its sequence runs",
+      "Bloom Bar's opening is being written again",
+      "Bloom Bar's opening is being written again",
+    ],
+  );
+  // Undo is a rewrite's alone: the opening it replaced, back, or refused in the database's words where there is none.
+  // An email let go may be on its way: nothing to undo there.
+  const includeCard = card("sequence_send_decide", { send_id: SEND, decision: "include", name: "Bloom Bar" }).card;
+  assert.equal(decide.undo.label(rewriteCard), "Undo");
+  assert.equal(decide.undo.label(includeCard), null);
+  assert.equal(decide.undo.record(includeCard, {}, TAB), null);
+  const kept = decide.undo.record(rewriteCard, {}, TAB);
+  assert.deepEqual(kept, { send_id: SEND, name: "Bloom Bar" });
+  assert.deepEqual(decide.undo.call(kept, TAB), {
+    route: "POST reach-out-sends/[id]/undo-rewrite",
+    params: { id: SEND },
+  });
+  assert.equal(
+    decide.undo.receipt({ rewritten: now({ opening: "Old." }) }, kept),
+    "Bloom Bar's earlier opening is back",
+  );
+  assert.equal(
+    decide.undo.receipt({ rewritten: now({ opening: "Old.", held: "unbacked_fact" }) }, kept),
+    "Bloom Bar's earlier opening is back, held as it was",
+  );
   // Open is the run that holds the email, its sheet in Sent.
   assert.equal(
     decide.open({ payload: { send_id: SEND, run_id: SEQ } }, null),

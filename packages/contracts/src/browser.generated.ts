@@ -347,7 +347,7 @@ export { chainFirstSender, previewLinesOf, previewRefusedWords, REACH_OUT_FIRST_
 export { REACH_OUT_DECISIONS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_SAID_OUTCOMES } from "./reach-out/reach-out-dtos";
 export { HAND_KINDS, HAND_WORDS_MAX, handOf, handStepWords, personHandWords } from "./reach-out/reach-out-hand";
 export { askedDayOf, REACH_OUT_ADD_WORDS, REACH_OUT_WHY_NOT, REACH_OUT_WHY_NOT_WORDS, reachOutAddWords, reachOutCameWords, reachOutLineOf, reachOutPersonOf, reachOutStandingOf, reachOutStripOf, reachOutTimelineOf, reachOutWhenOf } from "./reach-out/reach-out-leads";
-export { OPENING_SCHEMA, OPENING_UNSTATED, openingSystemPrompt, openingUserContent, openingVerdict, parseOpening, parseReading, REACH_OUT_MODEL, READING_SCHEMA, readingSystemPrompt, readingUserContent } from "./reach-out/reach-out-opening";
+export { OPENING_SCHEMA, OPENING_UNSTATED, openingAskedOf, openingSystemPrompt, openingUserContent, openingVerdict, parseOpening, parseReading, REACH_OUT_MODEL, READING_SCHEMA, readingSystemPrompt, readingUserContent } from "./reach-out/reach-out-opening";
 export { awayUntilOf, isReplyIntent, isUnread, notNowDayOf, ownedDomainOf, OWNER_SAID_INTENTS, parseReplyReading, REACH_OUT_AWAY_DAYS, REACH_OUT_AWAY_MAX_DAYS, REACH_OUT_READS_PER_DAY, REACH_OUT_REPLY_DAYS, readingPlan, REPLY_ANSWERED_MAX, REPLY_INTENT_WORDS, REPLY_INTENTS, REPLY_NOT_NOW_DAYS, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREAD_DAYS, REPLY_REREADS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_SUMMARY_WORDS, REPLY_UNREADS, REPLY_WORDS_MAX, replyIntentQuestion, replyNoticeWords, replyStepWords, replySystemPrompt, replyTextOf, replyUserContent, rereadAt, stepDayFor, UNREAD_READING } from "./reach-out/reach-out-replies";
 export { DRAFT_NEEDS_MS, DRAFT_NOTICE_MAX, DRAFT_WHYS, draftExcerpt, draftRefusal, isDraftWhy, leadReplyNote } from "./reach-out/reach-out-reply-draft";
 export { bellActionOf, replyRowOf, withoutWrongPerson, withReplies } from "./reach-out/reach-out-reply-today";
@@ -390,7 +390,7 @@ export { isSequencesParam, isToSendParam, messageOfRoute, messageRoute, newForLe
 export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS } from "./sequences/sequence-draft";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequences/sequence-evidence";
-export { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, markedOpeningOf, sequencePersonWhyOf, waitingAnswersOf } from "./sequences/sequence-held";
+export { HELD_DECIDE_CARD, HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, markedOpeningOf, REWRITE_NOW_MAX, REWRITE_STEPS, REWRITE_WORDS, rewroteWords, sequencePersonWhyOf, theirsOf, waitingAnswersOf } from "./sequences/sequence-held";
 export { LEAD_BUILD_WORDS, LEAD_REWRITE_CHANGE_MAX, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadPreviewOfferOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep, withOpeningSaid } from "./sequences/sequence-lead-build";
 export { batchOkSendsNothing, heldByCheckWords, needsCount, needsWords, SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequences/sequence-list";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf } from "./sequences/sequence-place";

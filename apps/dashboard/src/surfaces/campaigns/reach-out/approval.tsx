@@ -30,6 +30,7 @@ import { leadOverDoor } from "../../leads/sheet/lead-over";
 import { SkipCaret } from "../broadcasts/run-sheet";
 import { pressed } from "../sequences/verbs";
 import { HeldEmailRow, RUN_HELD_IDS } from "./held-row";
+import { RewriteAsk } from "./rewrite-ask";
 import { reachOuts } from "./surface";
 import { RoToSend } from "./to-send";
 
@@ -115,6 +116,8 @@ interface HeldProps {
   said: Said | null;
   onAnswer: (sendId: string, door: HeldChoice, name: string, leadId: string | null) => Promise<void>;
   onRecheck: () => void;
+  /** Rewrite the opening's ask for an email, while it is open there (00505). */
+  askOf: (sendId: string, name: string) => ReactNode;
 }
 
 /**
@@ -123,7 +126,7 @@ interface HeldProps {
  * again for every email the check could not answer. A refusal is said at its row. A role that may not answer sees the
  * rows without their answers, told whose say they wait for.
  */
-function RoRunHeld({ vm, may, open, onToggle, busy, said, onAnswer, onRecheck }: HeldProps) {
+function RoRunHeld({ vm, may, open, onToggle, busy, said, onAnswer, onRecheck, askOf }: HeldProps) {
   const L = vm.labels;
   const note = !may ? vm.heldNote.gated : open ? vm.heldNote.open : vm.heldNote.closed;
   return (
@@ -148,6 +151,7 @@ function RoRunHeld({ vm, may, open, onToggle, busy, said, onAnswer, onRecheck }:
               said={said && said.id === h.id ? said.text : null}
               onAnswer={(door) => void onAnswer(h.id, door, h.name, h.leadId)}
               ids={RUN_HELD_IDS}
+              asking={askOf(h.id, h.name)}
             />
           ))
         : null}
@@ -273,6 +277,9 @@ interface RowDoors {
   busy: string | null;
   said: Said | null;
   answer: (id: string, door: HeldChoice, name: string, leadId: string | null) => Promise<unknown>;
+  /** The email whose Rewrite the opening asks what should change, and that ask, drawn where its row is. */
+  asking: string | null;
+  askOf: (id: string, name: string) => ReactNode;
 }
 
 /**
@@ -337,7 +344,8 @@ function RoRunList({
                       {x.opening}
                     </q>
                   ) : null}
-                  {may && x.answers.length > 0 ? (
+                  {doors.askOf(x.id, x.name)}
+                  {may && doors.asking !== x.id && x.answers.length > 0 ? (
                     <div className="ro-hrow-acts">
                       {x.answers.map((a) => (
                         <Button
@@ -395,6 +403,8 @@ function useRoRunDoors(p: { runId: string; sequenceId: string; flash: Flash; onD
   const { runId, sequenceId, flash, onDecided } = p;
   const [busy, setBusy] = useState<string | null>(null);
   const [said, setSaid] = useState<Said | null>(null);
+  // The email whose Rewrite the opening is asking what should change (00505): one at a time.
+  const [asking, setAsking] = useState<string | null>(null);
   const press = async (key: string, fn: () => Promise<Answer>) => {
     if (busy) return;
     setBusy(key);
@@ -413,7 +423,21 @@ function useRoRunDoors(p: { runId: string; sequenceId: string; flash: Flash; onD
   return {
     busy,
     said,
+    asking,
+    askOf: (id: string, name: string): ReactNode =>
+      asking === id ? (
+        <RewriteAsk
+          sendId={id}
+          runId={runId}
+          name={name}
+          flash={flash}
+          moved={onDecided}
+          onBack={() => setAsking(null)}
+          testid="ro-rewrite"
+        />
+      ) : null,
     answer: async (id: string, door: HeldChoice, name: string, leadId: string | null) => {
+      if (door === "rewrite") return void setAsking(id);
       if (door !== "take_out")
         return press(id, () =>
           commitVerb("sequence_send_decide", { send_id: id, decision: door, name, run_id: runId }),
@@ -563,6 +587,7 @@ export function ReachOutRun({ d, onDecided = () => undefined, flash = null, arme
         said={doors.said}
         onAnswer={doors.answer}
         onRecheck={() => void doors.recheck()}
+        askOf={doors.askOf}
       />
     ) : null;
   const list = <RoRunList key="list" vm={vm} runId={b.id} startOpen={!waiting} doors={doors} />;
