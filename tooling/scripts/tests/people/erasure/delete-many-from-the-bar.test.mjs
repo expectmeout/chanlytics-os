@@ -39,6 +39,11 @@ function bar(rung, over = {}) {
 
 /** The kit Sheet as the bar hands it its props: its `testid`, not the `data-testid` it draws. */
 const sheetOf = (tree) => find(tree, (n) => n.props?.testid === "bulk-delete-sheet");
+/** The bar once its sheet's chunk is in: the sheet is a chunk of its own, asked for as the owner's bar is drawn. */
+const sheetIn = async (b) => {
+  await until(() => sheetOf(b.redraw()), "the sheet's chunk");
+  return b.redraw();
+};
 
 test("Delete… is the owner's, on People's bar; an operator and the Pipeline's bar have none", () => {
   assert.ok(byTestId(bar("owner").tree, "bulk-delete"), "an owner's desk bar");
@@ -50,15 +55,15 @@ test("Delete… is the owner's, on People's bar; an operator and the Pipeline's 
   );
 });
 
-test("its sheet names who goes, offers Not a person, and asks the count typed before it deletes", () => {
+test("its sheet names who goes, offers Not a person, and asks the count typed before it deletes", async () => {
   const b = bar("owner");
-  assert.equal(sheetOf(b.tree).props.open, false, "closed until pressed");
+  assert.equal(sheetOf(await sheetIn(b)).props.open, false, "closed until pressed");
   press(byTestId(b.tree, "bulk-delete"));
   const tree = b.redraw();
   const sheet = sheetOf(tree);
   assert.equal(sheet.props.open, true);
   assert.equal(sheet.props.title, DELETE_MANY_WORDS.title(3));
-  assert.equal(textOf(byTestId(tree, "bulk-delete-who")), "Alerts, Billing, Pitches.");
+  assert.equal(sheet.props.sub, "Alerts, Billing, Pitches", "who goes, under the title: no paragraph");
   assert.ok(byTestId(tree, "bulk-delete-not-a-person"), "the person page's switch, for the selection");
   const ask = sheet.props.foot.props;
   assert.equal(ask.typed, "3", "the count is what is typed");
@@ -69,6 +74,7 @@ test("its sheet names who goes, offers Not a person, and asks the count typed be
 
 test("a press sends the batch, says what it did, and keeps selected whoever it could not delete or had no time for", async () => {
   const b = bar("owner");
+  await sheetIn(b);
   press(byTestId(b.tree, "bulk-delete"));
   let tree = b.redraw();
   find(tree, (n) => n.props?.["data-testid"] === "bulk-delete-not-a-person").props.onCheckedChange(true);
@@ -102,7 +108,7 @@ test("a press sends the batch, says what it did, and keeps selected whoever it c
   assert.equal(b.seen.toasts[0].tone, "danger", "someone was not deleted");
   assert.equal(
     textOf(b.seen.toasts[0].msg),
-    "1 person deleted: their mail stays in your mailbox · 1 not deleted — Could not delete them. · 1 still selected — press Delete again",
+    "1 person deleted · 1 not deleted — Could not delete them. · 1 still selected — press Delete again",
   );
   assert.deepEqual(b.seen.kept, ["p2", "p3"], "who could not go, and who it had no time for");
   assert.equal(sheetOf(b.redraw()).props.open, false, "the question is closed");

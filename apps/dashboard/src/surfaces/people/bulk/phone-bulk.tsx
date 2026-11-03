@@ -20,7 +20,7 @@ import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 import { messagesChoices } from "./messages";
 import type { MessagesChoice } from "./messages";
-import { DELETE_MANY_WORDS, DeleteManySheet, mayDeleteMany } from "./delete-many";
+import { DELETE_MANY_WORDS, DeleteManyQuestion, mayDeleteMany } from "./delete-many";
 
 /** One step of the phone's sheet: its title, a way back to the list it came from, and its body. */
 interface Step {
@@ -415,7 +415,7 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
       >
         {step ? step.body : null}
       </Sheet>
-      {mayDeleteMany(b) ? <DeleteManySheet b={b} a={a} /> : null}
+      {mayDeleteMany(b) ? <DeleteManyQuestion b={b} a={a} /> : null}
     </>
   );
 }

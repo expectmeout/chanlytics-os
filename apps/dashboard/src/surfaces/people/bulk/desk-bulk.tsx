@@ -11,7 +11,7 @@ import { addToListMenu as addMenu, barMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 import { messagesChoices } from "./messages";
-import { DELETE_MANY_WORDS, DeleteManySheet, mayDeleteMany } from "./delete-many";
+import { DELETE_MANY_WORDS, DeleteManyQuestion, mayDeleteMany } from "./delete-many";
 
 /**
  * The two inline boxes a desk's acts ask their words in: a new list's name, and which forms were signed. A note is the
@@ -167,7 +167,7 @@ export function deskBulk(b: BulkCtx, a: BulkActs) {
       <button className="btn btn-ghost btn-sm" onClick={onClear} data-testid="bulk-clear">
         <Icon name="x" size={11} /> Clear
       </button>
-      {mayDeleteMany(b) && <DeleteManySheet b={b} a={a} />}
+      {mayDeleteMany(b) && <DeleteManyQuestion b={b} a={a} />}
     </div>
   );
 }
