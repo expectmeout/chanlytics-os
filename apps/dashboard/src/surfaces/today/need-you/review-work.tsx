@@ -25,7 +25,7 @@ export function ReviewWork(
 ) {
   const { review, rowId, main, may, flash } = p;
   const who = reviewerOf(review);
-  // Kept by the review, not by this part: Ask found on a phone draws it in a sheet, and its card says what became of it.
+  // Kept by the review, not by this part: the row drawn again after the next read says what became of it.
   const [text, setText] = useRowState<string | null>(rowId, "text", null);
   // What Ask drafted, kept beside the words as the member changes them: Use Ask's draft puts it back.
   const [asked, setAsked] = useRowState<string | null>(rowId, "asked", null);

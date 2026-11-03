@@ -82,22 +82,40 @@ test("the head's sentence after the count: what Ask prepared, then the one thing
   assert.equal(needYouSay(none), null);
   assert.equal(needYouSay({ ...none, replies: 1 }), "Ask drafted a reply.");
   assert.equal(needYouSay({ ...none, replies: 2, briefs: 1 }), "Ask drafted 2 replies and a call brief.");
-  // The redesign of 1 Nov 2026: one sentence, said by the head after how many need you, with the window's own time.
+  // One sentence, said by the head after how many need you, with the window's own time and the first name (Today in three
+  // zones, 2 Nov 2026: "Sofia's window closes at 9:40 AM").
   assert.equal(
-    needYouSay({ ...none, replies: 3, firstWindow: { who: "Dana", at: "11:52 AM" } }),
-    "Ask drafted 3 replies, and Dana's reply window closes at 11:52 AM.",
+    needYouSay({ ...none, replies: 3, firstWindow: { who: "Dana Ruiz", at: "11:52 AM" } }),
+    "Ask drafted 3 replies, and Dana's window closes at 11:52 AM.",
   );
   assert.equal(
     needYouSay({ ...none, firstWindow: { who: "Dana", at: "11:52 AM" } }),
-    "Dana's reply window closes at 11:52 AM.",
+    "Dana's window closes at 11:52 AM.",
     "a window alone, with nothing drafted",
   );
   assert.equal(
-    needYouSay({ ...none, replies: 1, firstWindow: { who: "Sam", at: "5:10 PM" }, held: { who: "Priya" } }),
-    "Your receptionist answers Priya on its own unless you stop it. Ask drafted a reply, and Sam's reply window closes at 5:10 PM.",
+    needYouSay({ ...none, firstWindow: { who: "Lea Park", at: "tomorrow 12:03 AM" } }),
+    "Lea's window closes tomorrow at 12:03 AM.",
+    "a window that shuts after midnight says tomorrow before its time",
+  );
+  assert.equal(
+    needYouSay({ ...none, replies: 1, firstWindow: { who: "Sam", at: "5:10 PM" }, held: { who: "Priya Shah" } }),
+    "Your receptionist answers Priya on its own unless you stop it. Ask drafted a reply, and Sam's window closes at 5:10 PM.",
     "a reply that goes on its own in minutes comes before a window that closes in hours",
   );
   assert.equal(needYouSay({ ...none, writing: 2 }), "Ask is drafting your replies.", "writing, with nothing ready yet");
+  // Someone known only by their number or address is said whole, as every other place shortens a name
+  // (thread-contact.ts shortName): "+1" is nobody.
+  assert.equal(
+    needYouSay({
+      ...none,
+      replies: 1,
+      held: { who: "+1 (917) 555-0102" },
+      firstWindow: { who: "ana@example.com", at: "9:40 AM" },
+    }),
+    "Your receptionist answers +1 (917) 555-0102 on its own unless you stop it. Ask drafted a reply, and ana@example.com's window closes at 9:40 AM.",
+    "REGRESSION: the head said 'Your receptionist answers +1 on its own'",
+  );
 });
 
 test("a thread's draft is written from its hold, asks the owner nothing, and is current only for their newest message", () => {

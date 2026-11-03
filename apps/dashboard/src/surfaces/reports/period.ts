@@ -81,7 +81,7 @@ export async function setReportRange(range: ReportRange): Promise<boolean> {
   if (typeof range === "string") keepReportPeriod(range);
   const to = here ? lensRoute(here.lens, typeof range === "string" ? null : range, here.scope ?? null) : before;
   if (to !== before) navigate(to);
-  // Today's line and Worth a look say the period too (the headline), and so do the Reviews, Receptionist, People and Campaigns lenses. One this tab holds paints at once;
+  // Today's week line and Ask found's leaks say the period too (the headline), and so do the Reviews, Receptionist, People and Campaigns lenses. One this tab holds paints at once;
   // it is read behind that only when none is held for the range or the held one is old.
   followShown(false);
   // A range this tab has read paints at once; the read behind it keeps it current (the loading standard's held

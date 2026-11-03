@@ -15,7 +15,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, toBroadcastVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import {
+  toInboxThreadVM,
+  toBroadcastVM,
+  toTodayVM,
+  stateOf,
+  memberWords,
+  replyWaitsOnYou,
+} from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh,
@@ -90,29 +97,81 @@ const asked = (id, min) => ({
 });
 
 // Three flagged threads, as the salon's Needs you bucket can hold them: one nobody has, one you have, one Ana has;
-// and a Handled thread whose last reply never left.
-const rosa = toInboxThreadVM(conv("c1", "Rosa Díaz"), asked("c1", 90), ZONE, NOW);
-const mine = toInboxThreadVM(
+// and a Handled thread whose last reply never left. Each as the wire holds it, with its open hold: the Inbox's rows and
+// Today's read are made of the same ones.
+const ROSA = [conv("c1", "Rosa Díaz"), asked("c1", 90)];
+const MINE = [
   conv("c2", "Nina Park", { paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }),
   asked("c2", 120),
-  ZONE,
-  NOW,
-);
-const anas = toInboxThreadVM(
+];
+const ANAS = [
   conv("c3", "Ada Lovelace", { paused_until: later, assignee_user_id: ANA, assignee_is_me: false }),
   asked("c3", 150),
-  ZONE,
-  NOW,
-);
-const unsent = toInboxThreadVM(
+];
+const UNSENT = [
   conv("c4", "Zoe Martin", {
     state: "open",
     messages: [wrote("m-c4", "Can I book at 3?", 30), ours("m-c4b", "ai", "3pm works!", 29, "failed")],
   }),
   null,
-  ZONE,
-  NOW,
-);
+];
+const vmOf = ([dto, esc]) => toInboxThreadVM(dto, esc, ZONE, NOW);
+const rosa = vmOf(ROSA);
+const mine = vmOf(MINE);
+const anas = vmOf(ANAS);
+const unsent = vmOf(UNSENT);
+
+/** The metrics a Today read holds on the salon's day, as the page's own fixtures write them. */
+const wireMetrics = {
+  workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
+  channels: [{ kind: "whatsapp", status: "active", number: "+13055550188" }],
+  window: {
+    days: 1,
+    since: "2026-09-15T04:00:00+00:00",
+    since_local: "2026-09-15T00:00:00",
+    now_local: "2026-09-15T10:00:00",
+  },
+  now: {
+    escalations_open: 3,
+    oldest_open_escalation_at: ago(150),
+    threads_needing_human: 3,
+    threads_snoozed: 0,
+    threads_awaiting_reply: 0,
+    last_inbound_at: null,
+    last_outbound_at: null,
+  },
+  period: {
+    messages_in: 0,
+    messages_out_ai: 0,
+    messages_out_you: 0,
+    conversations_active: 0,
+    answered_by_ai: 0,
+    answered_by_you: 0,
+    unanswered_in_window: 0,
+    median_reply_seconds_ai: null,
+    send_failures: 0,
+    escalations_new: 0,
+    escalation_reasons: {},
+    calls: 0,
+    call_seconds: 0,
+    call_sentiments: {},
+    calls_voicemail: 0,
+    new_contacts: 0,
+  },
+};
+
+/**
+ * Today as its read makes it over these threads and their open holds, on the fixtures' clock (contracts toTodayVM): the
+ * one count every page says is Need you's rows of it (surfaces/needs-you.ts, Today in three zones, 2 Nov 2026).
+ */
+const todayOver = (pairs) =>
+  toTodayVM(
+    wireMetrics,
+    pairs.map(([dto]) => dto),
+    pairs.flatMap(([dto, esc]) => (esc ? [{ ...esc, conversation_id: dto.id }] : [])),
+    [],
+    NOW,
+  );
 
 test("the fixtures stand where the salon's threads stand", () => {
   assert.deepEqual([rosa.state, rosa.needsYou], ["escalated", true]);
@@ -290,6 +349,7 @@ test("REGRESSION: a bucket the member picked survives the next read -- picking a
 
 test("the Needs you chip counts what needs you, the badge's number -- not every thread flagged for a person", () => {
   sentCounts.length = 0;
+  setSurfaceValue("today", todayOver([ANAS, MINE, ROSA, UNSENT]));
   const { seen } = page([anas, mine, rosa, unsent]);
   const chip = (id) => seen.list.buckets.find((b) => b.id === id).count;
   assert.equal(
@@ -297,8 +357,9 @@ test("the Needs you chip counts what needs you, the badge's number -- not every 
     1,
     "REGRESSION: it counted the thread you have and Ana's too, under a badge that said 1",
   );
-  assert.equal(needsYouNow(), 1, "the badge's own number: the selector over the threads the page was given");
+  assert.equal(needsYouNow(), 1, "the badge's own number, Need you's rows of Today's read over the same threads");
   assert.deepEqual(sentCounts, [], "and the page sends none");
+  setSurfaceValue("today", undefined);
   assert.deepEqual(
     [chip("done"), chip("snoozed")],
     [3, 0],
@@ -356,6 +417,7 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
     dropDraft() {},
   };
   setSurfaceValue("broadcasts", { rows: [waitingRun()] });
+  setSurfaceValue("today", todayOver([UNSENT]));
   try {
     // Nothing but a Handled thread: the run is all that waits on you, and the Inbox opens where it is.
     const { seen } = page([unsent]);
@@ -396,6 +458,7 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
     assert.equal(byTestId(searched, "inbox-runs-waiting"), null, "a search stands the run aside");
   } finally {
     setSurfaceValue("broadcasts", undefined);
+    setSurfaceValue("today", undefined);
     globalThis.window.__tabMemory = had;
   }
 });
@@ -648,11 +711,15 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
 
 /* -------------------------------- the badge -------------------------------- */
 
-test("the badge's first count is the chip's: what needs you, not every flagged thread nobody in this tab holds, and none before the Inbox is read", () => {
+test("the badge's first count is the chip's: what needs you, not every flagged thread nobody in this tab holds, and none before Today is read", () => {
   setSurfaceValue("inbox", undefined);
+  setSurfaceValue("today", undefined);
   assert.equal(needsYouNow(), null, "a count of what nothing has read is no count: the seeded threads are no one's");
   inboxWith([rosa, mine, anas, unsent]);
+  assert.equal(needsYouNow(), null, "the Inbox's threads are not the count: Need you's rows of Today's read are");
+  setSurfaceValue("today", todayOver([ROSA, MINE, ANAS, UNSENT]));
   assert.equal(needsYouNow(), 1, "REGRESSION: it counted Ana's thread as waiting on you until the Inbox mounted");
+  setSurfaceValue("today", undefined);
 });
 
 /* --------------------------- a reply about to send --------------------------- */
@@ -710,9 +777,11 @@ test("REGRESSION: a reply about to send is at the top of Needs you, counted by t
     "the chip counts it and matches its own list; Handled holds the rest and not this one while it counts down",
   );
   assert.equal(seen.list.threads.length, chip("escalated"), "the chip is the length of the list under it");
+  // Today's read over the same threads: Rosa's hold, and Jess's reply counting down, its row first.
+  setSurfaceValue("today", todayOver([ROSA, MINE, ANAS, UNSENT, [sendingDto(), null]]));
   assert.equal(needsYouNow(), 2, "the badge is that same number");
   inboxWith([rosa, mine, anas, unsent, jess]);
-  assert.equal(needsYouNow(), 2, "and reads the same rule when the Inbox is not mounted");
+  assert.equal(needsYouNow(), 2, "and says it when the Inbox is not mounted");
 
   // Held: the countdown stops, and the thread is quiet again -- in the badge as in the chip, before the cancel's re-read.
   VW_STORE.state = { [`draft:${jess.veto.messageId}`]: { held: true } };
@@ -725,6 +794,9 @@ test("REGRESSION: a reply about to send is at the top of Needs you, counted by t
   VW_STORE.state = {};
   // Past its last second it is Handled again, until the re-read says what actually happened.
   assert.equal(ixBucketOf(jess, jess.veto.endsAtMs + 1), "done");
+  // (Today's read was made of the same thread a moment later than this one: a second past both deadlines.)
+  assert.equal(needsYouNow(jess.veto.endsAtMs + 1_000), 1, "and the badge leaves it too");
+  setSurfaceValue("today", undefined);
 });
 
 test("the row says the seconds, where the time it last moved would be", () => {
@@ -837,66 +909,32 @@ test("the wire's count is the chip's: each thread waits on you on the wire exact
   assert.deepEqual(wire, [true, false, false, false, true, false], "Rosa, and Jess whose reply is on its way");
 });
 
-/** The wire as the salon's Today reads it: the routes' answers, the metrics as the page's own fixtures write them. */
-const todayWire = (rows, replies) => {
-  const metrics = {
-    workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
-    channels: [{ kind: "whatsapp", status: "active", number: "+13055550188" }],
-    window: {
-      days: 1,
-      since: "2026-09-15T04:00:00+00:00",
-      since_local: "2026-09-15T00:00:00",
-      now_local: "2026-09-15T10:00:00",
-    },
-    now: {
-      escalations_open: 3,
-      oldest_open_escalation_at: ago(150),
-      threads_needing_human: 3,
-      threads_snoozed: 0,
-      threads_awaiting_reply: 0,
-      last_inbound_at: null,
-      last_outbound_at: null,
-    },
-    period: {
-      messages_in: 0,
-      messages_out_ai: 0,
-      messages_out_you: 0,
-      conversations_active: 0,
-      answered_by_ai: 0,
-      answered_by_you: 0,
-      unanswered_in_window: 0,
-      median_reply_seconds_ai: null,
-      send_failures: 0,
-      escalations_new: 0,
-      escalation_reasons: {},
-      calls: 0,
-      call_seconds: 0,
-      call_sentiments: {},
-      calls_voicemail: 0,
-      new_contacts: 0,
-    },
+/**
+ * The wire as the salon's Today reads it: GET today's one answer (Today in three zones, 2 Nov 2026; readers/today.ts),
+ * made of these threads and their open holds, and the replies to reach-outs where a case has some. `extra` lays parts
+ * over the read (the held threads past the newest hundred). A route the wire does not answer is a read that failed.
+ */
+const todayWire = (rows, replies, extra = {}) => {
+  const read = {
+    metrics: wireMetrics,
+    conversations: rows.map((r) => r.dto),
+    escalations: rows.flatMap((r) => (r.esc ? [{ ...r.esc, conversation_id: r.dto.id }] : [])),
+    calls: [],
+    searches: [],
+    runs: [],
+    held_threads: [],
+    previews_tried: [],
+    done_today: 0,
+    since: { seen_at: null, answered: null },
+    ...extra,
   };
   const answers = {
-    "/api/v1/metrics": { metrics },
-    "/api/v1/conversations": { conversations: rows.map((r) => r.dto) },
-    "/api/v1/escalations": {
-      escalations: rows.flatMap((r) => (r.esc ? [{ ...r.esc, conversation_id: r.dto.id }] : [])),
-    },
-    "/api/v1/calls": { calls: [] },
-    "/api/v1/lead-searches": { searches: [] },
-    // The readings of replies to reach-outs, when the case has some: a route the wire does not answer is a read that failed.
+    "/api/v1/today": { read },
     ...(replies ? { "/api/v1/reach-out-replies": { replies, mailbox: null } } : {}),
   };
   globalThis.fetch = async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
-    let data = answers[u.pathname];
-    // A read of threads by their ids (Today's of the holds past the hundred) is answered with those threads alone, as the
-    // route answers it.
-    const ids = u.searchParams.get("ids");
-    if (data && u.pathname === "/api/v1/conversations" && ids) {
-      const wanted = new Set(ids.split(","));
-      data = { conversations: data.conversations.filter((c) => wanted.has(c.id)) };
-    }
+    const data = answers[u.pathname];
     return new Response(
       JSON.stringify(data ? { ok: true, data } : { ok: false, error: { code: "not_found", message: "no" } }),
       {
@@ -907,74 +945,72 @@ const todayWire = (rows, replies) => {
   };
 };
 
-test("Today sends no number for the badge: it reads, and the badge is the selector over the Inbox's threads -- a reply held in the tab is not put back by a Today read", async () => {
+test("Today sends no number for the badge: the badge is Need you's rows of its read -- a reply held in the tab is not put back by a Today read", async () => {
   const realFetch = globalThis.fetch;
   try {
     const { todayOverride } = await import(`${S}/surfaces/today/override.ts`);
     VW_STORE.state = {};
-    const inbox = salon().map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
+    const rows = salon();
+    const inbox = rows.map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
     inboxWith(inbox);
     const jess = inbox[4];
-    assert.equal(
-      needsYouNow(),
-      inbox.filter((t) => ixWaitsOnYou(t)).length,
-      "the chip's own number: Rosa, and Jess whose reply is on its way",
-    );
-    // The owner presses Hold: the cancel's re-read has not landed, so the thread still carries its draft.
-    VW_STORE.state = { [`draft:${jess.veto.messageId}`]: { held: true } };
-    assert.equal(needsYouNow(), 1, "the badge drops the held reply at once, as the chip does");
-    // A Today refresh lands inside that window. It used to send the wire's 2 over the Inbox's 1 and nothing put the 1 back.
-    todayWire(salon());
+    todayWire(rows);
     sentCounts.length = 0;
     await todayOverride.apply();
     assert.deepEqual(sentCounts, [], "REGRESSION: Today sent a number for the badge, over the Inbox's");
-    assert.equal(needsYouNow(), 1, "REGRESSION: the held reply was counted again until something else moved the badge");
+    // Rosa's hold was made on the fixtures' day, past a week by the real clock: Older, no part of the count. Jess's reply,
+    // counting down on the real clock, is.
+    const counted = needsYouNow();
+    assert.equal(counted, 1, `Jess alone, whose reply is on its way: ${counted}`);
+    // The owner presses Hold: the cancel's re-read has not landed, so the thread still carries its draft.
+    VW_STORE.state = { [`draft:${jess.veto.messageId}`]: { held: true } };
+    assert.equal(needsYouNow(), counted - 1, "the badge drops the held reply at once, as the chip does");
+    // A Today refresh lands inside that window. It used to send the wire's 2 over the Inbox's 1 and nothing put the 1 back.
+    sentCounts.length = 0;
+    await todayOverride.apply();
+    assert.deepEqual(sentCounts, [], "REGRESSION: Today sent a number for the badge, over the Inbox's");
+    assert.equal(
+      needsYouNow(),
+      counted - 1,
+      "REGRESSION: the held reply was counted again until something else moved the badge",
+    );
     VW_STORE.state = {};
   } finally {
     globalThis.fetch = realFetch;
   }
 });
 
-test("Today's headline says the badge's number, and a flagged thread older than the newest hundred counts in both", async () => {
+test("a flagged thread older than the newest hundred is read by its id, and stands in Older: Need you holds it, the count does not", async () => {
   const realFetch = globalThis.fetch;
   try {
     const { todayOverride } = await import(`${S}/surfaces/today/override.ts`);
     const { surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+    const { needYouGroupsOf } = await import("@chanlytics/contracts");
     VW_STORE.state = {};
-    // Rosa, Jess whose reply is counting down, and a customer flagged weeks ago whose thread is past the conversations
-    // read's newest hundred: the escalations read holds it, the conversations read does not. The Inbox reads that
-    // thread by id and counts it; Today published 2 over it on every read, and its headline said 2 as well.
+    // A customer flagged weeks ago whose thread is past the conversations read's newest hundred: the escalations read holds
+    // it, the conversations read does not, and the server reads that thread by its id (readers/today.ts heldThreadsBeyond).
     const old = wireThread("c9", "Lena Ruiz", {}, { ...asked("c9", 60 * 24 * 20) });
     const rows = salon();
-    todayWire(rows);
-    const wire = globalThis.fetch;
-    globalThis.fetch = async (url) => {
-      const u = new URL(String(url), "https://app.chanlytics.com");
-      // Today reads that customer's thread by its id too (readHeldThreads), as the Inbox does.
-      if (u.pathname === "/api/v1/conversations" && u.searchParams.get("ids")?.split(",").includes(old.dto.id))
-        return new Response(JSON.stringify({ ok: true, data: { conversations: [old.dto] } }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      const res = await wire(url);
-      if (u.pathname !== "/api/v1/escalations") return res;
-      const body = await res.json();
-      body.data.escalations.push({ ...old.esc, conversation_id: old.dto.id });
-      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
-    };
+    todayWire(rows, undefined, {
+      escalations: [
+        ...rows.flatMap((r) => (r.esc ? [{ ...r.esc, conversation_id: r.dto.id }] : [])),
+        { ...old.esc, conversation_id: old.dto.id },
+      ],
+      held_threads: [old.dto],
+    });
     await todayOverride.apply();
-    // The Inbox reads that customer's thread by id and counts it: the same rows, the same rule, the badge's number.
-    const inbox = [...rows, old].map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
-    inboxWith(inbox);
-    assert.equal(
-      needsYouNow(),
-      3,
-      "the badge: Rosa, Jess whose reply is counting down, and the customer flagged weeks ago",
+    const read = surfaceValue("today");
+    const groups = needYouGroupsOf(read.queue.rows);
+    assert.ok(
+      groups.old.some((r) => r.who === "Lena Ruiz"),
+      "she waits, read by her id: one row of Older, with Mark all done",
     );
+    const counted = needsYouNow();
+    VW_STORE.state = {};
     assert.equal(
-      surfaceValue("today")?.standing.headline,
-      "3 conversations need you.",
-      "REGRESSION: the headline counted escalations alone, so a reply counting down was on the badge and not here",
+      counted,
+      groups.next.length + groups.waiting.length + groups.ok.length,
+      "and the count is the rows above To do: whoever waited past a week is never in it",
     );
   } finally {
     globalThis.fetch = realFetch;

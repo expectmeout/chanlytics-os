@@ -12,7 +12,7 @@
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { knownZone } from "@/legacy-bridge/zone";
-import { pageDatelineParts, useMinute } from "./dateline";
+import { pageDatelineParts, pageDatelineShort, useMinute } from "./dateline";
 import { watchFrameTop, watchPageEdges } from "./frame-top";
 import { watchPageGive } from "../motion/page-give";
 import { PageHead } from "./page-head";
@@ -156,10 +156,12 @@ function PageDateline() {
         {back.after ? <span className="pg-back-after">{back.after}</span> : null}
       </>
     );
-  const { day, time } = pageDatelineParts(now, zone ?? "UTC");
+  // Today's phone head says the hour, the day short to leave room for Listen and the bell (Standing `dateHour`).
+  const hour = phone && !!said?.dateHour;
+  const { day, time } = (hour ? pageDatelineShort : pageDatelineParts)(now, zone ?? "UTC");
   return (
     <>
-      <p className="pg-dateline">
+      <p className="pg-dateline" data-hour={hour || undefined}>
         {day}
         <span className="pg-dateline-time"> · {time}</span>
       </p>
@@ -182,7 +184,13 @@ function GlassHead() {
   return (
     <>
       {back && !inDate && <BackButton back={back} />}
-      <PageHead title={title} sentence={said?.sentence} stacked={said?.stacked} beside={phone ? null : said?.beside} />
+      <PageHead
+        title={title}
+        sentence={said?.sentence}
+        stacked={said?.stacked}
+        beside={phone ? null : said?.beside}
+        after={said?.after}
+      />
     </>
   );
 }

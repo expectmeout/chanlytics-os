@@ -6435,6 +6435,10 @@ textarea.rec-input,
   .pg-dateline-time {
     display: none;
   }
+  /* Today's phone head says the hour, its day short (frame-head.tsx, Standing `dateHour`; the Today canvas, 2 Nov 2026). */
+  .pg-dateline[data-hour] .pg-dateline-time {
+    display: inline;
+  }
 }
 /* The name and the date as the phone boards draw them: the aurora flows through the letters. On the canvas the pools of
    light are layers above the header's text, so they tint it (Ruben, 2 Oct 2026: "glassy"). Here the page's own light
@@ -6509,6 +6513,18 @@ textarea.rec-input,
 .pg-sentence b {
   color: var(--ink);
   font-weight: var(--weight-semibold);
+}
+/* What stands under the sentence (PageHead `after`: Today's Since you looked, Today in three zones, 2 Nov 2026): its own
+   line, as wide as the head, which opens in place under it; four pixels nearer the sentence than the sentence is to the
+   name. Every width's, a phone's included, where a stacked head keeps its sentence. */
+.pg-after {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  align-self: stretch;
+  min-width: 0;
+  margin-top: -4px;
 }
 /* A phone's top bar at its centre (frame-head.tsx BarTitleSaid; canvas A's hand-off): once the page's own head has
    scrolled away, a name and the dot of where they stand, between the way back and the bell, fading in and out. Amber is

@@ -201,11 +201,12 @@ test("a day that is over says it is past, never 'all done': the word decision 00
 /** The clock at `h` hours on the calendar's day, in its zone (America/New_York, four hours behind UTC in September). */
 const at = (h) => Date.UTC(2026, 8, 18, 4) + h * HOUR_MS;
 
-const drawNext = (cal, h = 16) => {
+/** The top bar's Next, over a page (the Calendar's, unless a test says another): Today's own day says it there instead. */
+const drawNext = (cal, h = 16, page = "calendar") => {
   fresh();
   setSurfaceValue("calendar", { vm: cal });
   Date.now = () => at(h);
-  return W.React.createElement(NextVisitBar, {});
+  return W.React.createElement(NextVisitBar, { page });
 };
 const realNow = Date.now;
 after(() => {
@@ -230,6 +231,9 @@ test("the bar's Next names the next visit that stands: a cancelled one is never 
   const none = calendar([visit("m", 15.5, "Trim", "missed", "Ana Reyes"), visit("c", 17, "Cut", "cancelled")]);
   assert.equal(todayDayNext(none, at(16)), null);
   assert.equal(all(drawNext(none), (n) => n.props?.["data-testid"] === "next-bar").length, 0);
+  // On Today the pill stands down: the day's own cells say who is next (Today in three zones, 2 Nov 2026).
+  const bar = (page) => all(drawNext(afternoon(), 16, page), (n) => n.props?.["data-testid"] === "next-bar").length;
+  assert.deepEqual([bar("today"), bar("calendar")], [0, 1]);
 });
 
 test("the bar says Kept beside a visit that is said kept and still under way", () => {

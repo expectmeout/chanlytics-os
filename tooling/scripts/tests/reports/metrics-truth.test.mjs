@@ -157,16 +157,21 @@ test("Today's quiet day dates the last message by the tenant's calendar, not by 
   const vm = toTodayVM(metrics({ now: { last_inbound_at: "2026-08-26T13:15:00Z" } }), [], [], [], NOW);
   assert.match(
     vm.quiet.sub,
-    /yesterday at 9:15 AM/,
+    /yesterday 9:15 AM/,
     "REGRESSION: read 'The last message arrived 9:15 AM' under 'Nothing has come in yet today'",
   );
   const same = toTodayVM(metrics({ now: { last_inbound_at: "2026-08-27T11:30:00Z" } }), [], [], [], NOW);
-  assert.match(same.quiet.sub, /arrived 7:30 AM/);
+  // The head's quiet sentence (Today in three zones, 2 Nov 2026): "The receptionist is on. Last message 7:30 AM ...".
+  assert.match(same.quiet.sub, /Last message 7:30 AM/);
 });
 
 test("Today: a workspace with no channel says so, and statuses are words", () => {
   const vm = toTodayVM(metrics({ channels: [] }), [], [], [], NOW);
-  assert.equal(vm.quiet.sub, "No line is connected yet, so nothing can come in.");
+  // A new owner's first Today, in the canvas's words (2 Nov 2026): what cannot happen yet, and what changes that.
+  assert.deepEqual(
+    [vm.quiet.headline, vm.quiet.sub],
+    ["Nothing can come in yet.", "Connect a line and your receptionist starts answering."],
+  );
   assert.ok(vm.quiet.proof.some((p) => p.value === "none connected yet"));
   const on = toTodayVM(metrics(), [], [], [], NOW);
   assert.ok(

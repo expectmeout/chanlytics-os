@@ -119,6 +119,8 @@ export interface BellRow {
   tone: string;
   unread: boolean;
   time: string;
+  /** When it became true, epoch ms: what Today's Since you looked counts from the member's last look (contracts todaySince). */
+  at: number;
   title: string;
   message: string;
   /** The record it is about, when the edge said so -- how Today knows this conversation is already in its queue. */
@@ -291,6 +293,7 @@ export function toRows(rows: NotificationRow[], now: number): BellRow[] {
     tone: r.tone,
     unread: r.unread,
     time: agoLabel(r.at, now),
+    at: r.at,
     title: r.title,
     message: r.message,
     about: r.about ?? null,

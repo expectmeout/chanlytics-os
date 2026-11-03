@@ -12,9 +12,13 @@
  *
  * The Inbox's badge in the sidebar, the phone's Inbox tab, the title of the browser's tab, the phone app's badge and
  * Today's head each counted them their own way, and two pages published a number over each other's (the wiring
- * blueprint's OW1). They all say `needsYouCount(waitsOf(...))` now, and the count a thread adds is `threadWait`: the
- * Inbox's own rule, Today's headline and the bell's rows ask the same one. Each page draws its parts too (the Inbox's
- * band for the runs, Today's sub-line for the sends), so no page says "nothing needs you" over a part it counts.
+ * blueprint's OW1). Since Today in three zones (0048, amended 2 Nov 2026) the badge, the strip's Inbox tab, the phone's
+ * tab, the title and Today's head say one count, Need you's rows (contracts needYouCountOf over needYouGroupsOf, through
+ * the dashboard's needs-you.ts needsYouNow); `needsYouCount(waitsOf(...))` sums the parts here (holds, held sends, runs)
+ * for the pages that say them apart: the Inbox's band and head, Ask's Right now, the phone widget and a demo session. The
+ * count a thread adds is `threadWait`: the Inbox's own rule and the bell's rows ask the same one. Each page draws its
+ * parts too (the Inbox's band for the runs, Today's sub-line for the sends), so no page says "nothing needs you" over a
+ * part it counts.
  *
  * Pure: a page hands in the threads and the runs it holds, the business's days and the clock.
  */
@@ -163,7 +167,11 @@ export function waitsOf(input: {
   return { ...threadWaits(input), runs: runsThatWait(input.runs, input.days).length };
 }
 
-/** The one number every surface shows for "needs you": the badge, the tab, the title, the phone and Today's head. */
+/**
+ * The parts of what waits on you summed: holds, held sends and runs, for the pages that say them apart (the Inbox's band
+ * and head, Ask's Right now, the phone widget, a demo session). The badge, the tabs, the title and Today's head say Need
+ * you's rows instead (contracts needYouCountOf, the dashboard's needs-you.ts needsYouNow).
+ */
 export function needsYouCount(waits: Waits): number {
   return waits.holds + waits.sends + waits.runs;
 }

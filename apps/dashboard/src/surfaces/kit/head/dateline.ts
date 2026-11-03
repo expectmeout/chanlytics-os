@@ -15,6 +15,15 @@ export function pageDatelineParts(nowMs: number, zone: string): { day: string; t
   };
 }
 
+/** The day short with its hour, as Today's phone head says it: "Tue, Nov 3" and "8:05 AM" (the Today canvas, 2 Nov 2026). */
+export function pageDatelineShort(nowMs: number, zone: string): { day: string; time: string } {
+  const at = new Date(nowMs);
+  return {
+    day: at.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: zone }),
+    time: at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone }),
+  };
+}
+
 /** "Friday, October 2 · 4:02 PM", in a zone (the head says it in capitals, in the mono face). */
 export function pageDateline(nowMs: number, zone: string): string {
   const { day, time } = pageDatelineParts(nowMs, zone);

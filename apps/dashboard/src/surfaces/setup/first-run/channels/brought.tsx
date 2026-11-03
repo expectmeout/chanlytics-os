@@ -3,7 +3,7 @@
  * answers on a desk, People, the Inbox, the Calendar and Reviews as what came in counts them, and one press to the
  * sources one by one, each as the imports ledger says it stands: in (a tick), how far it has come (a bar, or its
  * parts), waiting for Go live, stopped with its Try again. Today's Brought in opens the same lines in place
- * (today/pages/brought-in.tsx, `ImportLines`), where each line is a door to the page what it brought is on, and what the
+ * (today/zones/brought-in.tsx, `ImportLines`), where each line is a door to the page what it brought is on, and what the
  * mailbox set aside a door to where it is listed; the first run's sheet keeps its owner on the step.
  */
 import { useState, type ReactNode } from "react";

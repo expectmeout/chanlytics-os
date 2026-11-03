@@ -154,3 +154,15 @@ The 10/10 read's polish (2 Nov 2026):
 - **Even figures.** A desk's head says the four by their short names, as a phone does, the whole name its title.
 - **No tall empty card.** While you were away, when nothing happened, keeps its own height instead of stretching to the
   work's foot.
+
+## Amended 2 November 2026 · Today in three zones
+
+The canvas of 2 Nov 2026 (https://claude.ai/artifact/AwcTtpQ71E8D2x8CizCuAB), approved by Ruben the same day, is the page
+on a phone as on a desk, in one column (`surfaces/today/zones/page.tsx` `PhoneToday`): what cannot wait; what is left to
+set up while nobody waits; Need you, each group a pane of its own under its name (Up next as the card, who waits on you,
+To decide, To do, Older); Ask found, leading wide on a quiet day; the day, with what asks for something or comes back
+(a plain visit is the Calendar's); Ask found under it on any other day; Today so far, the four figures (Booked, Answered N
+of M, Calls, New people, each with its receipt) and the week under them; the pinned lists; what is left to set up while
+someone waits; and the page saying it is done. The head says the greeting, one sentence, Listen beside the bell, and
+Since you looked under it. The chips, To do's line and Ask found's line at Need you's foot went, and the walk in a sheet
+stays.

@@ -2,10 +2,12 @@
  * The brief's words (canvas E3, Glass): what the day says in a few sentences, composed from what Today already holds
  * and nothing read twice -- who needs you and how long the oldest has waited, the calendar's day, what came in, and
  * the playbook runs waiting for a word. A name is set in bold, as the canvas set it; the words are what Listen reads aloud
- * and Ask is handed (the dashboard's pages/listen.tsx). It said "Nothing has come in yet today" over two conversations waiting since the 18th and a day
- * of appointments (Ruben, 1 Oct 2026): the brief is everything that needs a person now, then the day, then the rest.
+ * and Ask is handed (the dashboard's surfaces/today/zones/listen.tsx). It said "Nothing has come in yet today" over two
+ * conversations waiting since the 18th and a day of appointments (Ruben, 1 Oct 2026): the brief is everything that needs a
+ * person now, then the day, then the rest.
  */
 import { appointmentWords } from "../journey/appointment-word";
+import { needYouGroupsOf } from "../need-you/need-you-groups";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { todayAlsoWaiting } from "./today-bands";
 import type { TodayDayItemVM, TodayDayVM } from "./today-day";
@@ -60,23 +62,25 @@ function names(who: readonly string[], rest: number): TodayBriefSegment[] {
  * Who needs you, with the oldest wait as the headline's detail says it; then the closing windows, the calls worth a
  * listen and the searches. Who needs you is the holds (isHoldRow) and the count's own number (needsYou.count: the holds
  * and the replies counting down, which have no row), never a closing window, which is said as a window (the wiring's
- * second audit, S7-8).
+ * second audit, S7-8), nor a hold past a week: that is Older, which the head's one count leaves out (need-you-groups.ts).
  */
 function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
   const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter(isHoldRow).map((r) => r.who))];
+  const older = needYouGroupsOf(rows).old.filter(isHoldRow);
+  const people = [...new Set(rows.filter((r) => isHoldRow(r) && !older.includes(r)).map((r) => r.who))];
   // The calls worth a listen and the searches waiting, all of them: counting the drawn rows alone said nothing of four
   // calls the queue's head had counted, because they sort after everyone waiting (the 2 Oct 2026 audit).
   const { calls, searches, windows } = vm.queue;
-  const total = vm.needsYou?.count ?? people.length;
-  // The ones not named: the holds past the six and the replies counting down.
+  const total = Math.max(people.length, (vm.needsYou?.count ?? people.length) - older.length);
+  // The ones not named: the holds past those named and the replies counting down.
   const rest = Math.max(0, total - people.length);
   const out: TodayBriefSegment[][] = [];
   if (!people.length && total > 0)
     out.push([plain(total === 1 ? "One conversation needs you." : `${total} conversations need you.`)]);
   if (people.length) {
     const one = people.length === 1 && rest === 0;
-    const detail = vm.standing.detail;
+    // The headline's detail names the longest wait: said where that is someone counted, never a wait Older holds.
+    const detail = older.some((r) => vm.standing.detail?.startsWith(`${r.who} has been `)) ? null : vm.standing.detail;
     // One person: the headline's detail names them again ("Ana Reyes has been waiting since 2:20 PM."), so the two
     // sentences are one: "Ana Reyes needs you, waiting since 2:20 PM."
     const [first = ""] = people;
@@ -84,7 +88,7 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
     if (one && detail && detail.startsWith(lead))
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      // The people not named, never the calls and the searches past the six: "and 20 more" over sixteen people.
+      // The people not named, never the calls and the searches past them: "and 20 more" over sixteen people.
       out.push([...names(people, rest), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
@@ -138,12 +142,13 @@ function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
 
 /**
  * What came in: the recap's line, and the proof the lines are listening on a quiet day and on a day with nothing
- * counted while someone waits (the day's tile stands as four zeros then, zero_figures, and the proof has no other seat).
+ * counted while someone waits (the day's four figures stand at zero then, and the proof has no other seat).
  */
 function cameIn(vm: TodayVM): TodayBriefSegment[][] {
   const line = vm.recap?.line;
   if (!line) return [];
-  return vm.quiet || vm.zero_figures ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
+  const nothingCounted = vm.figures.every((f) => !f.value);
+  return vm.quiet || nothingCounted ? [[plain(line)], [plain(vm.proof)]] : [[plain(line)]];
 }
 
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */

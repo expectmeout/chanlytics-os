@@ -429,7 +429,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
     ["settings", "calendar", "setup", "workspace"],
     "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, People's reach and the composers where a page draws them, and no page is on screen here: S4-6), and a renamed business the workspace (00439); Today's five reads draw no configuration",
   );
-  const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
+  const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   assert.ok(
     dayModule.includes('if (!C || !C.vm || C.vm.feed.state !== "ok") return null;') &&
       !dayModule.includes('data-testid="today-day"'),

@@ -43,7 +43,7 @@ export interface Snoozed {
 
 /** Not now on a thread: the snooze's choices, and what choosing one does. */
 export function useNotNow(p: WorkProps, setSnoozed: (s: Snoozed) => void) {
-  const { row, tz, flash, keep } = p;
+  const { row, tz, flash, keep, unkeep } = p;
   // The times as they stand when the menu opens (`fresh`, its trigger's press): a Today left open all day never offers an
   // hour, or an afternoon, already gone.
   const [at, setAt] = useState(() => Date.now());
@@ -64,6 +64,7 @@ export function useNotNow(p: WorkProps, setSnoozed: (s: Snoozed) => void) {
     });
     setBusy(false);
     if (!r.ok) {
+      unkeep(row);
       flash({ tone: "danger", msg: <>{r.message}</> });
       return;
     }
@@ -96,7 +97,7 @@ function notAPersonOf(row: TodayQueueRowVM, wire: string): (() => void) | null {
  * reply read: a closing window and a reply counting down hold nothing to give back.
  */
 function useMarkDone(p: WorkProps) {
-  const { row, flash, keep } = p;
+  const { row, flash, keep, unkeep } = p;
   const [done, setDone] = useRowState<Record<string, unknown> | null>(row.id, "markedDone", null);
   const may = p.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply");
   const mark = async () => {
@@ -104,14 +105,18 @@ function useMarkDone(p: WorkProps) {
     // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.
     keep(row);
     const r = await commitVerb("thread_verb", { verb: "hand_back", conversation_id: row.conversationId, who: row.who });
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    if (!r.ok) {
+      unkeep(row);
+      return flash({ tone: "danger", msg: <>{r.message}</> });
+    }
     setDone(r.undo ?? {});
   };
   const undo = async () => {
     if (!done) return;
     const r = await undoVerb("thread_verb", done);
-    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
-    else setDone(null);
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    setDone(null);
+    unkeep(row);
   };
   return { done: done !== null, mark: may ? () => void mark() : null, undo: () => void undo() };
 }
@@ -123,9 +128,9 @@ interface Refused {
 }
 
 /** The send's own words: a template's choice outside WhatsApp's window, the address asked about, or Send. */
-function sendLabel(closed: boolean, refused: Refused | null): string {
+function sendLabel(closed: boolean, refused: Refused | null, send: string): string {
   if (closed) return W.pickTemplate;
-  return refused?.confirmTo ? W.sendTo(refused.confirmTo) : W.send;
+  return refused?.confirmTo ? W.sendTo(refused.confirmTo) : send;
 }
 
 /** The row's words as they stand: the member's own once changed, else the receptionist's or Ask's draft. */
@@ -137,11 +142,12 @@ function useWords(row: TodayQueueRowVM, mine: string | null, may: boolean) {
 
 /**
  * What a reply row prepared and lets the member do: the draft, typed in where it stands, Send with its countdown, Not now
- * with its Wake. `what` names the words where they are not a reply (a booking's confirmation), and `by` says whose they
- * are where they are not Ask's (a held reply of the receptionist's).
+ * with its Wake. `what` names the words where they are not a reply (a booking's confirmation), `by` says whose they are
+ * where they are not Ask's (a held reply of the receptionist's), and `sendWord` is the press where it is not Send (a reply
+ * that never reached them goes again with Try again).
  */
-export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: ReactNode }) {
-  const { row, main, may, tz, flash, keep } = p;
+export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: ReactNode; sendWord?: string }) {
+  const { row, main, may, tz, flash, keep, unkeep } = p;
   const wire = row.writes?.wire ?? row.channel;
   const [mine, setMine] = useRowState<string | null>(row.id, "mine", null);
   // Opened by Write it myself: the empty words stand, and take the keys as they are drawn.
@@ -175,20 +181,23 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
     setBusy(false);
     if (!r.ok) {
       setSentHere(false);
+      unkeep(row);
       return setRefused({ message: r.message, confirmTo: r.confirmTo });
     }
     setEditing(false);
   };
   const undo = async () => {
     const r = await undoSend(row.id);
-    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
-    else setMine(words);
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    setMine(words);
+    unkeep(row);
   };
   const wake = async () => {
     if (!snoozed) return;
     const r = await undoVerb("thread_verb", snoozed.record);
-    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
-    else setSnoozed(null);
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    setSnoozed(null);
+    unkeep(row);
   };
   // Outside WhatsApp's window only an approved message reaches them: the words go to the thread's box, where it is chosen.
   const toThread = () => {
@@ -234,7 +243,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
       aria-busy={busy || undefined}
       {...gate("approve", "send a reply")}
     >
-      {sendLabel(closed, refused)}
+      {sendLabel(closed, refused, p.sendWord ?? W.send)}
     </Button>
   );
   // Typed where they stand: the member's own from the first key, and a send stopped before says nothing more.

@@ -194,7 +194,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
 
 /** What one device remembers about the bell. */
 export interface NotificationReadState {
-  /** "Mark all read" moves this; opening the bell does not, so "New" stays new until the owner says so. */
+  /** "Mark all read" and closing the bell move this; opening it does not, so "New" holds while it is open. */
   seenAt: number;
   read: string[];
   dismissed: string[];

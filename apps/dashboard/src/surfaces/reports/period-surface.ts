@@ -100,7 +100,7 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
   /**
    * A write made every range held wrong, and the page that draws what is published is on screen and is about to read it: nothing
    * is held, so no pick paints a count from before the write, but what is published stays until the read replaces it. A band that
-   * went blank for the length of a read (Worth a look, which is not drawn without its numbers) would jump on every reply.
+   * went blank for the length of a read (Ask found's leaks, which are not drawn without their numbers) would jump on every reply.
    */
   function outdate(): void {
     generation += 1;

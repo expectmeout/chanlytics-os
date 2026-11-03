@@ -253,8 +253,8 @@ test("a row's main button takes a gate, and Enter on a button inside a row does 
 
 /* ------------------------------------ Today ------------------------------------ */
 
-// Today's queue is TSX (surfaces/today/pages/queue.tsx): drawn by import, over the day the seam holds.
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+// Today's Need you is TSX (surfaces/today/zones/need-you.tsx): drawn by import, over the day the seam holds.
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const metrics = {
@@ -318,7 +318,7 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   try {
     fresh();
-    const tree = again(() => AgentCommand());
+    const tree = again(() => NeedYou());
     // The row's own props, as the page handed them to the kit's AttnRow (the element, not the div it draws).
     const run = find(tree, (n) => n.type === AttnRow && n.props.testid === "brief-run-row")?.props;
     assert.ok(run, "the run waiting for approval");

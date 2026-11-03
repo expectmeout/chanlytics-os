@@ -136,7 +136,7 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
     "runs",
     "leaks",
     "away",
-    "steps",
+    "to-do",
   ]
     .map((m) => readCode(`packages/contracts/src/today/today-${m}.ts`))
     .join("\n");
@@ -144,15 +144,15 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
     !today.includes("live.escalations_open"),
     "Today no longer counts the SQL's open escalations — it counts the threads that need you",
   );
-  const page = readCode("apps/dashboard/src/surfaces/today/pages/queue.tsx");
-  // The queue is named for what it holds, its groups for where each row stands (the redesign of 1 Nov 2026).
+  const page = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+  // The queue is named for what it holds, its groups for where each row stands (Today in three zones, 2 Nov 2026).
   assert.ok(
     page.includes('className="tq-title"') && page.includes("Need you") && page.includes("needYouGroupsOf(rows)"),
     "the queue says what it holds",
   );
-  const brief = readCode("apps/dashboard/src/surfaces/today/pages/brief.tsx");
+  const band = readCode("apps/dashboard/src/surfaces/today/zones/alert.tsx");
   assert.ok(
-    !brief.includes('"Queue clear — nothing needs you"'),
-    "the queue says it once: the line above the work said it too, over the queue that means it",
+    !band.includes('"Queue clear — nothing needs you"'),
+    "the queue says it once: the band above the work is for what cannot wait, never that nothing does",
   );
 });

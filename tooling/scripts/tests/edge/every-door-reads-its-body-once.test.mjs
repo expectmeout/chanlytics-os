@@ -49,6 +49,7 @@ after(() => {
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const DOORS = [
+  "calendar/freed-time",
   "email/alert-test",
   "email/test-to-self",
   "email/wire",

@@ -1,9 +1,9 @@
 /**
  * The day's four figures, each with its clause and its receipt, and the proof the lines are listening: what was booked,
- * customer messages, answered by the receptionist, and calls (decision 0076, as amended 2 Nov 2026: the figures measured
- * activity, and a receptionist's day is measured by what it booked); new people where the day's read says nothing of
- * bookings (an older server, a read that failed). The words they are said in live here too; the list join and the
- * seconds phrase are today-bands.ts's.
+ * answered by the receptionist of the customer messages, calls and new people (decision 0076, as amended 2 Nov 2026: a
+ * receptionist's day is measured by what it booked; Today in three zones, the same day: messages and answered were one
+ * fact on two seats, so the messages are answered's "of" and new people keep the fourth). Always the four, on a quiet day
+ * as zeros. The words they are said in live here too; the list join and the seconds phrase are today-bands.ts's.
  */
 import { visitRoute } from "../calendar/appointment-key";
 import { visitDateKey, visitDay, visitStartTime, visitTime } from "../calendar/calendar-people";
@@ -17,7 +17,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import { BOOKED_NEEDS_A_LINK, CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import { capitalize, plural } from "../shared/words";
 import { andList, secondsPhrase, speedClause } from "./today-bands";
-import { tzClock, tzDayAndTime } from "./today-clock";
+import { tzDayAndTime } from "./today-clock";
 import { todayReplySpeed, type MetricsSummaryDto, type TodayBookedDto, type TodayBookingsDto } from "./today-metrics";
 import type { TodayFigureVM } from "./today-vm";
 
@@ -111,6 +111,21 @@ function bookedFigure(b: TodayBookingsDto, now: Date): TodayFigureVM {
 }
 
 /**
+ * When the last message came and how fast it was answered, as a quiet day's head says it after "The receptionist is on."
+ * (the canvas of 2 Nov 2026): "Last message Tuesday 4:12 PM, answered in 22s." Empty where no message has come yet.
+ */
+export function todayLastLine(
+  live: { last_inbound_at: string | null; last_outbound_at: string | null },
+  tz: string,
+  now: Date,
+): string {
+  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now, "clipped");
+  if (!lastIn) return "";
+  const gap = replyGapSeconds(live);
+  return `Last message ${lastIn}${gap !== null ? `, answered in ${secondsPhrase(gap)}` : ""}.`;
+}
+
+/**
  * The proof the lines are listening: when the last message arrived and how long the receptionist took to answer it.
  * Always said, never gated on the queue: on this workspace (no traffic, three open escalations) it was suppressed
  * exactly when an owner needed it. On a day with traffic it is the messages figure's clause; on a quiet day the
@@ -121,7 +136,7 @@ export function todayProof(
   tz: string,
   now: Date,
 ): string {
-  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
+  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now, "sentence");
   if (!lastIn) return "No messages have arrived yet.";
   const gap = replyGapSeconds(live);
   return `The last message arrived ${lastIn}${gap !== null ? `, and the receptionist answered ${secondsPhrase(gap)} later` : ""}.`;
@@ -152,21 +167,19 @@ export function figuresOf(
   escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
   tz: string,
   now: Date,
-): TodayFigureVM[] | null {
+): TodayFigureVM[] {
   const p = m.period;
-  const live = m.now;
-  if (nothingCounted(m)) return null;
+  if (nothingCounted(m)) return quietFigures(m.now, tz, now, m.bookings);
   const windowMs = new Date(m.window.since).getTime();
   const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) =>
     x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
 
-  // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp, which
-  // is what every row was before the column said (viewmodels.ts writtenChannelOf). The receipt says nothing when the
-  // read holds none of today's messages, and says what it counted when the read holds fewer than the figure.
-  // What it counts is what the figure counts: a person's words (isCustomerMessage, 00379), never an out-of-office
-  // the Inbox also holds.
-  const gap = replyGapSeconds(live);
-  const lastAt = tzClock(live.last_inbound_at, tz, now);
+  // The customer messages the day's answered figure is "of": the wires they came by as the first of its why. A message
+  // with no wire named is WhatsApp, which is what every row was before the column said (viewmodels.ts writtenChannelOf).
+  // Nothing is said of the wires when the read holds none of today's messages, and what was counted is said when the read
+  // holds fewer than the figure. What it counts is what the figure counts: a person's words (isCustomerMessage, 00379),
+  // never an out-of-office the Inbox also holds. Messages and answered were one fact on two seats (the canvas of 2 Nov
+  // 2026), so the messages are answered's "of" and new people keep their seat.
   const wires = tally(
     conversations.flatMap((c) =>
       c.messages.filter((x) => isCustomerMessage(x) && fresh(x)).map((x) => threadChannelWords([x])),
@@ -174,28 +187,18 @@ export function figuresOf(
   );
   const held = wires.reduce((s, [, n]) => s + n, 0);
   const split = andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`));
-  const messages: TodayFigureVM = {
-    id: "messages",
-    label: "customer messages",
-    value: p.messages_in,
-    meta: lastAt ? `last at ${lastAt}${gap !== null ? `, answered in ${secondsPhrase(gap)}` : ""}` : "none yet",
-    receipt: wires.length
-      ? {
-          // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
-          text:
-            held !== p.messages_in
-              ? held === 1
-                ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
-                : wires.length === 1
-                  ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
-                  : `Of the ${held} in the Inbox: ${split}.`
-              : wires.length === 1
-                ? `All by ${wireWord(wires[0][0])}.`
-                : `${split}.`,
-          door: { label: "Open the Inbox", to: "inbox" },
-        }
-      : null,
-  };
+  // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
+  const wireWords = !wires.length
+    ? ""
+    : held !== p.messages_in
+      ? held === 1
+        ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
+        : wires.length === 1
+          ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
+          : `Of the ${held} in the Inbox: ${split}.`
+      : wires.length === 1
+        ? `All by ${wireWord(wires[0][0])}.`
+        : `${split}.`;
 
   // Answered by the receptionist: how fast and how often it stopped as the clause; why it stopped and what it sent as
   // the why. The clause is the SQL's count of handovers opened today; the reasons are today's escalations as the page
@@ -245,14 +248,23 @@ export function figuresOf(
   const sentMore =
     p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : "";
   const sentEach = p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
-  const answeredWhy = (handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]).filter(Boolean);
+  const answeredWhy = [
+    wireWords,
+    ...(handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]),
+  ].filter(Boolean);
   const answered: TodayFigureVM = {
     id: "answered",
     label: "answered by the receptionist",
     value: p.answered_by_ai,
+    of: p.messages_in,
     meta: answeredMeta,
     receipt: answeredWhy.length
-      ? { text: answeredWhy.join(" "), door: p.escalations_new ? { label: "See the handovers", to: "inbox" } : null }
+      ? {
+          text: answeredWhy.join(" "),
+          door: p.escalations_new
+            ? { label: "See the handovers", to: "inbox" }
+            : { label: "Open the Inbox", to: "inbox" },
+        }
       : null,
   };
 
@@ -342,28 +354,26 @@ export function figuresOf(
           }
         : null,
   };
-  return fourOf(m.bookings, now, [messages, answered, calls], newPeople);
+  return [bookedOf(m.bookings, now), answered, calls, newPeople];
 }
 
 /** Nothing at all counted on the day: no message, call, new person or booking. */
 const nothingCounted = (m: MetricsSummaryDto): boolean =>
   m.period.messages_in + m.period.calls + m.period.new_contacts + (m.bookings?.booked ?? 0) === 0;
 
-/** The day's four: what was booked leads where the day's read says it; where it says nothing, new people keep the fourth seat. */
-function fourOf(
-  bookings: TodayBookingsDto | null | undefined,
-  now: Date,
-  three: readonly TodayFigureVM[],
-  newPeople: TodayFigureVM,
-): TodayFigureVM[] {
-  return bookings ? [bookedFigure(bookings, now), ...three] : [...three, newPeople];
+/**
+ * What was booked today, the figure the day leads with, or where the day's read could not say it, the figure with no
+ * number: a dash, never a zero nobody counted (a booking read that failed, or a read of more than a day, says nothing).
+ */
+function bookedOf(bookings: TodayBookingsDto | null | undefined, now: Date): TodayFigureVM {
+  return bookings
+    ? bookedFigure(bookings, now)
+    : { id: "booked", label: "booked", value: null, meta: "couldn't be read", receipt: null };
 }
 
 /**
- * A quiet day's four figures, for a look that draws the day's tile whole (Glass, canvas E3; Ruben, 1 Oct 2026): the
- * zeros, each with what is true under it, and no receipt. Classic keeps the quiet card's sentence instead (above:
- * a row of zeros read as a product that died overnight); here the tile stands beside Worth a look, and the zeros
- * stand as the page's other counts do.
+ * A quiet day's four figures, the tile drawn whole as on any day (the canvas of 2 Nov 2026): the zeros, each with what is
+ * true under it, and no receipt, booked leading.
  */
 export function quietFigures(
   live: { last_inbound_at: string | null; last_outbound_at: string | null },
@@ -372,23 +382,18 @@ export function quietFigures(
   /** What was booked, where the day's read says it: it leads, as on any day. */
   bookings?: TodayBookingsDto | null,
 ): TodayFigureVM[] {
-  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
-  const zeros: TodayFigureVM[] = [
+  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now, "sentence");
+  return [
+    bookedOf(bookings, now),
     {
-      id: "messages",
-      label: "customer messages",
+      id: "answered",
+      label: "answered by the receptionist",
       value: 0,
-      meta: lastIn ? `none today, the last ${lastIn}` : "none yet",
+      of: 0,
+      meta: lastIn ? `nothing today, the last ${lastIn}` : "nothing to answer yet",
       receipt: null,
     },
-    { id: "answered", label: "answered by the receptionist", value: 0, meta: "nothing to answer yet", receipt: null },
     { id: "calls", label: "calls", value: 0, meta: "none yet", receipt: null },
+    { id: "new", label: "new people", value: 0, meta: "nobody new yet", receipt: null },
   ];
-  return fourOf(bookings, now, zeros, {
-    id: "new",
-    label: "new people",
-    value: 0,
-    meta: "nobody new yet",
-    receipt: null,
-  });
 }

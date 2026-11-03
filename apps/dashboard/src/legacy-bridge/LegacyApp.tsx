@@ -238,7 +238,7 @@ const SURFACES = [
   peopleOverride,
   leadsOverride,
   reportsOverride,
-  // Today's period line and Worth a look: one small read of the period Reports shows (surfaces/reports/headline.ts).
+  // Today's week line and Ask found's leaks: one small read of the period Reports shows (surfaces/reports/headline.ts).
   reportsHeadlineOverride,
   // The Reviews lens's own read, folded once: its figures, its cards and its head (surfaces/reports/reviews-surface.ts).
   reviewsOverride,

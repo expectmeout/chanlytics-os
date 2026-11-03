@@ -104,3 +104,18 @@ The spec's "What proves it". In short:
 - Whether a move inside the same window should offer its old time: the record's `was_at` says it, and the run reads
   whether the span is free now, so it offers only a time that is open.
 - The intent of the person's last message, once kept on the person, for the ranking: a later step.
+
+## Amended 2 November 2026 · Offer it from the day
+
+Today in three zones (the canvas of 2 Nov 2026, approved by Ruben the same day): an hour a cancellation freed stands in
+Today's day at its time, in amber, saying who cancelled and how many could take it (the people the running
+`slot_opened` step reaches, as its Campaigns card counts them: "Rosa cancelled. 4 people could take it"), with Offer it.
+The press makes the offer the cancellation's arrival makes (`POST calendar/freed`, the dashboard's door to the edge's
+`admin/calendar/freed-time`, `lib/calendar/freed-time-now.ts`): over the time the receptionist would book now, read from
+the visit itself (`freedTimeOf`), never a span the page sends, once per appointment, so a second press or the arrival's
+own offer is answered by the batch the first made. Its batch follows the sequence's mode (0064): where the sequence asks
+first it waits for the owner's OK and the row says "Offered · in To decide"; where it does not, it goes, and the row says
+"Offered to 4 people". A time that cannot be offered now, or a step that is off or paused, is said in the owner's words. The
+count the line says is everyone the step could reach; the batch the press makes takes as many as one run of the step
+sends (its cap), so "30 people could take it" may go to 4, which the row then says. The line is offered, and counted,
+only while its open part is still to come and at least one of the receptionist's slots long.
