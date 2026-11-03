@@ -6604,6 +6604,7 @@ export type Database = {
           message_id: string | null
           opening: string | null
           reason: string | null
+          rewrite_asked: Json | null
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -6613,6 +6614,7 @@ export type Database = {
           step_id: string | null
           tenant_id: string
           updated_at: string
+          website_says: string | null
         }
         Insert: {
           angle?: string | null
@@ -6641,6 +6643,7 @@ export type Database = {
           message_id?: string | null
           opening?: string | null
           reason?: string | null
+          rewrite_asked?: Json | null
           said_at?: string | null
           said_by?: string | null
           send_at?: string | null
@@ -6650,6 +6653,7 @@ export type Database = {
           step_id?: string | null
           tenant_id: string
           updated_at?: string
+          website_says?: string | null
         }
         Update: {
           angle?: string | null
@@ -6678,6 +6682,7 @@ export type Database = {
           message_id?: string | null
           opening?: string | null
           reason?: string | null
+          rewrite_asked?: Json | null
           said_at?: string | null
           said_by?: string | null
           send_at?: string | null
@@ -6687,6 +6692,7 @@ export type Database = {
           step_id?: string | null
           tenant_id?: string
           updated_at?: string
+          website_says?: string | null
         }
         Relationships: [
           {
@@ -10151,7 +10157,11 @@ export type Database = {
         Returns: Json
       }
       reach_out_send_decide: {
-        Args: { p_decision: string; p_send_id: string }
+        Args: { p_change?: string; p_decision: string; p_send_id: string }
+        Returns: Json
+      }
+      reach_out_send_rewrite_undo: {
+        Args: { p_send_id: string }
         Returns: Json
       }
       reach_out_send_said: {
@@ -10372,6 +10382,7 @@ export type Database = {
           message_id: string | null
           opening: string | null
           reason: string | null
+          rewrite_asked: Json | null
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -10381,6 +10392,7 @@ export type Database = {
           step_id: string | null
           tenant_id: string
           updated_at: string
+          website_says: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -10423,6 +10435,7 @@ export type Database = {
           message_id: string | null
           opening: string | null
           reason: string | null
+          rewrite_asked: Json | null
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -10432,6 +10445,7 @@ export type Database = {
           step_id: string | null
           tenant_id: string
           updated_at: string
+          website_says: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -10547,6 +10561,7 @@ export type Database = {
           message_id: string | null
           opening: string | null
           reason: string | null
+          rewrite_asked: Json | null
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -10556,6 +10571,7 @@ export type Database = {
           step_id: string | null
           tenant_id: string
           updated_at: string
+          website_says: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -10703,6 +10719,7 @@ export type Database = {
           message_id: string | null
           opening: string | null
           reason: string | null
+          rewrite_asked: Json | null
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -10712,6 +10729,7 @@ export type Database = {
           step_id: string | null
           tenant_id: string
           updated_at: string
+          website_says: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -10780,6 +10798,7 @@ export type Database = {
           p_ahead_minutes: number
           p_limit: number
           p_per_workspace: number
+          p_send_ids?: string[]
           p_tenant_id?: string
         }
         Returns: {

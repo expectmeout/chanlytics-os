@@ -7,6 +7,7 @@ import type { ReachOutHold } from "./reach-out-words";
 import type { StepHand } from "./reach-out-hand";
 import type { ReachOutFedBy } from "./reach-out-leads";
 import type { ReachOutSignsWith } from "./reach-out-rules";
+import type { RewriteStep } from "../sequences/sequence-held";
 
 /** A step's words and place, as the sheet edits them. */
 export interface ReachOutStepDto {
@@ -188,6 +189,33 @@ export const REACH_OUT_PREVIEW_INDEX_MAX = 199;
 
 export const REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"] as const;
 export type ReachOutDecision = (typeof REACH_OUT_DECISIONS)[number];
+
+/**
+ * The opening an email stands with (00505), after its check or its Undo: written or still being written, held again or
+ * not, its sequence paused (nothing is written until it runs), and whether Undo can put back the one it replaced.
+ */
+export interface ReachOutOpeningDto {
+  send_id: string;
+  opening: string | null;
+  written: boolean;
+  held: string | null;
+  paused: boolean;
+  undo: boolean;
+}
+
+/** POST reach-out-sends/:id/decide: what was decided. A rewrite's opening is written by POST reach-out-sends/check. */
+export interface ReachOutDecideDto {
+  send_id: string;
+  decision: ReachOutDecision;
+}
+
+/**
+ * POST reach-out-sends/check (00505): the emails a person pressed Rewrite on, checked now, and the openings they stand
+ * with after. Asked for as a stream, each step the check takes comes first as it takes it (`step`), and the answer last
+ * (`done`); a line the browser does not know is passed over.
+ */
+export type ReachOutCheckLine =
+  { t: "step"; send_id: string; step: RewriteStep } | { t: "done"; sends: ReachOutOpeningDto[] };
 
 export interface ReachOutHeldSend {
   send_id: string;

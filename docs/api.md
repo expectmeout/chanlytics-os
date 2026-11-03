@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-345 handlers in 55 domains.
+347 handlers in 55 domains.
 
 ## activity
 
@@ -2145,6 +2145,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `decision` | one of `"include"`, `"rewrite"`, `"skip"`, `"not_a_fit"` | yes |  |
+| `change` | string | no | at most 280 characters |
 
 ### `POST /api/v1/reach-out-sends/[id]/said`
 
@@ -2153,6 +2154,21 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `outcome` | one of `"sent"`, `"not_sent"` | yes |  |
+
+### `POST /api/v1/reach-out-sends/[id]/undo-rewrite`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/reach-out-sends/[id]/undo-rewrite/route.ts`).
+
+### `POST /api/v1/reach-out-sends/check`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; may spend the workspace's money.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `send_ids` | array of string (uuid) | yes | at least 1; at most 20 |
+| `stream` | boolean | no |  |
 
 ## reach-outs
 

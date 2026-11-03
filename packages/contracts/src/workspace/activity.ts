@@ -500,6 +500,8 @@ const SEND_DECIDED_WORDS: Record<string, string> = {
   rewrite: "A held email to a lead was sent back to be written again",
   skip: "A held email to a lead was skipped",
   not_a_fit: "A held email to a lead was dropped: the lead is not a fit",
+  // Undo of a rewrite (00505): the opening it replaced is back.
+  rewrite_undone: "An email to a lead got its earlier opening back",
 };
 
 /** Which calls a kept number forwards (contracts FORWARDING_MODES), in an owner's words. */

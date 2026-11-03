@@ -51,8 +51,8 @@ export interface ProposalTab {
   settings: { config?: Record<string, unknown> | null; version?: number } | null;
 }
 
-/** How the second call went, for the receipt: the first one stands either way. */
-export type ProposalThen = { ok: true } | { ok: false; message: string };
+/** How the second call went, for the receipt (the first one stands either way), and what it answered where it went. */
+export type ProposalThen = { ok: true; data?: unknown } | { ok: false; message: string };
 
 export interface ProposalUndo {
   /** The undo button's words, written onto the card by its builder; null where this card has none. */

@@ -13,6 +13,7 @@ import {
   LEAD_CARD_WORDS,
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS,
+  REWRITE_WORDS,
   type LeadCardPart,
   type LeadNowFactVM,
   type LeadNowVM,
@@ -182,7 +183,13 @@ const mailParagraph = (mail: SheetMail, para: readonly LeadCardPart[], at: numbe
 };
 
 /** The email on the card: as it goes, a few lines of it until it is asked for whole. */
-function SheetEmail(p: { mail: SheetMail; whole: boolean; onWhole: () => void; onRewrite: (() => void) | null }) {
+function SheetEmail(p: {
+  mail: SheetMail;
+  whole: boolean;
+  onWhole: () => void;
+  onRewrite: (() => void) | null;
+  onUndo: (() => void) | null;
+}) {
   const { mail } = p;
   const clip = p.whole ? "" : mail.tall ? " is-clipped is-tall" : " is-clipped";
   return (
@@ -210,6 +217,16 @@ function SheetEmail(p: { mail: SheetMail; whole: boolean; onWhole: () => void; o
             {...gate("approve", "rewrite the opening")}
           >
             {W.mail.rewrite}
+          </LinkButton>
+        ) : null}
+        {p.onUndo ? (
+          <LinkButton
+            className="lw-link q"
+            onClick={p.onUndo}
+            data-testid="lead-sheet-rewrite-undo"
+            {...gate("approve", "put the earlier opening back")}
+          >
+            {REWRITE_WORDS.undo}
           </LinkButton>
         ) : null}
       </div>
@@ -242,6 +259,7 @@ export const SheetNow = (p: {
   whole: boolean;
   onWhole: () => void;
   onRewrite: (() => void) | null;
+  onUndo: (() => void) | null;
 }) => {
   const { now } = p;
   return (
@@ -268,7 +286,9 @@ export const SheetNow = (p: {
         </p>
       ) : null}
       {now.facts.map(factRow)}
-      {p.mail ? <SheetEmail mail={p.mail} whole={p.whole} onWhole={p.onWhole} onRewrite={p.onRewrite} /> : null}
+      {p.mail ? (
+        <SheetEmail mail={p.mail} whole={p.whole} onWhole={p.onWhole} onRewrite={p.onRewrite} onUndo={p.onUndo} />
+      ) : null}
     </section>
   );
 };

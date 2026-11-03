@@ -85,6 +85,8 @@ export const SEQUENCE_NEEDS_WORDS = {
   rewriteAll: (n: number) => `Rewrite all ${n}`,
   rewriting: "Rewriting…",
   rewroteAll: (n: number) => (n === 1 ? "1 opening is being written again" : `${n} openings are being written again`),
+  // Written at once by the check (00505), where every one of them came back written.
+  wroteAll: (n: number) => (n === 1 ? "1 new opening is written" : `${n} new openings are written`),
   sending: "Sending…",
   wentAll: (n: number) => (n === 1 ? "1 email goes as written" : `${n} emails go as written`),
   toSend: "For you to send from your inbox",
