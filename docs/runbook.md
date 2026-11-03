@@ -51,6 +51,12 @@ corepack pnpm --filter @chanlytics/dashboard dev
 `VERCEL_ENV` is a laptop, never production (`src/server/env.ts`): every
 call that would reach a provider through the edge answers "not here" unless
 `EDGE_PROVIDERS=live` and `EDGE_URL` point at an edge holding sandbox keys.
+`EDGE_PROVIDERS=model` opens the model alone (Ask's turns, its warm, the
+drafts), every provider door still "not here": with `EDGE_URL` and
+`EDGE_CALL_SECRET` set to production's edge, a branch's Ask is measured
+before it lands (`tooling/scripts/eval-ask.mjs` with `E2E_BASE_URL` at the
+laptop). It spends the model key and reads and writes that workspace's rows,
+so run it in the e2e workspace and take the secret out after.
 A pair that ends, whispers into or hands over a live call holds
 `EDGE_CALL_SECRET` on both projects: the live-call doors refuse `DIAG_KEY`
 alone, which names no workspace (`apps/edge/lib/voice/live-call-door.ts`).

@@ -169,8 +169,9 @@ const gatewayBody = (call: GatewayCall): string =>
  * Open one model round and yield its events as they arrive.
  *
  * Throws GatewayRefused before the first event when the edge would not run
- * it (a preview deployment, the budget, the key, a paused workspace, a bad
- * request, a model that could not be reached); after the stream starts, a
+ * it (a deployment that may not ask the model: a preview or a laptop without
+ * EDGE_PROVIDERS=model or live, env.ts modelLive; the budget, the key, a paused
+ * workspace, a bad request, a model that could not be reached); after the stream starts, a
  * broken connection surfaces as an "error" event. A model that could not be
  * reached is asked once more before the refusal is said (the edge has already
  * asked the route's fallback model), unless the turn's own time is up; a
@@ -178,7 +179,7 @@ const gatewayBody = (call: GatewayCall): string =>
  * (withoutEffort).
  */
 export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEvent> {
-  if (!deployment.providersLive) throw new GatewayRefused({ kind: "preview" });
+  if (!deployment.modelLive) throw new GatewayRefused({ kind: "preview" });
   if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
   let sent = call;
   let res: (Response & { body: ReadableStream<Uint8Array> }) | null = null;
