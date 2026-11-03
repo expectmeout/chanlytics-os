@@ -73,6 +73,7 @@ const KNOCKS = {
   constructEvent: { on: "webhooks" }, // Stripe's own library: Stripe's signature
   tokenMatches: { from: "apps/edge/lib/leads/apify-ingress.ts" }, // the lead run's own webhook token, against its hash
   websiteFormKeyMatches: { from: "apps/edge/lib/website/form-key.ts" }, // the key a workspace's website was given (00488)
+  canaryKeyMatches: { from: "apps/edge/lib/voice/voice-canary.ts" }, // the daily canary's own key (VOICE_CANARY_KEY), decision 0092
 };
 const ADMIN_AUTH = KNOCKS.authorizeAdmin.from;
 

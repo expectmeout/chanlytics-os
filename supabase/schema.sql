@@ -6824,8 +6824,11 @@ begin
     contact_id           = coalesce(calls.contact_id, excluded.contact_id),
     conversation_id      = coalesce(calls.conversation_id, excluded.conversation_id),
     -- the audit copy keeps the analysis: a retried call_ended landing after
-    -- call_analyzed ranks equal and must not replace the richer payload
+    -- call_analyzed ranks equal and must not replace the richer payload; and
+    -- a delivery that carries none (a live transcript turn, 00519) keeps what
+    -- the row has rather than rewriting it on every turn
     raw                  = case
+                             when excluded.raw = '{}'::jsonb then calls.raw
                              when (calls.raw ? 'call_analysis') and not (excluded.raw ? 'call_analysis') then calls.raw
                              else excluded.raw
                            end
@@ -26389,7 +26392,13 @@ CREATE FUNCTION public.scrub_call_raw(p_raw jsonb) RETURNS jsonb
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$
-  select coalesce(p_raw, '{}'::jsonb) - 'recording_url' - 'recording_multi_channel_url' - 'public_log_url'
+  select coalesce((
+    select jsonb_object_agg(e.k, e.v)
+      from jsonb_each(case when jsonb_typeof(p_raw) = 'object' then p_raw else '{}'::jsonb end) as e(k, v)
+     where e.k in ('agent_id', 'agent_name', 'agent_version', 'call_id', 'call_type', 'call_status', 'direction',
+                   'disconnection_reason', 'start_timestamp', 'end_timestamp', 'duration_ms', 'call_cost', 'latency',
+                   'llm_token_usage', 'call_analysis', 'metadata', 'data_storage_setting', 'opt_in_signed_url')
+  ), '{}'::jsonb)
 $$;
 
 
@@ -31547,11 +31556,17 @@ begin
           and updated_at < now() - interval '5 minutes'
           and recording->>'fetch_state' = 'pending'
           and coalesce((recording->>'attempts')::int, 0) < 3)
-      -- a call that ended without an analysis still owes the thread a line
-      or (status in ('ended', 'error')
+      -- a call that ended without an analysis still owes the thread a line, and so does a missed call (00519)
+      or (status in ('ended', 'error', 'not_connected')
           and message_id is null
           and conversation_id is not null
-          and ended_at < now() - interval '15 minutes')
+          and coalesce(ended_at, started_at, created_at) < now() - interval '15 minutes')
+      -- a notice claimed and not told in full (a mail that failed, deliveries the provider stopped retrying): finished
+      -- by the sweep for two days after it was claimed (00519)
+      or (notified_at is not null
+          and notice_told_at is null
+          and notified_at < now() - interval '10 minutes'
+          and notified_at > now() - interval '2 days')
       -- a call whose owner was never told, its analysis not here or asking for a call back: asked of the provider for
       -- two hours after it ended (00434, the sweep's settle leg)
       or (status in ('ended', 'error')
@@ -31583,7 +31598,7 @@ end $$;
 -- Name: FUNCTION trigger_call_reconcile(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/calls) to sweep when the calls table owes it work: a call still marked ongoing, a recording copy still pending, a thread still owed its call line, a call whose owner was never told (for two hours after it ended), or audio past its retention. Asks through request_sweep(), which records the request so sweep_health() judges the answer, and waits 65 s, past the sweep''s own 60. With nothing owed, clears the note and records nothing else.';
+COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/calls) to sweep when the calls table owes it work: a call still marked ongoing, a recording copy still pending, a thread still owed its call line (a missed call''s too), a call whose owner was never told (for two hours after it ended), a notice claimed and not told in full (for two days after its claim), or audio past its retention. Asks through request_sweep(), which records the request so sweep_health() judges the answer, and waits 65 s, past the sweep''s own 60. With nothing owed, clears the note and records nothing else.';
 
 
 --
@@ -33019,6 +33034,8 @@ CREATE TABLE public.calls (
     note_checked_at timestamp with time zone,
     activity_started_at timestamp with time zone,
     config_version integer,
+    guard_corrected_at timestamp with time zone,
+    notice_told_at timestamp with time zone,
     CONSTRAINT calls_config_version_check CHECK (((config_version IS NULL) OR (config_version >= 1))),
     CONSTRAINT calls_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text]))),
     CONSTRAINT calls_outcome_check CHECK (((outcome IS NULL) OR (outcome = ANY (ARRAY['answered'::text, 'booking_link_sent'::text, 'callback_needed'::text, 'voicemail'::text, 'no_request'::text, 'other'::text])))),
@@ -33080,6 +33097,20 @@ COMMENT ON COLUMN public.calls.activity_started_at IS 'When the call''s Live Act
 --
 
 COMMENT ON COLUMN public.calls.config_version IS 'The settings version the call was composed from (tenant_config_versions), as the inbound webhook answered it in the call''s metadata (decision 0069): what a review judges the call against. Null for calls before 00476, and for one whose start could not be planned.';
+
+
+--
+-- Name: COLUMN calls.guard_corrected_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.calls.guard_corrected_at IS 'When a price the receptionist said aloud was corrected on the live call. Set once by an UPDATE ... WHERE guard_corrected_at IS NULL, so a call whose turns reach two instances is corrected once (00519).';
+
+
+--
+-- Name: COLUMN calls.notice_told_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.calls.notice_told_at IS 'When the owner''s notice of the call went out in full: the bell, the phones and the mail (notified_at is the claim that it is owed). Null with notified_at set is a notice the calls sweep still owes (00519).';
 
 
 --
@@ -38610,6 +38641,13 @@ CREATE INDEX calls_live ON public.calls USING btree (tenant_id) WHERE (status = 
 --
 
 CREATE INDEX calls_note_unchecked ON public.calls USING btree (ended_at) WHERE ((note_checked_at IS NULL) AND (notified_at IS NOT NULL));
+
+
+--
+-- Name: calls_notice_owed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calls_notice_owed ON public.calls USING btree (notified_at) WHERE ((notice_told_at IS NULL) AND (notified_at IS NOT NULL));
 
 
 --

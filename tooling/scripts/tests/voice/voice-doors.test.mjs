@@ -34,6 +34,7 @@ import {
   voiceEndpoints,
   planVoiceProvision,
   planAgentSettings,
+  desiredVoiceShell,
   unpublishedLatestNote,
   newDraftNote,
   VOICE_AGENT_DEFAULTS,
@@ -43,6 +44,7 @@ import {
   CALL_ANALYSIS_FIELDS,
   CALL_FEEL,
   CALL_HANDBOOK,
+  CALL_LIMITS,
 } from "@chanlytics/channels";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
@@ -176,9 +178,14 @@ const writes = (db, table) =>
  * "does a fresh line plan nothing?" is asked of what was actually sent. A
  * case scripts a failure by URL; anything unexpected throws.
  */
-function retell({ agents = {}, llms = {}, fail = [] } = {}) {
+function retell({ agents = {}, llms = {}, numbers = {}, fail = [] } = {}) {
   const seen = [];
-  const state = { agents: new Map(Object.entries(agents)), llms: new Map(Object.entries(llms)), made: 0 };
+  const state = {
+    agents: new Map(Object.entries(agents)),
+    llms: new Map(Object.entries(llms)),
+    numbers: new Map(Object.entries(numbers)),
+    made: 0,
+  };
   const real = globalThis.fetch;
   const strip = (u) => u.replace("https://api.retellai.com", "");
   const reply = (req) => {
@@ -217,8 +224,15 @@ function retell({ agents = {}, llms = {}, fail = [] } = {}) {
     }
     if (req.method === "POST" && p === "/create-phone-number")
       return { body: { ...body, phone_number: NUMBER, phone_number_type: "retell-twilio" } };
-    if (req.method === "PATCH" && (m = /^\/update-phone-number\/(.+)$/.exec(p)))
-      return { body: { ...body, phone_number: decodeURIComponent(m[1]), phone_number_type: "retell-twilio" } };
+    if (req.method === "PATCH" && (m = /^\/update-phone-number\/(.+)$/.exec(p))) {
+      const n = decodeURIComponent(m[1]);
+      if (state.numbers.has(n)) Object.assign(state.numbers.get(n), body);
+      return { body: { ...body, phone_number: n, phone_number_type: "retell-twilio" } };
+    }
+    if (req.method === "GET" && (m = /^\/get-phone-number\/(.+)$/.exec(p))) {
+      const n = state.numbers.get(decodeURIComponent(m[1]));
+      return n ? { body: n } : { status: 404, body: { message: "no such number" } };
+    }
     if (req.method === "GET" && (m = /^\/get-agent\/(.+)$/.exec(p))) {
       const a = state.agents.get(m[1]);
       return a ? { body: a } : { status: 404, body: { message: "no such agent" } };
@@ -226,6 +240,12 @@ function retell({ agents = {}, llms = {}, fail = [] } = {}) {
     if (req.method === "GET" && (m = /^\/get-retell-llm\/([^?]+)(\?version=(\d+))?$/.exec(p))) {
       const l = state.llms.get(m[1]);
       return l ? { body: l } : { status: 404, body: { message: "no such llm" } };
+    }
+    if (req.method === "PATCH" && (m = /^\/update-retell-llm\/(.+)$/.exec(p))) {
+      const l = state.llms.get(m[1]);
+      if (!l) return { status: 404, body: { message: "no such llm" } };
+      Object.assign(l, body);
+      return { body: l };
     }
     throw new Error(`the provider was asked something these doors never ask: ${req.method} ${p}`);
   };
@@ -825,7 +845,7 @@ const onSettings = (id, over = {}) => ({
   webhook_events: [...VOICE_WEBHOOK_EVENTS],
   webhook_timeout_ms: VOICE_WEBHOOK_TIMEOUT_MS,
   opt_in_signed_url: true,
-  data_storage_retention_days: 90,
+  ...CALL_LIMITS,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
@@ -849,6 +869,15 @@ const drifted = (id, over = {}) =>
     handbook_config: null,
     ...over,
   });
+/** The LLM every agent here answers in (llm_pub v1), on the shell: its tools post to this edge with the secret's header. */
+const onShell = (over = {}) => ({
+  llm_id: "llm_pub",
+  version: 1,
+  model: "claude-4.5-haiku",
+  model_temperature: 0,
+  ...desiredVoiceShell(FN_URL, { "x-fn-secret": FN_SECRET }),
+  ...over,
+});
 const DRIFT_KEYS = [
   "webhook_events",
   "webhook_timeout_ms",
@@ -935,7 +964,10 @@ test("converge, the dry run: every active voice line's agent is read and planned
       { id: "ch-5", tenant_id: A, kind: "whatsapp", external_id: "1234567890", status: "active" },
     ],
   });
-  const p = retell({ agents: { agent_drifted: drifted("agent_drifted"), agent_fine: onSettings("agent_fine") } });
+  const p = retell({
+    agents: { agent_drifted: drifted("agent_drifted"), agent_fine: onSettings("agent_fine") },
+    llms: { llm_pub: onShell() },
+  });
   let status, body;
   try {
     [status, body] = await answer(await knockConverge({}));
@@ -945,8 +977,22 @@ test("converge, the dry run: every active voice line's agent is read and planned
   assert.equal(status, 200);
   assert.deepEqual(
     p.paths(),
-    ["GET /get-agent/agent_drifted", "GET /get-agent/agent_fine", "GET /get-agent/agent_gone"],
-    "the active voice rows, read only: a dry run writes nothing",
+    [
+      "GET /get-agent/agent_drifted",
+      "GET /get-retell-llm/llm_pub?version=1",
+      "GET /get-agent/agent_fine",
+      "GET /get-retell-llm/llm_pub?version=1",
+      "GET /get-agent/agent_gone",
+    ],
+    "the active voice rows and the LLM each answers in, read only: a dry run writes nothing",
+  );
+  assert.deepEqual(
+    body.agents.slice(0, 2).map((a) => [a.shell.llm_id, a.shell.drift, a.shell.patch_keys]),
+    [
+      ["llm_pub", [], []],
+      ["llm_pub", [], []],
+    ],
+    "an LLM on the shell plans nothing",
   );
   assert.deepEqual([body.ok, body.apply, body.publish], [true, false, false]);
   const [d, f, g] = body.agents;
@@ -981,7 +1027,7 @@ test("converge, the apply: a published version cannot change, so the patch goes 
   const p = retell({ agents: { agent_pub: drifted("agent_pub") } });
   let status, body;
   try {
-    [status, body] = await answer(await knockConverge({ agent_id: "agent_pub", apply: true }));
+    [status, body] = await answer(await knockConverge({ agent_id: "agent_pub", apply: true, shell: false }));
   } finally {
     p.restore();
   }
@@ -1018,7 +1064,9 @@ test("converge, the apply: a published version cannot change, so the patch goes 
 
   const q = retell({ agents: { agent_pub: drifted("agent_pub") } });
   try {
-    [status, body] = await answer(await knockConverge({ agent_id: "agent_pub", apply: true, publish: true }));
+    [status, body] = await answer(
+      await knockConverge({ agent_id: "agent_pub", apply: true, publish: true, shell: false }),
+    );
   } finally {
     q.restore();
   }
@@ -1049,7 +1097,7 @@ test("converge, the apply on a draft and on a converged agent: an unpublished ve
   });
   let body;
   try {
-    [, body] = await answer(await knockConverge({ agent_id: "agent_draft", apply: true, publish: true }));
+    [, body] = await answer(await knockConverge({ agent_id: "agent_draft", apply: true, publish: true, shell: false }));
     assert.deepEqual(
       p.paths(),
       ["GET /get-agent/agent_draft", "PATCH /update-agent/agent_draft", "GET /get-agent/agent_draft"],
@@ -1063,7 +1111,7 @@ test("converge, the apply on a draft and on a converged agent: an unpublished ve
     // 11 Oct 2026: the script patched a draft this way and said nothing, and the line kept the old words.
     assert.equal(a.note, unpublishedLatestNote(5));
     p.seen.length = 0;
-    [, body] = await answer(await knockConverge({ agent_id: "agent_fine", apply: true, publish: true }));
+    [, body] = await answer(await knockConverge({ agent_id: "agent_fine", apply: true, publish: true, shell: false }));
     assert.deepEqual(p.paths(), ["GET /get-agent/agent_fine"], "nothing to change, nothing written");
     assert.deepEqual([body.agents[0].applied, body.agents[0].drift, body.agents[0].patch_keys], [false, [], []]);
   } finally {
@@ -1148,7 +1196,7 @@ test("converge, a line whose workspace is not found or cannot be read keeps its 
   const stray = retell({ agents: { agent_stray: onSettings("agent_stray", { language: MULTI }) } });
   let body;
   try {
-    [, body] = await answer(await knockConverge({ agent_id: "agent_stray", apply: true }));
+    [, body] = await answer(await knockConverge({ agent_id: "agent_stray", apply: true, shell: false }));
   } finally {
     stray.restore();
   }
@@ -1205,7 +1253,7 @@ test("converge, a provider that refuses: the step that failed is named on that a
   });
   let body;
   try {
-    [, body] = await answer(await knockConverge({ apply: true, publish: true }));
+    [, body] = await answer(await knockConverge({ apply: true, publish: true, shell: false }));
   } finally {
     p.restore();
   }
@@ -1230,5 +1278,116 @@ test("converge, a provider that refuses: the step that failed is named on that a
     !p.paths().some((x) => x.includes("update-agent/agent_a")),
     "no patch on an agent whose draft could not be made",
   );
-  assert.ok(!p.paths().some((x) => x.includes("retell-llm")), "the shell and its secret header stay the script's");
+  assert.ok(!p.paths().some((x) => x.includes("retell-llm")), "told the agents alone, the LLM is not read");
+});
+
+test("converge, the shell: an LLM off the shell is planned beside the agent, patched before the agent on the new draft, and the draft published; once the doors are signed the tools lose the secret's header; the secret never comes back", async () => {
+  const p = retell({
+    agents: { agent_pub: onSettings("agent_pub") },
+    llms: { llm_pub: onShell({ general_prompt: "An old prompt.", begin_message: "Hello?" }) },
+  });
+  let body;
+  try {
+    [, body] = await answer(await knockConverge({ agent_id: "agent_pub", apply: true, publish: true }));
+  } finally {
+    p.restore();
+  }
+  assert.deepEqual(
+    p.paths(),
+    [
+      "GET /get-agent/agent_pub",
+      "GET /get-retell-llm/llm_pub?version=1",
+      "POST /create-agent-version/agent_pub",
+      "PATCH /update-retell-llm/llm_pub",
+      "POST /publish-agent-version/agent_pub",
+      "GET /get-agent/agent_pub",
+    ],
+    "the agent's settings are converged, so only the LLM is patched, on the draft, then published",
+  );
+  const [a] = body.agents;
+  assert.deepEqual([a.applied, a.published_version, a.patch_keys], [true, 4, []]);
+  assert.deepEqual(a.shell.patch_keys.sort(), ["begin_message", "general_prompt"]);
+  const patch = JSON.parse(p.seen.find((s) => s.url.endsWith("/update-retell-llm/llm_pub")).body);
+  assert.deepEqual(
+    [patch.general_prompt, patch.begin_message],
+    [desiredVoiceShell(FN_URL).general_prompt, desiredVoiceShell(FN_URL).begin_message],
+  );
+  assert.ok(!printed(body).includes(FN_SECRET), "the plan names what changes, never the header's value");
+
+  // The voice doors read the signature alone: the shell's tools are planned without the shared secret's header.
+  const signed = retell({ agents: { agent_pub: onSettings("agent_pub") }, llms: { llm_pub: onShell() } });
+  try {
+    [, body] = await withEnv({ RETELL_DOORS_SIGNED: "1" }, async () =>
+      answer(await knockConverge({ agent_id: "agent_pub" })),
+    );
+  } finally {
+    signed.restore();
+  }
+  assert.deepEqual(body.agents[0].shell.patch_keys, ["general_tools"], "the tools lose the header, nothing else");
+  assert.equal(signed.paths().length, 2, "a dry run: the agent and its LLM read, nothing written");
+});
+
+test("converge, the pin: a number named with its agent is bound to latest_published, planned on a dry run, done once; refused while the latest is a draft, for a number that answers in another agent, and without the agent named", async () => {
+  const bound = (agentId, version) => ({
+    phone_number: NUMBER,
+    inbound_agents: [{ agent_id: agentId, ...(version ? { agent_version: version } : {}), weight: 1 }],
+  });
+  const p = retell({
+    agents: { agent_pub: onSettings("agent_pub") },
+    llms: { llm_pub: onShell() },
+    numbers: { [NUMBER]: bound("agent_pub") },
+  });
+  const pinOf = async (body) => (await answer(await knockConverge(body)))[1].agents[0].pin;
+  try {
+    assert.deepEqual(await pinOf({ agent_id: "agent_pub", pin_number: NUMBER }), { pinned: false, would_pin: true });
+    assert.ok(!p.paths().some((x) => x.startsWith("PATCH")), "a dry run binds nothing");
+    assert.deepEqual(await pinOf({ agent_id: "agent_pub", pin_number: NUMBER, apply: true }), { pinned: true });
+    const put = p.seen.find((s) => s.method === "PATCH" && s.url.includes("/update-phone-number/"));
+    assert.deepEqual(JSON.parse(put.body), {
+      inbound_agents: [{ agent_id: "agent_pub", agent_version: "latest_published", weight: 1 }],
+    });
+    assert.deepEqual(await pinOf({ agent_id: "agent_pub", pin_number: NUMBER, apply: true }), {
+      pinned: true,
+      already: true,
+    });
+  } finally {
+    p.restore();
+  }
+
+  const draft = retell({
+    agents: { agent_draft: onSettings("agent_draft", { is_published: false, version: 5 }) },
+    llms: { llm_pub: onShell() },
+    numbers: { [NUMBER]: bound("agent_draft") },
+  });
+  try {
+    const pin = await pinOf({ agent_id: "agent_draft", pin_number: NUMBER, apply: true });
+    assert.deepEqual([pin.pinned, /publish it first/.test(pin.refused)], [false, true]);
+    assert.ok(!draft.paths().some((x) => x.includes("phone-number")), "the number is not even read");
+  } finally {
+    draft.restore();
+  }
+
+  const other = retell({
+    agents: { agent_pub: onSettings("agent_pub") },
+    llms: { llm_pub: onShell() },
+    numbers: { [NUMBER]: bound("agent_someone_else") },
+  });
+  try {
+    const pin = await pinOf({ agent_id: "agent_pub", pin_number: NUMBER, apply: true });
+    assert.deepEqual([pin.pinned, /never moves a line/.test(pin.refused)], [false, true]);
+    assert.ok(!other.paths().some((x) => x.startsWith("PATCH")));
+  } finally {
+    other.restore();
+  }
+
+  const none = unreachable("a pin without its agent, or a number that is not one, reaches no provider");
+  try {
+    for (const body of [{ pin_number: NUMBER }, { agent_id: "agent_pub", pin_number: "305-555-0100" }])
+      assert.deepEqual(await answer(await knockConverge(body)), [
+        400,
+        { ok: false, error: "bad_request", detail: "pin_number is the named agent's number, in E.164" },
+      ]);
+  } finally {
+    none.restore();
+  }
 });

@@ -18,7 +18,7 @@
  */
 import { json } from "../http.js";
 import { pg } from "../pg.js";
-import { readDealForPhone, resolveChannel } from "../packages/db.js";
+import { readDealForPhone, resolveChannelDetailed } from "../packages/db.js";
 import { rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { feedKeyOf, linkOfferedOn, openingsData } from "../calendar/availability.js";
@@ -34,7 +34,7 @@ import {
   type ServiceLike,
   type ServiceOffer,
 } from "../packages/contracts.js";
-import { refusedOutLoud, voiceDoorAuth } from "./voice-door-auth.js";
+import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
 import { logger } from "../log.js";
 
 /**
@@ -119,7 +119,9 @@ export async function availabilityTool(request: Request): Promise<Response> {
   const raw = await request.text();
   // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the x-fn-secret header
   // while this door still reads one.
-  if (!voiceDoorAuth("availability", request, raw).ok) return refusedOutLoud("availability", KNOCK_REFUSED);
+  const knock = voiceDoorAuth("availability", request, raw);
+  await keepKnock("availability", knock);
+  if (!knock.ok) return refusedOutLoud("availability", KNOCK_REFUSED);
   let body: {
     call?: { call_id?: string; from_number?: string; agent_id?: string; call_type?: string };
     args?: { day?: unknown; service?: unknown };
@@ -137,14 +139,13 @@ export async function availabilityTool(request: Request): Promise<Response> {
   // A rehearsal's call reads its workspace's calendar as a call on the line does (decision 0069), found by its own row:
   // its agent may have no line yet.
   const rehearsal = db ? await rehearsalOfToolCall(db, call) : null;
-  const routed = rehearsal
-    ? rehearsalRouting(rehearsal.tenant_id)
-    : db && call.agent_id
-      ? await resolveChannel(db, "voice", call.agent_id)
-      : null;
+  // "The database said no" and "the database did not answer" are told apart in the log, as the webhooks tell them
+  // (resolveChannelDetailed): the caller hears the same either way, and the platform reads which it was.
+  const lookup = rehearsal || !db || !call.agent_id ? null : await resolveChannelDetailed(db, "voice", call.agent_id);
+  const routed = rehearsal ? rehearsalRouting(rehearsal.tenant_id) : (lookup?.channel ?? null);
   if (!db || !routed) {
     // Whose business this is is unknown, so nothing it could send is offered: only a call back.
-    L.info("retell_availability_unrouted");
+    L.info("retell_availability_unrouted", { lookup_failed: lookup?.lookupFailed ?? false });
     return json(200, { result: CANNOT_SEE_NO_LINK });
   }
   const rt = await loadTenantRuntime(db, routed);
@@ -154,7 +155,7 @@ export async function availabilityTool(request: Request): Promise<Response> {
     L.info("retell_availability_unavailable", { tenant_id: routed.tenantId, held: false });
     return json(200, { result: CANNOT_SEE_NO_LINK });
   }
-  // Autonomy -> Booking, by the rule retell-fn.ts sends the link by. A hold changes what follows the times, never
+  // Autonomy -> Booking, by the rule call-booking-link.ts sends the link by. A hold changes what follows the times, never
   // whether they are said.
   const held = bookingHeld(rt.policy);
   // The link a call can send: one WhatsApp can carry (linkOfferedOn), never one promised to a workspace without it.

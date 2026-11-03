@@ -15,15 +15,19 @@
  *     database error throws, and the webhook turns a failed notification claim into a 503 so the provider redelivers.
  *   - recordCallNote files the call as a call_summary message in the customer's thread, idempotent on its external id
  *     (call:<retell_call_id>), so the receptionist's history holds the call.
- * The provider's recording URL is never written to a row: calls is in the realtime publication, so every column reaches
- * every member's browser. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
+ *   - claimGuardCorrection is the same kind of claim for a spoken price's one correction (guard_corrected_at), and
+ *     markCallNoticeTold says the owner's notice went out in full (notice_told_at), so the calls sweep can finish one
+ *     whose mail was owed (callsOwedANotice).
+ * The provider's recording URL is never written to a row: every member of the workspace reads every call row they may
+ * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00519) members may not
+ * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
 import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { IDS_PER_READ } from "./people";
 import { dbLog } from "../observe";
-import { tenantDb } from "../tenant-db";
+import { platformWide, tenantDb } from "../tenant-db";
 
 type Db = SupabaseClient<Database>;
 
@@ -358,4 +362,207 @@ export async function callsOwedAnAnalysis(
     .limit(p.limit);
   if (error) throw new Error(`cannot read the calls owed an analysis: ${error.message}`);
   return data ?? [];
+}
+
+/**
+ * Claim the one correction a spoken price earns on a live call (guard_corrected_at, 00519): true for the first
+ * delivery that finds the breach, false once claimed, so a call whose turns land on two instances is corrected once,
+ * where an in-memory set corrected it on each. Throws on a database error: the delivery is retried, and the claim
+ * still holds the correction to one.
+ */
+export async function claimGuardCorrection(db: Db, tenantId: string, callId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("calls")
+    .update({ guard_corrected_at: new Date().toISOString() })
+    .eq("id", callId)
+    .eq("tenant_id", tenantId)
+    .is("guard_corrected_at", null)
+    .select("id");
+  if (error) throw new Error(`claim_guard_correction: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Say the owner's notice of a call went out in full: the bell, the phones and the mail (notice_told_at, 00519). The
+ * claim (notified_at) says the notice is owed and kept; this says it was told. A write that fails is logged: the sweep
+ * then asks the notice again, and notifyOnce finds it told and sends nothing twice.
+ */
+export async function markCallNoticeTold(db: Db, tenantId: string, callId: string): Promise<void> {
+  const { error } = await db
+    .from("calls")
+    .update({ notice_told_at: new Date().toISOString() })
+    .eq("id", callId)
+    .eq("tenant_id", tenantId)
+    .is("notice_told_at", null);
+  if (error) dbLog().error("call_notice_mark_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
+}
+
+/**
+ * The calls whose owner's notice was claimed and not told in full (a mail that failed, a delivery Retell stopped
+ * retrying), oldest first, at most `limit`: claimed between `fromMs` and `toMs` ago. The calls sweep asks the provider for
+ * each and settles it again, and notifyOnce sends only the mail still owed (decision 0048). trigger_call_reconcile wakes
+ * the sweep on the same window (00519). A read that fails throws.
+ */
+export async function callsOwedANotice(
+  db: Db,
+  p: { nowMs: number; fromMs: number; toMs: number; limit: number },
+): Promise<Array<{ id: string; tenant_id: string; retell_call_id: string; status: string }>> {
+  const { data, error } = await platformWide(db)
+    .from("calls")
+    .select("id, tenant_id, retell_call_id, status")
+    .not("notified_at", "is", null)
+    .is("notice_told_at", null)
+    .lt("notified_at", new Date(p.nowMs - p.fromMs).toISOString())
+    .gt("notified_at", new Date(p.nowMs - p.toMs).toISOString())
+    .order("notified_at", { ascending: true })
+    .limit(p.limit);
+  if (error) throw new Error(`cannot read the calls owed a notice: ${error.message}`);
+  return data ?? [];
+}
+
+/** The canary's workspace as the canary needs it: whether it is ours, and the number its receptionist answers. */
+export async function canaryLineOf(db: Db, tenantId: string): Promise<{ ours: boolean; e164: string | null }> {
+  const t = tenantDb(db, tenantId);
+  const [tenant, line] = await Promise.all([
+    db.from("tenants").select("ours").eq("id", tenantId).maybeSingle(),
+    t.from("lines").select("e164").eq("voice_state", "answering").not("e164", "is", null).limit(1).maybeSingle(),
+  ]);
+  if (tenant.error) throw new Error(`cannot read the canary's workspace: ${tenant.error.message}`);
+  if (line.error) throw new Error(`cannot read the canary's line: ${line.error.message}`);
+  return { ours: tenant.data?.ours === true, e164: line.data?.e164 ?? null };
+}
+
+/** What the canary's newest call left behind, as voice-canary.ts judges it (judgeCanary). */
+export interface CanaryCallFacts {
+  call: {
+    retell_call_id: string;
+    status: string;
+    analysed: boolean;
+    thread_line: boolean;
+    notice_claimed: boolean;
+    notice_told: boolean;
+    recording: string | null;
+    composed: boolean;
+    hold_released: boolean;
+  } | null;
+  /** The voice doors' evidence since the call was placed (webhook.auth): each door's signed and unsigned knocks. */
+  doors: Record<string, VoiceDoorKnocks>;
+}
+
+/** One voice door's knocks kept since a moment: signed, carrying only the shared secret, neither; the newest's time. */
+export interface VoiceDoorKnocks {
+  signed: number;
+  secret_only: number;
+  unsigned: number;
+  last_at: string;
+}
+
+/**
+ * Each voice door's knocks kept since `sinceIso` (`webhook.auth` rows under the platform, decision 0092): the evidence
+ * RETELL_DOORS_SIGNED is set on, and the canary's proof that its call was signed. The call webhook's rows name no door:
+ * they are "webhook". The newest thousand rows at most. A read that fails throws.
+ */
+export async function voiceDoorKnocks(db: Db, sinceIso: string): Promise<Record<string, VoiceDoorKnocks>> {
+  const { data, error } = await platformWide(db)
+    .from("events")
+    .select("created_at, data")
+    .eq("kind", "webhook.auth")
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  if (error) throw new Error(`cannot read the voice doors' evidence: ${error.message}`);
+  const doors: Record<string, VoiceDoorKnocks> = {};
+  for (const r of data ?? []) {
+    const d = (r.data ?? {}) as { provider?: string; door?: string; sig?: boolean; secret?: boolean };
+    if (d.provider !== "retell") continue;
+    const door = typeof d.door === "string" ? d.door : "webhook";
+    const n = (doors[door] ??= { signed: 0, secret_only: 0, unsigned: 0, last_at: r.created_at });
+    if (d.sig === true) n.signed += 1;
+    else if (d.secret === true) n.secret_only += 1;
+    else n.unsigned += 1;
+  }
+  return doors;
+}
+
+/**
+ * The canary's newest call from its own number since `sinceIso`, and what it left: its row, its line in the thread, its
+ * notice, its audio, the settings it was composed from, the hold it let go; and every voice door's signed knocks since.
+ * A read that fails throws.
+ */
+export async function canaryCallFacts(
+  db: Db,
+  p: { tenantId: string; fromE164: string; sinceIso: string },
+): Promise<CanaryCallFacts> {
+  const t = tenantDb(db, p.tenantId);
+  const { data: row, error } = await t
+    .from("calls")
+    .select(
+      "retell_call_id, status, analysis, outcome, message_id, notified_at, notice_told_at, recording, config_version, conversation_id",
+    )
+    .eq("from_e164", p.fromE164)
+    .gte("created_at", p.sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the canary's call: ${error.message}`);
+  const doors = await voiceDoorKnocks(db, p.sinceIso);
+  if (!row) return { call: null, doors };
+  let held = false;
+  if (row.conversation_id) {
+    const { data: conv, error: convErr } = await t
+      .from("conversations")
+      .select("control_kind, control_ref")
+      .eq("id", row.conversation_id)
+      .maybeSingle();
+    if (convErr) throw new Error(`cannot read the canary's thread: ${convErr.message}`);
+    held = conv?.control_kind === "call" && conv.control_ref === row.retell_call_id;
+  }
+  const recording = (row.recording ?? null) as { fetch_state?: string } | null;
+  return {
+    call: {
+      retell_call_id: row.retell_call_id,
+      status: row.status,
+      analysed: row.analysis !== null || row.outcome !== null,
+      thread_line: row.message_id !== null,
+      notice_claimed: row.notified_at !== null,
+      notice_told: row.notice_told_at !== null,
+      recording: recording?.fetch_state ?? null,
+      composed: row.config_version !== null,
+      hold_released: !held,
+    },
+    doors,
+  };
+}
+
+/**
+ * The provider's ids of a person's calls, read while their rows still stand: what the erasure asks the voice provider to
+ * delete (decision 0036's provider leg, 00519). A read that fails throws: the leg is best effort, and its caller says so.
+ */
+export async function retellCallIdsOf(db: Db, tenantId: string, contactId: string): Promise<string[]> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("calls")
+    .select("retell_call_id")
+    .eq("contact_id", contactId);
+  if (error) throw new Error(`cannot read the person's calls: ${error.message}`);
+  return (data ?? []).map((r) => r.retell_call_id);
+}
+
+/**
+ * The seconds a workspace's calls were metered since `sinceIso` (usage.voice_seconds, written once a call by ingest_call):
+ * Settings › Billing's minutes this month (decision 0092). Read as the member, under the events' own row security. A
+ * read that fails throws.
+ */
+export async function callSecondsSince(db: Db, tenantId: string, sinceIso: string): Promise<number> {
+  const { data, error } = await db
+    .from("events")
+    .select("data")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "usage.voice_seconds")
+    .gte("created_at", sinceIso)
+    .limit(10000);
+  if (error) throw new Error(`cannot read the month's call seconds: ${error.message}`);
+  return (data ?? []).reduce((n, r) => {
+    const s = (r.data as { seconds?: unknown } | null)?.seconds;
+    return n + (typeof s === "number" && Number.isFinite(s) ? s : 0);
+  }, 0);
 }

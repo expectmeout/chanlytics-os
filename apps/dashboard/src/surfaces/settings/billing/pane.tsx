@@ -17,6 +17,7 @@ import { useState, type ReactNode } from "react";
 import {
   IN_APP_CLASS,
   WHATSAPP_COST_WORDS,
+  callMinutesWords,
   type BillingDto,
   type BillingInvoiceDto,
   type BillingVM,
@@ -208,6 +209,16 @@ function planCard(o: {
           label="Card"
           value={`${brand} •••• ${acct.card_last4}`}
           hint="Stripe holds it. Chanlytics sees the brand and the last four digits, nothing else."
+        />
+      )}
+      {/* What the phone receptionist answered this month, from each call's metered seconds (decision 0092): what the
+          voice provider is paid for. Said once it is read; a read that failed says nothing rather than a zero. */}
+      {callMinutesWords(dto.call_minutes_month) && (
+        <RecordRow
+          id="billing-calls"
+          testid="billing-calls"
+          label="Calls"
+          value={callMinutesWords(dto.call_minutes_month)}
         />
       )}
       {vm.mode === "stripe" && !owner && (

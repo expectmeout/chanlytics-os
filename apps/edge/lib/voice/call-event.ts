@@ -32,6 +32,7 @@ import { callSummaryLine } from "../packages/channels.js";
 import {
   addressOf,
   callAttemptWords,
+  callEndingOf,
   callerName,
   callOutcomeWords,
   DISCONNECTION_LABELS,
@@ -58,7 +59,10 @@ interface CallEvent {
 interface CallEventFacts {
   /** ingest_call's answer: the row and its recording state, whether the event was older than it, the person, the thread. */
   ingest: IngestCallResult;
-  /** This instance has already told the receptionist about this call. */
+  /**
+   * The receptionist has already been corrected on this call. The door says false and lets the call's own claim decide
+   * (guard_corrected_at, claimed as the correction is made): a call whose turns reach two instances is corrected once.
+   */
   alreadyCorrected: boolean;
   /** The provider's API key is held, so a live call can be corrected. */
   canCorrect: boolean;
@@ -113,7 +117,9 @@ export type CallStep =
       turn: number;
       callId: string;
     }
-  | { kind: "correct_live_call"; retellCallId: string; rule: "price" }
+  | { kind: "correct_live_call"; retellCallId: string; callId: string; rule: "price" }
+  /** A call that ended the platform's way (contracts callEndingOf: the provider's account, our webhook, its error). */
+  | { kind: "page_platform"; reason: string; words: string; mend: string }
   | { kind: "claim_notification"; callId: string }
   | { kind: "copy_recording"; callId: string; providerUrl: string; attempts: number };
 
@@ -181,15 +187,16 @@ function guardSteps(n: NormalizedCall, res: IngestCallResult, f: CallEventFacts)
     });
   }
   if (guard.correct && guard.breach && f.canCorrect) {
-    out.push({ kind: "correct_live_call", retellCallId: n.retellCallId, rule: guard.breach.rule });
+    out.push({ kind: "correct_live_call", retellCallId: n.retellCallId, callId: res.call_id, rule: guard.breach.rule });
   }
   return out;
 }
 
 /**
- * Retell serves recordings from an UNSIGNED public CDN URL -- the audio is
- * copied into the private bucket so a customer's call isn't one guessed
- * link away, and so it survives provider retention. On a short budget: the
+ * Retell serves recordings from its CDN by a signed link that lasts a day
+ * (every agent has opt_in_signed_url on) -- the audio is copied into the
+ * private bucket so a customer's call is ours to keep and to erase, and so it
+ * survives the provider's week (CALL_LIMITS). On a short budget: the
  * handler has the agent's 20 s delivery timeout over its head, and a copy
  * that does not finish is retried by the reconcile sweep. Never again once
  * stored, given up on, or removed on schedule: a purged call's audio was
@@ -304,8 +311,11 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
   // written on call_ended read "No summary available." forever: in the
   // thread, in the WhatsApp bot's memory, and read aloud as the caller's
   // context on their next call. A call the provider never analyses gets its
-  // line from the reconcile sweep instead.
-  if (res.conversation_id && (analyzed || n.summary !== null || n.inVoicemail === true)) {
+  // line from the reconcile sweep instead. A missed call has nothing to
+  // summarise and is told as it ends (MISSED_CALL_LINE), so the text
+  // receptionist and the next call know they rang (decision 0092).
+  const missedNow = event === "call_ended" && !res.skipped && isMissedCall(n);
+  if (res.conversation_id && (analyzed || n.summary !== null || n.inVoicemail === true || missedNow)) {
     steps.push({
       kind: "note",
       conversationId: res.conversation_id,
@@ -361,6 +371,19 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
   }
 
   steps.push(...guardSteps(n, res, f));
+
+  // A call that ended the platform's way is the platform's to mend, now: the provider's credit or payment, too many calls
+  // at once, our own inbound webhook, a provider's error. Every other call to every workspace may end the same way until
+  // it is (callEndingOf; the page is once per reason per window, pageOperator).
+  const ending = event === "call_ended" && !res.skipped ? callEndingOf(n.disconnectionReason) : null;
+  if (ending?.pages && n.disconnectionReason) {
+    steps.push({
+      kind: "page_platform",
+      reason: n.disconnectionReason,
+      words: ending.platform,
+      mend: ending.mend ?? "Look the call up in the voice provider's log by its time.",
+    });
+  }
 
   // The email and the memory note happen ONCE per call. Retell retries a
   // slow delivery and replays inside the signature window; the claim is what

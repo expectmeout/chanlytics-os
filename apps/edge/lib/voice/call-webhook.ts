@@ -20,7 +20,7 @@
  * recording into private Storage.
  *
  * Routing: agent_id -> tenant_channels(kind='voice'). One Retell account hosts
- * many agents (432 calls across 8 in the live account) — an unrouted call is
+ * every workspace's agents — an unrouted call is
  * dead-lettered, never guessed into a tenant. A routing read the database
  * could not make is a 503, never a dead letter: nothing is written, and the
  * provider redelivers.
@@ -35,7 +35,8 @@
  *
  * Cross-workspace: a provider webhook; the Retell agent id (or call id) names the workspace before anything is written.
  */
-import { notify, type NotifyMessage } from "../ops/notify.js";
+import { mail, notifyOnceAs, reachesTenant, type NotifyMessage } from "../ops/notify.js";
+import { pageOperator } from "../ops/page-operator.js";
 import { loadTenantNotifications, loadTenantRuntime } from "../tenant-runtime.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
@@ -55,6 +56,8 @@ import {
   recordCallNote,
   linkCallMessage,
   claimCallNotification,
+  claimGuardCorrection,
+  markCallNoticeTold,
   emitEvent,
   claimControl,
   releaseControl,
@@ -90,18 +93,6 @@ type Db = NonNullable<ReturnType<typeof pg>>;
 const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
 
 /**
- * Calls this instance has already corrected, so a receptionist is told once
- * rather than on every remaining turn.
- *
- * Per lambda instance, and imprecise in the right direction, exactly as the
- * unroutable alert's window is: a call whose turns land on two instances is
- * corrected twice, never never. The durable half needs no memory at all —
- * `upsertEscalation` keeps one open escalation per conversation, so a repeat
- * refreshes what the owner reads instead of stacking.
- */
-const corrected = new Set<string>();
-
-/**
  * When a refused delivery last left an evidence row, per instance. The row is
  * the readback /api/diag offers for "is the signature working"; the throttle is
  * because the door is public and the insert is now awaited.
@@ -109,9 +100,6 @@ const corrected = new Set<string>();
 const REFUSED_AUTH_ROW_MS = MIN_MS;
 
 let lastRefusedAuthRow = 0;
-
-/** A long-lived instance must not accumulate call ids for ever. */
-const CORRECTED_MAX = 500;
 
 /**
  * Which credential a delivery passed, as a row.
@@ -466,15 +454,18 @@ async function raiseBreach(db: Db, tenantId: string, s: Extract<CallStep, { kind
   L.warn("voice_policy_block_price", { tenant_id: tenantId, call: s.callId, turn: s.turn, escalation: said });
 }
 
-/** The live call corrected through the provider, once per instance. */
+/**
+ * The live call corrected through the provider, once a call: the call's own claim (guard_corrected_at) decides, so a
+ * call whose turns land on two instances is corrected once (an in-memory set corrected it on each). The durable half
+ * needs no claim: `upsertEscalation` keeps one open escalation per conversation.
+ */
 async function correctReceptionist(
   db: Db,
   routed: RoutedChannel,
   s: Extract<CallStep, { kind: "correct_live_call" }>,
 ): Promise<void> {
   const L = logger();
-  if (corrected.size >= CORRECTED_MAX) corrected.clear();
-  corrected.add(s.retellCallId);
+  if (!(await claimGuardCorrection(db, routed.tenantId, s.callId))) return;
   // What the correction offers is what this receptionist offers on a call: the link where WhatsApp can carry it, or
   // the details (linkOfferedOn).
   const rt = await loadTenantRuntime(db, routed);
@@ -542,6 +533,15 @@ async function applyStep(
     case "correct_live_call":
       await correctReceptionist(db, routed, s);
       return;
+    case "page_platform":
+      // Platform-wide, never the workspace's: the page names the reason and the workspace id, no caller, no words.
+      await pageOperator(
+        { db },
+        `voice_ending:${s.reason}`,
+        `Calls are ending on our side: ${s.words}`,
+        `A call to workspace ${routed.tenantId} ended "${s.reason}" (${s.words}). ${s.mend} Every call may end the same way until it is mended.`,
+      );
+      return;
     case "copy_recording":
       await copyRecording(db, {
         tenantId: routed.tenantId,
@@ -570,21 +570,38 @@ async function applyPlan(db: Db, routed: RoutedChannel, plan: CallEventPlan): Pr
 }
 
 /**
- * The owner told: the bell row and the mail. Same pipeline as WhatsApp
+ * The owner told: the bell row, the phones and the mail. Same pipeline as WhatsApp
  * escalations — and addressed the same way. This email carries a caller's
  * number and a full TRANSCRIPT of what they said, and it used to fall back
  * to a hardcoded personal address: with a second tenant, one business's call
  * recording summary delivered to another business's owner. It now goes only
  * to a mailbox we know is this tenant's.
+ *
+ * TOLD ONCE, BY NAME (notifyOnce, decision 0048): the notice is kept under the call (`call:<id>`), so a retry finds it
+ * and sends only what it still owes. The claim on the call (notified_at) said "it went" before the mail had, and a
+ * mail that failed was lost behind it: a retry read the claim and answered duplicate. Now a notice whose mail is owed
+ * answers the delivery 503, so the provider redelivers and the next try sends the mail alone; once told in full the
+ * call says so (notice_told_at), and the calls sweep finishes a notice the provider stopped retrying.
+ *
+ * A workspace nobody can be mailed at has its bell row, which is its notice, and the platform is told once, on the
+ * fresh claim, that it needs notification settings: the redacted note, without the caller or their words.
  */
-async function tellOwner(db: Db, routed: RoutedChannel | null, notice: NotifyMessage): Promise<void> {
-  // The tenant was decided ONCE, above, before anything was written: the
-  // summary email is tenant-scoped, and resolving it twice invites two
-  // answers.
-  const addressing = routed
-    ? await loadTenantNotifications(db, routed.tenantId)
-    : { notifications: null, isEnvDefault: false };
-  await notify({ tenantId: routed?.tenantId ?? null, ...addressing }, notice);
+async function tellOwner(
+  db: Db,
+  routed: RoutedChannel | null,
+  notice: NotifyMessage,
+  call: { id: string | null; retellCallId: string; fresh: boolean },
+): Promise<"told" | "owed"> {
+  if (!routed) return "told";
+  const target = { tenantId: routed.tenantId, ...(await loadTenantNotifications(db, routed.tenantId)) };
+  const told = await notifyOnceAs(target, { ...notice, onceKey: `call:${call.retellCallId}` });
+  if (told === "told" && call.fresh && !reachesTenant(target)) await mail(target, notice);
+  if (told !== "told") {
+    logger({ tenant_id: routed.tenantId }).warn("call_notice_owed", { call: call.retellCallId, outcome: told });
+    return "owed";
+  }
+  if (call.id) await markCallNoticeTold(db, routed.tenantId, call.id);
+  return "told";
 }
 
 /**
@@ -666,6 +683,8 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   if (settled.kind === "erased") return json(200, { ok: true, skipped: "erased" });
   // A non-2xx is the only thing that earns a retry: see settleCall.
   if (settled.kind === "ingest_failed") return refuse(503, "ingest_failed");
+  // The owner's notice is kept and its mail owed: a 503, so the provider redelivers and the next try sends the mail.
+  if (settled.kind === "notice_owed") return refuse(503, "could_not_queue", "the owner's notice is owed its mail");
   // A retry or a replay: the row says this call's email and note went out.
   if (settled.kind === "duplicate") return json(200, { ok: true, duplicate: true });
   return json(200, { ok: true });
@@ -676,6 +695,7 @@ type CallSettled =
   | { kind: "erasure_unreadable" }
   | { kind: "erased" }
   | { kind: "ingest_failed" }
+  | { kind: "notice_owed" }
   | { kind: "duplicate" }
   | { kind: "settled"; told: boolean };
 
@@ -707,13 +727,16 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   try {
     if (!routed) await deadLetter(db, n);
     else {
-      const res = await ingestCall(db, routed.tenantId, n, call);
+      // The provider's payload is kept as the call ends and is analysed (scrub_call_raw's allowlist, 00519): a live turn
+      // carries none, so the row keeps what it has instead of rewriting it on every turn.
+      const keepsPayload = event === "call_ended" || event === "call_analyzed";
+      const res = await ingestCall(db, routed.tenantId, n, keepsPayload ? call : undefined);
       await stampConfigVersion(db, routed.tenantId, n.retellCallId, call);
       const plan = planCallEvent(
         { ...delivery, n },
         {
           ingest: res,
-          alreadyCorrected: corrected.has(n.retellCallId),
+          alreadyCorrected: false,
           canCorrect: !!env.RETELL_API_KEY,
           allowed: await allowedOnCall(db, routed, n),
         },
@@ -741,15 +764,19 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   // nobody.
   const missed = event !== "call_analyzed" && isMissedCall(n);
   if (event !== "call_analyzed" && !(missed && notifyClaim !== null)) return { kind: "settled", told: false };
+  // A retry or a replay finds the claim taken: the notice is asked again under its name, and sends only a mail still
+  // owed (notifyOnce); told already, it sends nothing and the delivery is a duplicate.
+  const saved = await savedCallerName(db, routed, callerId, n.retellCallId);
+  const told = await tellOwner(
+    db,
+    routed,
+    missed ? missedCallNotice(n, saved, callId) : callNotice(n, call, callAbout, saved, callId),
+    { id: callId, retellCallId: n.retellCallId, fresh: notifyClaim === true },
+  );
+  if (told === "owed") return { kind: "notice_owed" };
   if (notifyClaim === false) {
     L.info("retell_analyzed_duplicate", { call_id: n.retellCallId });
     return { kind: "duplicate" };
   }
-  const saved = await savedCallerName(db, routed, callerId, n.retellCallId);
-  await tellOwner(
-    db,
-    routed,
-    missed ? missedCallNotice(n, saved, callId) : callNotice(n, call, callAbout, saved, callId),
-  );
   return { kind: "settled", told: true };
 }

@@ -30,6 +30,8 @@ import { previewBuilder } from "../previews/build.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
 import { pageOperator } from "./page-operator.js";
 import { provisionLineJob } from "../lines/line-provision-job.js";
+import { eraseCallsAtProvider } from "../voice/erase-calls.js";
+import { env } from "../env.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
 import { expoPush } from "./push.js";
 import { replyReader } from "../reach-out/reply-read.js";
@@ -75,6 +77,12 @@ function massFailureBody(c: { claimed: number; done: number; failed: number; gav
     `  select kind, tenant_id, attempts, last_error, updated_at from jobs where state = 'failed' order by updated_at desc limit 20;\n\n` +
     `The same last_error across several workspaces points to a shared cause: a provider's credentials, the database, or a deploy.\n`
   );
+}
+
+/** The erasure's provider leg, where this edge holds the provider's key (decision 0092): the finish job's port. */
+function providerErasure(): { eraseProviderCalls?: (ids: string[]) => ReturnType<typeof eraseCallsAtProvider> } {
+  const key = env.RETELL_API_KEY;
+  return key ? { eraseProviderCalls: (ids) => eraseCallsAtProvider(key, ids) } : {};
 }
 
 /** The reply-lane page: how long the worst one waited, and where to look first. */
@@ -173,6 +181,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
               provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
+              ...providerErasure(),
               ...(intake ? { email: intake } : {}),
               mailboxIntake: mailboxIntake(db), // a reply read back from a connected mailbox, with its grant (0056)
               ...(leads ? { leads } : {}),

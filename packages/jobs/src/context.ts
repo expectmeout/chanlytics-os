@@ -61,6 +61,11 @@ export interface JobContext {
    * one; a job of this kind in a runtime without it fails loudly rather than
    * guessing.
    */
+  /**
+   * A person's calls taken off the voice provider as their erasure finishes (decision 0092). INJECTED like the saga
+   * below: the provider key lives on the edge. Optional: an erasure_finish without it says the leg was skipped.
+   */
+  eraseProviderCalls?: (callIds: string[]) => Promise<{ asked: number; deleted: number; refused: number }>;
   provisionLine?: (
     lineId: string,
     by: "owner" | "support" | "sweep",

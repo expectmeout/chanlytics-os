@@ -464,6 +464,20 @@ export async function voiceAgentsBeforeANumber(db: Db): Promise<string[]> {
   return (data ?? []).map((r) => r.agent_id);
 }
 
+/**
+ * Every agent a voice line answers in now, across workspaces (an active voice channel's external id): what the health
+ * sweep holds to the shell once a day (lib/voice/voice-watch.ts, decision 0092). A read that fails throws.
+ */
+export async function activeVoiceAgents(db: Db): Promise<Array<{ tenantId: string; agentId: string }>> {
+  const { data, error } = await platformWide(db)
+    .from("tenant_channels")
+    .select("tenant_id, external_id")
+    .eq("kind", "voice")
+    .eq("status", "active");
+  if (error) throw new Error(`cannot read the voice lines: ${error.message}`);
+  return (data ?? []).flatMap((r) => (r.external_id ? [{ tenantId: r.tenant_id, agentId: r.external_id }] : []));
+}
+
 /** A workspace's settings as they stood at one version (tenant_config_versions, 00402); null when that version is not kept. */
 export async function configAtVersion(db: Db, tenantId: string, version: number): Promise<Json | null> {
   const { data, error } = await tenantDb(db, tenantId)

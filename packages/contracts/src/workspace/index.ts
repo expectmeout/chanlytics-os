@@ -27,6 +27,7 @@ export {
   billingAccountDto,
   billingDoorOpen,
   billingPill,
+  callMinutesWords,
   CAMPAIGNS_PAUSED_WORDS,
   CHECKOUT_OUTCOME_WORDS,
   CHECKOUT_RETURN_ROUTE,

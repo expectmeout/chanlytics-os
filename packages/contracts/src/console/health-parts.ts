@@ -4,6 +4,7 @@
  * the connections that are not healthy. From one read (platform_health_parts, 00469), every row keyed by whether its
  * workspace is ours. Pure.
  */
+import { CALL_ENDING_MENDS, CALL_ENDING_PLATFORM_WORDS } from "../voice/call-endings";
 import type { ModelPurpose } from "../ai/models";
 import { creditRanOut } from "../ai/usage";
 import { capitalize } from "../shared/words";
@@ -204,27 +205,11 @@ export function sendsOf(parts: HealthPartsDto | null, scope: HealthScope): Sends
 
 // ----------------------------------------------------------------------------------------------------- calls
 
-/** A call's end, in words: the provider's reason as a person says it. */
-const CALL_REASON_WORDS: Record<string, string> = {
-  user_hangup: "hung up",
-  agent_hangup: "the receptionist ended it",
-  voicemail_reached: "reached voicemail",
-  call_transfer: "passed to a person",
-  dial_no_answer: "nobody answered",
-  dial_busy: "the line was busy",
-  credit_exhausted: "the voice provider's credit ran out",
-  error_unknown: "an error the provider didn't name",
-  inactivity: "went quiet",
-  max_duration_reached: "ran past the longest a call may last",
-  concurrency_limit_reached: "too many calls at once",
-};
+/** A call's end, in words: the provider's reason as a person says it (the one table, voice/call-endings.ts). */
+const CALL_REASON_WORDS: Record<string, string> = CALL_ENDING_PLATFORM_WORDS;
 
-/** The reasons that are ours to mend, never a caller's choice. */
-const CALL_TROUBLE: Record<string, string> = {
-  credit_exhausted: "Top up the voice provider's credit: every call fails until it is.",
-  error_unknown: "The voice provider's log has the call: look it up by its time.",
-  concurrency_limit_reached: "The voice provider's plan takes too few calls at once for this workspace.",
-};
+/** The reasons that are ours to mend, never a caller's choice: the table's platform endings and what mends each. */
+const CALL_TROUBLE: Record<string, string> = CALL_ENDING_MENDS;
 
 export interface CallsVM {
   total: number;

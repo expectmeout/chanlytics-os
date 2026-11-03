@@ -20,7 +20,14 @@
  * whether or not anything is applied. What differs from the product's defaults
  * and is the owner's (the voice, the post-call model) comes back as `notes`,
  * and is never changed here.
- * The LLM (the shell, with its secret tool header) is never touched here.
+ * The LLM (the shell: the prompt, its placeholders and defaults, the four
+ * tools) is converged here too since decision 0092, so the laptop converger
+ * that needed the provider key is a thin client of this door: its plan is
+ * planVoiceConvergence's, against the shell the switch says (the tools carry
+ * the shared secret's header only while the voice doors still read it,
+ * signatureOnly), and its patch goes on the same draft as the agent's.
+ * `{ shell: false }` converges the agent's settings alone. `{ pin_number }`, with the agent named, binds that number to
+ * latest_published (the old script's --pin), so it follows each version published (pinPlan).
  *
  * Dry run by default. Idempotent: a converged agent plans nothing. The
  * response carries each agent as it was before any change, its webhook
@@ -35,18 +42,28 @@ import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import {
   getAgentRaw,
+  getPhoneNumber,
+  getRetellLlm,
   createAgentVersion,
   updateAgent,
+  updateRetellLlm,
+  updatePhoneNumber,
   publishAgentVersion,
   planAgentSettings,
+  planVoiceConvergence,
+  desiredVoiceShell,
+  type VoiceConvergencePlan,
   retellLocalesFor,
   unpublishedLatestNote,
   newDraftNote,
+  voiceNumberBinding,
   type LiveAgentSettings,
 } from "../packages/channels.js";
 import { resolveChannel, voiceAgentsBeforeANumber } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { env } from "../env.js";
+import { edgeFnUrl } from "../dashboard-origin.js";
+import { signatureOnly } from "./voice-door-auth.js";
 import { logger } from "../log.js";
 import type { Admitted } from "../admin-auth.js";
 
@@ -54,6 +71,10 @@ interface Body {
   agent_id?: string;
   apply?: boolean;
   publish?: boolean;
+  /** Converge the LLM's shell beside the agent's settings: true unless said false. */
+  shell?: boolean;
+  /** The named agent's number (E.164), to bind to latest_published. */
+  pin_number?: string;
 }
 
 /** The agent as the backup keeps it: every field, the webhook URL without its query string. */
@@ -119,6 +140,70 @@ async function planOne(agentId: string, before: Record<string, unknown>) {
   return { opts, plan, out };
 }
 
+/**
+ * The shell's plan for the LLM the agent points at: the prompt, the placeholders, their spoken defaults and the four
+ * tools, with the booking tools posting where the live one does (or this edge) and carrying the shared secret's
+ * header only while the voice doors still read it (signatureOnly). Null for an agent on no Retell LLM, or one that
+ * could not be read, said in `out`.
+ */
+async function shellPlanOf(
+  cfg: { apiKey: string },
+  before: Record<string, unknown>,
+  out: Record<string, unknown>,
+): Promise<{ llmId: string; plan: VoiceConvergencePlan } | null> {
+  const engine = (before.response_engine ?? {}) as { type?: string; llm_id?: string; version?: number | null };
+  if (engine.type !== "retell-llm" || typeof engine.llm_id !== "string") {
+    out.shell = { error: "not_a_retell_llm" };
+    return null;
+  }
+  const llm = await getRetellLlm(cfg, engine.llm_id, engine.version ?? null);
+  if (!llm) {
+    out.shell = { error: "llm_unreadable" };
+    return null;
+  }
+  const booking = (llm.general_tools ?? []).find((t) => t.name === "send_booking_link");
+  const url = typeof booking?.url === "string" ? booking.url : edgeFnUrl();
+  const secret = signatureOnly() ? null : env.RETELL_FN_SECRET;
+  const headers = signatureOnly()
+    ? null
+    : ((booking?.headers as Record<string, string> | undefined) ?? (secret ? { "x-fn-secret": secret } : null));
+  const plan = planVoiceConvergence(llm, desiredVoiceShell(url, headers));
+  out.shell = {
+    llm_id: engine.llm_id,
+    llm_version: llm.version,
+    drift: plan.drift,
+    notes: plan.notes,
+    unknown_tools: plan.unknownTools,
+    patch_keys: plan.llmPatch ? Object.keys(plan.llmPatch) : [],
+  };
+  return { llmId: engine.llm_id, plan };
+}
+
+/**
+ * A number bound to latest_published follows each version published, where one bound to no version follows the latest,
+ * a draft included. Refused while the agent's latest version is a draft: the line would switch back to the stale
+ * published one. A number that answers in another agent is refused: a pin never moves a line. Planned on a dry run.
+ */
+async function pinPlan(
+  cfg: { apiKey: string },
+  p: { agentId: string; number: string; latestPublished: boolean; apply: boolean },
+): Promise<Record<string, unknown>> {
+  if (!p.latestPublished)
+    return { pinned: false, refused: "the latest version is a draft: publish it first, or the line switches back" };
+  const bound = await getPhoneNumber(cfg, p.number);
+  if (!bound) return { pinned: false, refused: "the number could not be read" };
+  const ours = ((bound.inbound_agents ?? []) as Array<{ agent_id?: string; agent_version?: unknown }>).find(
+    (a) => a.agent_id === p.agentId,
+  );
+  if (!ours) return { pinned: false, refused: "the number does not answer in this agent: a pin never moves a line" };
+  if (ours.agent_version === "latest_published") return { pinned: true, already: true };
+  if (!p.apply) return { pinned: false, would_pin: true };
+  const put = await updatePhoneNumber(cfg, p.number, {
+    inbound_agents: voiceNumberBinding({ agentId: p.agentId, pinned: true }),
+  });
+  return put.ok ? { pinned: true } : { pinned: false, error: { step: "pin", status: put.status, body: put.body } };
+}
+
 /** The agent read again after the change, planned on the same terms: what the provider now holds. */
 async function readBack(cfg: { apiKey: string }, agentId: string, opts: { locales?: string[] }) {
   const after = await getAgentRaw(cfg, agentId);
@@ -138,6 +223,9 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
   if (!apiKey) return refuse(503, "no_provider_key");
   const apply = body.apply === true;
   const publish = body.publish === true;
+  const pinNumber = typeof body.pin_number === "string" ? body.pin_number : null;
+  if (pinNumber !== null && (!/^\+[1-9]\d{6,14}$/.test(pinNumber) || typeof body.agent_id !== "string"))
+    return refuse(400, "bad_request", "pin_number is the named agent's number, in E.164");
 
   const agentIds = await agentsNamed(body);
   if (agentIds instanceof Response) return agentIds;
@@ -151,7 +239,8 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
       continue;
     }
     const { opts, plan, out } = await planOne(agentId, before);
-    if (apply && plan.agentPatch) {
+    const shell = body.shell === false ? null : await shellPlanOf(cfg, before, out);
+    if (apply && (plan.agentPatch || shell?.plan.llmPatch)) {
       // A published version cannot change: the patch goes on a new draft.
       let working = typeof before.version === "number" ? before.version : null;
       if (before.is_published === true && working !== null) {
@@ -163,10 +252,20 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
         working = typeof draft.body?.version === "number" ? (draft.body.version as number) : working;
         out.draft_version = working;
       }
-      const patched = await updateAgent(cfg, agentId, plan.agentPatch);
-      if (!patched.ok) {
-        agents.push({ ...out, error: { step: "update", status: patched.status, body: patched.body } });
-        continue;
+      // The shell first: a new draft clones the LLM with it, so the patch lands on what the draft points at.
+      if (shell?.plan.llmPatch) {
+        const llmPatched = await updateRetellLlm(cfg, shell.llmId, shell.plan.llmPatch);
+        if (!llmPatched.ok) {
+          agents.push({ ...out, error: { step: "update_llm", status: llmPatched.status, body: llmPatched.body } });
+          continue;
+        }
+      }
+      if (plan.agentPatch) {
+        const patched = await updateAgent(cfg, agentId, plan.agentPatch);
+        if (!patched.ok) {
+          agents.push({ ...out, error: { step: "update", status: patched.status, body: patched.body } });
+          continue;
+        }
       }
       out.applied = true;
       if (publish && working !== null && working !== before.version) {
@@ -186,7 +285,13 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
         working,
         published: out.published_version ?? null,
         keys: out.patch_keys,
+        shell_keys: shell?.plan.llmPatch ? Object.keys(shell.plan.llmPatch).join(",") : "",
       });
+    }
+    if (pinNumber) {
+      const latestPublished =
+        out.published_version !== undefined || (before.is_published === true && out.draft_version === undefined);
+      out.pin = await pinPlan(cfg, { agentId, number: pinNumber, latestPublished, apply });
     }
     agents.push(out);
   }

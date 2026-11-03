@@ -39,7 +39,7 @@ what the script writes.
 | [`contacts`](#contacts) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`conversation_channel_state`](#conversation_channel_state) | none | on, 1 policy |
 | [`conversation_drafts`](#conversation_drafts) | `packages/db/src/repositories/ask/reply-drafts.ts` | on, 1 policy |
-| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
+| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`decisions`](#decisions) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequence-makes.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/waiting-on-you.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
@@ -47,7 +47,7 @@ what the script writes.
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
-| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
+| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/fact-suggestions.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
@@ -73,7 +73,7 @@ what the script writes.
 | [`lead_suggestions`](#lead_suggestions) | none | on, 1 policy |
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
 | [`leads`](#leads) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
+| [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailbox_connections`](#mailbox_connections) | `packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts` | on, 1 policy |
 | [`mailbox_left`](#mailbox_left) | `packages/db/src/repositories/mailboxes/senders.ts` | on, 1 policy |
 | [`mailbox_sender_reads`](#mailbox_sender_reads) | `packages/db/src/repositories/mailboxes/senders.ts` | on, 1 policy |
@@ -121,10 +121,10 @@ what the script writes.
 | [`support_reports`](#support_reports) | `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`sweep_status`](#sweep_status) | `packages/db/src/repositories/mailboxes/reconcile.ts` | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
+| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/facts/rehearsals.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`voice_agents`](#voice_agents) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
@@ -633,6 +633,8 @@ Foreign keys:
 | `note_checked_at` | timestamp with time zone | yes |  | When the note sweep looked at this call (0007): once, after its analysis; null until then. |
 | `activity_started_at` | timestamp with time zone | yes |  | When the call's Live Activity was started on the workspace's phones. Set once by an UPDATE ... WHERE activity_started_at IS NULL, so a redelivered call_started starts nothing twice. |
 | `config_version` | integer | yes |  | The settings version the call was composed from (tenant_config_versions), as the inbound webhook answered it in the call's metadata (decision 0069): what a review judges the call against. Null for calls before 00476, and for one whose start could not be planned. |
+| `guard_corrected_at` | timestamp with time zone | yes |  | When a price the receptionist said aloud was corrected on the live call. Set once by an UPDATE ... WHERE guard_corrected_at IS NULL, so a call whose turns reach two instances is corrected once (00519). |
+| `notice_told_at` | timestamp with time zone | yes |  | When the owner's notice of the call went out in full: the bell, the phones and the mail (notified_at is the claim that it is owed). Null with notified_at set is a notice the calls sweep still owes (00519). |
 
 Foreign keys:
 
@@ -884,7 +886,7 @@ Foreign keys:
 
 ### conversations
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1103,7 +1105,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 ### events
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`
 - Primary key: `id`, `created_at`
 - Row-level security: on, 1 policy
 - Partitioned by range (created_at): `events_default` (default); and one per month, `events_yYYYYmMM`, made as the months come (not in the snapshot)
@@ -1941,7 +1943,7 @@ Foreign keys:
 
 The number as an ASSET: one row per number Chanlytics bought or forwards, and the state of getting it working -- subaccount, trunk, receptionist, messaging service, carrier registration, porting, forwarding. Routing lives in tenant_channels, which this table is the source for (tenant_channels.config.line_id points back here). A number provisioned elsewhere -- inside Retell, or a WhatsApp number through Meta -- has a channel row and no row here.
 
-- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3478,7 +3480,7 @@ Foreign keys:
 
 The ROUTING table: one row per thing an inbound webhook must resolve to a workspace. A voice row is keyed on the receptionist (external_id = agent id) so several numbers may share one; an sms or whatsapp row is keyed on the number, because a message arrives addressed to one. config.line_id names the lines row that created it, when a line did -- numbers provisioned inside Retell or through Meta legitimately have none. See public.number_drift() for what disagreement between the two looks like.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/facts/rehearsals.ts`, `packages/db/src/sweeps.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3555,7 +3557,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

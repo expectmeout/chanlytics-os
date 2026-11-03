@@ -46,6 +46,7 @@ import { reportLineFailed } from "./provision.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { sweepStuckLines } from "./line-resume.js";
 import { env } from "../env.js";
+import { secretToProvision } from "../voice/voice-door-auth.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /**
@@ -63,9 +64,9 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
   // clean sweep over lines it never looked at.
   const choice = lineProviderFromEnv();
   const apiKey = env.RETELL_API_KEY;
-  const fnSecret = env.RETELL_FN_SECRET;
+  const fnSecret = secretToProvision();
   if (!choice) return refuse(503, "no_line_provider");
-  if (!apiKey || !fnSecret) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
+  if (!apiKey || fnSecret === undefined) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
 
   // The decisions -- which lines, whether each is still owed an automatic try, the
   // take that makes a resume exclusive, when the platform hears -- live in

@@ -28,9 +28,10 @@ import {
   desiredVoiceShell,
   CALL_FEEL,
   CALL_HANDBOOK,
+  CALL_LIMITS,
 } from "@chanlytics/channels";
 import { RETELL_MODELS } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { readCode } from "../_source.mjs";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
@@ -44,9 +45,12 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
   });
   assert.deepEqual(Object.keys(plan.agentPatch).sort(), [
     "begin_message_delay_ms",
+    "data_storage_retention_days",
     "enable_backchannel",
+    "end_call_after_silence_ms",
     "handbook_config",
     "interruption_sensitivity",
+    "max_call_duration_ms",
     "opt_in_signed_url",
     "post_call_analysis_data",
     "reminder_max_count",
@@ -70,7 +74,9 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
     plan.drift.some((l) => l.includes("public and permanent")),
     "the drift says what the setting costs",
   );
-  assert.ok(!("data_storage_retention_days" in plan.agentPatch), "retention is not drift");
+  // The call's limits are drift (decision 0092): a week at the provider, twenty minutes a call, thirty seconds of silence.
+  assert.equal(plan.agentPatch.data_storage_retention_days, CALL_LIMITS.data_storage_retention_days);
+  assert.equal(plan.agentPatch.max_call_duration_ms, CALL_LIMITS.max_call_duration_ms);
 });
 
 test("a converged agent plans nothing, and extra events are kept", () => {
@@ -78,7 +84,7 @@ test("a converged agent plans nothing, and extra events are kept", () => {
     webhook_events: [...VOICE_WEBHOOK_EVENTS, "transfer_started"],
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
-    data_storage_retention_days: null,
+    ...CALL_LIMITS,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
@@ -98,7 +104,7 @@ test("a leftover ?key= on the call webhook's URL is drift, planned away to the b
     webhook_events: [...VOICE_WEBHOOK_EVENTS],
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
-    data_storage_retention_days: null,
+    ...CALL_LIMITS,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
@@ -131,21 +137,23 @@ test("a leftover ?key= on the call webhook's URL is drift, planned away to the b
   assert.equal(planAgentSettings(created).agentPatch, null);
 });
 
-test("retention is planned only when asked, and refused outside the provider's range", () => {
+test("retention is the product's week unless the converger is told a number, and refused outside the provider's range", () => {
   const live = {
     webhook_events: [...VOICE_WEBHOOK_EVENTS],
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
-    data_storage_retention_days: null,
+    ...CALL_LIMITS,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,
     handbook_config: { ...CALL_HANDBOOK },
   };
+  const forever = planAgentSettings({ ...live, data_storage_retention_days: null });
+  assert.deepEqual(forever.agentPatch, { data_storage_retention_days: CALL_LIMITS.data_storage_retention_days });
+  assert.ok(forever.drift[0].includes("unset (kept forever)"));
   const asked = planAgentSettings(live, { retentionDays: 365 });
   assert.deepEqual(asked.agentPatch, { data_storage_retention_days: 365 });
-  assert.ok(asked.drift[0].includes("unset (kept forever)"));
   const same = planAgentSettings({ ...live, data_storage_retention_days: 365 }, { retentionDays: 365 });
   assert.equal(same.agentPatch, null);
   const bad = planAgentSettings(live, { retentionDays: 1000 });
@@ -154,40 +162,21 @@ test("retention is planned only when asked, and refused outside the provider's r
 });
 
 test("the converger, the diagnostic and the provisioning script all read the same plan", () => {
-  const converge = readRaw("tooling/scripts/ops/voice/voice-converge.mjs");
-  assert.ok(converge.includes("planAgentSettings(agent, {"));
-  assert.ok(converge.includes("const spoken = languages?.length ? retellLocalesFor(languages) : null;"));
+  // The laptop converger is a thin client of the edge's door (decision 0092): the provider key lives on the edge alone,
+  // and the plan is the door's (planAgentSettings and planVoiceConvergence, in apps/edge/lib/voice/voice-converge.ts).
+  const converge = readCode("tooling/scripts/ops/voice/voice-converge.mjs");
+  assert.ok(!converge.includes("RETELL_API_KEY"), "no provider key on a laptop");
+  assert.ok(converge.includes('const DOOR = "/api/admin/voice-converge";'));
   assert.ok(
-    converge.includes('...(spoken && "locales" in spoken ? { locales: spoken.locales } : {}),'),
-    "unset, or naming a language with no locale, the language is kept",
+    converge.includes("signEdgeToken(SECRET, DOOR, { body })"),
+    "a token for this door that names no workspace",
   );
-  assert.ok(converge.includes("/update-agent/${agent.agent_id}"));
-  assert.ok(converge.includes('"--retention-days"'));
+  const door = readCode("apps/edge/lib/voice/voice-converge.ts");
+  assert.ok(door.includes("planAgentSettings(before as unknown as LiveAgentSettings, opts)"));
+  assert.ok(door.includes("planVoiceConvergence(llm, desiredVoiceShell(url, headers))"), "and the shell beside it");
   assert.ok(
-    converge.indexOf("if (!apply)") < converge.indexOf('await call("PATCH", `/update-agent/'),
-    "the dry run exits before any agent write",
-  );
-  // A published version cannot change (422 "Cannot update published agent
-  // other than version title", met on the first retention apply): the patches
-  // go on a new draft, and only --publish makes a pinned line pick them up.
-  const draftAt = converge.indexOf("/create-agent-version/${agent.agent_id}");
-  assert.ok(
-    draftAt > 0 && draftAt < converge.indexOf('await call("PATCH", `/update-retell-llm/'),
-    "the draft is made BEFORE any patch lands",
-  );
-  assert.ok(
-    converge.includes("(plan.llmPatch || agentPlan.agentPatch) && agent.is_published"),
-    "only when the latest version is published, and only when there is something to change",
-  );
-  assert.ok(converge.includes('const publish = process.argv.includes("--publish");'));
-  assert.ok(
-    converge.includes("newDraftNote(working.version, agent.version)"),
-    "without --publish the script says the line did not change",
-  );
-  assert.ok(
-    converge.includes("if (!agent.is_published) console.log(") &&
-      converge.indexOf("unpublishedLatestNote(agent.version)") < converge.indexOf("if (!apply)"),
-    "a draft that was already the latest is named before the plan, dry run or not (11 Oct 2026: it was patched in silence)",
+    door.indexOf("createAgentVersion(cfg, agentId, working)") < door.indexOf("updateRetellLlm(cfg, shell.llmId"),
+    "a published version cannot change: the draft is made BEFORE any patch lands",
   );
   // The diagnostic's agent-settings drift is run in diag-door.test.mjs.
   const adapter = readCode("packages/channels/src/voice/voice-retell.ts");
@@ -204,7 +193,7 @@ const CONVERGED = {
   webhook_events: [...VOICE_WEBHOOK_EVENTS],
   webhook_timeout_ms: 20000,
   opt_in_signed_url: true,
-  data_storage_retention_days: null,
+  ...CALL_LIMITS,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SCHEMA_SETS } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
 import { requireUuid, requireUuidList } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
@@ -10,8 +11,8 @@ const SEARCH_MAX = 100;
 const Query = z.object({
   /** Narrow to one thread's calls. */
   conversation_id: z.string().optional(),
-  /** Narrow to one lifecycle state. */
-  status: z.string().optional(),
+  /** Narrow to one lifecycle state: one of the five the calls table holds (a word it does not is refused, never read). */
+  status: z.enum(SCHEMA_SETS["calls.status"]).optional(),
   /**
    * These calls, comma-separated, instead of the newest hundred: the one a link names that is older than those (a bell
    * row from last week, an Activity line, a person's page), read by its id (finding A2c of the wiring plan).

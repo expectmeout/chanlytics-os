@@ -1,5 +1,15 @@
 /** The phone receptionist: calls right now, the whisper, the greeting, a call's outcome in words, and forwarding. */
 export {
+  CALL_ENDING_MENDS,
+  CALL_ENDING_OWNER_WORDS,
+  CALL_ENDING_PLATFORM_WORDS,
+  CALL_ENDINGS,
+  CALL_ENDINGS_NEEDING_AN_EAR,
+  callEndingOf,
+  isCallEndingReason,
+} from "./call-endings";
+export type { CallEnding, CallEndingReason, CallEndingWhose } from "./call-endings";
+export {
   CALL_OUTCOME_WORDS,
   CALL_OUTCOMES,
   callNoteLines,
