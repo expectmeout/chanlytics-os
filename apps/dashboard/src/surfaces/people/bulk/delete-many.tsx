@@ -30,7 +30,7 @@ export const DELETE_MANY_WORDS = {
   said: (r: DeletedMany, more: number) =>
     [
       r.erased.length ? `${howManyPeople(r.erased.length)} deleted` : "Nobody deleted",
-      r.failed.length ? `${r.failed.length} not deleted — ${r.failed[0].message}` : null,
+      r.failed.length ? `${r.failed.length} not deleted — ${r.failed.at(0)?.message ?? ""}` : null,
       r.skipped.length ? `${r.skipped.length} already gone` : null,
       r.left.length + more ? `${r.left.length + more} still selected — press Delete again` : null,
     ]

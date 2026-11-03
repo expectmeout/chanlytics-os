@@ -301,10 +301,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/cancel-send": thread,
   // People.
   "DELETE contacts/[id]": erased,
-  // Not a person (00483): their address or domain said to be automated, which moves nothing on screen (their next email stays
-  // in the mailbox), then the person deleted as Delete person deletes them.
+  // Not a person (00483) and Delete… for many: an address said automated moves nothing, then each person as above.
   "POST contacts/[id]/not-a-person": erased,
-  // People's Delete… for a selection: each person goes as Delete person takes one, with or without Not a person.
   "POST contacts/erase": erased,
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread

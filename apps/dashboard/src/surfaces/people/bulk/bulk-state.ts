@@ -15,7 +15,7 @@ interface SlipsAsk {
 }
 
 /** Delete… for a selection, while it is asked: the count typed, Not a person, and what a refused press said. */
-export interface DeleteManyAsk {
+interface DeleteManyAsk {
   open: boolean;
   typed: string;
   bot: boolean;
