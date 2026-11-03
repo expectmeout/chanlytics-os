@@ -104,6 +104,8 @@ export class ApiError extends Error {
     readonly code: string,
     readonly status: number,
     message: string,
+    /** Seconds the server said to wait before asking again (a limit's `retry-after`), where it said. */
+    readonly retryAfterS: number | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -113,7 +115,7 @@ export class ApiError extends Error {
 /** The data, or the refusal thrown: for the overrides, whose failure is "stay seeded". */
 export function unwrap<O>(r: ApiResult<O>): O {
   if (r.ok) return r.data;
-  throw new ApiError(r.code, r.status, r.message);
+  throw new ApiError(r.code, r.status, r.message, r.retryAfterS);
 }
 
 interface ApiDeps {
@@ -438,10 +440,15 @@ export function createApi(deps: ApiDeps) {
     };
   }
 
-  /** The Response itself: the two Google redirects and the Ask stream answer no envelope. */
+  /**
+   * The Response itself: the two Google redirects and the Ask stream answer no envelope. Its clock is measured and its 401
+   * read as every other answer's (signedOut): a session the Auth server ended is ended first, where it used to be sent to
+   * sign in and straight back. The 401 is read from a copy, so the caller still has the body it was answered.
+   */
   async function raw<K extends RouteKey>(key: K, ...[opts = {} as ApiOptions<K>]: OptionsOf<K>): Promise<Response> {
     const res = await deps.fetch(urlFor(key, opts), initFor(key, opts));
-    if (res.status === 401) deps.onSignedOut();
+    lead.note(res);
+    if (res.status === 401) await signedOut(deps, typeof res.clone === "function" ? res.clone() : res);
     return res;
   }
 

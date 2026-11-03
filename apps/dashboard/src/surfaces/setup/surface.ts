@@ -367,7 +367,6 @@ function saveChoices(next: Partial<SetupChoices>): Promise<{ ok: boolean; messag
 }
 
 /** A quiet look still out: a second one waits for it. */
-let peeking = false;
 
 /** Setup's verbs, each through its door. */
 export const setupVerbs: SetupApi = {
@@ -398,16 +397,10 @@ export const setupVerbs: SetupApi = {
     await refreshSurfaces([setupOverride]);
   },
   async peek() {
-    if (peeking || !surfaceValue("setup")) return;
-    peeking = true;
-    try {
-      await readSetup();
-      window.dispatchEvent(new CustomEvent("surface:setup"));
-    } catch {
-      /* what is drawn stands: the step is waiting, not failed */
-    } finally {
-      peeking = false;
-    }
+    // Through the runner, as every read of a surface is (its status, its snapshot, a 401's sign-out). A look that fails
+    // changes nothing on screen: a read that holds rows keeps them (applySetup), and the status line says it stopped.
+    if (!surfaceValue("setup")) return;
+    await refreshSurfaces([setupOverride]);
   },
   lines: {
     async search(areaCode) {
@@ -463,8 +456,10 @@ export async function applySetup(): Promise<void> {
   try {
     await readSetup();
   } catch (e) {
-    // Null, not undefined: the page draws a card with a retry instead of "Reading your workspace…" for ever.
-    setSurfaceValue("setup", null);
+    // Null, not undefined, where nothing was ever read: the page draws a card with a retry instead of "Reading your
+    // workspace…" for ever. A read that holds rows keeps them: the runner says it is not refreshing ("degraded"), and a step
+    // that only waits is never covered by the failed card (setupVerbs.peek).
+    if (!surfaceValue("setup")) setSurfaceValue("setup", null);
     throw e;
   }
 }

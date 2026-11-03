@@ -1268,6 +1268,30 @@ picture).
   signed knocks, set `RETELL_DOORS_SIGNED=1` on the edge and converge every agent (`--apply --publish`), which takes the
   header off the tools.
 
+## A page is not updating
+
+A page hears what changed from its workspace's topic on Realtime (`workspace:<id>:changes`, decision 0019): the database
+tells it once a transaction for each table and event, at the commit, and the tab reads again what the notice names. What
+the feed cannot tell (a return to the tab, the network back, a join or a rejoin, midnight) is read in one pass, and
+anything a page draws is read again once its last read is 15 minutes old. `docs/architecture.md`, "The shell", says how.
+
+1. **Ask the tab.** The status line under the top bar says when the feed is down ("Live updates aren't coming
+   through") or a surface stopped refreshing. DevTools' console has `realtime_status` for a channel that errored or
+   timed out, and `surface_override_failed` with the surface's key for a read that failed.
+2. **Ask what the tabs said.** Each tab reports, beside its page speed as it is put away, how long its feed was down
+   (`FEED_DOWN`, ms), how many times it came back (`FEED_BACK`) and each surface's reads that failed (`READ_FAILED`, the
+   surface as its part), only where something happened (00509, `apps/dashboard/src/legacy-bridge/hearing/freshness.ts`).
+   As the service role: `select * from page_freshness(7);`, by metric, page and part.
+3. **Ask the database whether it told.** As the service role, the notices a workspace was told in the last ten minutes:
+   `select inserted_at, event, payload from realtime.messages where topic = 'workspace:<tenant id>:changes' and
+inserted_at > now() - interval '10 minutes' order by inserted_at desc;`. None for a change you made means the table is
+   not watched (`packages/db/src/realtime.ts` WATCHED) or the update moved no column a page draws (NARROWED_UPDATES).
+4. **Ask whether the page hears it.** `tooling/scripts/tests/baselines/reads-not-heard.json` lists every table a page
+   draws and does not hear, and why; a pair there under `owed` is a known gap. `tooling/scripts/tests/baselines/hearing/`
+   says, per page, what each notice reads.
+5. **Realtime itself.** Supabase's dashboard, Realtime: the project's connections and messages against the plan, and
+   "Allow public access" off (the production smoke asks that an anonymous join is refused).
+
 ## Read the logs
 
 ### What a log line holds

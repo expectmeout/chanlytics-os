@@ -7,7 +7,9 @@
  */
 import { subscribeWorkspaceChanges } from "@chanlytics/db/realtime";
 import { browserClient, clientCode } from "@/lib/supabase/browser-client";
+import { api, serversClockOf } from "../api";
 import type { JoinLiveFeed } from "../surface-runner";
+import type { CatchUp } from "./catch-up";
 
 if (typeof window !== "undefined") clientCode.warm();
 
@@ -26,4 +28,14 @@ export const joinLiveFeed: JoinLiveFeed = (onChange, opts) => {
     left = true;
     stop?.();
   };
+};
+
+/**
+ * What the feed told since a moment, read back from the workspace's topic (GET changes; decision 0019 step 4): every notice
+ * the tab missed while it loaded or while its feed was down, or null where the answer could not say them all or failed, and
+ * the runner reads everything again as it did before. The moment is put on the servers' clock first, on the early side.
+ */
+export const catchUpLiveFeed: CatchUp = async (sinceMs) => {
+  const r = await api()("GET changes", { query: { since: new Date(serversClockOf(sinceMs)).toISOString() } });
+  return r.ok && r.data.whole ? r.data.notices : null;
 };

@@ -1,0 +1,20 @@
+{
+  "note": "How long each page may take to be drawn with its rows (the shell's own READY, client/page-speed.ts), on a cold load in a fresh context and on a move from Today, as the nightly measures it against production (e2e/shell/page-speed-budgets.spec.ts; the page-open PRD of 3 Nov 2026, L9, NFR3). Set generous on 3 Nov 2026 before any nightly had measured them; each is lowered to the first week's p75 plus a fifth, and may only fall after that.",
+  "cold": {
+    "today": 6000,
+    "inbox": 6000,
+    "people": 6000,
+    "calendar": 6000,
+    "leads": 7000,
+    "campaigns": 7000,
+    "reports": 7000,
+    "live": 6000,
+    "conversations": 6000
+  },
+  "move": {
+    "inbox": 3000,
+    "people": 3000,
+    "calendar": 3000,
+    "reports": 4000
+  }
+}

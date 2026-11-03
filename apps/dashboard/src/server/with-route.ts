@@ -28,7 +28,7 @@ import { sessionHoldsPartnerSeat, type Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
-import { serverTimingHeader, touchedLine } from "./server-timing";
+import { serverTimingHeader, touchedLine, TOUCHES_ALL_HEADER } from "./server-timing";
 import { REQUEST_ID_HEADER, requestId, requestIdOf, requestTimings, requestTouches } from "@chanlytics/channels";
 import { log, noteTenant, withRequestId } from "./log";
 import { tenantFactsOf } from "./tenant";
@@ -101,7 +101,8 @@ const timed = (authMs: number, started: number) => ({
  * (server-timing.ts touchedLine; decision 0058, lane R7). Nothing for an answer outside the sample. Called inside the request.
  */
 function touchedFields(req: Request): { method?: string; tables?: string; page?: string | null } {
-  const touched = touchedLine(requestId() ?? "", requestTouches(), req.headers.get("referer"));
+  const every = req.headers.get(TOUCHES_ALL_HEADER) === "all";
+  const touched = touchedLine(requestId() ?? "", requestTouches(), req.headers.get("referer"), every);
   return touched ? { method: req.method, ...touched } : {};
 }
 

@@ -110,6 +110,7 @@ const {
   clearSurfaceCache,
   flushSurfaceCache,
   cachedTenant: cachedTenantNow,
+  dropExpiredSlots,
 } = await import("../../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
 const { SURFACE_SHAPES } = await import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/shapes.generated.ts");
 /** The cache's slot as the next load reads it: after the page's hide, which writes what waits. */
@@ -835,4 +836,22 @@ test("a snapshot that does not say the zone its times were said in is painted as
   );
   setSurfaceValue("inbox", undefined);
   clearSurfaceCache();
+});
+
+test("a slot past its day is removed at boot, every workspace's, and a slot that is current, or says no time, stays (the page-open PRD, N8)", () => {
+  const ls = globalThis.localStorage;
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.parse("2026-11-03T12:00:00Z");
+  const slot = (savedAt) =>
+    JSON.stringify({ build: "b", savedAt, at: "x", tenant: "t", surfaces: { inbox: { big: "x".repeat(5000) } } });
+  ls.setItem("chanlytics.surfaces.v2:old", slot(now - DAY - 1));
+  ls.setItem("chanlytics.surfaces.v2:fresh", slot(now - 1000));
+  ls.setItem("chanlytics.surfaces.v2:odd", "not a slot of ours");
+  ls.setItem("chanlytics-os-prefs", JSON.stringify({ savedAt: now - 10 * DAY }));
+  dropExpiredSlots(now);
+  assert.equal(ls.getItem("chanlytics.surfaces.v2:old"), null, "a day old: customer rows no load will draw, gone");
+  assert.notEqual(ls.getItem("chanlytics.surfaces.v2:fresh"), null, "current: the next load paints it");
+  assert.equal(ls.getItem("chanlytics.surfaces.v2:odd"), "not a slot of ours", "no time in its head: not judged");
+  assert.notEqual(ls.getItem("chanlytics-os-prefs"), null, "nothing but the cache's slots is touched");
+  for (const k of ["fresh", "odd"]) ls.removeItem(`chanlytics.surfaces.v2:${k}`);
 });

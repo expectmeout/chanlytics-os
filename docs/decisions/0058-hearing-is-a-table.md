@@ -333,8 +333,10 @@ the feed never tells. Each was then kept as it was first read.
 - **The table has a module of its own**: `PAGE_HEARS` is in `apps/dashboard/src/legacy-bridge/hearing/page-hears.ts`, which the
   registry imports and re-exports, so the registry keeps the rules that read it under the file limit.
 - **Stage C is not built.** It replaces rows cluster by cluster (threads, people, campaigns, settings, setup, leads) with
-  the derivation where the golden and the shadow week explain every difference, and keeps the hand rows with the
-  derivation as their test where they do not.
+  the derivation where the golden and the shadow explain every difference, and keeps the hand rows with the derivation as
+  their test where they do not. The shadow is the nightly's (the page-open PRD, 3 November 2026, P4): with one customer
+  workspace active, a production week would hold almost nothing, while the nightly runs every write path against
+  production in its own workspace, whose every request says what it touched.
 - **Closed:** W-visit-deal-4, W-review-facts-rules-9, S10-6, and R6's S4-6 (the readiness and consent writes read the
   composers where they are drawn).
 - **Left, with its reason:** the trace does not enter `tenantFacts` (server/tenant.ts, a file of the wrapper), so it sees no
