@@ -163,6 +163,8 @@ const TABLES = [
   "sequence_sends",
   "sequence_steps",
   "sequences",
+  // A workspace's setup choices, its own and not each member's (00513, decision 0091).
+  "setup_choices",
   "templates",
   "tenant_channels",
   "tenant_config",
