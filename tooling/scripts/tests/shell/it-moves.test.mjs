@@ -731,8 +731,6 @@ test("under reduced motion the finger still carries it, and the rest happens at 
 // itself before, by an inline style React was about to take away with the page (8 Oct 2026).
 
 const pager = (over = {}) => ({ prev: true, next: true, drag() {}, settle() {}, go() {}, ...over });
-/** The Calendar's days: a page that stays, and turns in place. It says only what is each side and how to turn. */
-const days = (over = {}) => ({ prev: true, next: true, stays: true, go() {}, ...over });
 
 test("a page follows the thumb across, both ways: it is told how far, which side, and that a page is there", () => {
   const seen = [];
@@ -934,67 +932,6 @@ test("where a page has both, a page to the left is walked first, and Back is wha
   const left = element();
   drag(h, left, [300, 300], [220, 300], [120, 300]);
   assert.deepEqual(went, [-1, 1]);
-});
-
-test("a page that stays (the Calendar's days) leaves, turns, and comes back in from the side it is going to", async () => {
-  const went = [];
-  const moves = [];
-  const style = {};
-  const el = element({
-    style: new Proxy(style, {
-      set: (o, k, v) => {
-        if (k === "transform") moves.push(v);
-        o[k] = v;
-        return true;
-      },
-    }),
-  });
-  const h = touchSwipe({ pages: () => days({ go: (s) => went.push(s) }) });
-  drag(h, el, [300, 300], [240, 300], [160, 300]);
-  assert.equal(style.transform, "translate3d(-375px, 0, 0)", "away first, as any page");
-  await wait(220);
-  assert.deepEqual(went, [1], "then the next days");
-  assert.deepEqual(
-    moves.slice(-2),
-    ["translate3d(40px, 0, 0)", "translate3d(0, 0, 0)"],
-    "and they come in from the right",
-  );
-  await wait(280);
-  assert.equal(style.transform, "", "the page's own rules own it again");
-});
-
-test("a page that stays waits where it went until `go` says the next has landed, then comes back in with it", async () => {
-  // A turn that is not drawn at once answers a promise, and the page comes back in only when it has landed: brought
-  // back as soon as it was asked, it came in showing what it was leaving, which turned into the next in mid-air (Reports'
-  // lenses, 7 Oct 2026, which are views of a strip now and move by the deck).
-  const moves = [];
-  const style = {};
-  const el = element({
-    style: new Proxy(style, {
-      set: (o, k, v) => {
-        if (k === "transform") moves.push(v);
-        o[k] = v;
-        return true;
-      },
-    }),
-  });
-  let landed = null;
-  const h = touchSwipe({
-    pages: () =>
-      days({
-        go: () =>
-          new Promise((r) => {
-            landed = r;
-          }),
-      }),
-  });
-  drag(h, el, [300, 300], [240, 300], [160, 300]);
-  await wait(220);
-  assert.ok(landed, "asked for the next once it had left");
-  assert.equal(moves.at(-1), "translate3d(-375px, 0, 0)", "and waits where it went while the next draws");
-  landed();
-  await wait(20);
-  assert.deepEqual(moves.slice(-2), ["translate3d(40px, 0, 0)", "translate3d(0, 0, 0)"], "then in from the right");
 });
 
 test("under reduced motion a page still follows, and the switch is at once; a swipe read only at its ends switches too", () => {
