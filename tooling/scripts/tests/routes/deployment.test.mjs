@@ -2,7 +2,10 @@
  * One deployment configuration says what this deployment may do. Production
  * reaches the real providers; a preview or a laptop only when it says so
  * with EDGE_PROVIDERS=live; an unset VERCEL_ENV is a laptop, never
- * production.
+ * production. EDGE_PROVIDERS=model opens the model alone (Ask's turns, its
+ * warm, the drafts), so a change to Ask can be measured on a laptop before it
+ * lands with every provider door still shut
+ * (tests/ask/gateway/a-laptop-reaches-the-model-alone.test.mjs runs it).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,23 +16,68 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const { deploymentFrom } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/env.ts")).href);
 
 test("production is live; a preview or a laptop is not, unless it says so", () => {
-  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "production" }), { env: "production", providersLive: true });
-  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "preview" }), { env: "preview", providersLive: false });
-  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "development" }), { env: "development", providersLive: false });
+  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "production" }), {
+    env: "production",
+    providersLive: true,
+    modelLive: true,
+  });
+  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "preview" }), {
+    env: "preview",
+    providersLive: false,
+    modelLive: false,
+  });
+  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "development" }), {
+    env: "development",
+    providersLive: false,
+    modelLive: false,
+  });
   assert.deepEqual(deploymentFrom({ VERCEL_ENV: "preview", EDGE_PROVIDERS: "live" }), {
     env: "preview",
     providersLive: true,
+    modelLive: true,
   });
-  assert.deepEqual(deploymentFrom({ EDGE_PROVIDERS: "live" }), { env: "development", providersLive: true });
+  assert.deepEqual(deploymentFrom({ EDGE_PROVIDERS: "live" }), {
+    env: "development",
+    providersLive: true,
+    modelLive: true,
+  });
+});
+
+test("EDGE_PROVIDERS=model opens the model and no provider, on a laptop or a preview", () => {
+  assert.deepEqual(deploymentFrom({ EDGE_PROVIDERS: "model" }), {
+    env: "development",
+    providersLive: false,
+    modelLive: true,
+  });
+  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "preview", EDGE_PROVIDERS: "model" }), {
+    env: "preview",
+    providersLive: false,
+    modelLive: true,
+  });
+  assert.deepEqual(
+    deploymentFrom({ VERCEL_ENV: "production", EDGE_PROVIDERS: "model" }),
+    { env: "production", providersLive: true, modelLive: true },
+    "production reaches everything whatever the word",
+  );
 });
 
 test("an unset or unknown VERCEL_ENV is a laptop, never production", () => {
-  assert.deepEqual(deploymentFrom({}), { env: "development", providersLive: false });
-  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "" }), { env: "development", providersLive: false });
-  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "Production" }), { env: "development", providersLive: false });
+  assert.deepEqual(deploymentFrom({}), { env: "development", providersLive: false, modelLive: false });
+  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "" }), { env: "development", providersLive: false, modelLive: false });
+  assert.deepEqual(deploymentFrom({ VERCEL_ENV: "Production" }), {
+    env: "development",
+    providersLive: false,
+    modelLive: false,
+  });
   assert.equal(
     deploymentFrom({ EDGE_PROVIDERS: "yes" }).providersLive,
     false,
     "only the word live opens the providers",
   );
+  for (const word of ["yes", "Model", "models", "ask", "on"])
+    assert.deepEqual(
+      deploymentFrom({ EDGE_PROVIDERS: word }),
+      { env: "development", providersLive: false, modelLive: false },
+      `${word}: only the words live and model open anything`,
+    );
 });

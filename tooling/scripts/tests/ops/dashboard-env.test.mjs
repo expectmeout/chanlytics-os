@@ -87,7 +87,11 @@ test("a value its schema refuses reads as unset, never as itself", () => {
   setEnv({ EDGE_URL: "https://edge.example.com/" });
   assert.equal(env.EDGE_URL, "https://edge.example.com", "a trailing slash is the same origin");
   setEnv({ EDGE_PROVIDERS: "yes" });
-  assert.equal(env.EDGE_PROVIDERS, undefined, "only the word live");
+  assert.equal(env.EDGE_PROVIDERS, undefined, "only the words live and model");
+  setEnv({ EDGE_PROVIDERS: " model " });
+  assert.equal(env.EDGE_PROVIDERS, "model", "the model alone, trimmed");
+  setEnv({ EDGE_PROVIDERS: "Model" });
+  assert.equal(env.EDGE_PROVIDERS, undefined, "a word as it is written, never a guess");
   setEnv({ VERCEL_ENV: "Production" });
   assert.equal(env.VERCEL_ENV, undefined, "an unknown deployment is not production");
   setEnv({ CANONICAL_HOST: "https://app.example.com" });
