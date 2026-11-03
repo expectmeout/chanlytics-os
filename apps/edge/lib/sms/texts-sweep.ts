@@ -11,13 +11,13 @@
  * text was sent (`DateSent`, covered by the signature), so a text that waited out an outage meets the stale gate as the
  * late text it is and is held for a person, not answered as if it had just arrived.
  *
- * Left alone: a text younger than SETTLE_MS (the door may be taking it in now), a one-time code (the door keeps none, by
+ * Left alone: a text younger than TEXTS_SETTLE_MS (the door may be taking it in now), a one-time code (the door keeps none, by
  * design, so it would be knocked for every tick), and anything already heard. A text taken in twice is one message: the
  * door's replay gate (ingest_inbound) makes a second knock a no-op. A picture's bytes are not in the record read here, so
  * a picture message comes back as its words alone.
  *
  * pg_cron asks for it every ten minutes ('texts-sweep', 00517) while a line that can text exists; the work is bounded by
- * time (YIELD_AT_MS from the door's first line), and the tick ends in one texts_swept with its counts.
+ * time (TEXTS_YIELD_AT_MS from the door's first line), and the tick ends in one texts_swept with its counts.
  */
 import { HOUR_MS, MIN_MS, oneTimeCodeOf } from "../packages/contracts.js";
 import { twilioSignature, type ReceivedText } from "../packages/channels.js";
@@ -31,11 +31,11 @@ import { receiveInboundText } from "./inbound-text.js";
 import { lineAccount } from "./sms.js";
 
 /** How far back a line's record is read: a day of an outage, at most, is taken in. */
-export const LOOKBACK_MS = 24 * HOUR_MS;
+export const TEXTS_LOOKBACK_MS = 24 * HOUR_MS;
 /** A text younger than this is the door's: it may be taking it in now. */
-export const SETTLE_MS = 2 * MIN_MS;
+export const TEXTS_SETTLE_MS = 2 * MIN_MS;
 /** No line is read after this, counted from the door's first line (vercel.json holds the function at sixty seconds). */
-export const YIELD_AT_MS = 40_000;
+export const TEXTS_YIELD_AT_MS = 40_000;
 /** The door a text is knocked on again at, as Twilio is told to post it. */
 export const TEXT_DOOR_PATH = "/api/inbound-sms";
 
@@ -78,14 +78,14 @@ export async function sweepUnheardTexts(tick: SweepTick, world: TextsSweepWorld 
   const url = `${world.origin.replace(/\/+$/, "")}${TEXT_DOOR_PATH}`;
   for (const line of await linesThatText(db)) {
     if (line.provider !== choice.name || !line.e164) continue;
-    if (world.now() - started > YIELD_AT_MS) break;
+    if (world.now() - started > TEXTS_YIELD_AT_MS) break;
     counts.lines += 1;
     // The line's account (its token is the vault's) and its record: a line with no account has no texts to read.
     let read: { account: { sid: string; token: string }; texts: ReceivedText[] } | null;
     try {
       const account = await lineAccount(db, line);
       read = account
-        ? { account, texts: await choice.provider.recentTexts(account, line.e164, world.now() - LOOKBACK_MS) }
+        ? { account, texts: await choice.provider.recentTexts(account, line.e164, world.now() - TEXTS_LOOKBACK_MS) }
         : null;
     } catch (e) {
       counts.failed += 1;
@@ -95,7 +95,7 @@ export async function sweepUnheardTexts(tick: SweepTick, world: TextsSweepWorld 
     if (!read) continue;
     const { account, texts } = read;
     counts.read += texts.length;
-    const settled = texts.filter((t) => t.atMs <= world.now() - SETTLE_MS && !oneTimeCodeOf(t.body));
+    const settled = texts.filter((t) => t.atMs <= world.now() - TEXTS_SETTLE_MS && !oneTimeCodeOf(t.body));
     const heard = await textsAlreadyHeard(
       db,
       settled.map((t) => t.sid),

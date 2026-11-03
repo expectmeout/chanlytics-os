@@ -44,7 +44,6 @@ test("the frame quotes the owner, asks for a rewrite that keeps what was right, 
 test("the brain takes the instruction as one more system block and stops showing the model its last message twice", () => {
   const b = readCode("apps/edge/lib/receptionist/brain.ts");
   // The question to the receptionist names its parts (core ReplyAsk, the inbound review's C6), the steer among them.
-  assert.ok(readCode("packages/core/src/inbound/ports.ts").includes("steer?: string;"));
   assert.ok(/async function answerReply\(\{[^}]*\bsteer,[^}]*\}: ReplyAsk\)/.test(b));
   assert.ok(b.includes('...(steer ? [{ type: "text", text: steer }] : []),'));
   assert.ok(

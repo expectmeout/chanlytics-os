@@ -76,13 +76,13 @@ const isReason = (r: string): r is EscalationReason => (ESCALATION_REASONS as re
  * The hold reason the handler means: the reason itself, which a gate hands over (core handled.ts handToAPerson), or the
  * one its phrase names; none for a phrase that is no hold's.
  */
-function reasonOf(said: string): EscalationReason | undefined {
+function holdReasonOf(said: string): EscalationReason | undefined {
   return isReason(said) ? said : REASON_OF.get(said);
 }
 
 /** Why a thread needs a person, as the owner reads it: the Inbox's clause for a reason, else the handler's own words, else as it came. */
 function whyOf(reason: string): string {
-  const held = reasonOf(reason);
+  const held = holdReasonOf(reason);
   return held ? reasonShort(held) : (OWN_WORDS.get(reason) ?? reason);
 }
 
@@ -160,7 +160,7 @@ export function handoffMessage({
     ctx.who?.trim() || (onDm ? "Someone on Instagram" : formatPhoneDisplay(`+${threadId}`) || `+${threadId}`);
   const why = whyOf(reason);
   // What to do, by the reason's act (a reply to write, a call to return, nothing that may be sent); the pause rides after it.
-  const act = HOLD_ACT_WORDS[holdActOf(reasonOf(reason))].notice;
+  const act = HOLD_ACT_WORDS[holdActOf(holdReasonOf(reason))].notice;
   // The owner of a workspace with both wires connected opens the thread this
   // names. Saying "WhatsApp" for a text sends them to an app the conversation
   // is not in.

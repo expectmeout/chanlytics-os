@@ -14,7 +14,7 @@ import { twilioSignature } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { sweepUnheardTexts, SETTLE_MS, TEXT_DOOR_PATH } = await import(
+const { sweepUnheardTexts, TEXTS_SETTLE_MS, TEXT_DOOR_PATH } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/texts-sweep.ts")).href
 );
 
@@ -109,7 +109,7 @@ test("only a settled text nobody heard is knocked for, signed as Twilio signs, c
       text("SMmessage"),
       text("SMkept"),
       text("SMcode", { body: "Your Apple ID Code is: 123456. Don't share it with anyone." }),
-      text("SMyoung", { atMs: ago(SETTLE_MS / 2) }),
+      text("SMyoung", { atMs: ago(TEXTS_SETTLE_MS / 2) }),
     ],
     heard: ["SMmessage"],
     kept: ["SMkept"],

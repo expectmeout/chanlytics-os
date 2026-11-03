@@ -27,7 +27,7 @@ export type AnswerWire = "whatsapp" | "sms" | "instagram";
  * by what it carries, as every door wrote it: `wa` a WhatsApp message, `ig` a DM, and otherwise a text. Kept for the
  * jobs a deploy finds waiting, which a day's ledger has long finished.
  */
-export function wireOf(payload: Record<string, unknown>): AnswerWire {
+export function jobWireOf(payload: Record<string, unknown>): AnswerWire {
   const said = payload.wire;
   if (said === "whatsapp" || said === "sms" || said === "instagram") return said;
   return payload.wa ? "whatsapp" : payload.ig ? "instagram" : "sms";
@@ -35,7 +35,7 @@ export function wireOf(payload: Record<string, unknown>): AnswerWire {
 
 /** An answer job, by its wire; its turn answered by `deadline` when the ledger gives one (core answer.ts). */
 export function answerInboundJob(db: Db, job: ClaimedJob, deadline?: number): Promise<void> {
-  switch (wireOf(job.payload)) {
+  switch (jobWireOf(job.payload)) {
     case "whatsapp":
       return answerWhatsapp(db, job, deadline);
     case "instagram":

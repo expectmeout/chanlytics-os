@@ -16,7 +16,7 @@ import { FROM, GREETING, text, world } from "../_world.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
-const { wireOf } = await import(at("apps/edge/lib/inbound/answer-job.ts"));
+const { jobWireOf } = await import(at("apps/edge/lib/inbound/answer-job.ts"));
 
 test("a redelivered message id is a duplicate: nothing happens twice", async () => {
   const w = world();
@@ -190,11 +190,14 @@ test("the line a message came in on travels with its ingest, for the first touch
 });
 
 test("an answer job says the wire it answers on, and one its door wrote before it did is read by what it carries", () => {
-  assert.equal(wireOf({ wire: "whatsapp", wa: {} }), "whatsapp");
-  assert.equal(wireOf({ wire: "instagram", ig: {} }), "instagram");
-  assert.equal(wireOf({ wire: "sms", text: {} }), "sms");
+  assert.equal(jobWireOf({ wire: "whatsapp", wa: {} }), "whatsapp");
+  assert.equal(jobWireOf({ wire: "instagram", ig: {} }), "instagram");
+  assert.equal(jobWireOf({ wire: "sms", text: {} }), "sms");
   // Before 3 Nov 2026 a payload said nothing of its wire.
-  assert.deepEqual([wireOf({ wa: {} }), wireOf({ ig: {} }), wireOf({ text: {} })], ["whatsapp", "instagram", "sms"]);
+  assert.deepEqual(
+    [jobWireOf({ wa: {} }), jobWireOf({ ig: {} }), jobWireOf({ text: {} })],
+    ["whatsapp", "instagram", "sms"],
+  );
   // A word nobody wrote is not believed: what the payload carries decides.
-  assert.equal(wireOf({ wire: "email", wa: {} }), "whatsapp");
+  assert.equal(jobWireOf({ wire: "email", wa: {} }), "whatsapp");
 });

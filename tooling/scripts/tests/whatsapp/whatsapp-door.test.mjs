@@ -1995,7 +1995,7 @@ test("a WhatsApp message is recorded, its answer scheduled as a job and acknowle
         message: m,
         value: { metadata: { display_phone_number: w.LINE.slice(1), phone_number_id: w.PHONE_ID }, contacts },
       },
-      // The wire its job answers on, said (lib/inbound/answer-job.ts wireOf).
+      // The wire its job answers on, said (lib/inbound/answer-job.ts jobWireOf).
       wire: "whatsapp",
       // Named, so an erasure cancels a job still waiting and scrubs one finished.
       message_id: `m-${m.id}`,

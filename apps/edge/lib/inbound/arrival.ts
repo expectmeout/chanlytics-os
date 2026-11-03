@@ -93,7 +93,7 @@ export async function recordThenSchedule(
   if (!ing) return null;
   const payload: Json = {
     ...wire,
-    // The wire its job answers on, said rather than read from what the payload carries (./answer-job.ts wireOf).
+    // The wire its job answers on, said rather than read from what the payload carries (./answer-job.ts jobWireOf).
     wire: a.inbound.channel,
     message_id: ing.message_id,
     conversation_id: ing.conversation_id,

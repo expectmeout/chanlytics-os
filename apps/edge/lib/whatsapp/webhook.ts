@@ -52,7 +52,7 @@ import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { recordWhatsapp } from "./answer-later.js";
-import { planWhatsappChange } from "./delivery-plan.js";
+import { planWhatsappChange, type WaChangePlan, type WaRouting } from "./delivery-plan.js";
 import { handDeliveryOn } from "../imports/history-import.js";
 import { recordReceipts } from "./receipts.js";
 import { pgSafe, IngestFailed } from "../inbound/persist.js";
@@ -201,14 +201,8 @@ async function handleChange(
   change: Change,
   delivery: { key: string; kept: boolean },
 ): Promise<number> {
-  let owed = 0;
   const v = change.value || {};
   const field = change.field;
-  // Multi-tenant routing key (Blueprint §3): phone_number_id -> tenant.
-  let tenantId: string | null = null;
-  let routedChannel: RoutedChannel | null = null;
-  let unroutable = false;
-  let routingFailed = false;
   const db = pg();
   // The account's own news (quality, limits, templates, reviews) is keyed
   // on the WABA, not on a number: routed by waba_id, kept as an event,
@@ -220,63 +214,87 @@ async function handleChange(
     const value = v as unknown as Record<string, unknown>;
     const outcome = await handleWabaChange(db, entryId, { field, value }, (tid) => notificationsFor(db, tid));
     L.info("wa_waba_event", { field, waba_id: accountOf(entryId, value)?.waba ?? null, outcome });
-    return owed;
+    return 0;
   }
   const phoneNumberId = v.metadata?.phone_number_id;
-  if (db && phoneNumberId) {
-    const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
-    if (routed) {
-      tenantId = routed.tenantId;
-      routedChannel = routed;
-    } else if (lookupFailed) {
-      // The database did not answer. That is an infra blip, not a
-      // decision: nothing is recorded and nothing is said, and the 503
-      // below has the provider redeliver once the read works.
-      routingFailed = true;
-      L.error("wa_routing_lookup_failed", { phone_number_id: phoneNumberId });
-    } else {
-      // The database ANSWERED and this channel is not active — disabled,
-      // deleted, or never ours. That is a deliberate state, so we neither
-      // reply nor persist. A log line disappears; a metric built on
-      // messages_in would undercount this traffic invisibly and forever.
-      unroutable = true;
-      L.error("wa_unroutable", { phone_number_id: phoneNumberId });
-      await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
-        channel: "whatsapp",
-        phone_number_id: phoneNumberId,
-      }).catch(() => {});
-    }
-  }
+  const { routing, routed } = await routeByNumber(db, phoneNumberId);
   // What to do with it is the plan's (./delivery-plan.ts, run every way in its own test): taken in, owed, or said and
   // let go. Nothing the database could not keep is acknowledged.
   const echoes = field === "smb_message_echoes" ? (v.message_echoes ?? []) : [];
   const plan = planWhatsappChange(
     field,
     { messages: v.messages?.length ?? 0, statuses: v.statuses?.length ?? 0, echoes: echoes.length },
-    !db ? "no_database" : routingFailed ? "lookup_failed" : routedChannel ? "routed" : "unroutable",
+    routing,
     HISTORY_FIELDS.has(String(field)),
   );
-  // What it carried, as each line counts it: messages, an owner's echoes, or receipts.
+  await sayWhatWasLetGo(plan, field, v, phoneNumberId);
+  const tenantId = routed?.tenantId ?? null;
+  if (plan.take === "messages" && db && routed) return plan.owed + (await takeMessages(db, routed, v));
+  if (plan.take === "echoes") return plan.owed + (await recordEchoes(db, routed, echoes));
+  if (plan.take === "receipts") return plan.owed + (await recordReceipts(db, tenantId, v.statuses ?? []));
+  if (plan.take === "history")
+    return (
+      plan.owed +
+      (await handHistory(db, field, delivery, {
+        tenantId,
+        unroutable: routing === "unroutable" && !!phoneNumberId,
+        routingFailed: routing === "lookup_failed",
+        phoneNumberId,
+      }))
+    );
+  return plan.owed;
+}
+
+/**
+ * Whose number a change was written to (Blueprint §3: phone_number_id -> workspace), as the plan reads it: routed, the
+ * read failed (a blip, not a decision: nothing is kept and nothing said, and the door's 503 has Meta send it again),
+ * unroutable (the database answered and the channel is not active: disabled, deleted or never ours, which is said and
+ * kept as an event, since a log line disappears and a metric built on messages_in would undercount it for ever; or the
+ * change names no number), or no database at all.
+ */
+async function routeByNumber(
+  db: ReturnType<typeof pg>,
+  phoneNumberId: string | undefined,
+): Promise<{ routing: WaRouting; routed: RoutedChannel | null }> {
+  if (!db) return { routing: "no_database", routed: null };
+  if (!phoneNumberId) return { routing: "unroutable", routed: null };
+  const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
+  if (routed) return { routing: "routed", routed };
+  if (lookupFailed) {
+    L.error("wa_routing_lookup_failed", { phone_number_id: phoneNumberId });
+    return { routing: "lookup_failed", routed: null };
+  }
+  L.error("wa_unroutable", { phone_number_id: phoneNumberId });
+  await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
+    channel: "whatsapp",
+    phone_number_id: phoneNumberId,
+  }).catch(() => {});
+  return { routing: "unroutable", routed: null };
+}
+
+/**
+ * What the plan let go, said by name with what the change carried (messages, an owner's echoes, or receipts), and the
+ * customers nobody is answering told to the platform, once a window: the routing read failed, or the number is nobody's.
+ */
+async function sayWhatWasLetGo(
+  plan: WaChangePlan,
+  field: string | undefined,
+  v: WaChangeValue,
+  phoneNumberId: string | undefined,
+): Promise<void> {
+  const echoes = field === "smb_message_echoes" ? (v.message_echoes?.length ?? 0) : 0;
   const carried =
     field === "messages" && v.messages?.length
       ? { messages: v.messages.length }
-      : echoes.length
-        ? { echoes: echoes.length }
+      : echoes
+        ? { echoes }
         : { receipts: v.statuses?.length ?? 0 };
   if (plan.log === "wa_skip_routing_failed")
     L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId ?? null, ...carried });
   else if (plan.log === "wa_skip_unroutable")
     L.error("wa_skip_unroutable", { phone_number_id: phoneNumberId ?? null, ...carried });
   else if (plan.log === "wa_event") L.info("wa_event", { field });
-  // Customers nobody is answering reach a person, once a window: the routing read failed, or the number is nobody's.
   if (plan.alert) await alertUnroutable(plan.alert, phoneNumberId, v.messages?.length ?? 0);
-  owed += plan.owed;
-  if (plan.take === "messages" && db && routedChannel) owed += await takeMessages(db, routedChannel, v);
-  else if (plan.take === "echoes") owed += await recordEchoes(db, routedChannel, echoes);
-  else if (plan.take === "receipts") owed += await recordReceipts(db, tenantId, v.statuses ?? []);
-  else if (plan.take === "history")
-    owed += await handHistory(db, field, delivery, { tenantId, unroutable, routingFailed, phoneNumberId });
-  return owed;
 }
 
 /**

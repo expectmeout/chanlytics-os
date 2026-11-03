@@ -38,7 +38,7 @@ export interface WaChangePlan {
   alert: "whatsapp" | "whatsapp_unreadable" | null;
 }
 
-const NOTHING: WaChangePlan = { take: null, owed: 0, log: null, alert: null };
+const TAKES_NOTHING: WaChangePlan = { take: null, owed: 0, log: null, alert: null };
 
 /** The plan for one change: its field, what it carried, how its number was found, and whether it is history. */
 export function planWhatsappChange(
@@ -48,10 +48,10 @@ export function planWhatsappChange(
   isHistory: boolean,
 ): WaChangePlan {
   if (field === "messages" && c.messages > 0) {
-    if (routing === "routed") return { ...NOTHING, take: "messages" };
-    if (routing === "unroutable") return { ...NOTHING, log: "wa_skip_unroutable", alert: "whatsapp" };
+    if (routing === "routed") return { ...TAKES_NOTHING, take: "messages" };
+    if (routing === "unroutable") return { ...TAKES_NOTHING, log: "wa_skip_unroutable", alert: "whatsapp" };
     return {
-      ...NOTHING,
+      ...TAKES_NOTHING,
       owed: c.messages,
       log: "wa_skip_routing_failed",
       alert: routing === "lookup_failed" ? "whatsapp_unreadable" : null,
@@ -60,9 +60,9 @@ export function planWhatsappChange(
   const echoes = field === "smb_message_echoes";
   if ((field === "messages" && c.statuses > 0) || echoes) {
     if (routing === "lookup_failed")
-      return { ...NOTHING, owed: echoes ? c.echoes : c.statuses, log: "wa_skip_routing_failed" };
-    return { ...NOTHING, take: echoes ? "echoes" : "receipts" };
+      return { ...TAKES_NOTHING, owed: echoes ? c.echoes : c.statuses, log: "wa_skip_routing_failed" };
+    return { ...TAKES_NOTHING, take: echoes ? "echoes" : "receipts" };
   }
-  if (isHistory) return { ...NOTHING, take: "history" };
-  return { ...NOTHING, log: "wa_event" };
+  if (isHistory) return { ...TAKES_NOTHING, take: "history" };
+  return { ...TAKES_NOTHING, log: "wa_event" };
 }

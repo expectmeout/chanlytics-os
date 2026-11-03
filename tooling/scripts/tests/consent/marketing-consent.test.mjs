@@ -249,8 +249,7 @@ test("the database records the two answers apart, and neither writer reaches acr
     kept,
     /if p_opt_in_marketing and v_consent is distinct from 'opted_out' and v_dnc is not true then\s+perform public\.set_marketing_consent\(/,
   );
-  const repo = readCode("packages/db/src/repositories/ingest.ts");
-  assert.ok(!/rpc\("set_marketing_consent"/.test(repo), "REGRESSION: the yes written apart from its message");
+  // That the repository makes no second call is run: consent-history.test.mjs (one call, the ingest's).
 
   // people_list carries both, or no page can compute an audience.
   const pl = readRaw("supabase/migrations/00096_people_carry_both_answers.sql");
