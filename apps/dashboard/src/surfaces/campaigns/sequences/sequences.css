@@ -821,6 +821,19 @@
   .sq-rec {
     --view-travel: 100%;
   }
+  /* The tab's view reaches the dock however little it holds, so a thumb anywhere under the tabs walks them (record.tsx
+     tabPages takes a touch begun in the view). Under a short tab the rest of the screen was the pane's alone, and a swipe
+     there went back to the list or did nothing, never across to the tab beside (Ruben, 3 Nov 2026: Leads holding one
+     batch walked only above "In it"). What the tab holds stands where it stood; the head and the dock still go back. */
+  .sq-record > .cm-pane-body,
+  .sq-rec {
+    display: flex;
+    flex-direction: column;
+  }
+  .sq-rec,
+  .sq-deck {
+    flex: 1 0 auto;
+  }
   /* History's card keeps its gutter a step in on a phone; what came of it still stands three to the line. */
   .sq-hist-totals {
     padding: 16px 16px 14px;
