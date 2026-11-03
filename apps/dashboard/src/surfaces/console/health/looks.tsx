@@ -55,6 +55,7 @@ function whereRows(l: HealthLookVM, h: ConsoleHealth): Array<{ k: string; v: str
     }
   }
   if (l.act.kind === "redrive") rows.push({ k: "Subscriber", v: l.act.subscriber });
+  if (l.act.kind === "run_kind_again" || l.act.kind === "pause_kind") rows.push({ k: "Kind", v: l.act.jobKind });
   if (l.since) rows.push({ k: "Since", v: l.since });
   return rows;
 }

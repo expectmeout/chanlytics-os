@@ -6,7 +6,9 @@
  * LOCAL database `supabase start` builds out of every migration, with its key columns or expressions, its predicate
  * and whether NULLs are distinct, and writes tooling/scripts/tests/_unique-keys.generated.json. The double
  * (tooling/scripts/tests/_fake-db.mjs, through _schema.mjs) refuses an insert, update or upsert that would break one,
- * as Postgres does (23505), and an upsert whose conflict target no key matches (42P10).
+ * as Postgres does (23505), and an upsert whose conflict target no key matches (42P10). A table's keys are listed in the
+ * order Postgres checks them, its indexes' own (by OID: the order a replay made them), so where a row breaks two the
+ * double names the one the database names (jobs_dedupe_live before jobs_dedupe_kept, 00333 and 00528).
  *
  * Expressions and predicates are translated here into a small tree the double evaluates: a column, lower(), a text
  * path (`payload ->> 'message'`); =, <>, the comparisons, IS [NOT] NULL, = ANY / <> ALL of an array, AND, OR, NOT. A
@@ -41,7 +43,7 @@ select c.relname::text as tbl,
    and c.relnamespace = 'public'::regnamespace
    and c.relkind in ('r', 'p')
    and not c.relispartition
- order by 1, 2`;
+ order by 1, x.indexrelid`;
 
 /** Each column's default, as the database prints it: a key's predicate reads a column a row may leave to its default. */
 const DEFAULTS_SQL = `

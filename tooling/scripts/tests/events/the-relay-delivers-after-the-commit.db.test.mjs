@@ -258,9 +258,13 @@ test("an outbox row asks for the tick, as a due job does", { skip }, () => {
       insert into public.events (tenant_id, kind, category, data) values (t, '${KIND}', 'google', '{}');
       seen := jsonb_build_object(
         'knocks', (select count(*) from net.http_request_queue q where q.url like '%/api/jobs/tick'),
-        'polls', public.trigger_jobs_tick() is not null);`);
+        'at_once', public.trigger_jobs_tick() is not null);
+      -- Ten seconds on from the knock, with the outbox still not drained (its tick never came):
+      update public.sweep_status set woken_at = now() - interval '11 seconds' where sweep = 'jobs';
+      seen := seen || jsonb_build_object('polls', public.trigger_jobs_tick() is not null);`);
   assert.equal(seen.knocks, 1, "the event's outbox row knocked once");
-  assert.equal(seen.polls, true, "and the poll knocks while the outbox is not empty");
+  assert.equal(seen.at_once, false, "the two-second clock does not ask again on the knock's heels (00526)");
+  assert.equal(seen.polls, true, "and the poll knocks while the outbox is not empty, ten seconds on");
 });
 
 test(

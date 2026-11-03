@@ -1,7 +1,8 @@
 /**
  * Rows of the jobs ledger, read for the back office's requeue door (packages/jobs requeueFailedJob). The ledger's own
- * writes (claim, complete, fail, defer, schedule) are packages/jobs' and name the table there; these are the two reads a
- * requeue makes, each in the workspace it is asked for, so a job of another workspace is not found. And the one door
+ * writes (claim, complete, fail, defer, schedule) are packages/jobs' and name the table there; these are the reads a
+ * requeue makes, each in the workspace it is asked for, so a job of another workspace is not found, and the failed jobs
+ * of a kind the Console runs again together. A queued reply written with its job (queueSend). And the one door
  * that writes a broadcast, its people, its send job and its decision together (assembleBroadcast), the one that approves a run that
  * waited (approveBroadcast), and what a send job writes on the queued message it names: its claim before the wire
  * (claimQueuedSend, releaseQueuedSend) and the failure a run that did not finish leaves on it (failQueuedSend).
@@ -13,7 +14,7 @@ type Db = SupabaseClient<Database>;
 
 /**
  * What a requeue needs of a job: what it was, how it ended, what it carried, when it was made, and whether a run of it
- * put words on a wire (jobs.spoke_at, 00352; null when none did, and on a database 00352 has not reached).
+ * put words on a wire (jobs.spoke_at, 00352; null when none did).
  */
 export interface JobToRequeue {
   id: string;
@@ -32,38 +33,43 @@ export async function readJobToRequeue(db: Db, tenantId: string, jobId: string):
     .eq("id", jobId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  // A database 00352 has not reached keeps no such fact, and no job there said it spoke: read without it.
-  if (error && NO_SUCH_COLUMN.has(error.code)) {
-    const older = await db
-      .from("jobs")
-      .select("id, kind, state, payload, created_at")
-      .eq("id", jobId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (older.error) throw new Error(`read_job: ${older.error.message}`);
-    return older.data ? { ...older.data, spoke_at: null } : null;
-  }
   if (error) throw new Error(`read_job: ${error.message}`);
   return data;
 }
 
 /**
- * Whether the ledger already holds a copy of this job made after it: the same kind and payload, in this workspace,
- * not itself failed. A dead letter run again leaves that copy behind, so a second press (or a second person) finds it
- * and does not run the work twice.
+ * Whether the ledger already holds a copy of this failed job that is not itself failed: the copy names the job it is a
+ * copy of (payload.requeue_of, 00526), so a second press, or a second person, finds it and does not run the work twice.
+ * It used to be found by its payload's equality with the failed one's, which a copy made inside a request never had: the
+ * request's name rode on its payload.
  */
-export async function hasNewerCopy(db: Db, tenantId: string, job: JobToRequeue): Promise<boolean> {
+export async function hasRequeuedCopy(db: Db, tenantId: string, jobId: string): Promise<boolean> {
   const { data, error } = await db
     .from("jobs")
     .select("id")
     .eq("tenant_id", tenantId)
-    .eq("kind", job.kind)
-    .filter("payload", "eq", JSON.stringify(job.payload))
+    .eq("payload->>requeue_of", jobId)
     .neq("state", "failed")
-    .gt("created_at", job.created_at)
     .limit(1);
   if (error) throw new Error(`read_job_copies: ${error.message}`);
   return (data?.length ?? 0) > 0;
+}
+
+/** The jobs of one kind that failed for good since a moment, oldest first: what the Console runs again together. */
+export async function failedJobsOfKind(
+  db: Db,
+  q: { kind: string; sinceIso: string; limit: number },
+): Promise<{ id: string; tenant_id: string }[]> {
+  const { data, error } = await db
+    .from("jobs")
+    .select("id, tenant_id")
+    .eq("kind", q.kind)
+    .eq("state", "failed")
+    .gte("updated_at", q.sinceIso)
+    .order("updated_at", { ascending: true })
+    .limit(q.limit);
+  if (error) throw new Error(`read_failed_jobs: ${error.message}`);
+  return data ?? [];
 }
 
 /** Whose decision a run's send is, and what the ledger keeps of it: a member's (`actor`) or the system's (null, the sweep's). */
@@ -108,15 +114,11 @@ export async function assembleBroadcast(
   return { id: data.id, decisionId, undoDropped: data.undo_dropped === true };
 }
 
-/** PostgREST's answers for a column the database does not hold yet: none of that name in its schema, or in the table. */
-const NO_SUCH_COLUMN: ReadonlySet<string> = new Set(["PGRST204", "42703"]);
-
 /**
  * A queued message claimed by the one run that takes it to the wire (messages.sending_at, 00352): true when this run
  * holds it now. False when another run claimed it first, or the row is no longer queued (canceled, sent, failed):
  * either way this run sends nothing. One statement, so two jobs naming one message are never both answered yes.
- * Throws when the write failed: "could not claim" is not a yes. A database 00352 has not reached holds no such column
- * and answers true, so the send goes as it did before it and the two may land in either order.
+ * Throws when the write failed: "could not claim" is not a yes.
  */
 export async function claimQueuedSend(db: Db, tenantId: string, messageId: string): Promise<boolean> {
   const { data, error } = await db
@@ -127,7 +129,6 @@ export async function claimQueuedSend(db: Db, tenantId: string, messageId: strin
     .eq("status", "queued")
     .is("sending_at", null)
     .select("id");
-  if (error && NO_SUCH_COLUMN.has(error.code)) return true;
   if (error) throw new Error(`claim_queued_send: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
@@ -145,7 +146,7 @@ export async function releaseQueuedSend(db: Db, tenantId: string, messageId: str
     .eq("id", messageId)
     .eq("tenant_id", tenantId)
     .eq("status", "queued");
-  if (error && !NO_SUCH_COLUMN.has(error.code)) throw new Error(`release_queued_send: ${error.message}`);
+  if (error) throw new Error(`release_queued_send: ${error.message}`);
 }
 
 /**
@@ -224,4 +225,54 @@ export async function failQueuedSend(
     },
     error: null,
   };
+}
+
+/**
+ * A queued reply and its outbound_send job, written together or not at all (00527 queue_send): the receptionist's held
+ * draft used to be written, then its job, and a run killed between the two left a reply nothing would send. The address
+ * is frozen on the row (meta.to), where the send reads it first. Answers the message's id; throws when nothing was
+ * written.
+ */
+export async function queueSend(
+  db: Db,
+  q: {
+    tenantId: string;
+    conversationId: string;
+    contactId: string | null;
+    channel: "whatsapp" | "sms" | "instagram";
+    sender: "ai" | "human" | "system";
+    body: string;
+    meta: Json;
+    dueAt: Date;
+    /** The job's payload past its message: its address for an older edge, and its purpose; never the words. */
+    payload: Json;
+  },
+): Promise<string> {
+  const { data, error } = await db.rpc("queue_send", {
+    p_message: {
+      tenant_id: q.tenantId,
+      conversation_id: q.conversationId,
+      contact_id: q.contactId,
+      channel: q.channel,
+      sender: q.sender,
+      type: "text",
+      body: q.body,
+      meta: q.meta,
+    },
+    p_due_at: q.dueAt.toISOString(),
+    p_payload: q.payload,
+  });
+  if (error || typeof data !== "string") throw new Error(`queue_send: ${error?.message ?? "no message"}`);
+  return data;
+}
+
+/** The kinds an operator paused (job_kinds.paused_at, 00526), with since when and why: the health sweep pages each. */
+export async function pausedJobKinds(
+  db: Db,
+): Promise<{ kind: string; paused_at: string; paused_why: string | null }[]> {
+  const { data, error } = await db.from("job_kinds").select("kind, paused_at, paused_why").not("paused_at", "is", null);
+  if (error) throw new Error(`read_paused_kinds: ${error.message}`);
+  return (data ?? []).flatMap((k) =>
+    k.paused_at ? [{ kind: k.kind, paused_at: k.paused_at, paused_why: k.paused_why }] : [],
+  );
 }

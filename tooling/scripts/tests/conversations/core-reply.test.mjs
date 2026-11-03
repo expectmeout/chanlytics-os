@@ -12,9 +12,12 @@ import { importSrc, ROOT } from "../_source.mjs";
 const { replyToConversation, IDEMPOTENCY_WINDOW_MS, HOLD_EXPIRY_MS, SEND_GRACE_MS } = await importSrc(
   "packages/core/src/conversations/reply.ts",
 );
+const { MEMBER_REPLY_STALE_MS } = await importSrc("packages/contracts/src/config/policy.ts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const HOUR = 3_600_000;
 const iso = (ms) => new Date(ms).toISOString();
+/** When a member's reply queued at NOW is too late to leave by itself (decision 0089): its grace, then half an hour. */
+const STALE_AFTER = iso(NOW + SEND_GRACE_MS + MEMBER_REPLY_STALE_MS);
 const conv = (over = {}) => ({
   id: "c1",
   tenant_id: "t1",
@@ -123,6 +126,7 @@ test("inside the window: the words go as they are; the thread is paused and clai
     conversation_id: "c1",
     to_phone: "+15550000001",
     body: "On our way.",
+    stale_after: STALE_AFTER,
   });
   assert.deepEqual(call("record"), [
     "record",
@@ -849,7 +853,13 @@ test("a reply by email goes to the address on the person's page; its request is 
   });
   assert.deepEqual(
     call("schedule")[3],
-    { message_id: "id-1", conversation_id: "c1", to_email: ADDRESS, body: "We can do Saturday at 9." },
+    {
+      message_id: "id-1",
+      conversation_id: "c1",
+      to_email: ADDRESS,
+      body: "We can do Saturday at 9.",
+      stale_after: STALE_AFTER,
+    },
     "an address never travels as to_phone",
   );
   assert.equal(r.window_open, true, "email has no window");
@@ -1089,6 +1099,7 @@ test("an email that answers none of theirs names its own subject and threads und
     conversation_id: "c1",
     to_email: ADDRESS,
     body: "Following up on your quote.",
+    stale_after: STALE_AFTER,
   });
   assert.ok(ops().indexOf("email.first") < ops().indexOf("claimForReply"), "frozen before the thread is claimed");
 

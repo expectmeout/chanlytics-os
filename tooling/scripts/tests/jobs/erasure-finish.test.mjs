@@ -117,7 +117,7 @@ test("nobody's press is finished: a person never blocked, one not found, one of 
     assert.deepEqual(steps, [], `${why}: nothing written`);
   }
   const { error } = await finish({ contact: blocked(), payload: {} });
-  assert.match(error.message, /names no contact/, "a payload naming nobody is a throw, never a silent done");
+  assert.match(error.message, /payload names no contact_id/, "a payload naming nobody is a throw, never a silent done");
 });
 
 test("a leg that stops the finish is the next try's: a throw, and waits that outlast the lease", async () => {
