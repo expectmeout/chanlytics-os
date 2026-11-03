@@ -534,6 +534,7 @@
     "00529_the_bespoke_once_keys_go.sql": "8dc2be45d0a26350129862acaa6a408bf00af4a94229dc2b7c61b3f63d62ab29",
     "00530_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "714bae015abeccf83e9051d6e1e119050a54bb2c94a24a9bcdcba5e123b7ceba",
     "00531_the_notices_a_call_owes_are_found_by_their_own_index.sql": "4b9ee24206c26f33f2e25d81a8ef5d56803f10c401aba2402aee7c3b4a8e2ff2",
-    "00532_a_run_with_nothing_to_send_waits_on_nobody.sql": "b87b90ff2e1415e18858489617fc27f60b616defa3ca4feb475e0d62417c52c9"
+    "00532_a_run_with_nothing_to_send_waits_on_nobody.sql": "b87b90ff2e1415e18858489617fc27f60b616defa3ca4feb475e0d62417c52c9",
+    "00533_a_lead_on_a_list_says_why_no_batch_takes_it.sql": "c36db149b55b028d7910d44121195b599142bcccac349cee7373adc9a9500de5"
   }
 }

@@ -52,9 +52,13 @@ export type LeadCallOutcome = (typeof LEAD_CALL_OUTCOMES)[number];
 
 export type LeadNotAFitWhy = (typeof LEAD_NOT_A_FIT_WHYS)[number];
 
-/** Stored values are never shown (§9.1). */
+/**
+ * Stored values are never shown (§9.1). A lead nothing has gone to yet is Not contacted, Contacted's other side: "Ready"
+ * beside "Waits for your OK" read as ready to send (the phone walk of 3 Nov 2026), and "New" is a person's state in People.
+ * A lead in a sequence wears its place there instead (lead-row.ts).
+ */
 export const LEAD_STAGE_WORDS: Record<LeadStage, string> = {
-  ready: "Ready",
+  ready: "Not contacted",
   nurture: "Contacted",
   converted: "Talking",
   archived: "Closed",
@@ -111,7 +115,7 @@ export const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number]
 /** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
 export const LEAD_LIST_WORDS: Record<LeadList, string> = {
   all: "All leads",
-  ready: "Ready",
+  ready: LEAD_STAGE_WORDS.ready,
   nurture: "Contacted",
   converted: "Talking",
   said_no: "Said no",
@@ -173,7 +177,11 @@ export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 
 export const LEAD_REVIEW_WORD = "Needs review";
 
-export const LEAD_LEFT_OUT_WORD = "Left out";
+/**
+ * What the finder's own filter left out of a search. It said "Left out", and a sequence's "Left" sat beside it on the same
+ * page for a business taken out of a sequence: two things in one word (the phone walk of 3 Nov 2026).
+ */
+export const LEAD_LEFT_OUT_WORD = "Filtered out";
 
 /** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
 export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = {

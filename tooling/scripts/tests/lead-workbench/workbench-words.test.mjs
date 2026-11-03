@@ -176,7 +176,7 @@ test("a person's page says the same line, never its own", () => {
   const t = story({ can_stop: true, sends: [send()], readings: [reading()] });
   assert.equal(
     reachOutPersonOf(t, NOW, TZ).about,
-    "Early gyms · Ready · wrote back yesterday · interested · the sequence stopped",
+    "Early gyms · Not contacted · wrote back yesterday · interested · the sequence stopped",
   );
 });
 

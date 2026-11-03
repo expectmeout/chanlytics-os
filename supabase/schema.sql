@@ -29121,6 +29121,32 @@ COMMENT ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_id
 
 
 --
+-- Name: sequence_queued_why_not(uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) RETURNS TABLE(lead_id uuid, sequence_id uuid, why text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select x.lead_id, x.sequence_id, w.why
+    from unnest(coalesce(p_lead_ids, '{}'::uuid[]), coalesce(p_sequence_ids, '{}'::uuid[])) as x(lead_id, sequence_id)
+    join public.sequence_steps st
+      on st.tenant_id = p_tenant_id and st.sequence_id = x.sequence_id and st.place = 1
+    cross join lateral public.reach_out_why_not(p_tenant_id, array[x.lead_id], st.include_unconfirmed) as w(wl, why)
+   where x.lead_id is not null
+     and exists (select 1 from public.memberships m
+                  where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id)
+$$;
+
+
+--
+-- Name: FUNCTION sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) IS 'Why each lead on a sequence''s list would not be planned by its next batch (00533): reach_out_why_not at the list''s own setting (its first step''s include_unconfirmed), or null where it would be. For a member of the workspace alone, and a sequence of it; the places'' reads ask it so a lead no batch can take says why instead of "In its next batch".';
+
+
+--
 -- Name: sequence_return(uuid, uuid, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -51089,6 +51115,15 @@ GRANT ALL ON FUNCTION public.sequence_places_of(p_tenant_id uuid, p_lead_ids uui
 
 REVOKE ALL ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) TO service_role;
 
 
 --

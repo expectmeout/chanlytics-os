@@ -4,11 +4,13 @@
  * would resolve it; for a left-out row, what left it out. The two tags are the kit's one StatePill, on the registry's tones
  * (tone.ts).
  */
-import { LEAD_WORDS, WORKS_AT_WORDS, leadPeopleIndex, leadPeopleOf } from "@chanlytics/contracts";
+import { LEAD_WORDS, WORKS_AT_WORDS, leadPeopleIndex, leadPeopleOf, placeWordOf } from "@chanlytics/contracts";
 import type { LeadPeopleIndex, LeadPeopleVM, LeadRowVM, PersonRowVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
+import { reachOuts } from "../../campaigns/reach-out/surface";
+import { leadDtoFor } from "../surface";
 import { LeadCallMenu, ldCallProps } from "./call-menu";
 import { LeadCard, LeadHover } from "./hover";
 import { LeadTile } from "./tile";
@@ -179,6 +181,24 @@ export const ldTalkingDoor = (
   );
 };
 
+/**
+ * Where a row's lead stands in a sequence, as its one status says it (the phone walk of 3 Nov 2026: "Ready" beside "Waits
+ * for your OK" read as two answers to one question): the place's word in its tone, and the line under the name with the
+ * step and the sequence. Null for a lead in none, and for one the finder filtered out.
+ */
+export const ldPlaceRowOf = (l: LeadRowVM) => {
+  const place = l.cls === "excluded" ? null : (leadDtoFor(l.id)?.place ?? null);
+  return place
+    ? placeWordOf(place, { name: place.name, state: place.state }, { tz: reachOuts.zone(), nowMs: Date.now() }, "line")
+    : null;
+};
+
+/** A desk's name tag for a lead in a sequence: its place, unless the Stage column beside it already says where it stands. */
+const ldPlaceTag = (l: LeadRowVM, x: LeadCellCtx) => {
+  const place = x.stageShown ? null : ldPlaceRowOf(l);
+  return place ? <StatePill kind="tone" value={place.tone} label={place.word} testid="lead-state-tag" /> : null;
+};
+
 export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
   <td key="business" className={`cl-name-cell ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -205,20 +225,22 @@ export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
           {x.mixedFits && l.fit ? (
             <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" />
           ) : null}
-          {/* Said once: while the Stage column is drawn, the name's tag gives way where the column says the same thing
-              (Talking; a lead that said no or is not a fit). It stays where it says more: Needs review, Left out (the
-              column is empty for a left-out lead), and Contacted with how long ago. */}
+          {/* One status: a lead in a sequence wears its place there, unless the Stage column says it. Said once: while
+              the Stage column is drawn, the name's tag gives way where the column says the same thing (Talking; a lead
+              that said no or is not a fit). It stays where it says more: Needs review, Filtered out (the column is empty
+              for a filtered-out lead), and Contacted with how long ago. */}
           {ldClientOf(l, x)
             ? ldClientPill(l, x)
-            : l.stateTag && !(x.stageShown && ldStageSaysIt(l))
-              ? ldTalkingDoor(l, x, {
-                  kind: "lead_row_state",
-                  value: l.state,
-                  label: l.stateTag,
-                  testid: "lead-state-tag",
-                  named: false,
-                })
-              : null}
+            : (ldPlaceTag(l, x) ??
+              (l.stateTag && !(x.stageShown && ldStageSaysIt(l))
+                ? ldTalkingDoor(l, x, {
+                    kind: "lead_row_state",
+                    value: l.state,
+                    label: l.stateTag,
+                    testid: "lead-state-tag",
+                    named: false,
+                  })
+                : null))}
         </div>
         {/* Who at the business is in People says more than where it is, once someone there has a name of their own (0052). */}
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">

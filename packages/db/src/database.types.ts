@@ -10777,6 +10777,18 @@ export type Database = {
           written_at: string
         }[]
       }
+      sequence_queued_why_not: {
+        Args: {
+          p_lead_ids: string[]
+          p_sequence_ids: string[]
+          p_tenant_id: string
+        }
+        Returns: {
+          lead_id: string
+          sequence_id: string
+          why: string
+        }[]
+      }
       sequence_return: {
         Args: {
           p_decision?: Json

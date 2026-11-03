@@ -81,6 +81,11 @@ export interface SequenceWaitingBatchDto {
   run_for: string | null;
   at: string;
   people: number;
+  /**
+   * A batch to leads: how many of its emails the check held, each waiting on its own answer, which an OK never sends
+   * (withReadyCounts). Absent on any other batch, and from a server before it.
+   */
+  held?: number;
   audience: { kind: string | null; trigger: string | null };
 }
 

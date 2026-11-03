@@ -26,7 +26,6 @@ import {
   type LeadPileEndVM,
   type LeadRowVM,
   type LeadSheetSlotVM,
-  type SequenceRecordDto,
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
@@ -50,8 +49,8 @@ import { stopWritingTo } from "../reach-out/lines";
 import { undoRewrite, type RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
 import { useSheetUi } from "./sheet-ui";
 import { SheetDock } from "./dock";
-import { SheetRewrite, SheetSaidAsk, SheetToSend } from "./dock-asks";
-import { railSequenceOf, sheetFactsOf, type SheetFacts, type SheetPileFacts } from "./facts";
+import { SheetApproveAsk, SheetRewrite, SheetSaidAsk, SheetToSend } from "./dock-asks";
+import { railSequenceOf, sheetFactsOf, waitingOf, type SheetFacts, type SheetPileFacts } from "./facts";
 import { holdSheetKeys } from "./keys";
 import { closeLeadOver } from "./lead-over";
 import { SheetLines } from "./panes";
@@ -471,6 +470,16 @@ function dockOf(d: SheetDraw, desk: boolean) {
   const row = facts.place ? facts.place.place : null;
   if (sheet.ui.ask === "rewrite" && row && row.send_id)
     return <SheetRewrite row={row} name={vm.name} flash={p.flash} moved={d.moved} put={sheet.put} />;
+  if (sheet.ui.ask === "approve" && d.run && facts.place && facts.place.place.batch_id)
+    return (
+      <SheetApproveAsk
+        run={d.run}
+        waiting={facts.waiting}
+        at={{ sequenceId: facts.place.sequence.id, runId: facts.place.place.batch_id }}
+        busy={d.busy}
+        onClose={() => sheet.put({ ask: null })}
+      />
+    );
   if (sheet.ui.ask === "stop") {
     const SW = reachOuts.words.REACH_OUT_STOP_WORDS;
     return (
@@ -674,13 +683,6 @@ function phoneOf(d: SheetDraw) {
   );
 }
 
-/** How many an OK sends in the batch the lead's step waits in, by the record's needs (held emails left out). */
-const batchOf = (rec: SequenceRecordDto | null, batchId: string | null): number | undefined => {
-  if (!rec || !batchId) return undefined;
-  const b = rec.sequence.needs.batches.find((x) => x.id === batchId);
-  return b ? b.people : undefined;
-};
-
 /**
  * The line left open: the one pressed, which stays as the rows are walked; until one is pressed, Fit, where a check failed
  * on a lead to decide on. A line opens by itself for a problem alone.
@@ -721,7 +723,7 @@ export function LeadSheet(p: LeadSheetProps) {
           place,
           railRecord,
           railReading: !!railId && rec.state === "reading",
-          batch: batchOf(railRecord, place.place ? place.place.place.batch_id : null),
+          waiting: waitingOf(railRecord, place.place ? place.place.place.batch_id : null),
           pile: p.pile ? p.pile.facts : null,
         },
         Date.now(),
@@ -743,6 +745,8 @@ export function LeadSheet(p: LeadSheetProps) {
         openPicker: () => sheet.put({ step: "picker", full: true }),
         askSaid: () => sheet.put({ ask: "said" }),
         askRewrite: () => sheet.put({ ask: "rewrite" }),
+        // A batch of more than this one email asks before it goes; a batch of one goes on the press, its email above it.
+        askApprove: facts && facts.waiting && facts.waiting.ready > 1 ? () => sheet.put({ ask: "approve" }) : null,
         moved,
         over: !!p.over,
       }

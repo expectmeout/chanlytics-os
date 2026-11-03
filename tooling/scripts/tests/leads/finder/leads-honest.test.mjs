@@ -973,7 +973,7 @@ const install = ({ role = "owner" } = {}) => {
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
     usePPToast: () => [null, (t) => flashes.push(t)],
     CHANLY: { nav: (to) => went.push(to), address, R: { thread: (id) => `inbox/${id}` } },
-    __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM" },
+    __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM", zone: () => TZ },
   });
   // The bridge's reading of who is acting over this window's __ME (the pages ask mayAtLeast), beside the stub's own.
   installRoleStore();
@@ -1369,7 +1369,7 @@ test("with no search kept and no lead held the first day stands alone: the quest
   assert.equal(textOf(find(fd, (n) => n.type === "h1")), LEAD_WORDS.firstDay.title, "the page is its question");
 
   // Nothing stands round it that acts on a list: no rail (its lists and searches are all empty), no search box, and no
-  // act in the head beside the page's own door. The head keeps People's name and says no "0 leads · 0 ready · 0 searches".
+  // act in the head beside the page's own door. The head keeps People's name and says no "0 leads · 0 not contacted · 0 searches".
   assert.equal(
     find(tree, (n) => n.type === LeadsRailRows),
     null,
@@ -1793,7 +1793,7 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
   ]);
   assert.deepEqual(rows, [
     ["All leads", "322"],
-    ["Ready", "272"],
+    ["Not contacted", "272"],
     ["Contacted", "31"],
     ["Talking", "9"],
     ["Said no", "6"],
@@ -1812,7 +1812,7 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
     null,
     "the one that ended does not",
   );
-  assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 ready·2 searches·1 search needs you");
+  assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 not contacted·2 searches·1 search needs you");
   click(byTestId(tree, "leads-standing-needs"));
   assert.deepEqual(
     went,
@@ -1876,7 +1876,7 @@ test("the Leads rail picks one row at a time, as People's does: a list leaves an
   const head = (route) => byTestId(draw({ leadsRoute: route }), "leads-list-head");
   assert.equal(textOf(byTestId(head("leads"), "leads-list-title")), "All leads");
   assert.equal(byTestId(head("leads"), "leads-show-all"), null, "all of them has nowhere to go back to");
-  assert.equal(textOf(byTestId(head("leads:l-ready"), "leads-list-title")), "Ready");
+  assert.equal(textOf(byTestId(head("leads:l-ready"), "leads-list-title")), "Not contacted");
   went.length = 0;
   click(byTestId(head("leads:l-ready"), "leads-show-all"));
   assert.equal(went.at(-1), leadsRoute({}), "Show all leads goes back to all of them");
@@ -3392,7 +3392,7 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
     [
       ["2 Qualified", false],
       ["1 Needs review", false],
-      ["1 Left out", true],
+      ["1 Filtered out", true],
     ],
     "the three classes, each a view of the search",
   );
@@ -3535,7 +3535,7 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     assert.deepEqual(faceImgs("l1"), [["face-photo face-mark", MARK_KEPT]], "the mark, contained on its plate");
     assert.deepEqual(faceImgs("l2"), [], "and a lead with neither keeps its initials");
     assert.equal(textOf(find(card, (n) => n.props?.className === "list-row-name")), "Zilker Strength Lab");
-    assert.equal(textOf(byTestId(card, "lead-state")), "Ready", "its state, as a person's row says theirs");
+    assert.equal(textOf(byTestId(card, "lead-state")), "Not contacted", "its state, as a person's row says theirs");
     assert.equal(textOf(byTestId(card, "lead-sub")), L().rows[0].sub, "where it is");
     const facts = find(card, (n) => n.props?.className === "list-row-facts");
     assert.equal(
@@ -3794,7 +3794,7 @@ test("Leads' rows, compact in a phone's sheet: an empty list is said in a line, 
   const rail = {
     lists: [
       { id: "all", label: "All leads", count: 12 },
-      { id: "ready", label: "Ready", count: 12 },
+      { id: "ready", label: "Not contacted", count: 12 },
       { id: "nurture", label: "Contacted", count: 0 },
       { id: "converted", label: "Talking", count: 0 },
       { id: "not_a_fit", label: "Not a fit", count: 0 },
@@ -4206,10 +4206,10 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   }
   assert.match(
     textOf(byTestId(tree, "lead-map-key-out")),
-    /Closed or left out/,
+    /Closed or filtered out/,
     "the row's own words for a lead that left",
   );
-  // Left out steps back, as its row does.
+  // Filtered out steps back, as its row does.
   assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /is-out/);
 
   click(byTestId(tree, "lead-pin-l1"));
@@ -4347,7 +4347,7 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   );
   assert.deepEqual(
     ["p1", "p4", "p5", "p6"].map((id) => textOf(pillOf(id))),
-    ["Ready", rows[3].stateTag, "Said no", rows[5].stateTag],
+    ["Not contacted", rows[3].stateTag, "Said no", rows[5].stateTag],
     "in the row's own words",
   );
 
@@ -4767,4 +4767,60 @@ test("a list of your own draws with no round and no area, reaches no finder stri
     .items.filter((i) => i.label)
     .map((i) => i.label);
   assert.ok(found.includes("Find new ones") && found.includes("Search again, changed"), "a found search keeps both");
+});
+
+test("a lead in a sequence wears one status, its place there, with the step and the sequence under its name (the phone walk of 3 Nov 2026: Ready beside Waits for your OK read as two answers)", async () => {
+  const placed = (group, extra = {}) => ({
+    lead_id: "",
+    sequence_id: "seq-1",
+    name: "Bookstore intro",
+    state: "on",
+    group,
+    place: 1,
+    at: null,
+    why: null,
+    ...extra,
+  });
+  const rows = ROW_DTOS.map((r) =>
+    r.id === "l1"
+      ? { ...r, place: placed("waiting", { lead_id: r.id }) }
+      : r.id === "l2"
+        ? { ...r, place: placed("left", { lead_id: r.id, why: "removed" }) }
+        : r.id === "l4"
+          ? { ...r, place: placed("waiting", { lead_id: r.id }) }
+          : r,
+  );
+  await fresh({ leads: { rows } });
+  globalThis.__phone = true;
+  try {
+    const tree = draw();
+    const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-card\b/.test(String(n.props?.className || "")));
+    const pill = (id) => byTestId(cardOf(id), "lead-state");
+    assert.equal(textOf(pill("l1")), "Waits for your OK", "the place, never Not contacted beside it");
+    assert.equal(String(pill("l1").rendered?.props?.className ?? pill("l1").props?.className), "pill pill-warn");
+    assert.equal(textOf(byTestId(cardOf("l1"), "lead-sub")), "Step 1 · Bookstore intro", "the step and the sequence");
+    assert.equal(textOf(pill("l2")), "Taken out", "why it left, never Left beside the finder's Filtered out");
+    assert.equal(textOf(byTestId(cardOf("l2"), "lead-sub")), "Bookstore intro");
+    assert.equal(textOf(pill("l4")), "Filtered out", "a lead the finder filtered out says that, whatever its place");
+  } finally {
+    globalThis.__phone = false;
+  }
+  // A desk's name tag says the same, while the Stage column is not drawn to say it; with it, only the column does.
+  const desk = draw();
+  const rowNode = find(
+    desk,
+    (n) => n.type && (n.type.name === "TableRowView" || (n.type.type && n.type.type.name === "TableRowView")),
+  );
+  const business = LEAD_COLUMNS.find((c) => c.key === "business");
+  const tagOf = (id, stageShown) =>
+    find(
+      business.cell(
+        L().rows.find((r) => r.id === id),
+        { ...rowNode.props.ctx, stageShown },
+      ),
+      (n) => n.props?.testid === "lead-state-tag",
+    );
+  assert.equal(tagOf("l1", false)?.props.label, "Waits for your OK");
+  assert.equal(tagOf("l2", false)?.props.label, "Taken out");
+  assert.equal(tagOf("l1", true), null, "the Stage column says it");
 });
