@@ -38,6 +38,7 @@ import { FIRST_RUN_ROUTE } from "../../../../packages/contracts/src/setup/first-
 import { paintThemeColor } from "../../../../apps/dashboard/src/legacy-bridge/theme-color.ts";
 import { loadPrefs, choosePref, documentStamps } from "../../../../apps/dashboard/src/legacy-bridge/device-prefs.ts";
 import * as manifestModule from "../../../../apps/dashboard/app/manifest.ts";
+import { OUTLINE_ROUTES } from "../../../../apps/dashboard/src/surfaces/frame/places.ts";
 
 // TypeScript loaded through tsx, which may hand its default export back wrapped once more.
 const manifest = typeof manifestModule.default === "function" ? manifestModule.default : manifestModule.default.default;
@@ -421,7 +422,7 @@ const SIDEBAR_ATTR = "data-sidebar";
 const BARE_ATTR = "data-outline-bare";
 
 /** The script run in a window holding `stored` at `pathname` and `hash`: what it stamped on <html>, or what it threw. */
-const outlineBoot = ({ stored = null, storageThrows = false, pathname = "/w/acme/today", hash = "" }) => {
+const outlineBoot = ({ stored = null, storageThrows = false, pathname = "/w/acme/today", hash = "", routes }) => {
   const attrs = {};
   const document = { documentElement: { setAttribute: (k, v) => void (attrs[k] = String(v)) } };
   const localStorage = {
@@ -432,14 +433,20 @@ const outlineBoot = ({ stored = null, storageThrows = false, pathname = "/w/acme
   };
   let threw = null;
   try {
-    new Function("document", "localStorage", "location", outlineBootScript())(document, localStorage, {
+    new Function("document", "localStorage", "location", outlineBootScript(routes))(document, localStorage, {
       pathname,
       hash,
     });
   } catch (e) {
     threw = e;
   }
-  return { sidebar: attrs[SIDEBAR_ATTR] ?? null, bare: BARE_ATTR in attrs, threw };
+  return {
+    sidebar: attrs[SIDEBAR_ATTR] ?? null,
+    bare: BARE_ATTR in attrs,
+    lit: attrs["data-outline-lit"] ?? null,
+    search: "data-outline-search" in attrs,
+    threw,
+  };
 };
 
 /** The sidebar the app keeps for the same bytes (device-prefs.ts loadPrefs). */
@@ -509,4 +516,39 @@ test("it marks the first run, and only the first run, as the app draws it full s
     assert.equal(got.bare, appFullScreen(pathname, hash), `at ${pathname}${hash}`);
   }
   assert.equal(outlineBoot({ pathname: "/w/acme/start" }).bare, true, "the first run is one of them");
+});
+
+test("it says the place the address lights and whether its page searches in Ask's line, from the frame's own places", () => {
+  const CASES = [
+    ["/w/acme", "", "home", false],
+    ["/w/acme/today", "", "home", false],
+    ["/w/acme/inbox", "", "inbox", true],
+    ["/w/acme/inbox/th-1", "", "inbox", true],
+    ["/w/acme/conversations", "", "inbox", true],
+    ["/w/acme/live", "", "inbox", false],
+    ["/w/acme/people", "", "people", true],
+    ["/w/acme/people/pipeline", "", "people", true],
+    ["/w/acme/people/list:l1", "", "people", true],
+    ["/w/acme/people/c-1", "", "people", false],
+    ["/w/acme/leads", "", "people", true],
+    ["/w/acme/calendar", "", "calendar", false],
+    ["/w/acme/campaigns/sequences", "", "campaigns", true],
+    ["/w/acme/campaigns/sequences/s1", "", "campaigns", false],
+    ["/w/acme/templates", "", "campaigns", true],
+    ["/w/acme/reports", "", "reports", false],
+    ["/w/acme/settings/billing", "", null, false],
+    ["/w/acme", "#/inbox", "inbox", true],
+    ["/", "", null, false],
+    ["/login", "", null, false],
+  ];
+  for (const [pathname, hash, lit, search] of CASES) {
+    const got = outlineBoot({ pathname, hash, routes: OUTLINE_ROUTES });
+    assert.equal(got.threw, null, `threw at ${pathname}${hash}`);
+    assert.equal(got.lit, lit, `the place lit at ${pathname}${hash}`);
+    assert.equal(got.search, search, `the search at ${pathname}${hash}`);
+  }
+  // Without the frame's places it says neither, as the first version of the script said nothing of them.
+  const bare = outlineBoot({ pathname: "/w/acme/inbox" });
+  assert.equal(bare.lit, null);
+  assert.equal(bare.search, false);
 });

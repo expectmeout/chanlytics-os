@@ -2,8 +2,11 @@
 
 **Status:** Accepted by Ruben, 28 Sep 2026, with the answers its open questions give. Built: steps 1 and 2 (00265,
 #1333) and step 3 (00324, written the day step 2 deployed and landed on 5 October 2026), where they differ from this
-note as Built says; step 4, a replay on a rejoin, only if wanted. One thing step 3 leaves owed: "Allow public access"
-turned off in Realtime's settings.
+note as Built says. Step 4, a replay on a join and a rejoin, is built by the page-open PRD (3 November 2026, L5), with a
+notice's clock moved to its transaction's commit beside it (L3), and a thread's notice (messages, conversations,
+escalations, calls) names the threads it touched, at most 50, which the Inbox reads by id in place of its list (L13,
+00510): an id, never a row. One thing step 3 leaves owed, Ruben's: "Allow public
+access" turned off in Realtime's settings; production smoke asks that an anonymous join is refused.
 Written against commit `0c8225d5` (main, 28 September 2026, after
 #1242 merged), and every file and line below was read at it. What Realtime does is quoted from Supabase's own guides
 (Postgres Changes, Broadcast, Subscribing to Database Changes, Realtime Authorization, Realtime Concepts, Benchmarks),

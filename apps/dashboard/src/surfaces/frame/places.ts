@@ -45,6 +45,52 @@ export const NAV_GROUPS: ReadonlyArray<{ items: readonly NavItem[]; label?: stri
   { items: NAV_INTEL, label: "Intelligence" },
 ];
 
+/**
+ * Route id -> the sidebar's place it lights (sidebar/sidebar.tsx): a merged surface lights its group's. Conversations and
+ * Live light the Inbox: they are its views, not their own place.
+ */
+const PLACE_GROUPS: Readonly<Record<string, readonly string[]>> = {
+  people: ["clients", "leads", "segments", "pipeline"],
+  inbox: ["inbox", "conversations", "live", "calls", "chats", "email"],
+  campaigns: ["campaigns", "outbound", "content", "broadcasts", "messages"],
+  agents: ["fleet", "store", "studio", "tasks"],
+};
+
+/** The place a route's `activeNav` lights: its group's, or its own. */
+export function placeLit(activeNav: string): string {
+  for (const [place, routes] of Object.entries(PLACE_GROUPS)) if (routes.includes(activeNav)) return place;
+  return activeNav;
+}
+
+/**
+ * What the document's outline knows of an address before the app's code has run (contracts outlineBootScript,
+ * outline.css): the place each first word of a route lights, as the path writes it (contracts ROUTE_WORDS: `people` for
+ * the shell's `clients`), and the routes whose page says its list's search in Ask's line (kit/head/page-search.ts: the
+ * Inbox's and Conversations' lists, People's list and Pipeline, Leads, Sequences and the Library). The route table's own
+ * answer (routes.ts activeNav, through placeLit) and the pages' own say are what these follow;
+ * tooling/scripts/tests/shell/address/outline-routes.test.mjs holds the places to the route table.
+ */
+export const OUTLINE_ROUTES = {
+  lit: {
+    "": "home",
+    today: "home",
+    start: "home",
+    inbox: "inbox",
+    conversations: "inbox",
+    live: "inbox",
+    people: "people",
+    lists: "people",
+    leads: "people",
+    calendar: "calendar",
+    campaigns: "campaigns",
+    playbooks: "campaigns",
+    templates: "campaigns",
+    broadcasts: "campaigns",
+    reports: "reports",
+  },
+  search: String.raw`^(inbox|conversations|leads|templates)(\/|$)|^campaigns(\/(sequences|messages))?$|^people(\/((seg|list|state):[^/]*|pipeline(:[^/]*)?|leads(:[^/]*)?))?$`,
+} as const;
+
 /** A place on the phone's tab bar: its route, and the pages it holds (lit on each). */
 interface PhonePlace {
   id: string;

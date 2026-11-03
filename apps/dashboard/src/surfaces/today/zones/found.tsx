@@ -10,7 +10,7 @@
  * first act takes the coral where nothing before it in the walk did (queue-coral.ts); else it stands under the day and
  * takes none. A read it ranks from that failed is said in its place.
  */
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   ASK_FOUND_VIEW,
   ASK_FOUND_WORDS as F,
@@ -31,7 +31,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { saveView } from "../../people/people-detail";
 import { surfaceValue } from "../../surface-values";
-import { usePartShown, useSurface, useSurfaceFailed } from "../../use-surface";
+import { usePartShown, useSurface, useSurfaceFailed, useWaitFor } from "../../use-surface";
 import { askMorningOverride } from "../ask-morning-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { Done } from "../need-you/parts";
@@ -57,13 +57,9 @@ const MORNING_POLL_MS = 8_000;
 /** The rules asked for whole (contracts todayLeaks' cap): Ask found's own ranking draws three of everything. */
 const EVERY_RULE = Number.POSITIVE_INFINITY;
 
-/** Ask's morning read again every few seconds while it writes; the surface stops the wait when it lands. */
+/** Ask's morning read again while it writes, through the runner at the one wait's pace; the surface stops the wait when it lands. */
 function useMorningWait(writing: boolean) {
-  useEffect(() => {
-    if (!writing) return;
-    const id = setInterval(() => void refreshSurfaces([askMorningOverride]), MORNING_POLL_MS);
-    return () => clearInterval(id);
-  }, [writing]);
+  useWaitFor(writing, { everyMs: MORNING_POLL_MS, read: () => refreshSurfaces([askMorningOverride]) });
 }
 
 /** Where Ask found keeps what was pressed this visit, among the rows' states. */

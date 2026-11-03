@@ -78,7 +78,8 @@ import {
   refreshSurfaces,
   startSurfaces,
 } from "./surface-runner";
-import { joinLiveFeed } from "./hearing/live-feed";
+import { catchUpLiveFeed, joinLiveFeed } from "./hearing/live-feed";
+import { installFreshnessReports } from "./hearing/freshness";
 import { hydrateSurfaceCache } from "./surface-cache";
 import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
@@ -214,11 +215,14 @@ const speedShell: SpeedShell = {
 // that asked for it. After the cache has been restored, so a page drawn from it is said to have drawn held rows; on a
 // workspace's page alone (the home sends the tab on). Only a deployed build reports: a production build run on a laptop
 // has no commit ("dev") and would file its numbers beside the people's.
-if (getActiveWorkspace())
+if (getActiveWorkspace()) {
   installPageSpeed(speedShell, {
     build: publicEnv.NEXT_PUBLIC_BUILD_SHA,
     report: publicEnv.productionBuild && publicEnv.NEXT_PUBLIC_BUILD_SHA !== "dev",
   });
+  // What the tab could not hear or read goes beside its page speed (hearing/freshness.ts; the page-open PRD, L7).
+  installFreshnessReports();
+}
 
 // The mockup's own data-before-mount contract (boot gate): the shell's contracts and the seeded charter, which the frame's
 // helpers publish (surfaces/frame/frame-globals.ts). The frame itself is imported (surfaces/frame/app-shell.tsx, the
@@ -573,7 +577,7 @@ export default function LegacyApp({ routePage, route }: { routePage?: ReactNode;
   // Surface flips: one runner owns retries, realtime, debounce, and status. A status that changed, or the connection,
   // is the line's to say; it draws nothing here.
   useEffect(() => {
-    const stop = startSurfaces(SURFACES, joinLiveFeed);
+    const stop = startSurfaces(SURFACES, joinLiveFeed, catchUpLiveFeed);
     const off = onSurfaceStatusChange(publishStatus);
     return () => {
       stop();

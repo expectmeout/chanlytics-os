@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { runStillMoving, waitingEmailsOf, type BroadcastDetailDto } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { aheadWhenIdle } from "@/legacy-bridge/workspace";
-import { useSurface } from "../../use-surface";
+import { useSurface, useWaitFor } from "../../use-surface";
 import { broadcasts } from "../broadcasts/verbs";
 import { sequenceVerbs, warmRecordsAhead } from "./verbs";
 
@@ -123,10 +123,7 @@ export function usePeopleRead(id: string | null, again: number) {
   const [tick, setTick] = useState(0);
   const read = useSequenceRead(id, sequenceVerbs.people, sequenceVerbs.peekPeople, { again: again + tick });
   const writing = read.state === "read" && waitingEmailsOf(read.data.rows).some((e) => e.checking);
-  useEffect(() => {
-    if (!writing) return undefined;
-    const t = setInterval(() => setTick((n) => n + 1), WRITING_READ_MS);
-    return () => clearInterval(t);
-  }, [writing]);
+  // At the one wait's pace (legacy-bridge/hearing/wait-for.ts): never while the page is hidden, slower as nothing comes back.
+  useWaitFor(writing, { everyMs: WRITING_READ_MS, read: () => setTick((n) => n + 1) });
   return { read, writing };
 }

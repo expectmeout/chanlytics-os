@@ -79,14 +79,25 @@ function rolledBack(body) {
 }
 
 /**
+ * The commit, as far as the notices go: since 00507 a statement keeps what it tells in the transaction's own rows, and a
+ * deferred constraint trigger sends them at the commit. The world is written and probed in one transaction that is rolled
+ * back, so each step fires the sends its statements left (SET CONSTRAINTS … IMMEDIATE runs what is deferred, there and
+ * then, as the commit would) and puts the trigger back to wait for the next.
+ */
+const committed = `
+  execute 'set constraints public.workspace_notices_told_at_commit immediate';
+  execute 'set constraints public.workspace_notices_told_at_commit deferred';`;
+
+/**
  * What the statements since the last step told the two workspaces, kept under `step`, then cleared for the next. The
  * next step starts with nothing told, as a transaction of its own would (the trigger tells each workspace's table and
  * event once a transaction).
  */
 const told = (step) => `
+  ${committed}
   steps := steps || jsonb_build_object('${step}', (
     select coalesce(jsonb_agg(jsonb_build_object(
-             'to', case m.topic when ta then 'a' else 'b' end, 'event', m.event, 'notice', m.payload - 'id' - 'at',
+             'to', case m.topic when ta then 'a' else 'b' end, 'event', m.event, 'notice', m.payload - 'id' - 'at' - 'threads',
              'private', m.private, 'extension', m.extension)
            order by m.topic = tb, m.payload ->> 'table', m.event, m.payload ->> 'statuses'), '[]')
       from realtime.messages m where m.topic in (ta, tb)));
@@ -131,6 +142,7 @@ function world() {
       tb := 'workspace:' || b || ':changes';
       insert into public.contacts (tenant_id) values (a) returning id into ca;
       insert into public.contacts (tenant_id) values (b) returning id into cb;
+      ${committed}
       delete from realtime.messages where topic in (ta, tb);
 
       insert into public.conversations (tenant_id, contact_id) values (a, ca) returning id into conv;
