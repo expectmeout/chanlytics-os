@@ -6,7 +6,7 @@
  */
 import { acceptHandover, declineHandover } from "@chanlytics/db";
 import { requireUuid } from "@/server/request-guards";
-import { giveOwnerAlertAddress } from "@/server/workspace/first-alert";
+import { workspaceBegun } from "@/server/workspace/workspace-create";
 import { handoverRefusal } from "@/server/workspace/handover";
 import type { RouteContext } from "@/server/with-route";
 import type { Params } from "@/server/route";
@@ -21,7 +21,7 @@ export async function acceptHandoverOf(
   // alert list. Beside any address the partner chose while setting it up, never in its place: the partner's may be
   // their own, and the business is the one a customer needs. Best effort: the workspace is theirs whether or not this
   // lands.
-  await giveOwnerAlertAddress(ctx.supabase, r.value.id, ctx.email, ctx.userId);
+  await workspaceBegun(ctx, r.value.id, { by: "accepted", notify: null, alertTo: ctx.email ?? null });
   return { workspace: r.value };
 }
 

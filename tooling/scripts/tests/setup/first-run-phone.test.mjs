@@ -103,47 +103,46 @@ test("choosing at Where it answers (canvas 4): keeping the listing's number firs
   assert.deepEqual([vm.number, vm.listed, vm.area], [LISTED, LISTED, "305"]);
   assert.equal(vm.box, "+1 (305) 555-0100", "the box starts from the listing's number, as the app writes one");
   assert.deepEqual([vm.plan, vm.cta], [null, null], "Where it answers buys nothing: it chooses");
-  // Go live spends: a number is a cost on our account whether or not a trial ever pays, so it starts the plan.
+  // Go live spends: the checkout starts the trial, which covers the number (decision 0090), and says so.
   const go = phone(dtoOf());
   assert.equal(go.stage, "go");
   assert.equal(go.heading, "How should calls reach your receptionist?");
   assert.deepEqual(go.plan, {
-    offer: "$49.00 a month, starting today",
-    note: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+    offer: "14 days free, then $49.00 a month",
+    note: "Your number is included. Nothing is charged until the trial ends, and you can cancel anytime from Billing.",
   });
-  assert.doesNotMatch(`${go.plan.offer} ${go.plan.note}`, /free|trial|days/i);
   assert.deepEqual(go.cta, { label: "Start my plan", held: null, act: "plan" });
   assert.equal(go.status, null);
 });
 
-test("the plan says only what it knows: no price read, no price said; a deployment's trial days change nothing here", () => {
+test("the plan says only what it knows: no price read, no price said; the deployment's trial days are the trial said", () => {
   const noPrice = phone(dtoOf({ billing: { ...dtoOf().billing, price: null } }));
-  assert.equal(noPrice.plan.offer, "Your plan, starting today");
+  assert.equal(noPrice.plan.offer, "14 days free, then your plan");
   const oldRead = phone(dtoOf({ billing: { ...dtoOf().billing, price: undefined } }));
-  assert.equal(oldRead.plan.offer, "Your plan, starting today", "a read from before the price was carried");
+  assert.equal(oldRead.plan.offer, "14 days free, then your plan", "a read from before the price was carried");
+  // A deployment set to no trial: charged today, said as it is (trialDaysFor, the checkout's own rule).
   const noDays = phone(dtoOf({ billing: { ...dtoOf().billing, trial_days: 0 } }));
-  assert.deepEqual(noDays.plan, phone(dtoOf()).plan);
+  assert.deepEqual(noDays.plan, {
+    offer: "$49.00 a month, starting today",
+    note: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
+  });
 });
 
-test("on a free trial: the trial covers no number, so Go live starts the plan early -- said, and nothing is bought while it is still a trial", () => {
+test("on a free trial: the trial covers the number (decision 0090), so Go live buys it, and no plan starts early", () => {
   const vm = phone(dtoOf({ billing: trialing }));
   assert.equal(vm.stage, "go");
-  assert.deepEqual(vm.plan, {
-    offer: "$49.00 a month, starting today",
-    note: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  });
-  assert.deepEqual(vm.cta, { label: "Start my plan and go live", held: null, act: "startNow" });
+  assert.equal(vm.plan, null, "no plan to start: the trial is running");
+  assert.equal(vm.cta.act, "buy");
   const picked = phone(dtoOf({ billing: trialing }), {
     way: "new",
     number: null,
     pick: { e164: "+13055550142", friendly: "(305) 555-0142" },
     pending: false,
   });
-  assert.deepEqual(picked.cta, { label: "Start my plan and go live", held: null, act: "startNow" });
-  // Pressed, and still a trial (the start not yet taken): never buying.
+  assert.deepEqual(picked.cta, { label: "Go live", held: null, act: "buy" });
+  // Pressed on the trial: bought, as on a plan.
   const pressed = phone(dtoOf({ billing: trialing }), { way: "keep", number: null, pick: null, pending: true });
-  assert.equal(pressed.stage, "go", "no number is bought on a trial");
-  assert.equal(pressed.cta.act, "startNow");
+  assert.equal(pressed.stage, "buying", "the number is bought on the trial");
 });
 
 test("Go live's button is named for what it does, and held until there is a number to keep or one picked", () => {

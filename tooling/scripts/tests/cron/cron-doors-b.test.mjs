@@ -2006,6 +2006,9 @@ test("lines: a tick that cannot provision says so — no line provider, no recep
 
 /** The sweep's second half with no workspace that stopped paying: nothing ended, and (the grace unset) only reporting. */
 const NONE_ENDED = { ended: 0, due: 0, warned: 0, undelivered: 0, released: 0, failed: 0, report_only: true };
+/** The trial check and the chosen numbers with nothing to do (decisions 0090, 0091): the lines sweep's other two halves. */
+const NONE_TRIALS = { looked: 0, near: 0, started: 0, failed: 0, unreadable: 0 };
+const NONE_OWED = { looked: 0, started: 0, failed: 0 };
 
 test("lines: a line 'setting up' past its deadline is taken and resumed by scheduling a line_provision job — two a tick, oldest first — and the platform hears once; one past its three automatic tries is handed to a person: the workspace's bell, the platform's mail, the ledger", async () => {
   const T = tenant(301);
@@ -2037,7 +2040,21 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   const [status, body] = await answer(await knock("lines"));
   assert.deepEqual(
     [status, body],
-    [200, { ok: true, stuck: 2, resumed: 1, failed: 0, gaveUp: 1, skipped: 0, unreadable: 0, release: NONE_ENDED }],
+    [
+      200,
+      {
+        ok: true,
+        stuck: 2,
+        resumed: 1,
+        failed: 0,
+        gaveUp: 1,
+        skipped: 0,
+        unreadable: 0,
+        release: NONE_ENDED,
+        trials: NONE_TRIALS,
+        owed: NONE_OWED,
+      },
+    ],
   );
 
   // Handed to a person: `failed` is the state every Retry button already knows what to do with.
@@ -2139,7 +2156,21 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   const [s2, b2] = await answer(await knock("lines"));
   assert.deepEqual(
     [s2, b2],
-    [200, { ok: true, stuck: 2, resumed: 2, failed: 0, gaveUp: 0, skipped: 0, unreadable: 0, release: NONE_ENDED }],
+    [
+      200,
+      {
+        ok: true,
+        stuck: 2,
+        resumed: 2,
+        failed: 0,
+        gaveUp: 0,
+        skipped: 0,
+        unreadable: 0,
+        release: NONE_ENDED,
+        trials: NONE_TRIALS,
+        owed: NONE_OWED,
+      },
+    ],
     "a backlog drains over successive ticks rather than being half-run and killed again",
   );
   assert.deepEqual(
@@ -2261,6 +2292,8 @@ const VAULT_TOKEN = { get_line_credentials: () => ({ auth_token: "sub-token" }) 
 
 test("lines (A2): with no grace set, a number whose subscription ended is only reported -- no warning, no release, nothing written -- and nobody else's number is even counted", async () => {
   const { own, tables } = endedWorld(340);
+  // The sweep's chosen-number half reads the workspaces' choices (decision 0091): none here, and read is not written.
+  tables.setup_choices ??= [];
   const before = structuredClone(tables);
   use(tables, VAULT_TOKEN);
   const net = silent("a sweep that only reports reaches nobody");
@@ -3177,7 +3210,8 @@ test("registrations: the campaign an approved brand was holding is not filed for
     [0, { tenant: { status: "paused" }, bill: { status: "active" } }, "paused"],
     [1, { tenant: { left_empty_at: ago(DAY) }, bill: { status: "active" } }, "ended"],
     [2, { bill: { status: "canceled" } }, "paused"],
-    [3, { bill: { status: "trialing" } }, "payment_required"],
+    // A trial files (decision 0090: the trial covers everything); a card that failed does not.
+    [3, { bill: { status: "past_due" } }, "payment_required"],
     [4, { bill: null }, "no_billing_record"],
   ]) {
     const T = tenant(430 + n);

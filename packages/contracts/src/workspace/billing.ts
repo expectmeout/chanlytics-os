@@ -7,6 +7,7 @@
 import { callerSentence, WORKSPACE_PAUSED } from "../lines/caller-gets";
 import { usableZone } from "../calendar/zone-math";
 import { agoWords, DAY_MS, dateFormat, numberFormat } from "../shared/time";
+import { LEAD_TRIAL_ALLOWANCE } from "../leads/search/caps";
 
 export const BILLING_MODES = ["stripe", "direct"] as const;
 export type BillingMode = (typeof BILLING_MODES)[number];
@@ -25,16 +26,23 @@ export const BILLING_STATUSES = [
 ] as const;
 export type BillingStatus = (typeof BILLING_STATUSES)[number];
 
-/** The trial a new workspace gets at Checkout, in days. */
+/**
+ * The trial a new workspace gets at Checkout, in days, from every door: the first run's Go live and Billing alike
+ * (decision 0090: the trial covers everything, Ruben, 3 Nov 2026). The edge's checkout reads it through trialDaysFor and
+ * every screen that states a trial says it, so no screen promises a trial the checkout does not give.
+ */
 export const BILLING_TRIAL_DAYS = 14;
 
 /**
- * The trial a plan started from the first run's Go live gets, in days (decision 0073, item 12): none, since the number
- * Go live buys is a cost on Chanlytics' account whether or not a trial ever pays (maySpend; Ruben, 25 Sep 2026). The
- * edge's checkout reads it, and every screen of Go live says it, so a screen never promises a trial the checkout does not
- * give. Fourteen days with the number is this one line, and his call.
+ * The trial a checkout gives: the deployment's length (the edge's BILLING_TRIAL_DAYS, else the constant above) when
+ * the workspace has never had a subscription, else none, since the trial applies once. One rule for every door: which
+ * door the owner came through never changes it (decision 0090).
  */
-export const FIRST_RUN_TRIAL_DAYS = 0;
+export function trialDaysFor(f: { hadSubscription: boolean; deploymentDays?: number | null }): number {
+  if (f.hadSubscription) return 0;
+  const d = f.deploymentDays;
+  return typeof d === "number" && Number.isInteger(d) && d >= 0 && d <= 90 ? d : BILLING_TRIAL_DAYS;
+}
 
 export interface BillingAccountDto {
   mode: BillingMode;
@@ -152,22 +160,37 @@ export function billingDoorOpen<T extends { mode: BillingMode; ready: boolean }>
   return !!b && b.mode === "stripe" && b.ready;
 }
 
-export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
+/**
+ * What a spend is for. Each kind has its own row in SPEND_STATUSES, because they risk different amounts: a number is
+ * $1.15 a month for as long as it is held, a texting registration $19.50 once and non-refundable, a lead search a
+ * provider's bill, and a rehearsal (the browser call, a typed try, its review, a fix) a few capped minutes and model
+ * turns the edge counts itself (rehearsalAllowance).
+ */
+export const SPEND_KINDS = ["number", "texting", "leads", "rehearse"] as const;
+export type SpendKind = (typeof SPEND_KINDS)[number];
+
+/**
+ * The statuses a stripe workspace may spend under, by kind (decision 0090, Ruben, 3 Nov 2026: "all should be part of
+ * the trial"). The trial covers everything the plan does: one number (the lines door holds one a workspace), one
+ * texting registration (one a line), and the trial's own leads (lead_cap 'trial_leads' in SQL, LEAD_TRIAL_ALLOWANCE
+ * here). A rehearsal is open before any plan too, since the first run rehearses before it pays: the edge's allowance
+ * (ten minutes before the plan) and the day's model caps are its ceiling.
+ *
+ * past_due is ABSENT from every row while receptionistOn admits it: the last charge failed and Stripe is retrying. The
+ * receptionist keeps answering the conversations the workspace already has, and nothing new is bought on our account
+ * until the card is fixed. `none` is absent wherever money leaves for a provider: a workspace that never entered a card
+ * buys nothing, and `incomplete` is the minutes an abandoned Checkout leaves behind.
+ */
+const SPEND_STATUSES: Readonly<Record<SpendKind, readonly BillingStatus[]>> = {
+  number: ["trialing", "active"],
+  texting: ["trialing", "active"],
+  leads: ["trialing", "active"],
+  rehearse: ["none", "trialing", "active"],
+};
+
+export function maySpend(mode: BillingMode, status: BillingStatus, kind: SpendKind = "number"): boolean {
   if (mode !== "stripe") return true;
-  // past_due is ABSENT here while receptionistOn admits it: the last charge
-  // failed and Stripe is retrying. The receptionist keeps answering the
-  // conversations the workspace already has, and nothing new is bought on our
-  // account until the card is fixed. The audit named this the one status
-  // where the strict predicate was not strict.
-  //
-  // trialing is ABSENT too (Ruben, 25 Sep 2026). The free trial covers what
-  // costs Chanlytics nothing: setting up, and the receptionist on channels the
-  // workspace already has. A number ($1.15 a month for as long as it is held),
-  // a texting registration ($19.50, non-refundable) and a lead search are each
-  // a cost on our account whether or not the trial ever pays, so each waits for
-  // the plan: getting a number starts it (the first run's checkout takes no
-  // trial), and a workspace on a trial starts it early (startPlanNow).
-  return status === "active";
+  return SPEND_STATUSES[kind].includes(status);
 }
 
 /**
@@ -234,15 +257,21 @@ export function hasPublicPages(status: string, open: OpenToCustomers): boolean {
  * `before` follows "before", `can` follows "can".
  */
 export interface SpendWords {
+  /** Which row of SPEND_STATUSES the spend is judged by. */
+  kind: SpendKind;
   before: string;
   can: string;
 }
 /** The default, and what every lines route keeps saying. */
-export const SPEND_NUMBER: SpendWords = { before: "buying a number", can: "buy a number" };
+export const SPEND_NUMBER: SpendWords = { kind: "number", before: "buying a number", can: "buy a number" };
 /** The lead finder: a search spends on someone else's account, not on a number. */
-export const SPEND_LEADS: SpendWords = { before: "finding leads", can: "find leads" };
+export const SPEND_LEADS: SpendWords = { kind: "leads", before: "finding leads", can: "find leads" };
 /** A carrier registration for texting: $19.50 on our account, one time and non-refundable. */
-export const SPEND_TEXTING: SpendWords = { before: "registering for texting", can: "register for texting" };
+export const SPEND_TEXTING: SpendWords = {
+  kind: "texting",
+  before: "registering for texting",
+  can: "register for texting",
+};
 
 /**
  * Why a workspace may not spend, in the owner's words, or null when it may.
@@ -255,10 +284,8 @@ export function whyCannotSpend(
   status: BillingStatus,
   doing: SpendWords = SPEND_NUMBER,
 ): string | null {
-  if (maySpend(mode, status)) return null;
-  if (status === "none") return `Start your plan from Billing before ${doing.before}.`;
-  if (status === "trialing")
-    return `Your free trial doesn't cover ${doing.before}. Start your plan from Billing, then ${doing.can}.`;
+  if (maySpend(mode, status, doing.kind)) return null;
+  if (status === "none") return `Start your free trial from Billing before ${doing.before}.`;
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
   if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
   if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
@@ -449,16 +476,61 @@ export interface BillingVM {
   testMode: string | null;
 }
 
-/** What a free trial does not cover, said beside it (maySpend): each is a cost on Chanlytics' account. */
-export const TRIAL_COVERS = "A phone number, texting and lead searches start with the plan.";
+/**
+ * What the trial includes (decision 0090, Ruben, 3 Nov 2026): everything the plan does, up to these. Past the minutes or
+ * the replies the trial ends early and the plan starts (the edge's trial sweep, trialSpentOf); past the leads the finder
+ * says so (lead_cap 'trial_leads' in SQL, LEAD_TRIAL_ALLOWANCE). Each is a cost on Chanlytics' account, and these are
+ * what one trial may cost it.
+ */
+export const TRIAL_INCLUDES = { callMinutes: 150, replies: 1000, leads: LEAD_TRIAL_ALLOWANCE } as const;
 
-/** Billing's "Start my plan now": a trial ended early, for what it does not cover. */
+/** What a free trial covers, said beside it, as Billing and Go live say it. */
+export const TRIAL_COVERS = `Your trial includes everything: your number, texting and every channel, up to ${TRIAL_INCLUDES.callMinutes} call minutes, ${numberFormat("en-US", {}).format(TRIAL_INCLUDES.replies)} replies and ${TRIAL_INCLUDES.leads} leads.`;
+
+/**
+ * Whether a trial has used what it includes, and how much of it, from what the workspace has used since it began:
+ * `near` at four fifths of either, `spent` at all of either. The edge's trial sweep starts the plan when spent, and
+ * Today and Billing say near.
+ */
+export function trialSpentOf(used: { callSeconds: number; replies: number }): {
+  share: number;
+  near: boolean;
+  spent: boolean;
+} {
+  const share = Math.max(
+    used.callSeconds / (TRIAL_INCLUDES.callMinutes * 60),
+    used.replies / TRIAL_INCLUDES.replies,
+    0,
+  );
+  return { share, near: share >= 0.8, spent: share >= 1 };
+}
+
+/** What the trial's use says, on Billing and Today, once it is near: "62 of 150 call minutes · 310 of 1,000 replies". */
+export function trialUseWords(used: { callSeconds: number; replies: number }): string {
+  const n = numberFormat("en-US", {});
+  return `${n.format(Math.floor(used.callSeconds / 60))} of ${TRIAL_INCLUDES.callMinutes} call minutes · ${n.format(used.replies)} of ${n.format(TRIAL_INCLUDES.replies)} replies`;
+}
+
+/** Said on the bell when the trial's use nears what it includes, and when it ends the trial early. */
+export const TRIAL_SPENT_WORDS = {
+  nearTitle: "Your trial is nearly used",
+  near: (use: string) =>
+    `${use}. When either runs out your plan starts on the card you gave, so your receptionist keeps answering.`,
+  title: "Your trial's use is spent, so your plan has started",
+  detail: (use: string) =>
+    `${use}. Your plan started today on the card you gave and keeps your receptionist answering.`,
+  /** The plan could not start (a card Stripe refused): the trial runs on, and Billing has the card. */
+  failedTitle: "Your trial is used up, and your plan could not start",
+  failed: "Update the card in Billing so your receptionist keeps answering when the trial ends.",
+} as const;
+
+/** Billing's "Start my plan now": a trial ended early, for more than it includes. */
 export const START_PLAN_WORDS = {
   button: "Start my plan now",
   busy: "Starting…",
   question: "Start your plan today?",
   detail: (plan: string, card: string | null) =>
-    `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. A phone number, texting and lead searches open straight after.`,
+    `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. Your plan's full minutes, replies and leads open straight after.`,
   yes: "Yes, start it",
   no: "Not now",
   started: "Your plan has started.",
@@ -525,7 +597,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
         headline: "On trial",
         detail: `${trialWords(a.trial_end, nowMs, tz)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
         tone: "ok",
-        // Its plan may start now, for what the trial does not cover (maySpend).
+        // Its plan may start now, for more than the trial includes (TRIAL_INCLUDES).
         actions: { checkout: false, portal: true, resume: false, startNow: true },
         paused: false,
       };

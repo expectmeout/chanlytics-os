@@ -25,52 +25,55 @@ import {
   maySpend,
   whyCannotSpend,
   receptionistOn,
+  trialDaysFor,
+  trialSpentOf,
+  trialUseWords,
+  leadAllowanceFor,
   BILLING_STATUSES,
-  BILLING_MODES,
+  BILLING_TRIAL_DAYS,
+  LEAD_MONTHLY_ALLOWANCE,
+  LEAD_TRIAL_ALLOWANCE,
+  SPEND_KINDS,
+  SPEND_REHEARSE,
+  SPEND_REVIEW,
   SPEND_TEXTING,
+  SPEND_TRY,
+  TRIAL_COVERS,
+  TRIAL_INCLUDES,
 } from "@chanlytics/contracts";
 import { readCode } from "../_source.mjs";
 
-test("the whole matrix: two modes by nine statuses, stated rather than inferred", () => {
+test("the whole matrix: two modes by nine statuses by four kinds, stated rather than inferred", () => {
   // Written out so a change to either function shows up as a diff a reviewer
   // reads, not as a test that still passes because it derives its expectation
-  // from the code under test.
+  // from the code under test. The trial covers everything (decision 0090, Ruben, 3 Nov 2026): a number, texting and the
+  // finder may spend on a trial as on a plan; a rehearsal before any plan too, since the first run rehearses first.
+  const paying = { trialing: true, active: true };
   const SPEND = {
-    stripe: {
-      none: false,
-      incomplete: false,
-      incomplete_expired: false,
-      // A free trial covers what costs Chanlytics nothing (Ruben, 25 Sep 2026): a number, texting and a lead search
-      // each start the plan first.
-      trialing: false,
-      active: true,
-      past_due: false,
-      canceled: false,
-      unpaid: false,
-      paused: false,
-    },
-    // Every workspace that predates Stripe. Invoiced by hand, never asked for
-    // a card, so the question does not apply — the same carve-out
-    // tenantStatusFor already makes.
-    direct: Object.fromEntries(BILLING_STATUSES.map((s) => [s, true])),
+    number: paying,
+    texting: paying,
+    leads: paying,
+    rehearse: { none: true, ...paying },
   };
-  for (const mode of BILLING_MODES) {
+  for (const kind of SPEND_KINDS) {
     for (const status of BILLING_STATUSES) {
-      assert.equal(maySpend(mode, status), SPEND[mode][status], `${mode}/${status}`);
+      assert.equal(maySpend("stripe", status, kind), SPEND[kind][status] === true, `stripe/${status}/${kind}`);
+      // Every workspace that predates Stripe. Invoiced by hand, never asked for a card, so the question does not
+      // apply -- the same carve-out tenantStatusFor already makes.
+      assert.equal(maySpend("direct", status, kind), true, `direct/${status}/${kind}`);
     }
   }
+  // The default is the number's row, as every lines route has always asked it.
+  for (const status of BILLING_STATUSES) assert.equal(maySpend("stripe", status), maySpend("stripe", status, "number"));
 });
 
 test("answering is generous where spending is strict, and the gap is the point", () => {
-  // The two statuses where they deliberately disagree. `none` is a workspace
-  // that never entered a card; `incomplete` is the minutes between Checkout
-  // opening and the first payment, which is exactly what an abandoned Checkout
-  // leaves behind. Both are fine reasons to keep answering someone who is
-  // mid-conversation. Neither is a reason to spend.
-  // past_due joins them: the last charge failed and Stripe is retrying, so the
-  // receptionist keeps answering while nothing new is bought on our account.
-  // And trialing: the receptionist answers through a free trial, which puts nothing on our account.
-  for (const status of ["none", "incomplete", "past_due", "trialing"]) {
+  // The statuses where they deliberately disagree. `none` is a workspace that never entered a card; `incomplete` is the
+  // minutes between Checkout opening and the first payment, which is exactly what an abandoned Checkout leaves behind.
+  // Both are fine reasons to keep answering someone who is mid-conversation. Neither is a reason to spend money with a
+  // provider. past_due joins them: the last charge failed and Stripe is retrying, so the receptionist keeps answering
+  // while nothing new is bought on our account.
+  for (const status of ["none", "incomplete", "past_due"]) {
     assert.equal(receptionistOn(status), true, `${status}: still answers`);
     assert.equal(maySpend("stripe", status), false, `${status}: does not spend`);
   }
@@ -78,28 +81,38 @@ test("answering is generous where spending is strict, and the gap is the point",
     whyCannotSpend("stripe", "past_due"),
     "Your last payment did not go through. Update the card in Billing, then try again.",
   );
-  // And where they agree, they agree for the same reason.
-  assert.equal(receptionistOn("active"), true);
-  assert.equal(maySpend("stripe", "active"), true);
+  // And where they agree, they agree for the same reason: a trial and a plan answer and spend alike (decision 0090).
+  for (const status of ["trialing", "active"]) {
+    assert.equal(receptionistOn(status), true);
+    assert.equal(maySpend("stripe", status), true);
+  }
   for (const status of ["canceled", "unpaid", "paused", "incomplete_expired"]) {
     assert.equal(receptionistOn(status), false);
     assert.equal(maySpend("stripe", status), false);
   }
 });
 
+test("a rehearsal is open before any plan, which is where the first run's Rehearse stands", () => {
+  // The first run's step 3 comes before Go live. Its call, its typed try, its review and its fix each declared a spend,
+  // and the spend rule refused a workspace that had never entered a card: every new owner met a 402 there.
+  for (const words of [SPEND_REHEARSE, SPEND_REVIEW, SPEND_TRY]) {
+    assert.equal(words.kind, "rehearse");
+    assert.equal(whyCannotSpend("stripe", "none", words), null, `${words.before}: open before the plan`);
+    assert.equal(whyCannotSpend("stripe", "trialing", words), null);
+    assert.match(whyCannotSpend("stripe", "past_due", words), /Update the card/);
+  }
+});
+
 test("a refusal says what to do about it, because it lands where somebody is trying to pay", () => {
   assert.equal(whyCannotSpend("stripe", "active"), null);
+  assert.equal(whyCannotSpend("stripe", "trialing"), null, "a trial buys its number");
+  assert.equal(whyCannotSpend("stripe", "trialing", SPEND_TEXTING), null, "and files for texting");
   assert.equal(whyCannotSpend("direct", "none"), null, "a grandfathered workspace is never refused");
 
-  assert.equal(whyCannotSpend("stripe", "none"), "Start your plan from Billing before buying a number.");
-  // A free trial is told what it does not cover, and how it gets it.
+  assert.equal(whyCannotSpend("stripe", "none"), "Start your free trial from Billing before buying a number.");
   assert.equal(
-    whyCannotSpend("stripe", "trialing"),
-    "Your free trial doesn't cover buying a number. Start your plan from Billing, then buy a number.",
-  );
-  assert.equal(
-    whyCannotSpend("stripe", "trialing", SPEND_TEXTING),
-    "Your free trial doesn't cover registering for texting. Start your plan from Billing, then register for texting.",
+    whyCannotSpend("stripe", "none", SPEND_TEXTING),
+    "Start your free trial from Billing before registering for texting.",
   );
 
   assert.match(whyCannotSpend("stripe", "incomplete"), /Finish checkout/);
@@ -111,6 +124,36 @@ test("a refusal says what to do about it, because it lands where somebody is try
     const why = whyCannotSpend("stripe", status);
     if (why) assert.match(why, /Billing|checkout|card/i, `${status}: says where to go`);
   }
+});
+
+test("one trial from every door: the deployment's length, once", () => {
+  assert.equal(trialDaysFor({ hadSubscription: false }), BILLING_TRIAL_DAYS);
+  assert.equal(trialDaysFor({ hadSubscription: false, deploymentDays: 7 }), 7);
+  assert.equal(trialDaysFor({ hadSubscription: false, deploymentDays: 0 }), 0, "a deployment may choose none");
+  assert.equal(
+    trialDaysFor({ hadSubscription: false, deploymentDays: 120 }),
+    BILLING_TRIAL_DAYS,
+    "past 90 is no setting",
+  );
+  assert.equal(trialDaysFor({ hadSubscription: true, deploymentDays: 14 }), 0, "a trial applies once");
+  // The checkout asks it, whichever door it was pressed from (billing.test.mjs reads the checkout's call).
+});
+
+test("what a trial includes: near at four fifths of either, spent at all of either", () => {
+  const minutes = TRIAL_INCLUDES.callMinutes * 60;
+  assert.deepEqual(trialSpentOf({ callSeconds: 0, replies: 0 }), { share: 0, near: false, spent: false });
+  assert.equal(trialSpentOf({ callSeconds: minutes * 0.79, replies: 0 }).near, false);
+  assert.equal(trialSpentOf({ callSeconds: minutes * 0.8, replies: 0 }).near, true);
+  assert.equal(trialSpentOf({ callSeconds: 0, replies: TRIAL_INCLUDES.replies }).spent, true, "replies alone spend it");
+  assert.equal(trialSpentOf({ callSeconds: minutes, replies: 0 }).spent, true, "minutes alone spend it");
+  assert.equal(
+    trialUseWords({ callSeconds: 62 * 60 + 59, replies: 310 }),
+    "62 of 150 call minutes · 310 of 1,000 replies",
+  );
+  assert.match(TRIAL_COVERS, /150 call minutes, 1,000 replies and 50 leads/);
+  assert.equal(TRIAL_INCLUDES.leads, LEAD_TRIAL_ALLOWANCE);
+  assert.equal(leadAllowanceFor("trialing"), LEAD_TRIAL_ALLOWANCE);
+  assert.equal(leadAllowanceFor("active"), LEAD_MONTHLY_ALLOWANCE);
 });
 
 test("both money routes carry the second door", () => {
@@ -183,15 +226,15 @@ test("Setup does not offer a button the server will refuse", async () => {
   });
   const lineRow = (vm) => vm.rows.find((r) => r.id === "line");
 
-  // No plan yet, or a free trial: the number starts the plan, and the row says so and goes where both happen -- the
-  // first run's Where it answers, where the number is chosen, then Go live, whose checkout starts the plan and which
-  // starts a trial's plan (decision 0073) -- rather than offering a number the route will refuse with a 402.
-  for (const status of ["none", "trialing"]) {
-    const row = lineRow(setupSteps({ ...base, billing: bill(status) }, Date.now()));
-    assert.deepEqual(row.verb, { label: "Get a number", to: "start/channels" }, status);
-    assert.equal(row.sentence, "Get a number for calls: it starts your plan.", status);
-    assert.doesNotMatch(row.details.join(" "), /trial/i, `${status}: no free number is promised`);
-  }
+  // No plan yet: the number starts the free trial, and the row says so and goes where both happen -- the first run's
+  // Where it answers, where the number is chosen, then Go live, whose checkout starts the trial (decisions 0073, 0090)
+  // -- rather than offering a number the route will refuse with a 402.
+  const none = lineRow(setupSteps({ ...base, billing: bill("none") }, Date.now()));
+  assert.deepEqual(none.verb, { label: "Get a number", to: "start/channels" });
+  assert.equal(none.sentence, "Get a number for calls: it starts your free trial.");
+  // A trial already running covers the number (decision 0090): the button, as a plan's.
+  const trial = lineRow(setupSteps({ ...base, billing: bill("trialing") }, Date.now()));
+  assert.deepEqual(trial.verb, { label: "Get a line", to: "verb:choose-line" });
   // Anything else that may not spend is Billing's, in the refusal's own words.
   const lapsed = lineRow(setupSteps({ ...base, billing: bill("past_due") }, Date.now()));
   assert.deepEqual(lapsed.verb, { label: "Open Billing", to: "admin/billing" });

@@ -16,6 +16,7 @@ import {
   WEBSITE_UNREAD_WORDS,
   SECOND_MS,
   UUID,
+  bookingToolOfLink,
   businessReadFactsOf,
   feedUrlOk,
   listingFactsOf,
@@ -75,11 +76,18 @@ export async function readWebsite(
   const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
   if (!env.ANTHROPIC_API_KEY) return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
   const more = sitePagesLinkedFrom(home.html, home.url, 2);
+  // The booking platform's page, read beside the site's own (the onboarding PRD's P8): where a salon's services,
+  // prices and minutes are kept. Read once, and said to the model as the page customers book on.
+  const booking = await bookingPageToRead(db, tenantId, home.url);
   const pages = [
-    { at: url, page: home },
-    ...(await Promise.all(more.map(async (at) => ({ at, page: await sitePage(at, PAGE_READ) })))),
-  ].filter((p): p is { at: string; page: SitePage } => !!p.page);
-  const user = pages.map((p) => `Page ${p.at}\n${p.page.markdown.slice(0, PAGE_TEXT_MAX)}`).join("\n\n---\n\n");
+    { at: url, page: home, booking: false },
+    ...(await Promise.all(more.map(async (at) => ({ at, page: await sitePage(at, PAGE_READ), booking: false })))),
+    ...(booking ? [{ at: booking, page: await sitePage(booking, PAGE_READ), booking: true }] : []),
+  ].filter((p): p is { at: string; page: SitePage; booking: boolean } => !!p.page);
+  const bookingRead = pages.some((p) => p.booking);
+  const user = pages
+    .map((p) => `Page ${p.at}${p.booking ? " (where customers book)" : ""}\n${p.page.markdown.slice(0, PAGE_TEXT_MAX)}`)
+    .join("\n\n---\n\n");
   const ms = Math.min(READ_CALL_MS, deadline - Date.now());
   if (ms <= 0) throw new Error("website_read: no time left for the reading");
   let answer: unknown;
@@ -110,8 +118,30 @@ export async function readWebsite(
     answers: facts.answers,
     description: facts.description,
     look,
+    booking_page: bookingRead ? booking : null,
   };
   return keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
+}
+
+/**
+ * The booking platform's page to read beside the website: the booking link the business keeps, else the one its
+ * listing's website names; only a booking platform's page (contracts bookingToolOfLink), and only on another host than
+ * the site read, since a site that is its booking page was read as the home page. Null for none, or a read that failed.
+ */
+async function bookingPageToRead(db: Db, tenantId: string, siteUrl: string): Promise<string | null> {
+  try {
+    const [cfgRow, listingRow] = await Promise.all([
+      getTenantConfig(db, tenantId),
+      listingFactsStored(db, tenantId).catch(() => null),
+    ]);
+    const link = parseTenantConfig(cfgRow?.config ?? null)?.brain?.booking_link ?? null;
+    const named = listingFactsOf(listingRow)?.booking_page ?? null;
+    const page = [link, named].find((u) => !!u && !!bookingToolOfLink(u) && !!feedUrlOk(u)) ?? null;
+    if (!page) return null;
+    return new URL(page).hostname === new URL(siteUrl).hostname ? null : page;
+  } catch {
+    return null;
+  }
 }
 
 export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
