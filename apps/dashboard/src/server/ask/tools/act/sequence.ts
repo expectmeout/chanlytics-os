@@ -48,6 +48,7 @@ import {
   type ToolContext,
 } from "../context";
 import { broadcastAction } from "./broadcast";
+import { coldEmailCard } from "./leads/cold-email-card";
 import { reachOutAddAction } from "./leads/lead-search";
 import { messageAction } from "./message";
 import { playbookAction } from "./playbook";
@@ -545,14 +546,21 @@ async function proposeColdEmail(
   const checked = ReachOutChainSchema.safeParse(chain);
   if (!checked.success) return refuse(checked.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   if (checked.data.steps.length > REACH_OUT_STEPS_MAX) return refuse(`at most ${REACH_OUT_STEPS_MAX} emails`);
-  const steps = checked.data.steps.map(
-    (s, i) =>
-      `${i === 0 ? "first" : after(s.after_days ?? 0)}: ${s.subject ? `“${s.subject}”` : "a reply in the same thread"}`,
-  );
+  // Each email as the card says it: its subject, or a reply in the first's thread; the ones after the first with their wait.
+  const says = (s: { subject: string | null }) => (s.subject ? `“${s.subject}”` : "a reply in the same thread");
+  const [first, ...rest] = checked.data.steps;
+  const card = coldEmailCard({
+    to: fedBy,
+    first: first ? says(first) : "",
+    then: rest.map((s) => `${after(s.after_days ?? 0)}: ${says(s)}`),
+    gap_minutes: checked.data.gap_minutes,
+    owner_sends: checked.data.owner_sends,
+  });
   return propose({
     kind: "reach_out_make",
     title: `Cold email: ${checked.data.name}`,
-    summary: `To ${fedBy}, ${checked.data.owner_sends ? "each email handed to you to send from your own inbox" : "from your connected mailboxes"}, one every ${checked.data.gap_minutes} minutes: ${steps.join("; ")}. Its first run is planned once approved, and waits for your say before an email goes.`,
+    summary: card.summary,
+    sheet: card.sheet,
     // A plan step's token stays the token, for the commit to fill with the list that step made.
     payload: { chain: { ...checked.data, search_id: searchId } },
   });
