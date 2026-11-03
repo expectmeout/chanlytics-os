@@ -410,9 +410,17 @@ function cardsAreSteps(r, intent, world) {
   });
   assert.equal(new Set(cards.map((p) => p.id)).size, cards.length, "each card its own id");
   const out = said(r);
+  // Each step as the model is told it: its card's title, and what holds that card where its sheet holds anything
+  // (decision 0088, item 5: the card says it, so the answer written from this result leaves it out).
   assert.deepEqual(
     out.steps,
-    cards.map((p, i) => ({ n: i + 1, kind: planned.steps[i].kind, card: p.title, silent: planned.steps[i].silent })),
+    cards.map((p, i) => ({
+      n: i + 1,
+      kind: planned.steps[i].kind,
+      card: p.title,
+      silent: planned.steps[i].silent,
+      ...(p.sheet?.holds.length ? { holds: p.sheet.holds } : {}),
+    })),
   );
   assert.deepEqual([out.proposed, out.plan, out.words], [true, id, planned.words]);
   return { cards, planned };
