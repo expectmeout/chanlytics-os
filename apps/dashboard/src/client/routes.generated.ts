@@ -275,6 +275,8 @@ export const ROUTES = {
   "POST reach-out-replies/[id]/undo": { method: "POST", path: "/api/v1/reach-out-replies/[id]/undo" },
   "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
   "POST reach-out-sends/[id]/said": { method: "POST", path: "/api/v1/reach-out-sends/[id]/said" },
+  "POST reach-out-sends/[id]/undo-rewrite": { method: "POST", path: "/api/v1/reach-out-sends/[id]/undo-rewrite" },
+  "POST reach-out-sends/check": { method: "POST", path: "/api/v1/reach-out-sends/check" },
   "POST reach-outs": { method: "POST", path: "/api/v1/reach-outs" },
   "POST reach-outs/[id]/leads": { method: "POST", path: "/api/v1/reach-outs/[id]/leads" },
   "POST reach-outs/[id]/leads/check": { method: "POST", path: "/api/v1/reach-outs/[id]/leads/check" },
@@ -625,6 +627,8 @@ export type Routes = {
   "POST reach-out-replies/[id]/undo": typeof import("../../app/api/v1/reach-out-replies/[id]/undo/route").POST;
   "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
   "POST reach-out-sends/[id]/said": typeof import("../../app/api/v1/reach-out-sends/[id]/said/route").POST;
+  "POST reach-out-sends/[id]/undo-rewrite": typeof import("../../app/api/v1/reach-out-sends/[id]/undo-rewrite/route").POST;
+  "POST reach-out-sends/check": typeof import("../../app/api/v1/reach-out-sends/check/route").POST;
   "POST reach-outs": typeof import("../../app/api/v1/reach-outs/route").POST;
   "POST reach-outs/[id]/leads": typeof import("../../app/api/v1/reach-outs/[id]/leads/route").POST;
   "POST reach-outs/[id]/leads/check": typeof import("../../app/api/v1/reach-outs/[id]/leads/check/route").POST;

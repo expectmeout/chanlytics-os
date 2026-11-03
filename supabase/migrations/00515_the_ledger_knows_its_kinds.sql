@@ -12,7 +12,11 @@
 --                        row. The rule is spelled once, here; packages/jobs no longer computes a key.
 --   dedupe_kept          the column that says a row's key holds while it is kept (email_ingest, lead_collect,
 --                        reply_read), the rows keyed; 00517 builds the one index over it, online, and 00518 drops
---                        jobs_email_ingest_uq, jobs_lead_collect_once and jobs_reply_read_once (decision 0033, step 3).
+--                        jobs_email_ingest_uq and jobs_reply_read_once (decision 0033, step 3); jobs_lead_collect_once
+--                        stays while three SQL writers name its columns in ON CONFLICT.
+--                        A lead round's start and each batch of its checks have no rule here: their key (00506) is
+--                        the writer's to ask for (packages/jobs, lead_collect_commit), so a door's own start
+--                        (lead_round_answer) is never refused for one already waiting.
 --   jobs_guard           a job that threw and waits to be tried again goes back to scheduled, its attempts kept: fired
 --                        means running. Cancel, withdraw and an erasure's cancel reach a waiting retry as they reach any
 --                        scheduled row.

@@ -2,8 +2,8 @@
 --
 -- The kinds whose subject is held once while its row is kept and not failed (job_kinds.once_kept: email_ingest,
 -- lead_collect, reply_read), by the key jobs_take_their_kind writes (00515), so a webhook replayed after the work was
--- done finds it and a failed row never blocks a replay. One index where three bespoke ones were; 00518 drops those
--- once this one holds.
+-- done finds it and a failed row never blocks a replay. One index where three bespoke ones were; 00518 drops two of
+-- them once this one holds (the third stays while three SQL writers name it).
 --
 -- Built CONCURRENTLY, and alone in its file, as 00355 and 00427 are: jobs takes a write for every send, webhook and
 -- clock, and is never locked for an index; an index made concurrently cannot share a transaction, and the migration

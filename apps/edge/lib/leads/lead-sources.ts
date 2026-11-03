@@ -16,7 +16,8 @@
  * Nothing here is shown to an owner, so the vendor's names are fine in what it says.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { keepLeadPrices, leadPricesSeen, type Database, type LeadPricesSeen } from "../packages/db.js";
+import { DAY_MS } from "../packages/contracts.js";
 import { apifyClient, type ApifyClient } from "../packages/channels.js";
 import { leadPins } from "../packages/core.js";
 import { pageOperator, type PagePorts } from "../ops/page-operator.js";
@@ -104,4 +105,76 @@ export async function watchLeadPins(
     );
   }
   return gone;
+}
+
+/** A price is paged when it rises past this share of what the watch last saw. */
+export const PRICE_RISE_PAGED = 0.1;
+
+/** What one actor's read says against the last: the events that rose past a tenth, and the charges that are new. */
+function priceChanges(seen: Record<string, number> | undefined, now: Record<string, number>): string[] {
+  if (!seen) return [];
+  const out: string[] = [];
+  for (const [event, price] of Object.entries(now)) {
+    const was = seen[event];
+    if (was === undefined) out.push(`${event} is a new charge: $${price}`);
+    else if (price > was * (1 + PRICE_RISE_PAGED)) out.push(`${event} rose from $${was} to $${price}`);
+  }
+  return out;
+}
+
+/**
+ * Once a day, from the health sweep (PRD §0.3, "prices checked weekly": the reader existed and nothing called it):
+ * each pinned actor's event prices, read at the tier we pay, against what the watch last saw (lead_platform.prices,
+ * 00506). A price that rose past a tenth, or a charge that is new, is paged to the platform, since the cards' prices
+ * (contracts LEAD_CARDS) and the SQL ceiling that holds every estimate (lead_estimate_ceiling, lead_check_estimate) are
+ * written by hand: a run's own cap still bounds what it spends, so a rise shows as fewer leads than asked, never as more
+ * money. The first read of an actor is its baseline and pages nothing. An actor that cannot be read keeps its last
+ * prices and is logged. Answers how many actors were paged. Never throws.
+ */
+export async function watchLeadPrices(
+  db: Db,
+  apify: ApifyClient | null,
+  nowMs: number,
+  pager: Omit<PagePorts, "db"> = {},
+): Promise<number> {
+  if (!apify) return 0;
+  const L = logger({ sweep: "health" });
+  try {
+    const { prices, checkedAt } = await leadPricesSeen(db);
+    if (checkedAt && nowMs - Date.parse(checkedAt) < DAY_MS) return 0;
+    const actors = [...new Set(leadPins().map((p) => p.actor))];
+    const read = await Promise.all(
+      actors.map(async (actor) => {
+        try {
+          return { actor, now: await apify.eventPrices(actor) };
+        } catch (e) {
+          L.error("lead_prices_unreadable", { actor, error: errField(e) });
+          return { actor, now: null };
+        }
+      }),
+    );
+    const next: LeadPricesSeen = { ...prices };
+    let paged = 0;
+    for (const { actor, now } of read) {
+      if (!now) continue;
+      const changes = priceChanges(prices[actor], now);
+      next[actor] = now;
+      if (!changes.length) continue;
+      paged += 1;
+      await pageOperator(
+        { db, ...pager },
+        `lead_source_price:${actor}`,
+        `A lead source's prices changed: ${actor}`,
+        `${changes.join("\n")}\n\nThe cards' prices in packages/contracts/src/leads/search/cards.ts and the SQL ` +
+          `ceiling (lead_estimate_ceiling, lead_check_estimate) were written against the old ones: estimates now ` +
+          `reserve too little, so searches find fewer leads than they are asked for. Price the card again, and the ` +
+          `ceiling with it, in one change.\n`,
+      );
+    }
+    await keepLeadPrices(db, next, new Date(nowMs));
+    return paged;
+  } catch (e) {
+    L.error("lead_prices_unreadable", { error: errField(e) });
+    return 0;
+  }
 }

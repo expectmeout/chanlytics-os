@@ -21,7 +21,7 @@ import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { calendar } from "./verbs";
-import { boardToNow, crPhone } from "./board-dom";
+import { crPhone } from "./board-dom";
 import { DayMarks, RunMark, markLook } from "./marks";
 import type { CalendarFrame } from "./types";
 import { crWhen, fitDeskHourPx, fitHourPx } from "./words";
@@ -405,14 +405,12 @@ function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide
  * The board takes the room the page leaves and the day's hours share it: the hour's height is what fits them there, set on
  * the grid before the first paint and again as the room changes. A phone's is words.ts fitHourPx; a desk's is
  * fitDeskHourPx, the stylesheet's 64px where the day fits at it and never under 48, so a desk's day holds still where it
- * fits. A day that cannot opens at the hour before now on a day it holds today in (CAL-7): the morning a desk scrolled
- * past every time is above it, a scroll away. On a phone the window scrolls the board, which is as tall as its hours there
- * (mobile.css, "The window scrolls"), and the hour before now is brought under its heads by the window (board-dom.ts).
+ * fits. A day that cannot opens at the hour before now on a day it holds today in (CAL-7), which the page puts it at
+ * once the hour is set (board-dom.ts standAfter): the morning a desk scrolled past every time is above it, a scroll away.
  */
 function useHourFit(
   scroller: RefObject<HTMLDivElement | null>,
   span: number,
-  nowAt: number | null,
   /** The day lanes' rows: a lane that comes or goes moves the heads, and the hours share what is left again. */
   laneRows: number,
 ): void {
@@ -432,14 +430,6 @@ function useHourFit(
     watch.observe(el);
     return () => watch.disconnect();
   }, [scroller, span, laneRows]);
-  // Open at now, once for the view (board-dom.ts boardToNow).
-  const opened = useRef(false);
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (opened.current || !el || nowAt === null) return;
-    opened.current = true;
-    boardToNow(el, nowAt);
-  }, [scroller, nowAt]);
 }
 
 /** The board: hours down, days across. Seven columns in Week, one in Day. */
@@ -457,12 +447,10 @@ export function CrBoard(p: {
   const ticks: number[] = [];
   for (let h = hours.start; h < hours.end; h++) ticks.push(h);
   const scroller = useRef<HTMLDivElement>(null);
-  const holdsToday = frames.some((d) => d.today);
   // Each day's lane marks (those not on the board), and as many rows as the fullest day's lane; none, no lane (C6).
   const lanes = new Map(frames.map((d) => [d.key, a.marksOf(d.key).filter((m) => !onBoard(m, hours))]));
   const rows = Math.max(0, ...frames.map((d) => laneRows(d, lanes.get(d.key) ?? [], wide)));
-  // Where now stands down the board, in hours from its top, on a board that holds today.
-  useHourFit(scroller, span, holdsToday && now !== null ? now - hours.start : null, rows);
+  useHourFit(scroller, span, rows);
   return (
     <div className="cal-scroll" ref={scroller}>
       {/* How many hours tall the board is, for the stylesheet: the gutter and every column are that many of --cal-hour;
@@ -534,7 +522,8 @@ function monthCell(p: {
   monthKey: string | null;
   feedOk: boolean;
   fit: Fit;
-  onDay: (key: string) => void;
+  /** A day pressed, with the button pressed: a phone's pick holds the month still under the thumb. */
+  onDay: (key: string, from: Element) => void;
   a: ViewAct;
   picked: string | null;
 }) {
@@ -554,7 +543,7 @@ function monthCell(p: {
         type="button"
         className="cal-month-day"
         data-testid="cal-month-cell"
-        onClick={() => onDay(d.key)}
+        onClick={(e) => onDay(d.key, e.currentTarget)}
         title={d.long}
         aria-label={crCellLabel(d, taken, open, feedOk)}
         aria-current={d.today ? "date" : undefined}
@@ -594,7 +583,7 @@ export function CrMonth(p: {
   monthKey: string | null;
   feedOk: boolean;
   fit: Fit;
-  onDay: (key: string) => void;
+  onDay: (key: string, from: Element) => void;
   a: ViewAct;
   /** The day picked on a phone, whose rows the month draws under it; null on a desk. */
   picked: string | null;

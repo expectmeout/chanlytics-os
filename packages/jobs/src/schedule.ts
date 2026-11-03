@@ -58,18 +58,38 @@ function idsOnly(kind: string, payload: Json): Json {
 }
 
 /**
+ * The key a writer asks for, for the two kinds the database leaves unkeyed unless asked (job_kinds.once_parts null,
+ * 00506): a lead round's start, and each batch of its checks, one waiting at a time among the writers that carry the key
+ * (the sweep carrying a round on, a run's next, lead_collect_commit), while a door's own start (lead_round_answer, a
+ * search made or widened) is never refused for one already waiting. A Check again carries its own nonce, so it is never
+ * held behind the round's own checks.
+ */
+function askedKeyOf(kind: JobKind, payload: Json): string | null {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const round = typeof payload.round_id === "string" && payload.round_id !== "" ? payload.round_id : null;
+  if (!round) return null;
+  if (kind === "lead_round_start") return `lead_round_start:${round}`;
+  if (kind !== "lead_check") return null;
+  const again = typeof payload.again === "string" ? payload.again : "round";
+  return `lead_check:${round}:${again}:${typeof payload.batch === "number" ? payload.batch : 0}`;
+}
+
+/**
  * The row an insert writes. Its once-only key and its lane are the database's to write (jobs_take_their_kind, 00515:
  * the kind's job_kinds row), whoever the writer is: this, the fifteen SQL functions that insert jobs, and a Console
- * requeue are held alike, and the rule is spelled once.
+ * requeue are held alike, and the rule is spelled once. The two lead kinds whose key a writer asks for are the one
+ * exception (askedKeyOf).
  */
 function rowToInsert(p: ScheduleParams) {
   const refused = payloadRefusal(p.kind, p.payload);
   if (refused) throw new Error(`schedule_job: ${p.kind}: ${refused}`);
+  const asked = askedKeyOf(p.kind, p.payload);
   return {
     tenant_id: p.tenantId,
     kind: p.kind,
     due_at: p.dueAt.toISOString(),
     payload: named(idsOnly(p.kind, p.payload)),
+    ...(asked ? { dedupe_key: asked } : {}),
   };
 }
 

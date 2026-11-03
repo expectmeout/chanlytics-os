@@ -11,9 +11,11 @@ import { givenOf, motionSettled, pullHeld } from "../signals";
  * iPhone a pull down at the top slid the head 250px down the screen, and a pull up at the foot lifted the reply box with
  * the page's ground showing under it. So while a thread is open the screen's band is off at both ends, and a pull past
  * either is drawn by the page on the conversation alone (kit motion/page-give.ts). Chromium draws no band of its own, so
- * what this reads is the page's: the band off, the conversation moved, the head and the reply box where they stood. And a
- * thumb that lands on the folded reply box on its way up the conversation leaves it folded: a tap opens it, not a touch.
- * Read-only: nothing here writes.
+ * what this reads is the page's: the band off, the conversation moved, the head and the reply box where they stood.
+ *
+ * The reply box moves only as a sheet with two rests does (kit sheet/dock.ts dockSwipe; Ruben, 3 Nov 2026: "it should
+ * also work like the drawer sheets"): a pull up on it folded opens it, and a pull down from its handle follows the finger
+ * and folds it again, with the head where it stood through both. Read-only: nothing here writes.
  */
 const CONVERSATION = ".ix-th-scroll";
 
@@ -73,13 +75,21 @@ test.describe("An open thread on a phone", () => {
     await up.letGo();
     await expect.poll(() => givenOf(page, CONVERSATION), { message: "let go, it goes home" }).toBe(0);
 
-    // A thumb that lands on the folded reply box and goes up the screen is no tap: the box stays folded, and holds.
+    // The reply box, folded, pulled up: it opens, and the head holds.
     const foot = page.locator(".ix-th-foot").first();
     test.skip((await foot.getAttribute("data-folded")) === null, "this thread's reply box does not fold");
-    const box = (await foot.boundingBox())!;
-    const onTheBox = await pullHeld(page, 195, box.y + 24, -180);
-    expect(await standing(page), "the head and the reply box hold").toEqual(atFoot);
-    await onTheBox.letGo();
-    await expect(foot, "a drag is no tap: it stays folded").toHaveAttribute("data-folded", "");
+    const folded = (await foot.boundingBox())!;
+    const opening = await pullHeld(page, 195, folded.y + folded.height - 24, -60);
+    await opening.letGo();
+    await expect(foot, "pulled up, it opens").not.toHaveAttribute("data-folded");
+    expect((await standing(page)).head, "the head holds").toBe(atFoot.head);
+    // Open, pulled down from its handle: it follows the finger, and let go past its length it folds again.
+    const opened = (await foot.boundingBox())!;
+    const folding = await pullHeld(page, 195, opened.y + 8, 120);
+    const followed = await foot.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m42);
+    expect(followed, "the box comes down under the thumb").toBeGreaterThan(60);
+    expect((await standing(page)).head, "the head holds").toBe(atFoot.head);
+    await folding.letGo();
+    await expect(foot, "let go, it folds away").toHaveAttribute("data-folded", "");
   });
 });

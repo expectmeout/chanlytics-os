@@ -61,6 +61,7 @@ const DOORS = [
   "mailboxes",
   "playbooks-run",
   "reach-out-preview",
+  "reach-out/check",
   "setup-request",
   "signup-notify",
   "steer",

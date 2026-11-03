@@ -41,10 +41,14 @@ jobs_guard in the database), and its loose ends were at its edges, read on main 
 3. **Waiting means scheduled.** jobs_guard lets `fired` go back to `scheduled` with its attempts kept (or one fewer, for a
    run that never started); `deferJob` writes that, so a waiting retry is withdrawn, cancelled and erased as any
    scheduled row is.
-4. **One key index for the kept kinds.** `jobs_dedupe_kept` replaces `jobs_email_ingest_uq`, `jobs_lead_collect_once`
-   and `jobs_reply_read_once` (decision 0033, step 3): built online and alone in its file (00517), the three dropped
-   only once it is valid (00518). A requeued copy names the job it copies (`requeue_of`): once per
-   failed job by design, where a whole-payload equality missed a copy made inside a request.
+4. **One key index for the kept kinds.** `jobs_dedupe_kept` holds what `jobs_email_ingest_uq`, `jobs_lead_collect_once`
+   and `jobs_reply_read_once` held (decision 0033, step 3): built online and alone in its file (00517), and the first and
+   third dropped only once it is valid (00518). `jobs_lead_collect_once` stays: three SQL writers (`lead_collect_commit`,
+   `lead_round_stop`, `lead_search_remove`) name its columns in `on conflict`, which no other index answers; it goes when
+   they are next written. A lead round's start and each batch of its checks keep 00506's rule: keyed by the writer that
+   asks (packages/jobs `askedKeyOf`, `lead_collect_commit`), never by the trigger, so a door's own start
+   (`lead_round_answer`) is never refused for one already waiting. A requeued copy names the job it copies (`requeue_of`): once per failed job by design, where a
+   whole-payload equality missed a copy made inside a request.
 5. **Ids, not people, where either deploy order allows.** A reply's words are not copied onto its job (`never`), and the
    receptionist's draft is queued with its job in one statement (00516 `queue_send`), its address frozen on the row
    (`meta.to`), which the send reads first. A member's reply keeps its order (the message, its receipt, then its job), by

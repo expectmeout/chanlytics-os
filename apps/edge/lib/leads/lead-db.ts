@@ -86,6 +86,76 @@ function callsOn(db: Db) {
 
 export function leadDb(db: Db): LeadDb {
   const { bool, json } = callsOn(db);
+  /** A round's members, or a search's, with the facts of each lead the runner reads back. */
+  async function membersWhere(col: "round_id" | "search_id", id: string): Promise<LeadMemberRow[]> {
+    const members = must<Database["public"]["Tables"]["lead_search_members"]["Row"][]>(
+      "lead_search_members read",
+      await db.from("lead_search_members").select("*").eq(col, id),
+    );
+    if (!members.length) return [];
+    type LeadFacts = Pick<
+      Database["public"]["Tables"]["leads"]["Row"],
+      | "id"
+      | "lat"
+      | "lng"
+      | "phone_e164"
+      | "email"
+      | "email_state"
+      | "place_id"
+      | "stage"
+      | "contact_id"
+      | "contacted_at"
+      | "last_outcome"
+      | "phone_wrong"
+    >;
+    const leads = await inParts(
+      members.map((m) => m.lead_id),
+      async (part) =>
+        must<LeadFacts[]>(
+          "leads read",
+          await db
+            .from("leads")
+            .select(
+              "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
+            )
+            .in("id", part),
+        ),
+    );
+    const byId = new Map(leads.map((l) => [l.id, l]));
+    return members.map((m): LeadMemberRow => {
+      const l = byId.get(m.lead_id);
+      const j = m.judgment as { term?: unknown } | null;
+      return {
+        lead_id: m.lead_id,
+        class: m.class as LeadMemberRow["class"],
+        excluded_by: m.excluded_by,
+        fit: m.fit as LeadMemberRow["fit"],
+        reason: m.reason,
+        distance_m: m.distance_m,
+        counted: m.counted,
+        judgment: m.judgment,
+        lat: l?.lat ?? null,
+        lng: l?.lng ?? null,
+        phone: l?.phone_e164 ?? null,
+        email: l?.email ?? null,
+        email_state: (l?.email_state ?? "none") as LeadMemberRow["email_state"],
+        term: typeof j?.term === "string" ? j.term : null,
+        place_id: l?.place_id ?? null,
+        // The owner's own decision (00140's member doors) or a lead worked in any way lead_search_undo reads as
+        // touched (00142): lead_round_rejudge skips the same.
+        decided:
+          m.kept_at !== null ||
+          m.excluded_by === "owner" ||
+          (!!l &&
+            (l.stage !== "ready" ||
+              l.contact_id !== null ||
+              l.contacted_at !== null ||
+              l.last_outcome !== null ||
+              l.phone_wrong)),
+      };
+    });
+  }
+
   return {
     runClaim: (runId, owner) => bool("lead_run_claim", { p_run_id: runId, p_owner: owner }),
     runRecordStart: (runId, owner, apifyRunId, datasetId, capUsd) =>
@@ -199,74 +269,8 @@ export function leadDb(db: Db): LeadDb {
         runOf,
       );
     },
-    async membersOfRound(roundId) {
-      const members = must<Database["public"]["Tables"]["lead_search_members"]["Row"][]>(
-        "lead_search_members read",
-        await db.from("lead_search_members").select("*").eq("round_id", roundId),
-      );
-      if (!members.length) return [];
-      type LeadFacts = Pick<
-        Database["public"]["Tables"]["leads"]["Row"],
-        | "id"
-        | "lat"
-        | "lng"
-        | "phone_e164"
-        | "email"
-        | "email_state"
-        | "place_id"
-        | "stage"
-        | "contact_id"
-        | "contacted_at"
-        | "last_outcome"
-        | "phone_wrong"
-      >;
-      const leads = await inParts(
-        members.map((m) => m.lead_id),
-        async (part) =>
-          must<LeadFacts[]>(
-            "leads read",
-            await db
-              .from("leads")
-              .select(
-                "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
-              )
-              .in("id", part),
-          ),
-      );
-      const byId = new Map(leads.map((l) => [l.id, l]));
-      return members.map((m): LeadMemberRow => {
-        const l = byId.get(m.lead_id);
-        const j = m.judgment as { term?: unknown } | null;
-        return {
-          lead_id: m.lead_id,
-          class: m.class as LeadMemberRow["class"],
-          excluded_by: m.excluded_by,
-          fit: m.fit as LeadMemberRow["fit"],
-          reason: m.reason,
-          distance_m: m.distance_m,
-          counted: m.counted,
-          judgment: m.judgment,
-          lat: l?.lat ?? null,
-          lng: l?.lng ?? null,
-          phone: l?.phone_e164 ?? null,
-          email: l?.email ?? null,
-          email_state: (l?.email_state ?? "none") as LeadMemberRow["email_state"],
-          term: typeof j?.term === "string" ? j.term : null,
-          place_id: l?.place_id ?? null,
-          // The owner's own decision (00140's member doors) or a lead worked in any way lead_search_undo reads as
-          // touched (00142): lead_round_rejudge skips the same.
-          decided:
-            m.kept_at !== null ||
-            m.excluded_by === "owner" ||
-            (!!l &&
-              (l.stage !== "ready" ||
-                l.contact_id !== null ||
-                l.contacted_at !== null ||
-                l.last_outcome !== null ||
-                l.phone_wrong)),
-        };
-      });
-    },
+    membersOfRound: (roundId) => membersWhere("round_id", roundId),
+    membersOfSearch: (searchId) => membersWhere("search_id", searchId),
     async placeIdsHeld(tenantId, placeIds) {
       const out = new Map<string, string>();
       if (!placeIds.length) return out;

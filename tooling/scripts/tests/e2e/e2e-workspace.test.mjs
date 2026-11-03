@@ -399,7 +399,11 @@ test("every row it writes is one the production sweeps leave alone", async () =>
     id: r.id,
     tenant_id: r.tenant_id,
     state: r.state,
+    purpose: r.purpose,
+    ending_pending: r.ending_pending ?? null,
     waiting_since: r.waiting_since ?? null,
+    // When it last moved, as lead_rounds_guard stamps it (00506): the seed's moves are each a moment ago.
+    state_since: r.state_since ?? r.created_at,
     created_at: r.created_at,
   });
   for (const r of w.moves.filter((m) => live.has(m.search_id)))

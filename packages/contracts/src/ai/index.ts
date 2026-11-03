@@ -58,6 +58,7 @@ export type {
 } from "./models";
 export {
   judgeShadowSpecs,
+  LEAD_SCREEN_BOUND_MS,
   NO_READS,
   receptionistPrimary,
   receptionistShadowCall,

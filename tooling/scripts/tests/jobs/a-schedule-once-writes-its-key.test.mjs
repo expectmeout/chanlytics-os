@@ -141,3 +141,38 @@ test("a payload is ids, not people: what its kind never carries is left on its r
   );
   assert.equal(tables.jobs.length, 1);
 });
+
+test("a lead round's start and its checks are keyed by the writer that asks (00506), and a door's own start is never refused for one waiting", async () => {
+  const tables = { jobs: [] };
+  const db = fakeDb(tables);
+  const R = "11111111-1111-4111-8111-111111111111";
+  const start = { tenantId: T, kind: "lead_round_start", dueAt: at, payload: { round_id: R, carry_on: true } };
+  assert.equal(await scheduleJobOnce(db, start), "scheduled");
+  assert.equal(await scheduleJobOnce(db, start), "already_scheduled", "the sweep carrying the round on starts it once");
+  const check = (payload) => scheduleJobOnce(db, { tenantId: T, kind: "lead_check", dueAt: at, payload });
+  assert.equal(await check({ round_id: R, batch: 0, carry_on: true }), "scheduled");
+  assert.equal(
+    await check({ round_id: R, batch: 0 }),
+    "already_scheduled",
+    "each batch of the round's own checks once",
+  );
+  assert.equal(await check({ round_id: R, batch: 0, again: "nonce-1" }), "scheduled", "a Check again is its own");
+  // A door's insert names no key (lead_round_answer, 00506), and the trigger writes none for these two kinds: it is
+  // written beside the sweep's waiting start, as main had it, never refused for it.
+  const door = await db.from("jobs").insert({
+    tenant_id: T,
+    kind: "lead_round_start",
+    due_at: at.toISOString(),
+    payload: { round_id: R, resume: true },
+  });
+  assert.equal(door.error, null, door.error?.message);
+  assert.deepEqual(
+    tables.jobs.map((j) => [j.kind, j.dedupe_key ?? null]),
+    [
+      ["lead_round_start", `lead_round_start:${R}`],
+      ["lead_check", `lead_check:${R}:round:0`],
+      ["lead_check", `lead_check:${R}:nonce-1:0`],
+      ["lead_round_start", null],
+    ],
+  );
+});

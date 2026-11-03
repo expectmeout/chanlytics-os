@@ -18,9 +18,16 @@
  * without the seal waits, planned, and the reach-out clock answers 503 `lane_unset` while it is due (R2).
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
+ *
+ * Its one other door is a person's (checkPressedSends, 00505): the sends they pressed Rewrite the opening on, checked
+ * now by the same work, so the new opening is back while they look instead of on this clock's next minute.
  */
-import { json } from "../http.js";
+import { json, refuse } from "../http.js";
 import { env } from "../env.js";
+import { logger } from "../log.js";
+import { pg } from "../pg.js";
+import { tokenWorkspace, type Admitted } from "../admin-auth.js";
+import { REWRITE_NOW_MAX, UUID, type RewriteStep } from "../packages/contracts.js";
 import { uncheckedWaiting } from "../packages/db.js";
 import { checkSends } from "./check.js";
 import type { SweepTick } from "../ops/sweep-door.js";
@@ -45,4 +52,74 @@ export async function sweepReachOutChecks({ db, L, started }: SweepTick): Promis
     L.error("reach_out_check_sweep_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
   }
+}
+
+/**
+ * POST /api/admin/reach-out/check: the check of the sends a person pressed Rewrite the opening on, now (00505), as the
+ * clock would check them in its next minute, so the new opening is back while they look. Body { send_ids, stream? }:
+ * those sends of the workspace the token names, at most REWRITE_NOW_MAX, each leased as the clock leases (a send the
+ * clock holds is left to it) and written onto the version it read. Answers the counts; with `stream`, a JSON line for
+ * each step a send's check takes as it takes it ({t: "step", send_id, step}) and the counts last ({t: "done"}). A send
+ * not checked here is the clock's, as before. The door is api/admin/reach-out/check.ts.
+ */
+export async function checkPressedSends(
+  auth: Admitted,
+  body: { send_ids?: unknown; stream?: unknown },
+): Promise<Response> {
+  const tenantId = tokenWorkspace(auth);
+  if (!tenantId || !UUID.test(tenantId))
+    return refuse(
+      400,
+      "bad_tenant",
+      "this door acts only for a workspace its credential names, and this one names none",
+    );
+  const ids = Array.isArray(body.send_ids)
+    ? body.send_ids.filter((x): x is string => typeof x === "string" && UUID.test(x))
+    : [];
+  if (ids.length === 0 || ids.length > REWRITE_NOW_MAX || ids.length !== (body.send_ids as unknown[]).length)
+    return refuse(400, "bad_request", `send_ids: one to ${REWRITE_NOW_MAX} email ids`);
+  if (!env.ANTHROPIC_API_KEY) return refuse(503, "check_unset");
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  const L = logger({ tenant_id: tenantId });
+  const run = async (onStep?: (sendId: string, step: RewriteStep) => void) => {
+    const started = Date.now();
+    const out = await checkSends({ db, now: new Date(), started, log: L, tenantId, sendIds: ids, onStep });
+    L.info("reach_out_checked", { ...out, pressed: ids.length, took_ms: Date.now() - started });
+    const { read, checked, held, failed, late, gated } = out;
+    return { read, checked, held, failed, late, gated };
+  };
+  if (body.stream !== true) return json(200, { ok: true, ...(await run()) });
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      // A reader that went away (the page stopped waiting) takes no more lines; the check still finishes and writes.
+      const send = (line: object) => {
+        try {
+          controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+        } catch {
+          /* the reader went away */
+        }
+      };
+      try {
+        const counts = await run((sendId, step) => send({ t: "step", send_id: sendId, step }));
+        send({ t: "done", ...counts });
+      } catch (e) {
+        L.error("reach_out_check_sweep_failed", {
+          error: e instanceof Error ? e.message : String(e),
+          pressed: ids.length,
+        });
+        send({ t: "done", failed: ids.length });
+      }
+      try {
+        controller.close();
+      } catch {
+        /* already closed */
+      }
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: { "content-type": "application/x-ndjson", "cache-control": "no-store" },
+  });
 }

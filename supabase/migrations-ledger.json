@@ -44,8 +44,7 @@
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
     "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
     "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
-    "00504": "claimed by cm-empty-batch (a run with nothing to send waits on nobody, #2061), not on main when this lane numbered 00506; renumber at the push if it lands",
-    "00505": "claimed by cm-opening-rewrite (an opening is written again as its owner says), not on main when this lane numbered 00506; renumber at the push if it lands"
+    "00504": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, a run with nothing to send waits on nobody), open and not on main when an opening is written again as its owner says took 00505; record drops this once #2061 lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -508,9 +507,7 @@
     "00501_a_stopped_erasure_finishes.sql": "6bb9bed2b8523bb7ca1b7e2b6150169c637ad7d4f82580e0de5cdd3a77159ad5",
     "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097",
     "00503_a_held_reply_goes_now_on_a_member_s_word.sql": "d146d35b50cabf0036dc908583c0ec44738c34288bab59f800cfb407fc7816f8",
-    "00506_the_ledger_knows_its_kinds.sql": "5532f34af630ccab9589c2c602c78e15b3d8a84108c8cfec6e112296803db8d4",
-    "00507_a_send_is_queued_with_its_job.sql": "e05fbd0684c167e8e692aec822feca49842cdde28e21893a12c8b0a0c0f1c92f",
-    "00508_one_index_keeps_each_kept_kind_once.sql": "4c1d4b95fbd4f4f5208682992c99ecc001a4f47f986718f8505de80c74bfae2e",
-    "00509_the_bespoke_once_keys_go.sql": "4bb2a61711fc2225204ed6bbb0df2fa5a314697c21e53238bf91f1b2fa029386"
+    "00505_an_opening_is_written_again_as_its_owner_says.sql": "0dbe0500d8bc1ce2960b1ff7bcf7c93807a76390871661c4fc93394b2c3e3dc0",
+    "00506_a_search_never_stalls_and_every_spend_is_counted.sql": "612e07416d565204e49c9850d714ca3b9742b25216a432eadea1a198eb3ac652"
   }
 }

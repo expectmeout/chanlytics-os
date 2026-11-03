@@ -15,6 +15,7 @@ import { MEMORY_ROUTE } from "./memory";
 import { leadsRoute } from "../leads/lead-plan";
 import { handOf } from "../reach-out/reach-out-hand";
 import { SEQUENCE_FLOW_WORDS } from "../sequences/sequence-words";
+import { REWRITE_WORDS, rewroteWords, theirsOf, type RewroteOpening } from "../sequences/sequence-held";
 import {
   asText,
   decisionOf,
@@ -558,21 +559,28 @@ const openRun = ({ payload }: { payload: Record<string, unknown> }): string | nu
 };
 
 /** What deciding a held email did, by the answer given: said with the business's name where the press carries it. */
-/** A name's possessive, as the receipt says it: "Lamplight Books' email", "Persida's email". */
-const theirs = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
-
 const DECIDED: Record<(typeof REACH_OUT_DECISIONS)[number], (name: string) => string> = {
-  include: (name) => `${theirs(name)} email goes as written`,
-  // Said as it is: the check writes it within the minute, and People shows it being written until it is back.
-  rewrite: (name) => `${theirs(name)} opening is being written again`,
+  include: (name) => `${theirsOf(name)} email goes as written`,
+  rewrite: (name) => rewroteWords(name, null),
   skip: (name) => `${name} is left out of this batch`,
   not_a_fit: (name) => `${name} is set aside: not a fit`,
 };
 
+/** The opening an email stands with, as POST reach-out-sends/check and Undo answer it (ReachOutOpeningDto); null where none. */
+function openingOf(sent: unknown): RewroteOpening | null {
+  const o = rec(sent);
+  return typeof o.written === "boolean"
+    ? { written: o.written, held: asText(o.held) || null, paused: o.paused === true }
+    : null;
+}
+
 /**
  * An email the check held, decided (R18, 00211 reach_out_send_decide): it goes as it is, its opening is written again, it
  * is left out of its batch, or its business is set aside as not a fit. The run's sheet in Sent and a sequence's People
- * press the same door. Nothing to undo: an email let go may already be on its way.
+ * press the same door. A rewrite may say what should change (`change`, 00505), and its opening is written at once by
+ * the second call (POST reach-out-sends/check), whose answer the receipt says; a page that shows the check's steps as it
+ * goes asks for it itself (`check: false`). Its undo puts back the opening it replaced while the email waits. The other
+ * answers have none: an email let go may already be on its way.
  */
 export const sequenceSendDecideSpec: ProposalSpec = {
   needs: "operator",
@@ -580,13 +588,44 @@ export const sequenceSendDecideSpec: ProposalSpec = {
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "send_id");
     const decision = REACH_OUT_DECISIONS.find((d) => d === pl.decision);
+    const change = decision === "rewrite" ? asText(pl.change).trim() : "";
     return id && decision
-      ? { route: "POST reach-out-sends/[id]/decide", params: { id }, body: { decision } }
+      ? { route: "POST reach-out-sends/[id]/decide", params: { id }, body: { decision, ...(change ? { change } : {}) } }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) => {
+  then: ({ payload: pl }) => {
+    const id = idIn(pl, "send_id");
+    return pl.decision === "rewrite" && id && pl.check !== false
+      ? { route: "POST reach-out-sends/check", body: { send_ids: [id] } }
+      : null;
+  },
+  receipt: ({ payload: pl }, _data, then) => {
     const decision = REACH_OUT_DECISIONS.find((d) => d === pl.decision) ?? "include";
-    return DECIDED[decision](asText(pl.name) || "The business");
+    const name = asText(pl.name) || "The business";
+    if (decision !== "rewrite") return DECIDED[decision](name);
+    const sent = then && then.ok ? rec(then.data).sends : null;
+    return rewroteWords(name, Array.isArray(sent) ? openingOf(sent[0]) : null);
+  },
+  undo: {
+    label: ({ payload: pl }) => (pl.decision === "rewrite" ? REWRITE_WORDS.undo : null),
+    window: "ten_minutes",
+    // The opening it replaced is the database's to put back, or to refuse in its words where there is none.
+    record: ({ payload: pl }) => {
+      const id = idIn(pl, "send_id");
+      return pl.decision === "rewrite" && id ? { send_id: id, name: asText(pl.name) } : null;
+    },
+    call: (u) => {
+      const id = asText(u.send_id);
+      return id
+        ? { route: "POST reach-out-sends/[id]/undo-rewrite", params: { id } }
+        : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: (data, u) => {
+      const name = asText(u.name) || "The business";
+      return openingOf(rec(data).rewritten)?.held
+        ? `${theirsOf(name)} earlier opening is back, held as it was`
+        : `${theirsOf(name)} earlier opening is back`;
+    },
   },
   open: openRun,
 };

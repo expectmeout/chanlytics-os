@@ -90,6 +90,10 @@ export const REACH_OUT_REFUSALS = {
   includeHeld: "Only an email the check held for a reason is included.",
   givenUp: "This email waited two weeks for your answer and was given up.",
   decision: "Include, rewrite, skip or not a fit.",
+  /** 00505 reach_out_send_decide and reach_out_send_rewrite_undo: what should change, and the opening Undo puts back. */
+  onlyRewriteWords: "Only a rewrite takes words.",
+  changeLong: "Say it in 280 characters or fewer.",
+  nothingToUndo: "There is no earlier opening to put back.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
   unsaved: "That sequence could not be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */

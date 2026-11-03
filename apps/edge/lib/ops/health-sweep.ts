@@ -35,7 +35,7 @@ import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
-import { leadSourceClient, watchLeadPins } from "../leads/lead-sources.js";
+import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
 import { pausedJobKinds } from "../packages/db.js";
 import { env } from "../env.js";
 import type { SweepTick } from "./sweep-door.js";
@@ -163,6 +163,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
   // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
   const pinsGone = await watchLeadPins(db, leadSourceClient());
+  // And once a day their prices, against the last read: the cards and the SQL ceiling are priced by hand (00506).
+  const pricesPaged = await watchLeadPrices(db, leadSourceClient(), Date.now());
 
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
@@ -175,6 +177,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     model_failures_paged: models.paged,
     ai_usage_purged: models.purged,
     lead_pins_gone: pinsGone,
+    lead_prices_paged: pricesPaged,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is
