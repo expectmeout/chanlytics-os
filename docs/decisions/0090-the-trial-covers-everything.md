@@ -30,7 +30,8 @@ trial spends nothing (#1031), and decision 0073's item 12 (the first run's trial
    idempotency key per workspace, door and ten minutes, so two presses are one session.
 3. **What the trial includes:** `TRIAL_INCLUDES`: everything the plan does, up to 150 call minutes, 1,000 replies and
    50 leads. The leads are the finder's own cap while billing says `trialing` (`lead_allowance`, `lead_cap('trial_leads')`,
-   `LEAD_TRIAL_ALLOWANCE`), held where a search reserves. The minutes and the replies are read by the lines sweep every
+   `LEAD_TRIAL_ALLOWANCE`), held at every door that counts a lead: where a search or a list reserves, and at Keep, Put
+   back and a check's commit after its round ended (00525). The minutes and the replies are read by the lines sweep every
    quarter hour (`trial_use`, `trialSpentOf`): at four fifths the owner is told once on the bell; at all of either the
    trial ends early and the plan starts (Billing's own start-now), and the owner is told why.
 4. **At launch** the trial becomes the Pro tier's: a change of the price and these numbers, not of the code's shape.
@@ -40,6 +41,9 @@ trial spends nothing (#1031), and decision 0073's item 12 (the first run's trial
 
 - Migration 00512: `billing_may_spend` admits a trial; `lead_spend_refusal`'s words follow `whyCannotSpend`;
   `lead_cap('trial_leads')`, `lead_allowance`, `lead_reserve` reading it; `trial_use`.
+- Migration 00525: the doors that count a lead without a reservation read `lead_allowance` too: `lead_member_move`
+  (Keep, Put back, a bulk Keep), refusing a trial in `lead_reserve`'s words, and `lead_check_commit` (Check again, the
+  addressee chosen); a list's refusal (`lead_search_import`) says the trial's words on a trial.
 - A trial's number costs the platform $1.15 a month until it is released; an unpaid end releases it once
   `LINE_RELEASE_AFTER_DAYS` is set (Ruben's switch; 30 is the PRD's suggestion), and the lines sweep's warnings run
   before that already.
