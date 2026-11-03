@@ -407,6 +407,20 @@ test(
     assert.equal((await sendOf(run, y)).state, "skipped");
     assert.equal(await runState(), "canceled", "emptied, it waits on nobody");
     assert.equal(await waitingRun(), null, "and the page no longer says it waits");
+    // Its end is the system's decision, with why, as the sweep's skip of a late run is recorded (cancel_broadcast).
+    const why = ok(
+      await db
+        .from("decisions")
+        .select("verb, actor_type, payload")
+        .eq("tenant_id", A)
+        .eq("subject_type", "broadcast")
+        .eq("subject_id", run),
+    );
+    assert.deepEqual(
+      why.map((d) => [d.verb, d.actor_type, d.payload?.reason]),
+      [["cancel_broadcast", "system", "nothing_to_send"]],
+      "recorded once, as the system's, with why",
+    );
   },
 );
 

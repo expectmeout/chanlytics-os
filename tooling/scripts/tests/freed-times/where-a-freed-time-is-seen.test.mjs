@@ -131,6 +131,11 @@ test("the activity log says why the system canceled a freed time's run, by the r
     activityWords("cancel_broadcast", { name: "Win-back · 2026-09-07", reason: "day_passed" }),
     "Skipped a run whose day had passed · Win-back · 2026-09-07",
   );
+  // A run waiting for an OK whose every send left it ends as the system's decision too (00504).
+  assert.equal(
+    activityWords("cancel_broadcast", { name: "Plumbers · 2026-10-29", reason: "nothing_to_send" }),
+    "Skipped a run with nothing left to send · Plumbers · 2026-10-29",
+  );
   // A member's own cancel keeps the log's own words for the act.
   const own = activityWords("cancel_broadcast", { name });
   assert.ok(!/^(Skipped|Stopped)/.test(own), own);

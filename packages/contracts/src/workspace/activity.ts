@@ -530,11 +530,15 @@ const recordChangedWords = (p: Record<string, unknown>): string | null => {
   return moved.length ? moved.slice(0, 4).map(businessFieldLabel).join(", ") : "nothing changed";
 };
 
-/** Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082). */
+/**
+ * Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082), and a
+ * waiting run's whose every send left it before anyone answered (00504).
+ */
 const CANCELED_BY_SYSTEM: Readonly<Record<string, string>> = {
   day_passed: "Skipped a run whose day had passed",
   time_passed: "Skipped a freed time's run when its time came",
   taken: "Stopped a freed time's run: someone booked the time",
+  nothing_to_send: "Skipped a run with nothing left to send",
 };
 
 /** The kinds whose sentence is written whole, by its own function. */
