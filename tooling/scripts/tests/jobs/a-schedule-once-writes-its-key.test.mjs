@@ -1,6 +1,6 @@
 /**
  * A job's once-only key (jobs.dedupe_key, 00333, decision 0033 step 2) is written by the database from its kind's
- * job_kinds row (jobs_take_their_kind, 00506), whoever inserts it: each once-only kind carries its subject as its key, a
+ * job_kinds row (jobs_take_their_kind, 00515), whoever inserts it: each once-only kind carries its subject as its key, a
  * kind with no rule carries none, a second schedule of a live key is already_scheduled, and the writer names neither key
  * nor lane. Run over the database in memory, which fills the row as the trigger does and whose unique keys are the
  * migrations' own (jobs_dedupe_live, jobs_dedupe_kept, _unique-keys.generated.json).
@@ -92,7 +92,7 @@ test("a booking notice is read once per delivery in each workspace: one delivery
   );
 });
 
-test("the writer names no key and no lane: the database writes both from the kind's row, whoever the writer is (00506)", async () => {
+test("the writer names no key and no lane: the database writes both from the kind's row, whoever the writer is (00515)", async () => {
   const sent = [];
   const recorder = {
     from: () => ({

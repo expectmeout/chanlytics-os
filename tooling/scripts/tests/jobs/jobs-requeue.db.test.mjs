@@ -3,7 +3,7 @@
  * and a job whose kind the runner does not know kept with its claim given back (deferJob, giveBackClaim). The unit
  * tests (jobs-ledger, job-requeue) run the rules over doubles; this proves the database accepts what they write: a
  * failed row is final (jobs_guard), so a requeue is a fresh row; a row put back to wait goes back to scheduled with its
- * claims counted as they were, or one fewer (00506); and work the ledger holds once per subject answers with the
+ * claims counted as they were, or one fewer (00515); and work the ledger holds once per subject answers with the
  * database's own 23505.
  *
  * Every row here is made for a workspace of its own and is never due to a runner (a far due time), so no other suite's
@@ -89,7 +89,7 @@ test("a failed row is final; run again it is a fresh row of the same kind and pa
   assert.equal((await row(id)).state, "failed");
   assert.equal((await row(id)).last_error, "the key was restricted", "the record of what went wrong is kept");
 
-  // Once: a second press finds the copy the first left, which names the job it copies (requeue_of, 00506).
+  // Once: a second press finds the copy the first left, which names the job it copies (requeue_of, 00515).
   const twice = await requeueFailedJob(db, T, id, async (kind) => void recorded.push(kind));
   assert.deepEqual(twice, { outcome: "already_scheduled" });
   assert.equal((await rowsOf("email_ingest")).length, 2, "no second copy");
@@ -106,7 +106,7 @@ test("a failed row is final; run again it is a fresh row of the same kind and pa
 
 test("work the ledger holds once per subject: the database's own refusal is 'already on the ledger', and no second row", async (t) => {
   if (skip) return t.skip(skip);
-  // jobs_dedupe_kept (00508, once jobs_reply_read_once): one reading per message and stage while its row is kept.
+  // jobs_dedupe_kept (00517, once jobs_reply_read_once): one reading per message and stage while its row is kept.
   const failed = await job("reply_read", { message_id: "m-requeue-1", stage: "first" });
   const live = await job("reply_read", { message_id: "m-requeue-1", stage: "first" }, "scheduled");
   assert.ok(live, "a failed row does not hold the subject; a live one made after it does");
@@ -156,7 +156,7 @@ test("a job whose run said it spoke before it failed is refused as work that spe
   );
 });
 
-test("a kept row whose kind is unknown gives its claim back and waits scheduled (00506), and only on the claim that holds it", async (t) => {
+test("a kept row whose kind is unknown gives its claim back and waits scheduled (00515), and only on the claim that holds it", async (t) => {
   if (skip) return t.skip(skip);
   const id = await job("push_receipts", { ids: ["t-1"] }, "fired");
   const until = new Date(Date.now() + 5 * 60_000).toISOString();

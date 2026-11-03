@@ -3,7 +3,7 @@
  *
  * Each job's lane is generated from its kind and payload: 0 a reply, 1 someone waiting who is not a customer, 2 bulk.
  * claim_due_jobs takes the lowest lane first; within bulk, a workspace with no bulk work running before one with some;
- * then the earliest due. Every kind job_kinds holds (00506) has its lane, each one's value pinned here.
+ * then the earliest due. Every kind job_kinds holds (00515) has its lane, each one's value pinned here.
  *
  * The ledger is one queue, and other suites claim from it at the same time, so each case runs in a transaction on this
  * machine's database that never commits and has the ledger to itself: it takes the table in a mode every writer waits
@@ -131,7 +131,7 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
   assert.deepEqual(
     [...kinds].sort(),
     [...SCHEMA_SETS["jobs.kind"]].sort(),
-    "the kinds read are job_kinds' own (00506)",
+    "the kinds read are job_kinds' own (00515)",
   );
   assert.deepEqual(
     kinds.filter((k) => lanes[k] === null),
@@ -143,7 +143,7 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
     email_ingest: 0,
     push_send: 0,
     inbound_answer: 0, // a text's answer after its acknowledgement: a customer is waiting (00347)
-    canary: 0, // the ledger's own proof that it runs (00506): judged by its claim's lateness, a reply's
+    canary: 0, // the ledger's own proof that it runs (00515): judged by its claim's lateness, a reply's
     line_provision: 1,
     reply_read: 1,
     booking_read: 1,
@@ -218,7 +218,7 @@ test(
 );
 
 test(
-  "a paused kind (00506) is left where it is: the claim takes the next of another kind, and the pause's end takes it again",
+  "a paused kind (00515) is left where it is: the claim takes the next of another kind, and the pause's end takes it again",
   { skip },
   () => {
     const claimed = claimOrder(

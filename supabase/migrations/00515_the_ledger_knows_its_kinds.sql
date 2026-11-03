@@ -1,4 +1,4 @@
--- 00506 · The ledger knows its kinds (docs/decisions/0089-the-ledger-knows-its-kinds.md).
+-- 00515 · The ledger knows its kinds (docs/decisions/0089-the-ledger-knows-its-kinds.md).
 --
 -- A job kind's facts were spelled in a dozen places in two languages: the jobs.kind CHECK (re-spelled whole in seventeen
 -- migrations), the lane (a generated column re-made in seven, each a rewrite of the table), the once-only key (in
@@ -11,7 +11,7 @@
 --   jobs_take_their_kind a trigger before every insert, whoever writes it: the lane and the once-only key from the kind's
 --                        row. The rule is spelled once, here; packages/jobs no longer computes a key.
 --   dedupe_kept          the column that says a row's key holds while it is kept (email_ingest, lead_collect,
---                        reply_read), the rows keyed; 00508 builds the one index over it, online, and 00509 drops
+--                        reply_read), the rows keyed; 00517 builds the one index over it, online, and 00518 drops
 --                        jobs_email_ingest_uq, jobs_lead_collect_once and jobs_reply_read_once (decision 0033, step 3).
 --   jobs_guard           a job that threw and waits to be tried again goes back to scheduled, its attempts kept: fired
 --                        means running. Cancel, withdraw and an erasure's cancel reach a waiting retry as they reach any
@@ -27,7 +27,7 @@
 --   job_kind_pause       the incident lever: a kind paused is never claimed; its rows wait, and run when it resumes.
 --   jobs_ledger_now      what Health reads: running, due, waiting and expired by lane, the oldest due, each kind's day.
 --
--- Deploy order: this migration, 00507, 00508 and 00509 first, in order, then the apps (packages/jobs no longer writes a key; the trigger does). Re-runnable.
+-- Deploy order: this migration, 00516, 00517 and 00518 first, in order, then the apps (packages/jobs no longer writes a key; the trigger does). Re-runnable.
 
 set local lock_timeout = '3s';
 
@@ -46,7 +46,7 @@ alter table public.job_kinds enable row level security;
 revoke all on public.job_kinds from anon, authenticated;
 grant all on public.job_kinds to service_role;
 comment on table public.job_kinds is
-  'One row a job kind (00506, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role''s alone.';
+  'One row a job kind (00515, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role''s alone.';
 comment on column public.job_kinds.once_parts is
   'The parts of the once-only key after the kind, in order: a payload field; @tenant for the workspace; field=default for a field that defaults; field? for one added only when present. A required field the payload does not name gives no key. Null: the kind has no rule ({} is a rule: the kind alone, held once).';
 comment on column public.job_kinds.once_kept is
@@ -141,7 +141,7 @@ end $$;
 revoke all on function public.job_dedupe_key_of(text, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.job_dedupe_key_of(text, uuid, jsonb) to service_role;
 comment on function public.job_dedupe_key_of(text, uuid, jsonb) is
-  'The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00506), or null when it carries none. The one spelling of the rule.';
+  'The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00515), or null when it carries none. The one spelling of the rule.';
 
 create or replace function public.jobs_take_their_kind()
 returns trigger
@@ -173,8 +173,8 @@ create trigger jobs_take_their_kind before insert on public.jobs
   for each row execute function public.jobs_take_their_kind();
 
 -- The kinds held while kept: the rows the three bespoke indexes held, keyed now. The one index for all of them is built
--- online in a file of its own (00508: jobs takes a write for every send and every webhook), and the three go once it
--- holds (00509); until then they hold these rows as they did.
+-- online in a file of its own (00517: jobs takes a write for every send and every webhook), and the three go once it
+-- holds (00518); until then they hold these rows as they did.
 update public.jobs j
    set dedupe_key  = coalesce(j.dedupe_key, public.job_dedupe_key_of(j.kind, j.tenant_id, j.payload)),
        dedupe_kept = true
@@ -198,7 +198,7 @@ begin
     if OLD.state = 'scheduled' and NEW.state not in ('fired', 'canceled') then
       raise exception 'a scheduled job may only be fired or canceled (% refused)', NEW.state;
     end if;
-    -- A run that threw puts its job back to wait for its next try (00506), with its claims counted as they were, or one
+    -- A run that threw puts its job back to wait for its next try (00515), with its claims counted as they were, or one
     -- fewer for a run that never started (a kind this runner did not know): the next claim counts on from there.
     if OLD.state = 'fired' and NEW.state = 'scheduled' and NEW.attempts > OLD.attempts then
       raise exception 'a job put back to wait keeps its attempts (% -> % refused)', OLD.attempts, NEW.attempts;
@@ -210,7 +210,7 @@ begin
   return NEW;
 end $$;
 comment on function public.jobs_guard() is
-  'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00506); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+  'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00515); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
 
 /* -------------------------------------------------------------------------------- 4. the claim -- */
 
@@ -262,7 +262,7 @@ $$;
 revoke all on function public.claim_due_jobs(integer, integer) from public, anon, authenticated;
 grant execute on function public.claim_due_jobs(integer, integer) to service_role;
 comment on function public.claim_due_jobs(integer, integer) is
-  'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a paused kind is left where it is (00506). Takes back a fired row whose lease ran out with attempts + 1.';
+  'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a paused kind is left where it is (00515). Takes back a fired row whose lease ran out with attempts + 1.';
 
 drop table if exists public.job_capacity;
 
@@ -329,7 +329,7 @@ as $$
      and not exists (select 1 from public.job_kinds k where k.kind = j.kind and k.paused_at is not null);
 $$;
 comment on function public.jobs_backlog(interval) is
-  'How many jobs the claim could take and has not for longer than p_wait (default two minutes): scheduled rows past their due time and fired rows past their lease (00506), a paused kind''s left out (Health names those). Zero when the heartbeat is draining.';
+  'How many jobs the claim could take and has not for longer than p_wait (default two minutes): scheduled rows past their due time and fired rows past their lease (00515), a paused kind''s left out (Health names those). Zero when the heartbeat is draining.';
 revoke execute on function public.jobs_backlog(interval) from public, anon, authenticated;
 grant execute on function public.jobs_backlog(interval) to service_role;
 
@@ -340,7 +340,7 @@ alter table public.sweep_status drop constraint if exists sweep_status_judged_by
 alter table public.sweep_status add constraint sweep_status_judged_by_check
   check (judged_by in ('request', 'run', 'job'));
 comment on column public.sweep_status.kind is
-  'For a clock judged by job (00506): the job kind whose newest done row says whether the ledger is running its work.';
+  'For a clock judged by job (00515): the job kind whose newest done row says whether the ledger is running its work.';
 
 create or replace function public.schedule_canary()
 returns void
@@ -360,7 +360,7 @@ as $$
 $$;
 revoke all on function public.schedule_canary() from public, anon, authenticated;
 comment on function public.schedule_canary() is
-  'Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00506). pg_cron calls it every minute (jobs-canary).';
+  'Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00515). pg_cron calls it every minute (jobs-canary).';
 
 select cron.unschedule('jobs-canary') where exists (select 1 from cron.job where jobname = 'jobs-canary');
 select cron.schedule('jobs-canary', '* * * * *', $$select public.schedule_canary()$$);
@@ -420,7 +420,7 @@ as $$
            ok.at                                  as last_ok,
            lt.status                              as last_status,
            lt.message                             as last_message,
-           -- Judged by job (00506): when the newest row of its kind was done, and whether any workspace of ours is
+           -- Judged by job (00515): when the newest row of its kind was done, and whether any workspace of ours is
            -- there for the clock to schedule it in.
            case when e.judged_by = 'job' then
              (select max(d.updated_at) from public.jobs d where d.kind = e.kind and d.state = 'done')
@@ -447,7 +447,7 @@ as $$
         when not o.job_active then
           'the cron job ' || o.jobname || ' is disabled'
 
-        -- Judged by the work it puts on the ledger: its newest done row (00506).
+        -- Judged by the work it puts on the ledger: its newest done row (00515).
         when o.judged_by = 'job' and not coalesce(o.job_watched, false) then
           null
         when o.judged_by = 'job' and o.max_silence is null then
@@ -543,7 +543,7 @@ end $$;
 revoke all on function public.job_kind_pause(text, text) from public, anon, authenticated;
 grant execute on function public.job_kind_pause(text, text) to service_role;
 comment on function public.job_kind_pause(text, text) is
-  'Pauses a job kind (00506): no claim takes its rows until it is resumed, and they wait where they are. The reason is the operator''s, said on Health. Answers {kind, paused_at} or {error: no_reason | unknown_kind}. The Console''s act, on the service role.';
+  'Pauses a job kind (00515): no claim takes its rows until it is resumed, and they wait where they are. The reason is the operator''s, said on Health. Answers {kind, paused_at} or {error: no_reason | unknown_kind}. The Console''s act, on the service role.';
 
 create or replace function public.job_kind_resume(p_kind text)
 returns jsonb
@@ -566,7 +566,7 @@ end $$;
 revoke all on function public.job_kind_resume(text) from public, anon, authenticated;
 grant execute on function public.job_kind_resume(text) to service_role;
 comment on function public.job_kind_resume(text) is
-  'Resumes a paused job kind (00506) and asks the tick for what waited. Answers {kind, resumed} or {error: unknown_kind}. The Console''s act, on the service role.';
+  'Resumes a paused job kind (00515) and asks the tick for what waited. Answers {kind, resumed} or {error: unknown_kind}. The Console''s act, on the service role.';
 
 /* ---------------------------------------------------------------------------- 8. what Health reads -- */
 
@@ -611,4 +611,4 @@ $$;
 revoke all on function public.jobs_ledger_now() from public, anon, authenticated;
 grant execute on function public.jobs_ledger_now() to service_role;
 comment on function public.jobs_ledger_now() is
-  'What the Console''s Health draws of the ledger now (00506): by lane, how many run, are due, wait for a retry and ran past their lease, and the oldest due in seconds; by kind, its lane, its pause and its last day''s failed and done; when the canary last finished. The service role''s alone.';
+  'What the Console''s Health draws of the ledger now (00515): by lane, how many run, are due, wait for a retry and ran past their lease, and the oldest due in seconds; by kind, its lane, its pause and its last day''s failed and done; when the canary last finished. The service role''s alone.';

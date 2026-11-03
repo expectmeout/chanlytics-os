@@ -44,7 +44,7 @@ export const CLOCKS = {
   },
   jobs_canary: {
     kind: "judge",
-    why: "puts the ledger's own job on it every minute, and is judged by the newest one done: the whole loop proved from outside (00506, decision 0089)",
+    why: "puts the ledger's own job on it every minute, and is judged by the newest one done: the whole loop proved from outside (00515, decision 0089)",
   },
   leads: { kind: "reconcile", why: "takes up lead runs whose start or lease was lost" },
   lines: {

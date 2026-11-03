@@ -176,7 +176,7 @@ function staleAfterOf(p: SendQueuedCommand["payload"]): number | null {
 }
 
 /**
- * Where the words go: the address frozen on the row (meta.to, 00507), else the payload's, an older writer's, kept for
+ * Where the words go: the address frozen on the row (meta.to, 00516), else the payload's, an older writer's, kept for
  * either deploy order. A job that says neither was scheduled wrongly: it fails, and the tick settles the row and tells
  * the owner.
  */

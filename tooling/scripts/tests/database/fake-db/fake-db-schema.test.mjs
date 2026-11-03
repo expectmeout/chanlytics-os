@@ -60,7 +60,7 @@ test("a value outside a CHECK's set is 23514, one outside a table's rows is its 
   const r = await db.from("contacts").insert({ tenant_id: T, consent: "maybe" });
   assert.equal(code(r), "23514");
   assert.match(r.error.message, /violates check constraint "contacts_consent_check"/);
-  // jobs.kind references job_kinds (00506): a kind with no row there is the foreign key's refusal, as Postgres says it.
+  // jobs.kind references job_kinds (00515): a kind with no row there is the foreign key's refusal, as Postgres says it.
   const kind = await db
     .from("jobs")
     .insert({ tenant_id: T, kind: "a_kind_with_no_handler", due_at: "2026-09-29T12:00:00Z" });
@@ -115,7 +115,7 @@ test("a partial key's predicate sees the default of a column a row leaves out: t
   assert.equal((await db.from("jobs").insert(job)).error, null);
   const again = await db.from("jobs").insert(job);
   assert.equal(code(again), "23505");
-  // Both the live key and the kept one (00333, 00508) hold it; Postgres names the one it checks first, its older index.
+  // Both the live key and the kept one (00333, 00517) hold it; Postgres names the one it checks first, its older index.
   assert.match(again.error.message, /"jobs_dedupe_live"/, "the key the database names: its indexes in the order made");
   // a job that failed is outside the key's predicate, whether its state is sent or is the default
   assert.equal((await db.from("jobs").insert({ ...job, state: "failed" })).error, null);

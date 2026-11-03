@@ -57,7 +57,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // sweep of the mailboxes a business connected (decision 0056).
   // 00486 added 'instagram_tokens', the daily refresh of each connected Instagram account's token (decision 0001, step 8).
   // 00497 added 'previews', the hourly end of each lead's preview past its thirty days (decision 0079).
-  // 00506 added 'jobs_canary', the ledger's own job every minute, judged by its newest done row (decision 0089).
+  // 00515 added 'jobs_canary', the ledger's own job every minute, judged by its newest done row (decision 0089).
   assert.deepEqual(
     data.map((r) => r.sweep),
     [

@@ -665,7 +665,7 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
       reply_to: asked,
       to: CUSTOMER,
     },
-    "the row remembers the answer, the instruction, what it replaced, the message it answers, and where it goes (00507): a second steer reads it",
+    "the row remembers the answer, the instruction, what it replaced, the message it answers, and where it goes (00516): a second steer reads it",
   );
   const old = tables.messages.find((m) => m.id === w.M);
   assert.deepEqual([old.status, old.error], ["canceled", { reason: "steered", replaced_by: draft.id }]);
@@ -688,7 +688,7 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
   const due = Date.parse(send.due_at) - Date.now();
   assert.ok(due > 40_000 && due <= 45_000, `due in ${due}ms: the old draft's own delay`);
   // The order is the safety: queued first, retired second, so a failure between the two leaves ONE draft standing, never none.
-  // Queued with its job in one statement (00507 queue_send), so the draft never stands without its send.
+  // Queued with its job in one statement (00516 queue_send), so the draft never stands without its send.
   const inserted = db.seen.findIndex((s) => s.rpc === "queue_send");
   const retired = db.seen.findIndex((s) => s.rpc === "withdraw_queued" && s.args.p_message_ids.includes(w.M));
   assert.ok(inserted >= 0 && retired > inserted, "the new draft is queued before the old one is retired");

@@ -112,7 +112,7 @@ test("EVERY path where a human takes control withdraws the draft", () => {
 test("a veto draft and its job are written in one statement, so neither is ever left without the other", () => {
   // The row used to be written before the job. A scheduling failure left it `queued` while the caller sent the same
   // words immediately, and a run killed between the two left a reply nothing would send, found only by the deadman ten
-  // minutes later. queue_send (00507) writes both or neither (jobs/a-send-is-queued-with-its-job.db.test.mjs runs it);
+  // minutes later. queue_send (00516) writes both or neither (jobs/a-send-is-queued-with-its-job.db.test.mjs runs it);
   // the writer is lib/draft-queue.ts, one for the handler and the steer.
   const queue = readCode("apps/edge/lib/receptionist/draft-queue.ts");
   const fn = queue.slice(queue.indexOf("export async function queueDraft"));

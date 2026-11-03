@@ -1374,7 +1374,7 @@ Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds afte
 intake, the lead finder, a phone told. pg_cron asks every two seconds whether one is due and calls `api/jobs/tick` at once
 for a row that just came due, and every ten seconds for the rest of the ledger; a tick runs up to three at once
 (`CLAIM_SLOTS`). The claim takes a reply first, then someone waiting who is not a customer, then bulk, each workspace
-taking its turn in each lane (decision 0018). Each kind's lane and once-only rule is its row in `job_kinds` (00506); a
+taking its turn in each lane (decision 0018). Each kind's lane and once-only rule is its row in `job_kinds` (00515); a
 job that threw waits `scheduled` for its next try, so `fired` always means running (decision 0089).
 
 ### When the ledger pages

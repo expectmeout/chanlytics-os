@@ -58,7 +58,7 @@ export interface FailedJobDto {
   updated_at: string;
 }
 
-/** One lane of the ledger now (jobs_ledger_now, 00506): how many run, are due, wait for a retry and ran past their lease. */
+/** One lane of the ledger now (jobs_ledger_now, 00515): how many run, are due, wait for a retry and ran past their lease. */
 export interface LedgerLaneDto {
   lane: number;
   running: number;
@@ -87,7 +87,7 @@ export const LEDGER_LANE_WORDS: Record<number, string> = {
   [-1]: "No lane",
 };
 
-/** What the ledger holds now (00506): by lane, by kind, and when its own canary last finished. */
+/** What the ledger holds now (00515): by lane, by kind, and when its own canary last finished. */
 export interface LedgerNowDto {
   lanes: LedgerLaneDto[];
   kinds: LedgerKindDto[];
@@ -120,7 +120,7 @@ export interface HealthDto {
   clocks: HealthClockDto[] | null;
   backlog: number | null;
   failed_jobs: FailedJobDto[] | null;
-  /** The ledger now (jobs_ledger_now, 00506); absent from a server before it. */
+  /** The ledger now (jobs_ledger_now, 00515); absent from a server before it. */
   ledger?: LedgerNowDto | null;
   pages: OperatorPageDto[] | null;
   /** The nightly roll-up's days (platform_metrics), the window's. */

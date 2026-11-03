@@ -36,7 +36,7 @@ export interface SendQueuedPorts {
     /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
     leadId?: string | null;
     /**
-     * Where it goes, frozen on the row when it was queued (meta.to, 00507 queue_send): read before the payload's, so the
+     * Where it goes, frozen on the row when it was queued (meta.to, 00516 queue_send): read before the payload's, so the
      * ledger needs no copy of a person's address (decision 0089). Absent on a row queued before it.
      */
     to?: string | null;

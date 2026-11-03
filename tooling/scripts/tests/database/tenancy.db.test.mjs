@@ -1027,7 +1027,7 @@ const OTHER_TABLES = {
   rate_hits: "none",
   sweep_status: "none",
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
-  job_kinds: "none", // each job kind's lane, once-only rule and pause (00506): platform-wide rows, the service role's alone
+  job_kinds: "none", // each job kind's lane, once-only rule and pause (00515): platform-wide rows, the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()

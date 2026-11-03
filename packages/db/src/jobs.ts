@@ -39,7 +39,7 @@ export async function readJobToRequeue(db: Db, tenantId: string, jobId: string):
 
 /**
  * Whether the ledger already holds a copy of this failed job that is not itself failed: the copy names the job it is a
- * copy of (payload.requeue_of, 00506), so a second press, or a second person, finds it and does not run the work twice.
+ * copy of (payload.requeue_of, 00515), so a second press, or a second person, finds it and does not run the work twice.
  * It used to be found by its payload's equality with the failed one's, which a copy made inside a request never had: the
  * request's name rode on its payload.
  */
@@ -228,7 +228,7 @@ export async function failQueuedSend(
 }
 
 /**
- * A queued reply and its outbound_send job, written together or not at all (00507 queue_send): the receptionist's held
+ * A queued reply and its outbound_send job, written together or not at all (00516 queue_send): the receptionist's held
  * draft used to be written, then its job, and a run killed between the two left a reply nothing would send. The address
  * is frozen on the row (meta.to), where the send reads it first. Answers the message's id; throws when nothing was
  * written.
@@ -266,7 +266,7 @@ export async function queueSend(
   return data;
 }
 
-/** The kinds an operator paused (job_kinds.paused_at, 00506), with since when and why: the health sweep pages each. */
+/** The kinds an operator paused (job_kinds.paused_at, 00515), with since when and why: the health sweep pages each. */
 export async function pausedJobKinds(
   db: Db,
 ): Promise<{ kind: string; paused_at: string; paused_why: string | null }[]> {

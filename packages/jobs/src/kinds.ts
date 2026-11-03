@@ -1,6 +1,6 @@
 /**
  * Each kind of job, as the ledger treats it, declared once (decision 0089). The database holds the rest of a kind in its
- * job_kinds row (00506: its lane and its once-only key), and jobs/job-kinds.test.mjs holds the two equal; the handler is
+ * job_kinds row (00515: its lane and its once-only key), and jobs/job-kinds.test.mjs holds the two equal; the handler is
  * HANDLERS' (handlers.ts) and the owner's words JOB_WORK's (contracts), each a Record over JOB_KINDS, so a kind added to
  * contracts without its policy here does not build.
  *
@@ -204,7 +204,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
   },
   // A text answered after its acknowledgement (00347): one more try; the deadman hands a message nobody answered to a
   // person with the customer's words. Its payload carries the provider's message, from which the whole inbound phase runs
-  // again: an erasure cancels and scrubs it while it waits, a retry waiting included, now that one is scheduled (00506).
+  // again: an erasure cancels and scrubs it while it waits, a retry waiting included, now that one is scheduled (00515).
   inbound_answer: {
     speaks: false,
     retryWaitsMs: ONCE,
@@ -259,7 +259,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["contact_id"],
     never: [],
   },
-  // The ledger's own proof that it runs (00506): it does nothing, and Health says when it stops finishing.
+  // The ledger's own proof that it runs (00515): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,
     retryWaitsMs: NEVER,

@@ -1,9 +1,9 @@
 # 0033 · The ledger wakes when a due row is written, and the claim counts capacity
 
 **Status:** Built, all four steps. Steps 1, 2 and 4 on 6 October 2026 (00333 and 00335): the wake, the dedupe key,
-capacity and turns in the claim. Step 3 on 3 November 2026 (00506, 00508 and 00509, decision 0089): one index holds the kinds whose
+capacity and turns in the claim. Step 3 on 3 November 2026 (00515, 00517 and 00518, decision 0089): one index holds the kinds whose
 subject is kept once (`jobs_dedupe_kept`), and the three bespoke indexes went; the key is written by the database from
-each kind's job_kinds row, whoever inserts. Capacity went with it (00506): nothing ever wrote a `job_capacity` row, and
+each kind's job_kinds row, whoever inserts. Capacity went with it (00515): nothing ever wrote a `job_capacity` row, and
 the reach-out sender's own per-domain count it waited on had gone when its sends became jobs. Decided on 6 October 2026
 (Ruben: "all approved"), with 0031, and proposed the same day. Written against commit `b9a4d5c` (main, 5 October 2026).
 Where this note and the code disagree, the code wins.

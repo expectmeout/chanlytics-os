@@ -1,7 +1,7 @@
 /**
  * A job kind is declared once a side (decision 0089): its policy in packages/jobs (KIND_POLICY), its handler (HANDLERS),
  * its settler (SETTLERS) and its owner's words (contracts JOB_WORK), each a Record over JOB_KINDS, and its lane and
- * once-only rule in its job_kinds row (00506). These hold the two sides, and the database in memory, to one another,
+ * once-only rule in its job_kinds row (00515). These hold the two sides, and the database in memory, to one another,
  * so a kind cannot arrive half-declared, and a rule cannot be spelled two ways.
  */
 import { test } from "node:test";
@@ -58,7 +58,7 @@ test("the database in memory holds each kind as the migration seeds it: its lane
     assert.deepEqual(
       FAKE_JOB_KINDS[kind],
       seeded.get(kind),
-      `${kind}: _fake-db.mjs FAKE_JOB_KINDS against 00506's seed`,
+      `${kind}: _fake-db.mjs FAKE_JOB_KINDS against 00515's seed`,
     );
 });
 

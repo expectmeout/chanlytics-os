@@ -3,7 +3,7 @@
  * claim_due_jobs) runs whatever is due, so there is no second system to tell,
  * no publish that can be lost after the row is written, and no orphan to clean
  * up. Service-role territory (§8): never called with a session client. The database writes each row's lane and its
- * once-only key from its kind's job_kinds row (00506), so a SQL function's insert and this one are held alike.
+ * once-only key from its kind's job_kinds row (00515), so a SQL function's insert and this one are held alike.
  *
  * A job scheduled while a request is being served carries that request's name
  * in its payload (`request_id`), and the tick runs the job under it: a click's
@@ -58,7 +58,7 @@ function idsOnly(kind: string, payload: Json): Json {
 }
 
 /**
- * The row an insert writes. Its once-only key and its lane are the database's to write (jobs_take_their_kind, 00506:
+ * The row an insert writes. Its once-only key and its lane are the database's to write (jobs_take_their_kind, 00515:
  * the kind's job_kinds row), whoever the writer is: this, the fifteen SQL functions that insert jobs, and a Console
  * requeue are held alike, and the rule is spelled once.
  */

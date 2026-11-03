@@ -362,7 +362,7 @@ export function refusedRow(schema, table, row, { insert }) {
   for (const [col, v] of Object.entries(row)) {
     const set = schema.sets[`${table}.${col}`];
     if (!set || v === null || set.includes(v)) continue;
-    // A set a table's rows hold (jobs.kind, job_kinds: 00506) is refused by its foreign key, as Postgres refuses it.
+    // A set a table's rows hold (jobs.kind, job_kinds: 00515) is refused by its foreign key, as Postgres refuses it.
     const fk = rel.relationships?.find((r) => r.columns.length === 1 && r.columns[0] === col);
     if (fk)
       return refusal(

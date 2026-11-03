@@ -1,5 +1,5 @@
 /**
- * The ledger's rules held by the database itself (00506, decision 0089), on this machine's Postgres: the state machine
+ * The ledger's rules held by the database itself (00515, decision 0089), on this machine's Postgres: the state machine
  * (jobs_guard) pair by pair; the once-only key and the lane each kind's job_kinds row writes, whoever inserts; a kind
  * held while kept; a waiting retry back to scheduled and claimed again counting on; a run whose lease was taken back
  * unable to finish the row; the canary scheduled once and judged; the backlog counting a lease that ran out; and claims
