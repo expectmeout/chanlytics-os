@@ -8814,7 +8814,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00530 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
 
 --
