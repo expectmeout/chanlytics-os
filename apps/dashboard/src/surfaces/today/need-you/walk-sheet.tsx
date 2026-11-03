@@ -41,7 +41,9 @@ interface WalkSheetProps {
   /** What every row's work is handed, as the page hands it. */
   work: Omit<WorkProps, "row" | "main">;
   word: AppointmentWord;
-  /** To do's rows, which the end offers to go on to. */
+  /** A step's Done, as To do marks it (zones/to-do.tsx): its toast and its Undo are the page's. */
+  stepDone: (row: TodayQueueRowVM) => void;
+  /** The to-dos the walk does not step into (the reviews, those past To do's cap), which the end offers to go on to. */
   todos: number;
   onToDo: () => void;
 }
@@ -129,7 +131,7 @@ function LastSend({ row }: { row: TodayQueueRowVM }) {
   );
 }
 
-export function WalkSheet({ rows, at, onAt, kept, work, word, todos, onToDo }: WalkSheetProps) {
+export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, onToDo }: WalkSheetProps) {
   const [footEl, setFootEl] = useState<HTMLElement | null>(null);
   // The row before the one in view, where the walk moved on from it: its send counts down at the top.
   const [last, setLast] = useState<string | null>(null);
@@ -244,7 +246,19 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, todos, onToDo }: W
       {lastRow && lastRow.id !== row.id ? <LastSend row={lastRow} /> : null}
       <div className="ny-walk-body" key={row.id} {...swipe}>
         {row.sentence ? <Quote what={W.walk.their} text={row.quoted ? `“${row.sentence}”` : row.sentence} /> : null}
-        {workOf(row, { ...work, main: "primary", foot: footEl }, { word, stepDone: () => undefined })}
+        {workOf(
+          row,
+          { ...work, main: "primary", foot: footEl },
+          {
+            word,
+            // A step marked done leaves the rows at once, as on the page: the walk goes on to the next one still open first,
+            // never to its end while rows follow.
+            stepDone: () => {
+              onAt(nextOpen(rows, kept, row.id));
+              stepDone(row);
+            },
+          },
+        )}
         <ChangeWithAsk row={row} may={work.may} />
       </div>
     </Sheet>

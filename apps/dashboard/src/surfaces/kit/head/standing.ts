@@ -34,9 +34,19 @@ interface Standing {
    * 2026: Listen ended the sentence and stood a capsule's height over its second line).
    */
   beside?: ReactNode;
+  /**
+   * What stands under the sentence, as quiet as it, and opens in place: Today's line of what happened since you last looked
+   * (Today in three zones, 2 Nov 2026). Nothing where the page says nothing there.
+   */
+  after?: ReactNode;
   /** The way back, above the name on a desk and in the date's place on a phone: the crumb before the last where unsaid; null
    *  for none. */
   back?: BackWay | null;
+  /**
+   * On a phone, the date says the hour too, its day short ("Tue, Nov 3 · 8:05 AM"), where every other page's phone date is
+   * the day alone: Today's (the Today canvas of 2 Nov 2026), whose head is the day's own moment.
+   */
+  dateHour?: boolean;
   /**
    * What a phone's top bar says at its centre once the page's own head has scrolled away (a person's name and the dot
    * of their state, canvas A's hand-off); none while the head is on screen, and none on a desk.
@@ -81,6 +91,8 @@ export interface StripAt {
  */
 export interface HeadFirst {
   title: string;
+  /** The phone's date with its hour (Standing `dateHour`), as the page will say it: one date from the first draw. */
+  dateHour?: boolean;
 }
 
 /** The head as it stands over a page: what the page said, the crumbs, and the strip of views, or none. */
@@ -158,11 +170,14 @@ export const standingSaid = (): Standing | null => standingNow();
  * draws its own head (`ownHead`, headOwn), and what its address says the page will say (`head`, HeadFirst).
  */
 export function crumbsShown(shown: readonly ShownCrumb[], ownHead = false, head: HeadFirst | null = null): void {
-  const same = head ? !!headFirst && headFirst.title === head.title : headFirst === null;
+  const same = head
+    ? !!headFirst && headFirst.title === head.title && !!headFirst.dateHour === !!head.dateHour
+    : headFirst === null;
   if (shown === crumbs && ownHead === headOwn && same) return;
   crumbs = shown;
   headOwn = ownHead;
-  if (!same) headFirst = head ? { title: head.title, stacked: true } : null;
+  if (!same)
+    headFirst = head ? { title: head.title, stacked: true, ...(head.dateHour ? { dateHour: true } : {}) } : null;
   tellStandingWatchers();
 }
 

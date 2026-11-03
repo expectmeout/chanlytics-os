@@ -8,6 +8,7 @@
  * in its zone (calendar/zone-math.ts), never the device's.
  */
 import { clockInZone, dayPlusInZone, localToUtcMs } from "../calendar/zone-math";
+import { shortName } from "../conversations/thread-contact";
 import { HOUR_MS } from "../shared/time";
 
 /** Seconds in a minute, for a countdown said in minutes. */
@@ -89,20 +90,41 @@ export const NEED_YOU_WORDS = {
   more: (n: number) => `${n} more in the Inbox`,
   seeAll: "See all",
   /**
-   * Need you's groups (the redesign of 1 Nov 2026, need-you-groups.ts): the one thing to do first, who waits on you, what
-   * waits for your OK or your answer, and who has waited past a week, folded at the end.
+   * What Need you could not hold, said at its foot beside See all (Today in three zones, 2 Nov 2026): the people past the
+   * five drawn, what waits for your OK past its three, your own to-dos past theirs.
    */
-  group: { next: "Up next", waiting: "Waiting on you", ok: "To decide", old: "Over a week" },
-  /** The strip that cuts Need you by what each row asks of you, and its name to a screen reader. */
-  filter: { label: "Need you, by what it asks of you", all: "All", reply: "Reply", call: "Call", approve: "Approve" },
+  cut: {
+    waiting: (n: number) => `${n} more waiting`,
+    ok: (n: number) => `${n} more to decide`,
+    todo: (n: number) => `${n} more to do`,
+  },
+  /**
+   * Need you's groups (Today in three zones, 2 Nov 2026, need-you-groups.ts): the one thing to do first, who waits on you,
+   * what waits for your OK or your answer, your own to-dos, and who has waited past a week, one row at the end.
+   */
+  group: { next: "Up next", waiting: "Waiting on you", ok: "To decide", todo: "To do", old: "Older" },
   /** How many need you, as the head says it before anything else: the badge's number. */
   count: (n: number) => (n === 1 ? "1 needs you." : `${n} need you.`),
   /** The same count said after a line that is down, which leads. */
   countAsWell: (n: number) => (n === 1 ? "1 needs you as well." : `${n} need you as well.`),
-  /** Every row past a week marked done at once, asked first: they leave Need you until they write again. */
+  /** How many rows were dealt with today, by the door: what clearing the list came to. */
+  doneToday: (n: number) => `${n} done today`,
+  /** Ends the head's sentence once nobody is left waiting on you (todayHeadLine). */
+  end: "That's everyone.",
+  /** A reply of yours that never reached them: what the row says, what its card is headed by, and its one press. */
+  failed: {
+    sentence: "Your reply didn't reach them.",
+    wire: "The line didn't take it.",
+    why: "your reply didn't reach them",
+    what: "Your words",
+    kept: "kept",
+    retry: "Try again",
+  },
+  /** Whoever has waited past a week, as one row at the end: how many, and who. */
+  older: { row: (n: number) => `${n} over a week` },
+  /** Every row past a week marked done at once, with one Undo: they leave Need you until they write again. */
   oldDone: {
     act: "Mark all done",
-    question: (n: number) => (n === 1 ? "Mark this one done?" : `Mark all ${n} done?`),
     detail: "They leave Need you. A new message from them brings them back.",
     yes: "Mark done",
     done: (n: number) => (n === 1 ? "Marked done" : `${n} marked done`),
@@ -342,18 +364,21 @@ const oneOrCount = (n: number, one: string, many: string) => `${n === 1 ? "a" : 
 
 /**
  * What the head says after how many need you (the redesign of 1 Nov 2026): what Ask prepared, then the one thing that
- * cannot wait, in one sentence ("Ask drafted 3 replies, and Dana's reply window closes at 11:52 AM."). A reply that goes
+ * cannot wait, in one sentence ("Ask drafted 3 replies, and Dana's window closes at 11:52 AM."). A reply that goes
  * on its own leads, since it goes in minutes, before a window that closes in hours. Null when Ask prepared nothing,
  * writes nothing and nothing closes: the head says the count alone, and the rows say the rest.
  */
 export function needYouSay(f: NeedYouSayFacts): string | null {
-  const held = f.held ? `Your receptionist answers ${f.held.who} on its own unless you stop it.` : "";
+  // A first name, as the canvas says them ("Sofia's window"), a number or an address whole (thread-contact.ts shortName);
+  // a time that is tomorrow's says so before it.
+  const when = (at: string) => (/^tomorrow /i.test(at) ? at.replace(/^tomorrow /i, "tomorrow at ") : `at ${at}`);
+  const held = f.held ? `Your receptionist answers ${shortName(f.held.who)} on its own unless you stop it.` : "";
   const ready = [
     f.replies ? oneOrCount(f.replies, "reply", "replies") : "",
     f.briefs ? oneOrCount(f.briefs, "call brief", "call briefs") : "",
   ].filter(Boolean);
   const drafted = ready.length ? `Ask drafted ${ready.join(" and ")}` : f.writing ? "Ask is drafting your replies" : "";
-  const window = f.firstWindow ? `${f.firstWindow.who}'s reply window closes at ${f.firstWindow.at}` : "";
+  const window = f.firstWindow ? `${shortName(f.firstWindow.who)}'s window closes ${when(f.firstWindow.at)}` : "";
   const then = drafted && window ? `${drafted}, and ${window}.` : drafted || window ? `${drafted || window}.` : "";
   return [held, then].filter(Boolean).join(" ") || null;
 }

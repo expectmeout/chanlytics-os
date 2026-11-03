@@ -3,12 +3,10 @@ import { PREFETCH_OPEN, REPORT_PERIOD_IDS } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
 import { openPage, type OpenRead } from "@/server/workspace/page-open";
 import { GET as workspaces } from "../workspaces/route";
-import { GET as metrics } from "../metrics/route";
+import { GET as today } from "../today/route";
 import { GET as conversations } from "../conversations/route";
 import { GET as escalations } from "../escalations/route";
 import { GET as calls } from "../calls/route";
-import { GET as leadSearches } from "../lead-searches/route";
-import { GET as leadPreviews } from "../lead-previews/route";
 import { GET as setup } from "../setup/route";
 import { GET as views } from "../views/route";
 import { GET as calendar } from "../calendar/route";
@@ -42,12 +40,11 @@ import { GET as templates } from "../templates/route";
  */
 const READS: ReadonlyMap<string, OpenRead> = new Map<string, OpenRead>([
   ["workspaces", workspaces],
-  ["metrics", metrics],
+  // Today's day whole, its one read (GET today, Today in three zones, 2 Nov 2026).
+  ["today", today],
   ["conversations", conversations],
   ["escalations", escalations],
   ["calls", calls],
-  ["lead-searches", leadSearches],
-  ["lead-previews", leadPreviews],
   ["setup", setup],
   ["views", views],
   ["calendar", calendar],

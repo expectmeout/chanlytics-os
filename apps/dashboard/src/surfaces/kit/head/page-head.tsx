@@ -2,7 +2,8 @@
  * The kit's page head (kit.css, "Page head"): what a canvas puts above a page in Glass, the date and time in the
  * business's zone in the mono face, the page's name, and beside it the one sentence that says where the page stands
  * ("4 need you · the oldest since 2:26 PM"). The name is the page's h1: the frame's focus goes to it as a page opens.
- * Where the page has one quiet act of its own (Today's Listen), it stands after the name on its line (`beside`).
+ * Where the page has one quiet act of its own (Today's Listen), it stands after the name on its line (`beside`); where it
+ * says what happened since the member last looked (Today's), that stands under the sentence (`after`).
  *
  * It draws what the gallery's Page head family draws (tooling/scripts/e2e-harness/kit-gallery.mjs). `className` is for
  * the page's layout, and comes last.
@@ -21,10 +22,12 @@ interface PageHeadProps {
   stacked?: boolean;
   /** The page's one quiet act, after the name on its line (Today's Listen); a phone's frame stands it beside the bell. */
   beside?: ReactNode;
+  /** What stands under the sentence, as quiet as it, and opens in place (Today's Since you looked). */
+  after?: ReactNode;
   className?: string;
 }
 
-export function PageHead({ dateline, title, sentence, stacked, beside, className }: PageHeadProps) {
+export function PageHead({ dateline, title, sentence, stacked, beside, after, className }: PageHeadProps) {
   const name = <h1 className="pg-title">{title}</h1>;
   return (
     <header className={cx("pg-head", stacked && "pg-head-stacked", className)}>
@@ -39,6 +42,7 @@ export function PageHead({ dateline, title, sentence, stacked, beside, className
           name
         )}
         {sentence ? <p className="pg-sentence">{sentence}</p> : null}
+        {after ? <div className="pg-after">{after}</div> : null}
       </div>
     </header>
   );

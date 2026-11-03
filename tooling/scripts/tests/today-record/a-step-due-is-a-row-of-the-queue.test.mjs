@@ -5,9 +5,10 @@
  * call, canvas E3) without re-homing the steps, and #1367 retired the Classic look that still drew them: an overdue follow-up was
  * found by opening People, never by opening Today. The steps came back as a row type in the queue's own grammar: the person and
  * the step's words, the step's day, the person opened by the row, and Done, the verb the Inbox's thread header already has.
- * Three at most, the oldest first, then one row opening People's Steps due for the rest. Since the redesign of 1 Nov 2026 they
- * are To do's, on a desk as on a phone: a line at Need you's foot that counts them and opens them in place, closed while
- * someone waits on you and open from the start where nobody does, never in the count of who needs you.
+ * Three at most, the oldest first, then one row opening People's Steps due for the rest. Since Today in three zones (2 Nov
+ * 2026) they are To do's, a group of Need you under the people waiting, on a desk as on a phone: three drawn across the
+ * steps, the visits and the reviews, how many by its name, the rest said at Need you's foot, whose See all opens People's
+ * Steps due where only to-dos were left out; never in the count of who needs you.
  *
  * Run on the contracts (withSteps over the queue toTodayVM built), on the queue drawn on the stub React with the verb it presses,
  * and on the real People surface for what makes the rows follow a step done anywhere.
@@ -46,7 +47,7 @@ installLegacyReact({
   __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const W = globalThis.window;
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 // The seam's own signal, from the module the TSX reads it through: a surface's rows landed.
 const { surfaceMoved: surfaceLanded } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
@@ -208,19 +209,12 @@ test("the steps sit after everyone waiting on a person and before a call worth a
 const buttons = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const draw = () => {
   fresh();
-  return W.React.createElement(AgentCommand, {});
+  return W.React.createElement(NeedYou, {});
 };
 const queueOf = (tree) => byTestId(tree, "today-queue");
-const lineOf = (tree) => byTestId(queueOf(tree), "today-todo-line");
-/** The queue with To do opened: its line pressed where it stood closed, and the queue drawn again. */
-const drawOpen = () => {
-  const tree = draw();
-  if (lineOf(tree) && !byTestId(queueOf(tree), "today-todo")) {
-    press(byTestId(lineOf(tree), "today-todo-open"));
-    return again(() => W.React.createElement(AgentCommand, {}));
-  }
-  return tree;
-};
+/** To do's group in Need you, or null where it holds nothing. */
+const todoOf = (tree) => byTestId(tree, "today-group-todo");
+const footOf = (tree) => byTestId(queueOf(tree), "today-queue-foot");
 const stepRowsOf = (tree) => all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-step");
 const whoOf = (row) => textOf(find(row, (n) => classes(n).includes("cl-attn-who")));
 const doneCalls = [];
@@ -246,19 +240,23 @@ after(() => {
   setSurfaceValue("today", undefined);
 });
 
-test("To do counts the steps due on its line and opens them in place, each in the row every person wears: the row opens the person, Done is its one verb", async () => {
+test("To do holds the steps due in its group under the person waiting, each in the row every person wears: the row opens the person, Done is its one verb, and the foot opens the rest", async () => {
   clear();
-  const closed = draw();
-  assert.match(textOf(lineOf(closed)), /To do.*6 steps due/, "the line says what it holds before it is opened");
-  assert.equal(stepRowsOf(closed).length, 0, "closed while someone waits on you: the person waiting is the work");
+  const tree = draw();
+  const todo = todoOf(tree);
+  assert.ok(todo, "To do is a group of Need you, open on a desk as on a phone");
+  assert.match(textOf(todo), /To do\s*6/, "how many it holds, by its name");
   assert.equal(
-    all(queueOf(closed), (n) => n.props?.["data-testid"] === "queue-handoff").length,
+    all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-handoff").length,
     1,
     "the person waiting is the queue's row",
   );
-  const tree = drawOpen();
   const rows = stepRowsOf(tree);
   assert.deepEqual(rows.map(whoOf), ["Di", "Hal", "Ana"], "three, the oldest first");
+  assert.ok(
+    rows.every((r) => all(todo, (n) => n === r).length),
+    "in To do, under the person waiting",
+  );
   const di = rows[0];
   const steps = todaySteps(SIX(), nowMs, ZONE);
   const said = textOf(di);
@@ -282,25 +280,24 @@ test("To do counts the steps due on its line and opens them in place, each in th
   // The row opens the person: its words do, since the row holds presses of its own.
   find(di, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "clients/d");
-  // The row for the rest, under the three: how many more, and a door to People's Steps due.
-  const more = byTestId(queueOf(tree), "queue-steps");
-  assert.ok(textOf(more).includes("3 more steps due"), textOf(more));
-  more.props.onClick();
-  assert.equal(went.at(-1), "clients/seg:steps_due");
+  // The rest, at Need you's foot: how many more, and, nothing else being left out, the door to People's Steps due.
+  const foot = footOf(tree);
+  assert.equal(textOf(foot).replace("See all", "").trim(), "3 more to do");
+  press(buttons(foot, "See all")[0]);
+  assert.equal(went.at(-1), "clients/seg:steps_due", "the Inbox holds no step");
 });
 
-test("with nobody waiting, To do is open from the start: it is the work", () => {
+test("with nobody waiting, To do is the list: its three, and the foot's door to the rest", () => {
   clear();
   const vm = handoffDay();
   vm.queue.rows = [];
   setSurfaceValue("today", vm);
   const tree = draw();
   assert.deepEqual(stepRowsOf(tree).map(whoOf), ["Di", "Hal", "Ana"]);
-  const more = byTestId(queueOf(tree), "queue-steps");
+  assert.equal(byTestId(queueOf(tree), "today-group-waiting"), null, "nobody waits on you");
   went.length = 0;
-  press(buttons(more, "Open")[0]);
-  assert.deepEqual(went, ["clients/seg:steps_due"], "the rest's button goes to People's Steps due");
-  assert.equal(byTestId(queueOf(tree), "today-queue-foot"), null, "nothing was cut: the queue has no foot");
+  press(buttons(footOf(tree), "See all")[0]);
+  assert.deepEqual(went, ["clients/seg:steps_due"], "the rest's door goes to People's Steps due");
 });
 
 test("Done is the Inbox header's verb, press for press: the step's note, said done, answered in the one step toast with its Undo; a second press while the first is on its way waits", async () => {
@@ -310,7 +307,7 @@ test("Done is the Inbox header's verb, press for press: the step's note, said do
     new Promise((r) => {
       release = () => r({ ok: true });
     });
-  const tree = drawOpen();
+  const tree = draw();
   const done = buttons(stepRowsOf(tree)[0], "Done")[0];
   const first = press(done);
   press(done);
@@ -322,7 +319,7 @@ test("Done is the Inbox header's verb, press for press: the step's note, said do
   assert.equal(textOf(flashes.at(-1).msg), `${NOTE_WORDS.stepDone} · Call Di`);
   assert.equal(typeof flashes.at(-1).undo, "function", "with its Undo, and nothing else (canvas A, M5)");
   // The row goes at once, as the thread header's line does; People is read again behind the verb.
-  const after = again(() => W.React.createElement(AgentCommand, {}));
+  const after = again(() => W.React.createElement(NeedYou, {}));
   assert.deepEqual(stepRowsOf(after).map(whoOf), ["Hal", "Ana"], "the step done is gone from To do");
 });
 
@@ -334,11 +331,11 @@ test("a Done the door refuses says so in the door's words, keeps the row, and re
   };
   try {
     doneAnswer = async () => ({ ok: false, message: "Only an owner or an operator can mark a step done." });
-    const tree = drawOpen();
+    const tree = draw();
     await press(buttons(stepRowsOf(tree)[0], "Done")[0]);
     assert.equal(flashes.at(-1).tone, "danger");
     assert.equal(textOf(flashes.at(-1).msg), "Only an owner or an operator can mark a step done.");
-    const after = again(() => W.React.createElement(AgentCommand, {}));
+    const after = again(() => W.React.createElement(NeedYou, {}));
     assert.deepEqual(stepRowsOf(after).map(whoOf), ["Di", "Hal", "Ana"], "nothing was done, nothing goes");
     // A refusal may be a step done a moment before in another tab: the rows are read again, as the Inbox's header reads them,
     // so the row stands or goes as the server has it rather than as this tab last read it.
@@ -364,32 +361,36 @@ test("a day with only steps due is not an empty queue; no step due draws nothing
     0,
     "To do's rows are the work; the empty state says nothing waits",
   );
-  assert.match(textOf(lineOf(tree)), /6 steps due/);
+  assert.match(textOf(todoOf(tree)), /To do\s*6/);
   // Nothing due, or People unread: there is no To do.
   W.__PEOPLE = { rows: peopleWithSteps([["e", "Eli", 2]]), fetchedAt: nowMs };
-  assert.equal(lineOf(draw()), null);
+  assert.equal(todoOf(draw()), null);
   delete W.__PEOPLE;
-  assert.equal(lineOf(draw()), null, "People not read yet: no step is claimed");
+  assert.equal(todoOf(draw()), null, "People not read yet: no step is claimed");
 });
 
-test("what To do holds is counted on its line whatever else waits, and the foot counts only the people Need you could not hold", () => {
+test("what To do holds is counted by its name whatever else waits, and the foot says what Need you could not hold, the Inbox's door first", () => {
   clear();
   const vm = handoffDay();
   const [first] = vm.queue.rows;
-  vm.queue.rows = ["one", "two", "three", "four", "five", "six"].map((w) => ({
+  vm.queue.rows = ["one", "two", "three", "four", "five", "six", "seven", "eight"].map((w) => ({
     ...first,
     id: `q-${w}`,
     who: `Person ${w}`,
+    conversationId: `cv-${w}`,
   }));
-  vm.queue.more_people = 2;
   setSurfaceValue("today", vm);
   const queue = queueOf(draw());
-  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-who")).length, 6, "the six people take their groups");
-  assert.match(textOf(lineOf(queue)), /6 steps due/, "the steps are counted, never dropped");
+  assert.equal(
+    all(queue, (n) => classes(n).includes("cl-attn-who")).length,
+    9,
+    "Up next, the five waiting, and To do's three",
+  );
+  assert.match(textOf(todoOf(queue)), /To do\s*6/, "the steps are counted, never dropped");
   const foot = byTestId(queue, "today-queue-foot");
-  assert.equal(textOf(foot).replace("See all", "").trim(), "2 more in the Inbox", "the foot is the Inbox's alone");
+  assert.equal(textOf(foot).replace("See all", "").trim(), "2 more waiting · 3 more to do");
   press(buttons(foot, "See all")[0]);
-  assert.equal(went.at(-1), "inbox");
+  assert.equal(went.at(-1), "inbox", "people were left out: the Inbox holds them");
 });
 
 /* ------------------------------------------ a step done anywhere moves Today ------------------------------------------ */

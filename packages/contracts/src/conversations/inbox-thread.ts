@@ -108,9 +108,9 @@ function waitingThread(dto: ConversationDto, escalation: EscalationDto | null, n
  * How the threads wait on you, over the threads a page holds and the open escalations: each thread read by
  * conversationWaitsOnYou, and an open escalation whose thread the page did not hold counted as a hold (unknown is not
  * handled). The Inbox and Today both read such a thread by its id (heldThreadIds), so a held thread is judged by its own
- * standing and only one whose read failed is counted unread. THE threads' part of the one count (waits.ts
- * needsYouCount, which adds the runs waiting for a word), so Today's headline and the badge cannot differ, and neither
- * drops a customer flagged before the newest page.
+ * standing and only one whose read failed is counted unread. The threads' part of what waits on you (waits.ts
+ * needsYouCount, which adds the runs waiting for a word, for the pages that say the parts apart), and no page drops a
+ * customer flagged before the newest page.
  */
 export function threadWaitsOf(
   conversations: readonly ConversationDto[],

@@ -73,10 +73,10 @@ test("Up next is a reply that goes on its own, else the nearest clock, else the 
   assert.deepEqual(ids(needYouGroupsOf([window, held, long]).next), ["held"]);
   // No clock: the oldest under a week, never the one past it.
   assert.deepEqual(ids(needYouGroupsOf([old, long]).next), ["long"]);
-  // Everyone past a week: the first of them is still the next one to do.
+  // Everyone past a week is Older, one row at the end and never Up next (Today in three zones, 2 Nov 2026).
   const older = row("older", "handoff", { waitedMs: 12 * DAY_MS });
   const g2 = needYouGroupsOf([older, old]);
-  assert.deepEqual([ids(g2.next), ids(g2.old)], [["older"], ["old"]]);
+  assert.deepEqual([ids(g2.next), ids(g2.old)], [[], ["older", "old"]]);
   // An old wait whose window shuts soon is not folded away.
   const closing = row("closing", "window", { clock_ms: HOUR_MS, waitedMs: 8 * DAY_MS });
   assert.deepEqual(ids(needYouGroupsOf([long, closing]).waiting), ["long"]);

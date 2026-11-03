@@ -80,3 +80,6 @@ export function sequenceRunOff(
     to,
   };
 }
+
+/** Why a run did nothing, in the record's one clause ("WhatsApp has limited your number"); null for any other reason. */
+export const runOffClause = (why: string): string | null => (isRunOffReason(why) ? RUN_OFF_WORDS[why].said : null);

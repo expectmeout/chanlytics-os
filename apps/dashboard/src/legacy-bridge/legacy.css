@@ -25,7 +25,7 @@
 @import "../legacy/styles/settings.css";
 @import "../legacy/styles/first-run.css";
 @import "../legacy/styles/mobile.css";
-@import "../surfaces/today/phone/phone.css";
+@import "../surfaces/today/zones/zones.css";
 @import "../surfaces/ask/ask.css";
 @import "../surfaces/frame/outline.css";
 
@@ -140,17 +140,15 @@
     inset: -13px -8px;
   }
   /* Today's other small presses, each the 44px floor round it and nothing new drawn (18 Oct 2026, measured at 375px):
-     Open Inbox is a 20px line of words (8px over and under made 36), a card's door ("See the thread", "Open Reports")
-     36px, and While you were away's Mark all read the kit's 32px small button. */
+     Open Inbox is a 20px line of words (8px over and under made 36), and a card's door ("See the thread", "Open
+     Reports") 36px. */
   html.legacy-on .tq-open::after {
     inset: -12px -4px;
   }
-  html.legacy-on .brief-door,
-  html.legacy-on .ta-readall {
+  html.legacy-on .brief-door {
     position: relative;
   }
-  html.legacy-on .brief-door::after,
-  html.legacy-on .ta-readall::after {
+  html.legacy-on .brief-door::after {
     content: "";
     position: absolute;
     inset: -6px 0;

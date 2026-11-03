@@ -431,20 +431,20 @@ test("each answer is the line its read's own route wrote, its status and wait in
   const { slot } = openedToday({
     answer: () =>
       ndjson([
-        line("metrics?days=1", { ok: false, error: { code: "rate_limited", message: "Slow down." } }, 429, {
+        line("today", { ok: false, error: { code: "rate_limited", message: "Slow down." } }, 429, {
           "retry-after": "13",
         }),
-        line("calls", { ok: true, data: { calls: [] } }),
+        line("setup", { ok: true, data: { setup: {} } }),
       ]),
   });
-  assert.deepEqual(await settled(slot[urlOf("metrics?days=1")]), {
+  assert.deepEqual(await settled(slot[urlOf("today")]), {
     status: 429,
     body: { ok: false, error: { code: "rate_limited", message: "Slow down." } },
     retry: "13",
   });
-  assert.equal((await settled(slot[urlOf("calls")])).status, 200);
+  assert.equal((await settled(slot[urlOf("setup")])).status, 200);
   assert.deepEqual(
-    await settled(slot[urlOf("setup")]),
+    await settled(slot[urlOf("views")]),
     { rejected: "open" },
     "not carried: the page's read asks itself",
   );

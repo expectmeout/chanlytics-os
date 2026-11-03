@@ -54,8 +54,10 @@ import { findingCards, sequencesAndRuns } from "./findings";
  * acts arrives on Today, the page asks for the morning (POST ask/morning). The day is claimed through the morning's door,
  * once a member a day; the call that wins runs one Ask turn as the member, after the response has gone, in a thread of
  * their own titled with the day, asking ASK_MORNING_QUESTION in the member's language; then the door records how many
- * cards wait, and the member's own bell says so. Today reads it back (GET ask/morning): the newest answer's Say and the
- * cards still waiting and fresh, at most three. Off unless ASK_MORNINGS says on: nothing is claimed or spent.
+ * cards wait, and the member's own bell says so. Today reads it back (GET ask/morning): the cards still waiting and
+ * fresh, at most three, which Ask found ranks; the answer's Say rides along for either deploy order, and since Today in
+ * three zones (2 Nov 2026) the question asks it for no more than how many cards it made. Off unless ASK_MORNINGS says
+ * on: nothing is claimed or spent.
  *
  * Since decision 0087 a morning is told what every member's mornings offered lately, Today leaves out what was settled
  * or has moved on, and what Ask noticed from the workspace's own facts is read beside it, whatever state the morning is in.

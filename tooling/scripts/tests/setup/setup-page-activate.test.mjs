@@ -427,7 +427,7 @@ test("the page as Today draws it: a row it may put off takes Today's own Skip in
     rows: vm.rows.map((r) => ({ ...r, back: r.id === "keep" })),
     later: { put: "Skip", back: "Back after a week", backShort: "Back" },
     look: "card",
-    // Today's card hands each row its Skip, a menu of a week or for good (today/pages/setup-card-body.tsx SkipMenu).
+    // Today's card hands each row its Skip, a menu of a week or for good (today/zones/setup-card-body.tsx SkipMenu).
     skip: (id) => {
       asked.push(id);
       return `skip:${id}`;

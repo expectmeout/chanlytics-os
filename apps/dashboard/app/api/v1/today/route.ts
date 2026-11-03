@@ -1,32 +1,46 @@
-import { toTodayVM } from "@chanlytics/contracts";
+import type { TodayReadDto } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
-import { today } from "@/server/readers/today";
+import { appointmentWord } from "@/server/readers/facts";
+import { doneToday, sinceYouLooked, today } from "@/server/readers/today";
 
 /**
- * GET /api/v1/today — the day as the Today page draws it, composed once on the server (the phone app's PRD, PR 9).
+ * GET /api/v1/today — the day's read whole, as the Today page makes the day from it (Today in three zones, 2 Nov 2026,
+ * the build's lane L5: one request where the page made six; surfaces/today/surface.ts).
  *
- * The browser composes Today from five reads (legacy-bridge/surface-data.ts, todayOverride); Ask reads the same five
- * through one reader (readers/today.ts) and composes the same view model. A native screen has no page to compose
- * for it, so it asks here and draws what comes back: every sentence is contracts toTodayVM's, the one the page and
- * Ask already say, and the calls and the searches are additive here as they are there (a failed read is null, and
- * the view model says so). Counted with the other aggregate reads; any member may read it.
+ * The page makes the day from it (contracts toTodayVM) and again each minute by the clock with no read, so it is handed
+ * the read and not the day. Ask reads the same reader (readers/today.ts) and makes the same day, so the two cannot count
+ * it two ways. Beside the reader, what the page alone says and Ask's day does not: how many things were done today, what
+ * happened since this member last looked, and the workspace's word for a visit (facts.ts appointmentWord, "appointment"
+ * where it cannot be read). The calls, the searches, the runs, the held threads, the leads who tried, what was done today
+ * and what happened since are additive: a failed read is null, and the day stands without it. Counted with the other aggregate
+ * reads; any member may read it.
  */
 export const GET = read({
   scope: workspace,
   rate: "aggregate",
-  handle: async ({ ctx, member }) => {
+  handle: async ({ ctx, member }): Promise<{ read: TodayReadDto }> => {
     const rc = readerContext(ctx, member);
-    const { metrics, conversations, escalations, calls, searches, runs, heldThreads, previewsTried } = (
-      await load(rc, today, undefined)
-    ).data;
-    // With the runs waiting and the held threads beside it, so the head counts what the badge counts.
+    const [r, done, since, word] = await Promise.all([
+      load(rc, today, undefined).then((t) => t.data),
+      doneToday(rc),
+      sinceYouLooked(rc),
+      load(rc, appointmentWord, undefined).then((w) => w.data),
+    ]);
     return {
-      today: toTodayVM(metrics, conversations, escalations, calls, rc.now, searches, {
-        runs,
-        heldThreads,
-        previewsTried,
-      }),
+      read: {
+        metrics: r.metrics,
+        conversations: r.conversations,
+        escalations: r.escalations,
+        calls: r.calls,
+        searches: r.searches,
+        runs: r.runs,
+        held_threads: r.heldThreads,
+        previews_tried: r.previewsTried,
+        done_today: done,
+        since,
+        word,
+      },
     };
   },
 });

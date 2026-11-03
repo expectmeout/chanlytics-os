@@ -272,6 +272,13 @@
       "rate": "business_record",
       "spend": false
     },
+    "POST calendar/freed": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "POST calendar/notices/[id]/dismiss": {
       "kind": "write",
       "scope": "workspace",

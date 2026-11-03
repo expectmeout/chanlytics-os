@@ -116,12 +116,12 @@ export function installAppBridge(
     post({ t: "needs", inbox });
   };
   // Today for the widget: on every refresh of the page's Today, whenever what waits moves (a run approved, a reply held:
-  // the count's parts, which the widget says), and at install when it is already there; never the same twice in a row.
+  // the one count, which the widget says), and at install when it is already there; never the same twice in a row.
   let todaySaid: string | null = null;
   const today = () => {
     const vm = win.TODAY_DATA;
     if (!vm || typeof vm !== "object" || !vm.standing || !vm.queue) return;
-    const snapshot = todayWidgetSnapshot(vm, new Date(), source.parts(vm));
+    const snapshot = todayWidgetSnapshot(vm, new Date(), source.parts(vm), source.now());
     const key = JSON.stringify({ ...snapshot, at: "" });
     if (key === todaySaid) return;
     todaySaid = key;

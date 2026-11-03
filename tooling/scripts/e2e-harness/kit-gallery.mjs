@@ -3027,6 +3027,14 @@ export const FAMILIES = [
           `<p class="pg-sentence"><b>3 need you.</b> Ask drafted 2 replies.</p></div></header>`,
       },
       {
+        id: "page-head-after",
+        html:
+          `<header class="pg-head pg-head-stacked"><p class="pg-dateline" data-hour="true">Tue, Nov 3<span class="pg-dateline-time"> · 8:05 AM</span></p>` +
+          `<div class="pg-line"><h1 class="pg-title">Good morning, Marisa</h1>` +
+          `<p class="pg-sentence"><b>4 need you.</b> Ask drafted 2 replies.</p>` +
+          `<div class="pg-after"><button type="button" class="btn btn-ghost btn-text">Since 9:40 PM · 6 answered · 2 booked</button></div></div></header>`,
+      },
+      {
         id: "page-bartitle",
         html:
           `<div class="gx-bar"><div class="pg-bartitle" data-shown="true" aria-hidden="true">` +

@@ -68,7 +68,7 @@ interface WaitRowsPorts {
   phone?: boolean;
 }
 
-/** The rows a page has room for, how many rows there are, and how many runs the rows it had no room for hold. */
+/** The rows a page has room for, how many rows there are, and how many rows it had no room for. */
 interface WaitRowsDrawn {
   drawn: ReactElement[];
   count: number;
@@ -183,12 +183,10 @@ function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs):
   );
 }
 
-/** How many runs a row holds: To send's and the folded row's every one of theirs. */
-const runsIn = (row: WaitRowOf<BroadcastVM>): number => (row.kind === "run" ? 1 : row.runs.length);
-
 /**
  * The rows of the runs waiting for you, as many as the page has room for: those waiting first, then those too late to
- * approve, through the same row. What the page had no room for is counted in runs, for the door to the rest.
+ * approve, through the same row. What the page had no room for is counted in rows, as the group that draws them counts
+ * its rows (Today in three zones: a folded row is one), for the door to the rest.
  */
 export function waitRows(p: WaitRowsPorts, room: number = Infinity): WaitRowsDrawn {
   const { waiting, late } = runsPending();
@@ -202,5 +200,5 @@ export function waitRows(p: WaitRowsPorts, room: number = Infinity): WaitRowsDra
     const [first] = row.runs;
     return first ? [approvalsRow(first, row.runs, p)] : [];
   });
-  return { drawn, count: rows.length, cut: rows.slice(shown.length).reduce((n, row) => n + runsIn(row), 0) };
+  return { drawn, count: rows.length, cut: rows.length - shown.length };
 }

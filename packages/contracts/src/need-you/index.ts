@@ -1,7 +1,10 @@
 export {
   clockIsNear,
+  NEED_YOU_CAPS,
   NEED_YOU_CLOCK_MS,
+  NEED_YOU_DONE_VERBS,
   NEED_YOU_OLD_MS,
+  needYouCountOf,
   needYouGroupsOf,
   needYouVerbOf,
   needYouWaitOf,

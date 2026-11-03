@@ -267,6 +267,19 @@ test("a single act tells the page the moment the server takes it, while the Inbo
         workspaces: globalThis.window.__WORKSPACES,
         activeWorkspaceId: "t1",
         days: 1,
+        // Today's one read (GET today, Today in three zones, 2 Nov 2026), its day whole.
+        read: {
+          metrics,
+          conversations: [],
+          escalations: [],
+          calls: [],
+          searches: [],
+          runs: [],
+          held_threads: [],
+          previews_tried: [],
+          done_today: 0,
+          since: null,
+        },
       },
     });
   };

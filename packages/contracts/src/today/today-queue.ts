@@ -6,7 +6,14 @@
  */
 import { addressOf } from "../activity/record-address";
 import { HOLD_ACT_WORDS, holdActOf, reasonLabelOf, reasonShort } from "../conversations/escalations";
-import { draftSendsAtMs, heldDraftOf, messageText, messageWords, clipAtWord } from "../conversations/message-words";
+import {
+  draftSendsAtMs,
+  heldDraftOf,
+  messageText,
+  messageWords,
+  clipAtWord,
+  sendFailureWords,
+} from "../conversations/message-words";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, initialsOf } from "../conversations/thread-contact";
@@ -14,16 +21,13 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
 import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/preview-tried";
-import { needYouOrder } from "../need-you/need-you-groups";
+import { NEED_YOU_CAPS, needYouGroupsOf, needYouOrder } from "../need-you/need-you-groups";
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";
 import { QUOTE_MAX, type EscalationRecord, type TodayFacts } from "./today-facts";
 import { say } from "./today-rows";
 import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from "./today-vm";
-
-/** Six rows on Today; the rest is a count for the Inbox link. */
-const TODAY_QUEUE_MAX = 6;
 
 /** The reasons of a hold that is someone asking to book: a time they picked by text (0061), or an ask for one. */
 const BOOKING_REASONS: ReadonlySet<string> = new Set(["booking_request", "booking_reply"]);
@@ -32,8 +36,8 @@ const BOOKING_REASONS: ReadonlySet<string> = new Set(["booking_request", "bookin
 const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "window", "reply"]);
 
 /**
- * Whether a row is a person, as the queue's rows go: the foot's "more in the Inbox" and the people past the six. Who
- * needs you is isHoldRow: a closing window is a person, and nobody waiting on you (the wiring's second audit, S7-8).
+ * Whether a row is a person, as the queue's rows go: the people past Need you's caps, which its foot says. Who needs you
+ * is isHoldRow: a closing window is a person, and nobody waiting on you (the wiring's second audit, S7-8).
  */
 export function isPersonRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
   return PEOPLE_KINDS.has(r.kind);
@@ -64,7 +68,7 @@ const SEARCH_WARN_MS = 12 * HOUR_MS;
 
 /* ---- the queue: everything that asks for a person, in one row grammar.
    The longest wait first; a closing window by how soon it closes; a call
-   worth an ear last. Six on Today, the rest a count for the Inbox link. ---- */
+   worth an ear last. Need you groups and caps them (need-you-groups.ts). ---- */
 
 /**
  * What a row's reply is written for and goes by (decision 0071): their newest message, the thread's wire in words, and
@@ -174,6 +178,18 @@ function callbackRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
   };
 }
 
+/**
+ * The words of the newest reply on a thread that never reached them, and why, where the thread was read and holds it: what
+ * Try again sends again as written (Today in three zones, 2 Nov 2026). Null where the read holds no failed reply.
+ */
+function failedReplyOf(conv: ConversationDto | undefined): TodayQueueRowVM["failed"] {
+  const m = conv
+    ? [...conv.messages].reverse().find((x) => x.direction === "outbound" && x.status === "failed" && !!x.body)
+    : undefined;
+  if (!m) return undefined;
+  return { text: messageText(m), said: sendFailureWords(m.error, m.channel) ?? NEED_YOU_WORDS.failed.wire };
+}
+
 /** A handoff: the receptionist stopped and asked for a person; her words are the sentence, Snooze puts it aside. */
 function handoffRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
   const e = r.e;
@@ -185,6 +201,18 @@ function handoffRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
       quoted: false,
       request: { conversationId: e.conversation_id },
     };
+  // A reply that never reached them: what failed and why is the sentence, and the row's words are those that failed, to
+  // send again as written with Try again, first among those waiting (needYouOrder). Their own last words stay in the thread.
+  if (e.reason === "send_failed") {
+    const failed = failedReplyOf(r.conv);
+    return {
+      ...handoffOf(r, f),
+      sentence: [NEED_YOU_WORDS.failed.sentence, failed?.said ?? ""].filter(Boolean).join(" "),
+      quoted: false,
+      ...(failed ? { failed, prepared: failed.text } : {}),
+      why: NEED_YOU_WORDS.failed.why,
+    };
+  }
   return handoffOf(r, f);
 }
 
@@ -385,10 +413,11 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
   }
   // The leads who tried their preview, newest first, after everyone waiting (decision 0079).
   for (const t of f.previewsTried) queueAll.push(triedRow(t, f));
-  // Need you's order (need-you-groups.ts needYouOrder), before the six are cut: a clock near enough first (a reply that
-  // goes on its own in seconds, then a window that shuts within two hours), since a window that shuts cannot be answered
-  // later and an old wait still can; then the waits under a week by what each is worth, a booking first, the longest
-  // wait among equals. Sorted by the longest wait alone, a week's old mail took the six and the new asks were a count.
+  // Need you's order (need-you-groups.ts needYouOrder): a clock near enough first (a reply that goes on its own in
+  // seconds, then a window that shuts within two hours), since a window that shuts cannot be answered later and an old wait
+  // still can; then the waits under a week by what each is worth, a reply that never reached them first, then a booking,
+  // the longest wait among equals. Every row is kept: each group draws its own few (NEED_YOU_CAPS) and the foot says the
+  // rest, so a week's old mail never takes the seats of the new asks.
   queueAll.sort(needYouOrder);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
   const needN = countOf("handoff", "callback");
@@ -406,12 +435,15 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
     triedN ? NEED_YOU_WORDS.tried.part(triedN) : "",
   ].filter(Boolean);
+  // What each group draws past its cap: the people past those waiting on you, and the searches past those to decide.
+  const groups = needYouGroupsOf(queueAll);
+  const morePeople = Math.max(0, groups.waiting.length - NEED_YOU_CAPS.waiting);
   return {
-    rows: queueAll.slice(0, TODAY_QUEUE_MAX),
-    more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
-    // The PEOPLE past the six, apart from the rest: the brief said "and 20 more need you" over sixteen people, counting
-    // the calls and the search that sort after them.
-    more_people: queueAll.slice(TODAY_QUEUE_MAX).filter(isPersonRow).length,
+    rows: queueAll,
+    more: morePeople + Math.max(0, groups.ok.length - NEED_YOU_CAPS.ok),
+    // The PEOPLE past the rows drawn, apart from the rest: the brief said "and 20 more need you" over sixteen people,
+    // counting the calls and the search that sort after them.
+    more_people: morePeople,
     // Every call worth a listen and every search waiting for an answer, drawn or not: the brief counted only those
     // among the six rows, so it said nothing of four calls the head had just counted.
     calls: earN,

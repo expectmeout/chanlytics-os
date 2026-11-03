@@ -52,8 +52,11 @@ export const todayOverride: SurfaceOverride = {
   // day. Its other configuration, the hours the settings hold, it does not draw: the five reads below name none.
   // And the visits: the day's figures lead with what was booked (server/metrics/bookings.ts), so a booking that arrives, or
   // one cancelled, is read again for. The calendar's hourly sweep writes in one transaction, which the debounce takes once.
+  // And the runs' batches (Today in three zones, 2 Nov 2026): the one read carries the runs waiting for a word (the day's
+  // going-today rows are Sent's, drawn from the broadcasts read), so a batch made, approved, stopped or finished is read
+  // again for, as Sent's rows are.
   ...declareReads("today", {
-    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person", "visit"],
+    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person", "visit", "send"],
     fresh: "live",
     omit: [
       {

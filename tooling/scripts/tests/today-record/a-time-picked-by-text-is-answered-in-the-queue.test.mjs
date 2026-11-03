@@ -29,7 +29,7 @@ installLegacyReact({
   __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const W = globalThis.window;
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { RequestWork } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/call-work.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 // What a row came to is kept by the row for the visit (need-you/row-state.ts): each test here is a visit of its own.
@@ -67,7 +67,7 @@ test("the hold is a row that says what they asked for, answered with Booked it a
   setSurfaceValue("today", vm);
   went.length = 0;
   fresh();
-  const tree = W.React.createElement(AgentCommand, {});
+  const tree = W.React.createElement(NeedYou, {});
   const first = byTestId(tree, "queue-handoff");
   assert.ok(textOf(first).includes(ASKED), textOf(first));
   const button = (words) => all(first, (n) => n.type === "button" && textOf(n).trim() === words);
@@ -103,6 +103,11 @@ const work = () =>
     tz: ZONE,
     flash: (f) => flashes.push(f),
     keep: (r) => kept.push(r.id),
+    // A refused press lets the row go again (WorkProps.unkeep), so the row still asks.
+    unkeep: (r) => {
+      const i = kept.indexOf(r.id);
+      if (i >= 0) kept.splice(i, 1);
+    },
   });
 const buttonsIn = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const reset = () => {

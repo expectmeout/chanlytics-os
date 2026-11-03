@@ -5,11 +5,13 @@
  * head each showed the number the last `inbox:counts` event carried, from two senders that counted a reply the owner had just
  * held differently, and the Needs-you tab beside Conversations counted a third time off the Inbox's rows. Three things wait on
  * a person: a hold nobody has taken (not snoozed, not a teammate's, never a customer's STOP), a reply counting down that can
- * still be stopped, and a run waiting for a word. They are counted once, in contracts (`waitsOf`, `needsYouCount`), and every
- * surface that says the number reads one selector over the Inbox's threads and the runs (surfaces/needs-you.ts).
+ * still be stopped, and a run waiting for a word. They are counted once, in contracts (`waitsOf`, `needsYouCount`), for the
+ * pages that say them apart. Since Today in three zones (2 Nov 2026), the number every surface says is Need you's: the rows
+ * above To do as Today's read makes them and this tab has worked them, and the rows of the runs waiting for a word, as the
+ * list draws them (surfaces/needs-you.ts `needsYouNow`; contracts needYouCountOf).
  *
- * Run on the contracts over the four sources, on the selector over the surfaces' values with the hold this tab has made, and
- * on Today's queue drawn on the stub React: its head is the badge's number. The threads stand on the real clock, because the
+ * Run on the contracts over the four sources, on the selector over the surfaces' values with what this tab has done, and
+ * on Today's head drawn on the stub React: its number is the badge's. The threads stand on the real clock, because the
  * selector and the page count a reply down to the server's deadline with Date.now().
  */
 import { test, after } from "node:test";
@@ -31,7 +33,8 @@ import { waitingRunsOf } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
 import { installLegacyReact, fresh, byTestId, textOf } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { NOW as DAY, ZONE, handoffDay, metrics } from "./_world.mjs";
+import { PLAN } from "../_lead-fixtures.mjs";
+import { NOW as DAY, ZONE, handoffDay, metrics, msg, thread } from "./_world.mjs";
 
 installLegacyReact({
   __DEMO_MODE: false,
@@ -45,13 +48,13 @@ installLegacyReact({
 });
 const W = globalThis.window;
 const SRC = "apps/dashboard/src";
-const { needsYouNow, hearNeedsYou, needsYouMoved } = await importSrc(`${SRC}/surfaces/needs-you.ts`);
+const { needsYouNow, hearNeedsYou, needsYouMoved, needsYouActed } = await importSrc(`${SRC}/surfaces/needs-you.ts`);
 const { setSurfaceValue } = await importSrc(`${SRC}/surfaces/surface-values.ts`);
 const { surfaceMoved } = await importSrc(`${SRC}/legacy-bridge/surface-status.ts`);
 const { VW_STORE, IX_STORE, inboxData } = await importSrc(`${SRC}/surfaces/inbox/store.ts`);
 // The demo's seed, fetched only in a demo session (inbox/shell.ts demoCode): it hands its rows to the store as it lands.
 const { demoCode } = await importSrc(`${SRC}/surfaces/inbox/shell.ts`);
-const { useTodayStanding } = await importSrc(`${SRC}/surfaces/today/pages/today-head.tsx`);
+const { useZonesStanding } = await importSrc(`${SRC}/surfaces/today/zones/head.tsx`);
 const { standingSaid } = await importSrc(`${SRC}/surfaces/kit/head/standing.ts`);
 
 const nowMs = Date.now();
@@ -387,25 +390,47 @@ const runRow = (id, state, over = {}) => ({
   ...over,
 });
 const reset = () => {
+  setSurfaceValue("today", undefined);
   setSurfaceValue("inbox", undefined);
   setSurfaceValue("broadcasts", undefined);
   VW_STORE.state = {};
+  needsYouActed([]);
 };
 after(reset);
 
-test("the badge's number is none before the Inbox has been read: a count of what nothing has read is no count", () => {
+/** Today as its read makes it over the salon's threads, on the real clock: what Need you draws and the count counts. */
+const salonToday = () => {
+  const rows = salon();
+  return toTodayVM(
+    metrics(),
+    rows.map((r) => r.dto),
+    rows.flatMap((r) => (r.esc ? [r.esc] : [])),
+    [],
+    NOW,
+  );
+};
+
+test("the badge's number is none before Today has been read: a count of what nothing has read is no count", () => {
   reset();
   assert.equal(needsYouNow(nowMs), null);
-  setSurfaceValue("inbox", inboxOf([]));
-  assert.equal(needsYouNow(nowMs), 0, "a zero is shown once it has been read");
+  setSurfaceValue("inbox", inboxOf(viewModels()));
+  assert.equal(needsYouNow(nowMs), null, "the Inbox's threads are not the count: Need you's rows are");
+  setSurfaceValue("today", toTodayVM(metrics(), [], [], [], NOW));
+  assert.equal(needsYouNow(nowMs), 0, "a zero is shown once Today has been read");
   reset();
 });
 
-test("the holds, the held sends and the runs waiting are one number, and a reply held in this tab leaves it before the re-read", () => {
+test("Need you's rows above To do and the runs waiting are one number, and a row acted on here, or a reply held in this tab, leaves it before the re-read", () => {
   reset();
-  const vms = viewModels();
-  setSurfaceValue("inbox", inboxOf(vms));
-  assert.equal(needsYouNow(nowMs), 2, "Hana, and Sam whose reply is on its way");
+  const today = salonToday();
+  setSurfaceValue("today", today);
+  const [hana, sam] = ["c-hold", "c-send"].map((id) => today.queue.rows.find((r) => r.conversationId === id));
+  assert.equal(sam.kind, "held", "Sam's reply counting down is a row of its own");
+  assert.equal(
+    needsYouNow(nowMs),
+    2,
+    "Hana, and Sam whose reply is on its way; nobody snoozed, taken, theirs or a STOP",
+  );
   // The campaigns surface: two runs wait for a word, one is about to go, one went.
   setSurfaceValue("broadcasts", {
     rows: [
@@ -415,18 +440,33 @@ test("the holds, the held sends and the runs waiting are one number, and a reply
       runRow("r4", "sent"),
     ],
   });
-  assert.equal(needsYouNow(nowMs), 4, "and the two runs");
-  // The owner presses Hold on Sam's reply: the cancel's re-read has not landed, so the thread still carries its draft.
-  const sam = vms[1];
-  VW_STORE.state = { [`draft:${sam.veto.messageId}`]: { held: true } };
   assert.equal(
     needsYouNow(nowMs),
     3,
+    "and the two runs as the list draws them: one row, each one answered opening the next (contracts waitRowsOf)",
+  );
+  // The owner presses Stop on Sam's reply in Need you: the list keeps it with its receipt, and the read has not landed.
+  needsYouActed([sam]);
+  assert.equal(
+    needsYouNow(nowMs),
+    2,
+    "the row acted on leaves the count the moment it is pressed, as it leaves the list's",
+  );
+  needsYouActed([]);
+  assert.equal(needsYouNow(nowMs), 3, "and comes back to the read's word once the list is gone");
+  // Or holds it in the Inbox, in this tab: the cancel's re-read has not landed, so Today's read still carries the draft.
+  VW_STORE.state = { [`draft:${sam.held.message_id}`]: { held: true } };
+  assert.equal(
+    needsYouNow(nowMs),
+    2,
     "REGRESSION: the badge kept the reply this tab had held until something else moved it, one over the chip",
   );
-  // Past its deadline a reply goes out in the owner's name: it does not wait.
   VW_STORE.state = {};
-  assert.equal(needsYouNow(sam.veto.endsAtMs + 1), 3, "Sam's reply is gone; the hold and the runs remain");
+  // Past its deadline a reply goes out in the owner's name: it does not wait.
+  assert.equal(needsYouNow(sam.held.sends_at_ms + 1), 2, "Sam's reply is gone; Hana and the runs remain");
+  // A thread acted on stands for itself: the read's other row of it is not counted either, as the list does not draw it.
+  needsYouActed([{ id: "kept-elsewhere", conversationId: hana.conversationId }]);
+  assert.equal(needsYouNow(nowMs), 2, "Hana's thread was worked here: Sam and the runs remain");
   reset();
 });
 
@@ -455,23 +495,34 @@ test("the readers are told when what the count is made of moves, and not when so
   reset();
   const told = [];
   const stop = hearNeedsYou(() => told.push(1));
+  surfaceMoved("today");
   surfaceMoved("inbox");
   surfaceMoved("broadcasts");
   needsYouMoved();
-  assert.equal(told.length, 3, "the Inbox's threads, the campaigns' runs, and what only the Inbox's page knows");
-  surfaceMoved("today");
+  assert.equal(
+    told.length,
+    4,
+    "Today's rows, the Inbox's threads (its parts), the campaigns' runs, and what only the Inbox's page knows",
+  );
+  needsYouActed([{ id: "q-1", conversationId: "c-1" }]);
+  assert.equal(told.length, 5, "a row Need you acted on");
+  needsYouActed([{ id: "q-1", conversationId: "c-1" }]);
+  assert.equal(told.length, 5, "told the same rows again, nothing moved");
   surfaceMoved("people");
-  assert.equal(told.length, 3, "Today and People are not what it is made of");
+  surfaceMoved("calendar");
+  assert.equal(told.length, 5, "People and the Calendar are not what it is made of");
+  needsYouActed([]);
+  assert.equal(told.length, 6, "and the list gone");
   stop();
-  surfaceMoved("inbox");
-  assert.equal(told.length, 3, "and a reader that stopped is not told");
+  surfaceMoved("today");
+  assert.equal(told.length, 6, "and a reader that stopped is not told");
 });
 
 /* ----------------------------------------------- Today's head, drawn ----------------------------------------------- */
 
-/** What Today's head says leads its sentence, as the page tells it to the frame's head (today-head.tsx): "3 need you.". */
+/** What Today's head says leads its sentence, as the page tells it to the frame's head (zones/head.tsx): "3 need you.". */
 function HeadProbe() {
-  useTodayStanding();
+  useZonesStanding();
   return null;
 }
 const head = (vm) => {
@@ -486,24 +537,80 @@ const head = (vm) => {
   }
 };
 
-test("Today's head is the badge's number: the holds, the held sends and the runs waiting, not the windows, searches or calls beside them", () => {
+test("Today's head is the badge's number, and falls with it as Need you acts", () => {
   reset();
   const day = handoffDay();
-  assert.equal(
-    head(day),
-    "1",
-    "until the Inbox has been read, Today's own copy of the same threads (its headline's count)",
-  );
-  // The Inbox has been read: two threads wait, and a run waits for a word, which Today's own rows do not know of the
-  // same way. The head says the number the sidebar says.
+  assert.equal(head(day), "1", "Ana, who asked for a person");
+  // The Inbox's threads are its parts, not the count: the head says Need you's rows, as the sidebar does.
   setSurfaceValue("inbox", inboxOf(viewModels()));
   setSurfaceValue("broadcasts", { rows: [runRow("r1", "pending_approval")] });
-  assert.equal(needsYouNow(), 3, "Hana, Sam's reply, and the run waiting for a word");
-  assert.equal(head(day), "3", "REGRESSION: the head counted its own rows, and said another number than the badge");
+  setSurfaceValue("today", day);
+  assert.equal(needsYouNow(), 2, "Ana, and the run waiting for a word");
+  assert.equal(head(day), "2", "REGRESSION: the head counted its own rows, and said another number than the badge");
+  // Ana's row is worked: the list keeps it with its receipt, and the head and the badge leave it at once.
+  needsYouActed([day.queue.rows.find((r) => r.conversationId === "cv-a")]);
+  assert.equal(head(day), "1");
+  setSurfaceValue("today", day);
+  assert.equal(needsYouNow(), 1, "the badge says what the head says");
   reset();
 });
 
-test("Today's head says the runs waiting for a word until the Inbox is read, and no more than they are", () => {
+test("REGRESSION (S7-1): a search asking its question, or a window about to shut, alone, is one who needs you: never 'Nothing needs you'", () => {
+  reset();
+  // A search waiting on the owner's answer (GET lead-searches' shape, its latest round asking).
+  const asking = {
+    id: "s1",
+    name: "Dentists in Austin",
+    asked: PLAN.asked,
+    asked_on: "2026-09-05T15:00:00Z",
+    plan: PLAN,
+    plan_version: 1,
+    round: {
+      id: "rd1",
+      seq: 1,
+      purpose: "find",
+      state: "waiting_on_owner",
+      ending: null,
+      question: { sentence: "Most of the first 25 are chain clinics. Include them?", criterion_key: "chains" },
+      target: 20,
+      counted: 25,
+      qualified: 12,
+      review: 3,
+      excluded: 0,
+      emails_checked: 0,
+      with_phone: 9,
+      ending_pending: false,
+      waiting_since: "2026-09-18T19:00:00Z",
+      cost_usd: 1.2,
+      ended_at: null,
+      undo_op_id: null,
+      undo_version: null,
+      nearby: [],
+    },
+  };
+  const searchDay = toTodayVM(metrics(), [], [], [], DAY, [asking]);
+  setSurfaceValue("today", searchDay);
+  assert.equal(needsYouNow(DAY.getTime()), 1, "the search's question is a row of To decide, counted");
+  assert.equal(head(searchDay), "1", "and the head says it");
+  // A WhatsApp window that shuts in two hours: who wrote last waits on a reply, a row of Waiting on you.
+  const windowDay = toTodayVM(
+    metrics(),
+    [
+      thread("cv-win", "Priya Nair", [msg("m-win", "Can I move my appointment?", "2026-09-17T22:00:00Z")], {
+        last_wa_inbound_at: "2026-09-17T22:00:00Z",
+      }),
+    ],
+    [],
+    [],
+    DAY,
+  );
+  setSurfaceValue("today", windowDay);
+  assert.equal(needsYouNow(DAY.getTime()), 1, "the window about to shut is counted");
+  assert.equal(head(windowDay), "1", "and the head says it, never 'Nothing needs you'");
+  reset();
+});
+
+test("Today's head says the runs waiting for a word, and no more than they are", () => {
   reset();
   const day = toTodayVM(metrics(), [], [], [], DAY);
   // Sent's runs as the surface publishes them (the count reads the seam: needs-you.ts waitingRunsNow), and on the window,

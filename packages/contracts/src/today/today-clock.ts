@@ -63,23 +63,30 @@ export function tzTime(iso: string | null | undefined, tz: string): string | nul
   }
 }
 
-export function tzDayAndTime(iso: string | null, tz: string, now: Date): string | null {
+/**
+ * A moment by its day and its time, in the workspace's zone: the time alone today, else "yesterday", the weekday inside a
+ * week, the month and day beyond it. `form`: "sentence" joins them with "at" ("Tuesday at 4:12 PM"), as a sentence that
+ * goes on says it; "clipped" as a line says it beside other facts ("Tuesday 4:12 PM", "October 27, 4:12 PM"), as the
+ * canvas of 2 Nov 2026 writes the quiet head's last message.
+ */
+export function tzDayAndTime(iso: string | null, tz: string, now: Date, form: "sentence" | "clipped"): string | null {
   if (!iso) return null;
   const t = tzTime(iso, tz);
   if (!t) return null;
+  const at = form === "sentence" ? " at " : " ";
   // The tenant's calendar day, not a 24-hour multiple: at 8 AM, a message
   // from 9:15 AM yesterday is "yesterday", however few hours ago it was.
   const days = localDaysBetween(Date.parse(iso), now.getTime(), tz);
   if (days < 1) return t;
-  if (days === 1) return `yesterday at ${t}`;
+  if (days === 1) return `yesterday${at}${t}`;
   try {
     const d = new Date(iso);
     if (days < 7) {
       const day = dateFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
-      return `${day} at ${t}`;
+      return `${day}${at}${t}`;
     }
     const md = dateFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
-    return `${md} at ${t}`;
+    return `${md}${form === "sentence" ? " at " : ", "}${t}`;
   } catch {
     return t;
   }

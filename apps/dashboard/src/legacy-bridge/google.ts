@@ -125,7 +125,7 @@ export const googleOverride: SurfaceOverride = {
 
 /**
  * An answered review is dealt with: the bell's rows that told of it (a new one, or that the receptionist replied) are read, on the
- * server, so the badge and Today's While you were away stop counting it on every device. Its notices were kept about Google's own id
+ * server, so the badge and the bell stop counting it on every device. Its notices were kept about Google's own id
  * for the review or about its row (reviewNoticeIsAbout takes either), so the surface Google's read holds names both.
  */
 function readNoticesOfReview(id: string): void {

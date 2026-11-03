@@ -386,7 +386,7 @@ export const peopleOverride: SurfaceOverride = {
   events: ["surface:clients"],
   refreshOnMessageInserts: true,
   // The clock's: a step falls due, a visit's day word turns ("Tomorrow" is "Today"), a next visit ends and is the last, a
-  // thread's wait grows. Made again each minute where People is drawn (People, a person's page, Today's queue and Worth a look)
+  // thread's wait grows. Made again each minute where People is drawn (People, a person's page, Today's Need you and Ask found)
   // and wherever it is drawn once the day turns, so the Inbox's thread header and Today's steps say a step due at midnight
   // (the wiring's second audit, W-thread-wait-step-5, W-visit-deal-1). And read again once the first next visit it holds has
   // ended, where it is drawn: who is booked again after it is the read's to say.
@@ -399,7 +399,7 @@ export const peopleOverride: SurfaceOverride = {
   // And notes: a teammate's step, set or done, moves a row's next step (00166).
   // And the lists (00169): a teammate's new list, rename or archive is on the rail without a reload. And the visits (#1551): a
   // teammate's mark, a booking email and the hourly calendar read move a row's next and last visit, "asked, never booked" and the
-  // "missed a visit" list, which the Inbox's visit chip and Today's Worth a look are drawn from. And a reach-out's reply read: the
+  // "missed a visit" list, which the Inbox's visit chip and Today's Ask found are drawn from. And a reach-out's reply read: the
   // signer it offers as a name, which the Inbox thread a bell row opens draws from People's rows (the wiring's second audit, S1-1,
   // its first option: a few a day, and an open person's page reloads with it, so their own surface does not read them again).
   // They are a few a day, so they are heard on every page, with the other kinds of its own below (`always`).

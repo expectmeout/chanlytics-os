@@ -2,8 +2,17 @@
  * Today's view model: the shape of the brief (`TodayVM`) and of each row and figure in it. Types only; the brief
  * that builds it is today-brief.ts, over the facts (today-facts.ts) and the bands, rows and queue beside them.
  */
-import type { HoldAct } from "../conversations/escalations";
+import type { CallDto } from "../conversations/call-dto";
+import type { EscalationDto, HoldAct } from "../conversations/escalations";
+import type { ConversationDto } from "../conversations/thread-dto";
+import type { AppointmentWord } from "../journey/appointment-word";
+import type { LeadSearchDto } from "../leads/leads";
+import type { PreviewTriedDto } from "../previews/preview-tried";
 import type { VisitWord } from "../shared/enums";
+import type { WaitingRun } from "../waits/waits";
+import type { MetricsSummaryDto } from "./today-metrics";
+import type { TodaySinceAnsweredDto } from "./today-away";
+import type { TodayBackVM } from "./today-day";
 
 export interface TodayNeedsRowVM {
   id: string;
@@ -172,6 +181,12 @@ export interface TodayQueueRowVM {
    * name (the 10/10 read, 2 Nov 2026: it was behind an unexplained mark). Absent on every other row.
    */
   why?: string;
+  /**
+   * On the row of a reply that never reached them (a hold for a failed send, Today in three zones, 2 Nov 2026): the words
+   * that failed, which Try again sends again as written, and why the wire refused them in a sentence (message-words.ts
+   * sendFailureWords). Absent on every other row, and where the thread's failed message was not read.
+   */
+  failed?: { text: string; said: string };
 }
 
 /** What an empty queue MEANS for this workspace: the colour rides with a glyph and the words. */
@@ -184,7 +199,7 @@ export interface TodayQueueEmptyVM {
   testid: string;
 }
 
-export type TodayFigureId = "booked" | "messages" | "answered" | "calls" | "new";
+export type TodayFigureId = "booked" | "answered" | "calls" | "new";
 
 /**
  * One of the day's four figures: the number, its word, the clause always drawn under it, and the why behind it with
@@ -194,7 +209,10 @@ export type TodayFigureId = "booked" | "messages" | "answered" | "calls" | "new"
 export interface TodayFigureVM {
   id: TodayFigureId;
   label: string;
-  value: number;
+  /** Null where the day's read could not count it (what was booked, when its read failed): drawn as a dash, never 0. */
+  value: number | null;
+  /** What the number is out of, said small after it ("31 of 34"): the customer messages answered's count is of. */
+  of?: number;
   meta: string;
   receipt: { text: string; door: { label: string; to: string } | null } | null;
 }
@@ -271,21 +289,38 @@ export interface TodayVM {
     facts: TodayFactVM[];
     receipts: Array<{ at: string; text: string; to: string }>;
   } | null;
-  /** The day's own figures, in order: customer messages, answered by the receptionist, calls, new people. Null on a day with nothing at all. */
-  figures: TodayFigureVM[] | null;
   /**
-   * The day's four figures as zeros when there was nothing to count while people wait (figuresOf found no traffic), for
-   * a look that draws the tile whole (Glass, canvas E3; card.tsx); null when the figures stand, and on a quiet day, whose
-   * zeros are its own (quiet.figures).
+   * The day's four figures, in order: booked, answered by the receptionist of the customer messages, calls, new people.
+   * Always the four, as zeros on a day with nothing counted (the canvas of 2 Nov 2026).
    */
-  zero_figures: TodayFigureVM[] | null;
+  figures: TodayFigureVM[];
   /** When the last message arrived and how long the answer took. Always said: on a day with traffic it is the messages figure's clause, on a quiet day the card's line. */
   proof: string;
-  /** Who is waiting with nothing back, oldest first, for Worth a look to name. */
+  /** Who waits with nothing back, oldest first, for Ask found's rules to name (the wrong person left out). */
   noReply: TodayNoReplyVM[];
   calls: { line: string; rows: TodayCallRowVM[] } | null;
   /** Whether the calls read succeeded; false means the rows above omit the phone, and the card says so. */
   callsRead: boolean;
+  /**
+   * How many things the team dealt with today, by Need you's door ("3 done today"; Today in three zones, 2 Nov 2026): the
+   * subjects the members' own decisions moved since the business's midnight (a reply sent, a hold closed or handed back, a
+   * visit marked, a review answered, a run approved). Null where it was not read.
+   */
+  done_today: number | null;
+  /** Who comes back from Not now in the next day, soonest first (today-day.ts todayBackOf): the day draws today's. */
+  back: TodayBackVM[];
+  /**
+   * Since the member last looked (Today in three zones, 2 Nov 2026): when they last opened the bell or marked it read, and
+   * what the receptionist answered since; the head's line folds the bell's news in beside it (today-away.ts todaySince).
+   * Null where it was not read.
+   */
+  since: { seen_at: string | null; answered: TodaySinceAnsweredDto | null } | null;
+  /**
+   * What the workspace calls an appointment (tenants.appointment_word, appointmentWordOf), as Today's own read says it:
+   * the day, To do and Need you say it whether or not the playbooks are read, so a workspace with them off never reads a
+   * playbook's word (the canvas of 2 Nov 2026). Null where the read did not say it (a server from before).
+   */
+  word: AppointmentWord | null;
   /**
    * Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, and what
    * the rows hold in words. How many wait on you is the one count's (needsYou and runs_waiting; waits.ts), never a sum of
@@ -293,9 +328,9 @@ export interface TodayVM {
    */
   queue: {
     rows: TodayQueueRowVM[];
-    /** Every row past the six, whatever it is. */
+    /** The people past Up next and the five waiting, and the searches past the three to decide (need-you-groups.ts caps). */
     more: number;
-    /** The people past the six (a handoff, a call-back, a closing window, a reply read), apart from the calls and the searches. */
+    /** The people past Up next and the five waiting (a handoff, a call-back, a closing window, a reply read). */
     more_people: number;
     /** The calls worth a listen, drawn or not. */
     calls: number;
@@ -311,7 +346,33 @@ export interface TodayVM {
     sub: string;
     proof: Array<{ label: string; value: string }>;
     launchpad: { label: string; to: string } | null;
-    /** The day's four figures as zeros, each with what is true under it, for a look that draws the tile whole (Glass). */
-    figures: TodayFigureVM[];
   } | null;
+}
+
+/**
+ * GET today's answer (Today in three zones, 2 Nov 2026; the build's lane L5): the day's read whole, one request where the
+ * page made six, which the page makes the day from (toTodayVM) and makes again each minute by the clock with no read. The
+ * reader is Ask's (server/readers/today.ts), so the page and Ask cannot count it two ways. A part that could not be read
+ * is null, never empty: the calls, the searches, the runs, the held threads, the leads who tried, what was done today and
+ * what happened since the member last looked.
+ */
+export interface TodayReadDto {
+  metrics: MetricsSummaryDto;
+  /** The newest hundred. */
+  conversations: ConversationDto[];
+  /** The open escalations, newest first. */
+  escalations: Array<EscalationDto & { conversation_id: string }>;
+  calls: CallDto[] | null;
+  searches: LeadSearchDto[] | null;
+  /** The runs waiting for a word (toTodayVM counts those that still wait). */
+  runs: WaitingRun[] | null;
+  /** The threads of open holds past the hundred, read by their ids. */
+  held_threads: ConversationDto[] | null;
+  /** The lead previews a lead tried (readers/leads.ts previewsTried). */
+  previews_tried: PreviewTriedDto[] | null;
+  /** How many things the members dealt with since the business's midnight, by Need you's door. */
+  done_today: number | null;
+  since: TodayVM["since"];
+  /** What the workspace calls an appointment. Absent from a server from before (either deploy order). */
+  word?: AppointmentWord | null;
 }
