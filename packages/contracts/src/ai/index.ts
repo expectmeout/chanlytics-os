@@ -66,6 +66,7 @@ export {
   replyReadShadowCall,
   SECOND_KEY_OFF,
   secondKeyLets,
+  LEAD_SCREEN_BOUND_MS,
   SHADOW_CALL,
   SHADOW_CONFIDENT,
   SHADOW_GRACE_MS,

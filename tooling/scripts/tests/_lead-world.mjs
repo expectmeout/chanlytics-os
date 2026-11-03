@@ -9,8 +9,12 @@
  * target, a suppressed place never inserted, the check's settlement (a member
  * held by the email standard alone qualifies on ok), Stop's generation bump
  * and pending ending, the once-only lead_collect job, and a workspace that
- * may not spend refused at the door (00364). Anything else the code
- * under test asks of an RPC throws by name, as _fake-db.mjs does.
+ * may not spend refused at the door (00364); since 00506, the commit's next
+ * job that may be the round's checks or its main phase (each once while one
+ * is live, as jobs_dedupe_live holds them), the round's state_since stamped on
+ * every move, no address of an ended round left checking, and the sweep's
+ * guarded ending (lead_round_end_stuck). Anything else the code under test
+ * asks of an RPC throws by name, as _fake-db.mjs does.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -68,7 +72,7 @@ export function leadWorld({
   const w = { T, clock, pages: {} };
 
   /** scheduleJobOnce's rule, with 00140's index on lead_collect's run and seq modelled. */
-  w.scheduleOnce = async (kind, dueAt, payload) => {
+  w.scheduleOnce = async (kind, dueAt, payload, { keyed = true } = {}) => {
     if (
       kind === "lead_collect" &&
       T.jobs.some(
@@ -77,6 +81,17 @@ export function leadWorld({
       )
     )
       return "already_scheduled";
+    // 00506's keys (packages/jobs dedupeKeyOf): a round's start, and each batch of its own checks, once while one is live.
+    const keyOf = (k, x) =>
+      k === "lead_round_start"
+        ? `lead_round_start:${x.round_id}`
+        : k === "lead_check"
+          ? `lead_check:${x.round_id}:${x.again ?? "round"}:${x.batch ?? 0}`
+          : null;
+    // Held only between rows that carry the key, as the partial unique index holds them: a row a door inserts without
+    // one (lead_search_create's start, lead_round_answer's) never holds back a keyed one.
+    const key = keyed ? keyOf(kind, payload) : null;
+    if (key && T.jobs.some((j) => j.kind === kind && live(j) && j.dedupe_key === key)) return "already_scheduled";
     T.jobs.push({
       id: uuid(),
       tenant_id: TENANT,
@@ -84,6 +99,7 @@ export function leadWorld({
       state: "scheduled",
       due_at: new Date(dueAt).toISOString(),
       payload,
+      ...(key ? { dedupe_key: key } : {}),
       attempts: 0,
       created_at: nowIso(),
     });
@@ -101,11 +117,25 @@ export function leadWorld({
     });
     suppressedValues.add(`${kind}:${value}`);
   };
+  /** A round's move, as lead_rounds_guard stamps it (00506): state_since is when it last moved. */
+  const move = (round, state) => {
+    if (round.state !== state) Object.assign(round, { state, state_since: nowIso() });
+  };
   const end = (round, ending) => {
     if (round.state === "ended") return false;
-    Object.assign(round, { state: "ended", ending, ended_at: nowIso(), waiting_since: null });
+    move(round, "ended");
+    Object.assign(round, { ending, ended_at: nowIso(), waiting_since: null });
     round.allowance_reserved = round.allowance_used;
     round.cost_reserved_usd = round.cost_usd;
+    // 00506: an address of the round still checking did not answer, unless another live round of its is checking it.
+    for (const m of T.lead_search_members.filter((x) => x.round_id === round.id)) {
+      const lead = T.leads.find((l) => l.id === m.lead_id);
+      const elsewhere = T.lead_search_members.some(
+        (o) => o.lead_id === m.lead_id && o.round_id !== round.id && roundOf(o.round_id)?.state !== "ended",
+      );
+      if (lead?.email_state === "checking" && !elsewhere)
+        Object.assign(lead, { email_state: "unknown", email_checked_at: lead.email_checked_at ?? nowIso() });
+    }
     return true;
   };
   const roundOf = (id) => T.lead_rounds.find((r) => r.id === id);
@@ -172,6 +202,7 @@ export function leadWorld({
         plan_version: p_plan.version,
         target: Math.min(25, p_plan.count),
         state: "queued",
+        state_since: nowIso(),
         ending: null,
         ending_pending: null,
         question: null,
@@ -193,7 +224,7 @@ export function leadWorld({
       };
       T.lead_searches.push(search);
       T.lead_rounds.push(round);
-      w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id });
+      w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id }, { keyed: false });
       return { search_id: search.id, round_id: round.id };
     },
     lead_round_answer: ({ p_round_id, p_answer, p_plan }) => {
@@ -210,13 +241,13 @@ export function leadWorld({
         round.plan_version = p_plan.version;
         T.lead_searches.find((s) => s.id === round.search_id).plan = p_plan;
       }
+      move(round, "running");
       Object.assign(round, {
-        state: "running",
         answered: p_answer,
         waiting_since: null,
         target: Math.max(round.target, (p_plan ?? round.plan).count),
       });
-      w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id, resume: true });
+      w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id, resume: true }, { keyed: false });
       return { round_id: p_round_id, state: "running" };
     },
     lead_round_stop: ({ p_search_id }) => {
@@ -520,15 +551,22 @@ export function leadWorld({
       }
       run.read_offset = p_to_offset;
       run.items_seen = page.items_seen ?? run.items_seen;
+      run.already_yours = (run.already_yours ?? 0) + Math.max(0, Number(page.already_yours ?? 0));
       if (page.run_state) {
         run.state = page.run_state;
         if (FINAL.has(page.run_state)) run.finished_at = run.finished_at ?? nowIso();
       }
       if (page.next && typeof page.next === "object") {
+        // 00506: batch 0 unless one is named (00237 said 1), and the main phase's start beside the checks.
         if (page.next.kind === "lead_check")
           w.scheduleOnce("lead_check", clock.ms + (page.next.run_after_seconds ?? 0) * 1000, {
             round_id: round.id,
-            batch: page.next.batch ?? 1,
+            batch: page.next.batch ?? 0,
+          });
+        else if (page.next.kind === "lead_round_start")
+          w.scheduleOnce("lead_round_start", clock.ms + (page.next.run_after_seconds ?? 0) * 1000, {
+            round_id: round.id,
+            resume: true,
           });
         else
           w.scheduleOnce("lead_collect", clock.ms + (page.next.run_after_seconds ?? 0) * 1000, {
@@ -546,7 +584,7 @@ export function leadWorld({
       }
       if (r.ending != null) end(round, r.ending);
       else if (r.state != null && r.state !== round.state) {
-        round.state = r.state;
+        move(round, r.state);
         round.started_at = round.started_at ?? nowIso();
       }
       return { ok: true, counted, qualified, review, excluded, round_state: round.state };
@@ -612,6 +650,27 @@ export function leadWorld({
     lead_round_end: ({ p_round_id, p_ending }) => {
       const round = roundOf(p_round_id);
       return !!round && end(round, p_ending);
+    },
+    // 00506: the sweep's ending, looked at again: unmoved since what the sweep read, no run live, no job of its own.
+    lead_round_end_stuck: ({ p_round_id, p_since, p_ending }) => {
+      const round = roundOf(p_round_id);
+      if (!round || round.state === "ended" || round.state === "waiting_on_owner") return false;
+      if (Date.parse(round.state_since) !== Date.parse(p_since)) return false;
+      const runs = T.lead_runs.filter((r) => r.round_id === round.id);
+      if (runs.some((r) => ["claimed", "starting", "running", "unknown"].includes(r.state))) return false;
+      const ids = new Set(runs.map((r) => r.id));
+      if (
+        T.jobs.some(
+          (j) =>
+            live(j) &&
+            (((j.kind === "lead_round_start" || j.kind === "lead_check") &&
+              j.payload.round_id === round.id &&
+              !j.payload.again) ||
+              (j.kind === "lead_collect" && ids.has(j.payload.run_id))),
+        )
+      )
+        return false;
+      return end(round, round.ending_pending ?? p_ending);
     },
   };
   w.rpcs = rpcs;

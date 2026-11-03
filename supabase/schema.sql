@@ -7433,8 +7433,11 @@ begin
          facts = jsonb_set(jsonb_set(facts, '{people}', v_people), '{addressee}', to_jsonb(p_person)),
          version = version + 1
    where id = v_lead.id;
-  if v_state is null then
-    perform public.lead_check_ask(v_lead.tenant_id, v_round, array[v_lead.id]);
+  -- Its check, asked only with room in this month's and today's searching (00506); without it the address waits as not
+  -- checked, for Check again once there is.
+  if v_state is null and not public.lead_check_ask(v_lead.tenant_id, v_round, array[v_lead.id]) then
+    v_state := 'unknown';
+    update public.leads set email_state = 'unknown' where id = v_lead.id;
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (v_lead.tenant_id, 'lead.addressee_chosen', 'lead', 'lead', v_lead.id,
@@ -7800,6 +7803,7 @@ declare
   v_ids  uuid[] := '{}';
   v_r    record;
   v_err  jsonb;
+  v_held integer := 0;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -7833,9 +7837,18 @@ begin
       ) m
      group by m.round_id
   loop
-    perform public.lead_check_ask(p_tenant_id, v_r.round_id, v_r.lead_ids);
-    v_ids := v_ids || v_r.lead_ids;
+    -- Asked only with room in this month's and today's searching (00506): a check is money, as a search is.
+    if public.lead_check_ask(p_tenant_id, v_r.round_id, v_r.lead_ids) then
+      v_ids := v_ids || v_r.lead_ids;
+    else
+      v_held := v_held + cardinality(v_r.lead_ids);
+    end if;
   end loop;
+  -- Nothing asked because there was no room: the owner reads why, in the words a search is refused in.
+  if cardinality(v_ids) = 0 and v_held > 0 then
+    return coalesce(public.lead_spend_room(p_tenant_id, public.lead_check_estimate(v_held)),
+      jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.'));
+  end if;
   return jsonb_build_object('scheduled', cardinality(v_ids), 'skipped', cardinality(p_lead_ids) - cardinality(v_ids));
 end $$;
 
@@ -7851,13 +7864,17 @@ COMMENT ON FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[])
 -- Name: lead_check_ask(uuid, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) RETURNS void
+CREATE FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 begin
   if cardinality(coalesce(p_lead_ids, '{}'::uuid[])) = 0 then
-    return;
+    return false;
+  end if;
+  -- The check is money (00506): asked only with room in this month's and today's searching, as a search is.
+  if public.lead_spend_room(p_tenant_id, public.lead_check_estimate(cardinality(p_lead_ids))) is not null then
+    return false;
   end if;
   update public.leads set email_state = 'checking'
    where tenant_id = p_tenant_id and id = any (p_lead_ids) and email_state <> 'checking';
@@ -7865,6 +7882,7 @@ begin
   values (p_tenant_id, 'lead_check', now(),
           jsonb_build_object('round_id', p_round_id, 'batch', 0, 'again', gen_random_uuid()::text,
                              'lead_ids', to_jsonb(p_lead_ids)));
+  return true;
 end $$;
 
 
@@ -7872,7 +7890,7 @@ end $$;
 -- Name: FUNCTION lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) IS 'The mailbox check of the named leads under one of their rounds (00430): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
+COMMENT ON FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) IS 'The mailbox check of the named leads under one of their rounds (00430): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. Asked only with room in this month''s and today''s searching (00506, lead_spend_room for lead_check_estimate): true when asked, false when there is none, and then nothing is written. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
 
 
 --
@@ -7967,8 +7985,14 @@ begin
     select r.usage_usd into v_prev from public.lead_runs r where r.id = p_run_id and r.round_id = p_round_id for update;
     if found and p_usage_usd > v_prev then
       v_delta := p_usage_usd - v_prev;
-      perform public.lead_settle_usage(v_round.tenant_id, v_round.month, v_round.day, v_round.platform_day, v_delta,
-        case when v_round.state = 'ended' then 0 else v_round.cost_reserved_usd - v_round.cost_usd end);
+      if v_round.state = 'ended' then
+        -- A re-check after its round ended is spent when it runs (00506), as lead_collect_commit settles it.
+        perform public.lead_settle_usage(v_round.tenant_id, public.lead_month(v_round.tenant_id, now()),
+          public.lead_day(v_round.tenant_id, now()), to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), v_delta, 0);
+      else
+        perform public.lead_settle_usage(v_round.tenant_id, v_round.month, v_round.day, v_round.platform_day, v_delta,
+          v_round.cost_reserved_usd - v_round.cost_usd);
+      end if;
       -- An ended round is final (its trigger refuses a change): the month's counters carry the cents, the round's own cost stays what it ended at.
       if v_round.state <> 'ended' then
         update public.lead_rounds set cost_usd = cost_usd + v_delta where id = p_round_id;
@@ -7990,6 +8014,27 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lead_check_commit(p_round_id uuid, p_run_id uuid, p_results jsonb, p_usage_usd numeric, p_last boolean) IS 'A batch of mailbox answers ([{lead_id, email_state, checked_at}]) from the check run p_run_id: each lead''s state is set (never a blanked or erased one); a member of the round held in review by the email standard alone, whose address now checks out, is Qualified -- counted through the round''s reservation while the round runs, and through the month''s allowance the way Keep is once the round has ended (Check again, 00145; it stays in review when the month is full). The run''s usage settles by its total so far (E4). p_last ends the round with the ending left pending, or by its target. Returns {ok, qualified, counted, ended}.';
+
+
+--
+-- Name: lead_check_estimate(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_check_estimate(p_addresses integer) RETURNS numeric
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Contracts' checkPerEmailUsd (0.00089) with LEAD_ESTIMATE_MARGIN (1.3), as the checker's cap reads them
+  -- (core check.ts checkerCapOf); lead-check-price.test.mjs holds the two to each other.
+  select round(greatest(coalesce(p_addresses, 0), 0) * 0.00089 * 1.3, 4)
+$$;
+
+
+--
+-- Name: FUNCTION lead_check_estimate(p_addresses integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_check_estimate(p_addresses integer) IS 'What checking p_addresses addresses may cost (00506): contracts'' price an address with the estimate''s room, held to them by lead-check-price.test.mjs.';
 
 
 --
@@ -8171,8 +8216,15 @@ begin
   v_usage := (p_page->>'usage_usd')::numeric;
   if v_usage is not null and v_usage > v_run.usage_usd then
     v_delta := v_usage - v_run.usage_usd;
-    perform public.lead_settle_usage(v_round.tenant_id, v_month, v_round.day, v_round.platform_day, v_delta,
-      case when v_round.state = 'ended' then 0 else v_round.cost_reserved_usd - v_round.cost_usd end);
+    if v_round.state = 'ended' then
+      -- A re-check after its round ended is spent when it runs (00506): this month's budget and today's two days,
+      -- which its door asked for room in (lead_check_ask), never the round's own, long given back.
+      perform public.lead_settle_usage(v_round.tenant_id, public.lead_month(v_round.tenant_id, now()),
+        public.lead_day(v_round.tenant_id, now()), to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), v_delta, 0);
+    else
+      perform public.lead_settle_usage(v_round.tenant_id, v_month, v_round.day, v_round.platform_day, v_delta,
+        v_round.cost_reserved_usd - v_round.cost_usd);
+    end if;
     -- An ended round is final (its trigger refuses a change): the month's counters carry a re-check's cents, the round's own cost stays what it ended at.
     if v_round.state <> 'ended' then
       update public.lead_rounds set cost_usd = cost_usd + v_delta where id = v_round.id;
@@ -8185,15 +8237,29 @@ begin
   update public.lead_runs
      set read_offset = p_to_offset,
          items_seen  = coalesce((p_page->>'items_seen')::integer, items_seen),
+         -- The places it read and paid for that the workspace already held (00506), so what a main phase pays twice
+         -- for its probe's places can be measured.
+         already_yours = already_yours + greatest(coalesce((p_page->>'already_yours')::integer, 0), 0),
          state       = coalesce(p_page->>'run_state', state),
          finished_at = case when coalesce(p_page->>'run_state', state) in ('succeeded', 'failed', 'aborted', 'timed_out') then coalesce(finished_at, now()) else finished_at end
    where id = p_run_id;
   v_next := p_page->'next';
   if v_next is not null and jsonb_typeof(v_next) = 'object' then
     if v_next->>'kind' = 'lead_check' then
-      insert into public.jobs (tenant_id, kind, due_at, payload)
+      -- The round's checks, written with the move that sends it to them (00506, PRD §0.5): batch 0 unless one is named,
+      -- under the key packages/jobs writes, so the sweep carrying the round on beside this job checks the batch once.
+      insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
       values (v_round.tenant_id, 'lead_check', now() + make_interval(secs => coalesce((v_next->>'run_after_seconds')::integer, 0)),
-              jsonb_build_object('round_id', v_round.id, 'batch', coalesce((v_next->>'batch')::integer, 1)));
+              jsonb_build_object('round_id', v_round.id, 'batch', coalesce((v_next->>'batch')::integer, 0)),
+              'lead_check:' || v_round.id || ':round:' || coalesce((v_next->>'batch')::integer, 0))
+      on conflict do nothing;
+    elsif v_next->>'kind' = 'lead_round_start' then
+      -- The main phase, written with the probe's pass (00506), as lead_round_answer writes it with an answer.
+      insert into public.jobs (tenant_id, kind, due_at, payload, dedupe_key)
+      values (v_round.tenant_id, 'lead_round_start', now() + make_interval(secs => coalesce((v_next->>'run_after_seconds')::integer, 0)),
+              jsonb_build_object('round_id', v_round.id, 'resume', true),
+              'lead_round_start:' || v_round.id)
+      on conflict do nothing;
     else
       insert into public.jobs (tenant_id, kind, due_at, payload)
       values (v_round.tenant_id, 'lead_collect', now() + make_interval(secs => coalesce((v_next->>'run_after_seconds')::integer, 0)),
@@ -9689,7 +9755,10 @@ CREATE FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) RETURNS bo
     SET search_path TO 'public'
     AS $$
 declare
-  r public.lead_rounds;
+  r       public.lead_rounds;
+  v_judge numeric := 0;
+  v_out   numeric;
+  v_take  numeric;
 begin
   if p_ending not in ('target_reached', 'searched_everything', 'month_leads_used', 'budget_used', 'few_new_matches', 'stopped', 'source_failed', 'question_unanswered', 'paused') then
     raise exception 'not one of the nine endings: %', p_ending using errcode = '22023';
@@ -9698,15 +9767,36 @@ begin
   if not found or r.state = 'ended' then
     return false;
   end if;
+  -- What judging the round cost (00506, PRD §0.2: the budget bounds judging too): every call of its judge and of the
+  -- second model that screens or shadows it, as the usage ledger keeps them under the round. It is settled as used in
+  -- the round's month and days, out of what the round still had reserved, and only the rest goes back.
+  select coalesce(sum(u.usd), 0) into v_judge
+    from public.ai_usage u
+   where u.purpose = 'lead_judge' and u.subject_id = p_round_id and u.tenant_id = r.tenant_id;
+  v_out  := greatest(r.cost_reserved_usd - r.cost_usd, 0);
+  v_take := least(v_judge, v_out);
   update public.lead_rounds
-     set state = 'ended', ending = p_ending, ended_at = now(), waiting_since = null
+     set state = 'ended', ending = p_ending, ended_at = now(), waiting_since = null, judge_usd = v_judge
    where id = p_round_id;
+  if v_judge > 0 then
+    perform public.lead_settle_usage(r.tenant_id, r.month, r.day, r.platform_day, v_judge, v_take);
+  end if;
   perform public.lead_release(r.tenant_id, r.month, r.day, r.platform_day,
-    greatest(r.allowance_reserved - r.allowance_used, 0), greatest(r.cost_reserved_usd - r.cost_usd, 0));
+    greatest(r.allowance_reserved - r.allowance_used, 0), v_out - v_take);
+  -- No address of the round is left waiting for a check that will never come (00506): one still 'checking' when its
+  -- round ends (a question unanswered, a stop, a round the sweep had to end) did not answer, so Check again can take
+  -- it. One another live round of its is still checking is left to that round.
+  update public.leads l
+     set email_state = 'unknown', email_checked_at = coalesce(l.email_checked_at, now())
+   where l.tenant_id = r.tenant_id and l.email_state = 'checking'
+     and exists (select 1 from public.lead_search_members m where m.round_id = p_round_id and m.lead_id = l.id)
+     and not exists (select 1 from public.lead_search_members o
+                       join public.lead_rounds x on x.id = o.round_id
+                      where o.lead_id = l.id and x.id <> p_round_id and x.state <> 'ended');
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (r.tenant_id, 'lead.round', 'lead', 'lead_round', p_round_id,
           jsonb_build_object('search_id', r.search_id, 'seq', r.seq, 'state', 'ended', 'ending', p_ending,
-                             'counted', r.allowance_used, 'cost_usd', r.cost_usd));
+                             'counted', r.allowance_used, 'cost_usd', r.cost_usd, 'judge_usd', v_judge));
   return true;
 end $$;
 
@@ -9715,7 +9805,47 @@ end $$;
 -- Name: FUNCTION lead_round_end(p_round_id uuid, p_ending text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the nine endings: state ended, ended_at, and what it reserved and did not use goes back to the counters. True once; false when already ended.';
+COMMENT ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) IS 'Ends a round with one of the nine endings: state ended, ended_at, the judge''s dollars settled (00506: the usage ledger''s lead_judge rows under the round, as used, out of what it still had reserved), what it reserved and did not use back to the counters, and every address of the round still checking set unknown, so Check again can take it. True once; false when already ended.';
+
+
+--
+-- Name: lead_round_end_stuck(uuid, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  r public.lead_rounds;
+begin
+  -- The sweep read the round, its runs and their jobs in three reads: under the round's own lock, look again.
+  select * into r from public.lead_rounds where id = p_round_id for update;
+  if not found or r.state in ('ended', 'waiting_on_owner') or r.state_since is distinct from p_since then
+    return false;
+  end if;
+  if exists (select 1 from public.lead_runs x
+              where x.round_id = p_round_id and x.state in ('claimed', 'starting', 'running', 'unknown')) then
+    return false;
+  end if;
+  if exists (select 1 from public.jobs j
+              where j.tenant_id = r.tenant_id and j.state in ('scheduled', 'fired')
+                and ((j.kind in ('lead_round_start', 'lead_check') and j.payload->>'round_id' = p_round_id::text
+                      and j.payload->>'again' is null)
+                  or (j.kind = 'lead_collect'
+                      and j.payload->>'run_id' in (select x.id::text from public.lead_runs x where x.round_id = p_round_id)))) then
+    return false;
+  end if;
+  -- The ending it had pending is the true one; the sweep's is only for a round that had none.
+  return public.lead_round_end(p_round_id, coalesce(r.ending_pending, p_ending));
+end $$;
+
+
+--
+-- Name: FUNCTION lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) IS 'The lead sweep''s ending of a round nothing can carry on (00506, core nextStepOf): under the round''s lock it ends it only while it has not moved since p_since, waits on no question, has no run at the provider and no job of its own on its way, and then with the ending it had pending, else p_ending. True when it ended it. Service role only.';
 
 
 --
@@ -9969,6 +10099,8 @@ begin
     ) then
       raise exception 'lead_rounds.state % -> % refused', OLD.state, NEW.state;
     end if;
+    -- When the round last moved (00506): what the lead sweep measures a quiet round from.
+    NEW.state_since := now();
   end if;
   -- The plan a round runs is the plan it ran, except the one amendment
   -- Include makes while the round waits (§0.5 the only in-place change).
@@ -9985,7 +10117,7 @@ end $$;
 -- Name: FUNCTION lead_rounds_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_rounds_guard() IS 'queued -> probing | running | ended; probing -> waiting_on_owner | running | checking | ended; waiting_on_owner -> running | ended; running -> checking | ended; checking -> ended; ended is final. One live round per search; a later round needs a signed-in person; the plan changes only while waiting, as version + 1.';
+COMMENT ON FUNCTION public.lead_rounds_guard() IS 'queued -> probing | running | ended; probing -> waiting_on_owner | running | checking | ended; waiting_on_owner -> running | ended; running -> checking | ended; checking -> ended; ended is final. One live round per search; a later round needs a signed-in person; the plan changes only while waiting, as version + 1. Every change of state stamps state_since (00506).';
 
 
 --
@@ -10019,7 +10151,7 @@ begin
      where not exists (select 1 from public.notifications n
                         where n.tenant_id = NEW.tenant_id and n.kind = 'leads_question' and n.subject_id = NEW.id::text)
     returning id into v_id;
-  elsif NEW.state = 'ended' and coalesce(OLD.state, '') <> 'ended' and coalesce(NEW.ending, '') not in ('stopped', 'question_unanswered') then
+  elsif NEW.state = 'ended' and coalesce(OLD.state, '') <> 'ended' and coalesce(NEW.ending, '') <> 'stopped' then
     select count(*)::integer into v_n from public.lead_search_members m
      where m.round_id = NEW.id and m.class = 'qualified' and m.blanked_at is null;
     -- Whether the source returned anything at all, in any class: the strip's "seen" (00491).
@@ -10031,6 +10163,8 @@ begin
                        else left('Your list ' || v_name || ' could not be checked', 200) end
                 when NEW.ending = 'source_failed' and not v_seen then
                   left('Your search for ' || v_name || ' didn''t run: the source couldn''t start it', 200)
+                when NEW.ending = 'question_unanswered' then
+                  left('Your search for ' || v_name || ' ended: it waited a day for your answer', 200)
                 when NEW.ending = 'source_failed' then
                   left('Your search for ' || v_name || ' stopped: the source stopped answering', 200)
                 else left('Your search for ' || v_name || ' is done', 200) end,
@@ -11234,6 +11368,43 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+
+
+--
+-- Name: lead_spend_room(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v public.lead_counters;
+begin
+  -- lead_reserve's three dollar caps, in its lock order, in this month and today, reserving nothing: for a spend of
+  -- cents that settles as it runs (a mailbox check asked again), which a search's reservation does not hold.
+  v := public.lead_counter_take(p_tenant_id, 'budget', public.lead_month(p_tenant_id, now()));
+  if v.used + v.reserved + p_usd > public.lead_cap('month_usd') then
+    return jsonb_build_object('error', 'budget_used',
+      'sentence', 'This month''s searching is used up. It renews on ' || public.lead_renews_on(p_tenant_id) || '.');
+  end if;
+  v := public.lead_counter_take(p_tenant_id, 'day', public.lead_day(p_tenant_id, now()));
+  if v.used + v.reserved + p_usd > public.lead_cap('day_usd') then
+    return jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.');
+  end if;
+  v := public.lead_counter_take(null, 'day', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'));
+  if v.used + v.reserved + p_usd > public.lead_cap('platform_day_usd') then
+    return jsonb_build_object('error', 'day_cap', 'sentence', 'Searching is busy today. Try again tomorrow.');
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION lead_spend_room(p_tenant_id uuid, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) IS 'Whether this month''s budget, the workspace''s day and the platform''s day each have room for p_usd (00506), in lead_reserve''s lock order and with its caps (lead_cap), reserving nothing: null when they do, else {error: budget_used | day_cap, sentence}. For a spend of cents that settles as it runs, a mailbox check asked again (lead_check_ask). Service role and definer doors only.';
 
 
 --
@@ -33962,6 +34133,7 @@ CREATE TABLE public.lead_platform (
     prices_checked_at timestamp with time zone,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     cards_on text[] DEFAULT ARRAY['local_businesses'::text] NOT NULL,
+    prices jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT lead_platform_id_check CHECK (id),
     CONSTRAINT lead_platform_note_check CHECK ((char_length(note) <= 200))
 );
@@ -33979,6 +34151,13 @@ COMMENT ON TABLE public.lead_platform IS 'One row. searches_on is the kill switc
 --
 
 COMMENT ON COLUMN public.lead_platform.cards_on IS 'The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it.';
+
+
+--
+-- Name: COLUMN lead_platform.prices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_platform.prices IS 'Each lead source''s event prices by actor and event, as the price watch last read them (00506): the baseline the next daily read is compared with, a rise past a tenth or a new charge paged to the platform, since the cards'' prices (contracts LEAD_CARDS) and the SQL ceiling are written by hand.';
 
 
 --
@@ -34091,6 +34270,8 @@ CREATE TABLE public.lead_rounds (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     platform_day text DEFAULT to_char((now() AT TIME ZONE 'UTC'::text), 'YYYY-MM-DD'::text) NOT NULL,
     nearby jsonb DEFAULT '[]'::jsonb NOT NULL,
+    state_since timestamp with time zone DEFAULT now() NOT NULL,
+    judge_usd numeric(10,4) DEFAULT 0 NOT NULL,
     CONSTRAINT lead_rounds_allowance_reserved_check CHECK ((allowance_reserved >= 0)),
     CONSTRAINT lead_rounds_allowance_used_check CHECK ((allowance_used >= 0)),
     CONSTRAINT lead_rounds_answered_check CHECK ((answered = ANY (ARRAY['keep'::text, 'include'::text, 'stop'::text]))),
@@ -34139,6 +34320,20 @@ COMMENT ON COLUMN public.lead_rounds.nearby IS 'Where to look next when the roun
 
 
 --
+-- Name: COLUMN lead_rounds.state_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.state_since IS 'When the round last moved (00506): set by lead_rounds_guard on every change of state. The lead sweep carries a round quiet since then on (core nextStepOf), and ends one nothing can carry on through lead_round_end_stuck.';
+
+
+--
+-- Name: COLUMN lead_rounds.judge_usd; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.judge_usd IS 'What judging the round cost (00506): the usage ledger''s lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month''s budget and both days.';
+
+
+--
 -- Name: lead_runs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -34165,6 +34360,7 @@ CREATE TABLE public.lead_runs (
     usage_usd numeric(10,4) DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     finished_at timestamp with time zone,
+    already_yours integer DEFAULT 0 NOT NULL,
     CONSTRAINT lead_runs_purpose_check CHECK ((purpose = ANY (ARRAY['discover'::text, 'check'::text]))),
     CONSTRAINT lead_runs_read_offset_check CHECK ((read_offset >= 0)),
     CONSTRAINT lead_runs_state_check CHECK ((state = ANY (ARRAY['claimed'::text, 'starting'::text, 'running'::text, 'succeeded'::text, 'failed'::text, 'aborted'::text, 'timed_out'::text, 'unknown'::text])))
@@ -34176,6 +34372,13 @@ CREATE TABLE public.lead_runs (
 --
 
 COMMENT ON TABLE public.lead_runs IS 'One provider execution: a discover run per term, a check run per batch of addresses. Written ''claimed'' (the row exists), claimed by a dispatch token before the provider is called (E1), leased by owner token and generation while a page is read (E3); the webhook token is made with the row and never rewritten.';
+
+
+--
+-- Name: COLUMN lead_runs.already_yours; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_runs.already_yours IS 'Places the run read and paid for that the workspace already held, skipped as yours (00506): what a main phase pays again for its probe''s places, measured before anything is changed for it.';
 
 
 --
@@ -38407,6 +38610,13 @@ ALTER TABLE ONLY public.waitlist
 --
 
 CREATE INDEX ai_usage_at ON public.ai_usage USING btree (created_at);
+
+
+--
+-- Name: ai_usage_lead_judge_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ai_usage_lead_judge_subject ON public.ai_usage USING btree (subject_id) WHERE (purpose = 'lead_judge'::text);
 
 
 --
@@ -46703,6 +46913,14 @@ GRANT ALL ON FUNCTION public.lead_check_commit(p_round_id uuid, p_run_id uuid, p
 
 
 --
+-- Name: FUNCTION lead_check_estimate(p_addresses integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_check_estimate(p_addresses integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_check_estimate(p_addresses integer) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_collect_commit(p_run_id uuid, p_owner text, p_gen integer, p_from_offset integer, p_to_offset integer, p_page jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47014,6 +47232,14 @@ GRANT ALL ON FUNCTION public.lead_round_end(p_round_id uuid, p_ending text) TO s
 
 
 --
+-- Name: FUNCTION lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_round_end_stuck(p_round_id uuid, p_since timestamp with time zone, p_ending text) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_round_rejudge(p_round_id uuid, p_plan_version integer, p_places jsonb, p_judgment jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47213,6 +47439,14 @@ GRANT ALL ON FUNCTION public.lead_site_key(p_host text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_spend_room(p_tenant_id uuid, p_usd numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) TO service_role;
 
 
 --

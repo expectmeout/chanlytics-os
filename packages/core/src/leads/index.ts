@@ -88,6 +88,8 @@ export {
 export type { Phase } from "./runner/rules";
 export { startRound } from "./runner/start";
 export type { StartOutcome, TermOutcome } from "./runner/start";
+export { MAX_CARRY_ONS, nextStepOf, REDRIVE_AFTER_MS } from "./runner/next-step";
+export type { RoundStep, StepJobs, StepRound, StepRun } from "./runner/next-step";
 export { giveUpRun, reconcileUnknownRuns } from "./runner/sweep";
 export type { GiveUpOutcome, ReconcileOutcome } from "./runner/sweep";
 export { hasContact, mainAsk, probeAsk, probeYield, runCaps, yieldOf } from "./sizing";

@@ -36,6 +36,12 @@ export const SHADOW_TIMEOUT_MS = 6_000;
 export const SHADOW_GRACE_MS = 1_500;
 /** How long the ledger write of a shadow's rows may take before it is left behind: the customer's reply never waits on it longer. */
 export const SHADOW_WRITE_MS = 1_500;
+/**
+ * The most the lead judge's screen (decision 0085) may take for one batch, before the judge reads what it has not
+ * answered. The runner budgets it with the usage write after it (core runner/rules.ts SCREEN_MARGIN_MS) and asks the
+ * screen only when the judge still has its whole bound left after it.
+ */
+export const LEAD_SCREEN_BOUND_MS = 8_000;
 /** The question a row names when its call never answered: one row per failed call, with no answer to compare. */
 export const SHADOW_CALL = "call";
 

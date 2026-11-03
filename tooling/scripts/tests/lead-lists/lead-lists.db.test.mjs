@@ -670,8 +670,16 @@ test(
   { skip },
   async () => {
     const w = await world();
-    const told = bodyIn(migration("00491"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(liveBody("lead_rounds_notify"), told, "the database runs 00491's");
+    const rang = bodyIn(migration("00506"), "create or replace function public.lead_rounds_notify(");
+    assert.equal(liveBody("lead_rounds_notify"), rang, "the database runs 00506's");
+    // 00506 is 00491's with a search that ended waiting a day on its question ringing, and saying so, and nothing else.
+    const told = rang
+      .replace(
+        "coalesce(NEW.ending, '') <> 'stopped' then",
+        "coalesce(NEW.ending, '') not in ('stopped', 'question_unanswered') then",
+      )
+      .replace(/ {16}when NEW\.ending = 'question_unanswered' then\n[^\n]*\n/, "");
+    assert.equal(told, bodyIn(migration("00491"), "create or replace function public.lead_rounds_notify("));
     // 00491 is 00421's with a search whose source failed saying so (didn't run, or stopped), and nothing else.
     const bell = told
       .replace("  v_seen boolean;\n", "")

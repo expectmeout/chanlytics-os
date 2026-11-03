@@ -556,17 +556,19 @@ export {
   ideasBasis,
   ideasClockAndLanguage,
   keepIdeas,
+  keepLeadPrices,
   leadAddresseeChoose,
   leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,
   leadPeopleSearchCreate,
+  leadPricesSeen,
   leadViewCounts,
   readIdeaHistory,
   readLeadOne,
   saveIdeasLine,
 } from "./repositories/leads";
-export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember } from "./repositories/leads";
+export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./repositories/leads";
 export {
   addToList,
   archiveList,
