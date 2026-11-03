@@ -17,6 +17,7 @@ import {
   holdActOf,
   MIN_MS,
   reasonShort,
+  ESCALATION_REASONS,
   type EscalationReason,
 } from "../packages/contracts.js";
 
@@ -64,9 +65,13 @@ const OWN_WORDS: ReadonlyMap<string, string> = new Map([
   ["opt-in not confirmed", "the confirmation of their yes could not be sent"],
 ]);
 
+/** Whether these words are one of the closed set of hold reasons (contracts ESCALATION_REASONS). */
+const isReason = (r: string): r is EscalationReason => (ESCALATION_REASONS as readonly string[]).includes(r);
+
 /** Why a thread needs a person, as the owner reads it: the Inbox's clause for a reason, else the handler's own words, else as it came. */
 function whyOf(reason: string): string {
-  const held = REASON_OF.get(reason);
+  // A gate hands over the hold's own reason (core handled.ts handToAPerson); a branch with no hold names it in a phrase.
+  const held = isReason(reason) ? reason : REASON_OF.get(reason);
   return held ? reasonShort(held) : (OWN_WORDS.get(reason) ?? reason);
 }
 

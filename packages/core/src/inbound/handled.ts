@@ -18,8 +18,9 @@
  * that escalation landed, because a person was asked, so `noteHandledAfter` stamps the word and writes nothing else:
  * the message stays unprocessed, and when the escalation was refused nobody was asked and nothing is stamped.
  */
-import type { BrainIntent, Handled } from "@chanlytics/contracts";
+import type { BrainIntent, EscalationReason, Handled } from "@chanlytics/contracts";
 import type { InboundSink } from "./ports";
+import type { Answering } from "./context";
 
 /** What the sink answered to an escalation: how it landed (packages/jobs EscalationOutcome), or nothing when it failed. */
 type EscalateAnswer = Awaited<ReturnType<InboundSink["escalate"]>>;
@@ -91,4 +92,33 @@ export async function noteHandledAfter(
 ): Promise<unknown> {
   const escalation = escalationOf(await asked.catch(() => undefined));
   return escalation === "landed" ? sink.noteHandled(handledOf({ escalation, reply }), intent) : undefined;
+}
+
+/** A message a person must answer, as a gate hands it over. */
+export interface HandOver {
+  /** The hold's reason: the Inbox's words for it, and the owner's notice's (alerts.ts whyOf). */
+  reason: EscalationReason;
+  /** The hold's details, as the Inbox shows them. */
+  details: string;
+  /** What the customer sent, for the notice. */
+  said: string;
+  /** What was said back, or why nothing was, for the notice. */
+  answered: string;
+}
+
+/**
+ * A message a person must answer, and nothing said to the customer: the hold written with its reason, the owner told (from
+ * its event once it is written, else here, ./ingest.ts tell), and the message stamped a handoff when the hold landed. The
+ * one way every gate that stops a message hands it over, so none of them can ask a person and forget to say so, or say
+ * so and forget the stamp. `also` rides beside it (an attachment kept). Resolves to nothing: the message stops here.
+ */
+export async function handToAPerson(at: Answering, h: HandOver, also: Promise<unknown>[] = []): Promise<undefined> {
+  const asked = at.sink.escalate(h.reason, h.details);
+  await Promise.all([
+    asked,
+    at.tell(asked, { said: h.said, answered: h.answered, why: h.reason }),
+    processedAfter(at.sink, asked, "none"),
+    ...also,
+  ]);
+  return undefined;
 }

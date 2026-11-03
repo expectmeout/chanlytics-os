@@ -8,7 +8,7 @@ import type { IngestResult } from "@chanlytics/db";
 import { effectiveReplyMode } from "./reply-posture";
 import { resolveConsent } from "./consent";
 import { isThreadUnknown } from "./thread";
-import { handledOf, processedAfter, SET_ASIDE } from "./handled";
+import { handledOf, handToAPerson, processedAfter, SET_ASIDE } from "./handled";
 import { GO, type Answering, type InboundContext, type ModeInForce } from "./context";
 
 /** The mode in force for this one message: the workspace's posture, or this person's own setting where one is set. */
@@ -41,7 +41,7 @@ export async function modeInForce(cx: InboundContext, ing: IngestResult | null):
 
 /** A thread that could not be read, consent, the carriers' hold and what kind of message arrived, in that order. */
 export async function firstGates(at: Answering): Promise<typeof GO | undefined> {
-  const { thread, L, sink, tell, n, ing, carrier } = at;
+  const { thread, L, sink, n, ing, carrier } = at;
   // The memory could not be read, and there is no second copy to ask. We do
   // not know whether a human has taken this thread over, what was already
   // said, or how many replies have gone out today — so every gate below would
@@ -49,20 +49,12 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // guessing; the customer's message is already persisted above.
   if (isThreadUnknown(thread)) {
     L.error("wa_state_unavailable");
-    const asked = sink.escalate(
-      "state_unavailable",
-      "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
-    );
-    await Promise.all([
-      asked,
-      tell(asked, {
-        said: n.body ?? `[${n.rawType}]`,
-        answered: "(no reply sent — the receptionist could not read the thread state)",
-        why: "state unavailable",
-      }),
-      processedAfter(sink, asked, "none"),
-    ]);
-    return;
+    return handToAPerson(at, {
+      reason: "state_unavailable",
+      details: "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
+      said: n.body ?? `[${n.rawType}]`,
+      answered: "(no reply sent — the receptionist could not read the thread state)",
+    });
   }
 
   // CONSENT GATE — before every branch below that can send, because all of
@@ -113,18 +105,13 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // answered until the line is approved. After consent, which outranks it;
   // before every branch that can speak.
   if (carrier?.held) {
-    const asked = sink.escalate(carrier.held.reason, carrier.held.details);
-    await Promise.all([
-      asked,
-      tell(asked, {
-        said: n.body ?? `[${n.rawType}]`,
-        answered: "(no reply sent — the carriers have not approved this line for texting yet)",
-        why: "carriers",
-      }),
-      processedAfter(sink, asked, "none"),
-    ]);
     L.info("sms_held_for_carriers");
-    return;
+    return handToAPerson(at, {
+      reason: carrier.held.reason,
+      details: carrier.held.details,
+      said: n.body ?? `[${n.rawType}]`,
+      answered: "(no reply sent — the carriers have not approved this line for texting yet)",
+    });
   }
 
   // Routing is on the NORMALIZED type, not the raw one. A quick-reply tap or a
@@ -152,14 +139,13 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // the branch below, without the ack and without muting the receptionist. A post or a reel a person shared in a DM is
   // the same: its link is in the words, and what to make of it is a person's (decision 0001, step 8).
   if (n.kind === "location" || n.kind === "contacts" || n.kind === "share") {
-    const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
-    await Promise.all([
-      asked,
-      tell(asked, { said: n.body ?? `[${n.rawType}]`, answered: "(no reply sent — passed to a human)", why: n.kind }),
-      processedAfter(sink, asked, "none"),
-    ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
-    return;
+    return handToAPerson(at, {
+      reason: "non_text",
+      details: `${n.body} — needs a person.`,
+      said: n.body ?? `[${n.rawType}]`,
+      answered: "(no reply sent — passed to a human)",
+    });
   }
   return GO;
 }

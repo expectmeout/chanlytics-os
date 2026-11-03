@@ -41,6 +41,7 @@ import { claimTheTurn, stillOurs } from "./turn";
 // TYPES ONLY: the one inbound shape is the channels package's, and this verb speaks it. A VALUE from channels would be a
 // provider inside a verb — that is a port, not a widening (hygiene.test.mjs).
 import type { InboundMessage, SendResult } from "@chanlytics/channels";
+import type { EscalationReason } from "@chanlytics/contracts";
 import type { IngestResult, RoutedChannel } from "@chanlytics/db";
 import type { InboundChannel, InboundPorts } from "./ports";
 
@@ -56,7 +57,7 @@ export interface InboundCarrier<C extends CarriedChannel = CarriedChannel> {
   /** The provider's answer, its own code with it: the door tells the carrier's no on the person's behalf (21610) from a failure of ours. */
   send(to: string, body: string): Promise<SendResult>;
   body(text: string, isFirstReply: boolean): string;
-  held: { reason: string; details: string } | null;
+  held: { reason: EscalationReason; details: string } | null;
 }
 
 /** The wires a carrier brings a message in on: every inbound wire but WhatsApp, which rides the tenant's credentials. */
