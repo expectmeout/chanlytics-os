@@ -98,6 +98,19 @@ globalThis.window = {
       if (wire.gate) await wire.gate();
       return wire.putOk ? ok({ views: {} }) : refused(429, "rate_limited", "Too many changes — try again in a minute.");
     }
+    // The workspace's own choices (PUT setup/choices, decision 0091): what the door answers is the row as it stands.
+    if (u.pathname === "/api/v1/setup/choices") {
+      if (!wire.putOk) return refused(429, "rate_limited", "Too many changes — try again in a minute.");
+      const b = init.body ? JSON.parse(String(init.body)) : {};
+      const was = wire.choices ?? { phone: null, whatsapp: null, marks: [], version: 0 };
+      wire.choices = {
+        phone: "phone" in b ? b.phone : was.phone,
+        whatsapp: b.whatsapp ?? was.whatsapp,
+        marks: [...new Set([...was.marks, ...(b.marks ?? [])])],
+        version: was.version + 1,
+      };
+      return ok({ choices: wire.choices });
+    }
     return refused(404, "not_found", "no");
   },
 };
@@ -265,6 +278,10 @@ test("the number the owner keeps is the member's too: read with their view, save
     assert.equal((await moved).ok, true);
     assert.deepEqual(saves().at(-1)[2], {
       view: { later: ["calendar", "team"], phone: { way: "move", number: "+13055550177" } },
+    });
+    // And kept on the workspace, where every member and the back office read it (decision 0091).
+    assert.deepEqual(asked.filter(([m, p]) => m === "PUT" && p === "/api/v1/setup/choices").at(-1)[2], {
+      phone: { way: "move", number: "+13055550177" },
     });
     assert.equal((await setupVerbs.want(null)).ok, true);
     assert.deepEqual(saves().at(-1)[2], { view: { later: ["calendar", "team"] } });

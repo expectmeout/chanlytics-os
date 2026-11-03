@@ -28,7 +28,7 @@ import type { ActivationRecord, CapabilityStatus } from "./capabilities";
 import type { EmailSetupDto } from "../email/mailbox";
 import type { ReceptionistState } from "../config/workspace-config/config-schema";
 import type { ImportRowDto } from "../imports/ledger";
-import type { SetupRests } from "./setup-put-off";
+import { WORKSPACE_MARKS, type SetupRests } from "./setup-put-off";
 import type { BusinessReadDto } from "../imports/business-reads";
 
 export interface SetupDto {
@@ -166,6 +166,20 @@ export interface SetupDto {
   reads?: BusinessReadDto[];
   /** How many people the workspace holds (decision 0073: the dashboard filling in, Live's yes count); absent where unread. */
   people?: number;
+  /**
+   * What the first run chose for the workspace (setup_choices, 00513, decision 0091): the number and how calls reach it,
+   * where WhatsApp answers, and the marks that say a step was done. The same for every member and the back office;
+   * absent on a server or a database from before it, which reads the member's own view instead (setupSteps).
+   */
+  workspace_choices?: SetupWorkspaceChoicesDto | null;
+}
+
+/** The workspace's setup choices as the wire carries them: the shapes contracts reads (setupPhoneWantOf, setupChoicesOf). */
+export interface SetupWorkspaceChoicesDto {
+  phone: unknown;
+  whatsapp: string | null;
+  marks: string[];
+  version: number;
 }
 
 /** A line as the page may see it — states in words, never a provider id. */
@@ -316,6 +330,8 @@ export interface SetupInputs extends SetupDto {
   want?: SetupPhoneWant | null;
   /** The rest of what the first run's Where it answers chose (setupChoicesOf), from the same view; absent reads as none. */
   choices?: SetupChoices | null;
+  /** The business chose Not by phone (callsNotByPhone, decision 0091): no number is owed to go live. */
+  noCalls?: boolean;
 }
 
 export type SetupState = "not_started" | "waiting_you" | "waiting_them" | "ready";
@@ -400,6 +416,8 @@ export interface SetupVM {
   /** What Where it answers chose beyond the number (the member's saved view), none before a choice. */
   choices: SetupChoices;
   /** The number the member chose at Where it answers (their saved view's `phone`): kept, moved or new; null before one. */
+  /** The business chose Not by phone (decision 0091): Where it answers is done, and Go live owes no number. */
+  noCalls: boolean;
   want: SetupPhoneWant | null;
   /** A line of the workspace's own is on its way or answering, or a person was asked for one: nothing left to choose. */
   lineUnderway: boolean;
@@ -712,6 +730,16 @@ export function setupPhoneWantOf(view: unknown): SetupPhoneWant | null {
 }
 
 /**
+ * "Not by phone" (decision 0091): the business takes no calls through the receptionist, chosen at Where it answers in
+ * place of a number. Kept where the number's choice is (`phone: {way: "none"}`), so one key says how calls reach it; the
+ * number's own reading (setupPhoneWantOf) is null for it.
+ */
+export function callsNotByPhone(view: unknown): boolean {
+  const phone = view && typeof view === "object" ? (view as { phone?: unknown }).phone : null;
+  return !!phone && typeof phone === "object" && (phone as { way?: unknown }).way === "none";
+}
+
+/**
  * Where WhatsApp answers, as Where it answers chose it (decision 0073): on the number customers call, the business
  * keeping its WhatsApp Business app (coexistence, R12); on the receptionist's own number; or later.
  */
@@ -727,6 +755,25 @@ export interface SetupChoices {
 export function setupChoicesOf(view: unknown): SetupChoices {
   const wa = view && typeof view === "object" ? (view as { whatsapp?: unknown }).whatsapp : null;
   return { whatsapp: (WHATSAPP_CHOICES as readonly unknown[]).includes(wa) ? (wa as WhatsappChoice) : null };
+}
+
+/**
+ * The inputs with the workspace's own choices standing where the member's view stood (decision 0091): once the
+ * workspace has a row (setup_choices), the number and WhatsApp chosen are its alone, and its marks join the member's
+ * put-offs, so every member and the back office stand at the same step. A read from before the row carries none, and
+ * the member's view stands as it did.
+ */
+export function withWorkspaceChoices(i: SetupInputs): SetupInputs {
+  const w = i.workspace_choices;
+  if (!w) return i;
+  const marks = w.marks.filter((m) => (WORKSPACE_MARKS as readonly string[]).includes(m));
+  return {
+    ...i,
+    want: setupPhoneWantOf({ phone: w.phone }),
+    noCalls: callsNotByPhone({ phone: w.phone }),
+    choices: setupChoicesOf({ whatsapp: w.whatsapp }),
+    later: [...new Set([...(i.later ?? []), ...marks])],
+  };
 }
 
 /**

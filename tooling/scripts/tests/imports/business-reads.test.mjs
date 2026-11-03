@@ -59,9 +59,10 @@ test("a read's facts are taken for what each is: a field of the wrong kind is no
       answers: [{ q: "Do you move pianos?", a: "Yes, with two days' notice." }],
       description: "Family movers in Brooklyn since 1998.",
       look: null,
+      booking_page: null,
     },
   );
-  const none = { services: [], closed: [], rules: [], answers: [], description: null, look: null };
+  const none = { services: [], closed: [], rules: [], answers: [], description: null, look: null, booking_page: null };
   assert.deepEqual(businessReadFactsOf(null), none);
   assert.deepEqual(businessReadFactsOf(["services"]), none);
   assert.deepEqual(businessReadFactsOf({ services: "Local moves", description: 12 }), none);

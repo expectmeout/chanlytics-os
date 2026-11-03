@@ -28,9 +28,7 @@ import {
   type PreviewRefusal,
 } from "@chanlytics/db";
 import { linkPageDb, linkPageLookOf } from "../public/link-page";
-import { notifyPlatformSignup } from "../platform/signup";
-import { giveFirstAlertAddress } from "../workspace/first-alert";
-import { clearPendingWorkspace } from "../workspace/workspace-create";
+import { workspaceBegun } from "../workspace/workspace-create";
 import { log } from "../log";
 import type { RouteContext } from "../with-route";
 
@@ -91,9 +89,15 @@ export async function claimPreviewFor(ctx: RouteContext, token: string) {
   const workspace = r.value;
   log.info("preview_claimed", { tenant_id: workspace.id });
 
-  await notifyPlatformSignup(workspace.id, ctx.email ?? "", ctx.userId);
-  await giveFirstAlertAddress(ctx.supabase, workspace.id, ctx.email, ctx.userId);
+  // What follows every workspace made (workspaceBegun), with the first run's marks its preview earned kept on the
+  // workspace (decision 0091) as well as on the claimer's own view.
+  const marks = used ? previewFirstRunMarks(used) : [];
+  await workspaceBegun(ctx, workspace.id, {
+    by: "claimed",
+    notify: ctx.email ?? "",
+    alertTo: ctx.email ?? null,
+    marks,
+  });
   await markFirstRun(ctx, workspace.id, used);
-  await clearPendingWorkspace(ctx);
   return { workspace };
 }

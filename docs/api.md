@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-347 handlers in 56 domains.
+348 handlers in 56 domains.
 
 ## activity
 
@@ -2750,6 +2750,17 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/setup/route.ts`).
+
+### `PUT /api/v1/setup/choices`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `phone` | object or null | no |  |
+| `whatsapp` | one of `"same"`, `"own"`, `"later"` | no |  |
+| `marks` | array of one of `"receptionist-met"`, `"rehearse-skipped"`, `"channels-seen"` | no | at most 3 |
+| `version` | integer | no | ≥ 0; ≤ 9007199254740991 |
 
 ### `POST /api/v1/setup/request`
 

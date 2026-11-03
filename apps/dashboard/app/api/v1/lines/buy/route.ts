@@ -52,6 +52,11 @@ export const POST = write({
       EDGE_LINES_TIMEOUT_MS,
     );
     const b = a.body ?? {};
+    // The line already being set up is what this press asked for: the server starts the number the workspace chose
+    // once its trial or plan does (decision 0091), often before the tab that paid presses, so the line that stands is
+    // the answer, not a refusal.
+    if (a.status === 409 && b.error === "line_exists")
+      return { ok: true, queued: false, line: b.line ?? null, step: null, error: null };
     if (a.status === 409)
       throw new AppError(
         "conflict",

@@ -7027,6 +7027,44 @@ export type Database = {
           },
         ]
       }
+      setup_choices: {
+        Row: {
+          marks: string[]
+          phone: Json | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+          whatsapp: string | null
+        }
+        Insert: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Update: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setup_choices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_reports: {
         Row: {
           created_at: string
@@ -7791,6 +7829,14 @@ export type Database = {
         Returns: Json
       }
       campaign_stuck: { Args: { p_tenant_id: string }; Returns: Json }
+      capability_activate: {
+        Args: { p_capability: string; p_note?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      capability_deactivate: {
+        Args: { p_capability: string; p_tenant_id: string }
+        Returns: Json
+      }
       change_playbook: {
         Args: {
           p_decision?: Json
@@ -8309,6 +8355,7 @@ export type Database = {
         Args: { p_addresses: string[]; p_tenant_id: string }
         Returns: string[]
       }
+      lead_allowance: { Args: { p_tenant_id: string }; Returns: number }
       lead_blank: { Args: { p_lead_id: string }; Returns: number }
       lead_bulk: {
         Args: {
@@ -10915,6 +10962,17 @@ export type Database = {
         Args: { p_logo_path: string; p_tenant_id: string }
         Returns: string
       }
+      setup_choice_set: {
+        Args: {
+          p_clear_phone?: boolean
+          p_marks?: string[]
+          p_phone?: Json
+          p_tenant_id: string
+          p_version?: number
+          p_whatsapp?: string
+        }
+        Returns: Json
+      }
       setup_request: {
         Args: { p_tenant_id: string; p_what: string }
         Returns: Json
@@ -11141,6 +11199,7 @@ export type Database = {
           version: number
         }[]
       }
+      trial_use: { Args: { p_tenant_id: string }; Returns: Json }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_channel_quality_sweep: { Args: never; Returns: number }

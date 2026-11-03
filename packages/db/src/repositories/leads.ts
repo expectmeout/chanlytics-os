@@ -401,3 +401,16 @@ export async function ideaCustomerRows(db: Db, tenantId: string): Promise<IdeaCu
     deals: deals.map((d) => ({ service: d.service, lead_id: d.lead_id, contact_id: d.contact_id })),
   };
 }
+
+/**
+ * The leads this workspace may count this month (00512's lead_allowance, decision 0090): the trial's while its billing
+ * says trialing, else the month's. The Leads page and the plan card read it beside what the month has taken, so the
+ * number left is the one lead_reserve holds. A read that fails throws: "we could not check" is not a whole month.
+ */
+export async function leadAllowanceOf(db: Db, tenantId: string): Promise<number> {
+  const { data, error } = await db.rpc("lead_allowance", { p_tenant_id: tenantId });
+  if (error) throw new Error(`lead_allowance: ${error.message}`);
+  const n = typeof data === "number" ? data : Number(data);
+  if (!Number.isFinite(n)) throw new Error("lead_allowance answered no number");
+  return n;
+}

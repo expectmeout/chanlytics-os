@@ -5,8 +5,9 @@
  * with a record of why, so the link is never a door that can be probed for which codes exist.
  *
  * First touch wins: a second link does not move the credit, so the partner who found the business is the one
- * credited. Thirty days, never cleared by hand: it expires on its own, and every workspace made in the window is
- * the partner's. Not a code (a path someone typed) is a plain redirect and no cookie.
+ * credited. Thirty days, or until the create screen has used it: the workspace made with the person's yes to the
+ * partner is credited, and the screen clears the cookie then (CreateWorkspace.tsx, decision 0012), so a later
+ * workspace is not. Not a code (a path someone typed) is a plain redirect and no cookie.
  */
 import { PARTNER_COOKIE, PARTNER_COOKIE_DAYS, cleanPartnerCode, partnerCodeFromCookie } from "@chanlytics/contracts";
 

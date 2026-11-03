@@ -210,9 +210,9 @@ function stepViewOf(o: {
   const brain = brainOf(read && read.settings ? read.settings.config : null);
   const fr = stepOn(S, param, stays, lookerOf(S, brain));
   const key = fr.shown.key;
-  // The tab that made the choice may be gone (a reload, another device, checkout's way back): the member's saved view
-  // still says which number they keep, move or got, and the steps go on from there.
-  const choice = phoneChoice ?? choiceFromWant(S.want);
+  // The tab that made the choice may be gone (a reload, another device, checkout's way back, another member): the
+  // workspace's choices still say which number it keeps, moves or got (decision 0091), and the steps go on from there.
+  const choice = phoneChoice ?? choiceFromWant(S.vm.want);
   const ph =
     key === "channels" || key === "live"
       ? FIRST_RUN_HELPERS.phone({
@@ -468,21 +468,28 @@ function pageActs(o: {
     void setupVerbs.makeAgent();
     goNow(firstRunStepRoute("rehearse"));
   };
-  // Open Today, once everything is done: calls switched on by the owner (the capability's activation, which the first
-  // run's first time also emails them that it answers), then Today. A refusal is said and the step stays; again goes on.
+  // Open Today, once everything is done: every channel that answers switched on by the owner (each capability's
+  // activation; the workspace's first, calls or WhatsApp alike, also emails them that it answers, decision 0091), then
+  // Today. A refusal is said and the step stays; again goes on.
   const finish = async (to: string) => {
     if (busy.going) return;
-    const voice = S.dto.channels.voice;
-    const activated = (S.dto.activations || []).some((a) => a.capability === "voice" && !a.deactivated_at);
-    if (!finishRefused.current && voice.active && !activated && canDo("disconnect")) {
+    const on = (kind: "voice" | "whatsapp") =>
+      (S.dto.activations || []).some((a) => a.capability === kind && !a.deactivated_at);
+    const kinds = (["voice", "whatsapp"] as const).filter(
+      (k) => (k === "voice" ? S.dto.channels.voice.active : S.dto.channels.whatsapp.active) && !on(k),
+    );
+    if (!finishRefused.current && kinds.length && canDo("disconnect")) {
       busy.setGoing(true);
-      const r = await setupVerbs.activate("voice", { firstRun: true });
-      busy.setGoing(false);
-      if (!r.ok) {
-        finishRefused.current = true;
-        flash(refusalToast(r, W.notFinished));
-        return;
+      for (const kind of kinds) {
+        const r = await setupVerbs.activate(kind, { firstRun: true });
+        if (!r.ok) {
+          busy.setGoing(false);
+          finishRefused.current = true;
+          flash(refusalToast(r, W.notFinished));
+          return;
+        }
       }
+      busy.setGoing(false);
     }
     leave(to);
   };
@@ -545,6 +552,7 @@ function stepBody(o: {
         <FrRehearse
           fr={fr}
           card={card}
+          asks={FIRST_RUN_HELPERS.rehearseAsks(brain?.profile ?? null)}
           bookingLink={brain?.booking_link ?? null}
           trained={S.vm.rehearsal.kept}
           canEdit={canEdit}
@@ -566,6 +574,7 @@ function stepBody(o: {
               whatsappWaiting: S.vm.choices.whatsapp === "same",
             }).lines
           }
+          noCalls={S.vm.noCalls}
           flash={flash}
           go={acts.go}
           back={fr.back}

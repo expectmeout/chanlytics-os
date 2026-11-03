@@ -10,6 +10,16 @@ import { dayInZone } from "../../calendar/zone-math";
 
 /** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
 export const LEAD_MONTHLY_ALLOWANCE = 500;
+/**
+ * The leads a free trial includes (decision 0090, Ruben, 3 Nov 2026: lead generation is kept apart past what the trial
+ * includes), counted as the month's are, while the workspace's billing says trialing. SQL's lead_cap('trial_leads').
+ */
+export const LEAD_TRIAL_ALLOWANCE = 50;
+
+/** The leads a workspace may count this month: the trial's while it is on a trial, else the month's. */
+export function leadAllowanceFor(billingStatus: string | null | undefined): number {
+  return billingStatus === "trialing" ? LEAD_TRIAL_ALLOWANCE : LEAD_MONTHLY_ALLOWANCE;
+}
 /** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
 export const LEAD_MONTHLY_BUDGET_USD = 25;
 export const LEAD_DAY_CAP_USD = 10;

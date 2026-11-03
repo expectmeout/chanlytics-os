@@ -86,8 +86,9 @@ test("REGRESSION: a workspace a partner sets up is told to the platform, naming 
   assert.deepEqual(out, { workspace: LUNA, sent: true });
   assert.deepEqual(
     [tables.tenant_config[0].config, tables.tenant_config[0].version],
-    [{}, 1],
-    "the partner is not made its alert address: that is the owner's, given as they accept, and a first one would block it",
+    [{ notifications: { escalation_emails: ["owner@example.com"] } }, 2],
+    "the owner it waits for is its alert address from the start (workspaceBegun), never the partner: a customer who " +
+      "needs someone before the hand-over reaches the business, and the accept finds the owner there already",
   );
 
   const told = wire.seen.filter((r) => r.path === "/api/admin/signup-notify");

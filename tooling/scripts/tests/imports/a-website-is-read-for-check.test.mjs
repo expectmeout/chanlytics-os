@@ -146,6 +146,8 @@ test("a website read: its home page and the pages it links to for services and q
   assert.deepEqual(kept.facts, {
     ...READ,
     look: { logo_url: null, accent: null, worn: { logo: false, accent: false } },
+    // No booking platform's page named here: none read beside the site (the onboarding PRD's P8).
+    booking_page: null,
   });
   assert.deepEqual(
     w.tables.ai_usage.map((u) => [u.tenant_id, u.purpose]),

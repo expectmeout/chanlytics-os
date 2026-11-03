@@ -248,7 +248,7 @@ test("a workspace that stopped paying after the door reserved: a start reaches n
   for (const [mode, status] of [
     ["stripe", "past_due"],
     ["stripe", "canceled"],
-    ["stripe", "trialing"],
+    ["stripe", "none"],
   ]) {
     const { w, p } = world();
     w.T.billing_accounts[0] = { tenant_id: TENANT, mode, status };
@@ -256,11 +256,16 @@ test("a workspace that stopped paying after the door reserved: a start reaches n
     assert.deepEqual([w.round().state, w.round().ending], ["ended", "paused"], status);
     assert.deepEqual([w.apify.calls.length, w.runs().length], [0, 0], `${status}: no run, no row, no charge`);
   }
-  // A workspace invoiced by hand is never asked for a card: it starts.
-  const { w, p } = world();
-  w.T.billing_accounts[0] = { tenant_id: TENANT, mode: "direct", status: "none" };
-  assert.equal((await startRound(p(), w.round().id, OWNER)).kind, "started");
-  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2);
+  // A workspace invoiced by hand is never asked for a card, and a trial finds leads (decision 0090): each starts.
+  for (const [mode, status] of [
+    ["direct", "none"],
+    ["stripe", "trialing"],
+  ]) {
+    const { w, p } = world();
+    w.T.billing_accounts[0] = { tenant_id: TENANT, mode, status };
+    assert.equal((await startRound(p(), w.round().id, OWNER)).kind, "started", status);
+    assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2, status);
+  }
 });
 
 test("a round's runs never cap more than it reserved: with $0.60 for three terms one run starts, and the others are said", async () => {

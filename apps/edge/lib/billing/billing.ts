@@ -17,8 +17,8 @@ import {
   BILLING_TRIAL_DAYS,
   CHECKOUT_RETURN_ROUTE,
   DEFAULT_TIMEZONE,
-  FIRST_RUN_TRIAL_DAYS,
   planBilling,
+  trialDaysFor,
   type BillingPlan,
   type CheckoutReturn,
   type BillingInvoiceDto,
@@ -34,7 +34,7 @@ import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import { cardFingerprintOf, markCard } from "../partners/earnings.js";
-import { checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
+import { checkoutKeyOf, checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
 
 type Db = SupabaseClient<Database>;
 type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
@@ -400,21 +400,24 @@ export async function checkoutFor(
     return { ok: false, error: "already_subscribed" };
   try {
     const customer = await customerFor(s, db, row, tenantName, email);
-    // The trial applies once. From the first run (`start`) it is the first run's own (contracts FIRST_RUN_TRIAL_DAYS,
-    // decision 0073: a number is a cost whether or not a trial pays, Ruben 25 Sep 2026), which every screen says.
-    const trial = row.stripe_subscription_id ? 0 : back === "start" ? FIRST_RUN_TRIAL_DAYS : trialDays();
+    // The trial applies once, and is the same from every door (contracts trialDaysFor, decision 0090: the trial covers
+    // everything, Ruben 3 Nov 2026), which every screen says.
+    const trial = trialDaysFor({ hadSubscription: !!row.stripe_subscription_id, deploymentDays: trialDays() });
     const publishable = env.STRIPE_PUBLISHABLE_KEY;
     const inPage = embedded && !!publishable;
-    const session = await s.checkout.sessions.create({
-      mode: "subscription",
-      customer,
-      client_reference_id: tenantId,
-      line_items: [{ price, quantity: 1 }],
-      subscription_data: { metadata: { tenant_id: tenantId }, ...(trial > 0 ? { trial_period_days: trial } : {}) },
-      allow_promotion_codes: true,
-      ...sessionReturn(inPage, billingReturnUrl(slug, "success", back), billingReturnUrl(slug, "cancel", back)),
-      metadata: { tenant_id: tenantId },
-    });
+    const session = await s.checkout.sessions.create(
+      {
+        mode: "subscription",
+        customer,
+        client_reference_id: tenantId,
+        line_items: [{ price, quantity: 1 }],
+        subscription_data: { metadata: { tenant_id: tenantId }, ...(trial > 0 ? { trial_period_days: trial } : {}) },
+        allow_promotion_codes: true,
+        ...sessionReturn(inPage, billingReturnUrl(slug, "success", back), billingReturnUrl(slug, "cancel", back)),
+        metadata: { tenant_id: tenantId },
+      },
+      { idempotencyKey: checkoutKeyOf(tenantId, back, inPage, Date.now()) },
+    );
     return checkoutMadeOf(session, inPage ? publishable : null);
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
