@@ -22,9 +22,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { err, ok } from "@chanlytics/contracts";
+import { buildAskStates } from "./ask-states.mjs";
 import { buildFixture } from "./fixture.mjs";
 import { buildBehaves } from "./kit-behaves.mjs";
-import { behavesDocument, galleryDocument } from "./kit-gallery.mjs";
+import { askStatesDocument, behavesDocument, galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
 import { templatesRead } from "./templates-read.mjs";
 import {
@@ -34,7 +35,6 @@ import {
   kitGlobalsBundle,
   askLineBundle,
   legacyDocument,
-  mascotBundle,
   peopleGlobalsHarnessBundle,
   send,
   serveStatic,
@@ -203,10 +203,12 @@ export function documentWithFixture() {
 }
 
 /**
- * The page a record's harness serves at `/` and at its workspace's address: the kit's gallery for the `kit` record,
- * which runs none of the mockup's scripts, and the mockup with its fixture for every other.
+ * The page a record's harness serves at `/` and at its workspace's address: the kit's gallery for the `kit` record and
+ * Ask's states for the `ask` record, neither of which runs the mockup's scripts, and the mockup with its fixture for
+ * every other.
  */
-export const pageOf = (record) => (record.gallery ? galleryDocument() : documentWithFixture());
+export const pageOf = (record) =>
+  record.gallery ? galleryDocument() : record.askStates ? askStatesDocument() : documentWithFixture();
 
 /**
  * Start the harness. Port 0 takes a free one, which is what the runner does. Resolves once it is listening, with the
@@ -216,8 +218,9 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
   const record = scenario(name, now);
   // The gallery runs none of the mockup's scripts, so the kit record builds no fixture; it builds the page that runs
   // the kit's components instead.
-  const fixture = record.gallery ? null : await buildFixture(record);
+  const fixture = record.gallery || record.askStates ? null : await buildFixture(record);
   const behaves = record.gallery ? await buildBehaves() : null;
+  const askStates = record.askStates ? await buildAskStates() : null;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://localhost");
@@ -237,6 +240,10 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       }
       if (p === "/_hx/kit-behaves.js" && behaves) {
         send(res, 200, TYPES[".js"], behaves);
+        return;
+      }
+      if (p === "/_hx/ask-states.js" && askStates) {
+        send(res, 200, TYPES[".js"], askStates);
         return;
       }
       if (p === "/behaves" && behaves) {
@@ -270,10 +277,6 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       }
       if (p === "/data/ask-line.js") {
         send(res, 200, TYPES[".js"], await askLineBundle());
-        return;
-      }
-      if (p === "/data/mascot.js") {
-        send(res, 200, TYPES[".js"], await mascotBundle());
         return;
       }
       if (p === "/" || p === "/Chanlytics.html") {

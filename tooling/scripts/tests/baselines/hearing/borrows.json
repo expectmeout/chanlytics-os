@@ -1,6 +1,6 @@
 {
   ".": "broadcasts inbox settings today workspace",
-  "ask": "settings",
+  "ask": "inbox live settings",
   "ask/line": "",
   "calendar": "calendar calendar_runs",
   "calendar/visit": "",

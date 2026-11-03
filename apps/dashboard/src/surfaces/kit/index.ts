@@ -21,6 +21,8 @@ export { Field } from "./field/field";
 export type { FieldProps } from "./field/field";
 export { Figure } from "./figure/figure";
 export type { FigureProps } from "./figure/figure";
+export { LineField, LinePress } from "./line/line";
+export type { LineFieldProps, LinePressProps } from "./line/line";
 export { LinkButton } from "./link-button/link-button";
 export type { LinkButtonProps } from "./link-button/link-button";
 export { ListRow } from "./list-row/list-row";

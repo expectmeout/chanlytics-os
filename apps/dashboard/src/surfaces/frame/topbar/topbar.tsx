@@ -8,7 +8,7 @@
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { askCalls, type LegacyFlash } from "../../legacy-verbs";
 import type { DemoNote } from "./bell-demo";
 import { tbOverlay, useDemoBell, useDemoPresence } from "./bell-demo-acts";
 import { BAR_LINE_WORDS } from "@chanlytics/contracts";
@@ -24,7 +24,7 @@ type Bell = NonNullable<Window["__notifs"]>;
 
 // What Ask said it would come back to, come due (legacy-bridge/ask/follow-ups.ts): how many, heard as they are read. The
 // capsule draws the kit's dot after its words while there is one, as the kit marks something new there to the reader.
-const tbDueNow = () => (window.__ask && window.__ask.followUpsDue ? window.__ask.followUpsDue().length : 0);
+const tbDueNow = () => askCalls()?.followUpsDue?.().length ?? 0;
 function TbAskDue() {
   const [due, setDue] = useState(tbDueNow);
   useEffect(() => {

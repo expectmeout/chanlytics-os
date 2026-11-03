@@ -53,7 +53,7 @@ export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };
 /** Who the harness signs in as: the server's session, the runner's address and the fixture's __ME are this one. */
 export const OWNER = { id: "u-e2e-owner", name: "E2E Owner", email: "e2e-owner@example.com" };
 
-export const SCENARIOS = ["nightly", "salon", "pipeline", "email-only", "kit"];
+export const SCENARIOS = ["nightly", "salon", "pipeline", "email-only", "kit", "ask"];
 
 /** A postal address from the block kept for fiction: what a fictional business's profile holds, and an offer's foot names. */
 const EXAMPLE_ADDRESS = "1200 Example Avenue, Brooklyn, NY 11208";
@@ -630,7 +630,9 @@ export function scenario(name, nowMs = Date.now()) {
             ? emailOnly(name, nowMs)
             : name === "kit"
               ? { ...nightly(name), gallery: true }
-              : null;
+              : name === "ask"
+                ? { ...nightly(name), askStates: true }
+                : null;
   if (!record) throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
   return { ...record, notifications: bellNotes(nowMs) };
 }

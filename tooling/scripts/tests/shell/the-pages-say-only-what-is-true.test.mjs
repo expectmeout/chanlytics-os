@@ -26,6 +26,8 @@ import {
   again as againTree,
   find,
 } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -832,7 +834,7 @@ const { AskCard } = await import("../../../../apps/dashboard/src/surfaces/ask/ca
 test("REGRESSION: a reopened card whose undo has expired offers none, and undoing a new playbook asks first -- it deleted the playbook in one click", async () => {
   const { askUndoOpen } = await import("@chanlytics/contracts");
   const undone = [];
-  globalThis.window.__ask = {
+  holdAsk({
     undoOpen: askUndoOpen,
     undo: async (p) => {
       undone.push(p.kind);
@@ -840,7 +842,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     },
     outcome: async () => true,
     commit: async () => ({ ok: true, receipt: "", undo: null }),
-  };
+  });
   globalThis.window.canDo = () => true;
   const t = askText("en");
   const buttons = (tree) => {
@@ -915,14 +917,14 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
 
 test("a deal card wears the deal word and Open goes to the person's page: a kind the card's maps did not know read as its key and opened inbox/th-undefined", async () => {
   const { cardOpenRoute } = await import("@chanlytics/contracts");
-  globalThis.window.__ask = {
+  holdAsk({
     undoOpen: () => false,
     undo: async () => ({ ok: true, receipt: "" }),
     outcome: async () => true,
     commit: async () => ({ ok: true, receipt: "", undo: null }),
     // Where a card's Open goes is the contract's (ask-answer.ts), as the bridge publishes it.
     cardOpenRoute,
-  };
+  });
   globalThis.window.canDo = () => true;
   const buttons = (tree) => {
     const out = [];

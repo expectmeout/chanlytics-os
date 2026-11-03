@@ -1,7 +1,7 @@
 /**
  * Ask's ideas in Need you (decisions 0070 and 0071): the morning's cards that are not about someone waiting (the morning
  * makes none of those now; they are rows with their own drafts), each a row after the people, with its act and Not
- * today. A card is approved through its own verb walk, as Ask's Line approves it (window.__ask), and what became of it is
+ * today. A card is approved through its own verb walk, as Ask's Line approves it (legacy-verbs.ts askCalls), and what became of it is
  * kept on its turn one outcome after another, never two over one turn at once, so the Line reads it back too. A plan's
  * step, which is pressed with its plan, opens in Ask. This was Ask for you, a section of its own under the queue.
  */

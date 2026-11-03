@@ -250,6 +250,13 @@ const RINGLESS: { why: string; runs: RegExp; failure: RegExp }[] = [
     failure:
       /^field-kit-words: div\.panel\.panel-field\.panel-sm > div\.rec-field > textarea\.rec-input\.rec-input-words draws no ring/,
   },
+  {
+    why:
+      "kit.css, `.line-field`: a conversation's field is no box of its own, so the band the page stands it in is its ground " +
+      "and the caret its focus (Ask's Line, moved into the kit as it drew, 2 Nov 2026)",
+    runs: /./,
+    failure: /^line-field: textarea\.line-field draws no ring/,
+  },
 ];
 const twinsQ = async (width: Width): Promise<KitAsk> => {
   const { EDGE_TOLERANCE, LAID_OUT } = await recorder();

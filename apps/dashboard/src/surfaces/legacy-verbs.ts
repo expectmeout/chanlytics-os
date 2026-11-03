@@ -138,9 +138,17 @@ export function hearPageMoves(fn: () => void): () => void {
   return hear ? hear(fn) : () => undefined;
 }
 
-/** Ask's own calls (`window.__ask`, legacy-bridge/ask.ts installAsk): a turn sent, a card committed, the page as context. */
+/** Ask's own calls, as installAsk made them (legacy-bridge/ask.ts): a turn sent, a card committed, the page as context. */
+let askHeld: AskApi | undefined;
+
+/** The calls a page reads by import from here on: the bridge's, or a test's stand-in. */
+export function holdAsk(calls: AskApi | undefined): void {
+  askHeld = calls;
+}
+
+/** Ask's calls; none before the bridge installs them, and none where there is no bridge. */
 export function askCalls(): AskApi | undefined {
-  return (window as Window & { __ask?: AskApi }).__ask;
+  return askHeld;
 }
 
 /** Where a People list is, by its id: the list picked (People's own rule), or People itself before its lists are read. */
@@ -392,7 +400,7 @@ export function hasTouchSwipe(): boolean {
  */
 
 /** Whether the window's media answers a query; none does where the window has none (a test's stand-in). */
-function mediaSays(query: string): boolean {
+export function mediaSays(query: string): boolean {
   return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(query).matches;
 }
 

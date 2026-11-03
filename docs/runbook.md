@@ -408,12 +408,17 @@ that directory. Record the base first, before you edit: the harness reads the pa
 every request, so what is recorded is the working tree as it stands.
 
 `record` starts the harness above for each record and opens each route at 1440 by 900 and at a phone's 390 by 844 with a
-coarse pointer, dark and light. The harness is the mockup's static server, so it draws the shell's own table and the kit's
-gallery and nothing else: a page that has left the shell (an App Router page, `apps/dashboard/src/surfaces/routes.ts`:
-Today, the Inbox, People, Leads, the Calendar, Reports, Campaigns, Settings, the first run) is drawn by Next alone, and the
-harness answers it with "No surface at", which `record` refuses. What `record` opens today is the kit's gallery, which draws
-every class of the kit (a recording made before the gallery joined, or with other records, is not compared with one after:
-exit 2); the salon's and the pipeline's pages and the eleven scenes it once pressed left with the pages they pressed
+coarse pointer, dark and light. The harness is the mockup's static server, so it draws the shell's own table, the kit's
+gallery and Ask's states, and nothing else: a page that has left the shell (an App Router page,
+`apps/dashboard/src/surfaces/routes.ts`: Today, the Inbox, People, Leads, the Calendar, Reports, Campaigns, Settings, the first
+run) is drawn by Next alone, and the harness answers it with "No surface at", which `record` refuses. What `record` opens
+today is the kit's gallery, which draws every class of the kit, and Ask's states (`e2e-harness/ask-states.tsx`: the real Line
+over the bridge's real palette, with Ask's routes scripted, at rest, in Earlier, typing, scoped, on a whole answer, streaming, on
+a card and a receipt, on a failed turn, offering Latest, asking before a delete, and listening; `node --import tsx
+tooling/scripts/e2e-harness/server.mjs 3211 ask`, then http://localhost:3211/#/card, `t` turning the theme). A recording made
+before either joined, or with other records, is not compared with one after: exit 2. A kit family added at the gallery's end
+shows as elements new after and the page's own height, and moves nothing above it. The salon's and the pipeline's pages and the
+eleven scenes it once pressed left with the pages they pressed
 (`styles/style-equality-pages.test.mjs` fails a list that names a page that has left). Motion is stopped before a page
 draws, and its clock stands still at one moment and moves only as the recorder steps it, ten simulated seconds a route, so a
 timer's work is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed

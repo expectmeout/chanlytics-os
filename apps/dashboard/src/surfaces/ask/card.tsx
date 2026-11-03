@@ -14,6 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import type { AskApi, CommitResult } from "@/legacy-bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
+import { Button } from "../kit/button/button";
 import { AskCardActs, AskCardChange, AskCardHead, AskCardReceipt, AskSheet, type CardFold } from "./card-parts";
 import { askCalls, canDo, gate, settingsVersion } from "./shell";
 import type { LineWords } from "./words";
@@ -487,9 +488,10 @@ export const AskPlan = ({
       <AskHoldsAlike holds={group.alike} of={cards.length} t={t} />
       {g.left > 0 ? (
         <div className="ask-steps-press">
-          <button
-            type="button"
-            className="btn btn-primary btn-sm ask-press"
+          <Button
+            variant="primary"
+            size="sm"
+            className="ask-press"
             onClick={press}
             aria-disabled={held || undefined}
             aria-busy={held || undefined}
@@ -497,7 +499,7 @@ export const AskPlan = ({
             {...gate(gateKey, "approve these steps")}
           >
             {busy ? t.working : t.approveSilent(g.left)}
-          </button>
+          </Button>
         </div>
       ) : null}
       {g.steps.map((s) => {

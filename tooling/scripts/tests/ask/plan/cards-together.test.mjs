@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { cardsTogether, holdsAlike, openCardOf, wordsLessHolds } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, textOf, press, kitPages } from "../../_legacy-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { importSrc } from "../../_source.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
 Object.assign(globalThis.window, kitPages);
@@ -20,6 +21,7 @@ const { askText } = await import("../../../../../apps/dashboard/src/surfaces/ask
 const W = globalThis.window;
 const t = askText("en");
 
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 const REVIEW = "WhatsApp waits: its version goes for review when you approve, and that cannot be taken back.";
 const OWN = "The month has room for 12 of them.";
 const card = (n, over = {}) => ({
@@ -111,7 +113,7 @@ test("the answer drops a line that only says again what holds a card waiting, ho
 
 /** The member's Ask door: each press answered as `commit` says. */
 const door = (commit = async () => ({ ok: true, receipt: "It runs", undo: null })) => {
-  W.__ask = { commit, outcome: async () => true, undoOpen: () => false, cardOpenRoute: () => "campaigns/new" };
+  holdAsk({ commit, outcome: async () => true, undoOpen: () => false, cardOpenRoute: () => "campaigns/new" });
 };
 const group = (cards) => W.React.createElement(AskCards, { cards, t, onNav() {} });
 const draw = (cards) => {
@@ -119,7 +121,8 @@ const draw = (cards) => {
   return group(cards);
 };
 const cardsOf = (tree) => all(tree, (n) => n.props?.["data-testid"] === "ask-card");
-const testid = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id);
+/** What the browser would hold: the kit's parts hand their test id down to the element they draw. */
+const testid = (tree, id) => all(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
 const buttonSaying = (tree, words) => all(tree, (n) => n.type === "button").find((b) => textOf(b).includes(words));
 
 test("three cards: one open with its facts, the rest a title and a line and no press, and the warning once, over them", () => {

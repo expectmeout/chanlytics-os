@@ -33,6 +33,7 @@ import { EmptyState, FailedRead } from "../../../../apps/dashboard/src/surfaces/
 import { Face } from "../../../../apps/dashboard/src/surfaces/kit/face/face.tsx";
 import { Figure } from "../../../../apps/dashboard/src/surfaces/kit/figure/figure.tsx";
 import { Icon } from "../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx";
+import { LineField, LinePress } from "../../../../apps/dashboard/src/surfaces/kit/line/line.tsx";
 import { LinkButton } from "../../../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
 import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
 import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
@@ -1396,6 +1397,55 @@ const searchOf = (props) =>
     testid: "people-phone-search",
     ...props,
   });
+
+/** The gallery's Line family, entry by entry. */
+const LINES = {
+  "line-send": () => [
+    h(LinePress, { kind: "send", "aria-label": "Send" }, glyph()),
+    h(LinePress, { kind: "send", "aria-label": "Send", disabled: true }, glyph()),
+  ],
+  "line-talk": () => [
+    h(LinePress, { kind: "talk", "aria-label": "Talk" }, glyph()),
+    h(LinePress, { kind: "talk", on: true, "aria-label": "Talk" }, glyph()),
+    h(LinePress, { kind: "talk", "aria-label": "Talk", "data-state": "speaking" }, glyph()),
+  ],
+  "line-act": () => [
+    h(LinePress, { kind: "act", "aria-label": "Copy" }, glyph()),
+    h(LinePress, { kind: "act", on: true, "aria-label": "Stop" }, glyph()),
+  ],
+  "line-chip": () => [
+    h(
+      LinePress,
+      { kind: "chip" },
+      h("span", null, "What should I do next?"),
+      h("span", { className: "line-chip-meta" }, "A card"),
+    ),
+    h(LinePress, { kind: "chip", selected: true }, h("span", null, "Who wrote today?"), glyph()),
+  ],
+  "line-next": () => h(LinePress, { kind: "next" }, h("span", null, "Draft both replies?")),
+  "line-clear": () => h(LinePress, { kind: "clear", "aria-label": "Clear" }, glyph()),
+  "line-remove": () => h(LinePress, { kind: "remove", "aria-label": "Delete" }, glyph()),
+  "line-fold": () => h(LinePress, { kind: "fold", "aria-expanded": false }, h("span", null, "Campaign: Reminder")),
+  "line-letgo": () => h(LinePress, { kind: "letgo", "aria-pressed": "true" }, glyph(), "Let go to ask"),
+  "line-latest": () => h(LinePress, { kind: "latest" }, glyph(), "Latest"),
+  "line-item": () => [
+    h(LinePress, { kind: "row" }, h("span", null, "A"), h("span", null, "Ana Reyes"), glyph()),
+    h(LinePress, { kind: "row", selected: true }, h("span", null, "S"), h("span", null, "Sam Ortiz"), glyph()),
+    h("div", { className: "line-item plain" }, h("span", null, "S"), h("span", null, "Sam Ortiz, again")),
+  ],
+  "line-figure": () => [h(LinePress, { kind: "figure" }, "12"), h("span", { className: "line-figure plain" }, "4")],
+  "line-door": () => h(LinePress, { kind: "door", "aria-label": "Open" }, glyph()),
+  "line-open": () => h(LinePress, { kind: "open" }, "Open"),
+  "line-words": () => h(LinePress, { kind: "words" }, "Ana Reyes"),
+  "line-field": () => [
+    h(LineField, { rows: 1, placeholder: "Ask anything" }),
+    h(LineField, { rows: 1, placeholder: "Listening…", listening: true }),
+  ],
+};
+
+test("the Line family draws the gallery's", () => {
+  assert.deepEqual(parting(FAMILIES, "Line", LINES), HELD);
+});
 
 /** The gallery's Search family, entry by entry. */
 const SEARCHES = {

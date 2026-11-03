@@ -138,7 +138,7 @@ const rulesOf = (sheet) => {
 test("no dock takes the tab bar or Ask's circle down under a page carried back to its list", () => {
   for (const [sheet, bar] of [
     ["apps/dashboard/src/legacy/styles/mobile.css", "phone-places"],
-    ["apps/dashboard/src/legacy/styles/ask.css", "phone-ask"],
+    ["apps/dashboard/src/surfaces/ask/ask.css", "phone-ask"],
   ]) {
     let hides = 0;
     for (const rule of rulesOf(sheet)) {

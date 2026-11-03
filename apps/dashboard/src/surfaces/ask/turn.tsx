@@ -17,8 +17,10 @@ import type {
   AskProposalOutcome,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/legacy-bridge/ask";
+import { Button } from "../kit/button/button";
 import { AskFace } from "../kit/face/ask-face";
 import { Icon } from "../kit/icon/icon";
+import { LinePress } from "../kit/line/line";
 import { AskWords, AskListPart } from "./answer-words";
 import { AskCards, AskPlan } from "./card";
 import { askKindGlyph } from "./card-parts";
@@ -98,18 +100,17 @@ const AskFigure = ({
 }) => (
   <div className={`ask-tile${open ? " open" : ""}`} data-testid="ask-tile">
     {f.source ? (
-      <button
-        type="button"
-        className="ask-tile-value"
+      <LinePress
+        kind="figure"
         aria-expanded={open}
         onClick={onToggle}
         title={`${t.from} ${f.source.label}`}
         data-testid="ask-figure"
       >
         {f.value}
-      </button>
+      </LinePress>
     ) : (
-      <span className="ask-tile-value plain">{f.value}</span>
+      <span className="line-figure plain">{f.value}</span>
     )}
     <span className="ask-tile-label">{f.label}</span>
     {f.note ? <span className="ask-tile-note">{f.note}</span> : null}
@@ -117,16 +118,15 @@ const AskFigure = ({
       <span className="ask-tile-from" data-open={open ? "true" : "false"} data-testid="ask-tile-from">
         {t.from} {f.source.label}
         {f.source.door ? (
-          <button
-            type="button"
-            className="ask-tile-door"
+          <LinePress
+            kind="door"
             onClick={() => f.source && onNav(f.source.to)}
             aria-label={t.open}
             title={t.open}
             data-testid="ask-tile-door"
           >
             <Icon name="arrow-right" size={11} />
-          </button>
+          </LinePress>
         ) : null}
       </span>
     ) : null}
@@ -191,17 +191,17 @@ const AskShow = ({
           <div className="ask-items">
             {a.show.items.map((it, k) =>
               itemMove[k] >= 0 ? (
-                <button
+                <LinePress
                   key={k}
-                  type="button"
+                  kind="row"
                   {...moveProps(itemMove[k], "ask-item")}
                   onClick={() => onNav(it.source.to)}
                   data-testid="ask-item"
                 >
                   {itemBody(it, k)}
-                </button>
+                </LinePress>
               ) : (
-                <div key={k} className="ask-item plain" data-testid="ask-item">
+                <div key={k} className="line-item plain ask-item" data-testid="ask-item">
                   {itemBody(it, k)}
                 </div>
               ),
@@ -302,32 +302,31 @@ export const AskAnswer = ({
             {retry || a.do.open || nexts.length ? (
               <div className="ask-do-row">
                 {retry ? (
-                  <button type="button" className="btn ask-retry" onClick={retry} data-testid="ask-retry">
+                  <Button className="ask-retry" onClick={retry} data-testid="ask-retry">
                     {t.tryAgain}
-                  </button>
+                  </Button>
                 ) : null}
                 {a.do.open ? (
-                  <button
-                    type="button"
-                    {...moveProps(openAt, "btn ask-open")}
+                  <Button
+                    {...moveProps(openAt, "ask-open")}
                     onClick={() => a.do.open && onNav(a.do.open.to)}
                     data-testid="ask-open"
                   >
                     <Icon name="arrow-right" size={14} />
                     {a.do.open.label}
-                  </button>
+                  </Button>
                 ) : null}
                 {/* A long question ends in an ellipsis inside its chip. */}
                 {nexts.map((q, k) => (
-                  <button
+                  <LinePress
                     key={q}
-                    type="button"
-                    {...moveProps(nextAt + k, "ask-chip next")}
+                    kind="next"
+                    {...moveProps(nextAt + k, "ask-next")}
                     onClick={() => onFollow(q)}
                     data-testid="ask-next"
                   >
                     <span>{q}</span>
-                  </button>
+                  </LinePress>
                 ))}
               </div>
             ) : null}
@@ -513,16 +512,17 @@ export const AskNextRow = ({
   return (
     <div className="ask-next-row" data-testid="ask-next-row">
       {answer.do.next.map((q, k) => (
-        <button
+        <LinePress
           key={q}
-          type="button"
+          kind="next"
           id={`ask-move-${first + k}`}
-          className={`ask-chip next${sel === first + k ? " sel" : ""}`}
+          selected={sel === first + k}
+          className="ask-next"
           onClick={() => onFollow(q)}
           data-testid="ask-next"
         >
           <span>{q}</span>
-        </button>
+        </LinePress>
       ))}
     </div>
   );
@@ -547,8 +547,8 @@ export const AskListen = ({ heard }: { heard: string }) => (
 // Latest (D7): scrolled up past the newest question, a pill over the field with the three's still mark (a second live
 // canvas would be a second character) stands the newest question at the top again.
 export const AskLatest = ({ t, overNext, onPress }: { t: LineWords; overNext: boolean; onPress: () => void }) => (
-  <button
-    type="button"
+  <LinePress
+    kind="latest"
     className="ask-latest"
     data-over-next={overNext ? "1" : "0"}
     onClick={onPress}
@@ -556,5 +556,5 @@ export const AskLatest = ({ t, overNext, onPress }: { t: LineWords; overNext: bo
   >
     <Icon name="three" size={13} />
     {t.latest}
-  </button>
+  </LinePress>
 );

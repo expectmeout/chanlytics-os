@@ -4,12 +4,11 @@
  * keep everything the three do inside the canvas (fitSide).
  * `tone="accent"` draws them on a coral ground in that ground's own foreground (colour.ts `Tone`); `ground="raised"` draws
  * them on the cards' surface (--bg-raised), so the fades down the stack are toward the surface they sit on, not the page
- * behind it (the phone's ✦). With no bridge (a test, a harness without its bundle) it is an empty canvas.
+ * behind it (the phone's ✦).
  */
 import { useEffect, useRef } from "react";
-import type { Mascot } from "@/legacy-bridge/mascot";
+import { MASCOT } from "@/legacy-bridge/mascot";
 import type { MountOptions } from "@/legacy-bridge/mascot/driver";
-import { windowObject } from "../../legacy-verbs";
 
 /** The page's tokens as the driver reads them, with the ground the three sit on in place of the page. */
 const groundTokens = (ground: string) => () => {
@@ -40,15 +39,14 @@ export const AskFace = ({
 }) => {
   const ref = useRef(null);
   useEffect(() => {
-    const M = windowObject<Mascot>("__mascot");
     const canvas = ref.current;
-    if (!M || !canvas) return undefined;
+    if (!canvas) return undefined;
     const opts: MountOptions = { tone };
     if (side) opts.side = side;
     if (ground === "raised") opts.env = { tokens: groundTokens(ground) };
-    const m = M.mount(canvas, opts);
+    const m = MASCOT.mount(canvas, opts);
     if (!m) return undefined;
-    const stop = M.follow(m, M.mood);
+    const stop = MASCOT.follow(m, MASCOT.mood);
     return () => {
       stop();
       m.destroy();
@@ -58,7 +56,7 @@ export const AskFace = ({
   return <canvas ref={ref} className={className} aria-hidden="true" data-testid={testId} />;
 };
 
-// The disc: the phone's ✦ is the cards' surface with the three on it (styles/ask.css, `.ask-disc`; the spec
+// The disc: the phone's ✦ is the cards' surface with the three on it (surfaces/ask/ask.css, `.ask-disc`; the spec
 // docs/superpowers/specs/2026-09-25-the-ask-button-on-a-phone-design.md, B9). Its dot on the rim (nothing under 80% of the
 // usage, amber from 80%, red at 100%) has no source today, so nothing is read here and the dot is never drawn: the usage
 // surface the spec names does not exist, the one number the app holds, the day's model tokens the receptionist stops at

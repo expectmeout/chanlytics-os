@@ -42,6 +42,7 @@ import {
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { lineBox } from "../../shared/_line.mjs";
+const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 // People's TSX, the Leads page and the surface it reads, loaded as the app's own modules are (one instance of the surface's value
 // store and of its signal, which the page's hooks and this file share): the page, how many rows a table draws first, and the
@@ -951,6 +952,14 @@ const press = (key, target = null, { focus = target, ...mods } = {}) => {
 /* -------------------------- the shell, as the page asks it -------------------------- */
 
 const install = ({ role = "owner" } = {}) => {
+  holdAsk({
+    language: () => "en",
+    send: async () => void uploads.push("ask.send"),
+    commit: async () => {
+      uploads.push("ask.commit");
+      return { ok: false, message: "no" };
+    },
+  });
   Object.assign(globalThis.window, {
     // The chrome bridge's state map, as shell.ts publishes it: StatePill takes its tone from here and nowhere else.
     __chrome: { state: stateOf },
@@ -959,16 +968,6 @@ const install = ({ role = "owner" } = {}) => {
     // legacy-verbs.ts (askAbout, openAsk, askCalls).
     askAbout: (detail) => asks.push(detail),
     appAsk: () => asks.push("open"),
-    __ask: {
-      language: () => "en",
-      send: async () => {
-        uploads.push("ask.send");
-      },
-      commit: async () => {
-        uploads.push("ask.commit");
-        return { ok: false, message: "no" };
-      },
-    },
     __roleGate: roleGate,
     __ME: { role },
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
@@ -3878,7 +3877,7 @@ test("the running strip's Stop reaches the stop route, and the question's Yes an
 test("approving a new plan lands on the search it started, where the strip is; a top-up stays where it is", async () => {
   await fresh();
   const NEW = "3d1d5c1e-0000-4000-8000-00000000c0de";
-  globalThis.window.__ask.commit = async () => ({ ok: true, receipt: "Finding 50 gyms.", undo: { search_id: NEW } });
+  askCalls().commit = async () => ({ ok: true, receipt: "Finding 50 gyms.", undo: { search_id: NEW } });
   // A new search from the page: a kept search's Search again, changed opens the plan Claude wrote, and approving
   // it goes through Ask's commit door as a fresh Find from the Line does (leadFinderApprove).
   openPlanFrom();
@@ -3958,12 +3957,12 @@ test("Change what I asked opens the answer row under the question, and approving
     undo: "Stop the search",
   };
   const sent = [];
-  globalThis.window.__ask.send = async (req, on) => {
+  askCalls().send = async (req, on) => {
     sent.push(req);
     on({ t: "final", message: { text: "", proposals: [card] } });
   };
   const committed = [];
-  globalThis.window.__ask.commit = async (p) => {
+  askCalls().commit = async (p) => {
     committed.push(p);
     return { ok: true, receipt: `Answered. ${waiting.name} carries on with your answer; Leads shows it.`, undo: null };
   };

@@ -4,10 +4,10 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKey, PointerEvent as ReactPointer, RefObject } from "react";
-import type { SpeechPurpose } from "@chanlytics/contracts";
+import { isTypingTarget, type SpeechPurpose } from "@chanlytics/contracts";
 import type { AskApi } from "@/legacy-bridge/ask";
-import { frameChrome } from "../frame/frame-window";
 import { useHoldToTalk } from "../kit/talk/use-hold-to-talk";
+import { mediaSays } from "../legacy-verbs";
 
 // Hold to talk is the kit's (surfaces/kit/talk/use-hold-to-talk.ts, imported): press starts the
 // browser's own recogniser, release stops it, and what was heard is handed back on its own, interim words as they come,
@@ -204,7 +204,7 @@ export const useAskSpeech = (A: AskApi | undefined) => {
 // A phone's thread (docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md): the newest question stands at
 // the top as a question is asked or a conversation opened (D5), and Latest is offered once it is out of sight below
 // (D7). The arithmetic is pure, so it is proved without a layout; the thread is the question's offsetParent (ask.css).
-const ahStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+const ahStill = () => mediaSays("(prefers-reduced-motion: reduce)");
 /** The scroll that stands the newest question a breath under the thread's top edge; the first stands at the top. */
 export const ahPinTop = (qTop: number, gap = 14) => Math.max(0, qTop - gap);
 /** Whether the newest question's first line is below what the thread shows: Latest is offered then. */
@@ -520,7 +520,8 @@ export const useAskEscBeside = (on: boolean) => {
       if (e.key !== "Escape") return;
       const at = e.target as Element | null;
       const from = at && at.nodeType === 1 ? at : document.activeElement;
-      const field = frameChrome()?.typing(from) && !(from && from.closest && from.closest(".tb-line"));
+      const typing = !!from && isTypingTarget(from.tagName, (from as HTMLElement).isContentEditable);
+      const field = typing && !(from && from.closest && from.closest(".tb-line"));
       free.current = !field && !document.querySelector(AH_OPEN_OVER);
     };
     window.addEventListener("keydown", read, true);

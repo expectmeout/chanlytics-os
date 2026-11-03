@@ -19,6 +19,8 @@ import {
   watchArrival,
 } from "../../../../../apps/dashboard/src/legacy-bridge/mascot/arrival.ts";
 import { needsYouNow } from "../../../../../apps/dashboard/src/legacy-bridge/arrival.ts";
+import { importSrc } from "../../_source.mjs";
+const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 /** A clock, and timers that fire as it is moved. */
 const clock = () => {
@@ -241,12 +243,12 @@ test("what needs you is asked when the light is decided, never remembered: Ask c
 
 test("what needs you, as the wiring hands it in: people, runs or searches Ask says wait, a follow-up of Ask's come due (the closed-loop read, 17 Oct 2026), or a notification not read; nothing of these is no light", () => {
   const w = globalThis.window;
-  const was = { ask: w?.__ask, notifs: w?.__notifs };
+  const was = { ask: askCalls(), notifs: w?.__notifs };
   const quiet = { people: 0, runs: 0, searches: 0 };
   globalThis.window ??= globalThis;
   try {
     const said = (parts, due = [], unread = 0) => {
-      globalThis.window.__ask = { rightNowParts: () => parts, followUpsDue: () => due };
+      holdAsk({ rightNowParts: () => parts, followUpsDue: () => due });
       globalThis.window.__notifs = { unread: () => unread };
       return needsYouNow();
     };
@@ -255,11 +257,11 @@ test("what needs you, as the wiring hands it in: people, runs or searches Ask sa
     assert.equal(said(quiet, [{ id: "plumbers" }]), true, "a follow-up come due alone keeps the three lit");
     assert.equal(said(quiet, [], 2), true);
     // An Ask from before the follow-ups (a bridge without followUpsDue) is asked what it can say.
-    globalThis.window.__ask = { rightNowParts: () => quiet };
+    holdAsk({ rightNowParts: () => quiet });
     globalThis.window.__notifs = { unread: () => 0 };
     assert.equal(needsYouNow(), false);
   } finally {
-    globalThis.window.__ask = was.ask;
+    holdAsk(was.ask);
     globalThis.window.__notifs = was.notifs;
   }
 });

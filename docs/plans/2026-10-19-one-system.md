@@ -428,3 +428,19 @@ Read on main at `250585eff` (#1747).
 - **The prerendered chrome stays a measurement.** One document serves every workspace, so it could only draw the frame
   with no workspace and no role filled in: the nav without its counts or names, filled at hydration. It is measured
   after 7e, not promised.
+
+## 11. Ask's reads and its kit step (2 November 2026)
+
+Steps 4 and 5 were moved to Ask's own change and left out of #2036. What they were for is two things, and only the first is done.
+
+**The reads: done.** `surfaces/ask` reads nothing the shell published off the window. Ask's calls are held in `legacy-verbs.ts`
+(`holdAsk()`, filled by `installAsk`; `askCalls()` reads them), and the frame, Today, the arrival and Leads read them there.
+The three are an import (`legacy-bridge/mascot`), so `window.__mascot`, `installMascot` and the mockup's `data/mascot.js` went.
+The gate, the toast, the gestures, the address, the tab's memory and the surfaces come from their modules. What is left of
+`window.` in `surfaces/ask` is the browser's own: its events, its history and its location. `window.__ask` is still published,
+for what stands outside the bundle: the nightly's specs read it from the page (`e2e/ask.spec.ts`, `e2e/today/today.spec.ts`).
+
+**The bytes: not done.** The mascot's character and driver are still in the frame (about 12 KB), and so is Ask's install
+(about 20 KB). Those chunks are what steps 4 and 5 would save, each with its own proof (a rest frame that matches the driver's
+first draw; Today's read aloud pressed on a phone before and after), and neither changes what reads what. They stand as
+written above, each a change of its own.

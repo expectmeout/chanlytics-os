@@ -2,9 +2,11 @@
 import type { MouseEvent, PointerEvent } from "react";
 import type { AskMessageVM } from "@chanlytics/contracts";
 import type { Line } from "./types";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { AskFace } from "../../kit/face/ask-face";
 import { Icon } from "../../kit/icon/icon";
+import { LineField, LinePress } from "../../kit/line/line";
 import { AskActs, AskNowPills, AskReads, AskRows } from "../home";
 import { ahPanelKeys, ahPinNow, ahSlideFrom } from "../hooks";
 import { leaving, touchSwipe } from "../shell";
@@ -35,7 +37,7 @@ export const arLineEnd = (ln: Line) => {
   };
   const liftMic = () => {
     end();
-    window.setTimeout(() => {
+    setTimeout(() => {
       held.current = false;
     }, AR_LIFT_MS);
   };
@@ -64,7 +66,8 @@ export const arLineEnd = (ln: Line) => {
         }
       : role === "talk"
         ? {
-            className: `ask-send talk${talk.listening ? " on" : ""}`,
+            kind: "talk" as const,
+            on: talk.listening,
             "aria-pressed": talk.listening,
             "aria-label": t.talk,
             title: t.talk,
@@ -86,11 +89,11 @@ export const arLineEnd = (ln: Line) => {
             "data-testid": "ask-send",
             icon: "arrow-up",
           };
-  const { icon, className: oneClass = "ask-send", ...oneProps } = one;
+  const { icon, kind = "send", ...oneProps } = one;
   const oneButton = (
-    <button key="one" type="button" className={oneClass} {...oneProps}>
+    <LinePress key="one" kind={kind} className="ask-send" {...oneProps}>
       <Icon key={icon} name={icon} size={icon === "stop" ? 14 : 15} />
-    </button>
+    </LinePress>
   );
   // The foot keeps only the one button: an answer's acts are under it in the thread, and New is the head's.
   return { liftMic, right: oneButton };
@@ -241,9 +244,8 @@ export const arHero = ({
 export const arFoot = ({ phone, talk, typing, t, liftMic }: Line) =>
   phone && talk.listening ? (
     <div className="ask-letgo-wrap">
-      <button
-        type="button"
-        className="btn btn-ghost"
+      <Button
+        variant="quiet"
         onClick={() => {
           typing.current = true;
           talk.stop();
@@ -251,11 +253,11 @@ export const arFoot = ({ phone, talk, typing, t, liftMic }: Line) =>
         data-testid="ask-type-instead"
       >
         {t.typeInstead}
-      </button>
-      <button type="button" className="ask-letgo" aria-pressed="true" onPointerUp={liftMic} data-testid="ask-letgo">
+      </Button>
+      <LinePress kind="letgo" aria-pressed="true" onPointerUp={liftMic} data-testid="ask-letgo">
         <Icon name="mic" size={18} />
         {t.letGo}
-      </button>
+      </LinePress>
     </div>
   ) : null;
 
@@ -300,8 +302,8 @@ const arStage = ({
           <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
             <Icon name={arScopeIcon(scope)} size={10} />
             <span>{scope.label}</span>
-            <button
-              type="button"
+            <LinePress
+              kind="clear"
               onClick={() => {
                 setScope(null);
                 setActive((a) => (a && a.scope ? { ...a, scope: null } : a));
@@ -309,13 +311,14 @@ const arStage = ({
               aria-label={t.clearScope}
             >
               <Icon name="x" size={9} />
-            </button>
+            </LinePress>
             {/* the open thread's scope too, so its next question goes with none (the Phase 5 plan, D9) */}
           </span>
         ) : null}
-        <textarea
+        <LineField
           ref={inputRef}
           rows={1}
+          listening={talk.listening}
           className="ask-line-input"
           placeholder={
             talk.listening
@@ -331,7 +334,7 @@ const arStage = ({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            if (composing && M) M.mood.hear(0.5);
+            if (composing) M.mood.hear(0.5);
           }}
           onKeyDown={onKey}
           onKeyUp={(e) => hold.onKeyUp(e)}
@@ -508,9 +511,9 @@ export const arLineView = (ln: Line) => {
             one, and was left with no way home but ×; it ends the conversation as Clear did, D9), and a close within the
             thumb's reach; both wait while a turn runs (spec 5.1, 5.4). */}
         <div className="ask-line-head">
-          <button
-            type="button"
-            className="btn btn-ghost"
+          <Button
+            variant="quiet"
+            className="ask-head-act"
             aria-pressed={view === "earlier"}
             disabled={!!live}
             onClick={() => setView((v) => (v === "earlier" ? "rows" : "earlier"))}
@@ -518,29 +521,30 @@ export const arLineView = (ln: Line) => {
           >
             <Icon name="chat" size={13} />
             {t.earlier}
-          </button>
+          </Button>
           {active || quick ? (
-            <button
-              type="button"
-              className="btn btn-ghost"
+            <Button
+              variant="quiet"
+              className="ask-head-act"
               disabled={!!live}
               onClick={clearLine}
               data-testid="ask-clear-head"
             >
               <Icon name="plus" size={13} />
               {t.newChat}
-            </button>
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost btn-icon ask-line-close"
+          <Button
+            variant="quiet"
+            iconOnly
+            className="ask-line-close"
             onClick={onClose}
             aria-label={t.close}
             title={t.close}
             data-testid="ask-close"
           >
             <Icon name="x" size={14} />
-          </button>
+          </Button>
         </div>
         {foot}
         {arStage(ln)}

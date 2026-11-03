@@ -877,12 +877,14 @@ step 4 said), which the frame imports.
 
 - **Imports, not the window.** `window.AskHome`, `window.AskHooks`, `window.AskAnswerKit`, `window.askText`, `window.AskLineReal`,
   `W.LineChart` and the rest are imports; `legacy-bridge/ask/line-code.ts` and `line-globals.ts` went, and the frame's door
-  fetches `surfaces/ask/line/line.tsx`. What Ask asks of the bridge and the frame goes through `legacy-verbs.ts` (`askCalls()`
-  for `window.__ask`, as Today reads it) and `surfaces/ask/shell.ts`, which say each name once, as every surface's do.
+  fetches `surfaces/ask/line/line.tsx`. What Ask asks of the bridge and the frame goes through `surfaces/ask/shell.ts`, by
+  import since 2 November 2026: each name from the module that owns it, Ask's own calls from `legacy-verbs.ts` (`askCalls()`,
+  which `installAsk` fills with `holdAsk()`), and the three from `legacy-bridge/mascot`. `window.__ask` is still published,
+  for the nightly's specs alone, which have no import; nothing of the app reads it.
 - **Still a chunk.** `tooling/scripts/tests/ask/ask-line-chunk.test.mjs` walks the static imports from the frame's entry and
-  fails a module of `surfaces/ask/` it reaches. The Line's door and `window.__ask` stay in the frame, as they did; the
-  one-system plan's steps 4 and 5 (the mascot after the first paint, Ask's install as a door) were left for pull requests
-  of their own, so this one moves no byte's timing.
+  fails a module of `surfaces/ask/` it reaches. The Line's door and Ask's calls stay in the frame, as they did; the
+  bytes of the one-system plan's steps 4 and 5 (the mascot after the first paint, Ask's install as a door) were left for
+  pull requests of their own, so this one moves no byte's timing (that plan, section 11).
 - **The checks hold it.** Typecheck, Prettier, the full lint and the function limits read the folder; it joins `KIT_PENDING`
   for its raw controls until its kit step. Each of the page's dependency warnings was read, none was a bug, and each carries
   its reason on its line. A function past four parameters takes an object now (`atRecord`, `atUndoOpen`, `arBeginTurn`).

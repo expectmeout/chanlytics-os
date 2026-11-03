@@ -1526,7 +1526,7 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     shell.includes("if (s.askOpen || s.navOpen) return false;"),
     "hidden while the palette or the drawer is open",
   );
-  const askCss = readRaw("apps/dashboard/src/legacy/styles/ask.css");
+  const askCss = readRaw("apps/dashboard/src/surfaces/ask/ask.css").replace(/\s+/g, " ");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
   // Glass is the one look: the circle's place is the rule after the base one (".phone-ask" at the end of the phone block),
   // 62px as the tab bar's capsule is tall, 14px in from the edge and at the bar's own rest over the bottom (mobile.css,
@@ -1555,7 +1555,7 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   );
   const legacyCss = readRaw("apps/dashboard/src/legacy-bridge/legacy.css");
   assert.ok(
-    legacyCss.indexOf('@import "../legacy/styles/ask.css";') >
+    legacyCss.indexOf('@import "../surfaces/ask/ask.css";') >
       legacyCss.indexOf('@import "../legacy/styles/mobile.css";'),
     "imported after mobile.css, so its phone rules win",
   );
