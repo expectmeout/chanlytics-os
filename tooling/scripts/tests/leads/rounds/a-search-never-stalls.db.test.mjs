@@ -287,6 +287,20 @@ test(
   async () => {
     const made = await search(5, 1);
     const round = await roundOf(made.round_id);
+    // The month's leads held for the round: what lead_round_end gives back (00140's lead_release, on the counter).
+    const held = async () =>
+      Number(
+        ok(
+          await db
+            .from("lead_counters")
+            .select("reserved")
+            .eq("tenant_id", A)
+            .eq("kind", "allowance")
+            .eq("period", round.month)
+            .maybeSingle(),
+        )?.reserved ?? 0,
+      );
+    const before = await held();
     const end = (since) =>
       db.rpc("lead_round_end_stuck", { p_round_id: made.round_id, p_since: since, p_ending: "source_failed" });
     assert.equal(ok(await end(round.state_since)), false, "its start job is still on its way");
@@ -295,7 +309,7 @@ test(
     assert.equal(ok(await end(round.state_since)), true);
     const ended = await roundOf(made.round_id);
     assert.deepEqual([ended.state, ended.ending], ["ended", "source_failed"], "no ending was pending: the source's");
-    assert.equal(Number(ended.allowance_reserved), Number(ended.allowance_used), "what it reserved is given back");
+    assert.equal(before - (await held()), 5, "the five leads it reserved go back to the month");
   },
 );
 

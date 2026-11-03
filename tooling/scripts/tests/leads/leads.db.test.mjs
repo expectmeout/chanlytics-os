@@ -473,7 +473,7 @@ test(
 );
 
 test(
-  "the bell rings twice: once when a round asks, on the pile it asks about, once when it ends, and never for one stopped or left unanswered",
+  "the bell rings twice: once when a round asks, on the pile it asks about, once when it ends, never for one stopped, and in its own words for one left unanswered",
   { skip },
   async () => {
     const bell = async (kind) =>
@@ -631,7 +631,13 @@ test(
         .eq("id", unanswered),
     );
     assert.equal(await closed(unanswered), true, "a question left unanswered is settled: its round asks no more");
-    assert.deepEqual(await bell("leads_ready"), [], "nothing rings 'is done' for a question nobody answered");
+    // Since 00506 it rings, in its own words: the owner who missed the question learns the search ended and kept what
+    // it found, never that it "is done".
+    assert.deepEqual(
+      (await bell("leads_ready")).map((r) => [r.title, r.body, r.subject_id]),
+      [["Your search for florists ended: it waited a day for your answer", "Nothing new was counted.", unanswered]],
+      "a question nobody answered rings once, never 'is done'",
+    );
     ok(await db.from("lead_rounds").update({ state: "running" }).eq("id", ids.round));
     assert.equal(
       await closed(ids.round),
@@ -644,7 +650,7 @@ test(
         .update({ state: "ended", ending: "target_reached", ended_at: new Date().toISOString() })
         .eq("id", ids.round),
     );
-    const done = await bell("leads_ready");
+    const done = (await bell("leads_ready")).filter((r) => r.subject_id === ids.round);
     assert.equal(done.length, 1, "one done row per round");
     assert.equal(done[0].title, "Your search for personal trainers is done");
     assert.equal(done[0].body, "4 found.");

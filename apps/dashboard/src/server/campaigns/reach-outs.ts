@@ -34,6 +34,7 @@ import {
   type ReachOutChainDto,
   type ReachOutChainInput,
   type ReachOutChainReportDto,
+  type ReachOutDecideDto,
   type ReachOutDecision,
   type ReachOutMailboxChoice,
   type ReachOutMailboxFacts,
@@ -46,6 +47,7 @@ import {
   type ReachOutStepDto,
 } from "@chanlytics/contracts";
 import {
+  decideSendDoor,
   draftsWaiting,
   emailWordsByTemplate,
   emailWordsOf,
@@ -369,14 +371,19 @@ export async function removeChain(
   return { removed: true, id: root.id, decision_id: decisionId };
 }
 
-/** An owner's answer to one held (or planned) email: include, rewrite, skip, or not a fit, atomic (R18). */
+/**
+ * An owner's answer to one held (or planned) email: include, rewrite, skip, or not a fit, atomic (R18). A rewrite says
+ * what should change where its owner did (00505); its opening is written by POST reach-out-sends/check
+ * (server/sequences/opening.ts).
+ */
 export async function decideSend(
   ctx: RouteContext,
   send: { id: string; tenant_id: string; broadcast_id: string },
-  decision: ReachOutDecision,
-): Promise<{ send_id: string; decision: ReachOutDecision }> {
-  const { error } = await ctx.supabase.rpc("reach_out_send_decide", { p_send_id: send.id, p_decision: decision });
-  if (error) throw reachOutRefusal(error);
+  input: { decision: ReachOutDecision; change?: string },
+): Promise<ReachOutDecideDto> {
+  const { decision } = input;
+  const r = await decideSendDoor(ctx.supabase, { sendId: send.id, decision, change: input.change || null });
+  if (r.error) throw reachOutRefusal(r.error);
   // What a member decided of an email the check held, on the run it belongs to: an email went out, or did not, on
   // their word, and the ledger said neither.
   await emitEvent(serviceDb(), send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {

@@ -458,3 +458,22 @@ export function createApi(deps: ApiDeps) {
 }
 
 export type Api = ReturnType<typeof createApi>;
+
+/**
+ * A stream of JSON lines (Ask's turn, a rewrite's check), one line at a time across chunk boundaries, as the route wrote
+ * them: each handed on whole, its parsing the caller's.
+ */
+export async function readLines(body: ReadableStream<Uint8Array>, on: (line: string) => void): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let carry = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    carry += decoder.decode(value, { stream: true });
+    const lines = carry.split("\n");
+    carry = lines.pop() ?? "";
+    for (const l of lines) if (l.trim()) on(l);
+  }
+  if (carry.trim()) on(carry);
+}

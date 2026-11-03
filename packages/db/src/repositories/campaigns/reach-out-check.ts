@@ -75,17 +75,19 @@ function recordOf(r: Record<string, unknown>): ReachOutRecordRow {
 
 /**
  * The sends this tick checks, leased under their row locks (00197): at most `perWorkspace` of each workspace, round
- * robin, waiting for their owner or due within `aheadMinutes`, none another tick started in the last two minutes.
+ * robin, waiting for their owner or due within `aheadMinutes`, none another tick started in the last two minutes. With
+ * `sendIds`, those sends alone, whatever their day (00505: a person pressed them).
  */
 export async function uncheckedSends(
   db: Db,
-  p: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: string },
+  p: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: string; sendIds?: string[] },
 ): Promise<UncheckedSend[]> {
   const { data, error } = await db.rpc("sequence_unchecked", {
     p_limit: p.limit,
     p_per_workspace: p.perWorkspace,
     p_ahead_minutes: p.aheadMinutes,
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+    ...(p.sendIds ? { p_send_ids: p.sendIds } : {}),
   });
   if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {

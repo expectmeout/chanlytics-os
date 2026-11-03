@@ -373,6 +373,155 @@ test(
   },
 );
 
+test(
+  "a rewrite keeps what its owner asked and the opening it replaced; Undo puts that back; a press is checked now (00505)",
+  { skip },
+  async () => {
+    const s = await newSearch("Movers R");
+    const { root_id: root } = ok(await save(chainOf(s, { steps: [chainOf(s).steps[0]] })));
+    // A scheduled run whose day is a week off: the clock would not check it yet, a press does.
+    const run = await runOf(root, root, "scheduled");
+    const leadId = await lead();
+    const send = await sendIn(run, root, root, {
+      lead_id: leadId,
+      state: "held",
+      reason: "unbacked_fact",
+      hold_detail: "real volume",
+      opening: "Fixture Movers has 201 reviews, so you handle real volume.",
+      angle: "their reviews",
+      facts_used: ["reviews"],
+      checked_at: iso(Date.now()),
+      checked_words: "w1",
+      check_gen: 4,
+      send_at: iso(Date.now() + 7 * DAY),
+    });
+    const decide = (args, c = as.operator.c) => c.rpc("reach_out_send_decide", { p_send_id: send, ...args });
+
+    refusedWith(
+      await decide({ p_decision: "skip", p_change: "Shorter" }),
+      "22023",
+      REACH_OUT_REFUSALS.onlyRewriteWords,
+    );
+    refusedWith(
+      await decide({ p_decision: "rewrite", p_change: "x".repeat(281) }),
+      "22023",
+      REACH_OUT_REFUSALS.changeLong,
+    );
+    ok(await decide({ p_decision: "rewrite", p_change: "  Mention their weekend hours  " }));
+    let r = await sendRow(send);
+    assert.deepEqual([r.state, r.opening, r.checked_at, r.check_gen], ["planned", null, null, 5]);
+    assert.equal(r.rewrite_asked.change, "Mention their weekend hours");
+    assert.equal(r.rewrite_asked.by, as.operator.id);
+    assert.deepEqual(
+      [
+        r.rewrite_asked.was.opening,
+        r.rewrite_asked.was.state,
+        r.rewrite_asked.was.reason,
+        r.rewrite_asked.was.facts_used,
+      ],
+      ["Fixture Movers has 201 reviews, so you handle real volume.", "held", "unbacked_fact", ["reviews"]],
+    );
+    // A second press while it is written keeps the first opening to undo to, and the new words.
+    ok(await decide({ p_decision: "rewrite" }));
+    r = await sendRow(send);
+    assert.equal(r.rewrite_asked.was.opening, "Fixture Movers has 201 reviews, so you handle real volume.");
+    assert.equal(r.rewrite_asked.change, undefined, "no words this time: none kept");
+
+    // The press's own check: its send alone, whatever its day; the clock's call would not take it.
+    const clock = ok(
+      await db.rpc("sequence_unchecked", { p_limit: 40, p_per_workspace: 20, p_ahead_minutes: 120, p_tenant_id: A }),
+    );
+    assert.ok(!clock.some((x) => x.send.id === send), "a week off: not the clock's yet");
+    const now = ok(
+      await db.rpc("sequence_unchecked", {
+        p_limit: 40,
+        p_per_workspace: 20,
+        p_ahead_minutes: 120,
+        p_tenant_id: A,
+        p_send_ids: [send],
+      }),
+    );
+    assert.deepEqual(
+      now.map((x) => [x.send.id, x.send.rewrite_asked?.was?.opening]),
+      [[send, "Fixture Movers has 201 reviews, so you handle real volume."]],
+    );
+    // The check writes the new opening at the version it read, and keeps what their website said: words, or none.
+    refusedWith(await db.from("sequence_sends").update({ website_says: "" }).eq("id", send), "23514");
+    refusedWith(
+      await db
+        .from("sequence_sends")
+        .update({ website_says: "x".repeat(801) })
+        .eq("id", send),
+      "23514",
+    );
+    ok(
+      await db
+        .from("sequence_sends")
+        .update({
+          opening: "Fixture Movers opens at 7.",
+          angle: "their hours",
+          website_says: "Fixture Movers · Piano moving since 2009",
+          checked_at: iso(Date.now()),
+          check_started_at: null,
+        })
+        .eq("id", send),
+    );
+
+    // Undo: a member's, the opening and its standing back, its version moved on.
+    refusedWith(
+      await as.viewer.c.rpc("reach_out_send_rewrite_undo", { p_send_id: send }),
+      "P0002",
+      REACH_OUT_REFUSALS.sendNotFound,
+    );
+    const back = ok(await as.operator.c.rpc("reach_out_send_rewrite_undo", { p_send_id: send }));
+    assert.deepEqual(
+      [back.opening, back.state],
+      ["Fixture Movers has 201 reviews, so you handle real volume.", "held"],
+    );
+    r = await sendRow(send);
+    assert.deepEqual(
+      [
+        r.state,
+        r.reason,
+        r.hold_detail,
+        r.opening,
+        r.angle,
+        r.facts_used,
+        r.checked_words,
+        !!r.checked_at,
+        r.check_gen,
+        r.rewrite_asked,
+        r.website_says,
+      ],
+      [
+        "held",
+        "unbacked_fact",
+        "real volume",
+        "Fixture Movers has 201 reviews, so you handle real volume.",
+        "their reviews",
+        ["reviews"],
+        "w1",
+        true,
+        7,
+        null,
+        "Fixture Movers · Piano moving since 2009",
+      ],
+    );
+    refusedWith(
+      await as.operator.c.rpc("reach_out_send_rewrite_undo", { p_send_id: send }),
+      "22023",
+      REACH_OUT_REFUSALS.nothingToUndo,
+    );
+
+    // What was asked, and what their website said, go with the lead: lead_blank clears them with the opening.
+    ok(await decide({ p_decision: "rewrite", p_change: "Say it warmer" }));
+    assert.ok((await sendRow(send)).rewrite_asked);
+    ok(await db.rpc("lead_blank", { p_lead_id: leadId }));
+    const blank = await sendRow(send);
+    assert.deepEqual([blank.rewrite_asked, blank.website_says, blank.opening], [null, null, null]);
+  },
+);
+
 test("a run's holds the check could not answer go back in one call (R18)", { skip }, async () => {
   const s = await newSearch("Movers F");
   const { root_id: root } = ok(await save(chainOf(s, { steps: [chainOf(s).steps[0]] })));
