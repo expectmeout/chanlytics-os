@@ -10,19 +10,23 @@
  * the glide at the end by itself, and the page hears of it frames later (1 Nov 2026: "it flickers, it glitches when
  * transitioning to the bounce"). So the band is the screen's again.
  *
- * But for one pull: a thumb pulling down a page at rest at its top. Safari takes that for its pull to refresh, which
- * slides the whole screen down, the frame's top in it, to show its spinner (Ruben, 19 Oct 2026: the date, the page's
- * name and its strip came down with the rows), and reloads the app when let go far enough. So while the page rests at
- * its top its band is off (watchRest: `data-page-top` on the root, mobile.css), and that pull is drawn here: what gives
- * follows the thumb on the band's curve, less the further it goes, and goes back on the band's spring once let go,
- * played by the compositor. What gives is the page's rows where the page says which box holds them (the custom property
+ * But not under a thumb. A thumb that pulls a page past its top, from rest there or from a scroll that reaches it, is
+ * Safari's pull to refresh: it slides the whole screen down, the frame's top in it, to show its spinner (Ruben, 19 Oct
+ * 2026: the date, the page's name and its strip came down with the rows; 2 Nov 2026: a scroll up to the top "wants to
+ * activate ... to refresh the page"), and reloads the app when let go far enough. Only a thumb can start it: the band a
+ * glide reaches never does. So while a thumb is on the screen the band is off (`data-thumb-down` on the root,
+ * mobile.css), and while the page rests at its top too (watchRest: `data-page-top`, so a pull begun there is off the
+ * band before the mark can reach the screen), and a thumb's pull past either end is drawn here: what gives follows the
+ * thumb on the band's curve, less the further it goes, and goes back on the band's spring once let go, played by the
+ * compositor. What gives is the page's rows where the page says which box holds them (the custom property
  * `--page-gives`: the Inbox's threads, Conversations' rows, People's table, an open thread's conversation), so the bar,
  * the search and the count over them hold (Ruben, 19 Oct 2026: "only the table rows should be draggable down"), and so
- * does what is stuck to the screen's foot (a thread's reply box); else the route view. An app on the home screen has no
- * pull to refresh and keeps its band at the top too (mobile.css), so nothing here moves there. But the screen's band
- * carries what is stuck to the window along with the page, so an open thread keeps the band off at both of its ends, on
- * the home screen too, and its conversation alone gives past either (mobile.css; Ruben, 2 Nov 2026: the head and the
- * reply box went with the page).
+ * does what is stuck to the screen's foot (a thread's reply box); else the route view. Let go, the band is the screen's
+ * again a frame later, in time for the glide. An app on the home screen has no pull to refresh and keeps its band under
+ * a thumb and at the top too (mobile.css), so nothing here moves there. But the screen's band carries what is stuck to
+ * the window along with the page, so an open thread keeps the band off at both of its ends, on the home screen too, and
+ * its conversation alone gives past either (mobile.css; Ruben, 2 Nov 2026: the head and the reply box went with the
+ * page).
  *
  * Nothing here knows a page; it asks the styles. A pull is drawn where the root's band is off (its overscroll-behavior-y
  * is none) and the window scrolls the page (the route view, the document's `main`, is no box of its own); where nothing
@@ -46,8 +50,19 @@ export function watchPageGive(win: Window): () => void {
     const scroller = doc.scrollingElement ?? doc.documentElement;
     return win.scrollY >= scroller.scrollHeight - tall() - 1;
   };
-  // Whether the screen leaves the page's end to us now: its band is off, as it is while the page rests at its top.
+  // Whether the screen leaves the page's end to us now: its band is off, as it is under a thumb and at rest at the top.
   const bandOff = () => style(doc.documentElement).overscrollBehaviorY === "none";
+  // The root marked while a thumb is on the screen, which turns the band off (mobile.css): never while the page is out
+  // past an end on the screen's band, which a band turned off would snap home under the thumb.
+  const root = doc.documentElement;
+  const banding = () => {
+    const scroller = doc.scrollingElement ?? root;
+    return win.scrollY < -0.5 || win.scrollY > scroller.scrollHeight - tall() + 0.5;
+  };
+  const thumbDown = (down: boolean) => {
+    if (down && banding()) return;
+    if (down !== root.hasAttribute(THUMB_DOWN)) root.toggleAttribute(THUMB_DOWN, down);
+  };
   // Where the window's view of the page begins, under the frame's top (mobile.css gives the root that scroll padding).
   const shownFrom = () => parseFloat(style(doc.documentElement).scrollPaddingTop) || 0;
   // The pull has gone past an end (`way`): what gives, or null where it holds still this time.
@@ -63,6 +78,7 @@ export function watchPageGive(win: Window): () => void {
   let grip: Grip | null = null;
 
   const onStart = (e: TouchEvent) => {
+    thumbDown(true);
     const [t, second] = Array.from(e.touches);
     if (!t || second) {
       grip = null;
@@ -142,6 +158,8 @@ export function watchPageGive(win: Window): () => void {
   };
 
   const onEnd = (e: TouchEvent) => {
+    // The last finger up: the band is the screen's again, in time for the glide this let-go may begin.
+    if (e.touches.length === 0) thumbDown(false);
     const g = grip;
     if (!g || !Array.from(e.changedTouches).some((k) => k.identifier === g.id)) return;
     grip = null;
@@ -160,6 +178,7 @@ export function watchPageGive(win: Window): () => void {
     win.removeEventListener("touchcancel", onEnd, opts);
     give.clear();
     stopRest();
+    root.removeAttribute(THUMB_DOWN);
   };
 }
 
@@ -190,6 +209,8 @@ const GRAB_AT = 8;
 const BAND = 0.55;
 /** A touch-action that leaves a vertical pan to the browser: anything else is a box that takes its own drag. */
 const PANS_DOWN = /auto|manipulation|pan-y|pan-up|pan-down/;
+/** The root's mark while a thumb is on the screen, which turns the screen's band off (mobile.css). */
+const THUMB_DOWN = "data-thumb-down";
 /** The root's mark while the page rests at its top, which turns the screen's band off there (mobile.css). */
 const PAGE_TOP = "data-page-top";
 /**
