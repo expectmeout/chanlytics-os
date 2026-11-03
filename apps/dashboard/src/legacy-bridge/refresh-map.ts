@@ -758,6 +758,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST receptionist/agent":
     "the rehearsal's agent made ahead of the first call (decision 0073), in the background; no page shows it",
   "PUT views/[page]": "the member's saved view, which the page already shows",
+  "PUT setup/choices": "the workspace's setup choices, which the Setup surface publishes from the door's answer",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
   "POST support/report": "a report of a problem, kept and mailed to the support inbox; the sheet says its number",

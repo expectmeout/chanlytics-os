@@ -36626,6 +36626,31 @@ COMMENT ON COLUMN public.sequences.once IS 'A message sent once, kept as a draft
 
 
 --
+-- Name: setup_choices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.setup_choices (
+    tenant_id uuid NOT NULL,
+    phone jsonb,
+    whatsapp text,
+    marks text[] DEFAULT '{}'::text[] NOT NULL,
+    version integer DEFAULT 0 NOT NULL,
+    updated_by uuid,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT setup_choices_marks CHECK ((marks <@ ARRAY['receptionist-met'::text, 'rehearse-skipped'::text, 'channels-seen'::text])),
+    CONSTRAINT setup_choices_phone_shape CHECK (((phone IS NULL) OR ((jsonb_typeof(phone) = 'object'::text) AND (phone ? 'way'::text)))),
+    CONSTRAINT setup_choices_whatsapp CHECK (((whatsapp IS NULL) OR (whatsapp = ANY (ARRAY['same'::text, 'own'::text, 'later'::text]))))
+);
+
+
+--
+-- Name: TABLE setup_choices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.setup_choices IS 'What the first run chose for the workspace (00513, decision 0091): the number and how calls reach it (phone, contracts SetupPhoneWant), where WhatsApp answers, and the marks that say a step was done (marks: receptionist-met, rehearse-skipped, channels-seen). One row a workspace; members read it, setup_choice_set writes it, and the edge reads it to buy the number once the plan starts.';
+
+
+--
 -- Name: support_reports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -38272,6 +38297,14 @@ ALTER TABLE ONLY public.sequences
 
 ALTER TABLE ONLY public.sequences
     ADD CONSTRAINT sequences_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: setup_choices setup_choices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_pkey PRIMARY KEY (tenant_id);
 
 
 --
@@ -43581,6 +43614,14 @@ ALTER TABLE ONLY public.sequences
 
 
 --
+-- Name: setup_choices setup_choices_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: support_reports support_reports_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -45204,6 +45245,21 @@ CREATE POLICY sequences_acting_update ON public.sequences FOR UPDATE TO authenti
 --
 
 CREATE POLICY sequences_member_select ON public.sequences FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: setup_choices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.setup_choices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: setup_choices setup_choices_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY setup_choices_member_select ON public.setup_choices FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -52088,6 +52144,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequences TO service_role;
 --
 
 GRANT UPDATE(mode) ON TABLE public.sequences TO authenticated;
+
+
+--
+-- Name: TABLE setup_choices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.setup_choices TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.setup_choices TO service_role;
 
 
 --

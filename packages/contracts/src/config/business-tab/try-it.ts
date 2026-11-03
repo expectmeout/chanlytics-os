@@ -40,7 +40,11 @@ export const TRY_IT_WORDS = {
 } as const;
 
 /** What a refusal to spend says a try was for (the route wrapper's requireSpend). */
-export const SPEND_TRY: SpendWords = { before: "trying your receptionist", can: "try your receptionist" };
+export const SPEND_TRY: SpendWords = {
+  kind: "rehearse",
+  before: "trying your receptionist",
+  can: "try your receptionist",
+};
 
 /** What the live turn would do with an answer: the eval door's `then`, as it answers it. */
 export interface TryItThen {

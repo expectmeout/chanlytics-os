@@ -7,7 +7,7 @@
 import { formatPhoneDisplay } from "../shared/phone";
 import { bookingPageOffered } from "../google/google";
 import { checkChipsOf } from "./check-chips";
-import { firstRunOf, FIRST_RUN_WORDS } from "./first-run";
+import { firstRunOf, FIRST_RUN_WORDS, rehearseAsksOf } from "./first-run";
 import { setupCardOf } from "./first-run-card";
 import { receptionistCardOf, soundsWords } from "./first-run-receptionist";
 import { firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
@@ -62,5 +62,7 @@ export const FIRST_RUN_HELPERS = {
   /** A number as the app writes one (phone.ts): the numbers offered to pick are said this way, never Twilio's. */
   numberWords: formatPhoneDisplay,
   words: FIRST_RUN_WORDS,
+  /** Rehearse's "Try asking", from the business's own facts (the onboarding PRD's 5.4). */
+  rehearseAsks: rehearseAsksOf,
   landedKey: FIRST_RUN_LANDED_KEY,
 } as const;

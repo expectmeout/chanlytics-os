@@ -397,6 +397,30 @@ service role in the dashboard (the `service-role` measure).
 A forbidden UPDATE does not raise under RLS; it matches zero rows and reports
 success, so every permission-sensitive update selects and counts.
 
+## A new workspace, from sign-up to answering
+
+How a business comes in, and the one place each part of it is decided (decisions 0073, 0090, 0091):
+
+- **The way in.** `POST /api/v1/signup` makes an unconfirmed auth user on the public key (`apps/dashboard/src/server/platform/signup.ts`);
+  the person who enters the code makes the workspace through `create_workspace` (a definer function, the one audited
+  place the privilege exists). A lead's preview (`preview_claim`), a partner's set-up (`create_workspace_for_business`)
+  and its hand-over (`handover_accept`) are the other doors. What follows any of them is `workspaceBegun`
+  (`apps/dashboard/src/server/workspace/workspace-create.ts`).
+- **The steps.** Contracts' `setupSteps` folds Setup's facts (`setupDtoFor`) with the workspace's choices
+  (`setup_choices`, `withWorkspaceChoices`) and the member's own put-offs; `firstRunOf` reads which of the five steps
+  is done from that, on every draw. Nothing stores "done".
+- **The money.** One spend rule by kind (`maySpend`, `SPEND_STATUSES`), asked by the route wrapper (`requireSpend`),
+  the edge's doors and SQL (`billing_may_spend`); one trial (`trialDaysFor`); what a trial includes (`TRIAL_INCLUDES`),
+  watched by the lines sweep (`trial_use`, `apps/edge/lib/billing/trial-use.ts`).
+- **The service.** Stripe's webhook starting the trial asks `startChosenLine` (`apps/edge/lib/lines/chosen-line.ts`),
+  which buys the number the workspace chose and queues its saga; the lines sweep asks again while one is owed.
+- **Going live.** `capability_activate` records the owner's word, one write with its event; the receptionist answers a
+  channel from the moment it connects.
+
+Held by `tooling/scripts/tests/setup/` (the steps, the pages), `tooling/scripts/tests/billing/may-spend.test.mjs`
+(the spend rule), `tooling/scripts/tests/auth/` (sign-up and creation) and `tooling/scripts/tests/partners/` (the
+hand-over).
+
 ## The shell
 
 The operator UI is TSX. Each page is a surface, a folder under `apps/dashboard/src/surfaces/` beside the kit and the

@@ -345,6 +345,7 @@ export const ROUTE_KEYS = [
   "PUT sequences/[id]/chain",
   "PUT sequences/[id]/steps/[step]",
   "PUT settings",
+  "PUT setup/choices",
   "PUT templates/[id]",
   "PUT views/[page]",
   "PUT workspaces/accent",

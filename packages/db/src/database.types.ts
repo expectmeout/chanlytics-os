@@ -7062,6 +7062,44 @@ export type Database = {
           },
         ]
       }
+      setup_choices: {
+        Row: {
+          marks: string[]
+          phone: Json | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+          whatsapp: string | null
+        }
+        Insert: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Update: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setup_choices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sweep_status: {
         Row: {
           alerted_at: string | null
@@ -7746,6 +7784,14 @@ export type Database = {
         Returns: Json
       }
       campaign_stuck: { Args: { p_tenant_id: string }; Returns: Json }
+      capability_activate: {
+        Args: { p_capability: string; p_note?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      capability_deactivate: {
+        Args: { p_capability: string; p_tenant_id: string }
+        Returns: Json
+      }
       change_playbook: {
         Args: {
           p_decision?: Json
@@ -8275,6 +8321,7 @@ export type Database = {
         }
         Returns: Json
       }
+      lead_allowance: { Args: { p_tenant_id: string }; Returns: number }
       lead_cap: { Args: { p_name: string }; Returns: number }
       lead_card_live: { Args: { p_card: string }; Returns: boolean }
       lead_cards_live: { Args: never; Returns: string[] }
@@ -10838,6 +10885,17 @@ export type Database = {
         Args: { p_logo_path: string; p_tenant_id: string }
         Returns: string
       }
+      setup_choice_set: {
+        Args: {
+          p_clear_phone?: boolean
+          p_marks?: string[]
+          p_phone?: Json
+          p_tenant_id: string
+          p_version?: number
+          p_whatsapp?: string
+        }
+        Returns: Json
+      }
       setup_request: {
         Args: { p_tenant_id: string; p_what: string }
         Returns: Json
@@ -11083,6 +11141,7 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
+      trial_use: { Args: { p_tenant_id: string }; Returns: Json }
       wake_stale_snoozes: { Args: never; Returns: number }
       wear_found_look: {
         Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }

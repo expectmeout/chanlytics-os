@@ -92,6 +92,11 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     everyCall: "Every call goes to your receptionist.",
     newSays: "Customers call this number directly. Put it on your Google listing and your website once it's live.",
     moveSays: "Nothing changes for customers. Until the move is done, the number forwards.",
+    /** Not by phone (decision 0091): a business whose customers write, and never call, goes live without a number. */
+    noCalls: "We don't take calls",
+    noCallsSays:
+      "Not by phone. Your receptionist answers where your customers write, and you can add a number any time from Setup.",
+    callsAfterAll: "Take calls after all",
   },
   whatsapp: {
     title: "WhatsApp",

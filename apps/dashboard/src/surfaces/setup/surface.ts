@@ -18,6 +18,7 @@ import {
   setupPhoneWantOf,
   setupChoicesOf,
   SETUP_LATER_REFUSED,
+  WORKSPACE_MARKS,
   type ImportSource,
   type LineLookupDto,
   type SetupChoices,
@@ -27,6 +28,7 @@ import {
   type SetupPutOffChange,
   type SetupVM,
   type SetupRequestKind,
+  type SetupWorkspaceChoicesDto,
   forwardingCodes,
   forwardingTestOpen,
   CARRIERS,
@@ -77,6 +79,8 @@ interface SetupApi {
   want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: string }>;
   /** What else Where it answers chose (WhatsApp): saved to the same view, through the same one line of saves. */
   choose(next: Partial<SetupChoices>): Promise<{ ok: boolean; message: string }>;
+  /** Not by phone (on), or calls after all (off), kept on the workspace (decision 0091). */
+  noCalls(on: boolean): Promise<{ ok: boolean; message: string }>;
   /**
    * The receptionist from what is known: set up where there is none, from Google's listing when one is linked and the
    * name typed at sign-up otherwise; filled from Google where one states none of it. `wrote` is false when there was
@@ -264,10 +268,64 @@ function later(ids: string | string[], change: SetupPutOffChange): Promise<Setup
   const moved = list
     .map((id) => ({ was: entryOf(s, id), is: entryOf(next, id) }))
     .filter((m) => m.was.good !== m.is.good || m.was.until !== m.is.until);
-  return writeEntries(
+  const saved = writeEntries(
     moved.map((m) => m.is),
     moved.map((m) => m.was),
   );
+  // A mark that says a step of the workspace is done is the workspace's too (decision 0091): every member and the back
+  // office then stand at the same step. Kept once the member's own is.
+  const marks = change.on && change.why === "answer" ? list.filter(isWorkspaceMark) : [];
+  if (!marks.length) return saved;
+  return saved.then(async (r) => {
+    if (!r.ok) return r;
+    const w = await keepOnWorkspace({ marks });
+    return w.ok ? r : { ok: false, message: w.message };
+  });
+}
+
+const isWorkspaceMark = (id: string): id is (typeof WORKSPACE_MARKS)[number] =>
+  (WORKSPACE_MARKS as readonly string[]).includes(id);
+
+/** The workspace's choices with this change over them, as the page shows it before the door answers. */
+function choicesWith(
+  w: SetupWorkspaceChoicesDto | null | undefined,
+  patch: { phone?: SetupPhoneWant | { way: "none" } | null; whatsapp?: SetupChoices["whatsapp"] },
+): SetupWorkspaceChoicesDto | null | undefined {
+  if (!w) return w;
+  return {
+    ...w,
+    ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
+    ...(patch.whatsapp ? { whatsapp: patch.whatsapp } : {}),
+  };
+}
+
+/**
+ * What the first run chose, kept on the workspace (decision 0091, PUT setup/choices over setup_choice_set): the door
+ * answers the row as it stands and the surface publishes it, so the step every member and the back office read is the
+ * one this tab just chose. The member's own view keeps its copy for a database from before 00513.
+ */
+async function keepOnWorkspace(body: {
+  phone?: SetupPhoneWant | { way: "none" } | null;
+  whatsapp?: NonNullable<SetupChoices["whatsapp"]>;
+  marks?: (typeof WORKSPACE_MARKS)[number][];
+}): Promise<{ ok: boolean; message: string }> {
+  const { phone, ...rest } = body;
+  const r = await api()("PUT setup/choices", {
+    body: { ...rest, ...(phone === undefined ? {} : { phone: phone ? { ...phone } : null }) },
+    refresh: false,
+  });
+  if (!r.ok) return { ok: false, message: r.message };
+  const now = surfaceValue("setup");
+  if (now) {
+    publish({ ...now.dto, workspace_choices: r.data.choices }, now.role, {
+      later: now.later,
+      rests: now.rests,
+      want: now.want,
+      choices: now.choices,
+    });
+    window.dispatchEvent(new CustomEvent("surface:setup"));
+  }
+  return { ok: true, message: "" };
 }
 
 /**
@@ -318,20 +376,30 @@ function want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: stri
   if (!laterKnown) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.unread });
   const before = s.want;
   if (sameWant(before, next)) return Promise.resolve({ ok: true, message: "" });
-  const say = (w: SetupPhoneWant | null) => {
+  const beforeOnWorkspace = s.dto.workspace_choices;
+  const say = (
+    w: SetupPhoneWant | null,
+    onWorkspace = choicesWith(surfaceValue("setup")?.dto.workspace_choices, { phone: w }),
+  ) => {
     const now = surfaceValue("setup");
     if (!now) return;
-    publish(now.dto, now.role, { later: now.later, rests: now.rests, want: w, choices: now.choices });
+    publish({ ...now.dto, workspace_choices: onWorkspace }, now.role, {
+      later: now.later,
+      rests: now.rests,
+      want: w,
+      choices: now.choices,
+    });
     window.dispatchEvent(new CustomEvent("surface:setup"));
   };
   say(next);
   laterPending += 1;
   const saved = laterSaving.then(async () => {
     const r = await saveView("setup", viewNow());
+    const w = r.ok ? await keepOnWorkspace({ phone: next }) : r;
     laterPending -= 1;
     // Not kept: the page says what the member's view still holds. Only this call's own change is taken back.
-    if (!r.ok && sameWant(surfaceValue("setup")?.want ?? null, next)) say(before);
-    return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+    if (!w.ok && sameWant(surfaceValue("setup")?.want ?? null, next)) say(before, beforeOnWorkspace);
+    return w.ok ? { ok: true, message: "" } : { ok: false, message: w.message };
   });
   laterSaving = saved;
   return saved;
@@ -348,22 +416,43 @@ function saveChoices(next: Partial<SetupChoices>): Promise<{ ok: boolean; messag
   const before = s.choices;
   const after: SetupChoices = { ...before, ...next };
   if (after.whatsapp === before.whatsapp) return Promise.resolve({ ok: true, message: "" });
-  const say = (c: SetupChoices) => {
+  const beforeOnWorkspace = s.dto.workspace_choices;
+  const say = (c: SetupChoices, onWorkspace = choicesWith(surfaceValue("setup")?.dto.workspace_choices, c)) => {
     const now = surfaceValue("setup");
     if (!now) return;
-    publish(now.dto, now.role, { later: now.later, rests: now.rests, want: now.want, choices: c });
+    publish({ ...now.dto, workspace_choices: onWorkspace }, now.role, {
+      later: now.later,
+      rests: now.rests,
+      want: now.want,
+      choices: c,
+    });
     window.dispatchEvent(new CustomEvent("surface:setup"));
   };
   say(after);
   laterPending += 1;
   const saved = laterSaving.then(async () => {
     const r = await saveView("setup", viewNow());
+    const w = r.ok && after.whatsapp ? await keepOnWorkspace({ whatsapp: after.whatsapp }) : r;
     laterPending -= 1;
-    if (!r.ok && surfaceValue("setup")?.choices.whatsapp === after.whatsapp) say(before);
-    return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+    if (!w.ok && surfaceValue("setup")?.choices.whatsapp === after.whatsapp) say(before, beforeOnWorkspace);
+    return w.ok ? { ok: true, message: "" } : { ok: false, message: w.message };
   });
   laterSaving = saved;
   return saved;
+}
+
+/**
+ * Not by phone, or calls after all (decision 0091): kept on the workspace where the number's choice is. Not by phone
+ * takes the member's own number choice away too, so their view cannot bring a number back over it.
+ */
+async function noCalls(on: boolean): Promise<{ ok: boolean; message: string }> {
+  const s = surfaceValue("setup");
+  if (!s) return { ok: false, message: SETUP_LATER_REFUSED.reading };
+  if (on && s.want) {
+    const cleared = await want(null);
+    if (!cleared.ok) return cleared;
+  }
+  return keepOnWorkspace(on ? { phone: { way: "none" } } : { phone: null });
 }
 
 /** A quiet look still out: a second one waits for it. */
@@ -374,6 +463,7 @@ export const setupVerbs: SetupApi = {
   later,
   want,
   choose: saveChoices,
+  noCalls,
   async receptionist() {
     const r = await api()("POST settings/receptionist", { body: {} });
     return r.ok ? { ok: true, wrote: r.data.wrote, message: "" } : { ok: false, wrote: false, message: r.message };

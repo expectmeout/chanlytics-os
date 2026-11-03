@@ -352,6 +352,8 @@ export {
   LEAD_QUESTION_MIN_EVIDENCE,
   LEAD_QUESTION_THRESHOLD,
   LEAD_REASON_MAX_WORDS,
+  LEAD_TRIAL_ALLOWANCE,
+  leadAllowanceFor,
   leadMonth,
 } from "./search/caps";
 export {

@@ -4,6 +4,18 @@
  * the owner never leaves the first run. In the page it comes back by itself where Stripe needs no redirect (a card), and
  * to the step's own address where it does (a bank's page). Pure: billing.ts makes the session.
  */
+import { MIN_MS, type CheckoutReturn } from "../packages/contracts.js";
+
+/**
+ * How long two presses of Pay are one: a checkout asked again inside this window, from the same door and the same way
+ * of paying, is Stripe's same session (an idempotency key), so two tabs or a double press never make two subscriptions.
+ */
+const CHECKOUT_PRESS_WINDOW_MS = 10 * MIN_MS;
+
+/** The idempotency key of a workspace's checkout: the workspace, the door, in the page or not, and the window it is in. */
+export function checkoutKeyOf(tenantId: string, back: CheckoutReturn, inPage: boolean, nowMs: number): string {
+  return `checkout:${tenantId}:${back}:${inPage ? "page" : "hosted"}:${Math.floor(nowMs / CHECKOUT_PRESS_WINDOW_MS)}`;
+}
 
 /** The way to Checkout, as the dashboard is answered: the hosted page, or what mounts it in the page. */
 export type CheckoutMade = { ok: true; url: string } | { ok: true; client_secret: string; publishable_key: string };

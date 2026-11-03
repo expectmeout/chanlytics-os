@@ -2,7 +2,7 @@
  * The first run's third step, Try it (docs/superpowers/plans/2026-09-24-first-run-5-try-live.md, canvas R6–R8, P6, P7,
  * V7, V8): the owner calls the number customers call from their cell, the page moves the moment the call starts, shows
  * the words a turn behind the voice, then the whole call and where a caller who asks for a person is put through. Every
- * sentence is here; the page composes (first-run.jsx FrTry).
+ * sentence is here; the page composes (surfaces/setup/first-run/try.tsx FrTry, drawn inside Go live since decision 0073).
  *
  * The call is the Live page's own (live.ts `LiveCallVM`, the realtime `calls` read every page has): the step reads the
  * newest inbound call that started once the screen was open (a minute of clock slack), or, once a call has reached the
