@@ -36,6 +36,7 @@ import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { leadSourceClient, watchLeadPins } from "../leads/lead-sources.js";
+import { pausedJobKinds } from "../packages/db.js";
 import { env } from "../env.js";
 import type { SweepTick } from "./sweep-door.js";
 
@@ -113,6 +114,20 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
       "The heartbeat is scheduled but not draining. Check sweep_health for 'jobs' and the tick's Vercel logs.",
     );
   }
+
+  // A kind an operator paused (decision 0089): its work waits, which is meant, and nobody should forget that it does.
+  // One page per kind per window while it holds; a read that fails is logged.
+  const paused = await pausedJobKinds(db).catch((e: unknown) => {
+    L.error("sweep_health_paused_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    return [];
+  });
+  for (const k of paused)
+    await pageOperator(
+      { db },
+      `jobs_paused:${k.kind}`,
+      `${k.kind} is paused: its work waits`,
+      `Paused since ${k.paused_at}${k.paused_why ? ` (${k.paused_why})` : ""}. Nothing of it is claimed until it is resumed on the Console's Health, Background work.`,
+    );
 
   // WhatsApp messages that never heard back, in a workspace where nothing
   // else has been receipted since either: the webhook, not a phone. The page

@@ -2,8 +2,9 @@
  * The ledger's dead letters and kept rows, on a real Postgres: a failed job run again (packages/jobs requeueFailedJob),
  * and a job whose kind the runner does not know kept with its claim given back (deferJob, giveBackClaim). The unit
  * tests (jobs-ledger, job-requeue) run the rules over doubles; this proves the database accepts what they write: a
- * failed row is final (jobs_guard), so a requeue is a fresh row; a claim's count may go back down on a row still
- * fired; and work the ledger holds once per subject answers with the database's own 23505.
+ * failed row is final (jobs_guard), so a requeue is a fresh row; a row put back to wait goes back to scheduled with its
+ * claims counted as they were, or one fewer (00506); and work the ledger holds once per subject answers with the
+ * database's own 23505.
  *
  * Every row here is made for a workspace of its own and is never due to a runner (a far due time), so no other suite's
  * claim can take it. Runs against the database `supabase start` builds on this machine, never production.
@@ -68,7 +69,7 @@ const rowsOf = async (kind) => (await db.from("jobs").select("*").eq("tenant_id"
 
 test("a failed row is final; run again it is a fresh row of the same kind and payload, and the failed one stays", async (t) => {
   if (skip) return t.skip(skip);
-  const id = await job("email_ingest", { email_id: "e-requeue-1" });
+  const id = await job("email_ingest", { mailbox_id: "mb-requeue", received_id: "e-requeue-1" });
   const back = await db.from("jobs").update({ state: "scheduled" }).eq("id", id);
   assert.match(back.error?.message ?? "", /terminal/, "failed is final: the row itself is never moved back");
 
@@ -80,18 +81,22 @@ test("a failed row is final; run again it is a fresh row of the same kind and pa
   assert.equal(rows.length, 2);
   const again = rows.find((r) => r.id !== id);
   assert.equal(again.state, "scheduled");
-  assert.deepEqual(again.payload, { email_id: "e-requeue-1" });
+  assert.deepEqual(
+    again.payload,
+    { mailbox_id: "mb-requeue", received_id: "e-requeue-1", requeue_of: id },
+    "the copy names the job it copies",
+  );
   assert.equal((await row(id)).state, "failed");
   assert.equal((await row(id)).last_error, "the key was restricted", "the record of what went wrong is kept");
 
-  // Once: a second press finds the copy the first left, by the database's own equality of the two payloads.
+  // Once: a second press finds the copy the first left, which names the job it copies (requeue_of, 00506).
   const twice = await requeueFailedJob(db, T, id, async (kind) => void recorded.push(kind));
   assert.deepEqual(twice, { outcome: "already_scheduled" });
   assert.equal((await rowsOf("email_ingest")).length, 2, "no second copy");
   assert.equal(recorded.length, 1, "and nothing recorded for an act that did not happen");
 
   // Another payload of the same kind is other work; and a copy that failed itself leaves the letter open again.
-  const other = await job("email_ingest", { email_id: "e-requeue-1b" }, "scheduled");
+  const other = await job("email_ingest", { mailbox_id: "mb-requeue", received_id: "e-requeue-1b" }, "scheduled");
   assert.ok(other);
   await db.from("jobs").update({ state: "fired", attempts: 1, lease_until: far() }).eq("id", again.id);
   await db.from("jobs").update({ state: "failed" }).eq("id", again.id);
@@ -101,7 +106,7 @@ test("a failed row is final; run again it is a fresh row of the same kind and pa
 
 test("work the ledger holds once per subject: the database's own refusal is 'already on the ledger', and no second row", async (t) => {
   if (skip) return t.skip(skip);
-  // jobs_reply_read_once (00222): one live reading per message and stage.
+  // jobs_dedupe_kept (00508, once jobs_reply_read_once): one reading per message and stage while its row is kept.
   const failed = await job("reply_read", { message_id: "m-requeue-1", stage: "first" });
   const live = await job("reply_read", { message_id: "m-requeue-1", stage: "first" }, "scheduled");
   assert.ok(live, "a failed row does not hold the subject; a live one made after it does");
@@ -112,8 +117,8 @@ test("work the ledger holds once per subject: the database's own refusal is 'alr
 
 test("work that speaks to a person is refused before anything is recorded, and a job that is not failed is refused with its state", async (t) => {
   if (skip) return t.skip(skip);
-  const send = await job("outbound_send", { message_id: "m-requeue-2" });
-  const waiting = await job("email_ingest", { email_id: "e-requeue-2" }, "scheduled");
+  const send = await job("outbound_send", { message_id: "m-requeue-2", conversation_id: "c-requeue-2" });
+  const waiting = await job("email_ingest", { mailbox_id: "mb-requeue", received_id: "e-requeue-2" }, "scheduled");
   let recorded = 0;
   const count = async () => void (recorded += 1);
   assert.deepEqual(await requeueFailedJob(db, T, send, count), {
@@ -130,12 +135,12 @@ test("work that speaks to a person is refused before anything is recorded, and a
 test("a job whose run said it spoke before it failed is refused as work that speaks to a person; one that never spoke is run again", async (t) => {
   if (skip) return t.skip(skip);
   // A text's answer says so on its row the moment before it speaks (markSpoke, jobs.spoke_at, 00352), while it is fired.
-  const spoke = await job("inbound_answer", { message_id: "m-requeue-3" }, "fired");
+  const spoke = await job("inbound_answer", { message_id: "m-requeue-3", conversation_id: "c-requeue-3" }, "fired");
   const said = await db.from("jobs").update({ spoke_at: new Date().toISOString() }).eq("id", spoke);
   assert.equal(said.error, null, said.error?.message);
   const ended = await db.from("jobs").update({ state: "failed", last_error: "the send threw" }).eq("id", spoke);
   assert.equal(ended.error, null, ended.error?.message);
-  const quiet = await job("inbound_answer", { message_id: "m-requeue-4" });
+  const quiet = await job("inbound_answer", { message_id: "m-requeue-4", conversation_id: "c-requeue-4" });
   let recorded = 0;
   const count = async () => void (recorded += 1);
   assert.deepEqual(await requeueFailedJob(db, T, spoke, count), {
@@ -151,7 +156,7 @@ test("a job whose run said it spoke before it failed is refused as work that spe
   );
 });
 
-test("a kept row whose kind is unknown gives its claim back on a row still fired, and only on the claim that holds it", async (t) => {
+test("a kept row whose kind is unknown gives its claim back and waits scheduled (00506), and only on the claim that holds it", async (t) => {
   if (skip) return t.skip(skip);
   const id = await job("push_receipts", { ids: ["t-1"] }, "fired");
   const until = new Date(Date.now() + 5 * 60_000).toISOString();
@@ -160,12 +165,17 @@ test("a kept row whose kind is unknown gives its claim back on a row still fired
   assert.equal(await deferJob(db, { id, attempts: 1 }, until, "unknown job kind x", true), true);
   const kept = await row(id);
   assert.deepEqual(
-    [kept.state, kept.attempts, Date.parse(kept.lease_until), kept.last_error],
-    ["fired", 0, Date.parse(until), "unknown job kind x"],
-    "still fired, its lease put off, nothing counted as run",
+    [kept.state, kept.attempts, Date.parse(kept.due_at), kept.lease_until, kept.last_error],
+    ["scheduled", 0, Date.parse(until), null, "unknown job kind x"],
+    "back to wait, due when it is looked at again, nothing counted as run: jobs_guard lets fired go back to scheduled",
   );
   // A job that threw keeps its claim: it ran.
   const threw = await job("push_receipts", { ids: ["t-2"] }, "fired");
   assert.equal(await deferJob(db, { id: threw, attempts: 1 }, until, "boom"), true);
-  assert.equal((await row(threw)).attempts, 1);
+  assert.deepEqual([(await row(threw)).state, (await row(threw)).attempts], ["scheduled", 1]);
+  // And a row put back may never count more claims than it had: that would be a claim nobody made.
+  const counted = await db.from("jobs").update({ state: "fired", attempts: 2, lease_until: far() }).eq("id", threw);
+  assert.equal(counted.error, null, "a claim takes it again, counting one more");
+  const more = await db.from("jobs").update({ state: "scheduled", attempts: 3 }).eq("id", threw);
+  assert.match(more.error?.message ?? "", /keeps its attempts/);
 });

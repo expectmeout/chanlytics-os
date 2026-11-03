@@ -165,26 +165,30 @@ test("a lead with no name to give it fails with why, and writes nothing", async 
   assert.equal(tables.lead_previews[0].failed_why, "no_name");
 });
 
-test("a throw is tried again; the last try fails the preview itself, so nothing waits on it for ever", async () => {
-  const first = world();
-  first.tables.tenant_config.length = 0;
-  await assert.rejects(buildPreview(first.db, job(1), DEADLINE(), siteSays()), /config could not be read/);
-  assert.deepEqual(first.built, []);
-  const last = world();
-  last.tables.tenant_config.length = 0;
-  await buildPreview(last.db, job(2), DEADLINE(), siteSays());
-  assert.deepEqual(last.built, [{ ok: false, why: "build_failed" }]);
+test("a throw is thrown on every try: the ledger tries it again, and marks the preview failed when it will not (settle.ts)", async () => {
+  // The last try used to mark the preview failed itself, which a run that died on it never reached: the preview stayed
+  // building. The ledger's settler marks it now, whichever way the job ended (jobs/settle-every-ending.test.mjs).
+  for (const attempts of [1, 2]) {
+    const w = world();
+    w.tables.tenant_config.length = 0;
+    await assert.rejects(buildPreview(w.db, job(attempts), DEADLINE(), siteSays()), /config could not be read/);
+    assert.deepEqual(w.built, [], `try ${attempts}: nothing marked here`);
+  }
 });
 
 test("one built already, or ended, is left as it is; the switch off builds nothing", async () => {
   const ready = world({ preview: { state: "ready" } });
-  await buildPreview(ready.db, job(), DEADLINE(), siteSays());
+  assert.deepEqual(await buildPreview(ready.db, job(), DEADLINE(), siteSays()), { skipped: "not_building" });
   assert.deepEqual(ready.built, []);
   assert.equal(ready.tables.tenant_config[0].version, 1);
 
   process.env.LEAD_PREVIEWS = "";
   const off = world();
-  await buildPreview(off.db, job(), DEADLINE(), siteSays());
+  assert.deepEqual(
+    await buildPreview(off.db, job(), DEADLINE(), siteSays()),
+    { skipped: "previews_off" },
+    "said, never done",
+  );
   assert.deepEqual(off.built, []);
   assert.equal(off.tables.lead_previews[0].state, "building", "left for when the switch is on");
 });

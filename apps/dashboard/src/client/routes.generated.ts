@@ -252,7 +252,9 @@ export const ROUTES = {
   "POST people/[id]/say": { method: "POST", path: "/api/v1/people/[id]/say" },
   "POST platform/claims": { method: "POST", path: "/api/v1/platform/claims" },
   "POST platform/deliveries/redrive": { method: "POST", path: "/api/v1/platform/deliveries/redrive" },
+  "POST platform/jobs/pause": { method: "POST", path: "/api/v1/platform/jobs/pause" },
   "POST platform/jobs/requeue": { method: "POST", path: "/api/v1/platform/jobs/requeue" },
+  "POST platform/jobs/requeue-kind": { method: "POST", path: "/api/v1/platform/jobs/requeue-kind" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
   "POST platform/lines/replace": { method: "POST", path: "/api/v1/platform/lines/replace" },
@@ -600,7 +602,9 @@ export type Routes = {
   "POST people/[id]/say": typeof import("../../app/api/v1/people/[id]/say/route").POST;
   "POST platform/claims": typeof import("../../app/api/v1/platform/claims/route").POST;
   "POST platform/deliveries/redrive": typeof import("../../app/api/v1/platform/deliveries/redrive/route").POST;
+  "POST platform/jobs/pause": typeof import("../../app/api/v1/platform/jobs/pause/route").POST;
   "POST platform/jobs/requeue": typeof import("../../app/api/v1/platform/jobs/requeue/route").POST;
+  "POST platform/jobs/requeue-kind": typeof import("../../app/api/v1/platform/jobs/requeue-kind/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;
   "POST platform/lines/replace": typeof import("../../app/api/v1/platform/lines/replace/route").POST;

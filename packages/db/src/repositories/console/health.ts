@@ -43,6 +43,21 @@ export async function healthFailedJobs(db: Db, q: { sinceIso: string; limit: num
     .limit(q.limit);
 }
 
+/** The ledger now (jobs_ledger_now, 00506): by lane and by kind, and when its canary last finished. */
+export async function healthLedgerNow(db: Db) {
+  return db.rpc("jobs_ledger_now");
+}
+
+/** A kind of job paused (job_kind_pause, 00506): no claim takes it until it is resumed. The door's answer as it gave it. */
+export async function pauseJobKind(db: Db, kind: string, why: string) {
+  return db.rpc("job_kind_pause", { p_kind: kind, p_why: why });
+}
+
+/** A paused kind resumed (job_kind_resume, 00506), and the tick asked for what waited. */
+export async function resumeJobKind(db: Db, kind: string) {
+  return db.rpc("job_kind_resume", { p_kind: kind });
+}
+
 /** What paged us: each condition the pager remembers, the newest first. */
 export async function healthPages(db: Db, limit: number) {
   return db

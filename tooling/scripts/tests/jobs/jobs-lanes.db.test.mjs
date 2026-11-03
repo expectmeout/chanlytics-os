@@ -3,7 +3,7 @@
  *
  * Each job's lane is generated from its kind and payload: 0 a reply, 1 someone waiting who is not a customer, 2 bulk.
  * claim_due_jobs takes the lowest lane first; within bulk, a workspace with no bulk work running before one with some;
- * then the earliest due. Every kind the jobs.kind CHECK allows has a lane, read from the catalogue.
+ * then the earliest due. Every kind job_kinds holds (00506) has its lane, each one's value pinned here.
  *
  * The ledger is one queue, and other suites claim from it at the same time, so each case runs in a transaction on this
  * machine's database that never commits and has the ledger to itself: it takes the table in a mode every writer waits
@@ -112,10 +112,7 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
     a uuid; b uuid; k text; l smallint; lanes jsonb := '{}'; kinds jsonb := '[]';
     begin
       ${ALONE}
-      for k in
-        select m[1]
-          from pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([^'']+)''::text', 'g') as m
-         where c.conrelid = 'public.jobs'::regclass and c.conname = 'jobs_kind_check'
+      for k in select jk.kind from public.job_kinds jk order by jk.kind
       loop
         insert into public.jobs (tenant_id, kind, due_at) values (a, k, now() + interval '1 day') returning lane into l;
         lanes := lanes || jsonb_build_object(k, l);
@@ -131,24 +128,34 @@ test("every kind the ledger allows has a lane: replies first, then someone waiti
         values (a, 'event_deliver', now() + interval '1 day', '{"lane": "nine"}') returning lane into l;
       lanes := lanes || jsonb_build_object('delivery_lane_bad', l);
       seen := jsonb_build_object('lanes', lanes, 'kinds', kinds);`);
-  assert.deepEqual([...kinds].sort(), [...SCHEMA_SETS["jobs.kind"]].sort(), "the kinds read are the CHECK's own");
+  assert.deepEqual(
+    [...kinds].sort(),
+    [...SCHEMA_SETS["jobs.kind"]].sort(),
+    "the kinds read are job_kinds' own (00506)",
+  );
   assert.deepEqual(
     kinds.filter((k) => lanes[k] === null),
     [],
-    "a kind arrives with its lane, as with its handler, its caller and the jobs.kind CHECK",
+    "a kind arrives with its lane, as with its handler, its caller and its job_kinds row",
   );
   const expected = {
     outbound_send: 0, // a member's reply, or the receptionist's
     email_ingest: 0,
     push_send: 0,
     inbound_answer: 0, // a text's answer after its acknowledgement: a customer is waiting (00347)
+    canary: 0, // the ledger's own proof that it runs (00506): judged by its claim's lateness, a reply's
     line_provision: 1,
     reply_read: 1,
+    booking_read: 1,
+    website_read: 1,
+    preview_build: 1,
+    erasure_finish: 1,
     broadcast_send: 2,
     lead_round_start: 2,
     lead_collect: 2,
     lead_check: 2,
     push_receipts: 2,
+    history_import: 2,
     outreach: 2, // an outbound_send whose purpose is outreach: a cold email is bulk
     event_deliver: 2, // a delivery with no lane in its payload: bulk, the safe default (00334)
     delivery_lane_0: 0, // a delivery in its subscription's lane, read from the payload
@@ -211,32 +218,15 @@ test(
 );
 
 test(
-  "capacity (00335): a key at its cap leaves the next row of that key for a later tick and takes the next of another; a key with no row is no limit",
+  "a paused kind (00506) is left where it is: the claim takes the next of another kind, and the pause's end takes it again",
   { skip },
   () => {
     const claimed = claimOrder(
-      `insert into public.job_capacity (scope, key, max_in_flight) values ('provider', 'meta', 1);`,
-      job("meta, running", {
-        kind: "broadcast_send",
-        due: 200,
-        payload: { capacity: ["provider:meta"] },
-        fired: 10,
-        lease: 80,
-      }),
-      job("meta, waiting its turn", { kind: "broadcast_send", due: 100, payload: { capacity: ["provider:meta"] } }),
-      job("twilio, no row so no limit", {
-        kind: "broadcast_send",
-        due: 50,
-        payload: { capacity: ["provider:twilio"] },
-      }),
-      job("no key", { kind: "broadcast_send", due: 10 }),
-      job("meta and twilio: one full key is enough to wait", {
-        kind: "lead_collect",
-        due: 5,
-        payload: { capacity: ["provider:twilio", "provider:meta"] },
-      }),
+      `update public.job_kinds set paused_at = now(), paused_why = 'a provider answering garbage' where kind = 'broadcast_send';`,
+      job("a batch, paused", { kind: "broadcast_send", due: 100 }),
+      job("a lead's page", { kind: "lead_collect", due: 50 }),
     );
-    assert.deepEqual(claimed, ["twilio, no row so no limit", "no key"]);
+    assert.deepEqual(claimed, ["a lead's page"], "the paused kind's row waits; nothing of it is claimed");
   },
 );
 

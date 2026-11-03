@@ -56,11 +56,9 @@ test("the brain takes the instruction as one more system block and stops showing
 test("one writer for a held draft, used by the handler and the steer", () => {
   const q = readCode("apps/edge/lib/receptionist/draft-queue.ts");
   assert.ok(q.includes('export type DraftSource = "veto_window" | "low_confidence" | "steered";'));
-  assert.ok(q.includes('status: "queued",'));
-  assert.ok(q.includes('kind: "outbound_send",'));
   assert.ok(
-    q.includes("withdrawQueued(") && q.includes('reason: { reason: "scheduling_failed" }'),
-    "a draft whose job failed to publish is retired through the one door (00387), never sent twice",
+    q.includes("queueSend("),
+    "the draft and its job in one statement (00507 queue_send): one never stands without the other",
   );
   const wa = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(wa.includes("const id = await queueDraft("));

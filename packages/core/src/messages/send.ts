@@ -71,13 +71,9 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // loudly, leaving the customer un-messaged rather than reached over the
   // wrong wire.
   const channel = (msg.channel ?? "whatsapp") as Channel;
-  const to = channel === "email" ? p.to_email : channel === "instagram" ? p.to_instagram : p.to_phone;
-  // A job that does not say where its words go was scheduled wrongly: it fails, and the tick settles the row and tells the owner.
-  if (!to)
-    throw new Error(
-      `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : channel === "instagram" ? "Instagram id" : "number"}`,
-    );
+  const to = addressOf(msg.to, channel, p);
   const resumes = resumesOf(p);
+  const staleAfter = staleAfterOf(p);
   // A person's own message that begins a conversation (payload.starts, core conversations/begin.ts): a start at the
   // door, and theirs. Only a row a person wrote may say so: the receptionist's own reply travels this path too.
   const starts = p.starts === true && (msg.sender ?? "human") === "human";
@@ -113,6 +109,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       // Held as the person's own words: the thread's pause is the one their own message took (deliver kindOf).
       ...(starts ? { kind: "reply" as const } : {}),
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length,
+      ...(staleAfter !== null ? { staleAfter } : {}),
     });
   } catch (e) {
     // The wire could not be BOUND: the workspace's credentials could not be read. Not a refusal, and not "no
@@ -170,6 +167,24 @@ async function handItOver(
       erased: false,
     }),
   );
+}
+
+/** When the send is too late to leave by itself (payload.stale_after), epoch ms; null when it names none it can say. */
+function staleAfterOf(p: SendQueuedCommand["payload"]): number | null {
+  const at = typeof p.stale_after === "string" ? Date.parse(p.stale_after) : Number.NaN;
+  return Number.isFinite(at) ? at : null;
+}
+
+/**
+ * Where the words go: the address frozen on the row (meta.to, 00507), else the payload's, an older writer's, kept for
+ * either deploy order. A job that says neither was scheduled wrongly: it fails, and the tick settles the row and tells
+ * the owner.
+ */
+function addressOf(frozen: string | null | undefined, channel: Channel, p: SendQueuedCommand["payload"]): string {
+  const to = frozen || (channel === "email" ? p.to_email : channel === "instagram" ? p.to_instagram : p.to_phone);
+  if (to) return to;
+  const what = channel === "email" ? "address" : channel === "instagram" ? "Instagram id" : "number";
+  throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${what}`);
 }
 
 /** How many fresh jobs this send already is the result of (payload.resumes). */

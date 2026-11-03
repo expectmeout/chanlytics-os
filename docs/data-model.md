@@ -56,7 +56,7 @@ what the script writes.
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`imports`](#imports) | `packages/db/src/repositories/imports/ledger.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
-| [`job_capacity`](#job_capacity) | none | on, no policy, so only the service role reaches it |
+| [`job_kinds`](#job_kinds) | `packages/db/src/jobs.ts` | on, no policy, so only the service role reaches it |
 | [`jobs`](#jobs) | `packages/db/src/erasure/legs.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
 | [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
 | [`lead_judgments`](#lead_judgments) | none | on, no policy, so only the service role reaches it |
@@ -1383,19 +1383,22 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `invitations_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
-### job_capacity
+### job_kinds
 
-How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00335, decision 0033): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role's alone.
+One row a job kind (00506, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role's alone.
 
-- Owned by: none
-- Primary key: `scope`, `key`
+- Owned by: `packages/db/src/jobs.ts`
+- Primary key: `kind`
 - Row-level security: on, no policy, so only the service role reaches it
 
 | Column | Type | Null | Default | Note |
 | --- | --- | --- | --- | --- |
-| `scope` | text | no |  |  |
-| `key` | text | no |  |  |
-| `max_in_flight` | integer | no |  |  |
+| `kind` | text | no |  |  |
+| `lane` | smallint | no |  |  |
+| `once_parts` | text[] | yes |  | The parts of the once-only key after the kind, in order: a payload field; @tenant for the workspace; field=default for a field that defaults; field? for one added only when present. A required field the payload does not name gives no key. Null: the kind has no rule ({} is a rule: the kind alone, held once). |
+| `once_kept` | boolean | no | `false` | True: the key holds while the row is kept and not failed (jobs_dedupe_kept), so a replay after done finds it. False: only while scheduled or fired (jobs_dedupe_live). |
+| `paused_at` | timestamp with time zone | yes |  |  |
+| `paused_why` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 
 ### jobs
@@ -1419,11 +1422,13 @@ How many jobs naming a capacity key (scope:key in payload.capacity) may be fired
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
 | `dedupe_key` | text | yes |  | What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00333): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed. |
-| `lane` | smallint | yes | `generated: CASE WHEN (kind = 'inbound_answer'::text) THEN 0 WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text, 'preview_build'::text, 'erasure_finish'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text, 'history_import'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read, a booking notice read, a website read for Check, 00479, a lead's preview built, 00497, an erasure finished, 00501), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription's lane (payload.lane, 00334), a text's answer in a reply's (inbound_answer, 00347); null for a kind the case does not name, claimed last. |
+| `lane` | smallint | yes |  | Which work a claim takes first (decision 0018): the kind's lane (job_kinds.lane), written by jobs_take_their_kind at insert; a lane-0 kind whose payload says purpose outreach is bulk, and an event_deliver runs in its subscription's lane (payload.lane, 00334). |
 | `spoke_at` | timestamp with time zone | yes |  | When this job put words on a wire (00352): written the moment before the provider is called. A job that spoke is never run again, whatever its kind: a second claim gives up and a throw is not retried, because a second run could reach the person a second time. Null for a job that has not, and for a kind that speaks on every run (outbound_send, broadcast_send), which the ledger never runs twice anyway. |
+| `dedupe_kept` | boolean | no | `false` | Whether this row's once-only key holds while it is kept (job_kinds.once_kept, jobs_dedupe_kept) rather than only while it is live. Written by jobs_take_their_kind. |
 
 Foreign keys:
 
+- `kind` → [`job_kinds`](#job_kinds) (`kind`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### lead_counters
@@ -3435,6 +3440,7 @@ One row per pg_cron -> pg_net sweep: the last request id (joins net._http_respon
 | `judged_by` | text | no | `'request'::text` | request: judged on the HTTP request it enqueued and what the edge answered. run: judged on cron.job_run_details, for the jobs that never leave the database. |
 | `registered_at` | timestamp with time zone | no | `now()` | A run-judged clock that has never run is healthy until max_silence has passed since it was registered. |
 | `woken_at` | timestamp with time zone | yes |  | When a row written to the ledger last asked for this sweep itself (jobs_wake, 00333): one ask a second, whatever the writers do. |
+| `kind` | text | yes |  | For a clock judged by job (00506): the job kind whose newest done row says whether the ledger is running its work. |
 
 ### templates
 

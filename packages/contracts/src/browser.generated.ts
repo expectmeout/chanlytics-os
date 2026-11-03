@@ -115,7 +115,7 @@ export { changedConfigFields, factConflicts, knownForwarding, resolveFacts, same
 export { INTENT_LABELS } from "./config/intent-labels";
 export { BUDGET_WORDS, budgetDial, tokenBudgetSpent, tokenCapOf, TOKENS_DAY_DEFAULT, tokensPerReply } from "./config/limits";
 export { cannotSendLink, NO_LINK_DETAILS, NO_WAY_TO_SEND_LINK, offersBookingLink, offersLinkOn, priceNextStep } from "./config/no-booking-link";
-export { ANSWER_WITHIN_HOURS_DEFAULT, answerWithinHoursOf, answerWithinMsOf, CALL_HEARTBEAT_MS, guardSpokenTurns, hardLimitsWords, heldLine, isLiveCall, namesMoney, PAUSE_HOURS_DEFAULT, pauseHoursOf, pauseMsOf, priceBreach, priceFigures, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_LIMITS, REPLY_MAX_ANY, replyDelayMs, replyWindow, SEND_GRACE_MS, spokenBreach, spokenBreachDetails, violatesNoPrices, WA_WINDOW_MS, waWindow, windowClockOf } from "./config/policy";
+export { ANSWER_WITHIN_HOURS_DEFAULT, answerWithinHoursOf, answerWithinMsOf, CALL_HEARTBEAT_MS, guardSpokenTurns, hardLimitsWords, heldLine, isLiveCall, MEMBER_REPLY_STALE_MS, namesMoney, PAUSE_HOURS_DEFAULT, pauseHoursOf, pauseMsOf, priceBreach, priceFigures, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_LIMITS, REPLY_MAX_ANY, replyDelayMs, replyWindow, SEND_GRACE_MS, spokenBreach, spokenBreachDetails, violatesNoPrices, WA_WINDOW_MS, waWindow, windowClockOf } from "./config/policy";
 export { promptBlocks } from "./config/prompt-blocks";
 export { roleAtLeast } from "./config/roles";
 export { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_REFUSED_WORDS, alertAddressesOf, memberGetsAlerts, withAlertAddress } from "./config/workspace-config/alerts";
@@ -138,7 +138,7 @@ export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./consent/offers-unsub
 export { optInLink, waMeDigits, waMeLink } from "./consent/wa-links";
 export { ACT_LOG_PAGE, ACT_OUTCOMES, ACT_TARGETS, actRowOf, actsCsv, CLAIM_MS, claimWords, CONSOLE_ACT_KEYS, CONSOLE_ACTS, CONSOLE_GROUP_WORDS, CONSOLE_SCREEN_WORDS, CONSOLE_SCREENS, CONSOLE_WORDS, CONSOLE_WORKSPACE_TAB_WORDS, CONSOLE_WORKSPACE_TABS, consoleAddressOf, consoleGroupOf, consoleGroups, consoleNumbersFrom, consoleNumbersOf, consolePathOf, homeSentence, LINE_ACTS, REASON_KINDS, REASON_LIMITS, REASON_WORDS, STAFF_ROLE_WORDS, STAFF_ROLES, STAFF_STATES, staffCannotSeeWords, staffCannotWords, staffMay, staffName, staffSees, staffSeesScreen, verdictPill, whyWords } from "./console/console";
 export { CONSOLE_PATH } from "./console/console-path";
-export { dollarsWords, HEALTH_STATE_WORDS, HEALTH_TAB_WORDS, HEALTH_TABS, HEALTH_WINDOWS, HEALTH_WORDS, healthCounts, healthLooksOf, healthPathOf, healthQuietWords, healthSentence, healthTabOf, healthTilesOf, secondsWords } from "./console/health";
+export { dollarsWords, HEALTH_STATE_WORDS, HEALTH_TAB_WORDS, HEALTH_TABS, HEALTH_WINDOWS, HEALTH_WORDS, healthCounts, healthLooksOf, healthPathOf, healthQuietWords, healthSentence, healthTabOf, healthTilesOf, LEDGER_LANE_WORDS, secondsWords } from "./console/health";
 export { healthAskOf } from "./console/health-ask";
 export { clocksOf, failureReadingOf, jobWords, pageKeyWords, pagesOf, scheduleWords, subscriberWords } from "./console/health-clocks";
 export { errorGroupReport, errorGroupsOf } from "./console/health-errors";

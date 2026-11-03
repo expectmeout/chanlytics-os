@@ -68,6 +68,8 @@ export const CONSOLE_ACTS = {
   line_replace: { words: "File a new campaign", roles: SUPPORT_ROLES },
   line_release: { words: "Give the number back", roles: SUPPORT_ROLES },
   job_requeue: { words: "Run a failed job again", roles: SUPPORT_ROLES },
+  job_requeue_kind: { words: "Run every failed job of a kind again", roles: SUPPORT_ROLES },
+  job_kind_pause: { words: "Pause or resume a kind of background work", roles: SUPPORT_ROLES },
   waitlist_invited: { words: "Mark as invited", roles: SUPPORT_ROLES },
   partner_standing: { words: "Rule on a partner's workspace", roles: MONEY_ROLES },
   partner_payout: { words: "Record a payout", roles: MONEY_ROLES },

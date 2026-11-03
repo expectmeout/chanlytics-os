@@ -776,6 +776,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST platform/jobs/requeue":
     "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",
   "POST platform/deliveries/redrive": "Health's deliveries, read again by its screen after the act",
+  "POST platform/jobs/requeue-kind": "Health's failed jobs, read again by its screen after the act",
+  "POST platform/jobs/pause": "Health's ledger, read again by its screen after the act",
   "POST platform/lines/refile": "the back office's lines, read again by its pane",
   "POST platform/lines/release": "the back office's lines, read again by its pane",
   "POST platform/lines/replace": "the back office's lines, read again by its pane",

@@ -55,17 +55,17 @@ test("a bulk insert writes NULL where a row lacks a key another row names, as po
   assert.equal(tables.jobs?.length ?? 0, 0, "the whole statement is refused");
 });
 
-test("a value outside a CHECK's set is 23514, and NULL passes a CHECK", async () => {
+test("a value outside a CHECK's set is 23514, one outside a table's rows is its foreign key's 23503, and NULL passes a CHECK", async () => {
   const db = fakeDb({});
   const r = await db.from("contacts").insert({ tenant_id: T, consent: "maybe" });
   assert.equal(code(r), "23514");
   assert.match(r.error.message, /violates check constraint "contacts_consent_check"/);
-  assert.equal(
-    code(
-      await db.from("jobs").insert({ tenant_id: T, kind: "a_kind_with_no_handler", due_at: "2026-09-29T12:00:00Z" }),
-    ),
-    "23514",
-  );
+  // jobs.kind references job_kinds (00506): a kind with no row there is the foreign key's refusal, as Postgres says it.
+  const kind = await db
+    .from("jobs")
+    .insert({ tenant_id: T, kind: "a_kind_with_no_handler", due_at: "2026-09-29T12:00:00Z" });
+  assert.equal(code(kind), "23503");
+  assert.match(kind.error.message, /violates foreign key constraint "jobs_kind_fkey"/);
   assert.equal((await db.from("contacts").insert({ tenant_id: T, consent: "opted_in", email: null })).error, null);
 });
 
@@ -115,7 +115,8 @@ test("a partial key's predicate sees the default of a column a row leaves out: t
   assert.equal((await db.from("jobs").insert(job)).error, null);
   const again = await db.from("jobs").insert(job);
   assert.equal(code(again), "23505");
-  assert.match(again.error.message, /jobs_email_ingest_uq/);
+  // Both the live key and the kept one (00333, 00508) hold it; Postgres names the one it checks first, its older index.
+  assert.match(again.error.message, /"jobs_dedupe_live"/, "the key the database names: its indexes in the order made");
   // a job that failed is outside the key's predicate, whether its state is sent or is the default
   assert.equal((await db.from("jobs").insert({ ...job, state: "failed" })).error, null);
 });

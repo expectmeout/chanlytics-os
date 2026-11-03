@@ -58,6 +58,43 @@ export interface FailedJobDto {
   updated_at: string;
 }
 
+/** One lane of the ledger now (jobs_ledger_now, 00506): how many run, are due, wait for a retry and ran past their lease. */
+export interface LedgerLaneDto {
+  lane: number;
+  running: number;
+  due: number;
+  waiting: number;
+  expired: number;
+  /** How long the oldest due row has waited, in seconds; 0 when none is due. */
+  oldest_due_s: number;
+}
+
+/** One kind of job now: its lane, whether an operator paused it and why, and its last day's failed and done. */
+export interface LedgerKindDto {
+  kind: string;
+  lane: number;
+  paused_at: string | null;
+  paused_why: string | null;
+  failed_day: number;
+  done_day: number;
+}
+
+/** Each lane in words (decision 0018): what a claim takes first, then someone waiting, then bulk; -1 is a kind with none. */
+export const LEDGER_LANE_WORDS: Record<number, string> = {
+  0: "Replies",
+  1: "Someone waiting",
+  2: "Bulk",
+  [-1]: "No lane",
+};
+
+/** What the ledger holds now (00506): by lane, by kind, and when its own canary last finished. */
+export interface LedgerNowDto {
+  lanes: LedgerLaneDto[];
+  kinds: LedgerKindDto[];
+  canary_done_at: string | null;
+  read_at: string;
+}
+
 /** One error a page hit, as the beacon kept it (client_errors, 00469). */
 export interface ClientErrorDto {
   at: string;
@@ -83,6 +120,8 @@ export interface HealthDto {
   clocks: HealthClockDto[] | null;
   backlog: number | null;
   failed_jobs: FailedJobDto[] | null;
+  /** The ledger now (jobs_ledger_now, 00506); absent from a server before it. */
+  ledger?: LedgerNowDto | null;
   pages: OperatorPageDto[] | null;
   /** The nightly roll-up's days (platform_metrics), the window's. */
   day_rows: PlatformDayRowDto[] | null;
@@ -367,6 +406,8 @@ export type HealthSeverity = "red" | "amber" | "plain";
 export type HealthAct =
   | { kind: "run_again"; jobId: string; tenantId: string }
   | { kind: "redrive"; subscriber: string }
+  | { kind: "run_kind_again"; jobKind: string; sinceIso: string }
+  | { kind: "pause_kind"; jobKind: string; paused: boolean }
   | { kind: "open"; tab: HealthTab };
 
 /** One row of Needs a look: what, why, where, since when, and its one act. */
@@ -466,6 +507,26 @@ function backlogLooks({ h, nowMs }: LookCtx): HealthLookVM[] {
       act: { kind: "open", tab: "background" },
     }),
   ];
+}
+
+/** A kind an operator paused: its work waits until someone resumes it, so it is a look for as long as it is paused. */
+function pausedLooks({ h, nowMs, sinceWords }: LookCtx): HealthLookVM[] {
+  return (h.ledger?.kinds ?? [])
+    .filter((k) => k.paused_at)
+    .map((k) => {
+      const at = Date.parse(k.paused_at ?? "") || nowMs;
+      return look({
+        key: `paused:${k.kind}`,
+        severity: "amber",
+        what: `${jobWords(k.kind)} is paused`,
+        why: k.paused_why ?? HEALTH_WORDS.pausedWhy,
+        where: PLATFORM_WHERE,
+        ours: false,
+        sinceMs: at,
+        since: sinceWords(at),
+        act: { kind: "pause_kind", jobKind: k.kind, paused: false },
+      });
+    });
 }
 
 function promiseLooks({ h, scope, nowMs, ours, sinceWords }: LookCtx): HealthLookVM[] {
@@ -617,6 +678,7 @@ function connectionLooks({ h, nowMs, nameOf, sinceWords }: LookCtx): HealthLookV
 const LOOK_SOURCES = [
   clockLooks,
   backlogLooks,
+  pausedLooks,
   promiseLooks,
   jobLooks,
   deliveryLooks,
@@ -715,5 +777,27 @@ export const HEALTH_WORDS = {
   close: "Close",
   ranAgain: "It's on the ledger again.",
   redriven: (n: number) => (n === 0 ? "Nothing was left to deliver again." : `${n} scheduled again.`),
+  runKindAgain: "Run every failed one again",
+  runKindAgainAsk: (kind: string) => `Run every failed ${kind} again?`,
+  runKindAgainDetail:
+    "Each one that failed since then gets one fresh job of its kind and payload, due now. Sends, and jobs that spoke, are never run again.",
+  ranKindAgain: (n: number, refused: number) =>
+    n === 0 && refused === 0
+      ? "Nothing had failed since then."
+      : `${n} on the ledger again${refused ? `; ${refused} left as they are (sends, or already run again)` : ""}.`,
+  pause: "Pause",
+  pauseAsk: (kind: string) => `Pause ${kind}?`,
+  pauseDetail: "No claim takes its work until you resume it; what is due waits where it is.",
+  resume: "Resume",
+  resumeAsk: (kind: string) => `Resume ${kind}?`,
+  resumeDetail: "What waited is due at once, oldest first.",
+  pausedNow: "Paused: its work waits until it is resumed.",
+  resumedNow: "Resumed: what waited is on its way.",
+  pausedWhy: "An operator paused it.",
+  ledgerTitle: "The ledger now",
+  ledgerSub: "by lane · waiting means a retry waits its turn",
+  ledgerUnread: "The ledger could not be read just now.",
+  canaryWords: (ago: string) => `The ledger's own check last finished ${ago}.`,
+  canaryNever: "The ledger's own check has not finished yet.",
   oursNote: "Ours: our own workspaces (the nightly suite's, the smoke test), counted apart and never paged.",
 } as const;

@@ -908,7 +908,71 @@ const sequenceOfFirstStep = (tables, row) => ({
  * sequence (a one-off is a sequence of its own on a date), a send's sequence and step from its batch, and its first
  * state by its family. The row is filled in place and answered.
  */
+/**
+ * Each kind's job_kinds row (00506) as jobs_take_their_kind reads it: its lane, the parts of its once-only key (null: no
+ * rule; [] the kind alone) and whether the key holds while the row is kept. jobs/job-kinds.test.mjs holds this to the
+ * migration's own seed.
+ */
+export const FAKE_JOB_KINDS = {
+  outbound_send: [0, null, false],
+  email_ingest: [0, ["mailbox_id", "received_id"], true],
+  push_send: [0, null, false],
+  inbound_answer: [0, ["message_id"], false],
+  canary: [0, ["@tenant"], false],
+  line_provision: [1, null, false],
+  reply_read: [1, ["message_id", "stage=read"], true],
+  booking_read: [1, ["@tenant", "received_id"], false],
+  website_read: [1, ["@tenant"], false],
+  preview_build: [1, ["preview_id"], false],
+  erasure_finish: [1, ["contact_id"], false],
+  broadcast_send: [2, null, false],
+  lead_round_start: [2, null, false],
+  lead_collect: [2, ["run_id", "seq"], true],
+  lead_check: [2, null, false],
+  push_receipts: [2, null, false],
+  history_import: [2, ["@tenant", "source", "seq", "connection_id?"], false],
+  event_deliver: [2, null, false],
+};
+
+/** A job's once-only key as job_dedupe_key_of (00506) spells it, or null. */
+function fakeDedupeKey(kind, tenantId, payload) {
+  const rule = FAKE_JOB_KINDS[kind];
+  const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const text = (name) => (typeof p[name] === "string" && p[name] !== "" ? p[name] : null);
+  if (!rule) return null;
+  const [, parts] = rule;
+  if (parts === null) return text("requeue_of") ? `requeue:${text("requeue_of")}` : null;
+  let key = kind;
+  for (const part of parts) {
+    if (part === "@tenant") key += `:${tenantId}`;
+    else if (part.endsWith("?")) {
+      const v = text(part.slice(0, -1));
+      if (v) key += `:${v}`;
+    } else {
+      const [name, dflt] = part.split("=");
+      const v = text(name) ?? (dflt || null);
+      if (v === null) return null;
+      key += `:${v}`;
+    }
+  }
+  return key;
+}
+
 function filledBySequenceTriggers(tables, table, row) {
+  // A job's lane and its once-only key, as jobs_take_their_kind writes them before the insert (00506), whoever wrote it.
+  if (table === "jobs" && FAKE_JOB_KINDS[row.kind]) {
+    const [lane, , kept] = FAKE_JOB_KINDS[row.kind];
+    const p = row.payload && typeof row.payload === "object" ? row.payload : {};
+    row.lane =
+      row.kind === "event_deliver" && /^[0-2]$/.test(String(p.lane ?? ""))
+        ? Number(p.lane)
+        : lane === 0 && p.purpose === "outreach"
+          ? 2
+          : lane;
+    if (row.dedupe_key == null) row.dedupe_key = fakeDedupeKey(row.kind, row.tenant_id, p);
+    row.dedupe_kept = kept && row.dedupe_key != null && !String(row.dedupe_key).startsWith("requeue:");
+    return row;
+  }
   if (table === "sequence_steps" && row.sequence_id == null) {
     row.id ??= crypto.randomUUID();
     if (row.after_step_id) {
@@ -1342,6 +1406,68 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             j.state = "canceled";
       }
       return rows.map((m) => m.id).sort();
+    },
+    /**
+     * A queued reply and its outbound_send job, written together or not at all (00507 queue_send): a fault on
+     * `messages.insert` or `jobs.insert` refuses the whole door, with nothing of it kept. Answers the message's id.
+     */
+    queue_send: ({ p_message, p_due_at, p_payload }) => {
+      for (const t of ["messages.insert", "jobs.insert"]) {
+        const fault = faults[t];
+        if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      }
+      const m = insertRow("messages", {
+        id: p_message.id ?? crypto.randomUUID(),
+        tenant_id: p_message.tenant_id,
+        conversation_id: p_message.conversation_id,
+        contact_id: p_message.contact_id ?? null,
+        channel: p_message.channel ?? "whatsapp",
+        direction: "outbound",
+        sender: p_message.sender ?? "ai",
+        type: p_message.type ?? "text",
+        body: p_message.body ?? null,
+        status: "queued",
+        meta: p_message.meta ?? {},
+      });
+      const conv = (tables.conversations ?? []).find(
+        (c) => c.id === p_message.conversation_id && c.tenant_id === p_message.tenant_id,
+      );
+      if (conv) conv.last_message_at = new Date().toISOString();
+      insertRow(
+        "jobs",
+        filledBySequenceTriggers(tables, "jobs", {
+          tenant_id: p_message.tenant_id,
+          kind: "outbound_send",
+          due_at: p_due_at,
+          state: "scheduled",
+          attempts: 0,
+          payload: { ...(p_payload ?? {}), message_id: m.id, conversation_id: p_message.conversation_id },
+        }),
+      );
+      return m.id;
+    },
+    /**
+     * A run marked sent and its broadcast.sent written together (00507 finish_broadcast): only a run still sending moves,
+     * and only then is the event written. Answers whether it moved.
+     */
+    finish_broadcast: ({ p_tenant_id, p_id, p_event }) => {
+      const run = (tables.sequence_batches ?? []).find(
+        (b) => b.id === p_id && b.tenant_id === p_tenant_id && b.state === "sending",
+      );
+      if (!run) return false;
+      run.state = "sent";
+      run.finished_at = new Date().toISOString();
+      insertRow("events", {
+        tenant_id: p_tenant_id,
+        kind: p_event.kind,
+        category: p_event.category ?? "system",
+        version: p_event.version ?? 1,
+        subject_type: p_event.subject_type ?? null,
+        subject_id: p_event.subject_id ?? null,
+        data: p_event.data ?? {},
+        ...(p_event.request_id ? { request_id: p_event.request_id } : {}),
+      });
+      return true;
     },
     withdraw_ai_drafts: ({ p_tenant_id, p_conversation_id, p_reason, p_keep_message_id }) =>
       derived.withdraw_queued({

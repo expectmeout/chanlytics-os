@@ -1515,6 +1515,14 @@
       "rate": null,
       "spend": false
     },
+    "POST platform/jobs/pause": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_job_pause",
+      "spend": false,
+      "act": "job_kind_pause"
+    },
     "POST platform/jobs/requeue": {
       "kind": "write",
       "scope": "platform",
@@ -1522,6 +1530,14 @@
       "rate": "platform_job_requeue",
       "spend": false,
       "act": "job_requeue"
+    },
+    "POST platform/jobs/requeue-kind": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_job_requeue_kind",
+      "spend": false,
+      "act": "job_requeue_kind"
     },
     "POST platform/lines/refile": {
       "kind": "write",

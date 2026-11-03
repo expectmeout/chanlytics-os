@@ -28,12 +28,12 @@ import {
   cancelBroadcastFrom,
   claimQueuedSend,
   emitEvent,
+  finishBroadcast,
   freedTimeFactsOf,
   insertQueuedEmail,
   mailboxOfTenant,
   messageVersionRowsOf,
   queuedRecipients,
-  recordEvent,
   recordSystemDecision,
   releaseQueuedSend,
   resolveOutboundTarget,
@@ -465,18 +465,11 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
         return HELD_WHEN_COUNTED.filter((_, i) => (counts[i] ?? 0) > 0);
       },
+      // Marked sent with its tally on the ledger in one statement (00507 finish_broadcast): the state moved first and the
+      // event after, so an event that could not be written threw out of a run that had finished, and its owner was told
+      // it stopped partway. Another chain of the same run that finished it first wrote the run's event; this one writes none.
       finish: async (id, tally) => {
-        must(
-          "broadcast_send: cannot close the broadcast",
-          await db
-            .from("sequence_batches")
-            .update({ state: "sent", finished_at: new Date().toISOString() })
-            .eq("id", id)
-            .eq("tenant_id", job.tenant_id)
-            .eq("state", "sending"),
-        );
-        const told = await recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally);
-        if (told.error) throw new Error(`broadcast_send: cannot record the broadcast's tally: ${told.error}`);
+        await finishBroadcast(db, job.tenant_id, id, tally);
       },
       alert: ctx.alert,
       now: Date.now,

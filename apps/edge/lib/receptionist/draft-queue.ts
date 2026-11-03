@@ -3,7 +3,8 @@
  *
  * Two callers: the WhatsApp handler when the reply waits (the hold window or
  * the confidence dial), and the steer endpoint when an owner has a held
- * draft rewritten. One writer, so the row and the job always agree on shape.
+ * draft rewritten. One writer, so the row and the job always agree on shape, and one statement, so neither is ever
+ * written without the other.
  *
  * Returns the message id, or null when it could not be queued; the handler
  * then sends immediately, deliberately: an un-vetoed reply is a worse
@@ -11,8 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { recordOutbound, withdrawQueued } from "../packages/db.js";
-import { scheduleJob } from "../packages/jobs.js";
+import { queueSend } from "../packages/db.js";
 import type { BrainMeta } from "../packages/contracts.js";
 import type { InboundChannel } from "../packages/core.js";
 import type { LogEvent } from "../log.js";
@@ -43,59 +43,28 @@ interface DraftLog {
 }
 
 export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: DraftLog): Promise<string | null> {
-  // Declared out here so the catch can undo it. The message is written before
-  // the job, so a scheduling failure used to leave a `queued` message behind
-  // while the caller — correctly — sent the same words immediately: the Inbox
-  // then showed a held draft with Edit and Hold controls for a reply the
-  // customer already had, and a job that had in fact been written before the
-  // error surfaced later found the message still queued and sent it twice.
-  let messageId: string | null = null;
+  // The draft and its job in one statement (00507 queue_send): both are written or neither is. The draft used to be
+  // written, then its job, so a run killed between the two left a queued reply nothing would send, and a job that failed
+  // to be written left one the caller (correctly sending the same words at once) had to withdraw. A write that fails
+  // now leaves nothing to undo, and the caller sends the words itself.
+  // An address never travels in a field read as a number: a DM's is its own (core SendPayload). It is frozen on the row
+  // (meta.to, last, so nothing the brain says of the draft moves it), where the send reads it; the payload's copy is an
+  // older edge's, for either deploy order.
+  const to = a.channel === "instagram" ? a.to : `+${a.to.replace(/^\+/, "")}`;
   try {
-    messageId = await recordOutbound(db, {
+    return await queueSend(db, {
       tenantId: a.tenantId,
       conversationId: a.conversationId,
       contactId: a.contactId,
-      sender: "ai",
-      type: "text",
-      body: a.body,
-      externalId: null,
-      status: "queued",
       channel: a.channel ?? "whatsapp",
-      meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) },
-    });
-    if (!messageId) return null;
-    await scheduleJob(db, {
-      tenantId: a.tenantId,
-      kind: "outbound_send",
+      sender: "ai",
+      body: a.body,
+      meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}), to },
       dueAt: new Date(Date.now() + a.delayMs),
-      payload: {
-        message_id: messageId,
-        conversation_id: a.conversationId,
-        // An address never travels in a field read as a number: a DM's is its own (core SendPayload).
-        ...(a.channel === "instagram" ? { to_instagram: a.to } : { to_phone: `+${a.to.replace(/^\+/, "")}` }),
-        body: a.body,
-      },
+      payload: a.channel === "instagram" ? { to_instagram: to } : { to_phone: to },
     });
-    return messageId;
   } catch (e) {
     L.error("wa_queue_failed", { error: e instanceof Error ? e.message : String(e) });
-    if (messageId) {
-      // The caller may be about to send these exact words immediately. Retire
-      // the draft first so it cannot be sent a second time and cannot render
-      // as a pending one, and mark it canceled rather than deleting it — the
-      // row is the only record that a hold was attempted and did not happen.
-      // The one door (00387) takes it, and a job that did get written with it, while no run has claimed it.
-      await withdrawQueued(db, {
-        tenantId: a.tenantId,
-        messageIds: [messageId],
-        reason: { reason: "scheduling_failed" },
-      }).catch((e: unknown) =>
-        L.error("wa_queue_rollback_failed", {
-          message_id: messageId,
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
-    }
     return null;
   }
 }

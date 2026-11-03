@@ -339,7 +339,7 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
   superseded_by_human: "Someone on your team answered first, so this was not sent.",
   too_late:
-    "The receptionist's reply would have reached them hours after they wrote, so it was not sent. Its words are kept in the thread, for you to send or answer in your own.",
+    "This reply would have reached them long after it was written, so it was not sent. Its words are kept in the thread, for you to send or answer in your own.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
   unsubscribed:
     "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies, reminders and confirmations still can.",

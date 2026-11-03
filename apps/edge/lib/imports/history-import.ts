@@ -40,7 +40,7 @@ import {
   type Json,
   type MailboxConnectionRow,
 } from "../packages/db.js";
-import { retryWait, scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
+import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
 import { errField, logger, type Logger } from "../log.js";
 import { mailHistoryPart } from "./mail-history.js";
 import { contactsPart } from "./mail-people.js";
@@ -360,28 +360,11 @@ export function historyImports(db: Db): NonNullable<JobContext["imports"]> {
         n,
         until: Math.min(deadline, Date.now() + PART_MS),
         log,
-      }).catch(async (err: unknown) => {
-        // The job ledger tries the part again (RETRY_WAITS_MS); a throw it will not try again says so on the source's
-        // row, with Try again (imports/again), so a stop is never only a failed job.
-        const last = retryWait({ kind: job.kind, attempts: job.attempts ?? 1 }) === null;
-        log.error("history_part_failed", {
-          source,
-          run: runId,
-          n,
-          attempts: job.attempts ?? 1,
-          last,
-          error: errField(err),
-        });
-        if (last)
-          await noteImport(db, {
-            tenantId: job.tenant_id,
-            source,
-            connectionId: ledgerMailboxOf(source, connectionId),
-            run: runId,
-            state: "failed",
-            error: IMPORT_STOPPED_WORDS.failed,
-            add: true,
-          }).catch((e: unknown) => log.error("history_part_failed", { source, stage: "note", error: errField(e) }));
+      }).catch((err: unknown) => {
+        // The job ledger tries the part again (RETRY_WAITS_MS); one it will not try again, whether its last try threw
+        // or a run died on it, the ledger says stopped on the source's row, with Try again (packages/jobs settle.ts),
+        // so a stop is never only a failed job.
+        log.error("history_part_failed", { source, run: runId, n, attempts: job.attempts ?? 1, error: errField(err) });
         throw err;
       });
       log.info("history_part", { source, run: runId, n, more: out.more });
