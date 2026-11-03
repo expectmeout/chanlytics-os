@@ -1957,7 +1957,7 @@
       },
       "card_fields_each": {
         "message": {
-          "language": ["en_US", "es"]
+          "language": ["es"]
         }
       },
       "no_write": true
@@ -2262,7 +2262,7 @@
     "text": "my goal is twenty new clients a month",
     "surface": "today",
     "expect": {
-      "proposals_any": ["settings"],
+      "proposals_any": ["memory"],
       "no_write": true
     }
   },
@@ -2320,7 +2320,12 @@
     "surface": "today",
     "expect": {
       "includes_any": ["mailbox"],
-      "proposals_not": ["reach_out_make", "lead_list"],
+      "proposals_any": ["reach_out_make"],
+      "card_fields_each": {
+        "reach_out_make": {
+          "chain.owner_sends": [true]
+        }
+      },
       "no_write": true
     }
   },
