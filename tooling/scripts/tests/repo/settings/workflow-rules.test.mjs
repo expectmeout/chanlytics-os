@@ -203,18 +203,39 @@ test("main's migrations reach production through migrate.yml only when a person 
   );
 });
 
-test("the weekly compare reads production's ledger with its names, and the production smoke runs once per merge, on the edge's ready deployment", () => {
+test("the weekly compare reads production's ledger with its names, and the production smoke runs once per merge, on the deployment that finished last", () => {
   assert.ok(
     workflow("migration-ledger.yml").includes("version, name from supabase_migrations.schema_migrations"),
     "a version production applied under another name is seen on Mondays too",
   );
   const y = workflow("production-smoke.yml");
   assert.ok(y.includes("deployment_status:"));
-  assert.ok(y.includes("github.event.deployment_status.state == 'success'"));
+  // 2 Nov 2026: the dashboard finished seven minutes after the edge, and a smoke on the edge's event alone opened an
+  // issue for a deploy that was fine. Either project's finished deployment runs the job; the turn step decides.
+  for (const state of ["success", "failure", "error"])
+    assert.ok(y.includes(`github.event.deployment_status.state == '${state}'`), `a deployment that ended in ${state}`);
   assert.ok(y.includes("contains(github.event.deployment.environment, 'Production')"));
+  for (const project of ["chanlytics-messaging", "chanlytics-os"])
+    assert.ok(y.includes(`contains(github.event.deployment.environment, '${project}')`), `${project}'s event`);
+  assert.ok(y.includes("deployments: read"), "the other project's deployment is read with the token's own permission");
+  assert.ok(y.includes('node tooling/scripts/checks/smoke.mjs --turn >> "$GITHUB_OUTPUT"'), "the turn is the script's");
+  for (const part of [
+    "deployment.sha",
+    "deployment.environment",
+    "deployment_status.state",
+    "deployment_status.created_at",
+  ])
+    assert.ok(y.includes(`github.event.${part}`), `the turn is asked with ${part}`);
+  assert.match(
+    y,
+    /if: steps\.turn\.outputs\.smoke == 'yes'\n\s+name: Both hosts answer/,
+    "only the deployment that finished last smokes",
+  );
   assert.ok(
-    y.includes("contains(github.event.deployment.environment, 'chanlytics-messaging')"),
-    "the edge deploys last, so its event alone",
+    y.includes(
+      "group: production-smoke-${{ github.event.deployment.sha }}-${{ github.event.deployment_status.state }}",
+    ) && y.includes("cancel-in-progress: false"),
+    "the two events of a commit queue, never smoke at once, and never cancel each other",
   );
   assert.ok(!y.includes("deployment.ref =="), "Vercel's ref is the commit's sha, never main");
   assert.ok(y.includes("git ls-remote origin refs/heads/main"), "a commit main moved past is left to the newer one");
