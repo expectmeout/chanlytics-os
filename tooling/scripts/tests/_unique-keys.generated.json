@@ -2857,6 +2857,18 @@
       "where": null
     },
     {
+      "table": "setup_choices",
+      "name": "setup_choices_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "support_reports",
       "name": "support_reports_pkey",
       "primary": true,

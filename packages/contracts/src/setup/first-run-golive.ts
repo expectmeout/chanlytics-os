@@ -2,7 +2,7 @@
  * Go live (decision 0073, canvas 5A–5C): the first run's last step, where everything chosen at Where it answers starts.
  *
  * - **Pay** (5A): what starts and what it costs, and the card in the page (R16), or a trial's plan started now, or, for
- *   a workspace that already pays, the press alone. The trial is FIRST_RUN_TRIAL_DAYS, said as it is (R9).
+ *   a workspace that already pays, the press alone. The trial is trialDaysFor's, said as it is (decision 0090).
  * - **Switch it on** (5B): one list that fills itself in: the plan, the receptionist's number on its way, the code that
  *   forwards the number kept and the owner's own call that proves it (first-run-phone.ts and first-run-try.ts draw those
  *   two), WhatsApp's approval, the booking-link message with Meta, and what came in. Two rows need the owner's hands; both
@@ -12,7 +12,7 @@
  * Every sentence is here; the page composes.
  */
 import { formatPhoneDisplay } from "../shared/phone";
-import { billingDoorOpen, dayWords, priceWords, FIRST_RUN_TRIAL_DAYS } from "../workspace/billing";
+import { billingDoorOpen, dayWords, priceWords, trialDaysFor } from "../workspace/billing";
 import { GET_YES_ROUTE } from "../people/lists/people-route";
 import { newSequenceRoute } from "../sequences/sequence-address";
 import { forwardedLineOf, type SetupDto, type SetupVM, type WhatsappChoice } from "./setup";
@@ -297,6 +297,8 @@ interface GoLiveFacts {
   hands: number;
   price: string | null;
   firstCharge: string | null;
+  /** Not by phone (decision 0091): no number, no forwarding and no call are part of going live. */
+  noCalls: boolean;
 }
 
 function goLiveFactsOf(i: GoLiveInput): GoLiveFacts {
@@ -314,6 +316,7 @@ function goLiveFactsOf(i: GoLiveInput): GoLiveFacts {
     hands: (kept ? 1 : 0) + (waChosen && !waOn ? 1 : 0),
     price: priceWords(dto.billing?.price ?? null) || null,
     firstCharge: dto.billing?.current_period_end ? dayWords(dto.billing.current_period_end, i.tz) : null,
+    noCalls: vm.noCalls,
   };
 }
 
@@ -321,9 +324,9 @@ function goLiveFactsOf(i: GoLiveInput): GoLiveFacts {
 function startsOf(i: GoLiveInput, f: GoLiveFacts): GoLiveStartVM[] {
   const W = FIRST_RUN_GOLIVE_WORDS.starts;
   const mailbox = i.dto.email?.sending?.mailboxes[0] ?? null;
-  const out: GoLiveStartVM[] = [
-    { key: "calls", label: W.calls(f.kept, f.always, f.own), after: W.callsAfter(!!f.kept) },
-  ];
+  const out: GoLiveStartVM[] = f.noCalls
+    ? []
+    : [{ key: "calls", label: W.calls(f.kept, f.always, f.own), after: W.callsAfter(!!f.kept) }];
   if (f.waChosen)
     out.push({
       key: "whatsapp",
@@ -336,11 +339,21 @@ function startsOf(i: GoLiveInput, f: GoLiveFacts): GoLiveStartVM[] {
   return out;
 }
 
+/**
+ * The trial Go live says: the checkout's own rule (contracts trialDaysFor), over the length the edge said for this
+ * deployment, so the pane never promises a trial the checkout does not give. A workspace that had a plan before has
+ * none.
+ */
+function goLiveTrialDays(billing: GoLiveInput["dto"]["billing"]): number {
+  if (!billing) return 0;
+  return trialDaysFor({ hadSubscription: billing.status !== "none", deploymentDays: billing.trial_days });
+}
+
 /** 5A: what starts, the price, the trial as it is, and what happens after the press. */
 function payOf(i: GoLiveInput, f: GoLiveFacts): NonNullable<FirstRunGoLiveVM["pay"]> {
   const W = FIRST_RUN_GOLIVE_WORDS;
-  const days = FIRST_RUN_TRIAL_DAYS;
-  const after: string[] = [W.after.number];
+  const days = goLiveTrialDays(i.dto.billing);
+  const after: string[] = f.noCalls ? [] : [W.after.number];
   if (f.waChosen) after.push(W.after.template);
   if (f.hands) after.push(W.after.hands(!!f.kept, f.waChosen && !f.waOn));
   return {
@@ -396,15 +409,17 @@ function switchItemsOf(i: GoLiveInput, f: GoLiveFacts, proof: { proved: boolean;
   const W = FIRST_RUN_GOLIVE_WORDS.switchOn;
   const voice = i.dto.channels.voice.present;
   const approved = i.dto.templates.startersApproved > 0;
-  const items: GoLiveItemVM[] = [
-    {
-      key: "number",
-      state: voice ? "done" : "waiting",
-      label: f.own ? W.number(f.own) : W.numberUnknown,
-      sub: voice ? W.numberReady : W.numberComing,
-    },
-  ];
-  const forward = forwardItemOf(i, f, proof);
+  const items: GoLiveItemVM[] = f.noCalls
+    ? []
+    : [
+        {
+          key: "number",
+          state: voice ? "done" : "waiting",
+          label: f.own ? W.number(f.own) : W.numberUnknown,
+          sub: voice ? W.numberReady : W.numberComing,
+        },
+      ];
+  const forward = f.noCalls ? null : forwardItemOf(i, f, proof);
   if (forward) items.push(forward);
   if (f.waChosen)
     items.push({
@@ -436,11 +451,11 @@ function switchOnOf(i: GoLiveInput, f: GoLiveFacts): NonNullable<FirstRunGoLiveV
   ];
   if (f.waChosen)
     answers.push({ key: "whatsapp", label: "WhatsApp", value: f.waOn ? W.answers.whatsappOn : W.answers.whatsapp });
-  answers.push({ key: "calls", label: "Calls", value: callsOn ? W.answers.callsOn : W.answers.calls });
+  if (!f.noCalls) answers.push({ key: "calls", label: "Calls", value: callsOn ? W.answers.callsOn : W.answers.calls });
   const billing = dto.billing;
   const started = billingDoorOpen(billing) && (billing.status === "active" || billing.status === "trialing");
   const plan = started
-    ? W.plan(f.price, f.firstCharge, billing.status === "trialing" ? FIRST_RUN_TRIAL_DAYS : 0)
+    ? W.plan(f.price, f.firstCharge, billing.status === "trialing" ? goLiveTrialDays(billing) : 0)
     : null;
   return {
     plan,

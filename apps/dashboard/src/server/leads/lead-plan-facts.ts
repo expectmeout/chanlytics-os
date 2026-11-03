@@ -6,7 +6,6 @@
  * name no workspace and no place (lead_niche_priors, 00140). Nothing else here reads past the workspace.
  */
 import {
-  LEAD_MONTHLY_ALLOWANCE,
   LEAD_MONTHLY_BUDGET_USD,
   type LeadArea,
   leadMonth,
@@ -55,12 +54,12 @@ export async function planFacts(
   ]);
   // The whole of each ceiling is contracts', never the database's: one
   // derivation per fact, so the number a person reads is spelled once.
-  const leadsLeft = Math.max(0, LEAD_MONTHLY_ALLOWANCE - used.allowance);
+  const leadsLeft = Math.max(0, used.cap - used.allowance);
   const budgetLeftUsd = Math.max(0, LEAD_MONTHLY_BUDGET_USD - used.budget);
   // Which of the month's two ceilings this workspace is nearer, as a share of
   // each month's whole: the card says "you have N leads left" for the one and
   // names the budget for the other. Neither touched binds nothing.
-  const usedLeads = LEAD_MONTHLY_ALLOWANCE - leadsLeft;
+  const usedLeads = used.cap - leadsLeft;
   const usedUsd = LEAD_MONTHLY_BUDGET_USD - budgetLeftUsd;
   // The word is A's own counter kind (LEAD_COUNTER_KINDS: allowance | budget |
   // day), so the card, the door and the ledger all call the month's leads the
@@ -68,7 +67,7 @@ export async function planFacts(
   const bound: LeadPlanFacts["bound"] =
     usedLeads === 0 && usedUsd === 0
       ? null
-      : leadsLeft / LEAD_MONTHLY_ALLOWANCE <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD
+      : leadsLeft / Math.max(1, used.cap) <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD
         ? "allowance"
         : "budget";
   return {

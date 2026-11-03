@@ -11,7 +11,7 @@
  * else is Setup's: a case this step does not draw -- no line provider, a line that stopped, billing that needs Billing,
  * a line a person was asked for, a line that answers -- is `rows`, where Setup's own rows say it as they always have.
  */
-import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "../workspace/billing";
+import { billingDoorOpen, maySpend, priceWords, trialDaysFor, CHECKOUT_OUTCOME_WORDS } from "../workspace/billing";
 import { areaCodeOf, formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { agoWords, DAY_MS } from "../shared/time";
 import {
@@ -106,17 +106,16 @@ export interface FirstRunPhoneVM {
   /** The area code a number is bought in: the kept or moved number's, else the listing's; null for neither. */
   area: string | null;
   /**
-   * The plan the number starts, where it has not started yet: its price and what it means. A number costs Chanlytics
-   * $1.15 a month for as long as it is held, so it is never on a free trial (maySpend): the step's checkout takes no
-   * trial, and a workspace already on one starts its plan here.
+   * The plan the number starts, where it has not started yet: its price, the trial and what it means. The trial covers
+   * the number (decision 0090), so a workspace already on one buys it with no plan to start.
    */
   plan: { offer: string; note: string } | null;
   /**
-   * The step's one coral button, `held` with why it cannot go yet, and what it does: start the plan (by checkout, or
-   * early from a free trial), buy the number,
+   * The step's one coral button, `held` with why it cannot go yet, and what it does: start the trial or the plan (by
+   * checkout), buy the number,
    * save the forwarding (the answers' code), or go on to Try it.
    */
-  cta: { label: string; held: string | null; act: "plan" | "startNow" | "buy" | "forward" | "onward" } | null;
+  cta: { label: string; held: string | null; act: "plan" | "buy" | "forward" | "onward" } | null;
   /**
    * Where it answers: why the choice cannot be kept yet (no number to keep, not a US number, no new number picked), the
    * step's own onward held by it; null when it can, and at Go live.
@@ -185,15 +184,24 @@ export const FIRST_RUN_PHONE_WORDS = {
     pick: "Pick a number first.",
   },
   cta: {
-    /** Go live's press (canvas 5A): the plan started by checkout, a trial's plan started now, or the number bought. */
+    /** Go live's press (canvas 5A): the trial or the plan started by checkout, or the number bought. */
     plan: "Start my plan",
-    startNow: "Start my plan and go live",
     buy: "Go live",
   },
-  planOffer: (price: string) => (price ? `${price}, starting today` : "Your plan, starting today"),
-  planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
-  /** A workspace on a free trial: the trial covers no number, so getting one starts the plan early. */
-  planNoteTrial: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
+  planOffer: (price: string, days: number) =>
+    days
+      ? `${days} days free, then ${price || "your plan"}`
+      : price
+        ? `${price}, starting today`
+        : "Your plan, starting today",
+  planNoteNoCalls: (days: number) =>
+    days
+      ? "Every channel you chose is included. Nothing is charged until the trial ends, and you can cancel anytime from Billing."
+      : "Every channel you chose is included. The first charge is today, and you can cancel anytime from Billing.",
+  planNote: (days: number) =>
+    days
+      ? "Your number is included. Nothing is charged until the trial ends, and you can cancel anytime from Billing."
+      : "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
   starting: "Starting your plan…",
   startingDetail: "Your card is on file. This page updates as Stripe confirms it.",
   buyingIn: (area: string | null) =>
@@ -290,7 +298,35 @@ export function firstRunPhoneOf(input: FirstRunPhoneInput): FirstRunPhoneVM {
   // Where the receptionist's line stands decides the stage: it answers, it is on its way, or there is none yet.
   if (dto.channels.voice.present) return answeringStageOf(s);
   if (s.ownLine) return onItsWayStageOf(s, s.ownLine);
+  // Not by phone (decision 0091): Go live starts the trial, and there is no number to buy.
+  if (input.vm.noCalls) return noCallsStageOf(s);
   return noLineYetStageOf(s);
+}
+
+/**
+ * Go live for a business that takes no calls (decision 0091): the plan the trial starts, pressed with nothing held, and
+ * no number bought after it; once it runs, nothing of the phone's is left to draw.
+ */
+function noCallsStageOf(s: PhoneStep): FirstRunPhoneVM {
+  const plan = phonePlanOf(s.dto.billing);
+  if (!plan) return s.rows;
+  if (s.returned) return startingStageOf(s);
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    ...s.base,
+    stage: "go",
+    heading: W.chooseHeading,
+    lead: W.chooseLead,
+    plan: { offer: plan.offer, note: W.planNoteNoCalls(plan.days) },
+    boxProblem: null,
+    cta: { label: ctaLabelOf("plan"), held: null, act: "plan" },
+    status: null,
+    questions: null,
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null,
+  };
 }
 
 /** What every stage says alike: the way, the three ways, the numbers, the box and the area code. */
@@ -695,23 +731,23 @@ function noLineYetStageOf(s: PhoneStep): FirstRunPhoneVM {
   const { dto, choice, returned } = s;
   // No provider here, or a person was asked for a line: the row says who has it.
   if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
-  const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
-  const plan = phonePlanOf(dto.billing, onTrial);
+  const plan = phonePlanOf(dto.billing);
   if (!s.canSpend && !plan) return s.rows;
   if (plan && returned) return startingStageOf(s);
   if (s.canSpend && choice?.pending) return buyingStageOf(s);
-  return goStageOf(s, plan, onTrial);
+  return goStageOf(s, plan);
 }
 
 /**
- * The plan the number starts: none yet (the step's checkout, which takes no trial), or a free trial (its plan starts
- * early, here). Anything else that cannot spend (a failed card, a subscription that ended) is Billing's, on the row.
+ * The plan the number starts: none yet, so the step's checkout starts the trial (trialDaysFor, the checkout's own rule,
+ * over the length the edge said). A trial already running covers the number (decision 0090), so it starts nothing.
+ * Anything else that cannot spend (a failed card, a subscription that ended) is Billing's, on the row.
  */
-function phonePlanOf(billing: SetupDto["billing"], onTrial: boolean): FirstRunPhoneVM["plan"] {
+function phonePlanOf(billing: SetupDto["billing"]): (NonNullable<FirstRunPhoneVM["plan"]> & { days: number }) | null {
   const W = FIRST_RUN_PHONE_WORDS;
-  return billingDoorOpen(billing) && (billing.status === "none" || onTrial)
-    ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote }
-    : null;
+  if (!billingDoorOpen(billing) || billing.status !== "none") return null;
+  const days = trialDaysFor({ hadSubscription: false, deploymentDays: billing.trial_days });
+  return { offer: W.planOffer(priceWords(billing.price ?? null), days), note: W.planNote(days), days };
 }
 
 /** Back from checkout before the plan lands: starting, until Stripe confirms it. */
@@ -748,16 +784,16 @@ function waitingOn(sentence: string, detail: string): NonNullable<FirstRunPhoneV
  * Go live's press (canvas 5A): the plan the number starts, and the one button, held where the choice kept cannot be
  * bought (a tab that lost it, a number no US company forwards: Where it answers says it, and Back goes there).
  */
-function goStageOf(s: PhoneStep, plan: FirstRunPhoneVM["plan"], onTrial: boolean): FirstRunPhoneVM {
+function goStageOf(s: PhoneStep, plan: ReturnType<typeof phonePlanOf>): FirstRunPhoneVM {
   const W = FIRST_RUN_PHONE_WORDS;
   const boxProblem = boxProblemOf(s);
-  const act = plan ? (onTrial ? "startNow" : "plan") : "buy";
+  const act = plan ? "plan" : "buy";
   return {
     ...s.base,
     stage: "go",
     heading: W.chooseHeading,
     lead: W.chooseLead,
-    plan,
+    plan: plan ? { offer: plan.offer, note: plan.note } : null,
     boxProblem,
     cta: {
       label: ctaLabelOf(act),
@@ -789,7 +825,7 @@ function ctaHeldOf(s: PhoneStep, boxProblem: string | null): string | null {
   return boxProblem ?? (!s.number ? W.held.number : areaCodeOf(s.number) ? null : W.held.us);
 }
 
-/** Go live's press, named for what it does: start the plan by checkout, start a trial's plan now, or buy the number. */
-function ctaLabelOf(act: "plan" | "startNow" | "buy"): string {
+/** Go live's press, named for what it does: start the trial or the plan by checkout, or buy the number. */
+function ctaLabelOf(act: "plan" | "buy"): string {
   return FIRST_RUN_PHONE_WORDS.cta[act];
 }

@@ -476,6 +476,97 @@ export async function publicWorkspaceBySlug(db: Db, slug: string): Promise<Publi
   };
 }
 
+/** What the first run chose for the workspace, as setup_choices keeps it (00513): read whole, its shapes contracts'. */
+export interface SetupChoicesRow {
+  phone: Json | null;
+  whatsapp: string | null;
+  marks: string[];
+  version: number;
+}
+
+/** The workspace's setup choices, or null before anything was chosen. RLS decides on a member's session. Throws on a failed read. */
+export async function setupChoicesOf(db: Db, tenantId: string): Promise<SetupChoicesRow | null> {
+  const { data, error } = await db
+    .from("setup_choices")
+    .select("phone, whatsapp, marks, version")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the setup choices: ${error.message}`);
+  return data ? { phone: data.phone, whatsapp: data.whatsapp, marks: data.marks ?? [], version: data.version } : null;
+}
+
+/**
+ * The workspaces whose first run chose a number to buy (setup_choices.phone, 00513): what the lines sweep asks the
+ * chosen line of, so a plan that started while no tab was open still gets its number (decision 0091). Every one, a
+ * page at a time. A read that fails throws.
+ */
+export async function workspacesWithANumberChosen(db: Db): Promise<string[]> {
+  const out: string[] = [];
+  for (let from = 0; ; from += TRIAL_PAGE) {
+    const { data, error } = await db
+      .from("setup_choices")
+      .select("tenant_id")
+      .in("phone->>way", ["new", "keep"])
+      .order("tenant_id")
+      .range(from, from + TRIAL_PAGE - 1);
+    if (error) throw new Error(`cannot read the setup choices: ${error.message}`);
+    out.push(...(data ?? []).map((r) => r.tenant_id));
+    if ((data ?? []).length < TRIAL_PAGE) return out;
+  }
+}
+
+/** capability_activate (00514), on the member's session: the row and its event in one write; `first` of any channel. */
+export async function activateCapabilityFn(db: Db, tenantId: string, capability: string, note: string | null) {
+  return db.rpc("capability_activate", {
+    p_tenant_id: tenantId,
+    p_capability: capability,
+    ...(note ? { p_note: note } : {}),
+  });
+}
+
+/** capability_deactivate (00514), on the member's session: {error: not_activated} when none stood. */
+export async function deactivateCapabilityFn(db: Db, tenantId: string, capability: string) {
+  return db.rpc("capability_deactivate", { p_tenant_id: tenantId, p_capability: capability });
+}
+
+export type SetupChoiceSetArgs = Database["public"]["Functions"]["setup_choice_set"]["Args"];
+
+/** setup_choice_set (00513), on the member's session: the row as it now stands, or {error: stale}. */
+export async function setSetupChoices(db: Db, args: SetupChoiceSetArgs) {
+  return db.rpc("setup_choice_set", args);
+}
+
+/**
+ * The workspaces on a free trial billed through Stripe, with a subscription to end early (decision 0090): what the
+ * edge's trial check reads, every one of them, a page at a time. A read that fails throws.
+ */
+export async function trialingWorkspaceIds(db: Db): Promise<string[]> {
+  const out: string[] = [];
+  for (let from = 0; ; from += TRIAL_PAGE) {
+    const { data, error } = await db
+      .from("billing_accounts")
+      .select("tenant_id")
+      .eq("mode", "stripe")
+      .eq("status", "trialing")
+      .not("stripe_subscription_id", "is", null)
+      .order("tenant_id")
+      .range(from, from + TRIAL_PAGE - 1);
+    if (error) throw new Error(`cannot read the trials: ${error.message}`);
+    out.push(...(data ?? []).map((r) => r.tenant_id));
+    if ((data ?? []).length < TRIAL_PAGE) return out;
+  }
+}
+const TRIAL_PAGE = 500;
+
+/** What a workspace has used of what a trial includes (00512's trial_use): its calls' seconds and its replies. */
+export async function trialUseOf(db: Db, tenantId: string): Promise<{ callSeconds: number; replies: number }> {
+  const { data, error } = await db.rpc("trial_use", { p_tenant_id: tenantId });
+  if (error) throw new Error(`trial_use: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
+  return { callSeconds: n(o.call_seconds), replies: n(o.replies) };
+}
+
 /**
  * The workspace's slug while it has public pages (contracts hasPublicPages: not a fixture, not ended), for a page that
  * links to its own (the business record's form, the wiring's second audit X4-4); null when it has none. A paused workspace

@@ -65,7 +65,21 @@ export function lineRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       verb: { label: "Open Connections", to: "admin/integrations" },
     };
   }
-  return ownLineRow(ctx) ?? lineToGetRow(i, ctx);
+  const own = ownLineRow(ctx);
+  if (own) return own;
+  // Not by phone (decision 0091): nothing is owed, and a number is one press away whenever calls are wanted.
+  if (i.noCalls)
+    return {
+      id: "line",
+      icon: "phone",
+      title: "A line for calls and texts",
+      state: "ready",
+      required: false,
+      sentence: "Not by phone: your receptionist answers where your customers write.",
+      details: ["Add a number any time, and calls are answered too"],
+      verb: { label: "Get a number", to: "start/channels" },
+    };
+  return lineToGetRow(i, ctx);
 }
 
 /**
@@ -229,20 +243,20 @@ function lineToGetRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
           ],
           verb: { label: "Get a line", to: "verb:choose-line" },
         }
-      : billingDoorOpen(i.billing) && (i.billing.status === "none" || i.billing.status === "trialing")
-        ? // No plan yet, or a free trial, which covers no number (maySpend): the number starts the plan, and the first
-          // run's phone step is where both happen -- its checkout takes no trial, and a trial's plan starts from there.
+      : billingDoorOpen(i.billing) && i.billing.status === "none"
+        ? // No plan yet: the trial starts with the number, and the first run's Go live is where both happen. A trial
+          // already running covers the number (decision 0090), so it reads canSpend above.
           {
             id: "line",
             icon: "phone",
             title: "A line for calls and texts",
             state: "waiting_you",
             required: !answering,
-            sentence: "Get a number for calls: it starts your plan.",
+            sentence: "Get a number for calls: it starts your free trial.",
             details: [
               priceWords(i.billing.price ?? null)
-                ? `A local number, included in your plan · ${priceWords(i.billing.price ?? null)}, from the day you get it`
-                : "A local number, included in your plan, from the day you get it",
+                ? `A local number, included in your plan · ${priceWords(i.billing.price ?? null)} after the trial`
+                : "A local number, included in your plan",
             ],
             // Where it answers chooses the number, Go live buys it (decision 0073).
             verb: { label: "Get a number", to: "start/channels" },

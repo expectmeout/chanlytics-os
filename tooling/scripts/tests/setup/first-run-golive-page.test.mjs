@@ -78,17 +78,17 @@ test("Go live, pay (canvas 5A): what starts and what it asks after, the plan at 
     "Calls to +1 (305) 555-0100 nobody picks upone code, then one call",
   );
   assert.equal(byTestId(tree, "fr-pay-start-whatsapp"), null, "WhatsApp not chosen");
-  // The plan as it is: the trial is what FIRST_RUN_TRIAL_DAYS says, never a promise the checkout does not keep.
+  // The plan as it is: the trial is the checkout's own (trialDaysFor, decision 0090), never a promise it does not keep.
   assert.equal(
     textOf(byTestId(tree, "fr-pay-plan")),
-    "$49.00 a month Charged today" +
-      "Its number, calls and WhatsApp included. Cancel anytime from Billing." +
+    "$49.00 a month 14 days free" +
+      "Its number, calls and WhatsApp included. First charge on day 15. Cancel anytime from Billing." +
       "After you press" +
       "Its number is bought for youThen on your phone: dial one code, call your number once",
   );
   const go = byTestId(tree, "fr-pay-go");
   assert.equal(textOf(go), "Start my plan");
-  assert.match(textOf(byTestId(tree, "fr-pay-card")), /Secured by Stripe$/);
+  assert.match(textOf(byTestId(tree, "fr-pay-card")), /Nothing is charged today · secured by Stripe$/);
   byTestId(tree, "fr-back").props.onClick();
   assert.equal(went.at(-1), "start/channels", "Back goes to Where it answers, where the choice is changed");
   await go.props.onClick();
@@ -110,37 +110,17 @@ test("Go live, pay: a checkout that will not open says so, and the choice lets g
   assert.ok(byTestId(mount(), "fr-pay-go"), "still Pay, to press again");
 });
 
-test("Go live on a free trial: the trial covers no number, so the press starts the plan now, then the buy; a start Stripe refuses is said, and nothing is bought", async (t) => {
+test("Go live on a free trial: the trial covers the number (decision 0090), so Switch it on buys it, and no plan is started early", async (t) => {
   t.after(restoreSetupVerbs);
   const { asked } = phoneWorld();
+  keepChoice({ way: "keep", number: null, pick: null, pending: true });
   setSetup(atLive(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" })));
-  let tree = open();
-  const go = byTestId(tree, "fr-pay-go");
-  assert.equal(textOf(go), "Start my plan and go live");
-  await go.props.onClick();
+  const tree = open();
   await settle();
-  assert.equal(asked.startNow, 1, "the plan started from here, not Stripe's checkout");
+  assert.ok(byTestId(tree, "fr-switch"), "a trial running is paid for: Switch it on");
+  assert.equal(asked.startNow, 0, "the trial is not ended to buy the number");
   assert.deepEqual(asked.checkout, []);
-  assert.equal(draftOf("first-run-phone").pending, true, "the choice waits for the plan");
-  assert.deepEqual(asked.buy, [], "nothing bought on the trial");
-  // The start taken: Setup reads the plan, Switch it on is drawn, and its number row buys.
-  setSetup(atLive(phoneReady({ status: "active" })));
-  tree = open();
-  await settle();
-  assert.ok(byTestId(tree, "fr-switch"));
-  assert.deepEqual(asked.buy, [["+13055550142", "305"]]);
-
-  // Stripe refuses (a card that did not pay): said, and the choice lets go.
-  const refused = phoneWorld({
-    startNow: { ok: false, message: "Your plan started, but the charge did not go through." },
-  });
-  setSetup(atLive(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" })));
-  flashes.length = 0;
-  await byTestId(open(), "fr-pay-go").props.onClick();
-  await settle();
-  assert.equal(draftOf("first-run-phone").pending, false);
-  assert.equal(textOf(flashes.at(-1).msg), "Your plan started, but the charge did not go through.");
-  assert.deepEqual(refused.asked.buy, []);
+  assert.deepEqual(asked.buy, [["+13055550142", "305"]], "bought on the trial, in the kept number's area code");
 });
 
 test("Go live: back from Stripe before the plan lands is confirming with the bank, a reload included; then the number is bought in the kept number's area code, once", async (t) => {

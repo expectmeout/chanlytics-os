@@ -347,6 +347,7 @@ export const ROUTES = {
   "PUT sequences/[id]/chain": { method: "PUT", path: "/api/v1/sequences/[id]/chain" },
   "PUT sequences/[id]/steps/[step]": { method: "PUT", path: "/api/v1/sequences/[id]/steps/[step]" },
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
+  "PUT setup/choices": { method: "PUT", path: "/api/v1/setup/choices" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
   "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
   "PUT workspaces/accent": { method: "PUT", path: "/api/v1/workspaces/accent" },
@@ -700,6 +701,7 @@ export type Routes = {
   "PUT sequences/[id]/chain": typeof import("../../app/api/v1/sequences/[id]/chain/route").PUT;
   "PUT sequences/[id]/steps/[step]": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/route").PUT;
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
+  "PUT setup/choices": typeof import("../../app/api/v1/setup/choices/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
   "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;
   "PUT workspaces/accent": typeof import("../../app/api/v1/workspaces/accent/route").PUT;

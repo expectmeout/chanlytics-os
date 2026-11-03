@@ -223,6 +223,7 @@ export const SCHEMA_SETS = {
   "sequences.mode": ["auto", "veto", "ask"],
   "sequences.starts": ["moment", "list", "leads", "date"],
   "sequences.state": ["draft", "on", "paused", "ended"],
+  "setup_choices.whatsapp": ["same", "own", "later"],
   "support_reports.kind": ["how_to", "setup", "wrong", "billing"],
   "sweep_status.judged_by": ["request", "run", "job"],
   "templates.category": ["marketing", "utility", "authentication"],

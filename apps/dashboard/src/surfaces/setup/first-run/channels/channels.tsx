@@ -308,6 +308,23 @@ function channelsFoot(o: {
   );
 }
 
+/** The calls tile once the business takes no calls (decision 0091): what that means, and the way back to a number. */
+function NotByPhone({ onUndo }: { onUndo: () => void }) {
+  return (
+    <section className="panel fr-pane fr-place" aria-labelledby="fr-calls-title" data-testid="fr-not-by-phone">
+      <h2 className="fr-sub" id="fr-calls-title">
+        {CW.calls.noCalls}
+      </h2>
+      <p className="fr-detail">{CW.calls.noCallsSays}</p>
+      <div className="fr-links">
+        <button type="button" className="link-btn" onClick={onUndo} data-testid="fr-calls-after-all">
+          {CW.calls.callsAfterAll}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function FrChannels(o: {
   vm: FirstRunChannelsVM;
   ph: FirstRunPhoneVM;
@@ -319,8 +336,11 @@ export function FrChannels(o: {
   flash: (f: LegacyFlash) => void;
   go: (to: string) => void;
   back: string | null;
+  /** The workspace chose Not by phone (decision 0091): the calls tile says so, and the step goes on with no number. */
+  noCalls: boolean;
 }) {
   const { vm, ph, choice, setChoice, tool, lines, flash, go, back } = o;
+  const [noCalls, setNoCalls] = useState(o.noCalls);
   const [clientsOpen, setClientsOpen] = useState(false);
   const [bringingOpen, setBringingOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -333,6 +353,14 @@ export function FrChannels(o: {
   const choosing = ph.stage === "choose";
   const onward = async () => {
     if (busy) return;
+    // Not by phone (decision 0091): kept on the workspace, and the step goes on with no number to choose.
+    if (choosing && noCalls) {
+      setBusy(true);
+      const r = await setupVerbs.noCalls(true);
+      setBusy(false);
+      if (!r.ok) return flash(refusalToast(r, W.find.notSaved));
+      return go("start");
+    }
     // No number to choose here (it is on its way, or the deployment sells none): the member's going on is the step.
     if (!choosing) {
       setBusy(true);
@@ -355,7 +383,30 @@ export function FrChannels(o: {
   return (
     <div className="fr-channels" data-testid="fr-channels">
       <div className="fr-channels-list">
-        {choosing ? <FrCalls ph={ph} choice={choice} setChoice={setChoice} flash={flash} go={go} /> : null}
+        {choosing ? (
+          noCalls ? (
+            <NotByPhone
+              onUndo={() => {
+                setNoCalls(false);
+                if (o.noCalls) void setupVerbs.noCalls(false);
+              }}
+            />
+          ) : (
+            <>
+              <FrCalls ph={ph} choice={choice} setChoice={setChoice} flash={flash} go={go} />
+              {canDo("settings") ? (
+                <button
+                  type="button"
+                  className="link-btn fr-no-calls"
+                  onClick={() => setNoCalls(true)}
+                  data-testid="fr-no-calls"
+                >
+                  {CW.calls.noCalls}
+                </button>
+              ) : null}
+            </>
+          )
+        ) : null}
         <WhatsappTile wa={vm.whatsapp} flash={flash} />
         <BookingsTile b={vm.bookings} flash={flash} openClients={() => setClientsOpen(true)} />
         <EmailTile e={vm.email} flash={flash} />
@@ -363,7 +414,7 @@ export function FrChannels(o: {
           back,
           go,
           words: vm.foot,
-          held: choosing ? (ph.held ?? null) : null,
+          held: choosing && !noCalls ? (ph.held ?? null) : null,
           busy,
           onward: () => void onward(),
         })}

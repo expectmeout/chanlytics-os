@@ -477,6 +477,8 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "google_listings.select",
       "google_connections.select",
       "billing_accounts.select",
+      // What the first run chose for the workspace (setup_choices, decision 0091): asked at once, read quietly.
+      "setup_choices.select",
       "invitations.select",
       "lines.select",
       // The mailboxes a reach-out writes from (decision 0056): read with the email line, whatever the hosted one.
@@ -510,7 +512,7 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
     await setupDtoFor(office, T, { kind: "back_office" }, new Date(NOW));
     assert.deepEqual(
       asked(office),
-      [...READS.slice(0, 8), "memberships.select", ...READS.slice(8)],
+      [...READS.slice(0, 9), "memberships.select", ...READS.slice(9)],
       "the back office: the members counted, and no RPC at all",
     );
 
@@ -1254,14 +1256,14 @@ test("a workspace that cannot spend AND has no card door is offered the thing th
   const paying = withBilling({ mode: "stripe", status: "active", ready: true, trial_days: 14 });
   assert.equal(lineRow(paying).verb.to, "verb:choose-line");
 
-  // 2. CANNOT SPEND, but a door exists: no plan yet, or a free trial, which covers no number -- the number starts the
-  // plan, on the first run's phone step, which takes it.
-  for (const status of ["none", "trialing"]) {
-    const w = withBilling({ mode: "stripe", status, ready: true, trial_days: 14 });
-    assert.match(lineRow(w).sentence, /it starts your plan/, status);
-    assert.equal(lineRow(w).verb.to, "start/channels", status);
-    assert.ok(billingRow(w), `${status}: and the billing row is drawn`);
-  }
+  // 2. CANNOT SPEND, but a door exists: no plan yet -- the number starts the free trial, on the first run's Go live,
+  // which takes it. A trial already running covers the number (decision 0090): the number is the next step, as paying.
+  const none = withBilling({ mode: "stripe", status: "none", ready: true, trial_days: 14 });
+  assert.match(lineRow(none).sentence, /it starts your free trial/);
+  assert.equal(lineRow(none).verb.to, "start/channels");
+  assert.ok(billingRow(none), "and the billing row is drawn");
+  const trial = withBilling({ mode: "stripe", status: "trialing", ready: true, trial_days: 14 });
+  assert.equal(lineRow(trial).verb.to, "verb:choose-line");
 
   // 3. CANNOT SPEND AND NO DOOR: neither row may send anybody to Billing.
   const closed = withBilling({ mode: "stripe", status: "none", ready: false, trial_days: 14 });

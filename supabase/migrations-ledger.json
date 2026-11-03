@@ -45,10 +45,7 @@
     "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
     "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
     "00504": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, a run with nothing to send waits on nobody), open and not on main when an opening is written again as its owner says took 00505; record drops this once #2061 lands",
-    "00511": "claimed by cm-empty-batch (#2061, a run with nothing to send waits on nobody, renumbered from 00504), open and not on main when the job ledger (decision 0089) took 00515 to 00518; record drops this once #2061 lands",
-    "00512": "claimed by cm-onboarding-v2 (#2069, onboarding to a 9-10, decisions 0090 and 0091), open and not on main when the job ledger (decision 0089) took 00515 to 00518; record drops this once #2069 lands",
-    "00513": "claimed by cm-onboarding-v2 (#2069, onboarding to a 9-10, decisions 0090 and 0091), open and not on main when the job ledger (decision 0089) took 00515 to 00518; record drops this once #2069 lands",
-    "00514": "claimed by cm-onboarding-v2 (#2069, onboarding to a 9-10, decisions 0090 and 0091), open and not on main when the job ledger (decision 0089) took 00515 to 00518; record drops this once #2069 lands"
+    "00511": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, renumbered from 00504), not on production when the onboarding lane (#2069) applied 00512 to 00514; it lands above them"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -517,6 +514,9 @@
     "00508_a_tab_catches_up_on_what_it_missed.sql": "b64c74d956520fd81e1057aab33f4f9264ff646f8576cac4515070df62e684b0",
     "00509_a_tab_says_what_it_could_not_hear.sql": "fbda66b1af65dac11e21f4ac10b56e973d0f08c3d97281c9cf6c1363118ce831",
     "00510_a_thread_s_notice_names_its_threads.sql": "f2ab8c77a53ef413701f959deb12e1f0276e8ea9ec7c2ff9c50d1e0b5f4b2f91",
+    "00512_the_trial_covers_everything.sql": "e65ee89f1817d3c8c703afa4fc82977e838a5d84d4128cd371e66a1a1d24a070",
+    "00513_a_workspace_s_setup_choices_are_its_own.sql": "eb4f1914515a3ed5712b1c748089656a29d8952ca9bbe30d13616da25491922f",
+    "00514_going_live_is_one_write.sql": "a2fb906b77ba80c43c511fe0c832bba6b7783bea4d4f24906c743af879c2c6e0",
     "00515_the_ledger_knows_its_kinds.sql": "2211ad40bdd5ff2efa1d0f5689ca5f2e730257e9f6b4ec156e5346508f8e3ece",
     "00516_a_send_is_queued_with_its_job.sql": "7a1ab497ef617cf7ffd9d938419f62dd3d5c54c5dffc912abc9dea7fccd13bcf",
     "00517_one_index_keeps_each_kept_kind_once.sql": "7b1f72d74e1dc93d6b7e1e5079f5e8b43d0d3dd05fb85afc894a942054fc3fab",

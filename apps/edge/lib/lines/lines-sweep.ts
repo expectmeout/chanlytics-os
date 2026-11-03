@@ -45,6 +45,10 @@ import { lineReleaseAfterDays } from "../packages/contracts.js";
 import { reportLineFailed } from "./provision.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { sweepStuckLines } from "./line-resume.js";
+import { sweepSpentTrials, type TrialsResult } from "../billing/trial-use.js";
+import { startPlanNowFor } from "../billing/billing.js";
+import { trialingWorkspaceIds, trialUseOf, workspacesWithANumberChosen } from "../packages/db.js";
+import { startOwedLines, type OwedLinesResult } from "./chosen-line.js";
 import { env } from "../env.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
@@ -132,11 +136,52 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
     L.error("line_release_sweep_failed", { error: ended.error });
   }
 
-  L.info("lines_sweep_done", { ...result, release: ended });
+  // The trials that used what they include start their plan (decision 0090): the third half of the tick, its failure
+  // said beside the other two, as the release's is.
+  let trials: TrialsResult | { error: string };
+  try {
+    trials = await sweepSpentTrials({
+      ids: () => trialingWorkspaceIds(db),
+      useOf: (tenantId) => trialUseOf(db, tenantId),
+      startPlan: async (tenantId) => {
+        const r = await startPlanNowFor(db, tenantId);
+        return r.ok ? { ok: true } : { ok: false, detail: r.detail ?? r.error };
+      },
+      tell: async (tenantId, onceKey, subject, body) => {
+        const read = await loadTenantNotifications(db, tenantId);
+        if (read.unread) return false;
+        return notifyOnce(
+          { tenantId, ...read },
+          { kind: "billing", route: "admin/billing", about: null, subject, body, onceKey },
+        );
+      },
+      log: L,
+    });
+  } catch (e) {
+    trials = { error: e instanceof Error ? e.message : String(e) };
+    L.error("trial_sweep_failed", { error: trials.error });
+  }
+
+  // The numbers chosen and paid for with no line yet (decision 0091): started here when the webhook could not, and
+  // the platform told of a start that failed.
+  let owed: OwedLinesResult | { error: string };
+  try {
+    owed = await startOwedLines(db, await workspacesWithANumberChosen(db), {
+      choice,
+      now: () => new Date(),
+      alert: (subject, body) =>
+        notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+    });
+  } catch (e) {
+    owed = { error: e instanceof Error ? e.message : String(e) };
+    L.error("chosen_line_failed", { error: owed.error, via: "sweep" });
+  }
+
+  L.info("lines_sweep_done", { ...result, release: ended, trials, owed });
   // Every workspace unreadable is a database problem, not a line problem, and the
   // sweep watcher should hear about it -- the same shape cron/registrations uses.
   if (result.unreadable > 0 && result.unreadable === result.stuck) {
     return json(503, { ok: false, error: "no_workspace_readable", stuck: result.stuck });
   }
-  return json(200, { ok: true, ...result, release: ended });
+  return json(200, { ok: true, ...result, release: ended, trials, owed });
 }

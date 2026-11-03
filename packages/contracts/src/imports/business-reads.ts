@@ -22,6 +22,11 @@ export interface BusinessReadFacts {
   description: string | null;
   /** What the website read found of the business's look, and what it wore (decision 0075); null for a read before it, or the profile's. */
   look: LookRead | null;
+  /**
+   * The booking platform's page read beside the website (a Booksy, Vagaro or Fresha page: the services, prices and
+   * minutes a salon's own site rarely says; the onboarding PRD's P8), or null where none was read.
+   */
+  booking_page: string | null;
 }
 
 /** What the website read found of the business's look (decision 0075), kept with the read whether or not it was worn. */
@@ -90,6 +95,7 @@ export function businessReadFactsOf(raw: unknown): BusinessReadFacts {
     }),
     description: cleanText(r.description, 750),
     look: lookReadOf(r.look),
+    booking_page: cleanText(r.booking_page, 400),
   };
 }
 
@@ -111,6 +117,8 @@ export const FOUND_WORDS = {
   title: "Found for you",
   lead: "Read from your Google profile and your website. Add what's right; a price comes with its service.",
   from: { google_profile: "Google profile", website: "your website" } as Record<BusinessReadSource, string>,
+  /** The website's read, where it read the booking platform's page too. */
+  fromWithBooking: "your website and booking page",
   add: "Add",
   addAll: (n: number) => `Add all ${n}`,
   added: (what: string) => `${what} added.`,
@@ -145,7 +153,8 @@ export function foundOf(
   const noted = (record.notes ?? []).map((n) => `${n?.title ?? ""} ${n?.text ?? ""}`.toLowerCase());
   const out: FoundVM = { services: [], closed: [], notes: [], description: null, unread: null, any: false };
   for (const r of ordered) {
-    const from = FOUND_WORDS.from[r.source];
+    const from =
+      r.source === "website" && r.facts.booking_page ? FOUND_WORDS.fromWithBooking : FOUND_WORDS.from[r.source];
     if (r.error && !out.unread) out.unread = FOUND_WORDS.unread(from, r.error);
     for (const s of r.facts.services) {
       if (listed.some((n) => sameListed(n, s.name)) || out.services.some((x) => sameListed(x.name, s.name))) continue;

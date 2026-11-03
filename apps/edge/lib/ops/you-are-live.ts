@@ -39,7 +39,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
   if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
-  const [tenant, voice, kept, cfg, call] = await Promise.all([
+  const [tenant, voice, kept, cfg, call, whatsapp] = await Promise.all([
     db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle(),
     db
       .from("tenant_channels")
@@ -69,9 +69,19 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle(),
+    // Going live is any channel (decision 0091): the WhatsApp number it answers, where one is connected.
+    db
+      .from("tenant_channels")
+      .select("number_e164")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "whatsapp")
+      .eq("status", "active")
+      .order("created_at")
+      .limit(1)
+      .maybeSingle(),
   ]);
   // A read that failed would send a thinner email that says less than is true: none is sent instead.
-  const failed = [tenant, voice, kept, cfg, call].find((q) => q.error);
+  const failed = [tenant, voice, kept, cfg, call, whatsapp].find((q) => q.error);
   if (failed?.error) return refuse(503, "read_failed", failed.error.message);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 
@@ -99,6 +109,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
         }
       : null,
     todayUrl: `${dashboardOrigin()}${appLink(tenant.data.slug, "today")}`,
+    whatsapp: whatsapp.data?.number_e164 ?? null,
   });
   const sent = await mail(target, message);
   L.info("you_are_live_sent", { tenant_id: tenantId, sent });

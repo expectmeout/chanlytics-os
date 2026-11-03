@@ -430,7 +430,9 @@ export type {
   WithdrawReason,
 } from "./repositories/control";
 export {
+  activateCapabilityFn,
   createWorkspaceFn,
+  deactivateCapabilityFn,
   getTenantConfig,
   getTenantConfigAsMember,
   lineForwardingSet,
@@ -446,14 +448,19 @@ export {
   replyTokensSince,
   setPersonReplyMode,
   setPolicyMode,
+  setSetupChoices,
+  setupChoicesOf,
   setWorkspaceLogo,
   startPlaybook,
+  trialingWorkspaceIds,
+  trialUseOf,
   updatePlaybook,
   workspaceAnswersOnItsOwn,
   workspaceIdsOf,
   workspaceNamed,
   workspaceOpenToCustomers,
   workspacePublicSlug,
+  workspacesWithANumberChosen,
   workspaceZoneOf,
   writePlaybookChange,
 } from "./repositories/control-plane";
@@ -466,6 +473,8 @@ export type {
   PolicyRecord,
   PublicWorkspaceRead,
   PutTenantConfigResult,
+  SetupChoiceSetArgs,
+  SetupChoicesRow,
   TenantConfigRow,
 } from "./repositories/control-plane";
 export { dealOnFile, openDealsOf, recordDeal, yesesSince } from "./repositories/deals";
@@ -568,6 +577,7 @@ export {
   keepIdeas,
   keepLeadPrices,
   leadAddresseeChoose,
+  leadAllowanceOf,
   leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,

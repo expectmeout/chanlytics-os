@@ -2250,6 +2250,13 @@
       "rate": null,
       "spend": false
     },
+    "PUT setup/choices": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST support/report": {
       "kind": "write",
       "scope": "account",

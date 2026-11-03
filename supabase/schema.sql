@@ -1263,8 +1263,9 @@ CREATE FUNCTION public.billing_may_spend(p_tenant_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- contracts maySpend: a workspace invoiced by hand may; on Stripe only an active plan; no billing row, never.
-  select coalesce((select b.mode <> 'stripe' or b.status = 'active'
+  -- contracts maySpend for the finder's kind (SPEND_STATUSES.leads): a workspace invoiced by hand may; on Stripe a trial
+  -- or a plan; no billing row, never.
+  select coalesce((select b.mode <> 'stripe' or b.status in ('trialing', 'active')
                      from public.billing_accounts b
                     where b.tenant_id = p_tenant_id), false)
 $$;
@@ -1274,7 +1275,7 @@ $$;
 -- Name: FUNCTION billing_may_spend(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may incur a cost on the platform''s account: contracts'' maySpend, restated once in SQL (00364). mode direct may; mode stripe only with status active; no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
+COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may spend on the finder: contracts'' maySpend(mode, status, "leads"), restated once in SQL (00364, 00512). mode direct may; mode stripe with status trialing or active (decision 0090: the trial covers everything); no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
 
 
 --
@@ -2430,6 +2431,91 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads, among them what the open hold is for), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00406, 00409).';
+
+
+--
+-- Name: capability_activate(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user  uuid := auth.uid();
+  v_first boolean;
+  v_at    timestamptz := now();
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'disconnect') then
+    raise exception 'Only an owner can switch a channel on.' using errcode = '42501';
+  end if;
+  if p_capability is null or p_capability not in ('voice', 'whatsapp', 'sms') then
+    raise exception 'No such capability.' using errcode = '22023';
+  end if;
+  -- The first of any channel, ever: the moment the first run's Finish tells the owner they are live.
+  v_first := not exists (select 1 from public.capability_activations where tenant_id = p_tenant_id);
+  insert into public.capability_activations (tenant_id, capability, activated_at, activated_by, deactivated_at, note)
+  values (p_tenant_id, p_capability, v_at, v_user, null, left(p_note, 200))
+  on conflict (tenant_id, capability) do update
+     set activated_at = excluded.activated_at,
+         activated_by = excluded.activated_by,
+         deactivated_at = null,
+         note = excluded.note;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'capability.activated', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('capability', p_capability, 'by', v_user));
+  return jsonb_build_object('capability', p_capability, 'activated_at', v_at, 'first', v_first);
+end $$;
+
+
+--
+-- Name: FUNCTION capability_activate(p_tenant_id uuid, p_capability text, p_note text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) IS 'An owner (or the partner who brought it) switches a channel on (00108, 00514): the activation row and capability.activated in one transaction, on the member''s session. Returns {capability, activated_at, first}: first is true for the workspace''s first activation of any channel, when the first run''s Finish says it is live.';
+
+
+--
+-- Name: capability_deactivate(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_at   timestamptz := now();
+  v_n    integer;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'disconnect') then
+    raise exception 'Only an owner can switch a channel off.' using errcode = '42501';
+  end if;
+  update public.capability_activations
+     set deactivated_at = v_at
+   where tenant_id = p_tenant_id and capability = p_capability and deactivated_at is null;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then
+    return jsonb_build_object('error', 'not_activated');
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'capability.deactivated', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('capability', p_capability, 'by', v_user));
+  return jsonb_build_object('capability', p_capability, 'deactivated_at', v_at);
+end $$;
+
+
+--
+-- Name: FUNCTION capability_deactivate(p_tenant_id uuid, p_capability text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) IS 'An owner (or the partner who brought it) takes a channel''s activation back (00108, 00514): the row''s deactivated_at and capability.deactivated in one transaction. {error: not_activated} when none stood. The row stays; the history does.';
 
 
 --
@@ -7698,6 +7784,34 @@ COMMENT ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_address
 
 
 --
+-- Name: lead_allowance(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_allowance(p_tenant_id uuid) RETURNS numeric
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- A member reads their own workspace's; the service role (no session: lead_reserve asked by the edge) any.
+  if auth.uid() is not null and not public.may_read_workspace(p_tenant_id) then
+    raise exception 'Not a member of this workspace.' using errcode = '42501';
+  end if;
+  -- contracts leadAllowanceFor: the trial's leads while the workspace is on a trial, else the month's.
+  return case when exists (select 1 from public.billing_accounts b
+                            where b.tenant_id = p_tenant_id and b.mode = 'stripe' and b.status = 'trialing')
+              then public.lead_cap('trial_leads') else public.lead_cap('month_leads') end;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lead_allowance(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_allowance(p_tenant_id uuid) IS 'The leads a workspace may count this month (00512, decision 0090): lead_cap(''trial_leads'') while its billing says trialing, else lead_cap(''month_leads''). contracts'' leadAllowanceFor; lead_reserve asks it, and the Leads page reads the same number. A member reads their own workspace''s alone (may_read_workspace); it says a cap, never a row.';
+
+
+--
 -- Name: lead_blank(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7916,6 +8030,7 @@ declare
 begin
   v := case p_name
     when 'month_leads'      then 500   -- Qualified leads a workspace finds in its month (LEAD_MONTHLY_ALLOWANCE)
+    when 'trial_leads'      then 50    -- ... while its billing says trialing (LEAD_TRIAL_ALLOWANCE, decision 0090)
     when 'month_usd'        then 25    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
     when 'day_usd'          then 10    -- ... in its day (LEAD_DAY_CAP_USD)
     when 'platform_day_usd' then 50    -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
@@ -9807,13 +9922,20 @@ declare
   v_day       public.lead_counters;
   v_platform  public.lead_counters;
   v_left      numeric;
+  v_cap       numeric := public.lead_allowance(p_tenant_id);
+  v_trial     boolean := v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads');
 begin
   v_allowance := public.lead_counter_take(p_tenant_id, 'allowance', p_month);
-  if v_allowance.used + v_allowance.reserved + p_leads > public.lead_cap('month_leads') then
-    v_left := greatest(public.lead_cap('month_leads') - v_allowance.used - v_allowance.reserved, 0);
+  if v_allowance.used + v_allowance.reserved + p_leads > v_cap then
+    v_left := greatest(v_cap - v_allowance.used - v_allowance.reserved, 0);
     return jsonb_build_object('error', 'month_leads_used', 'left', v_left::integer,
-      'sentence', case when v_left <= 0
-        then 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+      'sentence', case
+        when v_trial and v_left <= 0
+          then 'Your free trial includes ' || v_cap || ' leads, and they are found. Start your plan from Billing to find more.'
+        when v_trial
+          then 'Your free trial has ' || v_left::integer || ' leads left. Find ' || v_left::integer || ' now, or start your plan from Billing to find all ' || p_leads || '?'
+        when v_left <= 0
+          then 'You have found this month''s ' || v_cap || ' leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
         else 'You have ' || v_left::integer || ' leads left this month. Find ' || v_left::integer || ' now, or all ' || p_leads || ' when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '?' end);
   end if;
   v_budget := public.lead_counter_take(p_tenant_id, 'budget', p_month);
@@ -9842,7 +9964,7 @@ end $$;
 -- Name: FUNCTION lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the month''s allowance and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
+COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the workspace''s allowance (lead_allowance: the trial''s while on a trial, else the month''s; 00512) and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3). The trial''s cap is held here, where a search''s money leaves; a Keep, a check''s commit and an imported list keep the month''s.';
 
 
 --
@@ -11569,8 +11691,7 @@ begin
   -- whyCannotSpend(mode, status, SPEND_LEADS), word for word; requireSpend's own words for no row.
   return jsonb_build_object('error', 'payment_required', 'sentence', case
     when b.tenant_id is null then 'This workspace has no billing record. Open Billing to set one up.'
-    when b.status = 'none' then 'Start your plan from Billing before finding leads.'
-    when b.status = 'trialing' then 'Your free trial doesn''t cover finding leads. Start your plan from Billing, then find leads.'
+    when b.status = 'none' then 'Start your free trial from Billing before finding leads.'
     when b.status = 'incomplete' then 'Your card is not confirmed yet. Finish checkout in Billing, then try again.'
     when b.status = 'past_due' then 'Your last payment did not go through. Update the card in Billing, then try again.'
     when b.status in ('paused', 'canceled', 'incomplete_expired') then 'This workspace is not subscribed. Start it again from Billing before finding leads.'
@@ -11582,7 +11703,7 @@ end $$;
 -- Name: FUNCTION lead_spend_refusal(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364, 00512). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
 
 
 --
@@ -30806,6 +30927,54 @@ COMMENT ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text
 
 
 --
+-- Name: setup_choice_set(uuid, jsonb, text, text[], boolean, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb DEFAULT NULL::jsonb, p_whatsapp text DEFAULT NULL::text, p_marks text[] DEFAULT NULL::text[], p_clear_phone boolean DEFAULT false, p_version integer DEFAULT NULL::integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_row  public.setup_choices;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'settings') then
+    raise exception 'Only an owner can set the workspace up.' using errcode = '42501';
+  end if;
+  insert into public.setup_choices (tenant_id) values (p_tenant_id) on conflict (tenant_id) do nothing;
+  select * into v_row from public.setup_choices where tenant_id = p_tenant_id for update;
+  if p_version is not null and v_row.version <> p_version then
+    return jsonb_build_object('error', 'stale', 'version', v_row.version);
+  end if;
+  update public.setup_choices
+     set phone      = case when p_clear_phone then null else coalesce(p_phone, phone) end,
+         whatsapp   = coalesce(p_whatsapp, whatsapp),
+         marks      = (select coalesce(array_agg(distinct x order by x), '{}')
+                         from unnest(marks || coalesce(p_marks, '{}')) as x),
+         version    = version + 1,
+         updated_by = v_user,
+         updated_at = now()
+   where tenant_id = p_tenant_id
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('fields', jsonb_build_array('setup_choices'), 'by', v_user, 'version', v_row.version));
+  return jsonb_build_object('phone', v_row.phone, 'whatsapp', v_row.whatsapp, 'marks', to_jsonb(v_row.marks),
+                            'version', v_row.version);
+end $$;
+
+
+--
+-- Name: FUNCTION setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) IS 'A member with the settings permission (an owner, or the partner who brought it) keeps what the first run chose for the workspace (00513, decision 0091): the number''s choice (or p_clear_phone to take it away), where WhatsApp answers, and marks added. p_version, when given, must be the row''s, else {error: stale, version}. Writes settings.changed (fields setup_choices). Returns the row as it now stands.';
+
+
+--
 -- Name: setup_request(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32112,6 +32281,31 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.tenants_zone_guard() IS 'A workspace''s zone, written or changed, is one pg_timezone_names holds (00365), as create_workspace_for asks at creation: lead_month, lead_renews_on and Intl all raise on a name they do not know. A row whose zone is not changed is let be.';
+
+
+--
+-- Name: trial_use(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trial_use(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select jsonb_build_object(
+    'call_seconds', coalesce((select sum(greatest(c.duration_ms, 0)) / 1000
+                                from public.calls c
+                                join public.tenants t on t.id = c.tenant_id
+                               where c.tenant_id = p_tenant_id and c.created_at >= t.created_at), 0)::bigint,
+    'replies', (select count(*) from public.messages m
+                 where m.tenant_id = p_tenant_id and m.direction = 'outbound' and m.sender = 'ai'))
+$$;
+
+
+--
+-- Name: FUNCTION trial_use(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trial_use(p_tenant_id uuid) IS 'What a workspace has used of what a trial includes (00512, decision 0090): {call_seconds, replies}, the calls'' spoken seconds and the receptionist''s own outbound messages since the workspace was made. The edge''s trial sweep reads it for the workspaces on a trial and starts the plan when contracts'' trialSpentOf says spent. The service role''s.';
 
 
 --
@@ -37398,6 +37592,31 @@ COMMENT ON COLUMN public.sequences.once IS 'A message sent once, kept as a draft
 
 
 --
+-- Name: setup_choices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.setup_choices (
+    tenant_id uuid NOT NULL,
+    phone jsonb,
+    whatsapp text,
+    marks text[] DEFAULT '{}'::text[] NOT NULL,
+    version integer DEFAULT 0 NOT NULL,
+    updated_by uuid,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT setup_choices_marks CHECK ((marks <@ ARRAY['receptionist-met'::text, 'rehearse-skipped'::text, 'channels-seen'::text])),
+    CONSTRAINT setup_choices_phone_shape CHECK (((phone IS NULL) OR ((jsonb_typeof(phone) = 'object'::text) AND (phone ? 'way'::text)))),
+    CONSTRAINT setup_choices_whatsapp CHECK (((whatsapp IS NULL) OR (whatsapp = ANY (ARRAY['same'::text, 'own'::text, 'later'::text]))))
+);
+
+
+--
+-- Name: TABLE setup_choices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.setup_choices IS 'What the first run chose for the workspace (00513, decision 0091): the number and how calls reach it (phone, contracts SetupPhoneWant), where WhatsApp answers, and the marks that say a step was done (marks: receptionist-met, rehearse-skipped, channels-seen). One row a workspace; members read it, setup_choice_set writes it, and the edge reads it to buy the number once the plan starts.';
+
+
+--
 -- Name: support_reports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -39085,6 +39304,14 @@ ALTER TABLE ONLY public.sequences
 
 ALTER TABLE ONLY public.sequences
     ADD CONSTRAINT sequences_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: setup_choices setup_choices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_pkey PRIMARY KEY (tenant_id);
 
 
 --
@@ -44417,6 +44644,14 @@ ALTER TABLE ONLY public.sequences
 
 
 --
+-- Name: setup_choices setup_choices_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: support_reports support_reports_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -46045,6 +46280,21 @@ CREATE POLICY sequences_member_select ON public.sequences FOR SELECT TO authenti
 
 
 --
+-- Name: setup_choices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.setup_choices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: setup_choices setup_choices_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY setup_choices_member_select ON public.setup_choices FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: support_reports; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -46533,6 +46783,24 @@ GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p
 REVOKE ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION capability_activate(p_tenant_id uuid, p_capability text, p_note text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) TO authenticated;
+GRANT ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) TO service_role;
+
+
+--
+-- Name: FUNCTION capability_deactivate(p_tenant_id uuid, p_capability text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) TO authenticated;
+GRANT ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) TO service_role;
 
 
 --
@@ -47513,6 +47781,15 @@ GRANT ALL ON FUNCTION public.lead_addressee_choose(p_lead_id uuid, p_person inte
 
 REVOKE ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_allowance(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -51002,6 +51279,15 @@ GRANT ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path te
 
 
 --
+-- Name: FUNCTION setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) TO authenticated;
+GRANT ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) TO service_role;
+
+
+--
 -- Name: FUNCTION setup_request(p_tenant_id uuid, p_what text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51287,6 +51573,14 @@ GRANT ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config json
 
 REVOKE ALL ON FUNCTION public.tenants_zone_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.tenants_zone_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION trial_use(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trial_use(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trial_use(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -53052,6 +53346,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequences TO service_role;
 --
 
 GRANT UPDATE(mode) ON TABLE public.sequences TO authenticated;
+
+
+--
+-- Name: TABLE setup_choices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.setup_choices TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.setup_choices TO service_role;
 
 
 --
