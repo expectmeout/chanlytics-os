@@ -14,12 +14,22 @@ interface SlipsAsk {
   source: { id: string; label: string };
 }
 
+/** Delete… for a selection, while it is asked: the count typed, Not a person, and what a refused press said. */
+export interface DeleteManyAsk {
+  open: boolean;
+  typed: string;
+  bot: boolean;
+  error: string | null;
+}
+export const DELETE_MANY_CLOSED: DeleteManyAsk = { open: false, typed: "", bot: false, error: null };
+
 /**
- * The bar's own state: busy, the naming of a new list, and a yes on sign-up forms waiting for its note. A note for the
- * selection is the note sheet's (step-sheet.tsx), which holds its own line.
+ * The bar's own state: busy, the naming of a new list, a yes on sign-up forms waiting for its note, and Delete…'s
+ * question. A note for the selection is the note sheet's (step-sheet.tsx), which holds its own line.
  */
 export function useBulkState() {
   const [busy, setBusy] = useState(false);
+  const [del, setDel] = useState<DeleteManyAsk>(DELETE_MANY_CLOSED);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   // A yes on sign-up forms waits for the note that says which forms: a stack of signed slips is attested by it. The
@@ -37,6 +47,8 @@ export function useBulkState() {
     setSlips,
     slipsNote,
     setSlipsNote,
+    del,
+    setDel,
   };
 }
 export type BulkState = ReturnType<typeof useBulkState>;

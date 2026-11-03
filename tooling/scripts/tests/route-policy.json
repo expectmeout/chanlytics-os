@@ -619,6 +619,14 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/erase": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "erase_many",
+      "spend": false
+    },
     "PUT contacts/receptionist": {
       "kind": "write",
       "scope": "workspace",
