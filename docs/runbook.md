@@ -1338,6 +1338,21 @@ texts sweep reads each line's own record from Twilio every ten minutes and knock
 database never heard (`texts-sweep`, 00517, `apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
 is the deadman sweep's.
 
+## Turn on the daily text canary
+
+Once a day, at 14:00 UTC, the edge texts the platform's own line from a number of the platform's own, and at 14:15 it
+checks that the door took the text in and the receptionist's reply left; any gap pages the platform under its own key
+(`canary_not_taken_in`, `canary_no_reply`, `canary_reply_failed`, `canary_send_failed`), and a pass is one
+`canary_ok` line (`apps/edge/lib/sms/canary.ts`, the clock `canary`, 00518). It costs two texts a day.
+
+It is off until both of the edge's settings are set (`canary_off` says so):
+
+1. Buy a number on the master Twilio account for the canary, and put it in a Messaging Service of its own with **no
+   inbound request URL** (the receptionist's reply to it must come back to nobody: our door knows no line for it).
+2. Set `CANARY_SMS_SERVICE` to that service's SID and `CANARY_SMS_TO` to the platform workspace's own line (one whose
+   receptionist answers on Sends it), on the edge's production environment, and redeploy the edge.
+3. The next 14:00 sends; read `canary_sent`, then `canary_ok` at 14:15.
+
 ## A customer says nobody answered
 
 Find the message first: the customer's number and roughly when. Then read the trail in the logs (one `request_id` for

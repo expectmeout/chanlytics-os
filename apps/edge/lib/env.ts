@@ -123,6 +123,14 @@ export const env = {
   get LINES_DRY_RUN() {
     return trimmedEnv(process.env.LINES_DRY_RUN);
   },
+  /** The daily text canary's sender: a Messaging Service of the master account holding the canary's number (lib/sms/canary.ts). */
+  get CANARY_SMS_SERVICE() {
+    return trimmedEnv(process.env.CANARY_SMS_SERVICE);
+  },
+  /** The line the canary texts: the platform workspace's own, whose receptionist answers it. Both set, or the canary is off. */
+  get CANARY_SMS_TO() {
+    return trimmedEnv(process.env.CANARY_SMS_TO);
+  },
   /** Switch: unset reports ended workspaces' numbers; set warns, then releases them after that many days. */
   get LINE_RELEASE_AFTER_DAYS() {
     return trimmedEnv(process.env.LINE_RELEASE_AFTER_DAYS);

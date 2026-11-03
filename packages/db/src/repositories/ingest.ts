@@ -93,6 +93,33 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   return out;
 }
 
+/**
+ * What became of one inbound message, by its provider's id: whether a message holds it, and the status of the newest reply
+ * that names it (meta.reply_to), or null when none does. The daily canary's check (apps/edge/lib/sms/canary.ts). A read
+ * that fails throws.
+ */
+export async function answerOfMessage(db: Db, externalId: string): Promise<{ kept: boolean; reply: string | null }> {
+  const { data: message, error } = await db
+    .from("messages")
+    .select("id, tenant_id")
+    .eq("external_id", externalId)
+    .eq("direction", "inbound")
+    .maybeSingle();
+  if (error) throw new Error(`answer_of_message: ${error.message}`);
+  if (!message) return { kept: false, reply: null };
+  const { data: reply, error: unread } = await db
+    .from("messages")
+    .select("status")
+    .eq("tenant_id", message.tenant_id)
+    .eq("direction", "outbound")
+    .eq("meta->>reply_to", message.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (unread) throw new Error(`answer_of_message: ${unread.message}`);
+  return { kept: true, reply: reply?.status ?? null };
+}
+
 /** What became of an address a customer wrote in their own message (note_person_email, 00516). */
 export type EmailNoted = "kept" | "had_one" | "taken" | "not_found";
 

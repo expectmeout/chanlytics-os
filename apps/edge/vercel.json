@@ -89,6 +89,9 @@
           "api/cron/calls.ts": {
             "maxDuration": 60
           },
+          "api/cron/canary.ts": {
+            "maxDuration": 30
+          },
           "api/cron/channel-quality.ts": {
             "maxDuration": 60
           },

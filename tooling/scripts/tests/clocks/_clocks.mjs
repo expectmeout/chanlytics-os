@@ -27,6 +27,10 @@ export const CLOCKS = {
     why: "parses each feed hourly to add people and stamp booked leads; appointment events from push sync replace it, the iCal read a fallback (0002)",
   },
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
+  canary: {
+    kind: "judge",
+    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00518)",
+  },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
   deadman: {
     kind: "reconcile",

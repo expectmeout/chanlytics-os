@@ -31648,6 +31648,26 @@ COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/
 
 
 --
+-- Name: trigger_canary_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_canary_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  return public.request_sweep('canary', '/api/cron/canary');
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_canary_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_canary_sweep() IS 'The daily text canary''s clock (00518): calls the edge (/api/cron/canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
+
+
+--
 -- Name: trigger_channel_quality_sweep(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -50453,6 +50473,14 @@ GRANT ALL ON FUNCTION public.trigger_calendar_sweep() TO service_role;
 
 REVOKE ALL ON FUNCTION public.trigger_call_reconcile() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_call_reconcile() TO service_role;
+
+
+--
+-- Name: FUNCTION trigger_canary_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_canary_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_canary_sweep() TO service_role;
 
 
 --
