@@ -13,7 +13,7 @@ import { givenOf, motionSettled, pullHeld } from "../signals";
  * either is drawn by the page on the conversation alone (kit motion/page-give.ts). Chromium draws no band of its own, so
  * what this reads is the page's: the band off, the conversation moved, the head and the reply box where they stood.
  *
- * The reply box moves only as a sheet with two rests does (kit sheet/rests.ts dockSwipe; Ruben, 3 Nov 2026: "it should
+ * The reply box moves only as a sheet with two rests does (kit sheet/dock.ts dockSwipe; Ruben, 3 Nov 2026: "it should
  * also work like the drawer sheets"): a pull up on it folded opens it, and a pull down from its handle follows the finger
  * and folds it again, with the head where it stood through both. Read-only: nothing here writes.
  */

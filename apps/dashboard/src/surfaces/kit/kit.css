@@ -4595,7 +4595,7 @@ a.list-row {
   .sheet-rests[data-rest="half"] > .rec-sheet-body {
     margin-bottom: var(--sheet-rest);
   }
-  /* The handle that turns a sheet between its rests, or a docked foot between folded and open (rests.ts dockSwipe), is a
+  /* The handle that turns a sheet between its rests, or a docked foot between folded and open (dock.ts dockSwipe), is a
      button that says which it is (aria-expanded): its bar is its look, never the house's floor for a button, and its
      press reaches a thumb's 44px by the margin round it. */
   .sheet-handle[aria-expanded] {

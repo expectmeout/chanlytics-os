@@ -10,7 +10,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 
-const { dockSwipe } = await import("../../../../../apps/dashboard/src/surfaces/kit/sheet/rests.ts");
+const { dockSwipe } = await import("../../../../../apps/dashboard/src/surfaces/kit/sheet/dock.ts");
 
 /** The gesture's clock, held: how fast a pull went is read from it, so a slow one is one the clock says took long. */
 const realNow = Date.now;

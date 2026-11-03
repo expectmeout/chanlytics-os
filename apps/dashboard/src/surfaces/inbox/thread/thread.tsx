@@ -46,8 +46,8 @@ import { touchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { GRAB_AT } from "../../kit/motion/swipe";
 import { glideHeight } from "../../kit/motion/use-height-glide";
-import { dockSwipe } from "../../kit/sheet/rests";
-import { SheetHandle, type SheetRestControl } from "../../kit/sheet/sheet";
+import { dockSwipe } from "../../kit/sheet/dock";
+import { SheetHandle, type SheetRestControl } from "../../kit/sheet/handle";
 import { repliesDoor } from "./shell-thread";
 import type { Approval, RealThread, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
@@ -315,7 +315,7 @@ function openOnTap(open: () => void) {
 /**
  * A phone's reply box under a thumb, as a sheet with two rests is (Ruben, 3 Nov 2026: "it should also work like the drawer
  * sheets"): the sheet's handle at its top, a button that opens it or folds it away, and a pull up that opens it or down
- * that folds it (kit sheet/rests.ts dockSwipe), its height gliding between the two (the thread's effect). It is marked as
+ * that folds it (kit sheet/dock.ts dockSwipe), its height gliding between the two (the thread's effect). It is marked as
  * taking its own drag, so the page draws no pull of its own from it (page-give.ts). A desk's has none: its pane has room.
  */
 function footDock(folded: boolean, setFolded: (v: boolean) => void, on: boolean) {

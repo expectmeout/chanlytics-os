@@ -761,7 +761,7 @@ test("on a phone the reply box wears the sheet's handle, a button that opens it 
     assert.equal(handle(folded).props["aria-label"], "Open the reply", "named by where it goes");
     assert.equal(handle(folded).props["aria-expanded"], false);
     assert.equal(foot(folded).props["data-own-drag"], "", "a pull on it is its own, never the page's (page-give.ts)");
-    assert.equal(typeof foot(folded).props.onTouchStart, "function", "and a thumb moves it (rests.ts dockSwipe)");
+    assert.equal(typeof foot(folded).props.onTouchStart, "function", "and a thumb moves it (dock.ts dockSwipe)");
     handle(folded).props.onClick();
     const open = draw();
     assert.equal(foot(open).props["data-folded"], undefined, "pressed, it opens");

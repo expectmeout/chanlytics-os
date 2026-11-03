@@ -2997,7 +2997,7 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
    (thread.tsx foldAsRead), it is what is owed over one line of the words, whatever lines they were written on, with the
    receptionist's spark before them while they are its draft (Ruben, 3 Nov 2026: two lines stood a greeting over an
    empty one): the lines about the draft, the acts and the field itself put away until the box is tapped, typed into or
-   pulled up (kit sheet/rests.ts dockSwipe), when it opens where it stands. The field stays for a keyboard and a screen
+   pulled up (kit sheet/dock.ts dockSwipe), when it opens where it stands. The field stays for a keyboard and a screen
    reader, out of sight, and the line is the eye's alone. */
 @media (max-width: 720px) {
   .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text {
