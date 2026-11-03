@@ -173,7 +173,9 @@ export const SCHEMA_SETS = {
     "note_to_keep", "reply_held", "ask_cards", "website_form",
   ],
   "page_vitals.device": ["desk", "phone"],
-  "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],
+  "page_vitals.metric": [
+    "LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED", "FEED_DOWN", "FEED_BACK", "READ_FAILED",
+  ],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],

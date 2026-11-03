@@ -3158,6 +3158,18 @@
         }
       ],
       "where": null
+    },
+    {
+      "table": "workspace_notices_pending",
+      "name": "workspace_notices_pending_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     }
   ],
   "defaults": {

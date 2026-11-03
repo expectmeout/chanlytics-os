@@ -64,12 +64,14 @@ export function deliveryTicksOnly(heard: readonly RealtimeChange[] | undefined):
 /** One realtime event, as the rule sees it. */
 export interface RealtimeChange {
   table: string;
+  /** The threads a thread's notice names (00510): what the Inbox reads by id in place of its list. Absent: read the list. */
+  threads?: readonly string[];
   /** INSERT | UPDATE | DELETE, or "*" when the source did not say. */
   event: string;
   row: Record<string, unknown>;
   /**
-   * The clock the database told this change by (ISO 8601, UTC, to the millisecond; 00408): when its statement finished,
-   * a moment before the commit that let the tab hear it. Absent on a notice sent before 00408 and where the source did
+   * The clock the database told this change by (ISO 8601, UTC, to the millisecond; 00408): its transaction's commit,
+   * since 00507, when the notice goes; before it, when its first statement finished. Absent on a notice sent before 00408 and where the source did
    * not say. It is the database's clock, not the browser's.
    */
   at?: string;

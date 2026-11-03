@@ -10,7 +10,7 @@
  * side-effecting half.
  */
 import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db/realtime";
-import { activateOverride, readSlot, readWasPartial, type SurfaceOverride } from "./surface-data";
+import { activateOverride, readRefusedFor, readSlot, readWasPartial, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { api, dropPrefetched, serversClockOf } from "./api";
 import { cachedTenant, sealSurfaceCache, snapshotSurface } from "./surface-cache";
@@ -40,6 +40,9 @@ import { watchTheClock } from "./hearing/clock";
 import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
 import { passesOf, type Passes } from "./hearing/passes";
+import { catchUpOn, QUIET_LOOKBACK_MS, type CatchUp } from "./hearing/catch-up";
+
+export type { CatchUp, CaughtUpNotice } from "./hearing/catch-up";
 
 // Re-exported so consumers keep importing the seam from one place.
 export {
@@ -255,6 +258,10 @@ interface SurfaceRun {
   passes: Passes | null;
   /** Stops waiting for the workspace's id, where the tab joined no feed for want of it (joinFeedEarly). */
   leaveWorkspaceWait?: () => void;
+  /** When this runner began (this browser's clock): what its first join catches up from (watchLiveFeed). */
+  readonly began: number;
+  /** When the feed first said it was in trouble since it was last heard joined, or null: what a rejoin catches up from. */
+  quietSince: number | null;
 }
 
 function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
@@ -277,6 +284,8 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     held: new Set(),
     heard: new Map<string, RealtimeChange[]>(),
     passes: null,
+    began: Date.now(),
+    quietSince: null,
   };
 }
 
@@ -343,10 +352,10 @@ function noteRead(run: SurfaceRun, o: SurfaceOverride): (landed: boolean) => voi
  * browser's clock), once the read is put on the servers' clock (api.ts serversClockOf: less the margin the clocks may
  * disagree by and how far this browser's runs ahead, measured on every answer). A browser a few seconds fast dropped
  * the notice of a change made just after its read began, and nothing read it again (the wiring's second audit, S2-1).
- * `at` is the clock of the first statement of the transaction that told (00408), not of its commit: a transaction that ran
- * longer than a read's start can tell of a change the read did not hold with an `at` before it, and is not covered here. A
- * notice that reached the tab before the read began is judged by noteRead, by when it arrived, which is after its commit
- * whatever either clock says.
+ * `at` is the clock of the commit that told (00507: the notice is kept in its transaction and sent as it commits), so a read
+ * that began before the commit is never taken to hold its change, however long the transaction ran; until 00507 it was the
+ * first statement's, and a read begun mid-transaction dropped the notice. A notice that reached the tab before the read
+ * began is judged by noteRead, by when it arrived, which is after its commit whatever either clock says.
  * A notice with no `at` (a database from before 00408), and any notice while the boot is out (its answers are held: a read
  * during it may be the boot's), is read as it always was.
  */
@@ -405,10 +414,15 @@ async function refreshSurface(
   }
 }
 
-/** Ask for a surface whose read failed, or landed in part, once more, unless a refresh of it is already asked for. */
+/**
+ * Ask for a surface whose read failed, or landed in part, once more, unless a refresh of it is already asked for: after
+ * RETRY_AFTER_MS, or after the wait the server named where it refused the read with one (a limit's `retry-after`), the
+ * longer. A limit answered 2 s and 10 s later only spent the tab's place in it again.
+ */
 function retryLater(run: SurfaceRun, o: SurfaceOverride, attempt: number): void {
-  const wait = RETRY_AFTER_MS[attempt];
-  if (wait === undefined || run.cancelled || run.timers.has(o.key)) return;
+  const ours = RETRY_AFTER_MS[attempt];
+  if (ours === undefined || run.cancelled || run.timers.has(o.key)) return;
+  const wait = Math.max(ours, readRefusedFor(o.key) ?? 0);
   run.timers.set(
     o.key,
     setTimeout(() => {
@@ -493,24 +507,20 @@ function refreshSoon(run: SurfaceRun, o: SurfaceOverride): void {
     return;
   }
   // A read already out was sent before this change: the refresh it asks for must not share it, as a write's must not
-  // (client/api.ts forget). Today and the Inbox both read the conversations, and the Inbox's refresh after a message
-  // could be answered by Today's read from a moment before it, the message missing until the next. (And a read that
-  // did share one is as old as it, readFrom: so what it holds is never taken for newer than it is.)
+  // (client/api.ts forget): the Inbox's refresh after a message was answered by Today's read from a moment before it.
   api().forget();
   scheduleSurfaceRefresh(run, o);
 }
 
 /**
- * What the live feed's own reports mean for the page (surface-realtime.ts): the feed replays nothing it missed, so each join reads
- * the gap, and a drop that outlasts the grace is the shell's to say. Both joins go through the one pass, through the lanes, and
- * skip what a read since the join holds:
- *  - The first: a surface read before the feed was joined (the boot, the document's head) never heard what changed between its
- *    read and the join, which on a phone is seconds. Once the boot is in, what tells of a customer's message or a call and was
- *    read before the join is read once more (S2-4; caughtUpAtJoin). Every boot read begins before the join, so the rest wait for
- *    their next notice or the rolling heal: reading them all again would read the whole boot twice on every cold open.
- *  - A rejoin after sleep or a drop: what is heard here is read again, and a surface a return's pass read since is not (S2-7).
+ * What the live feed's own reports mean for the page (surface-realtime.ts): a drop that outlasts the grace is the shell's to
+ * say, and each join catches up on what the feed told while the tab could not hear it (hearing/catch-up.ts, 0019 step 4):
+ *  - The first, from the runner's start: what changed while the boot read and the feed was joined, on a phone seconds.
+ *  - A rejoin after sleep or a drop, from a minute before the feed first said it was in trouble.
+ * Where the catch-up cannot say every notice, the one pass reads everything the feed tells of. A runner given no catch-up (a
+ * test's) reads, on the first join, what tells of a message or a call (caughtUpAtJoin), and on a rejoin everything (S2-4, S2-7).
  */
-function watchLiveFeed(run: SurfaceRun, booted: Promise<void>): FeedWatch {
+function watchLiveFeed(run: SurfaceRun, booted: Promise<void>, catchUp: CatchUp | undefined): FeedWatch {
   return feedWatch({
     graceMs: REALTIME_GRACE_MS,
     onDown: (down) => setConnection({ realtimeDown: down }),
@@ -518,21 +528,33 @@ function watchLiveFeed(run: SurfaceRun, booted: Promise<void>): FeedWatch {
       const at = Date.now();
       // A feed reported down while the tab had no workspace to join (S2-6) is up now.
       setConnection({ realtimeDown: false });
-      void booted.then(() => run.passes?.again("join", readBefore(run, at).filter(caughtUpAtJoin), at));
+      run.quietSince = null;
+      void booted.then(() =>
+        catchUp
+          ? caughtUp(run, catchUp, run.began, () => run.passes?.again("join", readBefore(run, at), at))
+          : run.passes?.again("join", readBefore(run, at).filter(caughtUpAtJoin), at),
+      );
     },
     onReconnect: () => {
       const at = Date.now();
-      void run.passes?.again("rejoin", readBefore(run, at), at);
+      const since = (run.quietSince ?? at) - QUIET_LOOKBACK_MS;
+      run.quietSince = null;
+      const everything = () => run.passes?.again("rejoin", readBefore(run, at), at);
+      void (catchUp ? caughtUp(run, catchUp, since, everything) : everything());
     },
   });
 }
 
-/**
- * Whether the feed's first join reads this surface again, when its read began before the join: it tells of a customer's message
- * or a call, which the page must not miss for the length of a load, and its read is not dear (it names no longer wait than the
- * runner's own: People, Sent's runs, the playbooks and Today's headline do). The full answer is the feed's own replay from the
- * load's start (0019 step 4), owed to a proof on the local stack.
- */
+/** The notices told since `since`, heard as live ones are; everything read again where they could not all be said. */
+const caughtUp = (run: SurfaceRun, catchUp: CatchUp, since: number, everything: () => unknown) =>
+  catchUpOn(catchUp, since, {
+    hear: (change) => hear(run, change),
+    everything,
+    tenant: viewedWorkspace() ?? "",
+    stopped: () => run.cancelled,
+  });
+
+/** For a runner with no catch-up: whether its first join reads this surface again (a message or a call, and not dear). */
 function caughtUpAtJoin(o: SurfaceOverride): boolean {
   return (
     (o.maxWaitMs ?? REFRESH_MAX_WAIT_MS) <= REFRESH_MAX_WAIT_MS &&
@@ -684,35 +706,16 @@ function joinFeedEarly(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFee
 function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWatch): void {
   const ws = viewedWorkspace();
   run.unsubscribe = joinFeed(
-    // Routed by table: a live call's transcript turns repaint Live, not the
-    // five surfaces that never asked (three of them plpgsql aggregates).
-    (row, table, event, at) => {
-      const arrived = Date.now();
-      // The notice's clock rides on the change (00408), for a rule that judges a change by when it was told.
-      const change = { table, event, row, ...(at ? { at } : {}) };
-      const hidden = pageHidden();
-      run.realtime
-        // A surface read after the change was made holds it, and asks for nothing (readAfter): asked before its rule, which
-        // keeps a page for its own page (onlyOnItsPage) a change it already holds. Teammates' and other tabs' changes
-        // are later than any read of this tab's and read as ever.
-        .filter((o) => !readAfter(run, o, at) && wantsRefresh(o, table, change))
-        .forEach((o) => {
-          // Nobody is looking: held, and read as the page comes in front, but what says itself in the title and the badge.
-          if (hidden && !READ_WHILE_HIDDEN.has(o.key) && run.passes) {
-            run.passes.holdWhileHidden(o);
-            return;
-          }
-          const told = run.heard.get(o.key);
-          if (told) told.push(change);
-          else run.heard.set(o.key, [change]);
-          refreshSoon(run, o);
-          askedBy(run, o, at, arrived);
-        });
-    },
+    // Routed by table (a call's turns repaint Live, not five surfaces that never asked), with the notice's clock (its
+    // commit's, 00507) and the threads it names (00510).
+    (row, table, event, at, threads) =>
+      hear(run, { table, event, row, ...(at ? { at } : {}), ...(threads ? { threads } : {}) }),
     {
       tenantId: ws ?? undefined,
       onStatus: (status) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", ws, status);
+        // What a rejoin catches up from: the first word of trouble since the feed was last heard joined.
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") run.quietSince ??= Date.now();
         feed.onStatus(status);
       },
     },
@@ -720,10 +723,33 @@ function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWa
 }
 
 /**
+ * A notice the feed told, live or caught up (caughtUp), routed to the surfaces that hear its table. A surface read after the
+ * change was made holds it, and asks for nothing (readAfter), asked before the rule that keeps a page's change for its page.
+ */
+function hear(run: SurfaceRun, change: RealtimeChange): void {
+  const arrived = Date.now();
+  const hidden = pageHidden();
+  run.realtime
+    .filter((o) => !readAfter(run, o, change.at) && wantsRefresh(o, change.table, change))
+    .forEach((o) => {
+      // Nobody is looking: held, and read as the page comes in front, but what says itself in the title and the badge.
+      if (hidden && !READ_WHILE_HIDDEN.has(o.key) && run.passes) {
+        run.passes.holdWhileHidden(o);
+        return;
+      }
+      const told = run.heard.get(o.key);
+      if (told) told.push(change);
+      else run.heard.set(o.key, [change]);
+      refreshSoon(run, o);
+      askedBy(run, o, change.at, arrived);
+    });
+}
+
+/**
  * Starts the surfaces: each one's first read (the boot), the live feed once who is looking is known, and the reads again on a
  * return to the tab or to the network. Answers the stop, which undoes them in the same order.
  */
-export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
+export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed, catchUp?: CatchUp): () => void {
   // Said now, at the call, not when the boot ends: a missing feed found then is a throw nobody awaits.
   if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
     throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
@@ -743,7 +769,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   });
   run.passes = passes;
   const boot = bootInPasses(run);
-  const feed = watchLiveFeed(run, boot.booted);
+  const feed = watchLiveFeed(run, boot.booted, catchUp);
   joinFeedEarly(run, boot, joinFeed, feed);
   const stopDay = watchTheDayTurn({ overrides, passes, stopped: () => run.cancelled });
   // What the clock moves with no record changing: remade each minute where drawn, read again where a source tells nothing, and

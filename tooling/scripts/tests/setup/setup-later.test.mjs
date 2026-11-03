@@ -120,6 +120,7 @@ const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surfac
 const { installSetup, setupOverride } = await importSrc("apps/dashboard/src/surfaces/setup/override.ts");
 // The seam's own store, the module instance the surface writes (surface-values.ts): a first read is "no value yet".
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 installSetup(globalThis.window);
 const w = globalThis.window;
 
@@ -301,6 +302,8 @@ test("a quiet look reads Setup again for a step that waits, and one that fails c
   await setupOverride.apply();
   const before = surfaceValue("setup");
   const was = wire.setup;
+  // The look goes through the runner, as every read of a surface does (the page-open PRD, L1): one is running here.
+  const stop = startSurfaces([setupOverride], () => () => {});
   // What a waiting step waits for lands: the look brings it, with no word said.
   wire.setup = { ...SETUP, business: { ...SETUP.business, services: 5 } };
   try {
@@ -322,6 +325,7 @@ test("a quiet look reads Setup again for a step that waits, and one that fails c
       w.fetch = fetchWas;
     }
   } finally {
+    stop();
     wire.setup = was;
     await setupOverride.apply();
     assert.equal(surfaceValue("setup").dto.business.services, before.dto.business.services);

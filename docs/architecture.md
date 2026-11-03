@@ -483,8 +483,12 @@ API's nouns do not all agree yet; `docs/glossary.md` lists them.
   it opens) is listed, with how it stays fresh and why that is enough, in
   `tooling/scripts/tests/baselines/on-demand-reads.json`, which may only fall (`docs/debt.md`). One read is out at a
   time for each surface, so the newest read lands last (`surface-data.ts` `activateOverride`); the workspace's own
-  topic says what changed (decision 0019) and each tab
-  re-reads only the surface that changed. A surface that hears a record only on its page hears it where its page's row
+  topic says what changed (decision 0019), each notice at its transaction's commit with the commit's clock (00507), a
+  thread's naming the threads it touched (00510, which the Inbox reads by id rather than its list), and each tab re-reads
+  only the surface that changed. What a tab could not hear (while it loaded, while its feed was down) it
+  catches up on as it joins and joins again: the topic's notices since then, read back (`GET changes`, 00508,
+  `apps/dashboard/src/legacy-bridge/hearing/catch-up.ts`) and heard as live ones are, or everything read again where they
+  cannot all be said. A surface that hears a record only on its page hears it where its page's row
   in `PAGE_HEARS` (`apps/dashboard/src/legacy-bridge/hearing/page-hears.ts`, read through `surface-registry.ts`, one row
   per family of addresses) names it, and keeps it for its page elsewhere; the goldens under
   `tooling/scripts/tests/baselines/hearing/` say what every page reads, and at what cost, for each notice (decision 0058).
