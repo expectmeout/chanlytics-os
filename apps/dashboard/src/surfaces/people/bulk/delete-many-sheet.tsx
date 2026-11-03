@@ -1,13 +1,11 @@
 /**
- * Delete…'s question for a selection (delete-many.tsx), a chunk of its own: whom it deletes under the title, Not a
- * person, and the count typed in the foot, which says it cannot be undone. Drawn in the kit's sheet, a side pane on a
- * desk and from the foot on a phone, as Delete person is.
+ * Delete…'s question for a selection (delete-many.tsx), a chunk of its own: whom it deletes under the title, what Not a
+ * person does beside it, and the count typed in the foot, which says it cannot be undone. Drawn in the kit's sheet, a
+ * side pane on a desk and from the foot on a phone, as Delete person is.
  */
-import { useId } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { Switch } from "../../kit/switch/switch";
 import { DELETE_MANY_WORDS, type DeleteManyActs } from "./delete-many";
 import type { BulkCtx } from "./bulk-state";
 
@@ -16,7 +14,6 @@ const NAMES_SAID = 5;
 
 /** The question, drawn while asked, on a desk and a phone alike. */
 export function DeleteManySheet({ b, a }: { b: BulkCtx; a: DeleteManyActs }) {
-  const id = useId();
   const { st, batch, picked } = b;
   const { busy, del, setDel } = st;
   const n = batch.length;
@@ -27,7 +24,7 @@ export function DeleteManySheet({ b, a }: { b: BulkCtx; a: DeleteManyActs }) {
       backCloses
       open={del.open && n > 0}
       onClose={a.closeDelete}
-      title={W.title(n)}
+      title={W.title(n, del.bot)}
       sub={W.who(names.slice(0, NAMES_SAID), Math.max(0, names.length - NAMES_SAID))}
       close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
       footCloses
@@ -50,18 +47,11 @@ export function DeleteManySheet({ b, a }: { b: BulkCtx; a: DeleteManyActs }) {
       }
       testid="bulk-delete-sheet"
     >
-      <div className="cl-prof-ask-row">
-        <span className="cl-prof-ask-detail" id={`${id}-bot`}>
-          {W.notAPerson}
-        </span>
-        <Switch
-          checked={del.bot}
-          onCheckedChange={(on) => setDel((d) => ({ ...d, bot: on }))}
-          labelledBy={`${id}-bot`}
-          readOnly={busy}
-          data-testid="bulk-delete-not-a-person"
-        />
-      </div>
+      {del.bot ? (
+        <p className="cl-prof-ask-detail" data-testid="bulk-delete-mail-out">
+          {W.mailOut}
+        </p>
+      ) : null}
     </Sheet>
   );
 }

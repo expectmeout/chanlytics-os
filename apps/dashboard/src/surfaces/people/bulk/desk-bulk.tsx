@@ -5,13 +5,12 @@
  * delete-many.tsx) -- each drawn where the role allows and says why when it does not.
  */
 import { editorBox, focusAsDrawn, gateTitle } from "../../legacy-verbs";
-import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { addToListMenu as addMenu, barMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 import { messagesChoices } from "./messages";
-import { DELETE_MANY_WORDS, DeleteManyQuestion, mayDeleteMany } from "./delete-many";
+import { DeleteManyQuestion, deleteManyMenu, mayDeleteMany } from "./delete-many";
 
 /**
  * The two inline boxes a desk's acts ask their words in: a new list's name, and which forms were signed. A note is the
@@ -145,18 +144,7 @@ export function deskBulk(b: BulkCtx, a: BulkActs) {
           <Icon name="external" size={12} /> Export CSV
         </button>
       )}
-      {mayDeleteMany(b) && (
-        <Button
-          size="sm"
-          tone="danger"
-          disabled={busy}
-          title={DELETE_MANY_WORDS.hover}
-          onClick={a.askDelete}
-          data-testid="bulk-delete"
-        >
-          <Icon name="ban" size={12} /> {DELETE_MANY_WORDS.act}
-        </Button>
-      )}
+      {mayDeleteMany(b) && deleteManyMenu(b, a)}
       {!canEdit && (
         <span className="cl-prof-aut-hint">
           {keeps("consent")

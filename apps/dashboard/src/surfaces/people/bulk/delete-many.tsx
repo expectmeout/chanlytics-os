@@ -2,25 +2,32 @@
  * Delete… for a selection (3 Nov 2026): the person page's Delete person, for many at a press. A mailbox brought in
  * programs and pitches as people before it judged its senders (decision 0080), and an owner's five erasures an hour made
  * clearing them a day of taps. The owner's alone; fifty at a press, as every act of the bar; the count typed, as the
- * person page types the name; Not a person is the person page's switch, by address alone. Whoever a press could not
- * delete stays selected, and the toast says why. Drawn in the kit's sheet, a side pane on a desk and from the foot on a
- * phone, as Delete person is: the title, who goes under it, the switch, and the question in the foot; no paragraph
- * (Ruben, 3 Nov 2026: "overly wordy and cluttered"). The sheet is a chunk of its own (delete-many-sheet.tsx).
+ * person page types the name. Two acts, as the person page has: Not a person (their address said automated first, by
+ * address alone) and Delete. Whoever a press could not delete stays selected, and the toast says why. Drawn in the kit's
+ * sheet, a side pane on a desk and from the foot on a phone, as Delete person is: the title, who goes under it, and the
+ * question in the foot; no paragraph and no switch (Ruben, 3 Nov 2026: "overly wordy and cluttered"; a switch also
+ * brought the kit's Switch into People's graph, and the bundler moved 11.8 KB of shared parts into Settings' first
+ * load). The sheet is a chunk of its own (delete-many-sheet.tsx).
  */
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
+import { Icon } from "../../kit/icon/icon";
 import { deletePeopleMany, type DeletedMany } from "../people-detail";
+import { barMenu } from "./bar-menu";
 import { DELETE_MANY_CLOSED, type BulkCtx } from "./bulk-state";
 
 const howManyPeople = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
-/** Delete…'s words: the act, its sheet, the switch, its question with the typed count, and what a press says after. */
+/** Delete…'s words: the bar's menu and its two acts, the sheet, its typed question, and what a press says after. */
 export const DELETE_MANY_WORDS = {
-  act: "Delete…",
-  hover: "Delete these people and everything kept about them",
-  title: (n: number) => `Delete ${howManyPeople(n)}`,
+  act: "Delete",
+  hover: "Delete these people, or say they are not people",
+  notAPerson: "Not a person…",
+  delete: "Delete…",
+  title: (n: number, bot: boolean) => `${bot ? "Not people" : "Delete"}: ${howManyPeople(n)}`,
   who: (names: readonly string[], more: number) => `${names.join(", ")}${more ? ` and ${more} more` : ""}`,
-  notAPerson: "Not a person — keep their mail out",
+  /** Not a person's one line: what it does beside the delete. */
+  mailOut: "Deleted, and their mail stays out from now on.",
   typed: (n: number) => `Can't be undone. Type ${n} to confirm.`,
   yes: (n: number) => `Delete ${n}`,
   busy: "Deleting…",
@@ -41,14 +48,14 @@ export const DELETE_MANY_WORDS = {
 /** Whether the selection may be deleted from this bar: an owner's, on a page that keeps the act. */
 export const mayDeleteMany = (b: BulkCtx) => b.isOwner && b.keeps("delete");
 
-/** Delete…'s acts: open its question, answer it, and close it. */
+/** Delete…'s acts: open its question (as Not a person, or as Delete), answer it, and close it. */
 export function deleteManyActs(b: BulkCtx) {
   const { st, flash, batch, rest, onKeep, onClear, onSheet } = b;
   const { busy, setBusy, del, setDel } = st;
-  const askDelete = () => {
+  const askDelete = (bot: boolean) => {
     if (busy) return;
     onSheet(null);
-    setDel({ ...DELETE_MANY_CLOSED, open: true });
+    setDel({ ...DELETE_MANY_CLOSED, open: true, bot });
   };
   const closeDelete = () => {
     if (!busy) setDel(DELETE_MANY_CLOSED);
@@ -73,6 +80,26 @@ export function deleteManyActs(b: BulkCtx) {
   return { askDelete, closeDelete, confirmDelete };
 }
 export type DeleteManyActs = ReturnType<typeof deleteManyActs>;
+
+/** The desk bar's Delete menu: Not a person…, then Delete…, the destroying act in red. */
+export function deleteManyMenu(b: BulkCtx, a: DeleteManyActs) {
+  const W = DELETE_MANY_WORDS;
+  return barMenu({
+    words: W.act,
+    hover: W.hover,
+    busy: b.st.busy,
+    size: "sm",
+    testid: "bulk-delete",
+    groups: [
+      {
+        items: [
+          { label: W.notAPerson, glyph: <Icon name="ban" size={13} />, onSelect: () => a.askDelete(true) },
+          { label: W.delete, glyph: <Icon name="x" size={13} />, tone: "danger", onSelect: () => a.askDelete(false) },
+        ],
+      },
+    ],
+  });
+}
 
 /**
  * Delete…'s sheet, a chunk of its own: asked for as an owner's selection bar is drawn, so People's first load carries

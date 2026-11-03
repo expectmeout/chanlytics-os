@@ -76,14 +76,23 @@ function moreStep(b: BulkCtx, a: BulkActs, messages: boolean): Step {
           />
         ) : null}
         {mayDeleteMany(b) ? (
-          <PhoneSheetRow
-            icon="ban"
-            label={DELETE_MANY_WORDS.act}
-            danger
-            disabled={busy}
-            onClick={a.askDelete}
-            testid="bulk-delete"
-          />
+          <>
+            <PhoneSheetRow
+              icon="ban"
+              label={DELETE_MANY_WORDS.notAPerson}
+              disabled={busy}
+              onClick={() => a.askDelete(true)}
+              testid="bulk-not-a-person"
+            />
+            <PhoneSheetRow
+              icon="x"
+              label={DELETE_MANY_WORDS.delete}
+              danger
+              disabled={busy}
+              onClick={() => a.askDelete(false)}
+              testid="bulk-delete"
+            />
+          </>
         ) : null}
       </div>
     ),

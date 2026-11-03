@@ -1648,8 +1648,8 @@ test("on a phone More opens the selection's sheet -- Messages and receptionist â
     let sheet = openSheet(tree, "bulk-sheet");
     assert.equal(sheet.props.title, "2 selected");
     // A yes on record and the receptionist's mode are one step, the person page's own group (Messages and receptionist):
-    // the owner's modes are in it. Select all is the bar's at the top, the note up front in the dock; last, Deleteâ€¦.
-    assert.deepEqual(sheetRows(sheet), ["bulk-messages", "bulk-export", "bulk-delete"]);
+    // the owner's modes are in it. Select all is the bar's at the top, the note up front in the dock; the deletes last.
+    assert.deepEqual(sheetRows(sheet), ["bulk-messages", "bulk-export", "bulk-not-a-person", "bulk-delete"]);
     // A yes on a sign-up form: the step asks which forms, then records, then the sheet shuts.
     click(byTestId(sheet, "bulk-messages"));
     tree = draw();

@@ -68,11 +68,16 @@ const migration = (n) => {
     ),
   );
 };
-/** A function's body as a migration writes it: from `as $$` after its header to the next `$$`, as pg_proc keeps it. */
+/**
+ * A function's body as a migration writes it: from `as $$` after its header to the next `$$`, as pg_proc keeps it. A
+ * migration copied from the database's own definition writes `AS $$` (00530).
+ */
 const bodyIn = (src, header) => {
   const at = src.indexOf(header);
   assert.ok(at >= 0, `no ${header.split("\n")[0]}`);
-  const open = src.indexOf("as $$", at) + "as $$".length;
+  const as = /\bas \$\$/i.exec(src.slice(at));
+  assert.ok(as, `no body after ${header.split("\n")[0]}`);
+  const open = at + as.index + as[0].length;
   return src.slice(open, src.indexOf("$$", open));
 };
 
@@ -772,6 +777,9 @@ const LATER = {
   // A company's addressee is the person, by the name their source gave, and People is asked once (lead_address_in_people):
   // 00430's, whose behaviour leads/people-card.db.test.mjs holds.
   reach_out_person: "00430",
+  // 00530 keeps a call's audit copy when a delivery carries none (decision 0092): 00344's body but for that block, which
+  // voice/rows/a-call-keeps-only-what-it-needs.db.test.mjs proves.
+  ingest_call: "00530",
 };
 
 /**
