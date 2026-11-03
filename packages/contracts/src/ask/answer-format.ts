@@ -1,6 +1,7 @@
 /**
- * The format the model writes Ask's answer in: the answer's shape (ask-answer.ts) as a JSON schema, passed as
- * `output_config.format` and read back by normalizeAnswer. It rides in every request. Pure.
+ * The format the model writes Ask's answer in: the answer's shape (ask-answer.ts) as a JSON schema, the answer tool's
+ * input (tools/answer.ts) and, less its chart, `output_config.format`, and read back by normalizeAnswer. It rides in every
+ * request. Pure.
  */
 import { ASK_LANGUAGES } from "./ask-language";
 import { ASK_ANSWER_CAPS as C, ASK_LIST_STYLES } from "./ask-answer";
@@ -21,10 +22,10 @@ const SOURCE = {
 } as const;
 
 /**
- * The answer's shape as the model writes it, passed as `output_config.format` (spec 5.3). Every property is required
- * and nothing else is allowed, so "nothing" is an empty string, an empty array or kind none. Structured outputs take
- * no length limits, so each limit is said in its description, from ASK_ANSWER_CAPS and nowhere else the model reads
- * (D6). `say` comes first, so it streams first. Changing it resets the prompt cache for every conversation.
+ * The answer's shape as the model writes it (spec 5.3). Every property is required and nothing else is allowed, so
+ * "nothing" is an empty string, an empty array or kind none. Structured outputs take no length limits, so each limit is
+ * said in its description, from ASK_ANSWER_CAPS and nowhere else the model reads (D6). `say` comes first, so it streams
+ * first. Changing it resets the prompt cache for every conversation.
  */
 export const ASK_ANSWER_FORMAT = {
   type: "object",
@@ -205,4 +206,24 @@ export const ASK_ANSWER_FORMAT = {
   },
   required: ["say", "show", "do", "language"],
   additionalProperties: false,
+} as const;
+
+const { chart: _chart, ...SHOW_IN_TEXT } = ASK_ANSWER_FORMAT.properties.show.properties;
+
+/**
+ * The format as `output_config.format` carries it: the answer less its chart. The API compiles this one into a grammar
+ * and refuses one it finds too large, and it publishes no limit: the chart's series and values took it past that on
+ * 2 November 2026 (#2046), so every turn was refused once and asked again with no format. A chart comes by the answer
+ * tool, whose input is not compiled; an answer written as text has none, and reads the same.
+ */
+export const ASK_ANSWER_TEXT_FORMAT = {
+  ...ASK_ANSWER_FORMAT,
+  properties: {
+    ...ASK_ANSWER_FORMAT.properties,
+    show: {
+      ...ASK_ANSWER_FORMAT.properties.show,
+      properties: SHOW_IN_TEXT,
+      required: ["figures", "items", "breakdown", "list"],
+    },
+  },
 } as const;

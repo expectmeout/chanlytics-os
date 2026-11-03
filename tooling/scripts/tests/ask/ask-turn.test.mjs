@@ -38,6 +38,7 @@ import {
 } from "../reports/campaigns/_campaign-world.mjs";
 import {
   ASK_ANSWER_FORMAT,
+  ASK_ANSWER_TEXT_FORMAT,
   ASK_CAPS,
   ASK_STYLE_MAX,
   ASK_STYLE_PAGE,
@@ -434,7 +435,7 @@ test("a read, then the answer: the read runs for real, its rows enter the read s
   assert.deepEqual(s.requests[0].tool_choice, { type: "auto" });
   assert.deepEqual(
     s.requests[0].output_config,
-    { effort: ASK_EFFORT, format: { type: "json_schema", schema: ASK_ANSWER_FORMAT } },
+    { effort: ASK_EFFORT, format: { type: "json_schema", schema: ASK_ANSWER_TEXT_FORMAT } },
     "every round may answer, in the answer's format, at the profile's effort",
   );
   assert.equal(s.requests[0].model, ASK_MODEL);
@@ -924,7 +925,7 @@ test("a format the API refuses is dropped and the same round asked again: words 
     [named.r.answer.form, named.r.text, named.r.failed, named.formatRejected],
     ["prose", "Nobody is waiting on you.\nSam called once.", false, 1],
   );
-  assert.deepEqual(named.requests[0].output_config.format, { type: "json_schema", schema: ASK_ANSWER_FORMAT });
+  assert.deepEqual(named.requests[0].output_config.format, { type: "json_schema", schema: ASK_ANSWER_TEXT_FORMAT });
   assert.deepEqual(named.requests[1].output_config, { effort: ASK_EFFORT }, "the same round, without the format");
   const shaped = await refusing(["400 output_config.format: not supported"], answer("Nobody is waiting on you."));
   assert.deepEqual(
@@ -932,7 +933,6 @@ test("a format the API refuses is dropped and the same round asked again: words 
     ["structured", "Nobody is waiting on you."],
     "the rules still ask for the shape: JSON written without the format is read as JSON, never shown raw",
   );
-
   const always = await refusing(["400 schema too complex", "400 schema too complex"], answer("Never read."));
   assert.deepEqual(
     [always.r.text, always.r.failed, always.r.failure, always.requests.length],
@@ -10081,7 +10081,7 @@ test("the answer tool on: every round offers it first with its input streamed, t
       assert.equal(req.tools[0].eager_input_streaming, true);
       assert.deepEqual(req.tools[0].input_schema, ASK_ANSWER_FORMAT, "its input is the answer's format");
       assert.deepEqual(req.tools.slice(1), toApiTools("operator", false), "then the role's tools, as they were");
-      assert.deepEqual(req.output_config.format.schema, ASK_ANSWER_FORMAT, "the format stays: a text answer reads");
+      assert.deepEqual(req.output_config.format.schema, ASK_ANSWER_TEXT_FORMAT, "a text answer still reads");
       assert.ok(req.system[0].text.includes("Every answer is written by calling the answer tool once"));
     }
     assert.equal(JSON.stringify(s.requests[0].tools), JSON.stringify(s.requests[1].tools), "one prefix, every round");
