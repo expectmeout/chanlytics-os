@@ -238,7 +238,12 @@ test("the brain asks for the record, reads it through the parse, and keeps the o
   const ask = async (...replies) => {
     const api = scripted(...replies);
     setModelFetch(api.fetch);
-    const r = await generateReply([], "when do you open?", "System.", "Hold on, a person will follow up.");
+    const r = await generateReply({
+      history: [],
+      userText: "when do you open?",
+      systemPrompt: "System.",
+      fallbackText: "Hold on, a person will follow up.",
+    });
     return { r, api };
   };
 
@@ -372,9 +377,15 @@ test("a turn's end bounds the model: a model that never answers is given up at t
   const began = Date.now();
   // The job's deadline is 60 ms away: the first try gets what is left, and too little is left for the fallback's.
   await assert.rejects(
-    generateReply([], "when do you open?", "System.", "Hold on.", undefined, undefined, undefined, undefined, {
-      tenantId: null,
-      endsAtMs: began + 60,
+    generateReply({
+      history: [],
+      userText: "when do you open?",
+      systemPrompt: "System.",
+      fallbackText: "Hold on.",
+      call: {
+        tenantId: null,
+        endsAtMs: began + 60,
+      },
     }),
   );
   assert.ok(

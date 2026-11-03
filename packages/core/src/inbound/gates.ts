@@ -12,7 +12,7 @@ import { handledOf, handToAPerson, processedAfter, SET_ASIDE } from "./handled";
 import { GO, type Answering, type InboundContext, type ModeInForce } from "./context";
 
 /** The mode in force for this one message: the workspace's posture, or this person's own setting where one is set. */
-export async function modeInForce(cx: InboundContext, ing: IngestResult | null): Promise<ModeInForce> {
+export async function modeInForce(cx: InboundContext, ing: IngestResult): Promise<ModeInForce> {
   const { db, tenantId, ports, posture, L } = cx;
   // Reassigned once THIS person's own setting is known, just before the
   // policy is consulted below.
@@ -28,13 +28,11 @@ export async function modeInForce(cx: InboundContext, ing: IngestResult | null):
   // just above the policy consult, below the non-text acknowledgement — so a
   // person set to Never who sent a photo got the canned "I can't read
   // attachments" text from the receptionist that was told to stay out.
-  if (db && tenantId && ing?.contact_id) {
-    try {
-      personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
-      replyMode = effectiveReplyMode(posture, personMode);
-    } catch (e) {
-      L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
-    }
+  try {
+    personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
+    replyMode = effectiveReplyMode(posture, personMode);
+  } catch (e) {
+    L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
   }
   return { replyMode, personMode };
 }
@@ -75,9 +73,9 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     optOutNow: n.consent.optOut,
     optInNow: n.consent.optIn,
     // What Postgres says after this message was applied (ingest_inbound), or nothing when there is no record.
-    recorded: ing ? isOptedOutContact(ing) : null,
+    recorded: isOptedOutContact(ing),
     // A message already held (its answer job, a redelivery) said its START when it was first taken in.
-    takenAgain: ing?.is_new === false,
+    takenAgain: !ing.is_new,
   });
   const optedOut = consent.optedOut;
 
@@ -91,7 +89,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
       this_message: n.consent.optOut,
-      on_record: ing?.consent ?? null,
+      on_record: ing.consent,
       decided_by: consent.source,
     });
     return;

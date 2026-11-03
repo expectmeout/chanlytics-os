@@ -8,7 +8,6 @@
  * write itself failed, because that is the one loss the provider can undo.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { pg } from "../pg.js";
 import {
   fetchLinkedMedia,
   fetchMediaBytes,
@@ -72,7 +71,7 @@ import { logger, errField } from "../log.js";
  * answering a customer mid-conversation from an invented empty history.
  */
 export async function pgThread(
-  db: ReturnType<typeof pg>,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult | null,
 ): Promise<ThreadState> {
@@ -115,7 +114,7 @@ const waCfg = waCfgFor;
  * waiting on an answer that was already written.
  */
 export async function queueReply(
-  db: ReturnType<typeof pg>,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult | null,
   /** Where the draft goes: the number on a phone's wire, the person's Instagram-scoped id on a DM's. */
@@ -184,7 +183,7 @@ export const replyTurn = { claim: claimReplyTurn, holds: holdsReplyTurn };
  * answered it.
  */
 export async function pgAnswered(
-  db: ReturnType<typeof pg>,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult,
 ): Promise<boolean> {
@@ -193,19 +192,17 @@ export async function pgAnswered(
 }
 
 /**
- * Persist first. Null when there is no database or no tenant to record for,
- * which is a fact about the deployment and by design. A write that FAILED is
- * IngestFailed: the caller says so to the provider, which retries, rather
- * than acknowledging words that exist only in an email.
+ * Persist first. A write that FAILED is IngestFailed, and so is a deployment with no database to write to: the caller
+ * says so to the provider, which retries, rather than acknowledging words that exist only in an email.
  */
 export async function pgIngest(
-  db: SupabaseClient<Database> | null,
-  tenantId: string | null,
+  db: SupabaseClient<Database>,
+  tenantId: string,
   /** The message in the one inbound shape, on its own wire (decision 0001). */
   n: InboundMessage & { channel: InboundChannel },
   line: string | null = null,
-): Promise<IngestResult | null> {
-  if (!db || !tenantId) return null;
+): Promise<IngestResult> {
+  if (!db) throw new IngestFailed("no database to keep the message in");
   try {
     return await ingestInbound(db, {
       tenantId,
@@ -424,7 +421,7 @@ async function whatsappMediaOf(
  * cannot succeed, so every voice note and photo their customers send would fail to store.
  */
 export function pgSink(
-  db: SupabaseClient<Database> | null,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult | null,
   rt?: TenantRuntime | null,

@@ -221,7 +221,14 @@ export async function evaluateCases(
   for (const c of cases) {
     const t0 = Date.now();
     try {
-      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote, undefined, undefined, call);
+      const r = await ask({
+        history: c.history ?? [],
+        userText: c.text,
+        systemPrompt: system,
+        fallbackText: holding,
+        nowNote,
+        call,
+      });
       results.push({
         id: c.id,
         ok: true,

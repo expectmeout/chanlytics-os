@@ -456,20 +456,18 @@ test(
     const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
     const system = `${PROMPT} Closed on public holidays. (${stamp})`;
     const ask = (conversation) =>
-      generateReply(
-        [
+      generateReply({
+        history: [
           { role: "user", content: "hello" },
           { role: "assistant", content: "Hi Ana, how can I help?" },
         ],
-        "when do you open?",
-        system,
-        "Hold on.",
-        "Name on record: Ana.",
-        "It is Monday, 10:02.",
-        undefined,
-        undefined,
-        { tenantId: A, subjectId: conversation, configVersion: 1 },
-      );
+        userText: "when do you open?",
+        systemPrompt: system,
+        fallbackText: "Hold on.",
+        leadNote: "Name on record: Ana.",
+        nowNote: "It is Monday, 10:02.",
+        call: { tenantId: A, subjectId: conversation, configVersion: 1 },
+      });
     setPg(db);
     setModelFetch(scripted(json(RESPONSE.record)).fetch);
     const lines = [];

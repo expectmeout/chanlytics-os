@@ -30,7 +30,7 @@ import type { Turn } from "./model-turn";
 export async function claimTheTurn(at: Answering, photo: unknown): Promise<typeof GO | undefined> {
   const { ports, db, tenantId, ing, L, sink } = at;
   const turn = ports.persist.turn;
-  if (!turn || photo || !db || !tenantId || !ing) return GO;
+  if (!turn || photo) return GO;
   const held = await turn.claim(db, tenantId, ing.conversation_id, ing.message_id).catch((e: unknown) => {
     L.warn("wa_turn_unreadable", { error: errField(e) });
     return true;
@@ -49,7 +49,7 @@ export async function claimTheTurn(at: Answering, photo: unknown): Promise<typeo
 export async function stillOurs(at: Answering, t: Turn, photo: unknown): Promise<typeof GO | undefined> {
   const { ports, db, ing, L, sink } = at;
   const turn = ports.persist.turn;
-  if (!turn || photo || !db || !ing) return GO;
+  if (!turn || photo) return GO;
   const held = await turn.holds(db, ing.conversation_id, ing.message_id).catch((e: unknown) => {
     L.warn("wa_turn_unreadable", { error: errField(e) });
     return true;

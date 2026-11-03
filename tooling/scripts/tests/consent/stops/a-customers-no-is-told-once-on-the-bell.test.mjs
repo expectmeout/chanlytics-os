@@ -177,7 +177,8 @@ test("the kind is the bell's line with a mail as the business chooses: never alw
 });
 
 test("the receptionist's gate: a STOP opens no hold, tells nobody itself, sends nothing, and the message is handled as blocked; a later message from the same person asks nobody either", async () => {
-  const run = async (n, ing = null) => {
+  // The ingest's row, as ingest_inbound answers for a STOP it kept: the stop written in the message's own transaction.
+  const run = async (n, ing = { is_new: true, consent: "opted_out", dnc: true }) => {
     const seen = { escalated: [], told: [], processed: [] };
     const out = await firstGates({
       thread: {},

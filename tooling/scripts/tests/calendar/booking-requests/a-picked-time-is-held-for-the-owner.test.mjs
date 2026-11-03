@@ -291,8 +291,8 @@ function world({ answer, takes = true, terms = TERMS, withRequest = true }) {
     page: async () => "sent",
     sender: () => async () => ({ ok: true, wamid: "x", status: 200 }),
     brain: async () => ({
-      generateReply: async (...args) => {
-        seen.calls.push(args[8] ?? null);
+      generateReply: async (ask) => {
+        seen.calls.push(ask.call ?? null);
         return answer;
       },
     }),

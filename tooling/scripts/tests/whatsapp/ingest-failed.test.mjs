@@ -1,8 +1,12 @@
 /**
  * Persist first, or say so. pgIngest returned null for two different facts:
  * "there is no database or no tenant to record for" (by design) and "the
- * write failed" (a loss). The second is now its own error, so the webhook can
- * refuse to acknowledge what it could not record.
+ * write failed" (a loss). The second became its own error, so the webhook can
+ * refuse to acknowledge what it could not record; and since the inbound review
+ * of 3 Nov 2026 (B3) the first is too: a deployment with no database keeps no
+ * message, and the provider is asked to send it again. Every door routes a
+ * message to its workspace before it is kept, so a missing workspace is no
+ * longer a state the ingest is handed.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -40,9 +44,11 @@ const row = {
   paused_until: null,
 };
 
-test("no database or no tenant is null, by design", async () => {
-  assert.equal(await pgIngest(null, "t1", n), null);
-  assert.equal(await pgIngest(fakeDb({}, {}, { ingest_inbound: () => row }), null, n), null);
+test("no database is a message not kept, never a quiet null", async () => {
+  await assert.rejects(
+    () => pgIngest(null, "t1", n),
+    (e) => e instanceof IngestFailed && /no database/.test(e.message),
+  );
 });
 
 test("a write the database refused is IngestFailed, never a quiet null", async () => {

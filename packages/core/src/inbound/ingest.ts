@@ -41,7 +41,7 @@ import type { HoldWords, InboundContext, Ingested } from "./context";
 // copy, and IngestFailed travels up to the webhook, which answers 503 so
 // Meta redelivers (the ingest's is_new gate makes that idempotent). Twilio
 // retries nothing, so the SMS ingress alerts the platform on the same signal.
-async function ingestOrSay(cx: InboundContext): Promise<IngestResult | null> {
+async function ingestOrSay(cx: InboundContext): Promise<IngestResult> {
   const { ports, db, tenantId, n, from, notifyTarget, L, channel } = cx;
   try {
     // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3).
@@ -140,12 +140,12 @@ async function setAside(cx: InboundContext): Promise<boolean> {
  * message waits for its answer, nothing when it was set aside or is a redelivery; IngestFailed when the write failed,
  * which the door answers with a 503 so the provider sends it again.
  */
-export async function recordMessage(cx: InboundContext): Promise<IngestResult | null | undefined> {
+export async function recordMessage(cx: InboundContext): Promise<IngestResult | undefined> {
   if (await setAside(cx)) return undefined;
   // The door that calls this schedules the message's answer next, and that job takes the message in again. The yeses it
   // carries are kept with it here, in the ingest's own transaction (00515), so nothing is left for the job to write.
   const ing = await ingestOrSay(cx);
-  return ing && !ing.is_new ? undefined : ing;
+  return ing.is_new ? ing : undefined;
 }
 
 /**
@@ -176,14 +176,14 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
   // failure. Then the memory, which is the same rows the dashboard reads and
   // writes; a read that cannot be made comes back UNKNOWN and is handed to a
   // person below.
-  const ing: IngestResult | null = await recordOrSay();
+  const ing: IngestResult = await recordOrSay();
 
   // Atomic concurrent-redelivery gate, asked before anything more is read: a message already handled stops here, and
   // the memory and the ways out below are never read or bound for it. ingest_inbound's is_new claim IS the dedupe (a
   // unique index two concurrent lambdas cannot both miss). The job that answers a message after its acknowledgement
   // always meets a redelivery, so it goes on while the message is unprocessed and no reply names it yet: a missed
   // auto-reply beats a double text.
-  if (ing && !ing.is_new && (ing.processed || (await answeredBefore(cx, ing)))) {
+  if (!ing.is_new && (ing.processed || (await answeredBefore(cx, ing)))) {
     L.info("wa_skip_pg_dupe");
     return;
   }
@@ -206,7 +206,7 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
   // that is an address and nothing else, or a few words with one address that is theirs (contracts addressInMessage).
   // Their words are the typed or tapped ones (kind), never a caption, a location or a card that happens to carry one.
   // Only where none is on file; the sink says nothing when it is taken (Part 0 of the campaigns-on-every-channel spec).
-  if (ing && n.kind === "text") {
+  if (n.kind === "text") {
     const given = addressInMessage(n.body);
     if (given) await sink.noteEmail(given);
   }
@@ -248,9 +248,9 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
       target: notifyTarget,
       channel,
       pausedHours,
-      route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",
+      route: `inbox/th-${ing.conversation_id}`,
       who: n.profileName ?? null,
-      about: ing ? { type: "conversation", id: ing.conversation_id } : null,
+      about: { type: "conversation", id: ing.conversation_id },
     });
   };
 

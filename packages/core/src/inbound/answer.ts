@@ -78,8 +78,8 @@ export type InboundInput = InboundAt &
 
 /** Where a message arrived, and when its turn must have its answer by. */
 interface InboundAt {
-  tenantId: string | null;
-  routed: RoutedChannel | null;
+  tenantId: string;
+  routed: RoutedChannel;
   isEnvDefault: boolean;
   /**
    * The job's deadline (ms since the epoch), when the ledger gives one: the turn is held to it and to TURN_BUDGET_MS from

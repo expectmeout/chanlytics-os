@@ -16,8 +16,8 @@ function brain() {
   return {
     calls,
     brain: async () => ({
-      generateReply: async (...args) => {
-        calls.push(args[8] ?? null);
+      generateReply: async (ask) => {
+        calls.push(ask.call ?? null);
         return { text: "We open at 9.", escalate: false, meta, usage: { input_tokens: 40 } };
       },
     }),

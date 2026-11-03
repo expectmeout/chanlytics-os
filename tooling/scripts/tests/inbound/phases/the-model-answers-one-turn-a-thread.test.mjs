@@ -86,7 +86,7 @@ test("REGRESSION (S5): the holding message is filled as it goes out, whether the
   const handedBack = world({ rt, env: { modelKey: "k" } });
   await handedBack.run(text("are you open?"), {
     brain: async () => ({
-      generateReply: async (_h, _t, _s, fallback) => ({ text: fallback, escalate: true, reason: "refusal" }),
+      generateReply: async ({ fallbackText: fallback }) => ({ text: fallback, escalate: true, reason: "refusal" }),
     }),
   });
   assert.deepEqual(
@@ -224,7 +224,7 @@ test("the model is told who the person is with the conversation's channel: a tex
     await w.run(text("are you open?"), {
       leads,
       brain: async () => ({
-        generateReply: async (_h, _t, _s, _f, leadNote) => {
+        generateReply: async ({ leadNote }) => {
           notes.push(leadNote);
           return { text: "We open at 9.", escalate: false, meta: sure };
         },

@@ -363,7 +363,16 @@ function brain(script = ANSWER) {
   return {
     asked,
     port: {
-      generateReply: async (history, userText, system, fallback, leadNote, nowNote, image, steer) => {
+      generateReply: async ({
+        history,
+        userText,
+        systemPrompt: system,
+        fallbackText: fallback,
+        leadNote,
+        nowNote,
+        image,
+        steer,
+      }) => {
         asked.push({ history, userText, system, fallback, leadNote, nowNote, image, steer });
         const a = typeof script === "function" ? await script(asked.length) : script;
         if (a instanceof Error) throw a;

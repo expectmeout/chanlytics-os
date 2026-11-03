@@ -16,6 +16,7 @@ export type {
   InboundPorts,
   InboundRuntime,
   InboundSink,
+  ReplyAsk,
 } from "./ports";
 export { effectiveReplyMode, replyPosture } from "./reply-posture";
 export type { ReplyPosture, RoutingFacts } from "./reply-posture";

@@ -56,7 +56,7 @@ import { heldByThread } from "../deliver-hold";
  */
 async function offersNoteFor(at: Answering): Promise<string | null> {
   const { db, tenantId, ing, ports, channel, L } = at;
-  if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
+  if (channel !== "whatsapp") return null;
   try {
     const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
     return answer ? offersAfterStart(answer, channel) : null;
@@ -72,7 +72,7 @@ async function offersNoteFor(at: Answering): Promise<string | null> {
  */
 async function filedCampaignName(at: Answering): Promise<string | null> {
   const { db, tenantId, ports, channel, L } = at;
-  if (channel !== "sms" || !db || !tenantId || !ports.filing) return null;
+  if (channel !== "sms" || !ports.filing) return null;
   try {
     return (await ports.filing.names(db, tenantId)).campaign;
   } catch (e) {
@@ -88,7 +88,7 @@ async function filedCampaignName(at: Answering): Promise<string | null> {
  */
 async function offersTakenBack(at: Answering): Promise<boolean> {
   const { db, tenantId, ing, ports, L } = at;
-  if (ing?.is_new !== false || !db || !tenantId || !ing.contact_id) return false;
+  if (ing.is_new) return false;
   try {
     const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
     return answer?.marketingConsent === "opted_out";
@@ -340,7 +340,7 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
   // as it does at the reply cap: a margin is a setting, not an accident, and
   // a customer at the cap is never abandoned to a log line.
   const tokenCap = tokenCapOf(replyLimits);
-  if (held === null && tokenCap > 0 && db && tenantId) {
+  if (held === null && tokenCap > 0) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
