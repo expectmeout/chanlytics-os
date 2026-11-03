@@ -134,7 +134,7 @@ test("someone erased is a customer: no name, no words, no number, no hold's word
 });
 
 test("the notice a hold that could not be written is told by (the handler's own, in the edge) says the same words and the same verb as the one read from its rows", async () => {
-  const { handoffMessage } = await import("../../../../../apps/edge/lib/whatsapp/alerts.ts");
+  const { handoffMessage } = await import("../../../../../apps/edge/lib/inbound/alerts.ts");
   const said = (reason, over = {}) =>
     handoffMessage({
       threadId: "13055550100",

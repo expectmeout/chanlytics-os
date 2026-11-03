@@ -49,7 +49,7 @@ test("the clock names the day when it is not today", () => {
 });
 
 test("the wiring: words on the edge, a bounded reply on both sides, the layout fixes, and nothing of the workshop on a customer's screen", () => {
-  const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
+  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
   assert.ok(
     alerts.includes("subject: `${name} needs a person — ${why}`") &&
       alerts.includes("about: ctx.about ?? null,") &&

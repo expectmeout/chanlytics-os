@@ -204,7 +204,7 @@ const wa = read("packages/core/src/inbound/model-turn.ts");
 // describeLead is a VALUE from the db package, which a core verb may not
 // import, so the receptionist reaches the one description through a port. The
 // edge is where the two are joined.
-const waPorts = read("apps/edge/lib/whatsapp/ports.ts");
+const waPorts = read("apps/edge/lib/inbound/ports.ts");
 const brain = read("apps/edge/lib/receptionist/brain.ts");
 
 test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {

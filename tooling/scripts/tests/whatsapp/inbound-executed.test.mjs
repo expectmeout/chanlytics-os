@@ -24,7 +24,7 @@ import { FROM, FROM_ITS_EVENT, GREETING, ingested, runtime, text, world } from "
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { IngestFailed, pgSink } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { IngestFailed, pgSink } = await import(at("apps/edge/lib/inbound/persist.ts"));
 
 test("no model key: the workspace's greeting leaves labelled a fallback, the thread goes to a person, the platform is paged once", async () => {
   const w = world();
@@ -296,7 +296,7 @@ test("a message the database kept, whose yes did not land, still surfaces as Ing
   assert.equal(w.seen.sent.length, 0, "and nothing is said to a customer whose yes is not yet kept");
 });
 
-test("only the door of a message a job answers next leaves a failed yes to that job: the job's visit and the webhook's raise it", async () => {
+test("only the door of a message a job answers next leaves a failed yes to that job: the job's visit raises it", async () => {
   const w = world();
   await w.record(text("YES OFFERS", "wamid.job-1"));
   assert.deepEqual(w.seen.visits, [{ jobFollows: true }], "the door that schedules the answer says so");
@@ -307,7 +307,7 @@ test("only the door of a message a job answers next leaves a failed yes to that 
     "the job that answers it asks for nothing: a yes that fails there is raised",
   );
   await w.run(text("YES OFFERS", "wamid.direct-1"));
-  assert.deepEqual(w.seen.visits.at(-1), null, "and so does a webhook that answers in its own request");
+  assert.deepEqual(w.seen.visits.slice(-2), [{ jobFollows: true }, null], "every message's door, then its job");
 });
 
 test("STOP records the opt-out, opens no hold, tells nobody itself, answers nothing, and keeps no second copy of the answer", async () => {
@@ -1647,7 +1647,8 @@ test("a reply that could not be delivered, over the real sink: the stamp is writ
 test("the line a message came in on travels with its ingest, for the first touch the database stamps (K3)", async () => {
   const w = world();
   await w.run(text("hi"));
-  assert.deepEqual(w.seen.lines, ["c1"], "the routed channel's id: the line that took the message");
+  // The door's ingest and its job's: both carry the routed channel's id, the line that took the message.
+  assert.deepEqual(w.seen.lines, ["c1", "c1"], "the routed channel's id: the line that took the message");
 });
 
 /* ------------------------------------------ the ask for the yes to offers: the conversation's channel reaches the note */

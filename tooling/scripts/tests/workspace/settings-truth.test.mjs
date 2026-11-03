@@ -92,7 +92,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   const inbound = ["unreadable", "dispatch", "ingest"]
     .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
     .join("\n");
-  const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
+  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
   // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
   // the default day when none is set, is run in whatsapp-door.test.mjs.
   assert.ok(

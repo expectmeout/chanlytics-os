@@ -79,27 +79,26 @@ interface InboundAt {
   tenantId: string | null;
   routed: RoutedChannel | null;
   isEnvDefault: boolean;
-  /**
-   * The job that answers a text after its acknowledgement (recordInbound recorded it in the door): its ingest is a
-   * redelivery, and the message is answered while it is unprocessed and no reply names it yet.
-   */
-  resume?: boolean;
 }
 
 /**
- * The door's half of a text answered after its acknowledgement (decision 0031, Phase 2): the message set aside or
- * recorded, nothing decided about the answer. The ingest's row when it waits for its answer, which a job gives it
- * (answerInbound with `resume`); null when it was set aside, is a redelivery, or there is nowhere to record it;
- * IngestFailed when the write failed, so the door refuses and the provider sends it again.
+ * The door's half of a message answered after its acknowledgement (decision 0031, on every wire): the message set aside
+ * or recorded, nothing decided about the answer. The ingest's row when it waits for its answer, which its job gives it
+ * (answerInbound); null when it was set aside, is a redelivery, or there is nowhere to record it; IngestFailed when the
+ * write failed, so the door refuses and the provider sends it again.
  */
 export async function recordInbound(input: InboundInput, ports: InboundPorts): Promise<IngestResult | null> {
   const cx = await openInbound(input, ports);
   return (await recordMessage(cx)) ?? null;
 }
 
+/**
+ * The job's half: the message its door recorded, taken up again and answered. Its ingest is a redelivery by
+ * construction, and it goes on while the message is unprocessed and no reply names it (./ingest.ts).
+ */
 export async function answerInbound(input: InboundInput, ports: InboundPorts): Promise<void> {
   const cx = await openInbound(input, ports);
-  const kept = await ingestMessage(cx, input.resume === true);
+  const kept = await ingestMessage(cx);
   if (!kept) return;
   const at = { ...cx, ...kept, ...(await modeInForce(cx, kept.ing)) };
   if ((await firstGates(at)) !== GO) return;

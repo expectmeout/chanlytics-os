@@ -211,7 +211,7 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
 
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
   // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
-  // The message path is a verb over ports now, and apps/edge/lib/whatsapp/inbound.ts
+  // The message path is a verb over ports now, and apps/edge/lib/inbound/arrival.ts
   // is its adapter: handleInbound takes the one inbound shape (decision 0001, step 3),
   // which whatsapp-door.test.mjs and inbound-executed.test.mjs CALL rather than read.
   // The verb is answer.ts's order of phases, each declared in a module beside it
@@ -263,7 +263,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
     !inbound.includes("violatesNoPrices(") && !inbound.includes("policyAskClass("),
     "the words are checked in one place",
   );
-  const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
+  const persist = readCode("apps/edge/lib/inbound/persist.ts");
   for (const s of [
     "export async function pgIngest(",
     "export async function pgSafe<T>(",
@@ -272,7 +272,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
     "export async function pgThread(",
   ])
     assert.ok(persist.includes(s), s);
-  const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
+  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
   for (const s of ["export async function alertStaff(", "export async function alertUnroutable("])
     assert.ok(alerts.includes(s), s);
   assert.ok(!alerts.includes("sendText("), "the customer is not texted from the alerts module: the door does that");

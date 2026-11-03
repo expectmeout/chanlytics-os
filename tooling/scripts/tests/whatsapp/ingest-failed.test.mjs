@@ -12,7 +12,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { pgIngest, IngestFailed } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/inbound/persist.ts")).href
 );
 
 /** A WhatsApp message in the one inbound shape, as its door hands it over (decision 0001, step 3). */

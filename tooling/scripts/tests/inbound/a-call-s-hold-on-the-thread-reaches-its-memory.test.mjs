@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { pgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href);
+const { pgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/inbound/persist.ts")).href);
 
 const T = "11111111-1111-1111-1111-111111111111";
 const conversation = (id, over = {}) => ({

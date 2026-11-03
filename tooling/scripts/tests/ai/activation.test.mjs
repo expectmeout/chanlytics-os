@@ -11,7 +11,7 @@ import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
-const { pgSink } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { pgSink } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 after(() => setPg(null));
 

@@ -101,7 +101,7 @@ const DOOR = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 /**
  * What Vercel hands a method export beside the request: its runtime calls
  * `webHandler(request, new FetchEvent(request))`, and Vercel's FetchEvent
- * carries `waitUntil` (lib/whatsapp/ports.ts). Every knock carries one, so
+ * carries `waitUntil` (lib/inbound/ports.ts). Every knock carries one, so
  * every case runs the door the way production calls it.
  */
 const event = () => ({ waitUntil: () => {} });

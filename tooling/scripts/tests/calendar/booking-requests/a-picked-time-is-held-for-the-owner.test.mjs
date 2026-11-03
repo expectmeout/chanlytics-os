@@ -33,8 +33,8 @@ import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { handleInbound } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
-const { pgSink } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { answerArrival } = await import(at("apps/edge/lib/inbound/arrival.ts"));
+const { pgSink } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const { takesRequests } = await import(at("apps/edge/lib/calendar/availability.ts"));
 
 const TZ = "America/New_York";
@@ -300,7 +300,11 @@ function world({ answer, takes = true, terms = TERMS, withRequest = true }) {
   };
   // The message as its door hands it over (decision 0001, step 3): WhatsApp's own, in the one shape.
   const inbound = (body) => inboundFromWhatsapp(message(body), value);
-  return { seen, run: (body) => handleInbound({ inbound: inbound(body), carrier: null }, "t1", routed, false, ports) };
+  // Its job's half, which every message takes since its door records it (lib/inbound/arrival.ts answerArrival).
+  return {
+    seen,
+    run: (body) => answerArrival({ inbound: inbound(body), carrier: null, isEnvDefault: false }, routed, ports),
+  };
 }
 
 test("a time the code finds open: the request and its hold through the sink's door, the reply as written, the thread a person's", async () => {

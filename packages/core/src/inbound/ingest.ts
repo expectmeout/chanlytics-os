@@ -5,18 +5,18 @@
  * ingestMessage takes the InboundContext that openInbound bound and returns Ingested (./context.ts), or nothing when
  * the message stops here. A short code (a sender nothing can be sent back to) is recorded and not answered, and so is a
  * sender off the pilot allowlist, which binds only the environment's own WhatsApp number and is compared as digits on
- * both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim; processed-state is not
- * consulted, because a missed auto-reply beats a double text. Every other message is persisted before anything can
+ * both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim, once it is processed or a reply
+ * names it, because a missed auto-reply beats a double text. Every other message is persisted before anything can
  * fail, its memory is read back through the persist port (a thread that cannot be read comes back UNKNOWN, and
  * ./gates.ts hands it to a person), an address the customer gives in their own typed or tapped words is kept where none
  * is on file, and the three ways out that every later phase speaks through are bound here, where the credentials are:
  * wire shapes the words for the carrier (the texting footer on a first reply), send goes through the sink's one door,
  * which re-reads consent, the pause and the workspace's status, and tell is the owner's handoff mail.
  *
- * A text is answered after its acknowledgement (decision 0031, Phase 2): its door records it (recordMessage, which sets
- * aside a short code and a sender off the allowlist as the whole phase does) and answers Twilio, and a job takes it up
- * again through the whole phase with `resume`. Its ingest is then a redelivery by construction, so the replay gate lets
- * it through while the message is unprocessed and nothing has answered it yet (the persist port's `answered`, which
+ * Every message is answered after its acknowledgement (decision 0031): its door records it (recordMessage, which sets
+ * aside a short code and a sender off the allowlist as the whole phase does) and answers the provider, and a job takes it
+ * up again through the whole phase. Its ingest is then a redelivery by construction, so the replay gate lets it through
+ * while the message is unprocessed and nothing has answered it yet (the persist port's `answered`, which
  * reads the reply that names it): a job taken up again after a runner died mid-turn still answers, and one whose turn
  * already reached a reply says nothing twice and leaves the stamp to the deadman sweep.
  *
@@ -172,10 +172,10 @@ async function answeredBefore(cx: InboundContext, ing: IngestResult): Promise<bo
 
 /**
  * The message recorded and its memory read, with the three ways out bound; nothing when it stops here: a short
- * code, a sender off the pilot allowlist, or a redelivery. `resume` is the job that answers a text after its
- * acknowledgement: its own redelivery goes on while the message is unprocessed and unanswered.
+ * code, a sender off the pilot allowlist, or a redelivery already answered. Its job's own visit is a redelivery, and
+ * goes on while the message is unprocessed and unanswered.
  */
-export async function ingestMessage(cx: InboundContext, resume = false): Promise<Ingested | undefined> {
+export async function ingestMessage(cx: InboundContext): Promise<Ingested | undefined> {
   const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
   const recordOrSay = () => ingestOrSay(cx);
   if (await setAside(cx)) return;
@@ -186,13 +186,12 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
   // person below.
   const ing: IngestResult | null = await recordOrSay();
 
-  // Atomic concurrent-redelivery gate, asked before anything more is read: a redelivery (Meta's retries are the common
-  // case) stops here, and the memory and the ways out below are never read or bound for it. ingest_inbound's is_new
-  // claim IS the dedupe, and it is stronger than the `seen` array the retired store kept (a unique index two concurrent
-  // lambdas cannot both miss). A missed auto-reply beats a double text, so processed-state is deliberately not
-  // consulted -- but by a job that answers a message after its acknowledgement, whose ingest is always a redelivery: it
-  // goes on while the message is unprocessed and no reply names it yet.
-  if (ing && !ing.is_new && !(resume && !ing.processed && !(await answeredBefore(cx, ing)))) {
+  // Atomic concurrent-redelivery gate, asked before anything more is read: a message already handled stops here, and
+  // the memory and the ways out below are never read or bound for it. ingest_inbound's is_new claim IS the dedupe (a
+  // unique index two concurrent lambdas cannot both miss). The job that answers a message after its acknowledgement
+  // always meets a redelivery, so it goes on while the message is unprocessed and no reply names it yet: a missed
+  // auto-reply beats a double text.
+  if (ing && !ing.is_new && (ing.processed || (await answeredBefore(cx, ing)))) {
     L.info("wa_skip_pg_dupe");
     return;
   }

@@ -75,10 +75,6 @@ export const env = {
   get WHATSAPP_TEST_ALLOWLIST() {
     return trimmedEnv(process.env.WHATSAPP_TEST_ALLOWLIST);
   },
-  /** Switch: the workspaces whose WhatsApp messages are answered by a job after the webhook's 200; empty, none are. */
-  get WHATSAPP_ANSWERS_AS_JOBS() {
-    return trimmedEnv(process.env.WHATSAPP_ANSWERS_AS_JOBS);
-  },
 
   // Instagram (the Instagram API with Instagram Login: decision 0001, step 8)
   get INSTAGRAM_APP_ID() {

@@ -97,7 +97,7 @@ const DOOR = "http://edge/api/jobs/tick";
 /**
  * What Vercel hands a method export beside the request: its runtime calls
  * `webHandler(request, new FetchEvent(request))`, and Vercel's FetchEvent
- * carries `waitUntil` (lib/whatsapp/ports.ts). Every knock carries one.
+ * carries `waitUntil` (lib/inbound/ports.ts). Every knock carries one.
  */
 const event = () => ({ waitUntil: () => {} });
 /** pg_net's call, as trigger_jobs_tick makes it: a bare POST with the sweep key in its header. `null` sends no key. */

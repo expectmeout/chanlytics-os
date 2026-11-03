@@ -1,6 +1,6 @@
 /**
  * The receptionist's world, as inbound-executed.test.mjs (whatsapp/) runs the message path over it: the edge's adapter
- * (apps/edge/lib/whatsapp/inbound.ts) for real, its pure gates as themselves, and everything outside them (the database,
+ * (apps/edge/lib/inbound/arrival.ts) for real, its pure gates as themselves, and everything outside them (the database,
  * the memory, the tenant runtime, the sink, the alerts, the pager, the model) as fakes handed in through ports.ts. A
  * fixture is a WhatsApp message as Meta sends it, handed over in the one shape its door makes of it (decision 0001, step
  * 3), on the world's line when the world has one.
@@ -21,7 +21,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { handleInbound, recordInboundMessage, resumeInbound } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
+const { recordArrival, answerArrival } = await import(at("apps/edge/lib/inbound/arrival.ts"));
 
 export const GREETING = "Thanks for writing to Harbor Nails. A person will be with you shortly.";
 const NOTIFICATIONS = () => ({
@@ -301,11 +301,13 @@ export function world(over = {}) {
     const n = { ...inboundFromWhatsapp(m, value), ...(over.carrier ? { channel: over.carrier.channel ?? "sms" } : {}) };
     return over.shape ? over.shape(n) : n;
   };
-  /** The door's half of a text answered after its acknowledgement: recorded, nothing answered (recordInboundMessage). */
+  /** The fixture as its door hands it over: the one shape, with its wire's carrier (lib/inbound/arrival.ts Arrival). */
+  const arrivalOf = (m) => ({ inbound: shaped(m), carrier: over.carrier ?? null, isEnvDefault: !!over.isEnvDefault });
+  /** The door's half: recorded, nothing answered (recordArrival). */
   const record = async (m) => {
     const unbind = bind(m);
     try {
-      return await recordInboundMessage(shaped(m), "t1", routed, over.carrier ?? null, ports);
+      return await recordArrival(arrivalOf(m), routed, ports);
     } finally {
       unbind();
     }
@@ -319,11 +321,13 @@ export function world(over = {}) {
       processed: seen.processed,
     };
     const all = { ...ports, ...extra };
-    const out = await (
-      resume
-        ? resumeInbound(shaped(m), "t1", routed, over.carrier ?? null, all)
-        : handleInbound({ inbound: shaped(m), carrier: over.carrier ?? null }, "t1", routed, !!over.isEnvDefault, all)
-    ).finally(unbind);
+    // As production takes a message on every wire: its door records it, and its job answers it (lib/inbound/arrival.ts).
+    // `resume` is a job taken up again with no door before it (a runner that died mid-turn).
+    const taken = async () => {
+      if (!resume && !(await recordArrival(arrivalOf(m), routed, all))) return;
+      return answerArrival(arrivalOf(m), routed, all);
+    };
+    const out = await taken().finally(unbind);
     // The rule behind every stamp (contracts HANDLED_OUTCOMES), in both directions, over EVERY message the world
     // processed or escalated for: it carries a stamp, one of the four words, and the stamp is a handoff exactly when an
     // escalation LANDED for it (a write the database refused asked nobody). A way out that marks the message or asks a

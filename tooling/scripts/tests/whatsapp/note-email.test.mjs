@@ -1,6 +1,6 @@
 /**
  * The real sink keeps an address a customer wrote, or leaves one alone.
- * pgSink.noteEmail (apps/edge/lib/whatsapp/persist.ts) is the one place the
+ * pgSink.noteEmail (apps/edge/lib/inbound/persist.ts) is the one place the
  * inbound path writes contacts.email: it reads the person's row first, because
  * the door set_person_email (00171) itself overwrites, and calls the door only
  * where nothing is on file. Every outcome here resolves -- the sink never throws
@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { pgSink } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href);
+const { pgSink } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/inbound/persist.ts")).href);
 
 const ing = {
   message_id: "m1",

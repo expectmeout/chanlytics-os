@@ -25,7 +25,7 @@ import {
 import { MIN_MS, phoneTail } from "../packages/contracts.js";
 import { logger, type Logger } from "../log.js";
 import { flagLateFailure } from "../receptionist/late-failure.js";
-import { pgSafe } from "./persist.js";
+import { pgSafe } from "../inbound/persist.js";
 
 type Receipt = NonNullable<WaChangeValue["statuses"]>[number];
 

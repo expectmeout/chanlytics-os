@@ -393,7 +393,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     ),
     "a held draft is written for its wire",
   );
-  const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
+  const persist = readCode("apps/edge/lib/inbound/persist.ts");
   assert.ok(
     persist.includes('channel: InboundChannel = "whatsapp"') &&
       /to,\s*channel,\s*sender: "ai",\s*purpose,\s*\.\.\.AN_ANSWER,/.test(persist) &&
@@ -455,7 +455,7 @@ test("a handoff names the wire the customer actually wrote on", async () => {
   // redacted notice, so an owner whose customer TEXTED was sent to go and
   // answer a WhatsApp thread that does not exist, on a number that had never
   // used WhatsApp.
-  const { handoffMessage } = await import("../../../../apps/edge/lib/whatsapp/alerts.ts");
+  const { handoffMessage } = await import("../../../../apps/edge/lib/inbound/alerts.ts");
   const of = (channel) =>
     handoffMessage({
       threadId: "13055550100",

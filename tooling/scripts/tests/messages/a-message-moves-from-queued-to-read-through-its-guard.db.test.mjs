@@ -1,6 +1,6 @@
 /**
  * A message's whole life against the real messages_guard (00015, 00111, 00177): written by the edge's persistence
- * (apps/edge/lib/whatsapp/persist.ts: the held draft queueReply writes, the answer its sink sends now), sent through
+ * (apps/edge/lib/inbound/persist.ts: the held draft queueReply writes, the answer its sink sends now), sent through
  * the one door (core deliver.ts, as the outbound_send job runs it through dispatchJob, and as the sink calls it), and
  * then moved by Meta's status receipts the way the WhatsApp door records them (db recordStatusByExternalId). #1100's
  * lesson: every move a writer makes, in its order, against the trigger, and the row asserted where it ends -- with no
@@ -189,7 +189,7 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   jobs = await import(at("packages/jobs/src/index.ts"));
-  persist = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+  persist = await import(at("apps/edge/lib/inbound/persist.ts"));
   ({ recordStatusByExternalId } = await import("@chanlytics/db"));
   ({ whatsappWire } = await import(at("packages/core/src/index.ts")));
   stubGraph();

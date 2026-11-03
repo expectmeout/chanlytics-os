@@ -34,14 +34,12 @@
  * for a person instead of answering. The carrier's opt-out and the STOP words are read as the person's consent.
  *
  * It is answered after the acknowledgement (decision 0031, Phase 2): Twilio waits fifteen seconds for this answer, and a
- * model's turn can take longer. The door records the text (recordInboundMessage, core recordInbound: set aside, or
- * kept, nothing decided) and schedules its answer as a job (inbound_answer, once per message, in the reply lane), then
- * answers Twilio. The job (answerText) reads the line and its routing again and takes the text up again through the
- * whole phase (resumeInbound), so a runner killed mid-turn leaves a job the ledger claims again, which answers while
- * the message is unprocessed and no reply names it, and never texts twice. A job the database refuses (one before 00347
- * fails the kind's CHECK) is said (sms_answer_unscheduled) and the text is answered here, as before; any other failure
- * to write it may be a write that landed, so nothing is answered here and the deadman sweep hands a text no job holds
- * to a person. When recording throws, only a text the database did not keep (IngestFailed) is refused, with a 503 so the
+ * model's turn can take longer. The door records the text and schedules its answer as a job (lib/inbound/arrival.ts
+ * recordThenSchedule: inbound_answer, once per message, in the reply lane), then answers Twilio. The job (answerText)
+ * reads the line and its routing again and takes the text up again through the whole phase (answerArrival), so a runner
+ * killed mid-turn leaves a job the ledger claims again, which answers while the message is unprocessed and no reply
+ * names it, and never texts twice. A job that could not be written may be a write that landed, so nothing is answered
+ * here and the deadman sweep hands a text no job holds to a person. When recording throws, only a text the database did not keep (IngestFailed) is refused, with a 503 so the
  * provider redelivers, and the platform is told; anything later already happened after the words were recorded, and
  * is acknowledged.
  *
@@ -55,14 +53,14 @@ import { text } from "../http.js";
 import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { smsInboundFrom, inboundFromSms, type SmsInbound } from "../packages/channels.js";
-import type { Database, IngestResult, Json } from "../packages/db.js";
-import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
+import type { Database } from "../packages/db.js";
+import type { ClaimedJob } from "../packages/jobs.js";
 import { smsSenderFor, type SmsSender } from "./sms.js";
 import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./sms-ingress.js";
-import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
-import { alertUnroutable } from "../whatsapp/alerts.js";
-import { IngestFailed } from "../whatsapp/persist.js";
-import { errField, logger } from "../log.js";
+import { answerArrival, recordThenSchedule, spokeFirst } from "../inbound/arrival.js";
+import { alertUnroutable } from "../inbound/alerts.js";
+import { IngestFailed } from "../inbound/persist.js";
+import { logger } from "../log.js";
 import { oneTimeCodeOf, phoneTail } from "../packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
@@ -136,10 +134,11 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   const receivedAt = Date.now();
   const message = inboundFromSms(inbound, receivedAt);
   try {
-    // Recorded, then answered by its job; answered here only when the database refused the job's kind.
-    const ing = await recordInboundMessage(message, routed.tenantId, routed, carrier);
-    if (ing && (await answerLater(db, routed.tenantId, answerPayload(form, receivedAt, ing), L)) === "refused")
-      await resumeInbound(message, routed.tenantId, routed, carrier);
+    // Recorded, and answered by its job.
+    await recordThenSchedule(db, { inbound: message, carrier }, routed, {
+      text: textFields(form),
+      received_at: receivedAt,
+    });
   } catch (e) {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
     // Twilio retries nothing on its own: a text the database did not accept is
@@ -164,58 +163,13 @@ function textFields(form: Record<string, string>): Record<string, string> {
 }
 
 /**
- * What a text's job carries: the text, when it came (the staleness check reads it), and the rows it was kept as. The
- * message, its thread and its person are named so an erasure cancels a job still waiting and scrubs one finished
- * (erase_contact, scrubErasedJobs).
- */
-function answerPayload(form: Record<string, string>, receivedAt: number, ing: IngestResult): Json {
-  return {
-    text: textFields(form),
-    received_at: receivedAt,
-    message_id: ing.message_id,
-    conversation_id: ing.conversation_id,
-    contact_id: ing.contact_id,
-  };
-}
-
-/**
- * The text's answer scheduled as its job, once per message, due now. `refused` when the database refused the kind (one
- * before 00347 fails its CHECK), and the door then answers the text itself. Any other failure may be a write that
- * landed and an answer that did not come back (a timeout), so the door answers nothing: a job that exists answers it,
- * and the deadman sweep hands a text with none to a person. A missed auto-reply beats a double text.
- */
-async function answerLater(
-  db: Db,
-  tenantId: string,
-  payload: Json,
-  L: ReturnType<typeof logger>,
-): Promise<"scheduled" | "refused" | "unknown"> {
-  try {
-    await scheduleJobOnce(db, { tenantId, kind: "inbound_answer", dueAt: new Date(), payload });
-    return "scheduled";
-  } catch (e) {
-    const refused = (e as { code?: unknown }).code === CHECK_REFUSED;
-    L.warn("sms_answer_unscheduled", { refused, error: errField(e) });
-    return refused ? "refused" : "unknown";
-  }
-}
-
-/** Postgres's code for a row a CHECK refuses (check_violation). */
-const CHECK_REFUSED = "23514";
-
-/**
  * The line's sender for a job: the job says it is about to speak before the provider is called (jobs markSpoke), so a
  * run that is killed with the text in flight, or throws after it left, is never run again to text the person twice.
  * A mark that cannot be written throws at the wire, so nothing is sent and the send door answers as it does for any
  * wire it could not use: the thread is flagged for a person and the owner told. A missed answer beats a second one.
  */
 function speakingOnce(db: Db, job: ClaimedJob, sender: SmsSender): SmsSender {
-  return {
-    send: async (to, body) => {
-      await markSpoke(db, job);
-      return sender.send(to, body);
-    },
-  };
+  return { send: spokeFirst(db, job, (to: string, body: string) => sender.send(to, body)) };
 }
 
 /**
@@ -240,5 +194,5 @@ export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
   const carrier = carrierFor(held, sender && speakingOnce(db, job, sender));
   const L = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
   L.info("sms_answer_taken_up", { held });
-  await resumeInbound(inboundFromSms(inbound, receivedAt), routed.tenantId, routed, carrier);
+  await answerArrival({ inbound: inboundFromSms(inbound, receivedAt), carrier }, routed);
 }

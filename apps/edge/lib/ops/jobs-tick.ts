@@ -36,7 +36,7 @@ import { replyReader } from "../reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../calendar/freed-time-offer.js";
-import { answerInboundJob } from "../whatsapp/answer-later.js";
+import { answerInboundJob } from "../inbound/answer-job.js";
 import {
   runTick,
   claimNext,

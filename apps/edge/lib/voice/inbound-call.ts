@@ -49,7 +49,7 @@ import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { planCallStartWithin } from "./call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../packages/db.js";
-import { alertUnroutable } from "../whatsapp/alerts.js";
+import { alertUnroutable } from "../inbound/alerts.js";
 import { logger } from "../log.js";
 import { keptUrl, voiceDoorAuth } from "./voice-door-auth.js";
 

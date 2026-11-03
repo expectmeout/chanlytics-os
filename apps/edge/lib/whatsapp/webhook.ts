@@ -4,7 +4,8 @@
  *
  * The door is api/whatsapp.ts: `door(receiveWhatsappEvent)`, which names the request the platform's way (log.ts).
  * Everything a delivery does is here, in the order the door had it: the signature is checked against the app secret
- * (fail-closed), each change routed by its phone number id or its WABA, and the message path run process-then-200.
+ * (fail-closed), each change routed by its phone number id or its WABA, and each message recorded and its answer
+ * scheduled as a job (./answer-later.ts) before Meta is answered.
  *
  * Production engine: inbound message -> guardrailed Claude brain -> reply,
  * with history, human-pause (coexistence echoes), rate caps, staleness guard,
@@ -17,25 +18,24 @@
  * a kept WhatsApp Business app shares (its contacts, its chats' history:
  * decision 0073, R21) is handed on by the kept delivery's key, and brought in
  * parts by lib/imports/whatsapp-history.ts. The
- * message path is lib/whatsapp/inbound.ts, the edge's adapter onto the
+ * message path is lib/inbound/arrival.ts, the edge's adapter onto the
  * receptionist verb in packages/core/src/inbound; its Postgres bookkeeping
- * lib/whatsapp/persist.ts; the people it tells lib/whatsapp/alerts.ts; its
+ * lib/inbound/persist.ts; the people it tells lib/inbound/alerts.ts; its
  * pure decisions packages/core/src/inbound/steps.ts.
  *
- * Contract (frozen during Meta App Review): process-then-200 in-invocation
- * under maxDuration 60; Meta retries + dedupe make replays safe. A workspace
- * the edge names in WHATSAPP_ANSWERS_AS_JOBS takes the other road instead
- * (record, schedule the answer, 200: lib/whatsapp/answer-later.ts); unset,
- * which is the default, nothing here changes.
+ * Contract: a message is recorded and its answer scheduled, then Meta is told
+ * 200 (decision 0031, Phase 3: every message since 3 Nov 2026, as a text has
+ * been since 00347); the model's turn runs in the message's job, never inside
+ * Meta's request. Meta retries anything else, and the replay gate makes a
+ * redelivery safe.
  *
  * THE MEMORY IS POSTGRES, and there is no other. History, the pause and the
  * rate cap are the same rows the dashboard reads and writes, and the dedupe
  * is ingest_inbound's atomic is_new claim — a unique index two concurrent
  * lambdas cannot both miss. A read that cannot be made has nowhere to fall
  * back to, so the thread is handed to a human (state_unavailable) rather than
- * answered from an invented empty history. The PgSink no-ops when Postgres is
- * unconfigured, so the frozen send order holds with no database at all; what
- * does not hold is the receptionist answering, which is the point.
+ * answered from an invented empty history. With no database a message cannot be
+ * recorded, so it is not acknowledged either: Meta sends it again.
  * wa_replied logs carry ingest_ms/post_ms (blueprint latency budget).
  *
  * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
@@ -51,11 +51,11 @@ import { pg } from "../pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { answerHereOrLater } from "./answer-later.js";
+import { recordWhatsapp } from "./answer-later.js";
 import { handDeliveryOn } from "../imports/history-import.js";
 import { recordReceipts } from "./receipts.js";
-import { pgSafe, IngestFailed } from "./persist.js";
-import { alertUnroutable } from "./alerts.js";
+import { pgSafe, IngestFailed } from "../inbound/persist.js";
+import { alertUnroutable } from "../inbound/alerts.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
 
@@ -220,7 +220,6 @@ async function handleChange(
     return owed;
   }
   const phoneNumberId = v.metadata?.phone_number_id;
-  const isEnvDefault = !!phoneNumberId && phoneNumberId === (env.WHATSAPP_PHONE_ID || "");
   if (db && phoneNumberId) {
     const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
     if (routed) {
@@ -269,22 +268,7 @@ async function handleChange(
     });
     await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
   } else if (field === "messages" && v.messages) {
-    for (const m of v.messages) {
-      // A tail and a type, never the number or the words: the row under RLS
-      // holds those, and a log is read by whoever reads logs.
-      L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });
-      // Per MESSAGE, not per batch. Any throw used to unwind to the one
-      // outer catch below, which returns 200 — so a single failure meant
-      // Meta never retried AND every remaining message in the batch was
-      // never handled at all. The message itself is already persisted by
-      // then, so it stays visible for reconciliation.
-      try {
-        await answerHereOrLater(m, v, tenantId, routedChannel, isEnvDefault);
-      } catch (e) {
-        if (e instanceof IngestFailed) owed += 1;
-        L.error("wa_inbound_failed", { id: m.id, error: errField(e) });
-      }
-    }
+    owed += await takeMessages(db, routedChannel, v, phoneNumberId);
   } else if ((field === "messages" && v.statuses) || field === "smb_message_echoes") {
     // A receipt and an owner's echo are the database's to keep, as a message is, so one whose number could not
     // be routed is not acknowledged either: the 503 below has Meta send it again, and each is safe to receive
@@ -301,6 +285,44 @@ async function handleChange(
     owed += await handHistory(db, field, delivery, { tenantId, unroutable, routingFailed, phoneNumberId });
   } else {
     L.info("wa_event", { field });
+  }
+  return owed;
+}
+
+/**
+ * A change's messages, each recorded and its answer scheduled as its job (./answer-later.ts recordWhatsapp). How many the
+ * database did not keep, which the door must not acknowledge: every one when there is no database to keep them in. A
+ * change that names no number to route by is nobody's to answer, and is said as a number no workspace holds is.
+ */
+async function takeMessages(
+  db: ReturnType<typeof pg>,
+  routed: RoutedChannel | null,
+  v: WaChangeValue,
+  phoneNumberId: string | undefined,
+): Promise<number> {
+  const messages = v.messages ?? [];
+  if (!db) {
+    L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId, messages: messages.length });
+    return messages.length;
+  }
+  if (!routed) {
+    L.error("wa_skip_unroutable", { phone_number_id: phoneNumberId ?? null, messages: messages.length });
+    await alertUnroutable("whatsapp", phoneNumberId, messages.length);
+    return 0;
+  }
+  let owed = 0;
+  for (const m of messages) {
+    // A tail and a type, never the number or the words: the row under RLS holds those, and a log is read by whoever
+    // reads logs.
+    L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });
+    // Per MESSAGE, not per batch: one that throws costs only itself. Only a message the database did not keep is owed;
+    // anything later already happened after the words were recorded, and stays visible for reconciliation.
+    try {
+      await recordWhatsapp(db, m, v, routed);
+    } catch (e) {
+      if (e instanceof IngestFailed) owed += 1;
+      L.error("wa_inbound_failed", { id: m.id, error: errField(e) });
+    }
   }
   return owed;
 }
