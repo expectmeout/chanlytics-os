@@ -33,7 +33,7 @@ export const CHECK_AFTER_MS = 10 * MIN_MS;
 export const CHECK_WITHIN_MS = 45 * MIN_MS;
 
 /** What the canary reaches outside the database: the provider, its two settings, the clock and the pager. */
-export interface CanaryWorld {
+interface CanaryWorld {
   provider: LineProviderChoice | null;
   service: string | null;
   to: string | null;

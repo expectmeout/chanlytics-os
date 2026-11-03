@@ -20,7 +20,7 @@ import { answerText } from "../sms/inbound-text.js";
 type Db = SupabaseClient<Database>;
 
 /** The wires an answer job answers on. */
-export type AnswerWire = "whatsapp" | "sms" | "instagram";
+type AnswerWire = "whatsapp" | "sms" | "instagram";
 
 /**
  * The wire an answer job is for: its payload says it (`wire`, since 3 Nov 2026). A job its door wrote before then is read

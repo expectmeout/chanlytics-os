@@ -95,7 +95,7 @@ export async function noteHandledAfter(
 }
 
 /** A message a person must answer, as a gate hands it over. */
-export interface HandOver {
+interface HandOver {
   /** The hold's reason: the Inbox's words for it, and the owner's notice's (alerts.ts whyOf). */
   reason: EscalationReason;
   /** The hold's details, as the Inbox shows them. */

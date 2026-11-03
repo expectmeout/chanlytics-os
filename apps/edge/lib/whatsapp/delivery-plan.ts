@@ -21,7 +21,7 @@
 export type WaRouting = "routed" | "lookup_failed" | "unroutable" | "no_database";
 
 /** What one change carried, by kind. */
-export interface WaChangeCounts {
+interface WaChangeCounts {
   messages: number;
   statuses: number;
   echoes: number;

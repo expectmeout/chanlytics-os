@@ -31,7 +31,7 @@ import { corePorts, realPorts, type InboundPorts } from "./ports.js";
  * A customer's message as its door hands it over: in the one shape, with its own wire's carrier. `isEnvDefault` is
  * WhatsApp's alone: the environment's own pilot number, whose replies leave on the environment's credentials.
  */
-export type Arrival =
+type Arrival =
   | { inbound: InboundMessage & { channel: "whatsapp" }; carrier: null; isEnvDefault: boolean }
   | { inbound: InboundMessage & { channel: "sms" }; carrier: InboundCarrier<"sms"> }
   | { inbound: InboundMessage & { channel: "instagram" }; carrier: InboundCarrier<"instagram"> };
