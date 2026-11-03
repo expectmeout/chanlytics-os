@@ -1161,6 +1161,22 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     border-top: 1px solid var(--line);
     background: var(--bg-raised);
   }
+  /* Under a thumb as a sheet with two rests is (thread.tsx footDock, kit sheet/dock.ts dockSwipe; Ruben, 3 Nov 2026): the
+     sheet's handle at its top, where the foot's own room over what is owed was, a pull on it the foot's own and never
+     the page's scroll (a field in it scrolls its words itself), and let go, it eases home from where the finger left it. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot[data-dock],
+  :is(.inbox, .conversations)[data-takeover]
+    > .ix-thread-pane
+    > .ix-th-foot[data-dock]:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
+    padding-top: 0;
+    touch-action: none;
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ix-th-foot[data-dock] {
+      transition: none;
+    }
+  }
   /* Down to the screen's own foot: the ground goes on under the room kept clear of the browser's bar. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot::after {
     content: "";
