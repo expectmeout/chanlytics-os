@@ -5,7 +5,7 @@
  * its own words (DoorResult), as the workbench's doors do. A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database, Json } from "../../database.types";
 import { answer, type DoorResult } from "./reach-out-leads";
 
 type Db = SupabaseClient<Database>;
@@ -90,4 +90,50 @@ export async function sendOpeningsOf(db: Db, p: { tenantId: string; sendIds: str
       },
     ];
   });
+}
+
+/** A send of a step that still goes, or went: one skipped or failed says nothing of what a lead gets. */
+const SENDS_THAT_GO = ["planned", "held", "claimed", "queued", "drafted", "sent"];
+
+/** The listing's own fields a lead's opening is said from where none is written (contracts FactListing, leadFactOf). */
+interface LeadListing {
+  business_name: string | null;
+  city: string | null;
+  hours: Json;
+  rating: number | null;
+  reviews: number | null;
+}
+
+/**
+ * What one lead's email at one step opens with, as it stands (Send me a test, 3 Nov 2026: the test said a line still to
+ * come where the email had its opening written): the opening its latest send there that still goes was written with,
+ * null while none is written or the step has no send for them yet; and the listing's fields the sentence code says is
+ * said from. contracts leadOpeningOf reads the two. Read on the member's session; a lead they cannot see has no listing.
+ */
+export async function leadStepOpeningOf(
+  db: Db,
+  p: { tenantId: string; stepId: string; leadId: string },
+): Promise<{ written: string | null; listing: LeadListing | null }> {
+  const [send, lead] = await Promise.all([
+    db
+      .from("sequence_sends")
+      .select("opening")
+      .eq("tenant_id", p.tenantId)
+      .eq("lead_id", p.leadId)
+      .eq("step_id", p.stepId)
+      .in("state", SENDS_THAT_GO)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("leads")
+      .select("business_name, city, hours, rating, reviews")
+      .eq("tenant_id", p.tenantId)
+      .eq("id", p.leadId)
+      .maybeSingle(),
+  ]);
+  if (send.error) throw new Error(`cannot read the lead's email at its step: ${send.error.message}`);
+  if (lead.error) throw new Error(`cannot read the lead's listing: ${lead.error.message}`);
+  return { written: send.data?.opening ?? null, listing: lead.data ?? null };
 }

@@ -474,6 +474,58 @@ test("a lead whose listing says a fact is previewed with that fact as its openin
   );
 });
 
+test("a lead whose email at this step has its opening written is previewed with that one, as its test sends it, under the name its email says (3 Nov 2026)", async () => {
+  const row = {
+    id: "lead-2",
+    business_name: "Lakeview Plumbing | Staten Island NY | Water Heaters",
+    city: "Staten Island",
+    kind: "place",
+    facts: null,
+    email: "hello@lakeview.example",
+    email_state: "ok",
+    phone: null,
+    phone_wrong: false,
+    rating: 4.8,
+    reviews: 66,
+    hours: [],
+  };
+  answer = ([m, p]) => (m === "GET" && p === "leads/lead-2" ? { ok: true, data: { row } } : { ok: true, data: {} });
+  const WRITTEN = "Lakeview Plumbing answers its phone around the clock.";
+  const draw = (writtenAt) => {
+    let tree = null;
+    again(() => {
+      tree = W.React.createElement(() => {
+        lc = useLeadChain(
+          REC,
+          (f) => flashes.push(f),
+          () => {},
+        );
+        const leads = [{ id: "lead-2", name: row.business_name, written: { place: writtenAt, opening: WRITTEN } }];
+        return lc ? W.React.createElement(LeadPreview, { rec: REC, lc, place: 1, leads, at: 0, onAt: () => {} }) : null;
+      });
+      return tree;
+    });
+    return tree;
+  };
+  const openingOf = (t) => {
+    const email = find(t, (n) => n.type === EmailAs);
+    return email?.props.email.body.find((p) => p.kind === "opening")?.text ?? null;
+  };
+  draw(1);
+  await until(() => openingOf(draw(1)), "the lead's row read, and its opening said");
+  assert.equal(openingOf(draw(1)), WRITTEN, "the one its check wrote for this step's email, over the listing's");
+  assert.equal(
+    textOf(byTestId(draw(1), "ld-preview-who")),
+    contracts.LEAD_BUILD_WORDS.previewOf("Lakeview Plumbing", 1, 1),
+    "the name the business is called by, not its listing's keywords",
+  );
+  assert.equal(
+    openingOf(draw(2)),
+    "Lakeview Plumbing has a 4.8 rating across 66 reviews.",
+    "one written for another step's email is not this one's: the listing's sentence stands",
+  );
+});
+
 test("with no business address the preview carries no foot: the send refuses then, and How it runs says so", () => {
   setSurfaceValue("settings", { settings: { config: { brain: { business_name: "Harbor Studio", profile: {} } } } });
   const email = find(drawPreview(), (n) => n.type === EmailAs);

@@ -339,7 +339,7 @@ export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewFirstRunMarks,
 export { PREVIEW_LINE_WORDS, previewLineOf } from "./previews/preview-line";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./previews/preview-tried";
 export { LEAD_PREVIEW_WORDS } from "./previews/preview-words";
-export { DEFAULT_WEEK, leadFactOf, listingPeriodsOf, weekHoursOf } from "./reach-out/lead-hours";
+export { DEFAULT_WEEK, leadFactOf, leadOpeningOf, listingPeriodsOf, weekHoursOf } from "./reach-out/lead-hours";
 export { composeLinksOf, mailtoOf } from "./reach-out/owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./reach-out/owner/lead-doors";
 export { CAMPAIGN_EMAIL_TAG, isCampaignEmail, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, WHY_FROM_MAPS, whyFrom } from "./reach-out/reach-out";
