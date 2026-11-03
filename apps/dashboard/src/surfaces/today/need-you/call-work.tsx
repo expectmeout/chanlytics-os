@@ -25,7 +25,7 @@ import { useRowState } from "./row-state";
 
 /** A call back: Ask's brief, Call, then how it went. One that has waited past a week says first it may be let go. */
 export function CallWork(p: WorkProps) {
-  const { row, main, may, tz, flash, keep } = p;
+  const { row, main, may, tz, flash, keep, unkeep } = p;
   const want =
     row.conversationId && row.writes
       ? { conversationId: row.conversationId, kind: "brief" as const, forMessageId: row.writes.for_message_id }
@@ -43,15 +43,19 @@ export function CallWork(p: WorkProps) {
     if (!row.conversationId) return setPhase("reached");
     keep(row);
     const r = await commitVerb("thread_verb", { verb: "hand_back", conversation_id: row.conversationId, who: row.who });
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    if (!r.ok) {
+      unkeep(row);
+      return flash({ tone: "danger", msg: <>{r.message}</> });
+    }
     setUndoOf(r.undo);
     setPhase("reached");
   };
   const undoReached = async () => {
     if (!undoOf) return;
     const r = await undoVerb("thread_verb", undoOf);
-    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
-    else setPhase("how");
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    setPhase("how");
+    unkeep(row);
   };
   const again = async () => {
     const tomorrow = callDays(Date.now(), tz).find((d) => d.label === "Tomorrow");
@@ -64,15 +68,19 @@ export function CallWork(p: WorkProps) {
       due_on: tomorrow.key,
       who: row.who,
     });
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    if (!r.ok) {
+      unkeep(row);
+      return flash({ tone: "danger", msg: <>{r.message}</> });
+    }
     setUndoOf(r.undo);
     setPhase("again");
   };
   const undoAgain = async () => {
     if (!undoOf) return;
     const r = await undoVerb("note", undoOf);
-    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
-    else setPhase("how");
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    setPhase("how");
+    unkeep(row);
   };
 
   if (snoozed)
@@ -84,7 +92,11 @@ export function CallWork(p: WorkProps) {
         act={{
           label: W.wake,
           onPress: () =>
-            void undoVerb("thread_verb", snoozed.record).then((r) => (r.ok ? setSnoozed(null) : undefined)),
+            void undoVerb("thread_verb", snoozed.record).then((r) => {
+              if (!r.ok) return;
+              setSnoozed(null);
+              unkeep(row);
+            }),
         }}
       />
     );
@@ -157,7 +169,7 @@ export function CallWork(p: WorkProps) {
 
 /** A time the customer picked by text: Booked it, and the confirmation it drafts, sent from the row; or Can't. */
 export function RequestWork(p: WorkProps) {
-  const { row, main, may, flash, keep } = p;
+  const { row, main, may, flash, keep, unkeep } = p;
   const [said, setSaid] = useRowState<{ booked: boolean; reply: string | null; receipt: string } | null>(
     row.id,
     "said",
@@ -170,7 +182,10 @@ export function RequestWork(p: WorkProps) {
     keep(row);
     const r = await answerRequest(row.request.conversationId, booked, row.who);
     setBusy(false);
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    if (!r.ok) {
+      unkeep(row);
+      return flash({ tone: "danger", msg: <>{r.message}</> });
+    }
     setSaid({ booked, reply: r.reply, receipt: r.receipt });
   };
   if (said?.booked && said.reply)
@@ -221,9 +236,10 @@ export function RequestWork(p: WorkProps) {
 
 /** A step due: Done (the page's own, with its toast and Undo), or Not now, which moves its day. */
 export function StepWork(p: WorkProps & { onDone: () => void }) {
-  const { row, main, may, tz, keep } = p;
-  const [moved, setMoved] = useState<string | null>(null);
-  const [refused, setRefused] = useState<string | null>(null);
+  const { row, main, may, tz, keep, unkeep } = p;
+  // Kept by the row, not by this part: the walk's sheet and the page's row say the same (row-state.ts).
+  const [moved, setMoved] = useRowState<string | null>(row.id, "moved", null);
+  const [refused, setRefused] = useRowState<string | null>(row.id, "refused", null);
   // The days as they stand when the menu opens (its trigger's press), and again at the press that moves it: a Today left
   // open past midnight offers, and writes, the new day's.
   const [at, setAt] = useState(() => Date.now());
@@ -250,7 +266,10 @@ export function StepWork(p: WorkProps & { onDone: () => void }) {
     setRefused(null);
     keep(row);
     const r = await dueOn(d.key);
-    if (r && !r.ok) return setRefused(r.message);
+    if (r && !r.ok) {
+      unkeep(row);
+      return setRefused(r.message);
+    }
     if (r) setMoved(d.title);
   };
   const back = async () => {

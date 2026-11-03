@@ -161,3 +161,42 @@ export async function lastClosedHolds(
   }
   return [...newest.values()];
 }
+
+/** The most decisions a day's count reads: past it the count says at least this many, which no business reaches. */
+const DONE_READ_MAX = 1000;
+
+/**
+ * How many things the members dealt with since `since` (Today in three zones, 2 Nov 2026: "3 done today" by Need you's
+ * door): the subjects their own decisions of `verbs` moved (a reply sent, a hold closed or handed back, a visit marked, a
+ * review answered, a run approved), each once however often it moved. A decision taken back is none (Mark all done, then
+ * its Undo), and neither is the Undo itself: each is known by the `undo_of` an Undo carries, so a reversal that sends none
+ * (the Inbox's own Cancel and hand-back send no `x-undo-of`) cannot be honoured.
+ */
+export async function todayDoneCount(
+  db: Db,
+  p: { tenantId: string; since: string; verbs: readonly string[] },
+): Promise<number> {
+  const [counted, undos] = await Promise.all([
+    db
+      .from("decisions")
+      .select("id, subject_type, subject_id")
+      .eq("tenant_id", p.tenantId)
+      .eq("actor_type", "user")
+      .in("verb", [...p.verbs])
+      .is("undo_of", null)
+      .gte("created_at", p.since)
+      .limit(DONE_READ_MAX),
+    db
+      .from("decisions")
+      .select("undo_of")
+      .eq("tenant_id", p.tenantId)
+      .not("undo_of", "is", null)
+      .gte("created_at", p.since)
+      .limit(DONE_READ_MAX),
+  ]);
+  if (counted.error) throw new Error(`cannot read the day's decisions: ${counted.error.message}`);
+  if (undos.error) throw new Error(`cannot read the day's undos: ${undos.error.message}`);
+  const undone = new Set((undos.data ?? []).flatMap((u) => (u.undo_of ? [u.undo_of] : [])));
+  const done = (counted.data ?? []).filter((d) => !undone.has(d.id));
+  return new Set(done.map((d) => `${d.subject_type}:${d.subject_id ?? ""}`)).size;
+}

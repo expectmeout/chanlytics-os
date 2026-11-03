@@ -1,6 +1,6 @@
 /**
- * GET /api/v1/today (the phone app's PR 9): the day composed once on the server, over the reader Ask uses, in the
- * page's own words; a workspace read any member may make, counted with the aggregates; the calls additive.
+ * GET /api/v1/today (Today in three zones, 2 Nov 2026): the day's read whole, over the reader Ask uses, which the page makes
+ * the day from (contracts toTodayVM); a workspace read any member may make, counted with the aggregates; the calls additive.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -12,6 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/today/route.ts"));
+const { toTodayVM } = await import(at("packages/contracts/src/index.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -71,18 +72,43 @@ test("the route declares a workspace read any member may make, counted with the 
   assert.deepEqual(route.GET.policy, { kind: "read", scope: "workspace", role: null, rate: "aggregate", spend: false });
 });
 
-test("the day comes back composed, in the page's words, with the figures and the standing", async () => {
+test("the day's read comes back whole, and the page makes the day from it in its own words", async () => {
   const out = await route.GET.run(get(), ctxFor({ metrics_summary: () => METRICS }));
-  const vm = out.today;
+  const read = out.read;
+  assert.deepEqual(read.conversations, []);
+  assert.deepEqual(read.calls, [], "the calls read, as the page holds it");
+  const vm = toTodayVM(
+    read.metrics,
+    read.conversations,
+    read.escalations,
+    read.calls,
+    new Date("2026-09-26T14:00:00Z"),
+    read.searches,
+    {
+      runs: read.runs,
+      heldThreads: read.held_threads,
+      previewsTried: read.previews_tried,
+      doneToday: read.done_today,
+      since: read.since,
+    },
+  );
+  // The wire is snake_case (docs/naming.md): what the route adds beside Ask's reader is named as the wire names it, each
+  // read (today-reads.test.mjs runs the two the page alone reads: nothing done yet, and a member who never looked).
+  assert.ok(
+    ["held_threads", "previews_tried"].every((k) => k in read),
+    "each named on the wire's way",
+  );
+  assert.equal(read.done_today, 0);
+  assert.deepEqual(read.since, { seen_at: null, answered: null });
   assert.ok(vm.standing.headline, "a headline");
   assert.equal(vm.standing.lines.down, false);
-  assert.ok(Array.isArray(vm.figures) && vm.figures.length === 4, "the four figures on a day with traffic");
   assert.deepEqual(
     vm.figures.map((f) => f.id),
-    ["booked", "messages", "answered", "calls"],
-    "what was booked leads: the day's read says it (server/metrics/bookings.ts)",
+    ["booked", "answered", "calls", "new"],
+    "always the four: what was booked leads, answered out of the messages",
   );
-  assert.equal(vm.figures.find((f) => f.id === "messages").value, 3, "customer messages");
+  const answered = vm.figures.find((f) => f.id === "answered");
+  assert.deepEqual([answered.value, answered.of], [3, 3], "3 of 3 answered");
   assert.equal(vm.callsRead, true);
   assert.deepEqual(vm.queue.rows, []);
 });
@@ -96,6 +122,6 @@ test("the calls are additive: a read that fails leaves the day standing and says
     return from(table);
   };
   const out = await route.GET.run(get(), ctx);
-  assert.equal(out.today.callsRead, false);
-  assert.ok(out.today.standing.headline);
+  assert.equal(out.read.calls, null, "a read that failed is null, never none");
+  assert.ok(out.read.metrics, "the rest of the day stands");
 });

@@ -1,6 +1,9 @@
 /**
- * While you were away: the bell's unread rows as Today reads them (what the page already draws above dropped, like rows
+ * While you were away: the bell's unread rows as Today read them (what the page already draws above dropped, like rows
  * grouped, warnings first), and the bell itself read the same way, new above earlier. The rows are notifications.ts's.
+ * Since Today in three zones (2 Nov 2026) no page draws the away card: Since you looked (todaySince, below) says what
+ * happened since the bell was last closed, and the bell groups through bellSections; todayAwayGrouped is kept by its tests
+ * until a tidy takes it.
  *
  * ONE GROUPING. The away card is the bell's "New" section less what Today draws elsewhere, in the order a warning asks:
  * it groups through `bellSections`, the one function, so the bell and the card say "9 calls" about the same nine calls and a
@@ -9,6 +12,7 @@
  * Earlier and can dismiss one, the card lists the unread ones alone, minus the queue's (task 5.2, D1-notice-two-drawings).
  */
 import { reviewNoticeIsAbout } from "../google/google";
+import { HOUR_MS } from "../shared/time";
 import { conversationOfNeedsKey, callOfKey, kindListDoor, unreadCount } from "./notifications";
 
 /* --------------------------- while you were away ------------------------- */
@@ -413,4 +417,156 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[], older =
   ]
     .filter((s) => s.lines.length > 0)
     .concat(older > 0 ? [{ label: bellOlderWords(older), lines: [] }] : []);
+}
+
+/* --------------------------- since you looked (Today in three zones, 2 Nov 2026) ------------------------- */
+
+/**
+ * What the receptionist answered since the member last looked (GET today's read, over the messages it sent): how many,
+ * and the last of them, to whom and in its words. Null where it was not read.
+ */
+export interface TodaySinceAnsweredDto {
+  count: number;
+  last: { who: string; text: string; at: string } | null;
+}
+
+/** One line of Since you looked, opened: its glyph, what happened, the receipt under it, and when it last did. */
+export interface TodaySinceRowVM {
+  key: string;
+  glyph: string;
+  title: string;
+  sub: string;
+  /** "11:02 PM", on the business's clock. */
+  at: string;
+  /** Where it opens, where it names a place; null for a count. */
+  to: string | null;
+}
+
+/** The one line under the head's sentence: since when, the news in a few words, and its rows, which open in place. */
+export interface TodaySinceVM {
+  /** "Since 9:40 PM" */
+  when: string;
+  /** "6 answered", "2 booked", "1 asked to stop" */
+  bits: string[];
+  rows: TodaySinceRowVM[];
+}
+
+/** A bell note as Since you looked reads it: what kind, when, its words, where it opens, and what it is about. */
+export interface SinceNoteLike {
+  kind?: string;
+  /** When it became true, epoch ms. */
+  at?: number;
+  title: string;
+  message: string;
+  to?: string;
+  /** The record it is about, where the edge said so: what a run of notes is counted by (groupTitle's rule). */
+  about?: { type: string; id: string } | null;
+  /** Its own id: a note about nothing stands for itself. */
+  id?: string;
+}
+
+/** How many of a run's lines its row says: the rest are counted ("and 9 more"). */
+const SINCE_LINES = 3;
+
+/**
+ * A run of notes in one row's line: up to three distinct, then how many more, as the brief names people. Who asked to
+ * stop says it in the note's title, since its message is the same sentence for everyone; a single note says its message.
+ */
+function sinceSub(kind: string, notes: readonly SinceNoteLike[]): string {
+  const [first] = notes;
+  if (notes.length === 1) return first?.message ?? "";
+  const lines = [...new Set(notes.map((n) => (kind === "opted_out" ? n.title : n.message)).filter(Boolean))];
+  const left = lines.length - SINCE_LINES;
+  return [...lines.slice(0, SINCE_LINES), ...(left > 0 ? [`and ${left} more`] : [])].join(" · ");
+}
+
+/**
+ * The news Since you looked folds, in its order: what was booked, who asked to stop, and a new review. What needs you is
+ * Need you's, a run's word is To decide's, and a job that did not finish is Health's, never the owner's page (the canvas's
+ * fixes: a job that failed leaves the owner's page).
+ */
+const SINCE_KINDS: Record<
+  string,
+  { glyph: string; bit: (n: number) => string; title: (n: number, first: SinceNoteLike) => string }
+> = {
+  booking: { glyph: "calendar", bit: (n) => `${n} booked`, title: (n) => `${n} booked` },
+  opted_out: {
+    glyph: "bell",
+    bit: (n) => `${n} asked to stop`,
+    title: (n) => (n === 1 ? "One person asked to stop" : `${n} people asked to stop`),
+  },
+  review: {
+    glyph: "star",
+    bit: (n) => (n === 1 ? "1 review" : `${n} reviews`),
+    title: (n, first) => (n === 1 ? first.title : `${n} new reviews`),
+  },
+};
+
+/** How far back a time is said by its clock alone: last night's, read the next morning. */
+const SINCE_CLOCK_ALONE_MS = 20 * HOUR_MS;
+
+/** A time on the business's clock: "9:40 PM", and the weekday before it where it was not in the last day. */
+function sinceClock(atMs: number, tz: string, nowMs: number): string {
+  const clock = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(atMs);
+  if (nowMs - atMs < SINCE_CLOCK_ALONE_MS) return clock;
+  return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(atMs)} ${clock}`;
+}
+
+/**
+ * Since you looked (Today in three zones, 2 Nov 2026): one line under the head's sentence, since the member last opened
+ * the bell or marked it read (the notifications' seen_at): what the receptionist answered, with the last of its words,
+ * then what was booked, who asked to stop and a new review, each in a few words, and a line each once opened, with its
+ * receipts and the time it last happened. Null where the member never looked, or nothing happened since.
+ */
+export function todaySince(input: {
+  seenAt: string | null;
+  answered: TodaySinceAnsweredDto | null;
+  notes: readonly SinceNoteLike[];
+  /** The reviews To do offers to answer: their news is To do's row, never said here again (google.ts reviewNoticeIsAbout). */
+  covered: ReadonlyArray<{ id: string; reviewId?: string | null }>;
+  tz: string;
+  nowMs: number;
+}): TodaySinceVM | null {
+  const seen = input.seenAt ? Date.parse(input.seenAt) : Number.NaN;
+  if (!Number.isFinite(seen)) return null;
+  const at = (ms: number) => sinceClock(ms, input.tz, input.nowMs);
+  const rows: TodaySinceRowVM[] = [];
+  const bits: string[] = [];
+  const answered = input.answered;
+  if (answered && answered.count > 0) {
+    bits.push(`${answered.count} answered`);
+    const last = answered.last;
+    const lastMs = last ? Date.parse(last.at) : Number.NaN;
+    rows.push({
+      key: "answered",
+      glyph: "check",
+      title: `The receptionist answered ${answered.count}`,
+      sub: last ? `Last, to ${last.who}: “${last.text}”` : "",
+      at: Number.isFinite(lastMs) ? at(lastMs) : "",
+      to: null,
+    });
+  }
+  for (const [kind, k] of Object.entries(SINCE_KINDS)) {
+    const notes = input.notes
+      .filter((n) => n.kind === kind && typeof n.at === "number" && n.at > seen)
+      .filter((n) => kind !== "review" || !input.covered.some((r) => reviewNoticeIsAbout(n.about, r)))
+      .sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+    const [first] = notes;
+    if (!first) continue;
+    // Counted by what the notes are about, as the bell counts them: twelve notes about eleven people say eleven.
+    const n = new Set(notes.map((x) => (x.about ? `${x.about.type}:${x.about.id}` : (x.id ?? `${x.at}:${x.title}`))))
+      .size;
+    bits.push(k.bit(n));
+    rows.push({
+      key: kind,
+      glyph: k.glyph,
+      title: k.title(n, first),
+      sub: sinceSub(kind, notes),
+      at: at(first.at ?? seen),
+      // One note opens its record; a run opens the list that holds every one of its kind.
+      to: notes.length === 1 ? (first.to ?? null) : (kindListDoor(kind)?.to ?? null),
+    });
+  }
+  if (!bits.length) return null;
+  return { when: `Since ${at(seen)}`, bits, rows };
 }

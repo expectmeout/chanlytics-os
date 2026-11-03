@@ -348,8 +348,8 @@ test("a write that moves the listing, its reviews or the day a review is counted
   held();
   assert.deepEqual(
     keysOf("POST google/reviews/[id]/reply"),
-    ["reports_reviews"],
-    "the lens's read carries Google's own, and publishes it",
+    ["reports_reviews", "today"],
+    "the lens's read carries Google's own, and publishes it; Today's 'N done today' counts the answer",
   );
   assert.notEqual(surfaceValue("reports_reviews"), undefined, "a reply forgets nothing: the lens is on screen");
   // The reply mode is in the lens's read: a mode saved where the lens is on screen reads it at once, and anywhere else forgets it, read

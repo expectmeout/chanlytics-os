@@ -1,9 +1,9 @@
 /**
- * Ask's ideas in Need you (decisions 0070 and 0071): the morning's cards that are not about someone waiting (the morning
- * makes none of those now; they are rows with their own drafts), each a row after the people, with its act and Not
- * today. A card is approved through its own verb walk, as Ask's Line approves it (legacy-verbs.ts askCalls), and what became of it is
- * kept on its turn one outcome after another, never two over one turn at once, so the Line reads it back too. A plan's
- * step, which is pressed with its plan, opens in Ask. This was Ask for you, a section of its own under the queue.
+ * Ask's cards as Today presses them (decisions 0070, 0071 and 0087; Ask found draws them, zones/found.tsx): the morning's
+ * ideas, and what Ask noticed that a press changes. A card is approved through its own verb walk, as Ask's Line approves
+ * it (legacy-verbs.ts askCalls), and what became of it is kept on its turn one outcome after another, never two over one
+ * turn at once, so the Line reads it back too. A plan's step, which is pressed with its plan, opens in Ask. A new
+ * campaign's rules are its sheet (CardSheet), opened on a press of its line.
  */
 import { useState } from "react";
 import {
@@ -13,10 +13,8 @@ import {
   type AskProposalOutcome,
 } from "@chanlytics/contracts";
 import { undoVerb } from "@/legacy-bridge/verbs/commit";
-import { Button } from "../../kit";
-import { RecordDisclosure } from "../../kit/record/disclosure";
-import { askAbout, askCards, canDo, gate } from "../shell";
-import { Acts, Done, type WorkProps } from "./parts";
+import { askAbout, askCards, canDo } from "../shell";
+import type { WorkProps } from "./parts";
 import { useRowState } from "./row-state";
 
 /** The last outcome on its way for each turn: the next is kept after it, since the store writes a turn whole. */
@@ -39,24 +37,40 @@ function keptOnTurn(messageId: string | null, p: AskMorningCard, o: AskProposalO
 }
 
 /**
- * One of Ask's ideas as a row's work: its act (Approve, Open in Ask for a plan's step, or a fix card's door) and Not today.
- * What became of it is said in the row at once and kept on its turn behind it; an approval whose verb has an undo offers
- * it there. `keep` holds the row in its place for the visit: a card with an outcome leaves the morning's next read. `nav`
- * opens a fix card's door, where the thing that stops a campaign is mended; it commits and records nothing.
+ * An idea set aside, Not today, kept on its turn for everyone (none where no turn holds the card): tomorrow's morning and
+ * every member's Today leave it out (contracts settledTitles). Its act a door or its own, the same word.
  */
-export function IdeaWork(
-  p: Pick<WorkProps, "main" | "flash" | "foot"> & {
-    card: AskMorningCard;
-    messageId: string | null;
-    threadId: string | null;
-    keep: () => void;
-    nav: (to: string) => void;
-    /** Sets the idea aside where no turn holds it (what Ask noticed, decision 0087); else Not today is kept on its turn. */
-    rest?: () => Promise<void> | undefined;
-  },
-) {
-  const { card, messageId, threadId, main, flash } = p;
-  // Kept by the idea, not by this part: Ask found on a phone draws it in a sheet, and its card says what became of it.
+export function dismissedOnTurn(messageId: string | null, card: AskMorningCard): Promise<boolean> {
+  return keptOnTurn(messageId, card, {
+    state: "dismissed",
+    receipt: ASK_MORNING_WORDS.dismissed,
+    atMs: Date.now(),
+    undo: null,
+  });
+}
+
+/** What an idea's presses are handed: the card, the turn it came on, and how the row keeps its place and says things. */
+interface IdeaPorts {
+  card: AskMorningCard;
+  messageId: string | null;
+  threadId: string | null;
+  keep: () => void;
+  flash: WorkProps["flash"];
+  /**
+   * Rests the card for the member a week (views.ask_found, every Ask found row); where a turn holds it (an idea), Not today
+   * is kept on that turn besides, so tomorrow's morning and every member's Today leave it out (contracts settledTitles).
+   */
+  rest: () => Promise<void>;
+}
+
+/**
+ * An idea's presses, as every place that draws one presses them (Need you's row work below, Ask found's row on Today,
+ * zones/found.tsx): Approve through the card's own verb walk, its Undo, Not today, and Open in Ask for a plan's step.
+ * What became of it is said at once and kept on its turn behind it; `said` is kept by the idea, not by the part drawing it.
+ */
+export function useIdeaActs(p: IdeaPorts) {
+  const { card, messageId, threadId, flash } = p;
+  // Kept by the card, not by this part: the row drawn again after the morning's next read says what became of it.
   const [said, setSaid] = useRowState<{
     words: string;
     tone: "ok" | "rest";
@@ -105,95 +119,25 @@ export function IdeaWork(
     if (busy) return;
     p.keep();
     setSaid({ words: W.idea.gone, tone: "rest", undo: null });
-    if (p.rest) {
-      await p.rest();
-      return;
-    }
-    await keptOnTurn(messageId, card, {
-      state: "dismissed",
-      receipt: ASK_MORNING_WORDS.dismissed,
-      atMs: Date.now(),
-      undo: null,
-    });
+    // The member's rest, then the turn's word (none where no turn holds the card), whatever the rest came to.
+    await p.rest().catch(() => undefined);
+    await dismissedOnTurn(messageId, card);
   };
-  if (said)
-    return (
-      <Done
-        tone={said.tone}
-        words={said.words}
-        act={said.undo ? { label: W.undo, onPress: () => void undo() } : null}
-      />
-    );
-  return (
-    <>
-      <IdeaDetails card={card} />
-      <Acts
-        foot={p.foot}
-        start={
-          <Button variant="quiet" onClick={() => void notToday()} disabled={busy}>
-            {W.idea.notToday}
-          </Button>
-        }
-        end={
-          card.kind === "fix" ? (
-            <FixDoor card={card} main={main} nav={p.nav} />
-          ) : card.plan ? (
-            <Button variant={main} onClick={open}>
-              {W.idea.openInAsk}
-            </Button>
-          ) : (
-            <Button
-              variant={main}
-              onClick={() => void approve()}
-              disabled={busy}
-              aria-busy={busy || undefined}
-              {...gate("approve", "approve Ask's card")}
-            >
-              {W.idea.approve}
-            </Button>
-          )
-        }
-      />
-    </>
-  );
+  return { said, busy, open, approve, undo, notToday };
 }
 
 /**
- * A fix card's act (the 30 Oct 2026 review, item 6): its door, named as the card names it ("Get their yes", "Open
- * Connections"), which opens where the thing that stops the campaign is mended. Never Approve: it commits nothing.
+ * A new campaign's rules (the 30 Oct 2026 review, item 6: Today drew them as one run-on paragraph), as Ask found opens
+ * them under its one line: what holds it from sending first, then a row a fact, as Ask's own card draws its sheet.
  */
-function FixDoor({
-  card,
-  main,
-  nav,
-}: {
-  card: AskMorningCard;
-  main: "primary" | "secondary";
-  nav: (to: string) => void;
-}) {
-  const to = typeof card.payload.to === "string" ? card.payload.to : null;
-  const label = typeof card.payload.door === "string" ? card.payload.door : null;
-  if (!to || !label) return null;
+export function CardSheet({ card }: { card: AskMorningCard }) {
+  if (!card.sheet?.rows.length) return null;
   return (
-    <Button variant={main} onClick={() => nav(to)} data-testid="queue-idea-door">
-      {label}
-    </Button>
-  );
-}
-
-/**
- * A new campaign's rules, behind Details under its one line (the 30 Oct 2026 review, item 6: Today drew them as one
- * run-on paragraph): what holds it from sending first, then a row a fact, as Ask's own card draws its sheet. Nothing for a
- * card with no line or no sheet, whose summary is its row's words.
- */
-function IdeaDetails({ card }: { card: AskMorningCard }) {
-  if (!card.line || !card.sheet?.rows.length) return null;
-  return (
-    <RecordDisclosure id={`idea-${card.id}-details`} label={W.idea.details} testid="queue-idea-details">
+    <span className="ny-idea-spec" data-testid="today-found-sheet">
       {card.sheet.holds.map((h) => (
-        <p key={h} className="ny-idea-hold">
+        <small key={h} className="ny-idea-hold">
           {h}
-        </p>
+        </small>
       ))}
       <dl className="ny-idea-rows">
         {card.sheet.rows.map((r) => (
@@ -203,6 +147,6 @@ function IdeaDetails({ card }: { card: AskMorningCard }) {
           </div>
         ))}
       </dl>
-    </RecordDisclosure>
+    </span>
   );
 }

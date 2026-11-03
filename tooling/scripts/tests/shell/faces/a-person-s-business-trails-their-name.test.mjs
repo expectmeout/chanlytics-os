@@ -179,7 +179,7 @@ const blockFor = (title, dto) => {
     [personLikeOf(dto)],
     new Set(),
   );
-  const person = matched ? { ...matched, facts: calendarPersonFactsOf(dto, ROW_TZ, ROW_NOW) } : null;
+  const person = matched ? { ...matched, facts: calendarPersonFactsOf(dto, ROW_TZ, ROW_NOW, false) } : null;
   const days = [];
   for (let i = 0; i < 7; i++) days.push({ key: `2026-09-${String(20 + i).padStart(2, "0")}`, items: [], windows: [] });
   days[1].items.push({

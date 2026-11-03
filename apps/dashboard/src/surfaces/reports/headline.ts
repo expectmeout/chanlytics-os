@@ -1,5 +1,5 @@
 /**
- * The headline override: Today's period line and Worth a look read the period as one small count (contracts
+ * The headline override: Today's week line and Ask found's leaks read the period as one small count (contracts
  * `ReportHeadlineVM`, `GET reports/headline`), never the whole report. Part of the SurfaceData seam
  * (legacy-bridge/surface-data.ts); Today reads what it publishes through `useSurface("reports_headline")`.
  *
@@ -9,9 +9,10 @@
  *
  * It was "never read by the live feed", on a cost argument that stands: it counts a period of days and reaches for the people pool
  * and the calendar for its booking line, so it is the heaviest read there is, and a message moves the period line by one in a
- * hundred. The argument was wrong for Worth a look, which is built from the same counts: the unanswered count falls by one for every
- * reply, and "2 of the 9 people got onto the calendar" moves by a whole unit when a visit is booked, so Today kept saying "No reply:
- * 3" under names that had shrunk to none (the audit's F2a). So it hears the feed, at the price the argument sets:
+ * hundred. The argument was wrong for the leaks (Worth a look's then, Ask found's since 2 Nov 2026), built from the same
+ * counts: the unanswered count falls by one for every reply, and "2 of the 9 people got onto the calendar" moves by a whole
+ * unit when a visit is booked, so Today kept saying "No reply: 3" under names that had shrunk to none (the audit's F2a). So
+ * it hears the feed, at the price the argument sets:
  *  - only while Today is on screen (`onlyOnItsPage`; Today owns this read: surface-registry.ts), and kept for Today otherwise, so
  *    it is read once as Today comes back and never for a page that does not draw it;
  *  - only the changes it counts: a message arriving or sent, a call starting or ending (not a transcript turn of one in progress),
@@ -42,7 +43,7 @@ export const headline = periodSurface({
   read: async (period) => toHeadlineVM((await read("GET reports/headline", { query: { period } })).headline),
   // What the headline counts: messages, calls and visits, and the people its booking line is "of the N people" (someone added,
   // merged or erased, 0047), and the calendar's settings its booking line reads (readers/report.ts bookingOf): a calendar linked on
-  // Settings is Worth a look's at once (the wiring's second audit, S3-4). Heard where Today is on screen, the rest held for it
+  // Settings is Ask found's at once (the wiring's second audit, S3-4). Heard where Today is on screen, the rest held for it
   // (surface-registry.ts onlyOnItsPage). A transcript turn of a call in progress changes nothing it counts (surface-realtime.ts
   // isLiveCallTurn, as Today's own rule leaves it out): asked first, so a turn heard on another page is not kept for Today either.
   live: {

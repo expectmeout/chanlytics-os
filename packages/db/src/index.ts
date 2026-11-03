@@ -111,6 +111,7 @@ export {
   openBookingRequest,
   openRequestOfThread,
   openRequestsOfThreads,
+  peopleWithEarlierVisits,
   reachOutBookedFrom,
   recordOver,
   syncFeedAppointments,
@@ -650,6 +651,7 @@ export {
   unreadOfReaders,
 } from "./repositories/notices/notifications";
 export type { KeptNotice } from "./repositories/notices/notifications";
+export { answeredSince, bellSeenAt, contactNameOf } from "./repositories/notices/since-you-looked";
 export {
   addressesSuppressed,
   applyReplyReading,
@@ -899,7 +901,7 @@ export {
 export type { LeadContext, MessageHit, MessageSender, PgThreadState, ThreadTurn } from "./repositories/thread";
 export { followUpTouchesSince, recentTouches, touchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
-export { lastClosedHolds, threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
+export { lastClosedHolds, threadIdsWaitingOnYou, todayDoneCount } from "./repositories/waiting-on-you";
 export { exportSectionPages, personExportPages } from "./repositories/workspace-export";
 export type { ExportPage, ExportSectionPages, PersonExportPages } from "./repositories/workspace-export";
 export { createServiceClient } from "./service-client";

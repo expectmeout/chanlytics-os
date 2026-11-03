@@ -291,7 +291,9 @@ test("Today: the red alert and the empty queue say what a caller gets of a dark 
     [],
     NOW,
   );
-  assert.equal(vm.standing.alert, `Phone line is disconnected — ${C.PHONE_LINE_OFF.gets}.`);
+  // Two sentences a wire (Today in three zones): what is down, then the standing value's clause, capitalised.
+  const said = (gets) => `${gets[0].toUpperCase()}${gets.slice(1)}.`;
+  assert.equal(vm.standing.alert, `Phone line is disconnected. ${said(C.PHONE_LINE_OFF.gets)}`);
   assert.equal(vm.queue.empty.title, `Nothing in the queue. ${vm.standing.alert}`);
   assert.equal(vm.queue.empty.testid, "today-queue-empty-down", "and it is still the warning, never the reassurance");
   assert.deepEqual(contradicting(words(vm)), []);
@@ -310,7 +312,7 @@ test("Today: the red alert and the empty queue say what a caller gets of a dark 
   );
   assert.equal(
     two.standing.alert,
-    `Texting is disconnected — ${C.lineOffGets("sms", "message").gets}. Phone line is disconnected — ${C.PHONE_LINE_OFF.gets}.`,
+    `Texting is disconnected. ${said(C.lineOffGets("sms", "message").gets)} Phone line is disconnected. ${said(C.PHONE_LINE_OFF.gets)}`,
   );
 });
 

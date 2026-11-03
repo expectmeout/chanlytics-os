@@ -887,7 +887,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "runs",
     "heldThreads",
     "going",
-    "previewsTried",
+    "previewsTried", // not done today, since you looked or the word: GET today's route reads those beside this reader
   ]);
   // What goes on its own today, each with its Stop (decision 0064): the runs set to start before the day ends, none here.
   assert.deepEqual(r.data.going, []);
@@ -2576,7 +2576,7 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       // Last, once the feed has read, the record's taken time over the days on offer (record-busy.ts): this week does
       // not cover a fortnight's offer, so the board's open times ask for it rather than reuse the span's rows.
       // The span's record is two reads since a member's word on a visit (00397, visitsOver): the bookings, and the feed's
-      // rows by key.
+      // rows by key. The season's record beside everyone is two more (3 Nov 2026: each person's last visit).
       recordTogether(
         [
           "appointments.select",
@@ -2586,6 +2586,8 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
           "mailboxes.select",
           "rpc:people_list",
           "policies.select",
+          "appointments.select",
+          "appointments.select",
           "appointments.select",
         ],
         0,
@@ -2613,8 +2615,9 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       "neither is anywhere in the read",
     );
     // The record (two reads since 00397: the bookings, and the feed's rows by key), the notices' two, the mailbox,
-    // everyone, the policies and the taken time: eight, and nothing asked again.
-    assert.equal(ctx.supabase.seen.length, before + 8, "nothing asked again");
+    // everyone, the policies, the season's record (two, since 3 Nov 2026) and the taken time: ten, and nothing asked
+    // again.
+    assert.equal(ctx.supabase.seen.length, before + 10, "nothing asked again");
   });
 });
 
@@ -2682,6 +2685,12 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["mailboxes.select", "*"],
   ["rpc:people_list", null],
   ["policies.select", "subject_type, subject_id, mode"],
+  // Since 3 Nov 2026, so Today's day can say when each person was last in: the record over the season, which each
+  // person's visits join (people-visits.ts poolRecordOf, boardVisits): a booking's rows whole, and the feed's rows a
+  // member said a word of. Nobody here is in People, so nobody comes for a first visit and the record before the season
+  // is not asked.
+  ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   // Once the feed has read: the record's taken time over the days on offer, which the open times subtract beside the
   // feed's (record-busy.ts). Asked here because this week does not cover a fortnight's offer; the board's first window does.
   ["appointments.select", "*"],

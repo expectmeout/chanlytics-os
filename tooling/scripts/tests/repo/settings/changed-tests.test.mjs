@@ -284,7 +284,7 @@ test("a stylesheet anywhere in the dashboard runs the style tests, which no such
     "apps/dashboard/app/globals.css",
   ])
     assert.ok(run(f).includes(styles), f);
-  for (const f of ["apps/dashboard/src/surfaces/today/phone/end.tsx", "apps/dashboard/package.json"])
+  for (const f of ["apps/dashboard/src/surfaces/today/zones/foot.tsx", "apps/dashboard/package.json"])
     assert.ok(!run(f).includes(styles), f);
   const { targets } = picked("apps/dashboard/src/surfaces/today/phone/phone.css");
   const runs = REACH.tests.filter((t) => targets.some((x) => t === x || t.startsWith(`${x}/`)));

@@ -7,7 +7,6 @@ import {
   todayDay,
   todayDayNote,
   todayHeadLine,
-  todayAwayGrouped,
   todayBriefWords,
   todaySteps,
   todayStepsSub,
@@ -47,7 +46,6 @@ export const TODAY_HELPERS = {
   draftsSub: todayDraftsSub,
   runApproved: todayRunApproved,
   leaks: todayLeaks,
-  awayGrouped: todayAwayGrouped,
   // The steps due (0007, amended): the block, its words in To do's line, and To do's rows with them among them.
   steps: todaySteps,
   stepsSub: todayStepsSub,

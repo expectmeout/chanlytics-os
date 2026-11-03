@@ -103,15 +103,21 @@
     },
     {
       "kind": "seat",
-      "why": "A member's own marks and reads of the bell. They are private to a member, so no notice carries them; the bell is read again after its own marks (PUT notifications, refresh-map.ts) and on an arrival.",
+      "why": "A member's own marks and reads of the bell. They are private to a member, so no notice carries them; the bell is read again after its own marks (PUT notifications, refresh-map.ts) and on an arrival. Today reads when this member last looked at the bell (GET today's since, Since you looked) and is read again after the same marks.",
       "reads": {
         "notifications": [
           "notification_marks",
+          "notification_reads"
+        ],
+        "today": [
           "notification_reads"
         ]
       },
       "rereadAfter": {
         "notifications": [
+          "PUT notifications"
+        ],
+        "today": [
           "PUT notifications"
         ]
       }
@@ -309,6 +315,9 @@
         ],
         "ask_morning": [
           "sequence_sends"
+        ],
+        "today": [
+          "sequence_sends"
         ]
       },
       "heardWith": {
@@ -341,6 +350,9 @@
           "sequence_batches"
         ],
         "ask_morning": [
+          "sequence_batches"
+        ],
+        "today": [
           "sequence_batches"
         ]
       }

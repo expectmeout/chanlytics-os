@@ -1,5 +1,5 @@
 /**
- * Today's Brought in (decision 0073, R23, canvas T-today and T·g; today/pages/brought-in.tsx), drawn without a browser:
+ * Today's Brought in (decision 0073, R23, canvas T-today and T·g; today/zones/brought-in.tsx), drawn without a browser:
  * the small card of what came in before Chanlytics, from the imports ledger Setup reads: where it all stands in its head,
  * a few facts closed, and opened in place the sources one by one in the first run's own lines, with Try again that
  * answers at the press; drawn while anything is coming in, a source stopped, or for the day after. The world is the first
@@ -21,7 +21,7 @@ import {
   withFacts,
 } from "./_first-run-world.mjs";
 
-const { TodayBroughtIn } = await importSrc("apps/dashboard/src/surfaces/today/pages/brought-in.tsx");
+const { TodayBroughtIn } = await importSrc("apps/dashboard/src/surfaces/today/zones/brought-in.tsx");
 const { ImportLines } = await importSrc("apps/dashboard/src/surfaces/setup/first-run/channels/brought.tsx");
 const DAY = 86_400_000;
 const row = (source, state, counts, over = {}) => ({

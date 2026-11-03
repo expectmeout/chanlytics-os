@@ -155,6 +155,7 @@ export const ROUTES = {
   "POST broadcasts/[id]/approve": { method: "POST", path: "/api/v1/broadcasts/[id]/approve" },
   "POST broadcasts/[id]/cancel": { method: "POST", path: "/api/v1/broadcasts/[id]/cancel" },
   "POST broadcasts/[id]/recheck": { method: "POST", path: "/api/v1/broadcasts/[id]/recheck" },
+  "POST calendar/freed": { method: "POST", path: "/api/v1/calendar/freed" },
   "POST calendar/notices/[id]/dismiss": { method: "POST", path: "/api/v1/calendar/notices/[id]/dismiss" },
   "POST calendar/notices/[id]/read-again": { method: "POST", path: "/api/v1/calendar/notices/[id]/read-again" },
   "POST calendar/preview": { method: "POST", path: "/api/v1/calendar/preview" },
@@ -504,6 +505,7 @@ export type Routes = {
   "POST broadcasts/[id]/approve": typeof import("../../app/api/v1/broadcasts/[id]/approve/route").POST;
   "POST broadcasts/[id]/cancel": typeof import("../../app/api/v1/broadcasts/[id]/cancel/route").POST;
   "POST broadcasts/[id]/recheck": typeof import("../../app/api/v1/broadcasts/[id]/recheck/route").POST;
+  "POST calendar/freed": typeof import("../../app/api/v1/calendar/freed/route").POST;
   "POST calendar/notices/[id]/dismiss": typeof import("../../app/api/v1/calendar/notices/[id]/dismiss/route").POST;
   "POST calendar/notices/[id]/read-again": typeof import("../../app/api/v1/calendar/notices/[id]/read-again/route").POST;
   "POST calendar/preview": typeof import("../../app/api/v1/calendar/preview/route").POST;

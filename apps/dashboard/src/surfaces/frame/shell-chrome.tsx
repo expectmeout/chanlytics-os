@@ -308,7 +308,7 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
       {/* Yesterday's visits to mark, in the call's place while no call is up (the call outranks it: components.css). */}
       <UnmarkedVisitsBar page={s.page} />
       {/* What is next on the day, beside the bell, while neither is up (both outrank it: components.css). */}
-      <NextVisitBar />
+      <NextVisitBar page={s.page} />
       {glassHead({
         glass,
         pane: s.pane,

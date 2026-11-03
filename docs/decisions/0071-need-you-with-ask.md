@@ -96,3 +96,13 @@ a row, which `waitingRunOffer` refuses every other row. The morning's question n
 to Today, and `propose_sequence` refuses a morning's turn a card of any run waiting for a person. A member who asks for
 one in their own words still gets its card (decision 0060), and a morning may still cancel a one-off, which waits in no
 row.
+
+## Amended 2 November 2026 · Today in three zones
+
+The canvas of 2 Nov 2026 (https://claude.ai/artifact/AwcTtpQ71E8D2x8CizCuAB), approved by Ruben the same day: Need you is
+one list in groups, capped by group (Up next one row; who waits on you, five; To decide, three; To do, three, open and
+never counted; Older, one row with Mark all done and one Undo, never counted), with how many were done today by its door
+and the rest at its foot. A reply that never reached them is a row of its own with Try again, the words kept. The chips
+over the rows, To do's and Ask found's lines at its foot, While you were away and Worth a look went; Ask found is a zone
+of its own (contracts `askFoundOf`), and Since you looked is one line under the head (`todaySince`). The page is
+`surfaces/today/zones/`.

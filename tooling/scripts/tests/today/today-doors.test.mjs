@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, setupSteps } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, kitPages } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, kitPages, press, unmount } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
@@ -126,20 +126,21 @@ for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStr
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
 globalThis.useHotkey = () => {};
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
-// Today's pages are TSX (surfaces/today/pages), drawn by import over the day and Setup the seam holds (surface-values.ts).
+// Today's zones are TSX (surfaces/today/zones), drawn by import over the day and Setup the seam holds (surface-values.ts).
 // Setup's rows are the surface's own (surfaces/setup/rows), imported by the card, not published on the window.
-const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
-const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { TodayWarnings } = await import("../../../../apps/dashboard/src/surfaces/today/phone/warnings.tsx");
-const { useTodayStanding } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-head.tsx");
+const { TodayAlertBand } = await import("../../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
+const { TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
+const { PhoneSoFar } = await import("../../../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
+const { useZonesStanding } = await import("../../../../apps/dashboard/src/surfaces/today/zones/head.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
 // The card is a chunk of its own (setup-card-body.tsx), asked for as Today's page loads: drawn here once it is in.
 const { TodaySetup, setupCardReady } =
-  await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
+  await import("../../../../apps/dashboard/src/surfaces/today/zones/setup-card.tsx");
 await setupCardReady;
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
-const { queueHoldsCoral } = await import("../../../../apps/dashboard/src/surfaces/today/queue-coral.ts");
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+const { AskFound } = await import("../../../../apps/dashboard/src/surfaces/today/zones/found.tsx");
+const { TodayZones } = await import("../../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
+const { queueHoldsCoral, zoneDrawn } = await import("../../../../apps/dashboard/src/surfaces/today/queue-coral.ts");
 // The module instances the pages use: the seam's store, and the verbs the card's Skip and Hide press (`setupVerbs`).
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
@@ -184,16 +185,16 @@ const buttonsSaying = (tree, words) => findAll(tree, (n) => n.type === "button" 
 const mountHero = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
-  return again(() => HeroBrief());
+  return again(() => TodayAlertBand());
 };
-// The day's figures are Today so far's on a phone (TodayCard) and the head's on a desk; a reply that failed is said under
-// the head (TodayWarnings), and Your brief's pane, which said the rest, went (the redesign of 1 Nov 2026).
+// The day's figures are Today so far's on a phone (PhoneSoFar) and the head's on a desk; a line that is down is said
+// under the head (TodayAlertBand), and a reply that failed is a row of Need you (Today in three zones, 2 Nov 2026).
 const mountCard = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
-  return again(() => TodayCard());
+  return again(() => PhoneSoFar());
 };
-/** The day's four figures, which a desk draws in the head beside the greeting (card.tsx TodayHeadFigures). */
+/** The day's four figures, which a desk draws in the head beside the greeting (figures.tsx TodayHeadFigures). */
 const mountFigures = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
@@ -202,17 +203,17 @@ const mountFigures = (vm) => {
 const mountWarnings = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
-  return again(() => TodayWarnings());
+  return again(() => TodayAlertBand());
 };
 /** The page on a desk, whole. */
 const mountPage = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
-  return again(() => DashboardA());
+  return again(() => TodayZones());
 };
-/** What the head says under the greeting, as Today tells it to the frame's head (today-head.tsx). */
+/** What the head says under the greeting, as Today tells it to the frame's head (zones/head.tsx). */
 function HeadProbe() {
-  useTodayStanding();
+  useZonesStanding();
   return null;
 }
 const headSaid = (vm) => {
@@ -229,7 +230,7 @@ const mountSetup = () => {
 const mountQueue = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
-  return again(() => AgentCommand());
+  return again(() => NeedYou());
 };
 const todayWith = (channels, over = {}) =>
   toTodayVM(metrics({ channels, now: zeroNow, period: quietPeriod, ...over }), [], [], [], NOW);
@@ -247,12 +248,26 @@ test("REGRESSION (A21): a reply that failed to deliver opens its thread -- 'See 
       created_at: "2026-09-06T12:01:00Z",
     }),
   ]);
-  const vm = toTodayVM(metrics({ period: { ...busyPeriod, send_failures: 1 } }), [failed], [], [], NOW);
+  // A reply that never left raises a hold on its thread (jobs settle.ts, reason send_failed).
+  const hold = {
+    id: "e9",
+    conversation_id: "cv9",
+    reason: "send_failed",
+    details: null,
+    state: "open",
+    created_at: "2026-09-06T12:02:00Z",
+  };
+  const vm = toTodayVM(metrics({ period: { ...busyPeriod, send_failures: 1 } }), [failed], [hold], [], NOW);
   const warn = vm.recap.sentences.find((s) => s.warn);
   assert.equal(warn.to, "inbox/th-cv9", "REGRESSION: the failed send's sentence carried no thread");
-  // Under the head, on a desk as on a phone: the one line that must never be quiet (it was Your brief's on a desk).
-  buttonsSaying(mountWarnings(vm), "See the thread")[0].props.onClick();
-  assert.equal(went.at(-1), "inbox/th-cv9");
+  // Need you's row since Today in three zones (2 Nov 2026): the words that failed, sent again with Try again, and its door
+  // her thread.
+  const row = vm.queue.rows.find((r) => r.conversationId === "cv9");
+  assert.equal(row.cta.to, "inbox/th-cv9", "REGRESSION: the row's door opened the Inbox list");
+  assert.equal(row.failed.text, "Yes, Saturday at 3 works.");
+  const queue = mountQueue(vm);
+  assert.ok(buttonsSaying(queue, "Try again").length, textOf(queue));
+  assert.equal(textOf(mountWarnings(vm)), "", "and not under the head: the band is for what stops every customer");
 });
 
 test("REGRESSION: Today's first screen is the work -- above it stood a greeting, a headline the queue says again, four sentences, a chip repeating its count, an arc and six stat cards, and on a phone the first thing needing a person started 679px down", () => {
@@ -276,9 +291,10 @@ test("REGRESSION: Today's first screen is the work -- above it stood a greeting,
   // In the head, the day's figures (a desk's, beside the greeting); and no pane under the work says them again in words
   // (Your brief's did, the redesign of 1 Nov 2026).
   const figures = mountFigures(vm);
-  assert.ok(
-    find(figures, (n) => n.props?.["data-testid"] === "today-figure-messages"),
-    "the day's figures",
+  assert.deepEqual(
+    findAll(figures, (n) => /^today-figure-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props["data-testid"]),
+    ["today-figure-booked", "today-figure-answered", "today-figure-calls", "today-figure-new"],
+    "the day's four figures",
   );
   const page = mountPage(vm);
   assert.equal(
@@ -379,9 +395,26 @@ test("Listen stands beside the greeting, the kit head's `beside`, never at the s
     const listen = find(said.beside, (n) => n.props?.["data-testid"] === "today-listen");
     assert.ok(listen, "Listen, beside the greeting (a phone's frame stands it beside the bell)");
     assert.ok(!find(said.sentence, (n) => n.props?.["data-testid"] === "today-listen"), "not in the sentence");
+    // On a phone the date beside them says the hour, its day short (the canvas: "Tue, Nov 3 · 8:05 AM"); every other
+    // page's phone date is the day alone (kit/head/frame-head.tsx).
+    assert.equal(said.dateHour, true);
   } finally {
     holdAsk(undefined);
   }
+});
+
+test("the address says the hour too, from the frame's first draw: a phone's date keeps one form as Today comes in", async () => {
+  const { todayChrome } = await import("../../../../apps/dashboard/src/surfaces/today/chrome.ts");
+  const { crumbsShown, forgetStanding } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
+  forgetStanding();
+  const { crumbs, head } = todayChrome();
+  crumbsShown(crumbs, false, head);
+  assert.equal(
+    standingSaid()?.dateHour,
+    true,
+    "REGRESSION: a phone's date said 'TUESDAY, NOVEMBER 3' until the page was in, then 'TUE, NOV 3 · 8:05 AM'",
+  );
+  forgetStanding();
 });
 
 /** A workspace's Setup read, as the surface publishes it (surfaces/setup/surface.ts): Setup's own view model over a DTO. */
@@ -635,15 +668,19 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
     const vm = todayWith([
       { kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" },
     ]);
-    const said = textOf(mountHero(vm)) + textOf(mountQueue(vm));
+    // With nothing in Need you the head says what the day is (Today in three zones, 2 Nov 2026).
+    const said = [headSaid(vm), textOf(mountHero(vm)), textOf(mountQueue(vm))].join(" ");
     assert.equal(
       vm.standing.lines.text,
       "1 of 1 line connected",
       "REGRESSION: the page counted the routing rows, and email is not one (the count is contracts', for Ask)",
     );
-    assert.ok(!said.includes("nothing can come in"), "email comes in");
-    assert.ok(!said.includes("answering on its own"), "the receptionist does not answer email");
-    assert.ok(!said.includes("nothing needs you"), `the heading does not reassure over a line nobody answers: ${said}`);
+    assert.ok(!/nothing can come in/i.test(said), "email comes in");
+    assert.ok(
+      !/answering on its own|receptionist is on/i.test(said),
+      `the receptionist does not answer email: ${said}`,
+    );
+    assert.ok(!/nothing needs you/i.test(said), `the heading does not reassure over a line nobody answers: ${said}`);
     assert.match(said, /each email waits in Need you/);
   } finally {
     feedSetup(undefined);
@@ -690,25 +727,121 @@ test("while someone waits on you, what is left to set up stands under the queue,
     queueHoldsCoral(false);
     feedSetup(undefined);
   }
-  // The page: the work first while anyone waits on the owner, the chores first while nobody does.
-  // Setting up and what was brought in are one card (the redesign of 1 Nov 2026), and what goes on its own today is the day's.
+  // The page: the work first while anyone waits on the owner, the chores first while nobody does, by the one count
+  // (needs-you.ts: Need you's rows above To do and the runs waiting, from Today's own read; production, 27 Oct 2026: three
+  // people waited and the chores led). Setting up and what was brought in are one card (the redesign of 1 Nov 2026).
   const work = () => {
     fresh();
-    const page = again(() => DashboardA());
-    const col = find(page, (n) => String(n.props?.className ?? "").includes("dash-a-v2-work"));
-    return col.props.children.map((c) => c.type.name ?? c.props["data-testid"]);
+    const page = again(() => TodayZones());
+    const col = find(page, (n) => String(n.props?.className ?? "").includes("tz-col"));
+    return col.props.children.filter(Boolean).map((c) => c.type.name ?? c.props["data-testid"]);
   };
   setSurfaceValue("today", todayWith([]));
-  setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
-  assert.deepEqual(work(), ["today-setting-up", "AgentCommand"]);
-  setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 1 });
-  assert.deepEqual(work(), ["AgentCommand", "today-setting-up"]);
-  // A cold Today, the Inbox not read yet: the day's own count, as the queue counts it (production, 27 Oct 2026: three
-  // people waited and the chores led).
-  setSurfaceValue("inbox", undefined);
-  const quiet = todayWith([]);
-  setSurfaceValue("today", { ...quiet, needsYou: { ...quiet.needsYou, count: 3, holds: 3, sends: 0 } });
-  assert.deepEqual(work(), ["AgentCommand", "today-setting-up"], "the queue counts them");
+  zoneDrawn("found", true);
+  assert.deepEqual(
+    work(),
+    ["today-setting-up", "NeedYou", "AskFound"],
+    "nobody waits on a quiet day: the chores lead, and Ask found stands wide in the work's column",
+  );
+  zoneDrawn("found", false);
+  assert.deepEqual(
+    work(),
+    ["today-setting-up", "NeedYou", "AskFound", "DayZone"],
+    "and where Ask found has nothing either, the day stands in the one column rather than beside an empty one",
+  );
+  const held = { ...conversation("cv5", "Rosa Díaz", [msg({ conversation_id: "cv5" })]), state: "needs_human" };
+  const hold = {
+    id: "e5",
+    conversation_id: "cv5",
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: "2026-09-06T12:00:30Z",
+  };
+  // Need you draws its pane while anyone waits, and says so as it draws (zones/need-you.tsx, queue-coral.ts): drawn here
+  // as the page's children only, so the test says it for it.
+  setSurfaceValue("today", toTodayVM(metrics(), [held], [hold], [], NOW));
+  zoneDrawn("need-you", true);
+  assert.deepEqual(work(), ["NeedYou", "today-setting-up"], "Rosa waits: the work leads");
+  // A run waiting for a word is someone waiting too: a one-off broadcast waits until it is decided.
+  const oneOff = {
+    id: "b-one",
+    state: "pending_approval",
+    playbook_id: null,
+    name: "VIP news",
+    audience: { kind: "list", label: "VIPs" },
+    recipient_count: 12,
+    scheduled_for: null,
+    when: "",
+    started_at: null,
+    created_at: "2026-09-06T10:00:00Z",
+    counts: { sent: 0, replied: 0 },
+  };
+  setSurfaceValue("today", toTodayVM(metrics(), [], [], [], NOW));
+  setSurfaceValue("broadcasts", { rows: [oneOff] });
+  try {
+    assert.deepEqual(work(), ["NeedYou", "today-setting-up"], "a run waits for your OK: the work leads");
+  } finally {
+    zoneDrawn("need-you", false);
+    setSurfaceValue("broadcasts", undefined);
+    setSurfaceValue("today", undefined);
+  }
+});
+
+test("one coral across setting up and Ask found (the Moments board: else setting up, else Ask found's first act): the card's first act while it draws one, Ask found's once the card is folded", () => {
+  const idea = {
+    id: "p-1",
+    kind: "message",
+    needs: "operator",
+    title: "Write to Rosa",
+    summary: "Write to Rosa, as Ask would send it.",
+    payload: {},
+    undo: null,
+  };
+  setSurfaceValue("ask_morning", {
+    fetchedAt: Date.now(),
+    dto: {
+      day: "2026-09-06",
+      state: "quiet",
+      offered: true,
+      thread_id: null,
+      message_id: "m-1",
+      headline: "",
+      detail: "",
+      cards: [idea],
+      findings: [],
+      rested: {},
+      lately: [],
+    },
+  });
+  setSurfaceValue("today", todayWith([]));
+  feedSetup(answeringSetup());
+  const isCoral = (v) => /(^| )primary( |$)/.test(String(v.props.className ?? ""));
+  const foundAct = () => {
+    fresh();
+    return find(
+      again(() => AskFound({ wide: true })),
+      (n) => n.props?.["data-testid"] === "today-found-act",
+    );
+  };
+  try {
+    const card = mountSetup();
+    const verbs = findAll(card, (n) => n.props?.["data-testid"] === "setup-verb");
+    assert.ok(verbs.some(isCoral), "nobody waits: the card's first act is the coral");
+    assert.equal(foundAct().props.variant, "quiet", "REGRESSION: Ask found's first act stood coral beside the card's");
+    // Folded, the card draws no act, and hands the coral on.
+    const open = mountSetup();
+    press(find(open, (n) => n.props?.["data-testid"] === "today-setup-fold"));
+    again(() => TodaySetup());
+    assert.equal(foundAct().props.variant, "primary", "the card folded: Ask found's first act takes the coral");
+    // Unfolded again for the tests after this one: the fold is kept on the device.
+    press(find(mountSetup(), (n) => n.props?.["data-testid"] === "today-setup-fold"));
+  } finally {
+    unmount();
+    feedSetup(undefined);
+    setSurfaceValue("ask_morning", undefined);
+    setSurfaceValue("today", undefined);
+  }
 });
 
 /** A batch to leads waiting for an OK, as the broadcasts surface holds it, or one beside it. */
@@ -762,7 +895,7 @@ test("a batch to leads says when it goes and what the last earned, offers no App
   }
 });
 
-test("Ask found opens on what Ask noticed, tagged as no idea of a model's, and says what came of an idea approved", () => {
+test("Ask found holds what Ask noticed, tagged as no idea of a model's, and says what came of an idea approved", () => {
   const noticed = {
     id: "finding-fell-seq-1",
     kind: "fix",
@@ -790,19 +923,21 @@ test("Ask found opens on what Ask noticed, tagged as no idea of a model's, and s
     },
   });
   try {
-    const tree = mountQueue(toTodayVM(metrics(), [], [], [], NOW));
-    find(tree, (n) => n.props?.["data-testid"] === "today-found-open").props.onClick();
-    const open = again(() => AgentCommand());
-    const row = find(open, (n) => n.props?.["data-testid"] === "queue-finding");
+    // Ask found is Today's third zone (Today in three zones, 2 Nov 2026): its rows stand open, under the day.
+    setSurfaceValue("today", toTodayVM(metrics(), [], [], [], NOW));
+    fresh();
+    const found = again(() => AskFound({ wide: false }));
+    const row = find(found, (n) => n.props?.["data-testid"] === "today-found-noticed");
     assert.ok(row, "what Ask noticed is a row of its own");
     assert.match(textOf(row), /Ask noticed/);
     assert.equal(buttonsSaying(row, "Look at it").length, 1, "its door, never an Approve");
     assert.equal(buttonsSaying(row, "Approve").length, 0);
     assert.match(
-      textOf(find(open, (n) => n.props?.["data-testid"] === "today-found-came")),
+      textOf(find(found, (n) => n.props?.["data-testid"] === "today-found-came")),
       /Find gyms.*Found 40 gyms/,
     );
   } finally {
     setSurfaceValue("ask_morning", undefined);
+    setSurfaceValue("today", undefined);
   }
 });

@@ -12,7 +12,7 @@
  */
 import { joinWords, plural } from "../shared/words";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
-import { toSendAllOf, toSendRunsOf, type ToSendCount, type ToSendRunLike } from "../reach-out/reach-out-approval";
+import { toSendAllOf, toSendRunsOf, type ToSendCount, type ToSendRunLike } from "./to-send";
 import { runHeldEmails } from "./waits";
 
 /** A run as the rows read it: what To send reads, and whether its check holds emails too. */

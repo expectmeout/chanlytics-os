@@ -18,6 +18,7 @@
 import type { CallDto } from "../conversations/call-dto";
 import type { EscalationDto } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
+import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
 import type { PreviewTriedDto } from "../previews/preview-tried";
 import { runDaysAt } from "../playbooks/playbook-approval";
@@ -34,8 +35,9 @@ import {
   todayStanding,
   todayTrafficLine,
 } from "./today-bands";
+import { todayBackOf } from "./today-day";
 import { todayFacts } from "./today-facts";
-import { figuresOf, quietFigures, todayProof } from "./today-figures";
+import { figuresOf, quietFigures, todayLastLine, todayProof } from "./today-figures";
 import type { MetricsSummaryDto } from "./today-metrics";
 import { todayQueue } from "./today-queue";
 import {
@@ -63,6 +65,12 @@ interface TodayBeside {
   heldThreads?: readonly ConversationDto[] | null;
   /** The leads who tried their own receptionist lately (decision 0079): each a row. Null or absent: not read. */
   previewsTried?: readonly PreviewTriedDto[] | null;
+  /** How many things the members dealt with today (TodayVM.done_today). Null or absent: not read. */
+  doneToday?: number | null;
+  /** Since the member last looked (TodayVM.since). Null or absent: not read. */
+  since?: TodayVM["since"];
+  /** What the workspace calls an appointment (TodayVM.word). Null or absent: not read. */
+  word?: AppointmentWord | null;
 }
 
 /**
@@ -132,14 +140,17 @@ export function toTodayVM(
         facts,
         receipts: [],
       },
-      figures: null,
-      zero_figures: null,
+      figures: quietFigures(f.live, f.tz, now, m.bookings),
       proof,
       noReply,
       calls: null,
       callsRead: f.callsRead,
+      done_today: beside.doneToday ?? null,
+      back: todayBackOf(conversations, now),
+      since: beside.since ?? null,
+      word: beside.word ?? null,
       queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, windows: 0, parts: [], empty },
-      quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now, m.bookings) },
+      quiet: todayQuietDay(f, todayLastLine(f.live, f.tz, now)),
     };
   }
 
@@ -164,12 +175,15 @@ export function toTodayVM(
       facts,
       receipts: todayReceipts(f),
     },
+    // Always the four: zeros where nothing was counted while someone waits (the reference workspace's own state).
     figures,
-    // Nothing to count while someone waits (the reference workspace's own state): Glass draws the tile's four zeros.
-    zero_figures: figures ? null : quietFigures(f.live, f.tz, now, m.bookings),
     proof,
     noReply,
     callsRead: f.callsRead,
+    done_today: beside.doneToday ?? null,
+    back: todayBackOf(conversations, now),
+    since: beside.since ?? null,
+    word: beside.word ?? null,
     calls: todayCalls(f, callRows),
     queue,
     quiet: null,

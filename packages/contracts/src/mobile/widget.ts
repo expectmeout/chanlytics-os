@@ -12,7 +12,7 @@ export interface TodayWidgetSnapshot {
   headline: string;
   /** The day's four figures in the page's order, each with its word; empty on a day with nothing at all. */
   figures: Array<{ label: string; value: number }>;
-  /** How many wait on you: the one count the badge says (waits.ts needsYouCount: holds, held sends, runs waiting). */
+  /** How many wait on you: the one count the badge says (needs-you.ts needsYouNow: Need you's rows above To do, runs). */
   waiting: number;
   /** The first person who needs you (a hold), and why; null when no hold has a row (only a run or a held send waits). */
   first: { who: string; reason: string } | null;

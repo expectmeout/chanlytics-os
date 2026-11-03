@@ -34,13 +34,8 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // They came in the stream's second tier, after the slowest of these, and landed 400 to 600 ms after the queue they
   // stand in (page_vitals, cold loads, 20-27 Oct 2026; the Today load review, 27 Oct 2026).
   today: [
-    "metrics?days=1",
-    "conversations",
-    "escalations?state=open",
-    "calls",
-    "lead-searches",
-    // The leads who tried their own receptionist (decision 0079), read with the searches: rows of the queue.
-    "lead-previews",
+    // The day's read whole, one request where the page made six (GET today, Today in three zones, 2 Nov 2026).
+    "today",
     "setup",
     "views",
     "calendar?around=today",
@@ -178,6 +173,8 @@ export const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>> = {
     "contacts",
     "segments",
     "channels",
+    // The calls Live's strip draws from, which Today's own read no longer asks for as it did (GET today carries the day's).
+    "calls",
     `reports/headline?period=${REPORT_PERIOD_DEFAULT}`,
     "playbooks",
     "notifications",

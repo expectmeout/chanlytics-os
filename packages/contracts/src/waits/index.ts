@@ -15,6 +15,8 @@ export { NOTICE_MENDS, warningsMendedBy } from "./notice-mends";
 export type { MendBy, MendChange, NoticeMend } from "./notice-mends";
 export { noticeTone } from "./notice-tones";
 export type { NoticeTone } from "./notice-tones";
+export { toSendAllOf, toSendEveryOf, toSendRunsOf } from "./to-send";
+export type { ToSendCount, ToSendRunLike } from "./to-send";
 export { WAIT_ROW_WORDS, waitRowsOf } from "./wait-rows";
 export type { WaitRowOf } from "./wait-rows";
 export { heldReplyNotice, WAIT_ACT_WORDS, WAIT_KINDS, WAIT_RULES, waitEndsWords, waitRuleOf } from "./wait-rules";

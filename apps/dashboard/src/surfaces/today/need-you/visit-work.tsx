@@ -19,6 +19,7 @@ import { sayVisit } from "../../visit-line";
 import { Button } from "../../kit";
 import { gate } from "../shell";
 import { Acts, Done, Going, Note, Words, Writing, whoseWords, type WorkProps } from "./parts";
+import { useRowState } from "./row-state";
 import { sendWords, undoSend, useSend } from "./sends";
 
 /** The way a first message to a person can go with words of the member's own: theirs by default, else any that takes words. */
@@ -179,8 +180,9 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
 
 /** Yesterday's visit to mark: Kept, or Missed and the rebook Ask writes, sent from the row. */
 export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
-  const { row, main, may, flash, keep } = p;
-  const [mark, setMark] = useState<VisitWord | "rebook" | null>(null);
+  const { row, main, may, flash, keep, unkeep } = p;
+  // Kept by the row, not by this part: the walk's sheet and the page's row say the same (row-state.ts).
+  const [mark, setMark] = useRowState<VisitWord | "rebook" | null>(row.id, "mark", null);
   const [busy, setBusy] = useState(false);
   const say = async (status: VisitWord) => {
     if (!row.visit) return;
@@ -188,7 +190,10 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
     keep(row);
     const r = await sayVisit(row.visit.id, status);
     setBusy(false);
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    if (!r.ok) {
+      unkeep(row);
+      return flash({ tone: "danger", msg: <>{r.message}</> });
+    }
     setMark(status === "missed" && row.person_id && may ? "rebook" : status);
   };
 

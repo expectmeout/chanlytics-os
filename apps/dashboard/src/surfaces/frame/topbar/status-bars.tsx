@@ -147,13 +147,15 @@ export function UnmarkedVisitsBar({ page }: { page: string }) {
  * three: a call going on and the visits to mark outrank it, and it is a desk's alone, wider than 1280px, where the row has
  * room for it beside the bell (components.css). Read from the Calendar's weeks as the tab holds them, as the visits to mark
  * are: nothing is read for it. Against the clock each minute (contracts todayDayNext), so Next turns to Now as it begins
- * and goes as it ends. A press opens the visit.
+ * and goes as it ends. A press opens the visit. It stands down on Today, whose day says it first (Today in three zones,
+ * 2 Nov 2026: the Next pill said again what the day's first cell says, a hand's width under it).
  */
-export function NextVisitBar() {
+export function NextVisitBar({ page }: { page: string }) {
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useCalendarRead();
   const cal = surfaceValue("calendar");
-  const next = cal && cal.vm ? todayDayNext(cal.vm as CalendarLike & { timezone: string }, Date.now()) : null;
+  const next =
+    page !== "today" && cal && cal.vm ? todayDayNext(cal.vm as CalendarLike & { timezone: string }, Date.now()) : null;
   const up = !!next;
   useEffect(() => {
     if (!up) return undefined;

@@ -72,6 +72,7 @@ import { everyone } from "@/server/people/people";
 import { readSettings } from "./calendar-settings";
 import { storedConfigOf } from "@/server/workspace/config-row";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
+import { boardVisits, poolRecordOf } from "./people-visits";
 import { recordBusy } from "./record-busy";
 import { log } from "@/server/log";
 
@@ -201,6 +202,11 @@ export type CalendarSources = {
    * (calendar-person-facts.ts), so the page reads no People of its own. Empty where nobody was read.
    */
   book: ReadonlyMap<string, PersonRowDto>;
+  /**
+   * Who of `book` comes in today or tomorrow for the first visit the record holds of theirs (people-visits.ts
+   * boardVisits): Today's day says "First visit" of them. Empty where nobody was read, or the record could not say.
+   */
+  firsts: ReadonlySet<string>;
   /**
    * The appointments the record holds over the span (00345): the bookings that arrived by email, drawn beside the
    * feed's events (docs/plans/2026-10-07-bookings-arrive-by-email.md). Empty for a workspace none have reached.
@@ -513,7 +519,7 @@ async function originsOf(
 async function withFeedAndPeople(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  read: Omit<CalendarSources, "feed" | "parsed" | "serviceNames" | "people" | "book" | "taken" | "origins">,
+  read: Omit<CalendarSources, "feed" | "parsed" | "serviceNames" | "people" | "book" | "firsts" | "taken" | "origins">,
   url: string | null,
   profile: BusinessProfile | null,
   now: Date,
@@ -526,12 +532,26 @@ async function withFeedAndPeople(
   // settles quietly.
   const everyoneRead: Promise<PersonRowDto[]> =
     !feedOnly && (url || rows.length) ? everyone(ctx, tenantId).catch(() => []) : Promise.resolve([]);
-  // The matcher's people and the rows they were made of, from the one read.
-  const people = async (): Promise<Pick<CalendarSources, "people" | "book">> => {
+  // The record over the season beside them, where a feed is read: each person's visits join it (poolRecordOf, which
+  // logs a failure and answers null), so the board says when someone was last in.
+  const recordRead = !feedOnly && url ? poolRecordOf(ctx, tenantId, now) : Promise.resolve(null);
+  // The matcher's people and the rows they were made of, from the one read, each with its visits where the feed parsed.
+  const people = async (parsed: ParsedFeed | null): Promise<Pick<CalendarSources, "people" | "book" | "firsts">> => {
     const all = await everyoneRead;
-    return { people: all.map(personLike), book: new Map(all.map((r) => [r.id, r])) };
+    const pool = { timezone, source: read.source, own: read.ownAddresses, services: profile?.services ?? [] };
+    const seen = parsed
+      ? await boardVisits(
+          ctx,
+          tenantId,
+          all,
+          parsed.items,
+          { ...pool, rules: read.rules, record: await recordRead },
+          now,
+        )
+      : { rows: all, firsts: new Set<string>() };
+    return { people: all.map(personLike), book: new Map(seen.rows.map((r) => [r.id, r])), firsts: seen.firsts };
   };
-  if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], ...(await people()) };
+  if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], ...(await people(null)) };
 
   // One parse per fetch, shared with the profile, the People list and the
   // report. Its horizon — ninety days either side — covers any span the page
@@ -545,11 +565,11 @@ async function withFeedAndPeople(
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   // Nothing readable, ever: the board says why, in the words the preview uses; the record's rows are drawn all the same.
-  if (!feed.parsed) return { ...read, feed, parsed: null, serviceNames: [], ...(await people()) };
+  if (!feed.parsed) return { ...read, feed, parsed: null, serviceNames: [], ...(await people(null)) };
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   // Everyone, not the first thousand: past it, an appointment of a known person linked to nobody on the board, and
   // an owner's read asked the door for them again.
-  return { ...read, feed, parsed: feed.parsed, serviceNames, ...(await people()) };
+  return { ...read, feed, parsed: feed.parsed, serviceNames, ...(await people(feed.parsed)) };
 }
 
 /**
@@ -598,7 +618,7 @@ export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): C
     { services: profile?.services ?? [], rules, marks },
   );
   const days = withOrigins(
-    withPersonFacts(daysWithAppointments(fromFeed, rows, timezone, people), s.book, timezone, now),
+    withPersonFacts(daysWithAppointments(fromFeed, rows, timezone, people), s, timezone, now),
     s.origins,
   );
   // Open times only where a calendar reads: the rows say what was booked online, not what a staff member typed into
@@ -672,13 +692,14 @@ function withOrigins<D extends { items: CalendarItemDto[] }>(
 
 /**
  * Each visit's person with what the board says of them beyond who they are (calendar-person-facts.ts): their standing,
- * business, deal, step and last contact, from the People row the read matched them by. One fact set per person, worked out
- * once however many visits name them; nobody the read held no row of (someone added between its two halves) carries
- * none, and the sheet says only who they are. A pure assembly, as weekFrom is.
+ * business, deal, step, last contact and last visit, from the People row the read matched them by (`firsts`: the ones in
+ * for their first). One fact set per person, worked out once however many visits name them; nobody the read held no row
+ * of (someone added between its two halves) carries none, and the sheet says only who they are. A pure assembly, as
+ * weekFrom is.
  */
 function withPersonFacts<D extends { items: CalendarItemDto[] }>(
   days: D[],
-  book: ReadonlyMap<string, PersonRowDto>,
+  { book, firsts }: Pick<CalendarSources, "book" | "firsts">,
   tz: string,
   now: Date,
 ): D[] {
@@ -687,7 +708,7 @@ function withPersonFacts<D extends { items: CalendarItemDto[] }>(
   const factsOf = (id: string) => {
     if (!facts.has(id)) {
       const row = book.get(id);
-      if (row) facts.set(id, calendarPersonFactsOf(row, tz, now.getTime()));
+      if (row) facts.set(id, calendarPersonFactsOf(row, tz, now.getTime(), firsts.has(id)));
     }
     return facts.get(id);
   };

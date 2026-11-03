@@ -12,13 +12,12 @@ export const PERSON_ROUTE = "clients/person";
  * draws them, so a boot on that page reads them right after its own surface
  * (surface-runner.ts screenRank) rather than in the runner's fixed order.
  *
- * Today draws the day beside its queue from the calendar, the queue's runs from
- * broadcasts, the card's period line and Worth a look from the reports headline (one small read, never the whole report), the day's
- * playbook rows, the bell's rows for While you were away, a call in progress
- * from live, the card's Setup and Google lines, and from People the day card's
- * needs-someone flag and channel glyphs and Worth a look's people -- last,
- * because contacts is the heaviest read; the bands that read it draw without it
- * and again when it lands (surface:clients). Measured on the salon
+ * Today (in three zones, 2 Nov 2026) draws the day beside Need you from the calendar and the playbooks, the runs from
+ * broadcasts (waiting for a word in Need you, going today in the day), the week line and Ask found's leaks from the
+ * reports headline (one small read, never the whole report), Since you looked's notes from the bell, a call in progress
+ * from live, what is left to set up from Setup, the reviews to answer from Google, and from People the steps due, the
+ * pinned lists and the names Ask found gives -- last, because contacts is the heaviest read; the zones that read it draw
+ * without it and again when it lands (surface:clients). Measured on the salon
  * (22 Sep 2026): the calendar was read eleventh, behind Settings, People and
  * Leads that nobody was looking at, so the day popped in 1.6 s after the queue
  * beside it. The Calendar draws its campaign marks from their own span read. A
@@ -27,7 +26,7 @@ export const PERSON_ROUTE = "clients/person";
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // What the first draw waits for comes first (ROUTE_WAITS, below), in the same order: the boot reads these four at a time,
   // and one behind a read of the stream's second tier (People, the playbooks: up to two seconds) held the page for it.
-  // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
+  // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/zones/setup-card.tsx TodaySetup), and read seventh it
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
   today: [
     "setup",

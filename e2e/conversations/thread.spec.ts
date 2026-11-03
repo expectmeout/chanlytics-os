@@ -299,21 +299,20 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await page.setViewportSize({ width: 1280, height: 720 });
     });
 
-    await test.step("Today says the reply never reached them: the thread is yours since the reply, so the recap carries it, not the queue", async () => {
+    await test.step("Today says the reply never reached them: a row of Need you, though the thread is yours since the reply", async () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");
       await expect(queue).toBeVisible();
-      // One rule (standing.ts): a thread you took by replying is yours, not the queue's, escalation or not; the
-      // Inbox lists it under Handled as yours (#852), Today's queue does not repeat it. What Today
-      // must never be quiet about is the failure itself: the recap's warning, under the head, with the door to the thread.
-      await expect(queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name })).toHaveCount(0);
-      const failed = page
-        .getByTestId("today-warnings")
-        .getByTestId("today-failed-reply")
-        .filter({ hasText: /failed to deliver/ });
-      await expect(failed).toHaveCount(1);
-      await expect(failed).toContainText("the customer got no answer");
-      await expect(failed.getByRole("button", { name: /See the thread/ })).toBeVisible();
+      // One rule (standing.ts): a thread you took by replying is yours, and the Inbox lists it under Handled as yours
+      // (#852). What Today must never be quiet about is the failure itself: since Today in three zones (2 Nov 2026) a reply
+      // of yours that never left is yours to answer (today-facts.ts YOURS_STILL_WAIT), one row of Need you with its words
+      // kept and Try again, and nothing under the head. Try again is not pressed here: it sends.
+      const row = queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name });
+      await expect(row).toHaveCount(1);
+      await expect(row).toContainText("Your reply didn't reach them");
+      // Its verb on the row, or in its work where it is the row opened.
+      await expect(row.getByRole("button", { name: "Try again" }).first()).toBeVisible();
+      await expect(page.getByTestId("today-failed-reply")).toHaveCount(0);
     });
 
     await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {

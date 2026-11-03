@@ -17,6 +17,8 @@ import { CHANNEL_ANSWERED, channelNoun } from "../lines/channels";
 import type { ReplySpeed } from "../reports/report-speed";
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { durationWords } from "../shared/clock";
+import { capitalize, withStop } from "../shared/words";
+import { runOffClause } from "../sequences/sequence-run-off";
 import { runsWaitingSentence } from "../shell/campaign-rooms";
 import { PAUSED_WORDS } from "../workspace/billing";
 import type { TodayFacts } from "./today-facts";
@@ -50,13 +52,16 @@ const speedIn = (s: ReplySpeed, about = false): string =>
 export const speedClause = (s: ReplySpeed | null): string => (s === null ? "" : `typically ${speedIn(s)}`);
 
 /**
- * What each dark wire does with what reaches it, one sentence a wire: "Phone line is disconnected — calls are picked up
- * without your facts and are not recorded." The clause is the standing value's (lines/caller-gets.ts), the same one
- * Connections, Live and Start say, and not a sentence of Today's own: this alert said "messages coming in are not being
- * answered" of a phone line whose calls the receptionist picks up.
+ * What each dark wire does with what reaches it, two sentences a wire: "Phone line is disconnected. Calls are picked up
+ * without your facts and are not recorded." The second is the standing value's clause (lines/caller-gets.ts), the same
+ * one Connections, Live and Start say, and not a sentence of Today's own: this alert said "messages coming in are not
+ * being answered" of a phone line whose calls the receptionist picks up. Two sentences, not a dash (Today in three
+ * zones, 2 Nov 2026): the band says what is down, then what it costs.
  */
 const darkWires = (down: TodayFacts["wires"]): string =>
-  down.map((w) => `${w.label} is disconnected — ${lineOffGets(w.kind, channelNoun(w.kind)).gets}.`).join(" ");
+  down
+    .map((w) => `${w.label} is disconnected. ${capitalize(lineOffGets(w.kind, channelNoun(w.kind)).gets)}.`)
+    .join(" ");
 
 /**
  * The wires as the standing line draws them: a chip each, the count above the work, and the alert.
@@ -197,22 +202,38 @@ export function todayTrafficLine(f: TodayFacts): string {
   return trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
 }
 
+/**
+ * What the head says on a quiet day, by the wires (as todayQueueEmpty decides an empty queue). No wire yet is a new
+ * owner's first Today: nothing can come in, and the head says what changes that (the canvas of 2 Nov 2026). A wire on that
+ * the receptionist answers: it is on, and when the last message came and how fast it was answered. Only wires it does not
+ * answer (an email-only workspace): nothing is in the queue, and how what comes in waits, never that the receptionist is
+ * on, which it is not for them.
+ */
+function quietHead(wires: TodayFacts["wires"], last: string): { headline: string; sub: string } {
+  if (wires.length === 0)
+    return { headline: "Nothing can come in yet.", sub: "Connect a line and your receptionist starts answering." };
+  const on = wires.filter((w) => w.on);
+  if (on.some((w) => CHANNEL_ANSWERED.has(w.kind)))
+    return { headline: "Nothing needs you.", sub: ["The receptionist is on.", last].filter(Boolean).join(" ") };
+  return {
+    headline: "Nothing in the queue.",
+    sub:
+      on.length && on.every((w) => w.kind === "email")
+        ? EMAIL_NOT_ANSWERED_SENTENCE
+        : "No line the receptionist answers is connected.",
+  };
+}
+
 /** The quiet day: prove we are listening, don't show a row of zeroes. `proof` is todayProof's sentence. */
 /** The quiet day's card, less its figures, which the brief adds (today-figures.ts quietFigures). */
-export function todayQuietDay(f: TodayFacts, proof: string): Omit<NonNullable<TodayVM["quiet"]>, "figures"> {
+export function todayQuietDay(
+  f: TodayFacts,
+  /** When the last message came and how fast it was answered (today-figures.ts todayLastLine), or "" with none yet. */
+  last: string,
+): NonNullable<TodayVM["quiet"]> {
   const { wires, conversations } = f;
-  const names = andList(wires.map((w) => w.label));
-  const pluralVerb = wires.length > 1 ? "are" : "is";
-  // A workspace with no wire yet is a new owner's first Today — it must not
-  // read " is connected." with nothing in front of it, and it must not name
-  // the only two wires this sentence used to know about.
-  const sub =
-    wires.length === 0
-      ? "No line is connected yet, so nothing can come in."
-      : `${names} ${pluralVerb} connected. ${proof}`;
   return {
-    headline: "Nothing has come in yet today.",
-    sub,
+    ...quietHead(wires, last),
     proof: [
       ...(wires.length === 0 ? [{ label: "Lines", value: "none connected yet" }] : []),
       ...wires.map((w) => ({
@@ -355,7 +376,6 @@ export function standingWithRuns<S extends TodayHead>(standing: S, runs: number)
  * parts' names and the day's lines.
  */
 export const TODAY_PHONE_WORDS = {
-  askWhy: "Ask why",
   /** The day's card: its name, Now or Next and Then over its two visits, and its door. */
   day: "The day",
   now: "Now",
@@ -372,11 +392,52 @@ export const TODAY_PHONE_WORDS = {
    * (0076): the figure's own label ("answered by the receptionist") is its title, and its clause and receipt say the rest
    * when it is pressed.
    */
-  figure: { booked: "booked", messages: "messages", answered: "answered", calls: "calls", new: "new people" },
-  worth: "Worth a look",
-  /** The day's figures on a phone, with Worth a look and the week under them: the card's name. */
+  figure: { booked: "booked", answered: "answered", calls: "calls", new: "new people" },
+  /** The day's figures on a phone, with the week under them: the card's name. */
   soFar: "Today so far",
+  /** The day after closing (the canvas of 2 Nov 2026): tomorrow's name, its first visit, and what already happened. */
+  tomorrow: "Tomorrow",
+  first: "First",
+  earlier: (n: number) => `${n} earlier`,
+  /** What cannot wait's one door: a line that is down is reconnected, a paused workspace is billing's. */
+  alertDoor: { reconnect: "Reconnect", billing: "Open billing" },
+  /** The day with no calendar linked: its line, and the one row that links one. */
+  link: {
+    note: "No calendar linked",
+    title: "Link your calendar",
+    sub: "The receptionist offers what's open, and the day fills in here",
+    act: "Link it",
+  },
+  /**
+   * An hour a cancellation freed: offered to the people who asked and never booked (decision 0082). `done` where its batch
+   * waits for the owner's OK (the sequence asks first), `sent` where it went or goes on its own.
+   */
+  offer: {
+    act: "Offer it",
+    done: "Offered · in To decide",
+    sent: (n: number) => `Offered to ${n} ${n === 1 ? "person" : "people"}`,
+    could: (n: number) => `${n} ${n === 1 ? "person" : "people"} could take it`,
+    nobody: "Nobody is waiting for a time like it",
+  },
 } as const;
+
+/**
+ * Why an hour was not offered, in the owner's words (decision 0082): the time's own reasons (contracts freedTimeOf, which
+ * the press asks as the cancellation's arrival does) and the run's (core runPlaybook's `skipped`, `off` with its reason).
+ * Null for a reason the page words itself (the preview, no step, paused, nobody).
+ */
+export function offerRefusedWords(why: string, detail: string | null = null): string | null {
+  const clause = why === "off" && detail ? runOffClause(detail) : null;
+  if (clause) return `Nothing was offered: ${clause}.`;
+  if (why === "off" && detail === "freed_time_passed") return "That hour has begun: nobody can take it now.";
+  if (why === "gone") return "That cancellation is no longer on the calendar.";
+  if (why === "too_soon") return "It starts too soon for the notice the receptionist gives.";
+  if (why === "past_window") return "It is further ahead than the receptionist books.";
+  if (why === "closed" || why === "not_free" || why === "too_short") return "That time is no longer open.";
+  if (why === "no_person" || why === "all_day" || why === "no_was_at" || why === "no_hours")
+    return "This one can't be offered.";
+  return null;
+}
 
 /** Today's head after the greeting: what leads it, said in the darker ink, and the rest of its one sentence. */
 export interface TodayHeadLineVM {
@@ -385,37 +446,47 @@ export interface TodayHeadLineVM {
 }
 
 /**
- * The head's one sentence (the redesign of 1 Nov 2026), on a desk and a phone alike, under the greeting the frame says as
- * the page's name: what leads, then the rest. A line that is down leads, and how many need you as well. Else how many need
- * you, in the badge's number (`waiting`: needs-you.ts, the holds, the replies counting down and the runs waiting for a
- * word), then what Ask prepared and the one thing that cannot wait (`say`: need-you-words.ts needYouSay), or where it
- * says nothing the oldest wait, or what still waits besides and the day's traffic. With nobody waiting, what still waits
- * besides leads (a window closing, a call worth a listen, a search), so "Nothing needs you" is never said over it; else
- * that, with the day's traffic, or on a day nothing came in what is listening (`quiet`). One sentence, said once: the
- * count was a second headline over a sub-line that said the runs again (his phone, 1 Nov 2026).
+ * The head's one sentence (Today in three zones, 2 Nov 2026), on a desk and a phone alike, under the greeting the frame
+ * says as the page's name: what leads, then the rest, and it follows the rows. A line that is down leads, and how many need
+ * you as well. Else how many need you, the one count (need-you-groups.ts needYouCountOf: every row above To do still
+ * open), then what Ask prepared and the one thing that cannot wait (`say`: need-you-words.ts needYouSay), as the rows
+ * still hold them; after closing, how today went instead (`went`: todayWentLine). With nobody waiting: on a day nothing
+ * came in, what is listening (`quiet`: todayQuietDay); else "Nothing needs you." and how today went after closing, or that
+ * that's everyone. One sentence, said once.
  */
 export function todayHeadLine(
   standing: TodayHead,
   waiting: number,
   say: string | null,
-  quiet: string | null = null,
+  /** A day nothing came in: its head (todayQuietDay), "Nothing needs you." and that the receptionist is on. */
+  quiet: { headline: string; sub: string } | null = null,
+  /** After closing, the day turned to tomorrow (the canvas of 2 Nov 2026): how today went (todayWentLine). */
+  went: string | null = null,
 ): TodayHeadLineVM {
   if (standing.tone === "alert")
     return { lead: standing.headline, rest: waiting > 0 ? NEED_YOU_WORDS.countAsWell(waiting) : null };
-  const { calm } = standing;
-  const traffic = calm?.traffic ? `${calm.traffic} today.` : null;
-  if (waiting > 0) {
-    const besides = calm ? [...calm.also, traffic].filter(Boolean).join(" ") : "";
-    const oldest = standing.tone === "needs" ? standing.detail : null;
-    return { lead: NEED_YOU_WORDS.count(waiting), rest: say ?? oldest ?? (besides || null) };
-  }
-  if (!calm) return { lead: "Nothing needs you.", rest: quiet };
-  const [first, ...more] = calm.also;
-  if (first) return { lead: first, rest: [...more, traffic].filter(Boolean).join(" ") || null };
-  const named = !!traffic && calm.handled_all;
-  const said = traffic ? (named ? `The receptionist handled everything — ${traffic}` : traffic) : null;
-  const answered = calm.answered ? `${named ? "It" : "The receptionist"} ${calm.answered}` : null;
-  return { lead: "Nothing needs you.", rest: [said, answered].filter(Boolean).join(" ") || quiet };
+  if (waiting > 0) return { lead: NEED_YOU_WORDS.count(waiting), rest: went ?? (say ? withStop(say) : null) };
+  if (quiet) return { lead: quiet.headline, rest: quiet.sub || null };
+  return { lead: "Nothing needs you.", rest: went ?? NEED_YOU_WORDS.end };
+}
+
+/**
+ * How today went, as the head says it once the day has turned to tomorrow (the canvas of 2 Nov 2026): what was booked,
+ * then how many of the customer messages the receptionist answered. "Today: 4 booked, 31 of 34 answered by the
+ * receptionist." Null where neither was counted.
+ */
+export function todayWentLine(
+  figures: ReadonlyArray<{ id: string; value: number | null; of?: number }>,
+): string | null {
+  const booked = figures.find((f) => f.id === "booked")?.value ?? null;
+  const answered = figures.find((f) => f.id === "answered");
+  const parts = [
+    booked !== null ? `${booked} booked` : "",
+    answered && answered.value !== null && answered.of
+      ? `${answered.value} of ${answered.of} answered by the receptionist`
+      : "",
+  ].filter(Boolean);
+  return parts.length ? `Today: ${parts.join(", ")}.` : null;
 }
 
 /** "1 draft on its way" beside the queue's parts: the replies counting down to send, which have no row; null for none. */

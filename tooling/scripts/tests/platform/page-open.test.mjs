@@ -107,14 +107,15 @@ test("the page's own reads are answered first, each as it settles; what it draws
 
   await turns();
   assert.deepEqual(started.sort(), [...own].sort(), "the page's own reads left together, and nothing beside them yet");
-  held.calls.resolve({ calls: [] });
+  // Today's own read, the day whole (GET today, Today in three zones, 2 Nov 2026), in first.
+  held.today.resolve({ read: null });
   await read();
   assert.deepEqual(
     JSON.parse(text.trim()),
-    { k: "calls", s: 200, b: { ok: true, data: { calls: [] } } },
+    { k: "today", s: 200, b: { ok: true, data: { read: null } } },
     "the first in is the first written",
   );
-  for (const k of own) if (k !== "calls") held[k].resolve({ k });
+  for (const k of own) if (k !== "today") held[k].resolve({ k });
   await turns();
   assert.deepEqual(started.slice(own.length).sort(), [...beside].sort(), "once the page's own are in, the rest leave");
   for (const k of beside) held[k].resolve({ k });
@@ -134,7 +135,7 @@ test("the page's own reads are answered first, each as it settles; what it draws
 test("a read's refusal is its own route's: its code, status and sentence, and the wait a limit counted; anything else is a 500 that says nothing", async () => {
   const routeOf = (key) => ({
     run: async () => {
-      if (key === "metrics?days=1") throw new AppError("rate_limited", "Slow down.", 429, { retry_after_s: 12.2 });
+      if (key === "today") throw new AppError("rate_limited", "Slow down.", 429, { retry_after_s: 12.2 });
       if (key === "setup") throw new Error("the database fell over");
       if (key === "views") throw new AppError("forbidden", "Not yours.", 403);
       return { key };
@@ -142,8 +143,8 @@ test("a read's refusal is its own route's: its code, status and sentence, and th
   });
   const lines = await linesOf(openPage(ctxFor(), openReq(), { page: "today", period: null, thread: null }, routeOf));
   const byKey = Object.fromEntries(lines.map((l) => [l.k, l]));
-  assert.deepEqual(byKey["metrics?days=1"], {
-    k: "metrics?days=1",
+  assert.deepEqual(byKey.today, {
+    k: "today",
     s: 429,
     b: { ok: false, error: { code: "rate_limited", message: "Slow down.", details: { retry_after_s: 12.2 } } },
     h: { "retry-after": "13" },

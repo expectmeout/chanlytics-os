@@ -80,24 +80,27 @@ test("a quiet morning is proven, not left implied", () => {
   assert.ok(vm.quiet, "quiet card should be present");
   assert.equal(vm.needsYou, null);
   assert.equal(vm.calls, null);
-  assert.match(vm.quiet.sub, /connected/);
-  assert.match(vm.quiet.sub, /No messages have arrived yet/);
+  // Today in three zones (2 Nov 2026): the head says what is listening, after "Nothing needs you."
+  assert.equal(vm.quiet.headline, "Nothing needs you.");
+  assert.match(vm.quiet.sub, /^The receptionist is on\./);
   // the hero strip still renders — a zero is a real measurement
   assert.equal(vm.recap.facts.length, 4);
   assert.equal(vm.recap.facts[0].value, "0");
-  // Glass draws the day's tile whole (canvas E3): the four figures as zeros, each with what is true under it, no receipt.
-  assert.equal(vm.figures, null, "Classic's card keeps the quiet sentence: no figures");
+  // The day's four figures always stand: booked, answered of the messages, calls, new people, as zeros with no receipt.
   assert.deepEqual(
-    vm.quiet.figures.map((f) => [f.id, f.value, f.receipt]),
+    vm.figures.map((f) => f.id),
+    ["booked", "answered", "calls", "new"],
+  );
+  assert.deepEqual(
+    vm.figures.slice(1).map((f) => [f.id, f.value, f.receipt]),
     [
-      ["messages", 0, null],
       ["answered", 0, null],
       ["calls", 0, null],
       ["new", 0, null],
     ],
   );
-  assert.equal(vm.quiet.figures[0].meta, "none yet", "no message has ever arrived: nothing to date the last by");
-  assert.equal(vm.quiet.figures[3].meta, "nobody new yet");
+  assert.equal(vm.figures[1].meta, "nothing to answer yet", "no message has ever arrived: nothing to date the last by");
+  assert.equal(vm.figures[3].meta, "nobody new yet");
 });
 
 test("nothing counted while someone waits: Glass still draws the day's tile whole, as four zeros", () => {
@@ -123,18 +126,17 @@ test("nothing counted while someone waits: Glass still draws the day's tile whol
   ];
   const vm = toTodayVM(m, [conv()], esc, [], NOW);
   assert.equal(vm.quiet, null, "someone waits: not a quiet day");
-  assert.equal(vm.figures, null, "nothing to count: Classic's card keeps its line");
+  // The four figures stand whole as zeros (Today in three zones, 2 Nov 2026: always the four).
   assert.deepEqual(
-    vm.zero_figures.map((f) => [f.id, f.value, f.receipt]),
+    vm.figures.slice(1).map((f) => [f.id, f.value, f.receipt]),
     [
-      ["messages", 0, null],
       ["answered", 0, null],
       ["calls", 0, null],
       ["new", 0, null],
     ],
   );
-  assert.match(vm.zero_figures[0].meta, /the last/, "the last message's day stands under the zero");
-  // A day with traffic carries its own figures and no zeros.
+  assert.match(vm.figures[1].meta, /the last/, "the last message's day stands under the zero");
+  // A day with traffic carries its own figures, the answered out of the messages that came in.
   const busy = toTodayVM(
     metrics({ period: { messages_in: 3, answered_by_ai: 2, conversations_active: 1 } }),
     [conv({ state: "open" })],
@@ -142,8 +144,8 @@ test("nothing counted while someone waits: Glass still draws the day's tile whol
     [],
     NOW,
   );
-  assert.ok(busy.figures, "the day's figures stand");
-  assert.equal(busy.zero_figures, null);
+  const answered = busy.figures.find((f) => f.id === "answered");
+  assert.deepEqual([answered.value, answered.of], [2, 3], "the day's figures stand: 2 of 3 answered");
 });
 
 test("a disconnected channel never reads as a calm morning", () => {
@@ -630,13 +632,21 @@ test("the count above the work sees every wire, and calls each one what the owne
     NOW,
   );
   assert.deepEqual(smsOff.standing.lines, { text: "2 of 3 lines connected", short: "2 of 3 lines on", down: true });
-  assert.equal(smsOff.standing.alert, "Texting is disconnected — messages to it are neither answered nor recorded.");
+  assert.equal(smsOff.standing.alert, "Texting is disconnected. Messages to it are neither answered nor recorded.");
   assert.equal(smsOff.queue.empty.testid, "today-queue-empty-down");
 
   // REGRESSION: "2 of 2 lines connected" on a workspace whose only line is email.
   const only = toTodayVM(metrics({ channels: [EMAIL] }), [], [], [], NOW);
   assert.deepEqual(only.standing.lines, { text: "1 of 1 line connected", short: "1 of 1 line on", down: false });
-  assert.equal(only.quiet.sub, "Email is connected. No messages have arrived yet.");
+  // The head says how its quiet day stands (Today in three zones): never that the receptionist is on, which it is not for
+  // email, nor that nothing needs you over a line nobody answers.
+  assert.deepEqual(
+    [only.quiet.headline, only.quiet.sub],
+    [
+      "Nothing in the queue.",
+      "Nothing is sent by email without you: each email waits in Need you with a reply drafted for you to change or send.",
+    ],
+  );
   assert.ok(only.quiet.proof.some((p) => p.label === "Email" && p.value === "bestmovers@mail.chanlytics.com · on"));
   // and it is not congratulated: the receptionist does not answer email.
   assert.equal(only.queue.empty.testid, "today-queue-empty-unanswered");
@@ -793,35 +803,25 @@ const busyEsc = () => [
 
 test("the day's four figures, each with the clause under it and the why behind it", () => {
   const vm = toTodayVM(busyDay(), busyThreads(), busyEsc(), busyCalls(), NOW);
+  // Today in three zones (2 Nov 2026): what was booked leads, and answered says what it is out of, which holds what the
+  // messages figure said; the four always stand.
   assert.deepEqual(
-    vm.figures.map((f) => [f.id, f.label, f.value]),
+    vm.figures.map((f) => [f.id, f.label, f.value, f.of]),
     [
-      ["messages", "customer messages", 9],
-      ["answered", "answered by the receptionist", 7],
-      ["calls", "calls", 3],
-      ["new", "new people", 2],
+      ["booked", "booked", vm.figures[0].value, undefined],
+      ["answered", "answered by the receptionist", 7, 9],
+      ["calls", "calls", 3, undefined],
+      ["new", "new people", 2, undefined],
     ],
   );
   const by = Object.fromEntries(vm.figures.map((f) => [f.id, f]));
-  assert.equal(by.messages.meta, "last at 10:38 AM, answered in 41s", "the proof rides the messages figure");
-  // The threads the page holds carry four of today's nine: the receipt says what it counted, by wire, most first.
-  assert.deepEqual(
-    by.messages.receipt,
-    {
-      text: "Of the 4 in the Inbox: 2 by WhatsApp, 1 by email and 1 by text.",
-      door: { label: "Open the Inbox", to: "inbox" },
-    },
-    "never an absolute claim from a partial read",
-  );
   assert.equal(by.answered.meta, "typically in 34s, 2 handed over");
-  assert.deepEqual(
-    by.answered.receipt,
-    {
-      text: "Handed over twice: once because a customer asked for a person, once for something it can't read. The rest it answered itself. It sent 11 messages in all.",
-      door: { label: "See the handovers", to: "inbox" },
-    },
+  assert.match(
+    by.answered.receipt.text,
+    /^Of the 4 in the Inbox: 2 by WhatsApp, 1 by email and 1 by text\. Handed over twice: once because a customer asked for a person, once for something it can't read\./,
     "the reasons are today's escalations as the page holds them, never period.escalation_reasons, which counts every open one whatever its age",
   );
+  assert.deepEqual(by.answered.receipt.door, { label: "See the handovers", to: "inbox" });
   assert.equal(by.calls.meta, "7 min on the phone, 1 to voicemail");
   assert.deepEqual(by.calls.receipt, {
     text: "The voice provider read 2 as positive and 1 as neutral. Kenia Duarte reached voicemail.",
@@ -873,11 +873,14 @@ test("a receipt adds to its figure: it never says the figure's own number again"
     }
   }
   const same = fixtures[1].figures.find((f) => f.id === "answered");
-  assert.equal(same.receipt.text, "One reply each.", "four answered with four sent: the count is not said twice");
-  const one = fixtures[1].figures.find((f) => f.id === "messages");
   assert.equal(
-    one.receipt.text,
-    "The one the Inbox holds came by WhatsApp.",
+    same.receipt.text,
+    "The one the Inbox holds came by WhatsApp. One reply each.",
+    "four answered with four sent: the count is not said twice",
+  );
+  assert.match(
+    same.receipt.text,
+    /^The one the Inbox holds came by WhatsApp\./,
     "one of four held: what it counted, not 'All by WhatsApp'",
   );
   const all = fixtures[1].figures.find((f) => f.id === "calls");
@@ -895,9 +898,9 @@ test("a receipt adds to its figure: it never says the figure's own number again"
     [],
     NOW,
   );
-  assert.equal(
-    held.figures.find((f) => f.id === "messages").receipt.text,
-    "All by WhatsApp.",
+  assert.match(
+    held.figures.find((f) => f.id === "answered").receipt.text,
+    /^All by WhatsApp\./,
     "one held of one: the whole day, so the absolute is true",
   );
   assert.equal(held.figures.find((f) => f.id === "new").meta, "on WhatsApp");
@@ -979,7 +982,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   assert.equal(resolved.meta, "typically in 34s, 2 handed over");
   assert.equal(
     resolved.receipt.text,
-    "Handed over twice, both already resolved. The rest it answered itself. It sent 11 messages in all.",
+    "Of the 4 in the Inbox: 2 by WhatsApp, 1 by email and 1 by text. Handed over twice, both already resolved. The rest it answered itself. It sent 11 messages in all.",
   );
   // One reply answered three asks: nothing to say about it.
   const grouped = toTodayVM(
@@ -1099,7 +1102,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   ).figures.find((f) => f.id === "answered");
   assert.equal(
     taken.receipt.text,
-    "Handed over once, because a customer asked for a person. The rest it answered itself.",
+    "Of the 4 in the Inbox: 2 by WhatsApp, 1 by email and 1 by text. Handed over once, because a customer asked for a person. The rest it answered itself.",
     "REGRESSION: '1 handover already resolved' over a colleague mid-reply",
   );
   // Two of nine held, both by WhatsApp: what the page holds, said once.
@@ -1109,10 +1112,10 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
     [],
     [],
     NOW,
-  ).figures.find((f) => f.id === "messages");
-  assert.equal(
+  ).figures.find((f) => f.id === "answered");
+  assert.match(
     twoHeld.receipt.text,
-    "The 2 the Inbox holds both came by WhatsApp.",
+    /^The 2 the Inbox holds both came by WhatsApp\./,
     "REGRESSION: 'Of the 2 in the Inbox: 2 by WhatsApp.'",
   );
 });
@@ -1132,42 +1135,47 @@ test("the receipt under customer messages holds only what the figure counts: an 
       [],
       [callRow("k1")],
       NOW,
-    ).figures.find((f) => f.id === "messages");
+    ).figures.find((f) => f.id === "answered");
+  // The wires the messages came by are answered's receipt now (Today in three zones: "31 of 34 answered" holds what the
+  // messages figure said), said first.
   const both = messages([person, outOfOffice], 1);
-  assert.equal(both.receipt.text, "All by WhatsApp.", "the page's one person's message accounts for the figure's one");
+  assert.match(
+    both.receipt.text,
+    /^All by WhatsApp\./,
+    "the page's one person's message accounts for the figure's one",
+  );
   assert.doesNotMatch(both.receipt.text, /Of the 2|email/, "the mailbox's own mail is not in it");
-  // Only the automated mail in the Inbox: nothing the figure counts is held, so the receipt says nothing.
-  assert.equal(messages([outOfOffice], 0).receipt, null, "a day of automatic replies: a figure of 0 and no receipt");
+  // Only the automated mail in the Inbox: nothing the figure counts is held, so the receipt names no wire.
+  assert.doesNotMatch(messages([outOfOffice], 0).receipt?.text ?? "", /Of the|by email/, "a day of automatic replies");
   // A claim of 'person' is a person's, and the receipt names its wire as before.
   const signed = thread("cv-s", "Sol Ito", [
     at("2026-08-27T12:50:00Z", { channel: "email", meta: { email: { claim: "person" } } }),
   ]);
-  assert.equal(
+  assert.match(
     messages([person, signed], 2).receipt.text,
-    "1 by email and 1 by WhatsApp.",
+    /^1 by email and 1 by WhatsApp\./,
     "a person's email is a customer message",
   );
 });
 
-test("a figure with nothing to add has no receipt; a day with nothing at all has no figures, and the proof is still said", () => {
+test("a figure with nothing to add has no receipt; a day with nothing at all has its four zeros, and the proof is still said", () => {
   // The SQL counted one message nobody has answered; the conversations read holds no thread for it, so there is nothing to split.
   const thin = toTodayVM(metrics({ period: { messages_in: 1, conversations_active: 1 } }), [], [], [], NOW);
   const by = Object.fromEntries(thin.figures.map((f) => [f.id, f]));
-  assert.equal(by.messages.meta, "none yet", "no last_inbound_at in this read");
-  assert.equal(by.messages.receipt, null, "no thread to split by wire");
   assert.equal(by.answered.meta, "none answered yet", "a message came in and nothing answered it yet");
-  assert.equal(by.answered.receipt, null, "no handover, nothing sent");
+  assert.equal(by.answered.receipt, null, "no handover, nothing sent, no thread to split by wire");
   assert.equal(by.calls.meta, "none yet");
   assert.equal(by.calls.receipt, null);
   assert.equal(by.new.meta, "nobody new yet");
   assert.equal(by.new.receipt, null);
   const none = toTodayVM(metrics(), [], [], [], NOW);
-  assert.equal(none.figures, null, "no row of zeros");
-  assert.equal(none.proof, "No messages have arrived yet.");
-  assert.ok(
-    none.quiet.sub.endsWith(" connected. No messages have arrived yet."),
-    `the quiet card's sentence ends with the same proof: ${none.quiet.sub}`,
+  assert.deepEqual(
+    none.figures.slice(1).map((f) => f.value),
+    [0, 0, 0],
+    "the four always stand (Today in three zones), zeros where nothing was counted",
   );
+  assert.equal(none.proof, "No messages have arrived yet.");
+  assert.match(none.quiet.sub, /^The receptionist is on\./, `the quiet day's line: ${none.quiet.sub}`);
   const quietLater = toTodayVM(
     metrics({ now: { last_inbound_at: "2026-08-26T21:39:00Z", last_outbound_at: "2026-08-26T21:40:18Z" } }),
     [],
@@ -1179,7 +1187,21 @@ test("a figure with nothing to add has no receipt; a day with nothing at all has
     quietLater.proof,
     "The last message arrived yesterday at 5:39 PM, and the receptionist answered 1m 18s later.",
   );
-  assert.ok(quietLater.quiet.sub.endsWith(quietLater.proof), quietLater.quiet.sub);
+  assert.equal(
+    quietLater.quiet.sub,
+    "The receptionist is on. Last message yesterday 5:39 PM, answered in 1m 18s.",
+    "the quiet day says the last message and how fast it was answered (todayLastLine)",
+  );
+  // Each day's form, clipped as the canvas writes it ("Last message Tuesday 4:12 PM"), where the proof's sentence says "at".
+  const lastSaid = (iso) =>
+    toTodayVM(metrics({ now: { last_inbound_at: iso, last_outbound_at: null } }), [], [], [], NOW).quiet.sub;
+  assert.equal(lastSaid("2026-08-24T20:12:00Z"), "The receptionist is on. Last message Monday 4:12 PM.");
+  assert.equal(lastSaid("2026-08-14T20:12:00Z"), "The receptionist is on. Last message August 14, 4:12 PM.");
+  assert.equal(
+    lastSaid("2026-08-27T13:05:00Z"),
+    "The receptionist is on. Last message 9:05 AM.",
+    "today: its time alone",
+  );
   for (const vm of [thin, none])
     for (const gone of ["pulse", "launchpad", "updatedAt"]) assert.ok(!(gone in vm), `${gone} has no reader`);
   assert.ok(!("greeting" in none.standing), "no greeting above the work");

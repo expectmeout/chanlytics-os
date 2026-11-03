@@ -429,7 +429,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
     ["settings", "calendar", "setup", "workspace"],
     "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, People's reach and the composers where a page draws them, and no page is on screen here: S4-6), and a renamed business the workspace (00439); Today's five reads draw no configuration",
   );
-  const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
+  const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   assert.ok(
     dayModule.includes('if (!C || !C.vm || C.vm.feed.state !== "ok") return null;') &&
       !dayModule.includes('data-testid="today-day"'),
@@ -528,6 +528,37 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
       /\.main-scroll > \.calendar \.cal-body \{[^}]*animation: none;/.test(b),
     ),
     "on a phone the days arrive with the page, as they will stand",
+  );
+  // And a view that comes in for another stops under the bar that sticks over the days, not only under the frame's top
+  // (kit/motion/view-deck.ts): after Day's board had scrolled to now, the Month came in with its row of names under the
+  // bar (Ruben's recording, 3 Nov 2026).
+  assert.ok(
+    blocksOf(css, "@media (max-width: 720px) {").some((b) =>
+      /\.main-scroll > \.calendar \.cal-body \{[^}]*scroll-margin-top: var\(--cal-bar-h, 0px\);/.test(b),
+    ),
+    "a view comes in under the bar",
+  );
+  // The week's and the month's lines stand on whole pixels: seven columns of a phone's width were 52.7px each and the
+  // week's heads 52.25px tall, and the Week and the Month stepped a pixel as a slide ended, where the Day and the Agenda,
+  // on whole pixels, stood still (Ruben, 3 Nov 2026). The columns are whole and the last takes what is left; the heads'
+  // lines are the house's leading, rounded.
+  const phone = blocksOf(css, "@media (max-width: 720px) {").join("\n");
+  const wholeColumns = (rest) => `repeat(6, round(calc(${rest} / 7), 1px)) minmax(0, 1fr)`;
+  assert.ok(
+    phone.includes(`grid-template-columns: var(--space-10) ${wholeColumns("(100% - var(--space-10))")};`),
+    "the week's seven days, on whole pixels",
+  );
+  assert.match(
+    phone,
+    new RegExp(
+      `\\.main-scroll > \\.calendar :is\\(\\.cal-month-head, \\.cal-month-row\\) \\{[^}]*grid-template-columns: ${wholeColumns("100%").replace(/[()]/g, "\\$&")};`,
+    ),
+    "the month's seven days, on whole pixels",
+  );
+  assert.match(
+    phone,
+    /\.cal-grid:not\(\.cal-grid-day\) :is\(\.cal-dow, \.cal-date\) \{[^}]*line-height: round\(calc\(var\(--leading-normal\) \* 1em\), 1px\);/,
+    "the week's heads, whole pixels tall",
   );
 });
 

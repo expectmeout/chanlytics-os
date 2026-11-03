@@ -25,7 +25,7 @@ import type { RecordKind } from "@chanlytics/contracts";
 export type PageCell = true | readonly RecordKind[];
 
 export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCell>>>> = {
-  // Today owns the headline its period line and Worth a look are printed from, and the replies to a reach-out its queue draws:
+  // Today owns the headline its week line and Ask found's leaks are printed from, and the replies to a reach-out Need you draws:
   // the headline moves with a message, a call or a visit while Today is open, a long wait later (surfaces/reports/headline.ts).
   // And the setup band drawn above the queue, as the first run's own page does (surfaces/setup/surface.ts): what a row states is
   // heard here, the templates, the facts and rules, a visit, a person's answer and the first WhatsApp message (S4-3). It does not
@@ -35,7 +35,7 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // its own page comes back.
   // And the counts of the lists pinned here (surfaces/today/pins-surface.ts; R10): what the lists are made of moves them, heard
   // here, where they are drawn.
-  // And People's person: its rows are the steps due here and the names Worth a look gives (contracts yoursToFollowUp), so a
+  // And People's person: its rows are the steps due here and the names Ask found's leaks give (contracts yoursToFollowUp), so a
   // customer who says STOP, is renamed, merged or erased is read again here, where a follow-up named them as someone to send to
   // until People was opened (the wiring's second audit, W-visit-deal-5). A message or a hold on Today reads none of People.
   today: {

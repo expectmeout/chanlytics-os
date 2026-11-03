@@ -158,6 +158,7 @@ export const ROUTE_KEYS = [
   "POST broadcasts/[id]/approve",
   "POST broadcasts/[id]/cancel",
   "POST broadcasts/[id]/recheck",
+  "POST calendar/freed",
   "POST calendar/notices/[id]/dismiss",
   "POST calendar/notices/[id]/read-again",
   "POST calendar/preview",

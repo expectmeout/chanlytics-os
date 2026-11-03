@@ -1,23 +1,22 @@
 /**
  * Need you's rows (decision 0071), each in the kit's one row grammar (AttnRow) with its work under its words: the people
- * and the team's own to-dos, then Ask's ideas and the reviews to answer. Since the redesign of 1 Nov 2026 a row says four
- * things and no state line: who, what they want behind the glyph of the wire it came by, how long they have waited or when
- * its clock runs out (in the amber past the business's own target), and the verb, with Ask's mark where Ask prepared it;
- * why it was handed to you is said beside the name once the row is open. One row is the focus and draws its work in place (the queue's `focus`: on a phone the card, the first open row;
- * on a desk the one opened, Up next until another is), its act the page's coral; a row acted on keeps its work, its
- * receipt and its undo, for the visit; every other row is drawn short and opens itself with its verb.
+ * and the team's own to-dos, and the reviews to answer (Ask's ideas are Ask found's, zones/found.tsx). Since the redesign
+ * of 1 Nov 2026 a row says four things and no state line: who, what they want behind the glyph of the wire it came by, how
+ * long they have waited or when its clock runs out (in the amber past the business's own target), and the verb, with
+ * Ask's mark where Ask prepared it; why it was handed to you is said beside the name once the row is open. One row is the
+ * focus and draws its work in place (the queue's `focus`: on a phone the card, the first open row; on a desk the one
+ * opened, Up next until another is), its act the page's coral; a row acted on keeps its work, its receipt and its undo,
+ * for the visit; every other row is drawn short and opens itself with its verb.
  */
 import type { ReactElement } from "react";
 import {
   NEED_YOU_WORDS as W,
   answerWithinMsOf,
-  isFindingCard,
   namesAPerson,
   needYouVerbOf,
   needYouWaitOf,
   reviewRoute,
   type AppointmentWord,
-  type AskMorningCard,
   type GoogleReviewDto,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
@@ -28,7 +27,6 @@ import { surfaceValue } from "../../surface-values";
 import type { Nav, VerbKind } from "../../waits/wait-rows";
 import type { Flash } from "../shell";
 import { useDraft } from "./drafts";
-import { IdeaWork } from "./idea-work";
 import { ReviewWork, reviewerOf } from "./review-work";
 import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
 
@@ -40,7 +38,9 @@ export interface NeedYouRowsCtx {
   tz: string;
   flash: (f: Flash) => void;
   keep: (row: TodayQueueRowVM) => void;
-  /** The rows acted on this visit, ideas and reviews among them: they keep their place, and their work. */
+  /** A kept row let go: refused, or put back by its Undo or Wake (WorkProps.unkeep). */
+  unkeep: (row: TodayQueueRowVM) => void;
+  /** The rows acted on this visit, reviews among them: they keep their place, and their work. */
   kept: ReadonlySet<string>;
   /**
    * The one row drawn open, by its id: on a phone the card, the first row still open; on a desk the one the member opened,
@@ -56,14 +56,17 @@ export interface NeedYouRowsCtx {
    * walks the list on it (walk-sheet.tsx), as a row drawn short does.
    */
   phone?: { walk: (rowId: string) => void } | null;
+  /**
+   * The kind a row drawn short gives its verb (Today in three zones, 2 Nov 2026): quiet while the focus's own act takes
+   * the page's coral, and in Up next, whose short row is the focus put aside; else `verbKind`, so the first row waiting
+   * takes the coral where the focus takes none (a reply that goes on its own, whose press is Stop).
+   */
+  shortKind?: VerbKind;
 }
 
-/** What the ideas and the reviews are handed besides: an idea or a review acted on is kept in its place for the visit. */
+/** What the reviews are handed besides: a review acted on is kept in its place for the visit. */
 export interface NeedYouExtrasCtx extends NeedYouRowsCtx {
-  keepIdea: (card: AskMorningCard) => void;
   keepReview: (review: GoogleReviewDto) => void;
-  /** What Ask noticed, set aside for a while: no turn holds one, so its Not today is kept for the member. */
-  restFinding?: (card: AskMorningCard) => Promise<void>;
 }
 
 /**
@@ -149,15 +152,18 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       );
     }
     const kept = c.kept.has(r.id);
-    // Short until opened: a row that opens to be worked and is not the focus, nor acted on this visit.
+    // Short until opened: a row that opens to be worked and is not the focus, nor acted on this visit. Its verb is the
+    // page's coral where the focus took none (a reply that goes on its own: Stop is no coral), else quiet (the canvas of
+    // 2 Nov 2026: Lea's reply going alone, and Try again on the first row waiting).
     if (opensToWork(r) && r.id !== c.focus && !kept) {
       const open = () => c.open(r.id);
+      const kind = (c.shortKind ?? c.verbKind)();
       return (
         <AttnRow
           key={r.id}
           {...common}
           note=""
-          cta={{ label: <VerbWords row={r} may={c.may} words={shortLabel(r)} />, kind: "ghost", onClick: open }}
+          cta={{ label: <VerbWords row={r} may={c.may} words={shortLabel(r)} />, kind, onClick: open }}
           also={null}
           onOpen={open}
         />
@@ -174,6 +180,7 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
         tz: c.tz,
         flash: c.flash,
         keep: c.keep,
+        unkeep: c.unkeep,
         read: card && phone ? () => phone.walk(r.id) : null,
       },
       { word: c.word, stepDone: () => c.stepDone(r) },
@@ -187,44 +194,6 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
         also={null}
         onOpen={card && phone ? () => phone.walk(r.id) : () => c.nav(r.cta.to)}
         work={work}
-      />
-    );
-  });
-}
-
-/** Ask's ideas from the morning: each a row after the people, with its act and Not today. */
-export function ideaRows(
-  cards: readonly AskMorningCard[],
-  morning: { messageId: string | null; threadId: string | null },
-  c: NeedYouExtrasCtx,
-): ReactElement[] {
-  return cards.map((card) => {
-    const kind = actKindOf({ id: card.id }, c);
-    const noticed = isFindingCard(card);
-    return (
-      <AttnRow
-        key={card.id}
-        initials=""
-        glyph="three"
-        name={card.title}
-        meta={noticed ? W.idea.noticed : W.idea.tag}
-        // A new campaign's one line (its rules are behind Details, idea-work.tsx); any other card's summary.
-        sentence={card.line ?? card.summary}
-        status={[]}
-        tone=""
-        testid={noticed ? "queue-finding" : "queue-idea"}
-        work={
-          <IdeaWork
-            card={card}
-            messageId={noticed ? null : morning.messageId}
-            threadId={morning.threadId}
-            rest={noticed ? () => c.restFinding?.(card) : undefined}
-            main={kind === "primary" ? "primary" : "secondary"}
-            flash={c.flash}
-            keep={() => c.keepIdea(card)}
-            nav={c.nav}
-          />
-        }
       />
     );
   });

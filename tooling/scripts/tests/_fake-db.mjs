@@ -108,6 +108,40 @@ function asJsonb(value) {
   return value === undefined ? undefined : reorder(JSON.parse(JSON.stringify(value)));
 }
 
+/**
+ * PostgREST's `or` clauses, split at the commas between them as PostgREST splits them: never at one inside a list's
+ * parentheses or a quoted value, so `contact_id.in.(a,b),client_phone.eq.x` is two clauses.
+ */
+function orClauses(expr) {
+  const out = [];
+  let cur = "";
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (quoted && ch === "\\") {
+      cur += ch + (expr[i + 1] ?? "");
+      i++;
+      continue;
+    }
+    if (ch === '"') quoted = !quoted;
+    else if (!quoted && ch === "(") depth++;
+    else if (!quoted && ch === ")") depth--;
+    else if (!quoted && depth === 0 && ch === ",") {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/** A PostgREST list's values, `(a,b)` or `("a","b")`, each quoted one's escapes undone. */
+const listValues = (list) =>
+  orClauses(list.replace(/^\(|\)$/g, "")).map((x) => (x.startsWith('"') ? x.slice(1, -1).replace(/\\(.)/g, "$1") : x));
+
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
 /**
  * `eq`: a column equals a value. A json column asked with the value's JSON text (`.filter("payload", "eq", JSON.stringify(x))`,
@@ -220,7 +254,7 @@ function matches(row, filters, defaults = {}) {
                           // because a rotating sweep's whole correctness is "never-done first, then
                           // the oldest" -- and that is a filter, not a shape a source scan can see.
                           op === "or"
-                          ? val.split(",").some((clause) => {
+                          ? orClauses(val).some((clause) => {
                               // The value may hold dots (a phone, a name): the column and the
                               // operator are the first two segments, the rest is the value.
                               const [c, o, ...rest] = clause.split(".");
@@ -242,6 +276,11 @@ function matches(row, filters, defaults = {}) {
                                 return String(cell(row, c) ?? "")
                                   .toLowerCase()
                                   .includes(v.replace(/\*/g, "").toLowerCase());
+                              // A list, `in.(a,b)` or quoted `in.("a","b")`: modelled for the people with visits before
+                              // the season (db peopleWithEarlierVisits), asked of several by id, number or address at
+                              // once. NULL is in no list.
+                              if (o === "in")
+                                return cell(row, c) != null && listValues(v).includes(String(cell(row, c)));
                               throw new Error(`fakeDb: or() clause ${clause} is not modelled`);
                             })
                           : (() => {
@@ -1611,8 +1650,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     const namedColumns = () => [
       ...q.filters.flatMap(([op, col, val]) =>
         op === "or"
-          ? String(val)
-              .split(",")
+          ? orClauses(String(val))
               .filter((c) => !/^(and|or|not)\(/.test(c))
               .map((c) => c.split(".")[0])
           : onEmbed(op, col)

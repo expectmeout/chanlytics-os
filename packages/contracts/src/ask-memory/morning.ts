@@ -2,8 +2,8 @@
  * Ask speaks first (decision 0070; the operator's D7, "a card on Today and a line in the bell, never a pop-up"): once a
  * day, when a member who acts arrives on Today, the page asks for the day's morning turn (POST ask/morning). The server
  * claims the day (one a member a day, ask_mornings), runs one Ask turn as that member in a thread of their own titled
- * with the day, and Today shows its Say and the cards it left, up to three; the bell says they are there. Approving a
- * card opens it in Ask, where every card is approved, changed or let go as it always is.
+ * with the day, and Today shows the cards it left in Ask found (Today in three zones, 2 Nov 2026), its Say no more; the
+ * bell says they are there. Approving a card runs it from its row, or opens it in Ask.
  *
  * Pure: the route, the page and the tests read the same question, limits and words.
  */
@@ -19,13 +19,15 @@ export const ASK_MORNING_CARDS_MAX = 3;
  * cards. The leads' ideas are named so the tool search finds them; the answer's language is the member's, said to the
  * turn apart from these words. Since decision 0071 the people waiting are Today's rows, each with its reply or its call's
  * brief drafted there, so the morning makes no card that only answers or rings one of them (its card stood under their
- * row, saying it twice), says how the day stands rather than what it made, and words each card as its act and its why. A
- * batch waiting for an OK is the same (2 Nov 2026): Your OK holds its row, and the run tool refuses a morning its card.
+ * row, saying it twice), and words each card as its act and its why. A batch waiting for an OK is the same (2 Nov 2026):
+ * Your OK holds its row, and the run tool refuses a morning its card. Since Today in three zones (2 Nov 2026) the morning
+ * writes no Say of its own: the head says how the day stands, and nothing draws the morning's sentence, so its answer
+ * says only how many cards it made.
  */
 const MORNING_HEAD =
   "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, and the batches waiting for my OK are under Your OK there, so make no card that only answers or calls back someone who is waiting, or that approves or skips a batch.";
 const MORNING_TAIL =
-  "Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Begin with one sentence on how the day stands, never about the cards you made. If nothing else is worth doing, say so in one sentence and make no card.";
+  "Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Today already says how my day stands, so say only how many cards you made, in a few words. If nothing else is worth doing, say so in a few words and make no card.";
 export const ASK_MORNING_QUESTION = `${MORNING_HEAD} ${MORNING_TAIL}`;
 
 /**

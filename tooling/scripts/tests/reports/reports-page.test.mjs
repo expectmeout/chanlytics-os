@@ -62,6 +62,7 @@ import {
   held as campaignsHeld,
 } from "./campaigns/_campaign-world.mjs";
 import { reachOuts as campaignsReachOuts } from "./campaigns/_reach-out-world.mjs";
+import { until } from "../shared/_until.mjs";
 
 const went = [];
 const flashed = [];
@@ -1619,11 +1620,6 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
   const settled = async () => {
     for (let i = 0; i < 20; i++) await settle();
   };
-  /** Until the Reviews read has been asked for again, by the answer, and then for the rest of what follows it. */
-  const reread = async () => {
-    for (let i = 0; i < 300 && !reviewReply.reread; i++) await new Promise((r) => setTimeout(r, 10));
-    await settled();
-  };
   try {
     lensAt = LENS_PATHS[5];
     let tree = pageOnce();
@@ -1639,7 +1635,8 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
     find(tree, (n) => n.type === Field).props.onValueChange("Thank you, Ana!");
     tree = again(draw);
     press(byTestId(tree, "google-reply-send"));
-    await reread(); // the reply is accepted, and the answer re-reads the Reviews surface before the verb returns
+    await until(() => focused.length > 0, "the reply to land (its answer re-reads Reviews and Today first)");
+    await settled();
     tree = again(draw);
     assert.deepEqual(reviewReply.posted, ["Thank you, Ana!"], "her words went to the route");
     assert.deepEqual(focused, ["the waiting card's heading"], "focus is sent to the card, once, when the reply landed");
@@ -1666,6 +1663,9 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
     globalThis.usePPToast = shellToast;
     lensAt = LENS_PATHS[0];
     setSurfaceValue("reports_reviews", undefined);
+    // The answer's re-read of Today, not served here, is asked for again 2 and 10 s later (RETRY_AFTER_MS): drop it.
+    stopRunner();
+    stopRunner = startSurfaces([], () => () => {});
   }
 });
 

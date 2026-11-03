@@ -546,6 +546,57 @@ export async function earlierVisitRows(
   return { rows, capped };
 }
 
+/** The most rows one read of several people's earlier visits takes: past it, nobody is said to have none. */
+const EARLIER_OF_MANY_MAX = 1000;
+
+/** A value in a PostgREST list, quoted, so an address's reserved characters stay one value. */
+const quotedList = (vs: readonly string[]): string =>
+  vs.map((v) => `"${v.replace(/["\\]/g, (c) => `\\${c}`)}"`).join(",");
+
+/**
+ * Which of `people` the record holds a visit of that ended at or before `beforeIso` (the season's start): kept, missed,
+ * or booked with nobody having said, found as earlierVisitRows finds one person's (the person the record linked, or the
+ * number or address a booking carries), for several people in one read. Null where the read filled its page, so none of
+ * them may be said to have none. A failure throws.
+ */
+export async function peopleWithEarlierVisits(
+  db: Db,
+  tenantId: string,
+  people: readonly { id: string; phone: string | null; email: string | null }[],
+  beforeIso: string,
+): Promise<ReadonlySet<string> | null> {
+  if (!people.length) return new Set();
+  const phones = people.flatMap((p) => (p.phone ? [p.phone] : []));
+  const emails = people.flatMap((p) => (p.email ? [p.email] : []));
+  const or = [
+    `contact_id.in.(${quotedList(people.map((p) => p.id))})`,
+    phones.length ? `client_phone.in.(${quotedList(phones)})` : "",
+    emails.length ? `client_email.in.(${quotedList(emails)})` : "",
+  ]
+    .filter(Boolean)
+    .join(",");
+  const { data, error } = await db
+    .from("appointments")
+    .select("contact_id, client_phone, client_email")
+    .eq("tenant_id", tenantId)
+    .in("status", ["kept", "missed", "booked"])
+    .is("vanished_at", null)
+    .lte("ends_at", beforeIso)
+    .or(or)
+    .limit(EARLIER_OF_MANY_MAX);
+  if (error) throw new Error(`people_with_earlier_visits: ${error.message}`);
+  const rows = data ?? [];
+  if (rows.length >= EARLIER_OF_MANY_MAX) return null;
+  const theirs = (p: (typeof people)[number]) =>
+    rows.some(
+      (r) =>
+        r.contact_id === p.id ||
+        (p.phone !== null && r.client_phone === p.phone) ||
+        (p.email !== null && r.client_email === p.email),
+    );
+  return new Set(people.filter(theirs).map((p) => p.id));
+}
+
 /* ------------------------------------------------------------------ an erasure's hand */
 
 /**

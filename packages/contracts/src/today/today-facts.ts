@@ -131,8 +131,16 @@ function todayWires(m: MetricsSummaryDto): TodayWire[] {
 }
 
 /**
+ * The holds on a thread you have taken that still ask something of you (Today in three zones, 2 Nov 2026): a reply of
+ * yours that never reached them, and a customer who wrote again while you had the thread. The receptionist stays out of
+ * a thread you hold, so nobody else will answer either.
+ */
+const YOURS_STILL_WAIT: ReadonlySet<string> = new Set(["send_failed", "wrote_while_held"]);
+
+/**
  * The open escalations the queue holds, oldest waiting first. One rule (standing.ts): a handoff a person has
- * already taken over is theirs, not the queue's. An escalation whose thread the page did not load keeps its
+ * already taken over is theirs, not the queue's, save the two that ask the one holding it for something more
+ * (YOURS_STILL_WAIT), which are yours to answer. An escalation whose thread the page did not load keeps its
  * place — unknown is not "handled". A hold that waits on nobody (a customer who asked to stop, opened before decision
  * 0048) is no row: it was told once on the bell, and there is nothing to be done.
  */
@@ -146,7 +154,8 @@ function openEscalations(
     .filter((e) => {
       const conv = byConv.get(e.conversation_id);
       if (!conv) return true;
-      return standingOfThread(conv, e, now.getTime()).standing === "needs_you";
+      const standing = standingOfThread(conv, e, now.getTime()).standing;
+      return standing === "needs_you" || (standing === "yours" && YOURS_STILL_WAIT.has(e.reason));
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest waiting first
 }

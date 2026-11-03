@@ -1,7 +1,7 @@
 /**
  * Everyone's appointments, for the People list, the pools and the report: one parsed feed indexed once for everyone
- * (peopleVisits), the rows with their visits attached (withVisits), and the report's one conversion line
- * (bookingReport). One person's are person-visits.ts's.
+ * (peopleVisits), the rows with their visits attached (withVisits; the board's, boardVisits), and the report's one
+ * conversion line (bookingReport). One person's are person-visits.ts's.
  */
 import "server-only";
 import {
@@ -16,9 +16,14 @@ import {
   DAY_MS,
   feedMarksOf,
   seasonHorizon,
+  shiftKey,
+  zoneDayKey,
+  zoneMidnight,
+  type ParsedFeed,
+  type PoolCalendar,
   type PoolRecord,
 } from "@chanlytics/contracts";
-import { recordOver } from "@chanlytics/db";
+import { peopleWithEarlierVisits, recordOver } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { lazily, type Lazy } from "@/server/lazy";
 import { calendarOf } from "./calendar-settings";
@@ -199,6 +204,45 @@ export async function withVisits(
     booking_link: pv.bookingLink,
     consult_first: consultFirstOf(pv.rules),
   };
+}
+
+/**
+ * The board's People rows with their visits (calendar-week.ts), attached as the list attaches them (peopleVisitsOf,
+ * withVisitsOf), and who of them comes in today or tomorrow for the first visit the record holds of theirs: none over in
+ * the season, and none before it (packages/db peopleWithEarlierVisits). What Today's day says under who is coming ("Last
+ * here Aug 12", "First visit"; calendar-person-facts.ts). A record that could not be read leaves the rows as they were and
+ * nobody first, as visitsIn says the calendar unavailable for it; so does an earlier read that failed or filled its page,
+ * for the firsts alone: the day then says nothing rather than a fact it cannot stand behind.
+ */
+export async function boardVisits(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  rows: PersonRowDto[],
+  items: ParsedFeed["items"],
+  cal: PoolCalendar,
+  now: Date,
+): Promise<{ rows: PersonRowDto[]; firsts: ReadonlySet<string> }> {
+  if (!cal.record) return { rows, firsts: new Set() };
+  const visits = peopleVisitsOf(items, rows, cal, now.getTime());
+  const withVisits = withVisitsOf(rows, visits, { state: "ok", timezone: cal.timezone, source: cal.source });
+  // Today's and tomorrow's people with no visit over in the season, a missed one included: the ones the record may hold
+  // nothing earlier of.
+  const until = zoneMidnight(cal.timezone, shiftKey(zoneDayKey(now.getTime(), cal.timezone), 2));
+  const fresh = withVisits.filter(({ visits: v }) => {
+    const next = v?.next ? Date.parse(v.next.start) : Number.NaN;
+    return v !== null && !v.last && !v.missed && next < until;
+  });
+  const earlier = await peopleWithEarlierVisits(
+    ctx.supabase,
+    tenantId,
+    fresh.map((r) => ({ id: r.id, phone: r.phone_e164 ?? null, email: r.email ?? null })),
+    new Date(seasonHorizon(now).from).toISOString(),
+  ).catch((e: unknown) => {
+    log.error("visits_record_read_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  });
+  const firsts = earlier ? fresh.filter((r) => !earlier.has(r.id)).map((r) => r.id) : [];
+  return { rows: withVisits, firsts: new Set(firsts) };
 }
 
 /**

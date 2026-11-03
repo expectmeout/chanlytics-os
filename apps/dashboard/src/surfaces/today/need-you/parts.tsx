@@ -41,6 +41,11 @@ export interface WorkProps {
   /** Keep the row on the card for this visit, whatever the next read says: its receipt and its undo stay in its place. */
   keep: (row: TodayQueueRowVM) => void;
   /**
+   * Let go of a row kept: the press was refused, or its Undo or Wake put it back. It waits again, so the one count (and the
+   * head, the badge and the tabs with it) has it again, as the canvas's undo does.
+   */
+  unkeep: (row: TodayQueueRowVM) => void;
+  /**
    * Where the presses stand when the work is drawn in a sheet (need-you/walk-sheet.tsx, a phone's): the sheet's foot,
    * which holds still while the words above it scroll. None everywhere else: the presses stand under the words.
    */

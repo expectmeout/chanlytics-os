@@ -47,7 +47,7 @@ import type { AlertsSurface } from "./settings/notifications/surface";
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
   reports: ReportsSurface;
-  /** Today's one small read of the period (contracts ReportHeadlineVM): the card's period line and Worth a look read it. */
+  /** Today's one small read of the period (contracts ReportHeadlineVM): the week line and Ask found's leaks read it. */
   reports_headline: ReportHeadlineVM;
   /** The Reviews lens's own read, folded once: its figures and cards, and the sentence at its head (reports/reviews-surface.ts). It follows the period (reports/period-surface.ts). */
   reports_reviews: ReviewsSurface;
