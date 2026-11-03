@@ -284,11 +284,32 @@ function flushWhenIdle(): void {
   else flushSurfaceCache();
 }
 
+/** When a slot was written, read from its head alone: `savedAt` is written second, so a slot of 2 MB is never parsed for it. */
+const SAVED_AT = /"savedAt":(\d+)/;
+
+/**
+ * Every workspace's slot past its day, removed: never drawn (MAX_AGE_MS), and it held a workspace's messages on the device
+ * until the next sign-in cleared it (the page-open PRD, N8). A slot whose head says no time is not ours to judge, and stays.
+ */
+export function dropExpiredSlots(now: number = Date.now()): void {
+  try {
+    const local = cacheStore();
+    if (!local) return;
+    for (const name of slotsOf(local)) {
+      const at = SAVED_AT.exec(local.getItem(name)?.slice(0, 200) ?? "")?.[1];
+      if (at !== undefined && now - Number(at) >= MAX_AGE_MS) local.removeItem(name);
+    }
+  } catch {
+    /* storage refused: nothing kept to drop */
+  }
+}
+
 /** Restore cached globals onto window. Call ONCE, at module scope, after the
  *  manifest has installed its seeds so the cache wins. Returns the surface
  *  keys that were restored — those surfaces already have real data and must
- *  not show a loading state. */
+ *  not show a loading state. Slots past their day go first (dropExpiredSlots). */
 export function hydrateSurfaceCache(): Set<string> {
+  dropExpiredSlots();
   const restored = new Set<string>();
   // A copy of its own: the pages change what they are handed in place, and the kept copy stays what was written.
   const blob = pending ?? readCacheBlob(true);

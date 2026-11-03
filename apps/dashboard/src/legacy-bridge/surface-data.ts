@@ -17,6 +17,7 @@
  */
 
 import { sealSurfaceCache } from "./surface-cache";
+import { noteReadFailed } from "./hearing/freshness";
 import { declareReads } from "./surface-registry";
 import { ApiError } from "../client/api";
 import { api, read } from "./api";
@@ -209,17 +210,29 @@ export function readWasPartial(key: string): boolean {
   return partly.has(key);
 }
 
+/** The wait the server named when it refused a surface's last read (a limit's `retry-after`), in ms. */
+const toldToWait = new Map<string, number>();
+
+/** How long the server said to wait before this surface is read again, where its last read was refused with a wait. */
+export function readRefusedFor(key: string): number | null {
+  return toldToWait.get(key) ?? null;
+}
+
 async function readAndPublish(o: SurfaceOverride, heard?: readonly RealtimeChange[]): Promise<boolean> {
   try {
     const landed = await o.apply(heard);
+    toldToWait.delete(o.key);
     if (landed === "partial") partly.add(o.key);
     else partly.delete(o.key);
     for (const e of o.events ?? []) window.dispatchEvent(new CustomEvent(e));
     return true;
   } catch (err) {
     if (err instanceof ApiError && err.code === "unauthorized") throw err;
-    // A failed override NEVER breaks the surface — it just stays seeded.
+    if (err instanceof ApiError && err.retryAfterS) toldToWait.set(o.key, err.retryAfterS * 1000);
+    else toldToWait.delete(o.key);
+    // A failed override NEVER breaks the surface — it just stays seeded. Counted for the tab's report (hearing/freshness.ts).
     console.error("surface_override_failed", o.key, err instanceof Error ? err.message : err);
+    noteReadFailed(o.key);
     return false;
   }
 }

@@ -16,8 +16,14 @@ export type PageVital = (typeof PAGE_VITALS)[number];
  */
 const PAGE_SPEED = ["READY", "SETTLED"] as const;
 export type PageSpeedMetric = (typeof PAGE_SPEED)[number];
+/**
+ * What a tab could not hear or read (the page-open PRD of 3 Nov 2026, L7; legacy-bridge/hearing/freshness.ts): how long
+ * its live feed was down (ms), how many times it came back, and how many of a surface's reads failed (the surface its
+ * part). Counts and durations; said only where something happened.
+ */
+const PAGE_FRESHNESS = ["FEED_DOWN", "FEED_BACK", "READ_FAILED"] as const;
 /** Every metric the table keeps. Held to page_vitals.metric (shared/schema-sets.ts). */
-export const PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED] as const;
+export const PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED, ...PAGE_FRESHNESS] as const;
 export type PageMetric = (typeof PAGE_METRICS)[number];
 /** The two shapes of screen a report is from: the kit's one phone width (kit.css, 900px) and under is a phone. Held to page_vitals.device. */
 export const PAGE_DEVICES = ["desk", "phone"] as const;

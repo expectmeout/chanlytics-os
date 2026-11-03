@@ -235,3 +235,16 @@ test("the shadow script reads back what a sampled line says: its tables, the lin
   assert.equal(routeKeyOf(ROUTES, "PATCH", "/api/v1/workspaces"), "PATCH workspaces");
   assert.equal(routeKeyOf(ROUTES, "GET", "/api/v1/nowhere/at/all"), null);
 });
+
+test("a request that asks to say its touches says them whatever the sample: the nightly's every write (0058 stage C)", () => {
+  const touches = new Map([["segments", new Set(["INSERT"])]]);
+  const ids = Array.from({ length: 40 }, (_, i) => `rq-all-${i}`);
+  assert.ok(
+    ids.some((id) => touchedLine(id, touches, null) === null),
+    "most fall outside the sample",
+  );
+  assert.ok(
+    ids.every((id) => touchedLine(id, touches, null, true)?.tables === "segments:INSERT"),
+    "every one, where it asked",
+  );
+});

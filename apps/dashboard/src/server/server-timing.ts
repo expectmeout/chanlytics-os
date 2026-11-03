@@ -36,6 +36,13 @@ export function serverTimingHeader(
 
 /** One request in this many says what its database calls touched and the page it was asked from (touchedLine). */
 const TOUCHES_SAID_ONE_IN = 20;
+/**
+ * The header a request carries to say its touches whatever the sample (`all`): the nightly's own browser sets it on every
+ * request in its own workspace (playwright.config.ts, E2E_TOUCHES_ALL), so the refresh map's derivation has every write path
+ * the suite runs, where production's one active customer would give it almost none (decision 0058 stage C; the page-open
+ * PRD of 3 Nov 2026, P4). Names of tables and functions only, whoever asks.
+ */
+export const TOUCHES_ALL_HEADER = "x-touches-said";
 
 /** A request's name as a number, the same wherever it is asked: whether it is in the sample (FNV-1a, 32 bits). */
 function sampleNumberOf(id: string): number {
@@ -78,8 +85,9 @@ export function touchedLine(
   id: string,
   touches: ReadonlyMap<string, ReadonlySet<string>>,
   referer: string | null,
+  every = false,
 ): { tables: string; page: string | null } | null {
-  if (sampleNumberOf(id) % TOUCHES_SAID_ONE_IN !== 0) return null;
+  if (!every && sampleNumberOf(id) % TOUCHES_SAID_ONE_IN !== 0) return null;
   const tables = [...touches]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([table, hows]) => `${table}:${[...new Set([...hows].flatMap((h) => h.split(" ")))].sort().join("+")}`)

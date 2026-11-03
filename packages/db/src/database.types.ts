@@ -7432,6 +7432,27 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_notices_pending: {
+        Row: {
+          event: string
+          id: number
+          payload: Json
+          topic: string
+        }
+        Insert: {
+          event: string
+          id?: never
+          payload: Json
+          topic: string
+        }
+        Update: {
+          event?: string
+          id?: never
+          payload?: Json
+          topic?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       lead_searches_view: {
@@ -9034,6 +9055,16 @@ export type Database = {
       outreach_wrote_back: {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: string[]
+      }
+      page_freshness: {
+        Args: { p_days?: number }
+        Returns: {
+          metric: string
+          page: string
+          part: string
+          reports: number
+          total: number
+        }[]
       }
       page_speed: {
         Args: { p_days?: number; p_most?: number }
@@ -11152,6 +11183,13 @@ export type Database = {
           messages_in: Json
           messages_out: Json
           topics: Json
+        }[]
+      }
+      workspace_notices_since: {
+        Args: { p_since: string; p_tenant_id: string }
+        Returns: {
+          event: string
+          payload: Json
         }[]
       }
       workspace_partner: { Args: { p_tenant: string }; Returns: Json }
