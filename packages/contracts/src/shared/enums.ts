@@ -54,8 +54,8 @@ export type ConsentState = (typeof CONSENT_STATES)[number];
  * `blob_thread_erase` is gone too (00151): it erased the Vercel Blob copy of
  * a conversation, and there is no such copy — Postgres is the receptionist's
  * only memory, and an erasure deletes rows.
- * A new kind arrives with its handler, its caller, the jobs.kind CHECK and
- * its lane (jobs.lane, 00281: which work a claim takes first), together.
+ * A new kind arrives with its handler, its caller, its job_kinds row (00526) and its KIND_POLICY (decision 0089), and
+ * jobs/job-kinds.test.mjs holds them equal.
  */
 export const JOB_KINDS = [
   "outbound_send",
@@ -157,6 +157,7 @@ export const JOB_KINDS = [
    * role, in the lane of someone waiting. Internal work written to be run again: every leg is keyed on the person.
    */
   "erasure_finish",
+  "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 

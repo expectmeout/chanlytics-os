@@ -469,6 +469,14 @@ export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => 
  */
 export const SEND_GRACE_MS = 15_000;
 
+/**
+ * How late a member's own reply may still leave after its grace (decision 0089, D3): words a person wrote for the moment
+ * should not reach the customer hours later, after an outage held the ledger. Past it the send door refuses it as too
+ * late, its words stay on the thread, and the thread is held for the person to send it again or answer anew (core
+ * send.ts). The receptionist's draft has its own horizon, measured from the message it answers (inbound steps.ts).
+ */
+export const MEMBER_REPLY_STALE_MS = 30 * MIN_MS;
+
 /* ----------------------------- live calls -------------------------------- */
 
 /**

@@ -35,6 +35,11 @@ export interface SendQueuedPorts {
     ownEmail?: Delivery["ownEmail"];
     /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
     leadId?: string | null;
+    /**
+     * Where it goes, frozen on the row when it was queued (meta.to, 00527 queue_send): read before the payload's, so the
+     * ledger needs no copy of a person's address (decision 0089). Absent on a row queued before it.
+     */
+    to?: string | null;
   } | null>;
   /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
   purposeOf(template: { name: string; language: string } | undefined): Promise<SendPurpose>;
@@ -109,6 +114,11 @@ export interface SendQueuedCommand {
     starts?: boolean;
     /** How many fresh jobs this send is already the result of, after a wire that could not be bound (retry above). */
     resumes?: number;
+    /**
+     * When the send is too late to leave by itself (ISO; decision 0089): a member's reply carries its grace plus
+     * MEMBER_REPLY_STALE_MS. The door refuses it after, and the thread is handed to a person.
+     */
+    stale_after?: string;
   };
 }
 

@@ -339,7 +339,7 @@ test("a job is claimed, run and done: its reply is sent, and the ledger row ends
 });
 
 test(
-  "a job that throws is kept, not failed: its lease is put off, and the next claim finishes it",
+  "a job that throws is kept, not failed: it waits scheduled for its next try, and the next claim finishes it",
   { skip },
   async () => {
     const receivedId = `rcv-kept-${stamp}`;
@@ -355,13 +355,19 @@ test(
       "kept, and said so",
     );
     let row = await jobRow(jobId);
-    assert.equal(row.state, "fired", "still the ledger's: a thrown intake is kept for its next claim");
-    assert.equal(row.attempts, 1);
-    assert.ok(Date.parse(row.lease_until) > Date.now() + 4 * 60_000, "its lease put off by the first wait");
+    assert.equal(
+      row.state,
+      "scheduled",
+      "still the ledger's: a thrown intake waits scheduled for its next claim, where a cancel or an erasure reaches it (decision 0089)",
+    );
+    assert.equal(row.attempts, 1, "its try is counted");
+    assert.equal(row.lease_until, null, "nothing runs it while it waits");
     assert.match(row.last_error ?? "", /503/);
+    const wait = ok(await db.from("jobs").select("due_at").eq("id", jobId).single());
+    assert.ok(Date.parse(wait.due_at) > Date.now() + 4 * 60_000, "due again after the first wait");
 
-    // Five minutes on: the lease runs out, and the heartbeat claims it again.
-    await comeDue(jobId, { leaseRanOut: true });
+    // Five minutes on: it comes due, and the heartbeat claims it again.
+    await comeDue(jobId);
     const second = tick();
     const c2 = await second;
     assert.deepEqual([c2.claimed, c2.done, c2.deferred], [1, 1, 0]);

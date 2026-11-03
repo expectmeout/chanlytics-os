@@ -163,7 +163,7 @@ const TABLES = [
   "sequence_sends",
   "sequence_steps",
   "sequences",
-  // What the first run chose: the number, how calls reach it, where WhatsApp answers (00513, decision 0091).
+  // A workspace's setup choices, its own and not each member's (00513, decision 0091).
   "setup_choices",
   "templates",
   "tenant_channels",

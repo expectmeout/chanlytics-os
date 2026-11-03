@@ -42,6 +42,10 @@ export const CLOCKS = {
     kind: "reconcile",
     why: "the ledger's backstop: a written job wakes the runner (00333), and the tick claims what a wake missed",
   },
+  jobs_canary: {
+    kind: "judge",
+    why: "puts the ledger's own job on it every minute, and is judged by the newest one done: the whole loop proved from outside (00526, decision 0089)",
+  },
   leads: { kind: "reconcile", why: "takes up lead runs whose start or lease was lost" },
   lines: {
     kind: "event-shaped",

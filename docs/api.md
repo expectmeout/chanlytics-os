@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-348 handlers in 56 domains.
+350 handlers in 56 domains.
 
 ## activity
 
@@ -1828,6 +1828,16 @@ Reads; for platform staff; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/home/route.ts`).
 
+### `POST /api/v1/platform/jobs/pause`
+
+Writes; for platform staff; counts against the `platform_job_pause` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"canary"` | yes |  |
+| `paused` | boolean | yes |  |
+| `why` | object | yes |  |
+
 ### `POST /api/v1/platform/jobs/requeue`
 
 Writes; for platform staff; counts against the `platform_job_requeue` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
@@ -1836,6 +1846,16 @@ Writes; for platform staff; counts against the `platform_job_requeue` rate; spen
 | --- | --- | --- | --- |
 | `tenant_id` | string (uuid) | yes |  |
 | `job_id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
+
+### `POST /api/v1/platform/jobs/requeue-kind`
+
+Writes; for platform staff; counts against the `platform_job_requeue_kind` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"canary"` | yes |  |
+| `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 
 ### `POST /api/v1/platform/lines/refile`
