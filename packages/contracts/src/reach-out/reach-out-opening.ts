@@ -143,10 +143,41 @@ function recordLines(r: OpeningRecord): string[] {
   return ["<record>", ...lines, "</record>"];
 }
 
+/**
+ * What an owner asked when they pressed Rewrite the opening (00505 sequence_sends.rewrite_asked): the opening they turned
+ * down, where there was one, and what should change in their own words, or none.
+ */
+export interface OpeningAsked {
+  was: string | null;
+  change: string | null;
+}
+
+/** A send's rewrite_asked as the check reads it: null where nobody asked, or where it holds nothing of that shape. */
+export function openingAskedOf(stored: unknown): OpeningAsked | null {
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
+  const s = stored as { change?: unknown; was?: unknown };
+  const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const was = s.was && typeof s.was === "object" ? text((s.was as { opening?: unknown }).opening) : null;
+  return { was, change: text(s.change) };
+}
+
+/** What an owner asked, as the writer is told it: what they turned down, and their words, fenced as the record's are. */
+function askedLines(a: OpeningAsked): string[] {
+  const was = fenceLine("The owner turned this opening down", a.was);
+  const change = fenceLine("The owner asks", a.change);
+  if (!was && !change) return [];
+  return [
+    "",
+    ...(was ? [was, "Write a different one: not the same fact said again."] : []),
+    ...(change ? [change, "Do what the owner asks within the rules: a fact the record does not state stays out."] : []),
+  ];
+}
+
 export function openingUserContent(p: {
   record: OpeningRecord;
   workspace: OpeningWorkspace;
   words: { subject: string | null; body: string };
+  asked?: OpeningAsked | null;
   retry?: { opening: string; why: string };
 }): string {
   return [
@@ -163,6 +194,7 @@ export function openingUserContent(p: {
     "The owner's email, where {{opening}} is your sentence:",
     ...(p.words.subject ? [`Subject: ${p.words.subject}`] : []),
     p.words.body,
+    ...(p.asked ? askedLines(p.asked) : []),
     ...(p.retry
       ? [
           "",

@@ -430,9 +430,16 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
   assert.ok(w.reads > reads, "the run read again once the decision landed");
   w.answer = { ok: false, message: contracts.REACH_OUT_REFUSALS.gone };
   tree = redraw();
+  const sent = w.pressed.length;
   press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "ro-held")[0], "ro-door-rewrite"));
-  await until(() => byTestId(redraw(), "ro-held-said"), "the refusal said at its row");
-  assert.equal(textOf(byTestId(redraw(), "ro-held-said")), contracts.REACH_OUT_REFUSALS.gone);
+  // Rewrite the opening asks what should change first, at its row, and sends nothing (00505).
+  tree = redraw();
+  assert.ok(byTestId(tree, "ro-rewrite-ask"), "the ask, at its row");
+  assert.equal(w.pressed.length, sent, "nothing sent yet");
+  press(byTestId(tree, "ro-rewrite-go"));
+  const hint = () => byTestId(redraw(), "ro-rewrite-change")?.props.hint;
+  await until(() => hint() === contracts.REACH_OUT_REFUSALS.gone, "the refusal said at its row");
+  assert.equal(w.pressed.at(-1)[2], "rewrite");
 });
 
 test("a held email's Take out, at step 1, is the leave verb on the run's sequence by its lead, and the run is read again", async () => {
@@ -709,12 +716,16 @@ test("who gets it shows each email's opening, with Rewrite the opening and Take 
   assert.deepEqual(doorsOf(rows[1]), ["Take out"]);
   const reads = w.reads;
   press(byTestId(rows[0], "ro-person-door-rewrite"));
+  // Rewrite the opening asks first, in the row's place (00505): its Rewrite sends the decision, then writes it.
+  assert.equal(byTestId(redraw(), "ro-person-door-rewrite"), null, "the row's answers make way for the ask");
+  press(byTestId(redraw(), "ro-rewrite-go"));
   // The verb's walk reads the surfaces it moved before it answers: a condition, never a fixed number of turns.
   await until(() => (redraw(), w.reads > reads), "the run read again");
   assert.deepEqual(
     w.pressed.filter((p) => p[0] === "decide"),
     [["decide", "p1", "rewrite"]],
   );
+  await until(() => !byTestId(redraw(), "ro-rewrite-ask"), "the ask closed once the rewrite landed");
   press(byTestId(redraw(), "ro-person-door-take_out"));
   await until(() => w.pressed.some((p) => p[0] === "leave"), "Take out pressed");
   const left = w.pressed.find((p) => p[0] === "leave");

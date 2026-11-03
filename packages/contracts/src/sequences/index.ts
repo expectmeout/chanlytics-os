@@ -130,14 +130,20 @@ export type {
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequence-evidence";
 export type { SequenceEvidence, SequenceEvidenceDto } from "./sequence-evidence";
 export {
+  HELD_DECIDE_CARD,
   HELD_TAKE_OUT,
   heldAnswersOf,
   heldWhyOf,
   markedOpeningOf,
+  REWRITE_NOW_MAX,
+  REWRITE_STEPS,
+  REWRITE_WORDS,
+  rewroteWords,
   sequencePersonWhyOf,
+  theirsOf,
   waitingAnswersOf,
 } from "./sequence-held";
-export type { HeldAnswer, HeldChoice, MarkedOpening } from "./sequence-held";
+export type { HeldAnswer, HeldChoice, MarkedOpening, RewriteStep, RewroteOpening } from "./sequence-held";
 export {
   LEAD_BUILD_WORDS,
   LEAD_REWRITE_CHANGE_MAX,

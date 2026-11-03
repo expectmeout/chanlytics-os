@@ -47,15 +47,17 @@ import type { Armed, Deck, DraftState, Flash, PeekActs, PeekMode } from "../peek
 import { PileBulk, type PileBulkFacts } from "../pile/bulk";
 import { keepPileForTheWayBack, type LeadPile } from "../pile/use-pile";
 import { stopWritingTo } from "../reach-out/lines";
+import { undoRewrite, type RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
+import { useSheetUi } from "./sheet-ui";
 import { SheetDock } from "./dock";
-import { SheetSaidAsk, SheetToSend } from "./dock-asks";
+import { SheetRewrite, SheetSaidAsk, SheetToSend } from "./dock-asks";
 import { railSequenceOf, sheetFactsOf, type SheetFacts, type SheetPileFacts } from "./facts";
 import { holdSheetKeys } from "./keys";
 import { closeLeadOver } from "./lead-over";
 import { SheetLines } from "./panes";
 import { SheetDoors, SheetEnd, SheetNow, SheetProgress, SheetWho } from "./parts";
 import { SheetNew, SheetPicker, type NewStart } from "./picker";
-import { decideEmail, openRecordFor, runSheetAct, takeOut, type SheetRun } from "./run";
+import { openRecordFor, runSheetAct, takeOut, type SheetRun } from "./run";
 import type { LeadAim } from "./use-aim";
 
 /** The pile, as the sheet draws it: its acts, its own facts, its line, its name, Add them all, and its end. */
@@ -90,32 +92,6 @@ interface LeadSheetProps {
   onClose: () => void;
   /** Over another page (a record's row): no pile, no rows to walk, and its record is the page under it. */
   over?: boolean;
-}
-
-/** Which step of the sheet is open, and what the dock asks in its place. */
-type SheetStep = "card" | "picker" | "new";
-type DockAsk = null | "said" | "stop";
-
-/** What the sheet holds for the lead on screen, as it was left for that lead and none other. */
-interface SheetUiState {
-  lead: string | null;
-  step: SheetStep;
-  full: boolean;
-  ask: DockAsk;
-  /** A step of the Sequence line opened: the email as they get it. */
-  openStep: number | null;
-  /** The card's email asked for whole. */
-  whole: boolean;
-}
-
-const FRESH = { step: "card" as SheetStep, full: false, ask: null as DockAsk, openStep: null, whole: false };
-
-/** The sheet's own state: a decision turns the card, and the next lead comes up at half, its email cut short. */
-function useSheetUi(leadId: string | null) {
-  const [held, setHeld] = useState<SheetUiState>({ lead: leadId, ...FRESH });
-  const ui = held.lead === leadId ? held : { lead: leadId, ...FRESH };
-  const put = (next: Partial<SheetUiState>) => setHeld({ ...ui, ...next });
-  return { ui, put };
 }
 
 /** Everything a part of the sheet draws from. */
@@ -232,13 +208,23 @@ function sheetWhoOf(d: SheetDraw, desk: boolean) {
 
 /* ------------------------------------------------------------------------------------------- the card and the lines -- */
 
-/** Rewrite the opening, under the email it is of: the decide verb's own door. */
-function rewriteOf(d: SheetDraw) {
-  const { run, facts, sheet } = d;
-  if (!run || !facts || !facts.mail || !facts.mail.rewrite) return null;
-  return () => {
-    sheet.put({ whole: false });
-    void decideEmail(run, "rewrite");
+/**
+ * The card's email and its presses (00505): Rewrite the opening, asked in the dock's place first; the email said as being
+ * written while it is; and the Undo a landed rewrite keeps beside it while that email is on the card.
+ */
+function emailActsOf(d: SheetDraw) {
+  const { run, facts, sheet, p } = d;
+  const mail = facts && facts.mail && sheet.ui.writing ? { ...facts.mail, writing: true, rewrite: false } : facts?.mail;
+  const undo = sheet.ui.undo;
+  const sendId = facts && facts.place ? facts.place.place.send_id : null;
+  const undoNow = (kept: RewriteUndo) => {
+    sheet.put({ undo: null });
+    void undoRewrite(kept, p.flash).then(d.moved);
+  };
+  return {
+    mail: mail ?? null,
+    onRewrite: run && mail && mail.rewrite ? () => sheet.put({ whole: false, ask: "rewrite" }) : null,
+    onUndo: undo && undo.sendId === sendId ? () => undoNow(undo.kept) : null,
   };
 }
 
@@ -272,10 +258,9 @@ function topOf(d: SheetDraw, desk: boolean) {
           <SheetDoors vm={vm} callDoor={!dockCalls} onCall={() => p.on && p.on.onCall(vm.id)} more={sheetMoreOf(d)} />
           <SheetNow
             now={facts.now}
-            mail={facts.mail}
             whole={sheet.ui.whole}
             onWhole={() => sheet.put({ whole: !sheet.ui.whole })}
-            onRewrite={rewriteOf(d)}
+            {...emailActsOf(d)}
           />
         </div>
       )}
@@ -473,7 +458,7 @@ const askInView = (el: HTMLDivElement | null) => {
   if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 };
 
-/** The dock, or what it asks in its place: They wrote back…, Never write to them again. */
+/** The dock, or what it asks in its place: They wrote back…, Never write to them again, what should change. */
 function dockOf(d: SheetDraw, desk: boolean) {
   const { p, vm, facts, sheet } = d;
   const pile = p.pile ? p.pile.pile : null;
@@ -483,6 +468,9 @@ function dockOf(d: SheetDraw, desk: boolean) {
     return (
       <SheetSaidAsk vm={vm} flash={p.flash} moved={d.moved} busy={d.busy} onBack={() => sheet.put({ ask: null })} />
     );
+  const row = facts.place ? facts.place.place : null;
+  if (sheet.ui.ask === "rewrite" && row && row.send_id)
+    return <SheetRewrite row={row} name={vm.name} flash={p.flash} moved={d.moved} put={sheet.put} />;
   if (sheet.ui.ask === "stop") {
     const SW = reachOuts.words.REACH_OUT_STOP_WORDS;
     return (
@@ -754,6 +742,7 @@ export function LeadSheet(p: LeadSheetProps) {
         next: p.deck ? p.deck.onNext : null,
         openPicker: () => sheet.put({ step: "picker", full: true }),
         askSaid: () => sheet.put({ ask: "said" }),
+        askRewrite: () => sheet.put({ ask: "rewrite" }),
         moved,
         over: !!p.over,
       }

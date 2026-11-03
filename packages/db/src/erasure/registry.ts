@@ -520,6 +520,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
     // A draft handed to its owner (00429): the business's address, name and the words written to it; lead_blank clears it.
     ...all(scrubbedBy("leads_trigger"), "draft"),
+    // What its owner asked of the opening and the one it replaced, and what the business's site said (00505): lead_blank
+    // clears them with the opening.
+    ...all(scrubbedBy("leads_trigger"), "rewrite_asked", "website_says"),
     // A digest of the words checked, the facts' keys, and the hold's, the skip's and a failure's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason"),
   },
