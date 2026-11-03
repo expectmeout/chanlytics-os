@@ -68,7 +68,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   // and the ingest's copy of words the database did not keep.
   assert.ok(
     inbound.includes("who: n.profileName ?? null,") &&
-      inbound.includes('about: ing ? { type: "conversation", id: ing.conversation_id } : null,'),
+      inbound.includes('about: { type: "conversation", id: ing.conversation_id },'),
     "every handoff carries the name and the thread",
   );
   assert.equal(

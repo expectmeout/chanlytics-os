@@ -230,7 +230,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
       wa,
     ),
   );
-  assert.ok(/photo \?\? undefined,\s*undefined,/.test(wa), "the image reaches the brain");
+  assert.ok(/\.\.\.\(photo \? \{ image: photo \} : \{\}\),/.test(wa), "the image reaches the brain");
   assert.ok(readCode("apps/edge/lib/inbound/persist.ts").includes("return got;"), "sink.media hands the bytes back");
   const brain = readCode("apps/edge/lib/receptionist/brain.ts");
   assert.ok(

@@ -145,8 +145,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   const wa = readCode("packages/core/src/inbound/ingest.ts");
   assert.ok(
     readCode("apps/edge/lib/inbound/alerts.ts").includes('kind: "handoff",') &&
-      wa.includes('route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",') &&
-      wa.includes('about: ing ? { type: "conversation", id: ing.conversation_id } : null,'),
+      wa.includes("route: `inbox/th-${ing.conversation_id}`,") &&
+      wa.includes('about: { type: "conversation", id: ing.conversation_id },'),
     "a handoff points at its thread",
   );
   // The call and deadman bells run: retell-webhook-door.test.mjs and cron-deadman-door.test.mjs.
