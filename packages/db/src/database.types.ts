@@ -880,11 +880,13 @@ export type Database = {
           follow_up: string | null
           from_e164: string | null
           from_raw: string | null
+          guard_corrected_at: string | null
           id: string
           in_voicemail: boolean | null
           latency: Json | null
           message_id: string | null
           note_checked_at: string | null
+          notice_told_at: string | null
           notified_at: string | null
           outcome: string | null
           public_log_url: string | null
@@ -922,11 +924,13 @@ export type Database = {
           follow_up?: string | null
           from_e164?: string | null
           from_raw?: string | null
+          guard_corrected_at?: string | null
           id?: string
           in_voicemail?: boolean | null
           latency?: Json | null
           message_id?: string | null
           note_checked_at?: string | null
+          notice_told_at?: string | null
           notified_at?: string | null
           outcome?: string | null
           public_log_url?: string | null
@@ -964,11 +968,13 @@ export type Database = {
           follow_up?: string | null
           from_e164?: string | null
           from_raw?: string | null
+          guard_corrected_at?: string | null
           id?: string
           in_voicemail?: boolean | null
           latency?: Json | null
           message_id?: string | null
           note_checked_at?: string | null
+          notice_told_at?: string | null
           notified_at?: string | null
           outcome?: string | null
           public_log_url?: string | null

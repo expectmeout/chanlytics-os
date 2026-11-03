@@ -259,8 +259,5 @@ test("Settings collects the website and the notes; the transfer line is edited i
     converge.indexOf("writeFileSync(") < converge.indexOf("if (!apply)"),
     "the backup is written before the dry run can exit",
   );
-  assert.ok(
-    converge.includes("refusing --pin"),
-    "pinning to latest_published while the latest is a draft would switch the line back",
-  );
+  // The pin and its refusal while the latest is a draft are the converge door's now: voice-doors.test.mjs runs them.
 });

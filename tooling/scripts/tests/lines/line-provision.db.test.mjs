@@ -94,5 +94,6 @@ test("a kind nobody declared is still refused", { skip }, async () => {
     .from("jobs")
     .insert({ tenant_id: tenantId, kind: "line_teleport", due_at: new Date().toISOString(), payload: {} });
   assert.notEqual(bad.error, null);
-  assert.match(bad.error.message, /jobs_kind_check|violates check constraint/);
+  // Refused by the kinds the ledger knows (job_kinds, 00526), where a CHECK listed them before.
+  assert.match(bad.error.message, /jobs_kind_fkey|violates foreign key constraint/);
 });

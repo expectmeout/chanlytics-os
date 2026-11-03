@@ -1239,6 +1239,35 @@ page_spots(7, 50000);` for the elements.
 5. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
+## When calls fail
+
+The phone receptionist's troubles, each with where it shows and what to do (decision 0092; `docs/voice.md` is the whole
+picture).
+
+- **The canary failed** (an issue "Voice canary failed", and a page). The verdict names what did not hold: `call_placed`
+  (the provider would not ring: its balance, the canary's number, the caller agent), `composed` (the inbound plan did not
+  compose the facts in time: `retell_inbound` with `facts`, `plan_ms`), `analysed`, `thread_line`, `notice_claimed` and
+  `notice_told` (the webhook: `retell_event`, `ingest_call_failed`, `call_notice_owed`), `recording_stored`
+  (`calls_sweep_done`'s recordings), `hold_released`, `inbound_signed` and `webhook_signed` (the signature:
+  `/api/diag`'s `retellAuth.doors`).
+- **Calls end our way** (a page "Calls are ending on our side"): `credit_exhausted` or `no_valid_payment` is the
+  provider's account (turn on auto-recharge); `concurrency_limit_reached` is its limit on calls at once (raise it);
+  `error_inbound_webhook` is our `/api/retell-inbound` (its log at the call's time); any other `error_*` is the provider's
+  (its log and status page).
+- **Near the limit on calls at once** (a page "The voice provider is on N of its M calls"): raise the account's limit
+  before callers hear a busy line.
+- **Drift** (a page "N phone lines have drifted from the product's shell"): run
+  `EDGE_CALL_SECRET=… node --import tsx tooling/scripts/ops/voice/voice-converge.mjs` (a dry run), then `--apply --publish`.
+  A line whose number follows the latest version rather than the published one (provisioning could not publish):
+  `--agent agent_… --pin +1… --apply`, which the door refuses while that agent's latest version is a draft.
+- **An owner says no email came for a call**: `call_notice_owed` in the edge log; the calls sweep finishes an owed notice
+  for two days (`calls_sweep_done`'s notices). Past that the mail provider was down: Health's mail line.
+- **A missed call has no line in the thread**: the sweep writes it fifteen minutes after the call (`calls_sweep_done`'s
+  notes).
+- **Closing the shared secret**: read `/api/diag`'s `retellAuth.doors`; once `inbound`, `fn` and `availability` each show
+  signed knocks, set `RETELL_DOORS_SIGNED=1` on the edge and converge every agent (`--apply --publish`), which takes the
+  header off the tools.
+
 ## A page is not updating
 
 A page hears what changed from its workspace's topic on Realtime (`workspace:<id>:changes`, decision 0019): the database

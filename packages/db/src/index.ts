@@ -150,17 +150,25 @@ export {
   callerNameOf,
   callersOf,
   callForReview,
+  callSecondsSince,
   callsOwedAnAnalysis,
+  callsOwedANotice,
+  canaryCallFacts,
+  canaryLineOf,
   claimCallActivity,
   claimCallNotification,
+  claimGuardCorrection,
   ingestCall,
   isWorkspaceCall,
   linkCallMessage,
+  markCallNoticeTold,
   recordCallNote,
+  retellCallIdsOf,
   setCallRecording,
   stampCallConfigVersion,
+  voiceDoorKnocks,
 } from "./repositories/calls";
-export type { IngestCallResult, NormalizedCallInput } from "./repositories/calls";
+export type { CanaryCallFacts, IngestCallResult, NormalizedCallInput, VoiceDoorKnocks } from "./repositories/calls";
 export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
@@ -513,6 +521,7 @@ export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/
 export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
 export { suggestPersonNote } from "./repositories/facts/person-note-suggestions";
 export {
+  activeVoiceAgents,
   callReviewOf,
   configAtVersion,
   endRehearsal,
@@ -556,6 +565,7 @@ export {
   countSentToday,
   ingestInbound,
   keepMessageCost,
+  linkSentOnCall,
   markProcessed,
   messageByExternalId,
   pauseConversation,

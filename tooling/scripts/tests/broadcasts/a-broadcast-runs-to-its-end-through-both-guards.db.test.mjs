@@ -436,12 +436,16 @@ test(
     const dead = ok(await db.from("jobs").select("state, attempts").eq("id", b.jobId).single());
     assert.deepEqual([dead.state, dead.attempts], ["failed", 2]);
     assert.equal((await broadcastRow(b.id)).state, "sending", "not failed: handed on");
-    const told = alerts.filter((a) => a.job === b.jobId);
+    // A run handed to a fresh one carries on by itself: no bell, and the line says so (decision 0089, D5).
     assert.deepEqual(
-      told.map((a) => a.kind),
-      ["job_failed"],
+      alerts.filter((a) => a.job === b.jobId),
+      [],
+      "nothing an owner can act on",
     );
-    assert.match(told[0].body, /carries on in a fresh run: 1 reached so far, 1 still to go/);
+    assert.ok(
+      settle.log.lines.some((l) => l.event === "job_resumed_untold" && l.job_id === b.jobId),
+      "the line says it carried on",
+    );
 
     const fresh = await nextJobOf(b.id);
     assert.equal(fresh.payload.resumes, 1);

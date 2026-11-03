@@ -355,7 +355,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `conversation_id` | string | no |  |
-| `status` | string | no |  |
+| `status` | one of `"registered"`, `"ongoing"`, `"ended"`, `"error"`, `"not_connected"` | no |  |
 | `ids` | string | no |  |
 | `q` | string | no | at most 100 characters |
 

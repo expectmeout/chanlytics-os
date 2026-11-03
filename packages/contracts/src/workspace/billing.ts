@@ -79,6 +79,18 @@ export interface BillingDto {
   account: BillingAccountDto | null;
   price: BillingPriceDto | null;
   trial_days: number;
+  /**
+   * The phone receptionist's minutes since the month began (UTC), from each call's metered seconds (usage.voice_seconds,
+   * decision 0092): what the voice provider is paid for. Null when the read failed; absent from an older route.
+   */
+  call_minutes_month?: number | null;
+}
+
+/** The month's call minutes, said: none yet, one, or how many. Null when they could not be read. */
+export function callMinutesWords(minutes: number | null | undefined): string | null {
+  if (minutes === null || minutes === undefined) return null;
+  if (minutes === 0) return "No calls answered this month yet";
+  return `${minutes} ${minutes === 1 ? "minute" : "minutes"} of calls answered this month`;
 }
 
 export interface BillingInvoiceDto {

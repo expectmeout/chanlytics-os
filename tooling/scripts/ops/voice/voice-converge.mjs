@@ -1,255 +1,142 @@
 /**
- * Voice shell converger (prod-script bar): dry-run DEFAULT, JSONL backup of the
- * live agent, LLM and number BEFORE any apply, idempotent (a converged line
- * plans nothing), --apply to execute.
+ * The phone agents brought onto the product's shell and settings, by hand: the platform's knock on the edge's
+ * voice-converge door (apps/edge/api/admin/voice-converge.ts), which holds the provider key and plans and applies
+ * everything (decision 0092). This script used to call the provider itself with RETELL_API_KEY pasted on a laptop; the
+ * key now lives on the edge and nowhere else, as voice-provision.mjs already did.
  *
- * Brings a hand-typed Retell agent onto the product's shell — the prompt
- * becomes `{{business_facts}}` + `{{caller_context}}`, the greeting becomes
- * `{{greeting}}`, the transfer tool dials `{{handoff_number}}` (warm), and
- * every placeholder gets a spoken default — so the facts the phone agent
- * states come from Settings, per call, like the WhatsApp receptionist's do.
- * The plan is computed by `planVoiceConvergence` in packages/channels, the
- * same function /api/diag uses to report drift, so what the dry run prints is
- * exactly what --apply sends.
+ * What the door converges, every agent a voice line answers in (or the one named): the LLM's shell (the prompt, its
+ * placeholders and their spoken defaults, the four tools, with the shared secret's header only while the voice doors
+ * still read it) and the agent's settings (the webhook and its events, the webhook budget, signed recording links, the
+ * post-call analysis fields, the silence reminders, the locales its workspace speaks, the call's limits: twenty minutes
+ * a call, thirty seconds of silence, a week at the provider). A published version cannot change, so an apply lands the
+ * patches on a new draft; --publish publishes it, so a number pinned to latest_published follows. --pin <number>, with
+ * --agent, binds that number to latest_published; the door refuses it while the latest version is a draft.
  *
- * ⚠️ Which version the line runs depends on the number's binding: unpinned it
- * follows the LATEST version, published or not (proved by real calls carrying
- * agent_version 1 while v0 was the published one); pinned to
- * latest_published (what --pin sets) it follows the last PUBLISHED one.
+ * Dry run DEFAULT: the door plans and this prints the plan. --apply does it; the answer, which carries each agent as it
+ * was before any change (the backup), is kept under tooling/backups/ (ignored) before anything else is said.
  *
- * A PUBLISHED version cannot change: Retell answers "Cannot update published
- * agent other than version title" (422). So when the latest version is
- * published, --apply first creates a NEW DRAFT from it
- * (POST /create-agent-version, which clones the LLM with it), lands the
- * patches on that draft, and — only with --publish — publishes it so a pinned
- * number follows. Without --publish the line keeps the old version and the
- * script says so. Updating an unpublished draft edits it in place. The
- * before/after versions are printed either way, and the diagnostic reads the
- * LLM through the agent's own response_engine, so a version the agent does
- * not point at shows as drift, never as done.
+ *   EDGE_CALL_SECRET=… node --import tsx tooling/scripts/ops/voice/voice-converge.mjs [--agent agent_…] [--apply] [--publish] [--agents-only] [--pin +1…]
+ *   BASE_URL      the edge (default: production's)
+ *   BACKUP_DIR    where an apply's answer is kept (default tooling/backups/, ignored)
  *
- * Env:  RETELL_API_KEY   (never stored anywhere; paste it for the run)
- *       VOICE_AGENT_ID   e.g. agent_0123456789abcdef0123456789
- *       VOICE_NUMBER     the line, E.164 (only read for --pin)
- *       RETELL_FN_SECRET optional — sets the booking tool's x-fn-secret header
- *                        when the live tool has none (the edge refuses calls
- *                        without it). A live header is carried over untouched.
- *       VOICE_LANGUAGES  the languages the workspace speaks, as Settings writes them ("English,Spanish"): the
- *                        locales the agent listens for (retellLocalesFor). Unset, the language is left as it is.
- *       VOICE_FN_URL     where the booking tool posts; optional while the live
- *                        LLM has a booking tool, whose address is kept
+ * The knock is a token minted for this door and this exact body that names no workspace (the door is the platform's
+ * alone). DIAG_KEY in place of the secret opens it only on an edge that holds none (a preview). The secret is read from
+ * the environment and never printed.
  *
- * Usage: node --import tsx tooling/scripts/ops/voice/voice-converge.mjs [--apply] [--pin] [--retention-days N]
- *   --pin   also bind the number to agent_version "latest_published" (weight
- *           1), so a later draft cannot go live by being saved. REFUSED while
- *           the latest version is unpublished — pinning then would switch the
- *           line back to the stale published one.
- *   --retention-days N   also ask the provider to delete calls after N days
- *           (1–730). Retention is a product decision, so it is never part of
- *           the drift the script closes on its own.
- *   --publish   publish the draft the patches landed on (needed for a line
- *           pinned to latest_published to pick them up).
- *
- * The agent's own settings are planned too (planAgentSettings): the
- * transcript_updated event, a 20 s webhook budget, signed recording links,
- * a silent caller reminded after 4 s twice, and, with VOICE_LANGUAGES, the
- * locales the agent listens for. The model, its temperature, the voice and
- * the post-call model are reported when they differ, and never changed.
+ * Exit 0 = planned (or done, with --apply). 1 = the door refused, or an agent's step failed. 2 = could not run.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  desiredVoiceShell,
-  planVoiceConvergence,
-  planAgentSettings,
-  retellLocalesFor,
-  unpublishedLatestNote,
-  newDraftNote,
-} from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels";
 
-const KEY = process.env.RETELL_API_KEY;
-const AGENT_ID = process.env.VOICE_AGENT_ID;
-if (!KEY || !AGENT_ID) {
-  console.error("RETELL_API_KEY and VOICE_AGENT_ID required");
+const DOOR = "/api/admin/voice-converge";
+const BASE = (process.env.BASE_URL || "https://chanlytics-messaging.vercel.app").replace(/\/+$/, "");
+const SECRET = process.env.EDGE_CALL_SECRET;
+const KEY = process.env.DIAG_KEY;
+/** How long the door may take: two provider reads an agent, and an apply's draft, patches and publish. */
+const WAIT_MS = 90 * 1000;
+
+/** The value after a flag, or null where it is not given. */
+function flag(name) {
+  const at = process.argv.indexOf(name);
+  return at >= 0 && at + 1 < process.argv.length ? process.argv[at + 1] : null;
+}
+
+const apply = process.argv.includes("--apply");
+const publish = process.argv.includes("--publish");
+const agentsOnly = process.argv.includes("--agents-only");
+const agent = flag("--agent");
+const pin = flag("--pin");
+
+if (!SECRET && !KEY) {
+  console.error("EDGE_CALL_SECRET (or DIAG_KEY, for an edge without the secret) is required");
   process.exit(2);
 }
-const apply = process.argv.includes("--apply");
-const pin = process.argv.includes("--pin");
-const publish = process.argv.includes("--publish");
-const retentionArg = process.argv.indexOf("--retention-days");
-const retentionDays = retentionArg >= 0 ? Number(process.argv[retentionArg + 1]) : undefined;
-const BASE = "https://api.retellai.com";
-
-async function call(method, path, payload) {
-  const r = await fetch(`${BASE}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-    body: payload === undefined ? undefined : JSON.stringify(payload),
-  });
-  const text = await r.text();
-  if (!r.ok) {
-    console.error(`${method} ${path} -> HTTP ${r.status}: ${text.slice(0, 400)}`);
-    process.exit(1);
-  }
-  return text ? JSON.parse(text) : null;
+if (agent && !/^agent_[a-z0-9]+$/i.test(agent)) {
+  console.error(`--agent takes an agent id, like agent_… (given: ${agent})`);
+  process.exit(2);
+}
+if (pin && !agent) {
+  console.error("--pin takes the number of the agent named with --agent");
+  process.exit(2);
 }
 
-// 1. Read the live objects. The LLM is read at the version the agent points
-//    at — a converged LLM the agent does not use would be a false "done".
-const agent = await call("GET", `/get-agent/${AGENT_ID}`);
-const engine = agent.response_engine ?? {};
-if (engine.type !== "retell-llm" || !engine.llm_id) {
-  console.error(
-    `agent ${AGENT_ID} is not on a Retell LLM (response_engine: ${JSON.stringify(engine)}); nothing to converge`,
-  );
-  process.exit(1);
-}
-const llmPath = `/get-retell-llm/${engine.llm_id}${engine.version !== undefined && engine.version !== null ? `?version=${engine.version}` : ""}`;
-const llm = await call("GET", llmPath);
-const number = process.env.VOICE_NUMBER
-  ? await call("GET", `/get-phone-number/${encodeURIComponent(process.env.VOICE_NUMBER)}`)
-  : null;
-
-// 2. Backup, ALWAYS, before any apply. The LLM carries the booking tool's
-//    secret header, which is why tooling/backups/ is gitignored.
-const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "backups");
-mkdirSync(backupsDir, { recursive: true });
-const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const backupPath = join(backupsDir, `voice-shell-${stamp}.jsonl`);
-writeFileSync(
-  backupPath,
-  [{ kind: "agent", ...agent }, { kind: "llm", ...llm }, ...(number ? [{ kind: "number", ...number }] : [])]
-    .map((o) => JSON.stringify(o))
-    .join("\n") + "\n",
-);
-console.log(`backup: ${backupPath}`);
-console.log(`agent ${agent.agent_id} "${agent.agent_name}" version ${agent.version} published=${agent.is_published}`);
-console.log(`llm ${llm.llm_id} version ${llm.version} (${(llm.general_prompt ?? "").length} chars of prompt)`);
-// Said first, run or not: everything below is planned against that draft, not against what the line runs.
-if (!agent.is_published) console.log(`\n! ${unpublishedLatestNote(agent.version)}.`);
-
-// 3. The plan. The live booking tool's headers are carried over; a tool with
-//    none gets the env secret if given, and is otherwise reported.
-const liveBooking = (llm.general_tools ?? []).find((t) => t.name === "send_booking_link");
-const headers =
-  liveBooking?.headers ?? (process.env.RETELL_FN_SECRET ? { "x-fn-secret": process.env.RETELL_FN_SECRET } : null);
-// Where the booking tool posts: said, or the live tool's own. Never an address baked into a package: an agent with
-// no booking tool and no VOICE_FN_URL stops here rather than be pointed at a guess.
-const fnUrl = process.env.VOICE_FN_URL || (typeof liveBooking?.url === "string" ? liveBooking.url : null);
-if (!fnUrl) {
-  console.error("no booking tool on the live LLM: set VOICE_FN_URL (https://<edge>/api/retell-fn) and run again");
-  process.exit(1);
-}
-const desired = desiredVoiceShell(fnUrl, headers);
-const plan = planVoiceConvergence(llm, desired);
-
-console.log("\nplan:");
-if (!plan.drift.length) console.log("  converged — nothing to change");
-for (const line of plan.drift) console.log(`  - ${line}`);
-if (!headers)
-  console.log(
-    "  ! send_booking_link will have NO x-fn-secret header — set RETELL_FN_SECRET or add it in Retell, or the edge refuses the tool",
-  );
-if (plan.llmPatch)
-  console.log(`  PATCH /update-retell-llm/${llm.llm_id} with: ${Object.keys(plan.llmPatch).join(", ")}`);
-
-// The agent's own settings: the events, the webhook budget, signed links, the silence reminders, the locales.
-const languages = process.env.VOICE_LANGUAGES?.split(",")
-  .map((l) => l.trim())
-  .filter(Boolean);
-const spoken = languages?.length ? retellLocalesFor(languages) : null;
-const agentPlan = planAgentSettings(agent, {
-  ...(retentionDays !== undefined ? { retentionDays } : {}),
-  ...(spoken && "locales" in spoken ? { locales: spoken.locales } : {}),
+const body = JSON.stringify({
+  ...(agent ? { agent_id: agent } : {}),
+  apply,
+  publish,
+  ...(agentsOnly ? { shell: false } : {}),
+  ...(pin ? { pin_number: pin } : {}),
 });
-console.log("\nagent settings:");
-if (spoken && "kept" in spoken) console.log(`  ! VOICE_LANGUAGES: ${spoken.kept}`);
-if (!agentPlan.drift.length) console.log("  converged — nothing to change");
-for (const line of agentPlan.drift) console.log(`  - ${line}`);
-if (agentPlan.agentPatch)
-  console.log(`  PATCH /update-agent/${agent.agent_id} with: ${Object.keys(agentPlan.agentPatch).join(", ")}`);
-const notes = [...plan.notes, ...agentPlan.notes];
-if (notes.length) {
-  console.log("\nkept as they are (reported, never changed here):");
-  for (const line of notes) console.log(`  - ${line}`);
+// One token for this door and this body, a minute's life, naming no workspace; the key only where no secret is held.
+const credential = SECRET ? { "x-edge-token": signEdgeToken(SECRET, DOOR, { body }) } : { "x-diag-key": KEY };
+
+let res;
+try {
+  res = await fetch(`${BASE}${DOOR}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...credential },
+    body,
+    signal: AbortSignal.timeout(WAIT_MS),
+  });
+} catch (e) {
+  console.error(`could not reach ${BASE}${DOOR}: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(2);
 }
-if ((plan.llmPatch || agentPlan.agentPatch) && agent.is_published) {
-  console.log(
-    `  v${agent.version} is published: the changes go on a NEW DRAFT first${publish ? ", then it is published" : " — add --publish to make them live on a pinned number"}`,
+const answer = await res.json().catch(() => ({}));
+
+// An apply's answer is the record of what each agent was before it: kept before anything else is said.
+if (apply) {
+  const dir = process.env.BACKUP_DIR || join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "backups");
+  mkdirSync(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const kept = join(dir, `voice-converge-${stamp}.json`);
+  writeFileSync(
+    kept,
+    JSON.stringify({ at: new Date().toISOString(), base: BASE, status: res.status, answer }, null, 2) + "\n",
   );
+  console.log(`kept: ${kept}`);
 }
 
-// The pin is a separate decision with its own guard.
-let numberPatch = null;
-if (pin) {
-  if (!number) console.log("  ! --pin needs VOICE_NUMBER");
-  else if (!agent.is_published)
+console.log(
+  `voice-converge: ${apply ? `APPLY${publish ? " + publish" : ""}` : "dry run"} against ${BASE} (HTTP ${res.status})`,
+);
+let failed = false;
+for (const a of answer.agents ?? []) {
+  console.log(`\n${a.agent_id}  v${a.version ?? "?"} published=${a.is_published ?? "?"}`);
+  if (a.error && typeof a.error === "string") {
+    console.log(`  ! ${a.error}`);
+    failed = true;
+    continue;
+  }
+  const shell = a.shell ?? {};
+  if (shell.error) console.log(`  shell: ${shell.error}`);
+  else if (shell.drift) {
+    console.log(`  shell${shell.drift.length ? "" : ": converged"}`);
+    for (const line of shell.drift) console.log(`    - ${line}`);
+  }
+  console.log(`  agent settings${a.drift?.length ? "" : ": converged"}`);
+  for (const line of a.drift ?? []) console.log(`    - ${line}`);
+  for (const line of [...(shell.notes ?? []), ...(a.notes ?? [])]) console.log(`    (kept) ${line}`);
+  if (a.note) console.log(`  ! ${a.note}`);
+  if (a.applied) console.log(`  applied${a.published_version ? `, published v${a.published_version}` : ""}`);
+  if (a.pin) {
+    const p = a.pin;
     console.log(
-      `  ! refusing --pin: version ${agent.version} is not published — the line would switch back to the stale published version. Publish first (POST /publish-agent-version/${agent.agent_id}).`,
+      `  pin: ${p.refused ? `refused, ${p.refused}` : p.already ? "already latest_published" : p.would_pin ? "would bind to latest_published" : p.pinned ? "bound to latest_published" : `failed, HTTP ${p.error?.status}`}`,
     );
-  else {
-    const bound = (number.inbound_agents ?? []).find((a) => a.agent_id === agent.agent_id);
-    if (bound?.agent_version === "latest_published") console.log("  number already pinned to latest_published");
-    else numberPatch = { inbound_agents: [{ agent_id: agent.agent_id, agent_version: "latest_published", weight: 1 }] };
-    if (numberPatch)
-      console.log(
-        `  PATCH /update-phone-number/${number.phone_number} inbound_agents -> ${agent.agent_id} @ latest_published`,
-      );
+    if (p.error) failed = true;
+  }
+  if (a.error) {
+    console.log(`  ! ${a.error.step}: HTTP ${a.error.status}`);
+    failed = true;
   }
 }
 
-if (!apply) {
-  console.log("\nDry run only. Re-run with --apply to execute.");
-  process.exit(0);
+if (!res.ok || answer.ok === false) {
+  console.error(`\nrefused: ${answer.error ?? `HTTP ${res.status}`}${answer.detail ? ` — ${answer.detail}` : ""}`);
+  process.exit(1);
 }
-
-// 4. Apply exactly the plan — on a new draft when the latest version is
-//    published, because a published version cannot change.
-let working = agent;
-if ((plan.llmPatch || agentPlan.agentPatch) && agent.is_published) {
-  const draft = await call("POST", `/create-agent-version/${agent.agent_id}`, { base_version: agent.version });
-  console.log(`\ndraft v${draft.version} created from published v${agent.version} (its LLM is cloned with it)`);
-  working = draft;
-}
-if (plan.llmPatch) {
-  const after = await call("PATCH", `/update-retell-llm/${llm.llm_id}`, plan.llmPatch);
-  console.log(`\nllm updated: version ${llm.version} -> ${after.version}`);
-  if (after.version !== llm.version) {
-    console.log(
-      `  ! Retell created a new LLM version. The agent's response_engine points at version ${engine.version ?? "latest"}; check /api/diag voiceAgents[].shell before trusting the line.`,
-    );
-  }
-  const again = planVoiceConvergence(after, desired);
-  console.log(
-    again.drift.length
-      ? `  ! still drifting: ${again.drift.join("; ")}`
-      : "  converged (re-planned against the response)",
-  );
-} else {
-  console.log("\nllm: nothing to apply");
-}
-if (agentPlan.agentPatch) {
-  const after = await call("PATCH", `/update-agent/${agent.agent_id}`, agentPlan.agentPatch);
-  console.log(`agent updated: version ${agent.version} -> ${after.version}`);
-} else {
-  console.log("agent: nothing to apply");
-}
-if (working.version !== agent.version) {
-  if (publish) {
-    await call("POST", `/publish-agent-version/${agent.agent_id}`, {
-      version: working.version,
-      version_title: "converged by voice-converge",
-    });
-    console.log(`published v${working.version}; a number pinned to latest_published follows it`);
-  } else {
-    console.log(`\n! ${newDraftNote(working.version, agent.version)}.`);
-  }
-} else if ((plan.llmPatch || agentPlan.agentPatch) && !agent.is_published) {
-  // The patches went on the draft that was already the latest; it is not published (said at the top, said again).
-  console.log(`\n! the changes went on v${agent.version}, which was NOT published, even with --publish.`);
-}
-if (numberPatch) {
-  const n = await call("PATCH", `/update-phone-number/${encodeURIComponent(number.phone_number)}`, numberPatch);
-  console.log(`number bound: ${JSON.stringify(n.inbound_agents)}`);
-}
+if (failed) process.exit(1);
+if (!apply) console.log("\nDry run only. Re-run with --apply (and --publish) to do it.");

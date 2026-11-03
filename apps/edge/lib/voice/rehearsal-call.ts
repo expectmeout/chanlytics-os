@@ -24,6 +24,7 @@ import { pg } from "../pg.js";
 import { workspaceFor, personFor, type Admitted } from "../admin-auth.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { env } from "../env.js";
+import { secretToProvision } from "./voice-door-auth.js";
 import { logger, errField } from "../log.js";
 import { createWebCall, webCallBody, webCallMadeOf, type RetellCall } from "../packages/channels.js";
 import {
@@ -83,8 +84,8 @@ export async function makeRehearsalAgent(
 ): Promise<Response> {
   const L = logger();
   const apiKey = env.RETELL_API_KEY;
-  const fnSecret = env.RETELL_FN_SECRET;
-  if (!apiKey || !fnSecret) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
+  const fnSecret = secretToProvision();
+  if (!apiKey || fnSecret === undefined) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -163,8 +164,8 @@ export async function startRehearsalCall(
 ): Promise<Response> {
   const L = logger();
   const apiKey = env.RETELL_API_KEY;
-  const fnSecret = env.RETELL_FN_SECRET;
-  if (!apiKey || !fnSecret) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
+  const fnSecret = secretToProvision();
+  if (!apiKey || fnSecret === undefined) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";

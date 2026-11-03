@@ -27,6 +27,7 @@ import {
   type ResumedBy,
 } from "./line-resume.js";
 import { env } from "../env.js";
+import { secretToProvision } from "../voice/voice-door-auth.js";
 
 interface LineProvisionOutcome {
   ok: boolean;
@@ -41,7 +42,7 @@ interface LineProvisionOutcome {
 
 interface LineProvisionDeps {
   provider: () => LineProviderChoice | null;
-  env: { apiKey: string | undefined; fnSecret: string | undefined };
+  env: { apiKey: string | undefined; fnSecret: string | null | undefined };
   provision: typeof provisionLine;
   now: () => number;
 }
@@ -49,7 +50,7 @@ interface LineProvisionDeps {
 function realLineProvisionDeps(): LineProvisionDeps {
   return {
     provider: lineProviderFromEnv,
-    env: { apiKey: env.RETELL_API_KEY, fnSecret: env.RETELL_FN_SECRET },
+    env: { apiKey: env.RETELL_API_KEY, fnSecret: secretToProvision() },
     provision: provisionLine,
     now: Date.now,
   };
@@ -68,7 +69,7 @@ export async function provisionLineJob(
   const choice = deps.provider();
   if (!choice) return { ok: false, error: "no_line_provider", did: "nothing", why: "no provider" };
   const { apiKey, fnSecret } = deps.env;
-  if (!apiKey || !fnSecret)
+  if (!apiKey || fnSecret === undefined)
     return { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret", did: "nothing", why: "no credentials" };
 
   const row = await tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).maybeSingle();

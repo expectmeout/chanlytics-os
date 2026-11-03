@@ -55,6 +55,7 @@ import {
   type VoiceProvisionRequest,
 } from "../packages/channels.js";
 import { env } from "../env.js";
+import { secretToProvision, signatureOnly } from "./voice-door-auth.js";
 import { logger, errField } from "../log.js";
 
 interface Body {
@@ -123,7 +124,8 @@ type ProvisionDb = NonNullable<ReturnType<typeof pg>>;
 /** A knock the door let in: the provider's key and the tools' secret, the database, the body as read, and whose line. */
 interface ProvisionKnock {
   apiKey: string;
-  fnSecret: string;
+  /** None once the doors open for the signature alone (secretToProvision). */
+  fnSecret: string | null;
   db: ProvisionDb;
   body: Body;
   apply: boolean;
@@ -136,8 +138,8 @@ interface ProvisionKnock {
  */
 async function checkProvisionKnock(auth: Admitted, request: Request): Promise<ProvisionKnock | Response> {
   const apiKey = env.RETELL_API_KEY;
-  const fnSecret = env.RETELL_FN_SECRET;
-  if (!apiKey || !fnSecret) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
+  const fnSecret = secretToProvision();
+  if (!apiKey || fnSecret === undefined) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
@@ -431,7 +433,7 @@ async function readBackLeg(cfg: RetellConfig, { agentId, llmId }: MadeAgent): Pr
           retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days,
         }).drift
       : ["unreadable"],
-    shell: llmAfter ? voiceShellDrift(llmAfter, edgeFnUrl()).drift : ["unreadable"],
+    shell: llmAfter ? voiceShellDrift(llmAfter, edgeFnUrl(), signatureOnly()).drift : ["unreadable"],
     published: after?.is_published ?? null,
   };
 }
