@@ -48,109 +48,103 @@ export async function expectQrInView(page: Page): Promise<void> {
   await expect(page.locator(".pg-head")).toContainText("People");
 }
 
-export interface LeakRow {
-  id: string;
+/** One row of Today's Ask found, as it reads (Today in three zones, 2 Nov 2026; surfaces/today/zones/found.tsx). */
+export interface FoundRow {
+  /** What it stands for: a rule's `rule:<id>` (unreachable, never-booked ...), a card's id, a call's or a lead's row. */
+  key: string;
+  /** rule, noticed, call, tried or idea. */
+  source: string;
+  tag: string;
   text: string;
-  math: string;
-  doors: string[];
+  /** Its why, which waits behind the sentence until it is pressed: the arithmetic, for a rule. */
+  why: string;
+  /** Its one act's words; none where a row has nowhere to go. */
+  act: string;
 }
 
-/** Today's "Worth a look", as it reads; empty when the band is absent (a workspace with nothing wrong). */
-export async function readLeaks(page: Page): Promise<LeakRow[]> {
-  const band = page.getByTestId("today-leaks");
-  if ((await band.count()) === 0) return [];
-  const out: LeakRow[] = [];
-  // The rows alone: a row's own Ask (today-leak-ask-<id>) and, on a phone, its text door (today-leak-text-<id>)
-  // share the prefix and are not rows.
-  for (const row of await band.locator('.tl-row[data-testid^="today-leak-"]').all()) {
+/**
+ * Today's Ask found, as it reads; empty when the zone is absent (nothing to rank). Each row's why is read by pressing its
+ * sentence, as a person does, and put away again: pressing it does nothing else (Not today waits beside it, unpressed).
+ */
+export async function readFound(page: Page): Promise<FoundRow[]> {
+  const zone = page.getByTestId("today-ask-found");
+  if ((await zone.count()) === 0) return [];
+  const out: FoundRow[] = [];
+  for (const row of await zone.locator('.tz-idea[data-testid^="today-found-"]').all()) {
+    const sentence = row.getByTestId("today-found-sentence");
+    const act = row.getByTestId("today-found-act");
+    let why = "";
+    if (await sentence.count()) {
+      await sentence.click();
+      await expect(row.getByTestId("today-found-rest")).toBeVisible();
+      why = ((await row.locator(".tz-idea-why small").first().textContent()) ?? "").trim();
+      await sentence.click();
+    }
     out.push({
-      id: ((await row.getAttribute("data-testid")) ?? "").replace(/^today-leak-/, ""),
-      text: (await row.locator(".tl-text").innerText()).trim(),
-      // textContent, not innerText: on a phone the arithmetic waits hidden behind the sentence.
-      math: ((await row.locator(".tl-math").textContent()) ?? "").trim(),
-      doors: (await row.locator(".tl-acts button").allInnerTexts()).map((d) => d.trim()),
+      key: (await row.getAttribute("data-key")) ?? "",
+      source: ((await row.getAttribute("data-testid")) ?? "").replace(/^today-found-/, ""),
+      tag: (await row.locator(".tz-idea-kind").innerText()).trim(),
+      text: (await sentence.count()) ? (await sentence.innerText()).trim() : "",
+      why,
+      act: (await act.count()) ? (await act.innerText()).trim() : "",
     });
   }
   return out;
 }
 
 /**
- * Every row the band shows is a claim with its arithmetic and a way out: a
- * sentence, the numbers under it, at least one door, and never more than two
- * rows -- past two it is a list, and the band exists because lists are skimmed.
+ * Every row Ask found draws is a claim with a way out: what it is, its sentence, its why behind it, its one act; and three
+ * rows at most, the rest said. A rule's sentence, and what Ask noticed, carries its number, with why under it.
  */
-export async function expectLeaksWellFormed(page: Page): Promise<LeakRow[]> {
-  const rows = await readLeaks(page);
-  expect(rows.length, "the band is two rows at most").toBeLessThanOrEqual(2);
+export async function expectFoundWellFormed(page: Page): Promise<FoundRow[]> {
+  const rows = await readFound(page);
+  expect(rows.length, "Ask found draws three at most").toBeLessThanOrEqual(3);
   for (const r of rows) {
-    expect(r.text.length, `${r.id}: a sentence`).toBeGreaterThan(0);
-    expect(r.text, `${r.id}: the sentence has its number in it`).toMatch(/\d/);
-    expect(r.math.length, `${r.id}: the arithmetic under it`).toBeGreaterThan(0);
-    expect(r.doors.length, `${r.id}: a door`).toBeGreaterThan(0);
+    expect(r.tag.length, `${r.key}: what it is`).toBeGreaterThan(0);
+    expect(r.text.length, `${r.key}: a sentence`).toBeGreaterThan(0);
+    // Every row its one act: a door, or a card's own Approve (the 3 Nov audit: a steady finding stood with none).
+    expect(r.act.length, `${r.key}: its one act`).toBeGreaterThan(0);
+    if (r.source !== "rule" && r.source !== "noticed") continue;
+    expect(r.text, `${r.key}: the sentence has its number in it`).toMatch(/\d/);
+    expect(r.why.length, `${r.key}: why, under it`).toBeGreaterThan(0);
   }
   return rows;
 }
 
 /**
- * No conversation waiting in the queue is said again under "While you were
- * away". The bell holds both kinds of row -- one the edge wrote down, carrying
- * its conversation, and one the browser derives, carrying it only in its key --
- * and a rule that read one of them passed every test while the page printed the
- * same three people twice.
+ * Nobody waiting in Need you is said again in Ask found: a person is a row of one or the other. The bell held both kinds
+ * of a row once, and the page printed the same three people twice (#653), under While you were away, which went.
  */
 export async function expectNoQueueRepeat(page: Page): Promise<void> {
   const queued = (await page.getByTestId("today-queue").locator(".cl-attn-who").allInnerTexts())
     .map((n) => n.trim())
     .filter(Boolean);
-  const away = (await page.getByTestId("today-away").locator(".ta-title").allInnerTexts()).map((t) => t.trim());
+  const found = (await readFound(page)).map((r) => r.text);
   for (const who of queued) {
     expect(
-      away.filter((t) => t.includes(who)),
-      `${who} is in the queue and again under While you were away`,
+      found.filter((t) => t.startsWith(`${who}:`)),
+      `${who} is in Need you and again in Ask found`,
     ).toEqual([]);
   }
 }
 
 /**
- * The card's head is the bell's own number and its foot says how many of them
- * are not on screen, so they must add up: a group of twelve calls stands for
- * twelve, not for one. Counting groups read as "22 ... and 2 more".
- *
- * With no row drawn there is no foot (the head says the number once), and the
- * empty line may congratulate only when the head is 0: a card that read
- * "All caught up." beside a bell of 4 is the defect this guards.
+ * Since you looked opens in place: the line's few words, and once pressed its rows under it, closed again by a second
+ * press. Nothing where the member never looked. (What each row says is contracts todaySince's, which
+ * tooling/scripts/tests/today-zones/since-you-looked.test.mjs executes: a row per bit is so by construction, so counting
+ * one against the other here proved nothing.)
  */
-export async function expectAwayAddsUp(page: Page): Promise<void> {
-  const away = page.getByTestId("today-away");
-  await expect(away).toBeVisible();
-  const head = Number((await away.locator(".tq-count").innerText()).trim());
-  const rows = away.getByTestId("today-away-row");
-  if ((await rows.count()) === 0) {
-    const empty = away.getByTestId("today-away-empty");
-    await expect(empty).toBeVisible();
-    await expect(away.locator(".tq-foot")).toHaveCount(0);
-    expect((await empty.innerText()).includes("All caught up"), `head ${head} with "${await empty.innerText()}"`).toBe(
-      head === 0,
-    );
-    return;
-  }
-  const shown = (await rows.evaluateAll((els) => els.map((r) => Number(r.getAttribute("data-count") ?? "1")))).reduce(
-    (a, n) => a + n,
-    0,
-  );
-  const foot = away.locator(".tq-foot");
-  const more = (await foot.count()) ? Number(/(\d+) more/.exec(await foot.innerText())?.[1] ?? "0") : 0;
-  expect(head, `head ${head} = ${shown} on screen + ${more} more`).toBe(shown + more);
-}
-
-/** A warning is never listed below good news, whatever the two rows' clocks say. */
-export async function expectWarningsFirst(page: Page): Promise<void> {
-  const tones = await page
-    .getByTestId("today-away-row")
-    .evaluateAll((rows) => rows.map((r) => (r.classList.contains("warn") ? "warn" : "other")));
-  const firstOther = tones.indexOf("other");
-  if (firstOther === -1) return;
-  expect(tones.slice(firstOther), `a warning sits below good news: ${tones.join(",")}`).not.toContain("warn");
+export async function expectSinceOpens(page: Page): Promise<void> {
+  const line = page.getByTestId("today-since");
+  if ((await line.count()) === 0) return;
+  const bits = (await line.locator("em").allInnerTexts()).map((b) => b.trim()).filter(Boolean);
+  expect(bits.length, "the line says what happened").toBeGreaterThan(0);
+  await line.click();
+  const list = page.getByTestId("today-since-list");
+  await expect(list).toBeVisible();
+  await expect(list.locator(".tz-sn").first()).toBeVisible();
+  await line.click();
+  await expect(list).toHaveCount(0);
 }
 
 /* ------------------------------------------------------- Leads (release B) */

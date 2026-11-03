@@ -27,6 +27,9 @@ export const UNKNOWN_MEMBER_WORD = "Someone";
 /** The first letter upper-cased, the rest as written; an empty string stays empty. */
 export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
+/** Words as a sentence: ended with a full stop unless they end with one already ("." "!" "?"). */
+export const withStop = (s: string): string => (/[.!?]$/.test(s) ? s : `${s}.`);
+
 /** A name as the one something belongs to: "Harbor Salon's", and "Lantern Barbers'" for a name that ends in s. */
 export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
 

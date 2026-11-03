@@ -34,8 +34,8 @@ installLegacyReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
+const { NeedYou } = await import("../../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+const { TodayAlertBand } = await import("../../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { todayOverride } = await import("../../../../apps/dashboard/src/surfaces/today/override.ts");
 
@@ -136,14 +136,14 @@ const draw = (Comp) => {
 };
 
 test("Today's queue leaves the call in progress to the frame's bar, draws the people who need you, and the calls worth an ear last", () => {
-  // The queue (surfaces/today/pages/queue.tsx) owns the order; a call on the line is the top bar's on every page
+  // The queue (surfaces/today/zones/need-you.tsx) owns the order; a call on the line is the top bar's on every page
   // (frame/topbar/status-bars.tsx LiveCallBar), which Glass drew instead of the queue's own rail, now gone.
   const vm = toTodayVM(metrics(), [waiting], [escalation], [], NOW);
   assert.equal(vm.queue.rows.length, 1, "a person is waiting on a person");
   setSurfaceValue("today", vm);
   globalThis.__LIVE = onTheLine();
   went.length = 0;
-  const queue = byTestId(draw(AgentCommand), "today-queue");
+  const queue = byTestId(draw(NeedYou), "today-queue");
   assert.equal(
     byTestId(queue, "brief-live-call"),
     null,
@@ -162,7 +162,7 @@ test("Today's queue leaves the call in progress to the frame's bar, draws the pe
     "a voicemail is worth an ear, after the people waiting on you",
   );
   // The hero, over the same day and the same call on the line, draws neither the call nor a row of one.
-  const hero = draw(HeroBrief);
+  const hero = draw(TodayAlertBand);
   assert.equal(
     all(
       hero,
@@ -227,6 +227,7 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
     "billing_accounts",
     "contacts",
     "appointments", // what was booked, which the day's figures lead with
+    "sequence_batches", // the runs waiting for a word, which GET today carries
   ]);
   // The rule itself, as the runner applies it: Today's own override (surfaces/today/surface.ts), run, not read. A turn
   // keeps status ongoing; a start or an end does not.

@@ -216,8 +216,8 @@ test("the figures lead with what was booked: how many, the soonest, and who for 
   assert.match(first.receipt.door.to, /2026-09-19/, "the soonest, on its day");
   assert.deepEqual(
     rest.map((f) => f.id),
-    ["messages", "answered", "calls"],
-    "four still, so a phone keeps its one row",
+    ["answered", "calls", "new"],
+    "four still, so a phone keeps its one row: answered holds what the messages figure said (Today in three zones)",
   );
   const one = figuresOf({ booked: 1, visits: [visits[0]], arrive: true })[0];
   assert.equal(one.meta, `for ${starts(SAT)}`);
@@ -233,13 +233,14 @@ test("a zero is said as what it is: none yet where bookings arrive, a calendar t
   assert.equal(unlinked.receipt.text, BOOKED_NEEDS_A_LINK);
 });
 
-test("a read that says nothing of bookings keeps the four figures they were, new people among them", () => {
+test("a read that says nothing of bookings still leads with booked, as a dash, never a zero it does not know", () => {
   for (const said of [undefined, null])
     assert.deepEqual(
       figuresOf(said).map((f) => f.id),
-      ["messages", "answered", "calls", "new"],
+      ["booked", "answered", "calls", "new"],
       `bookings ${String(said)}`,
     );
+  assert.equal(figuresOf(null)[0].value, null, "booked could not be read: a dash");
 });
 
 test("a booking and the calendar's copy of it are one visit; two visits of one person are two", () => {

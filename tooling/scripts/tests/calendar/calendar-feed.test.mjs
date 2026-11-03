@@ -623,13 +623,94 @@ test("reading the week adds nobody to People, whoever reads it; the board draws 
         last: { at: null, by: "No contact recorded" },
         phone: "+19175550100",
         email: null,
-        // When their next visit begins, which the consultation's "nothing since" reads (0008, amended 18 Oct 2026).
-        next_visit_at: null,
+        // When their next visit begins, which the consultation's "nothing since" reads (0008, amended 18 Oct 2026): this
+        // afternoon's. Her visits are read with the board's (people-visits.ts boardVisits); they were never attached,
+        // and both facts were always blank (the audit of 3 Nov 2026).
+        next_visit_at: "2026-09-08T18:00:00.000Z",
+        // And the record holds no visit of hers before it, this season or earlier: Today's day says "First visit".
+        last_visit_at: null,
       },
     },
     "the board links the person People holds",
   );
   assert.deepEqual(doors, [], "and a read that matched made nobody either");
+});
+
+test("the board says when each person was last in, from the season's feed and the record before it, and who comes today or tomorrow for a first visit; without the record it says neither (Today's day)", async () => {
+  const url = "https://cal.example/last.ics";
+  const visit = (uid, who, phone, from, to) =>
+    vevent([
+      `UID:${uid}`,
+      `SUMMARY:${who} · Cut`,
+      `DESCRIPTION:${phone}`,
+      `DTSTART;TZID=America/New_York:${from}`,
+      `DTEND;TZID=America/New_York:${to}`,
+    ]);
+  answers.set(url, {
+    body: ics(
+      // Ana was in last Tuesday and comes back this afternoon.
+      visit("l1", "Ana Ruiz", "+1 (917) 555-0100", "20260901T100000", "20260901T110000"),
+      visit("l2", "Ana Ruiz", "+1 (917) 555-0100", "20260908T140000", "20260908T153000"),
+      // Bo has never been in: tomorrow is his first.
+      visit("l3", "Bo Chen", "+1 (917) 555-0101", "20260909T100000", "20260909T110000"),
+      // Cy and Di were in last winter, before the season the feed is read over: the record holds it, by the person it
+      // linked and by the number a booking carried.
+      visit("l4", "Cy Park", "+1 (917) 555-0102", "20260908T160000", "20260908T170000"),
+      visit("l5", "Di Wong", "+1 (917) 555-0103", "20260909T120000", "20260909T130000"),
+    ),
+  });
+  const person = (id, name, phone) => ({
+    id,
+    display_name: name,
+    wa_profile_name: null,
+    phone_e164: phone,
+    email: null,
+  });
+  const people = [
+    person("p-ana", "Ana Ruiz", "+19175550100"),
+    person("p-bo", "Bo Chen", "+19175550101"),
+    person("p-cy", "Cy Park", "+19175550102"),
+    person("p-di", "Di Wong", "+19175550103"),
+  ];
+  const earlier = (id, more) => ({
+    id,
+    tenant_id: T,
+    status: "kept",
+    starts_at: "2026-01-10T15:00:00.000Z",
+    ends_at: "2026-01-10T16:00:00.000Z",
+    contact_id: null,
+    client_phone: null,
+    client_email: null,
+    vanished_at: null,
+    ...more,
+  });
+  const t = tables(url);
+  t.appointments = [
+    earlier("e1", { source: "calendar_feed", external_id: "old-1", contact_id: "p-cy" }),
+    earlier("e2", { source: "booking_email", tool: "booksy", external_id: "bk-old", client_phone: "+19175550103" }),
+  ];
+  forgetFeeds();
+  const week = await calendarWeek(ctxFor(t, { people_list: () => people }), T, { from: "2026-09-07", days: 7 }, NOW);
+  const factsOf = (name) => week.days.flatMap((d) => d.items).find((it) => it.person?.name === name)?.person.facts;
+  const said = (name) => {
+    const f = factsOf(name);
+    return [f?.next_visit_at, "last_visit_at" in (f ?? {}) ? f.last_visit_at : "unsaid"];
+  };
+  assert.deepEqual(said("Ana Ruiz"), ["2026-09-08T18:00:00.000Z", "2026-09-01T14:00:00.000Z"], "last in a week ago");
+  assert.deepEqual(said("Bo Chen"), ["2026-09-09T14:00:00.000Z", null], "nothing before tomorrow's: a first visit");
+  assert.deepEqual(
+    said("Cy Park"),
+    ["2026-09-08T20:00:00.000Z", "unsaid"],
+    "nothing this season, but the record holds one from before it: never 'First visit', and no date the season holds",
+  );
+  assert.deepEqual(said("Di Wong"), ["2026-09-09T16:00:00.000Z", "unsaid"], "found by the number the booking carried");
+
+  // Without the record, nothing is laid on the rows and nobody is first: the day says neither fact.
+  const { boardVisits } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
+  const rows = [{ ...people[1], visits: undefined }];
+  const cal = { timezone: TZ, source: "your calendar", own: new Set(), services: [], rules: null };
+  const none = await boardVisits(ctxFor(t), T, rows, [], { ...cal, record: null }, NOW);
+  assert.deepEqual([none.rows, [...none.firsts]], [rows, []]);
 });
 
 test("(0008) the board's read marks each consultation by the rule People's visits are marked by, with the consult-first service its title names", async () => {

@@ -281,7 +281,7 @@ globalThis.window.__calendar = calendar;
 // Today's day (TSX since decision 0015), the one derivation the strip and the brief read, which names the next open time
 // the way the Calendar does: the hooks it imports are the stub's, set on the module it imports them from.
 kitHooks();
-const { useDayVm } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
+const { useDayVm } = await import("../../../../apps/dashboard/src/surfaces/today/zones/day-vm.ts");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -1411,7 +1411,7 @@ test("REGRESSION (C1): Next opening is the receptionist's first open time from n
 
 test("(C1) the last day the receptionist offers is named, and every day past it knows it is", () => {
   const vm = toCalendarVM(span("2026-09-07", 28), NOW);
-  assert.deepEqual(vm.offer, { days: 14, until: "2026-09-21", label: "Sep 21" }, "up to 14 days out, from today");
+  assert.deepEqual(vm.offer, { days: 14, until: "2026-09-21", label: "Sep 21", slot: 30 }, "14 days out, from today");
   const beyond = (key) => vm.days.find((d) => d.key === key).beyondOffer;
   assert.deepEqual(["2026-09-07", "2026-09-08", "2026-09-21", "2026-09-22", "2026-10-04"].map(beyond), [
     false,
@@ -1422,7 +1422,7 @@ test("(C1) the last day the receptionist offers is named, and every day past it 
   ]);
   assert.deepEqual(
     toCalendarVM(span("2026-09-07", 7, { rules: null }), NOW).offer,
-    { days: 14, until: "2026-09-21", label: "Sep 21" },
+    { days: 14, until: "2026-09-21", label: "Sep 21", slot: 30 },
     "no rules on file: the default",
   );
   assert.equal(toCalendarVM(span("2026-09-07", 7, { rules: { max_days_ahead: 3 } }), NOW).offer.until, "2026-09-10");

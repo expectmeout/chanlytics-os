@@ -82,9 +82,8 @@ const receptionist = ifDrawn(receptionistLens);
 // number") and the zone (its days). Its page is the lens, or the Overview, which draws it for one fact (the feed hears the lens's tables
 // only on the lens, and tells it of none of these writes).
 const reportsCampaigns = ifDrawn(reportsCampaignsLens);
-// What Today's period line and Worth a look say is made wrong by a reply or a resolved escalation (the unanswered count falls by one for
-// each), a visit marked and the calendar link or the zone saved (the booking pair, and the Booking gap line it makes). Today is where it
-// is drawn.
+// What Today's week line and Ask found's leaks say goes wrong with a reply or a resolved escalation (one unanswered fewer each), a
+// visit marked, and the calendar link or the zone saved (the booking pair, and the Booking gap line it makes). Today draws it.
 const headlineIfDrawn = ifDrawn(headline);
 // The counts of the lists pinned to Today (surfaces/today/pins-surface.ts; R10), where Today is on screen, and left for it elsewhere:
 // a write the feed does not tell (a person erased takes their messages) moves them.
@@ -393,6 +392,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT playbooks/[id]": () => [...savedAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
+  "POST calendar/freed": runs,
   // A sequence's doors (0060): a step after the first added, changed, given new words or taken away is the playbook its
   // row draws, and Today's day strip; people taken out move its runs' sends and People's "in a sequence" with them. The
   // Sequences page's list beside them, and it reads its own record again behind each of its presses.
@@ -590,7 +590,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST channels/whatsapp/standing": () => [channelsOverride, ...reportsCampaigns()],
   // An Instagram account turned off: Connections' row (the channels read) and the Setup row that says what answers.
   "POST channels/instagram/disconnect": () => [channelsOverride, setupOverride],
-  "PUT notifications": () => [notificationsOverride],
+  // The bell's press also moves when this member last looked, which Today's Since you looked says (GET today's `since`).
+  "PUT notifications": () => [notificationsOverride, todayOverride],
   // Setup, lines, billing, Google.
   "POST capabilities/[kind]": setup,
   "DELETE capabilities/[kind]": setup,
@@ -638,13 +639,12 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST google/refresh": google,
   "POST google/locations": google,
   "DELETE google/connection": google,
-  // A reply posted is a review answered, from the Reviews lens: it counts the answers and lists the reviews that wait. The live feed
-  // tells the answer to every tab (00431), and this tab's read here is the one its notice asks for (readAfter), so the writer reads
-  // it once, at once. Its read publishes Google's own beside it
-  // (publishGoogleRead), where this tab holds Google's, so Today's line (made of it, and gone once its review has a reply) is current
-  // without a second read of the same listing. The bell's notices of the review are read by the verb (legacy-bridge/google.ts
-  // replyToReview), which writes through the notifications door.
-  "POST google/reviews/[id]/reply": () => [reviewsOverride],
+  // A reply posted is a review answered: the Reviews lens counts the answers and lists the reviews that wait. The live feed tells
+  // every tab (00431), and this tab's read here is the one its notice asks for (readAfter), so the writer reads it once, at once.
+  // Its read publishes Google's beside it (publishGoogleRead), so Today's To do (its reviews are made of it) is current without a
+  // second read of the listing. The bell's notices of the review are read by the verb (google.ts replyToReview), through the
+  // notifications door. And Today is read again: "N done today" counts the answer (reply_review), which the feed cannot tell it.
+  "POST google/reviews/[id]/reply": () => [reviewsOverride, todayOverride],
   // A held reply stopped (decision 0064, step 6): the review still waits, now with its words held for an OK, on the lens
   // that drew the Stop. The live feed tells the change to every tab (00462), and this tab reads the lens once, at once.
   "POST google/reviews/[id]/stop": () => [reviewsOverride],

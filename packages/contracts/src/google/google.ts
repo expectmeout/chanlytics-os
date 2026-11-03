@@ -471,9 +471,9 @@ export interface GoogleVM {
   source: string;
   table: { columns: string[]; rows: (string | number)[][] };
   /**
-   * Today's one line when a review is news and not yet answered, where it leads (that review, with its reply box), and which
-   * review it draws: the bell's row about the same review is not said again under it (todayAwayGrouped), and an answer takes it
-   * away.
+   * The old Today's one line when a review was news and not yet answered, where it led (that review, with its reply box),
+   * and which review it drew, read now by the away card's grouping alone (todayAwayGrouped), which no page draws: Today's
+   * To do lists the reviews to answer (need-you/reviews.ts), and Since you looked leaves out the bell's rows about them.
    */
   todayLine: { text: string; to: string; review: { id: string; reviewId: string } } | null;
 }

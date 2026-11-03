@@ -4,9 +4,9 @@
  * nothing and a greeting of the page's own lower down: two headlines on every load, the second 7 seconds after the first
  * on a phone (Ruben, 31 Oct 2026: "only one", in the old Today's type). The greeting needs only who is signed in and the
  * business's clock, which the frame holds before any page is read, so the address says it from the first draw, in the page
- * head's own type, and the page says the same words once it is in (pages/today-head.tsx). Listen stands at the end of the
- * sentence under the greeting, which the page says, so the greeting's line holds nothing that comes later. Words alone,
- * read off the window as asked: the frame's route table loads this module before any page, so it draws nothing and takes no hook as it
+ * head's own type, and the page says the same words once it is in (zones/head.tsx useZonesStanding). Listen stands beside
+ * the greeting on a desk and beside the bell on a phone, which the page says, so the greeting's line holds nothing that
+ * comes later. Words alone, read off the window as asked: the frame's route table loads this module before any page, so it draws nothing and takes no hook as it
  * loads (today/shell.ts takes React's for `useMoved`, which a test's stand-in React must be in place before).
  */
 import type { PageClock } from "@/legacy-bridge/zone";
@@ -37,9 +37,9 @@ export const todayGreetingNow = (): string =>
 /** Today's one crumb, one array, so the head is told it once. */
 const TODAY_CRUMBS = ["Today"];
 
-/** The head the address says first: the greeting. */
+/** The head the address says first: the greeting, and on a phone the date with its hour, as the page says both. */
 function todayHead(): HeadFirst {
-  return { title: todayGreetingNow() };
+  return { title: todayGreetingNow(), dateHour: true };
 }
 
 /** What the frame draws around Today: its crumb, and its head from the first draw. */

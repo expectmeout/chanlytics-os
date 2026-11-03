@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-343 handlers in 55 domains.
+344 handlers in 55 domains.
 
 ## activity
 
@@ -301,6 +301,14 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | `days` | string | no |  |
 | `around` | one of `"today"` | no |  |
 | `fresh` | one of `"1"` | no |  |
+
+### `POST /api/v1/calendar/freed`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `visit_id` | string (uuid) | yes |  |
 
 ### `POST /api/v1/calendar/notices/[id]/dismiss`
 

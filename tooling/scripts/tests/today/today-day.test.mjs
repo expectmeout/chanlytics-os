@@ -19,7 +19,6 @@ import {
   todayDraftsSub,
   todayRunApproved,
   todayLeaks,
-  todayAwayGrouped,
   todaySteps,
   todayStepsSub,
   withSteps,
@@ -31,10 +30,11 @@ import { installLegacyReact, fresh, all, byTestId, find, textOf } from "../_lega
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
 const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/surfaces/today/helpers.ts");
-const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
-const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
-const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day-card.tsx");
+const { TodayAlertBand } = await import("../../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
+const { TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
+const { PhoneSoFar } = await import("../../../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
+const { TodayZones } = await import("../../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
+const { DayZone } = await import("../../../../apps/dashboard/src/surfaces/today/zones/day.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const person = (id, name) => ({ id, name, via: "phone" });
@@ -293,6 +293,39 @@ test("the day's reminders say the workspace's word, as Campaigns does, from the 
   assert.equal(todayDay(today, null).reminders, null);
 });
 
+test("the day says the workspace's word from Today's own read: with the playbooks off or unread, never a playbook's default (the canvas of 2 Nov 2026)", async () => {
+  const { useDayVm, useTodayWord } = await import("../../../../apps/dashboard/src/surfaces/today/zones/day-vm.ts");
+  let said = null;
+  function Probe() {
+    said = { day: useDayVm()?.word ?? null, word: useTodayWord() };
+    return null;
+  }
+  const at = (over) => {
+    setSurfaceValue("today", { ...toTodayVM(busyMetrics(), [], [], [], NOW), ...over });
+    draw(Probe);
+    return said;
+  };
+  globalThis.__CALENDAR = {
+    vm: cal([day("2026-09-06", { today: true, blocks: [block("b1", 10, "10 – 11 AM", "Lesson")] })]),
+  };
+  try {
+    // A workspace that calls them lessons, with no playbooks read: the day was "appointment", Campaigns' default.
+    assert.deepEqual(at({ word: "lesson" }), { day: "lesson", word: "lesson" });
+    // The playbooks read, saying the same workspace's word: one word.
+    globalThis.__PLAYBOOKS = { rows: [], shape: { calendar: "feed", hasDeals: false, word: "lesson" } };
+    assert.deepEqual(at({ word: "lesson" }), { day: "lesson", word: "lesson" });
+    // No calendar to read: the rows that say it still say the workspace's.
+    delete globalThis.__CALENDAR;
+    assert.deepEqual(at({ word: "session" }), { day: null, word: "session" });
+    // A server from before, which says none: the word a workspace has until it picks.
+    assert.deepEqual(at({ word: null }), { day: null, word: "appointment" });
+  } finally {
+    delete globalThis.__CALENDAR;
+    delete globalThis.__PLAYBOOKS;
+    setSurfaceValue("today", undefined);
+  }
+});
+
 test("five rows on Today, the rest a line to the Calendar: what is over goes first, what is coming stays", () => {
   const blocks = [8, 9, 10, 11, 13, 14, 16, 18].map((h) => block(`b${h}`, h, `${h}:00`, `Slot ${h}`));
   const vm = todayDay(cal([day("2026-09-06", { today: true, blocks })]), pb([]), null);
@@ -376,7 +409,6 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       "draftsSub",
       "runApproved",
       "leaks",
-      "awayGrouped",
       "steps",
       "stepsSub",
       "withSteps",
@@ -399,7 +431,6 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     draftsSub: todayDraftsSub,
     runApproved: todayRunApproved,
     leaks: todayLeaks,
-    awayGrouped: todayAwayGrouped,
     steps: todaySteps,
     stepsSub: todayStepsSub,
     withSteps,
@@ -459,7 +490,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   // The helpers are the page's by import, and nothing publishes them on the window (window.__today had no reader).
   assert.equal(globalThis.__today, undefined, "no window name for the helpers");
   assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installToday"));
-  const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
+  const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   for (const s of [
     // The day's one derivation (dayVmOf), which the strip and the brief both read: a feed that is not ok is no day.
     'if (!C || !C.vm || C.vm.feed.state !== "ok") return null;',
@@ -468,7 +499,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(dayModule.includes(s), s);
   // And no pane: the day is folded into the strip and the brief (canvas E3), and the steps due are rows of the queue.
   for (const gone of [
-    "export const TodayDay ",
+    "export const DayZone ",
     "TodaySteps",
     'data-testid="today-day',
     "agendaItems",
@@ -477,9 +508,12 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(!dayModule.includes(gone), `${gone} is not drawn from day.tsx`);
   assert.match(
     dayModule,
-    /TODAY_HELPERS\.day\(\s*C\.vm[^,]*,\s*P \? \{ rows: P\.rows, word: P\.shape\.word \} : null,\s*people \|\| null,?\s*\)/,
-    "the page composes the module: the calendar, the playbooks' rows and the workspace's word or none, People or none",
+    /TODAY_HELPERS\.day\(\s*C\.vm[^,]*,\s*P \? \{ rows: P\.rows, word: word \?\? P\.shape\.word \} : null,\s*word \? \{ rows: \[\], word \} : null,\s*Number\.POSITIVE_INFINITY,?\s*\)/,
+    "the page composes the module: the calendar, the playbooks' rows, and the workspace's word as Today's read says it " +
+      "before a playbook's, every entry of the day (the zone folds what is over itself); who is coming is the board's " +
+      "own read's (calendar-person-facts.ts), so People's book is no read of the day's",
   );
+  assert.ok(!dayModule.includes("__PEOPLE"), "Today in three zones reads no People for its day");
   // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
   // from): the day's numbers are the card's figures, not a sentence or a strip of stat cards; no calendar line.
   setSurfaceValue("today", toTodayVM(busyMetrics(), [], [], [], NOW));
@@ -491,34 +525,33 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       days: [],
     },
   };
-  const hero = draw(HeroBrief);
+  const hero = draw(TodayAlertBand);
   assert.equal(textOf(hero), "", "the hero says nothing while every line is up: no sentence of the day, no stat cards");
-  const card = draw(TodayCard);
+  const card = draw(PhoneSoFar);
   // A desk draws the four in the head beside the greeting (the page heads canvas, H1, 31 Oct 2026); Today so far, which
-  // draws them on a phone, is no pane of a desk's (the redesign of 1 Nov 2026), so they are said once on each.
+  // draws them on a phone, is no pane of a desk's (Today in three zones, 2 Nov 2026), so they are said once on each.
   assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the day's numbers are the figures");
   assert.ok(byTestId(card, "today-figures"), "Today so far's, on a phone");
-  assert.equal(byTestId(draw(DashboardA), "today-card"), null, "said once: the head's on a desk");
+  assert.equal(byTestId(draw(TodayZones), "today-card"), null, "said once: the head's on a desk");
   for (const tree of [hero, card]) {
     assert.equal(byTestId(tree, "brief-calendar"), null, "the one-line calendar beat is the module now");
     const parts = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
     assert.ok(!parts.includes("CalendarLine") && !parts.includes("DayFacts"), parts.join(", "));
   }
   assert.ok(!("dayLine" in TODAY_HELPERS), "no helper says the day's numbers as a sentence");
-  // The day is a pane beside the work on a desk, where Your brief stood (the redesign of 1 Nov 2026), drawn from the same
-  // one derivation; the steps due are To do's, at Need you's foot.
+  // The day is a zone beside the work on a desk (Today in three zones, 2 Nov 2026), drawn from the same one derivation;
+  // the steps due are To do's, a group of Need you.
   assert.ok(
-    find(draw(DashboardA), (n) => n.type === TodayDay),
-    "the day stands beside the work, where Your brief stood",
+    find(draw(TodayZones), (n) => n.type === DayZone),
+    "the day stands beside the work",
   );
   delete globalThis.__CALENDAR;
   setSurfaceValue("today", undefined);
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
+  // The zones' one column below a desk's width is a browser's to see: e2e/today/today.spec.ts measures the bento's tracks.
   assert.ok(
-    !css.includes(".td-") &&
-      !dayModule.includes("cal-agenda") &&
-      css.includes("@media (max-width: 1180px) {\n  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }"),
-    "the pane's rules (.td-day*, .td-frame*, .td-step*) went with it; the page's grid stays",
+    !css.includes(".td-") && !dayModule.includes("cal-agenda"),
+    "the old pane's rules (.td-day*, .td-frame*, .td-step*) went with it",
   );
 });
 

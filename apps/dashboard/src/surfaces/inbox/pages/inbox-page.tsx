@@ -184,9 +184,10 @@ const inboxCounts = (
   runs: number,
 ) => {
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
-  // The Needs you chip counts what needs you, the badge's number (needsCount): it counted every flagged thread, yours
-  // and a teammate's too, and a thread you have just answered stays flagged for the whole pause (I2). A reply about
-  // to send counts here and sits in this bucket, by that same rule, and leaves Handled while it counts down.
+  // The Needs you chip counts the threads its list holds that wait on you (the badge's one count is Today's rows, 0048
+  // amended 2 Nov 2026: a week-old hold is here and not there): it counted every flagged thread, yours and a teammate's
+  // too, and a thread you have just answered stays flagged for the whole pause (I2). A reply about to send counts here
+  // and sits in this bucket, by that same rule, and leaves Handled while it counts down.
   const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
     ...b,
     // One rule, so the chip cannot say a number the list does not hold: `ixBucketOf`. It used to ask

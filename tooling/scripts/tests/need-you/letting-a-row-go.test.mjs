@@ -63,7 +63,15 @@ function drawn(row, rung) {
     ["viewer", "operator", "owner"].indexOf(rung) >= ["viewer", "operator", "owner"].indexOf(r);
   fresh();
   const tree = again(() =>
-    ReplyWork({ row, main: "primary", may: true, tz: "America/New_York", flash: () => {}, keep: () => {} }),
+    ReplyWork({
+      row,
+      main: "primary",
+      may: true,
+      tz: "America/New_York",
+      flash: () => {},
+      keep: () => {},
+      unkeep: () => {},
+    }),
   );
   const menu = all(tree, (n) => n.type === Menu)[0];
   const items = menu?.props.groups.flatMap((g) => g.items ?? []) ?? [];
@@ -120,7 +128,15 @@ test("Mark done gives a hold back to the receptionist from its row, says so in i
   const saidNow = () =>
     all(
       again(() =>
-        ReplyWork({ row, main: "primary", may: true, tz: "America/New_York", flash: () => {}, keep: () => {} }),
+        ReplyWork({
+          row,
+          main: "primary",
+          may: true,
+          tz: "America/New_York",
+          flash: () => {},
+          keep: () => {},
+          unkeep: () => {},
+        }),
       ),
       (n) => n.props?.className === "ny-done",
     )[0];
@@ -145,7 +161,64 @@ test("Mark done is a hold's: a closing window and a reply counting down have not
       tz: "America/New_York",
       flash() {},
       keep() {},
+      unkeep() {},
     }),
   );
   assert.equal(all(viewer, (n) => n.type === Menu).length, 0, "no Not now, so no Mark done");
+});
+
+test("a press refused, or put back by its Undo, lets its row go: it waits again, so the one count has it again", async () => {
+  const told = [];
+  const work = (row) => ({
+    row,
+    main: "primary",
+    may: true,
+    tz: "America/New_York",
+    flash: () => {},
+    keep: (r) => told.push(`keep ${r.id}`),
+    unkeep: (r) => told.push(`unkeep ${r.id}`),
+  });
+  globalThis.mayAtLeast = () => true;
+  const answering = globalThis.fetch;
+  try {
+    // The door refuses: the row was kept as it was pressed, and is let go as the refusal lands.
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ ok: false, error: { code: "forbidden", message: "Not yours to give back." } }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      });
+    const refusedRow = rowOf("WhatsApp", { id: "q-refused", conversationId: "cv-r" });
+    fresh();
+    const tree = again(() => ReplyWork(work(refusedRow)));
+    const items = all(tree, (n) => n.type === Menu)[0].props.groups.flatMap((g) => g.items ?? []);
+    items.find((i) => i.label === NEED_YOU_WORDS.oldDone.yes).onSelect();
+    await until(() => told.includes("unkeep q-refused"), "the refused row let go");
+    assert.deepEqual(
+      told,
+      ["keep q-refused", "unkeep q-refused"],
+      "REGRESSION: a refused press left the row out of the count",
+    );
+    // The door takes it, and Undo puts it back: let go once the undo has landed, never before.
+    told.length = 0;
+    globalThis.fetch = answering;
+    const row = rowOf("WhatsApp", { id: "q-undone", conversationId: "cv-u" });
+    fresh();
+    const first = again(() => ReplyWork(work(row)));
+    all(first, (n) => n.type === Menu)[0]
+      .props.groups.flatMap((g) => g.items ?? [])
+      .find((i) => i.label === NEED_YOU_WORDS.oldDone.yes)
+      .onSelect();
+    const doneAct = () =>
+      all(
+        again(() => ReplyWork(work(row))),
+        (n) => n.props?.className === "ny-done-act",
+      )[0];
+    await until(() => !!doneAct(), "the row saying it was marked done");
+    assert.deepEqual(told, ["keep q-undone"], "kept while it is done");
+    doneAct().props.onClick({ stopPropagation() {}, preventDefault() {} });
+    await until(() => told.includes("unkeep q-undone"), "the row let go by its Undo");
+    assert.deepEqual(told, ["keep q-undone", "unkeep q-undone"], "REGRESSION: Undo left the row out of the count");
+  } finally {
+    globalThis.fetch = answering;
+  }
 });

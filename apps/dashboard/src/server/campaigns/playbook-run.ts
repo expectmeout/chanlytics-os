@@ -76,3 +76,40 @@ export async function runPlaybookNow(
   }
   return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
 }
+
+/** What Offer it came to: offered, to how many and whether it waits for an OK, or not, and why. */
+type OfferFreedOutcome =
+  | { ok: true; offered: true; people: number; waits: boolean }
+  | { ok: true; offered: false; why: string; detail?: string }
+  | { ok: false; reason: EdgeReason; detail?: string };
+
+/**
+ * An hour a cancellation freed, offered now (Today in three zones, 2 Nov 2026; decision 0082): the edge makes the offer it
+ * makes when the cancellation arrives (api/admin/calendar/freed-time), once per appointment, as this person's press, over
+ * the time it reads from the visit itself.
+ */
+export async function offerFreedNow(
+  tenantId: string,
+  userId: string,
+  appointmentId: string,
+): Promise<OfferFreedOutcome> {
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
+  const r = await callEdge(
+    "/api/admin/calendar/freed-time",
+    { tenant_id: tenantId, user_id: userId, appointment_id: appointmentId },
+    { workspace: tenantId, user: userId, timeoutMs: RUN_TIMEOUT_MS },
+  );
+  const j = (r.body ?? {}) as {
+    ok?: boolean;
+    offered?: boolean;
+    people?: number;
+    waits?: boolean;
+    why?: string;
+    detail?: string;
+  };
+  if (edgeAnswered(r) && j.ok)
+    return j.offered
+      ? { ok: true, offered: true, people: j.people ?? 0, waits: j.waits === true }
+      : { ok: true, offered: false, why: j.why ?? "nobody", ...(j.detail ? { detail: j.detail } : {}) };
+  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+}

@@ -1,0 +1,696 @@
+/* Today in three zones (2 Nov 2026; the canvas of that day, docs/2026-11-02-today-canvas): one head, what cannot wait,
+   then Need you beside the day with Ask found under it, and the week and the pinned lists at the foot; on a phone the same
+   blocks in one column. The panes are the look's (dashboard-a-v2.css's Glass block draws .tq, .tpd and .tz-pane); the
+   rows are the kit's AttnRow as Need you draws them (need-you.css). Every value a token; layout lengths are the page's. */
+
+/* ---- The page: what cannot wait, the bento, the foot, 14px apart; on a phone one column, 12px apart. ---- */
+.main-scroll > .dash-a-v2-glass.tz {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.main-scroll > .dash-a-v2-glass.tz-phone {
+  gap: var(--space-3);
+}
+.tz-bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 370px;
+  gap: 14px;
+  align-items: start;
+}
+.tz-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+/* Nothing waits and Ask found found nothing: the day alone, one column (page.tsx). */
+.tz-bento-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 1280px) {
+  .tz-bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- A zone's head: its name, a quiet note, and its door at the right; 58px tall. ---- */
+.tz-sec,
+.dash-a-v2 .today-queue .tq-head,
+.tpd-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  min-width: 0;
+  padding: 0;
+}
+.tz-sec-title,
+.tpd-title {
+  flex: none;
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 25px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.tz-note,
+.tpd-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tpd-door {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .tpd-door:hover {
+    color: var(--ink);
+  }
+}
+
+/* ---- Need you: its pane, its head with how many were done today by the door, its foot. ---- */
+.dash-a-v2 .tz-need {
+  padding-bottom: var(--space-2);
+}
+.tq-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+.tq-done {
+  font-size: var(--text-sm);
+  color: var(--ok-ink);
+  white-space: nowrap;
+}
+.dash-a-v2 .tz-need .tq-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.dash-a-v2 .tz-need .tq-foot > .tq-open {
+  margin-left: auto;
+}
+
+/* ---- What cannot wait: a band across the page, red for a line down, amber for the bell's warning. ---- */
+.tz-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tz-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-bubble);
+  background: var(--danger-soft);
+  outline: 1px solid var(--danger-soft);
+  outline-offset: -1px;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  color: var(--danger-ink);
+}
+.tz-alert[data-tone="warn"] {
+  background: var(--warn-soft);
+  outline: none;
+  color: var(--warn-ink);
+}
+.tz-alert > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tz-alert > svg {
+  flex: none;
+}
+
+/* ---- Since you looked: one quiet line under the head's sentence, and its rows in a pane under it once pressed. ---- */
+.tz-since {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: flex-start;
+  gap: 7px;
+  min-height: 26px;
+  font-size: var(--text-aside);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+  text-align: left;
+}
+.tz-since > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.tz-since > em {
+  font-style: normal;
+}
+.tz-since > em + em::before {
+  content: "· ";
+  color: var(--ink-faint);
+}
+.tz-since[aria-expanded="true"] > svg {
+  rotate: 180deg;
+}
+.tz-since-list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) 18px;
+  border-radius: var(--radius-sheet);
+}
+.tz-sn {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+.tz-sn:last-child {
+  border-bottom: 0;
+}
+.tz-sn > i {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  color: var(--ink-muted);
+}
+.tz-sn-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tz-sn-words > b {
+  font-size: var(--text-base);
+  line-height: 18px;
+  font-weight: var(--weight-semibold);
+}
+.tz-sn-words > span {
+  font-size: var(--text-sm);
+  line-height: 17px;
+  color: var(--ink-dim);
+  /* A quote with no space in it (a link) breaks where it must rather than running into the time beside it. */
+  overflow-wrap: anywhere;
+}
+.tz-sn > time {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+/* ---- The day's four figures in the head: what a figure is out of, small after it; a receipt under its own figure. ---- */
+.tc-fig-of {
+  font-size: var(--text-aside);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  color: var(--ink-dim);
+}
+.today-head-figs .tc-receipt[data-i="1"] {
+  left: min(25%, 100% - 312px);
+}
+.today-head-figs .tc-receipt[data-i="2"] {
+  left: min(50%, 100% - 312px);
+}
+.today-head-figs .tc-receipt[data-i="3"] {
+  left: min(75%, 100% - 312px);
+}
+
+/* ---- The day: its head, now and next with one fact each, the bar, the rest at its times, and its foot. ---- */
+.dash-a-v2 .tpd {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 18px var(--space-2);
+}
+.tpd-cells {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: var(--space-3);
+}
+.tpd-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.tpd-cell + .tpd-cell {
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+.tpd-eyebrow {
+  font-size: var(--text-xs);
+  line-height: 17px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.tpd-eyebrow[data-now] {
+  color: var(--accent-ink);
+}
+.tpd-when {
+  font-size: var(--text-xl);
+  line-height: 25px;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.tpd-what,
+.tpd-fact {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: 18px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tpd-what {
+  color: var(--ink-muted);
+}
+.tpd-fact {
+  color: var(--ink-dim);
+}
+.tpd-bar {
+  margin: 0 0 6px;
+}
+.tpd-rest {
+  display: flex;
+  flex-direction: column;
+}
+.tpd-li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+.tpd-li[data-past] {
+  opacity: 0.62;
+}
+.tpd-tm {
+  font-size: var(--text-aside);
+  line-height: 18px;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tpd-tx {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.tpd-tx > b {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  line-height: 18px;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tpd-tx > b > svg {
+  flex: none;
+  color: var(--ink-dim);
+}
+.tpd-li[data-open] .tpd-tx > b {
+  color: var(--warn-ink);
+}
+.tpd-tx > span {
+  font-size: var(--text-sm);
+  line-height: 17px;
+  color: var(--ink-dim);
+}
+/* Stop's question stands under its row, across it. */
+.tpd-li > [data-testid="today-day-stop"] {
+  grid-column: 1 / -1;
+}
+.tpd-more {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  text-decoration: none;
+}
+
+/* ---- Ask found: what it is and its one act, the sentence, and why on a press; what came of it under them. ---- */
+.dash-a-v2 .tz-found {
+  display: flex;
+  flex-direction: column;
+  padding: 0 18px var(--space-2);
+}
+.tz-found .tz-sec > svg {
+  margin-right: -2px;
+}
+.tz-ideas {
+  display: flex;
+  flex-direction: column;
+}
+.tz-idea {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-2);
+  padding: 9px 0 10px;
+  border-top: 1px solid var(--line);
+}
+.tz-idea-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 18px;
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.tz-idea-act {
+  gap: 3px;
+}
+.tz-idea-s {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  margin-top: 1px;
+  font-size: var(--text-mail);
+  line-height: 20px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.006em;
+  color: var(--ink);
+  text-align: left;
+  white-space: normal;
+}
+/* Opened: why beside Ask why and Not today, and under them who a rule names (found.tsx). */
+.tz-idea-why {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+}
+.tz-idea-why > small,
+.tz-idea-why > .ny-idea-spec {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 17px;
+  color: var(--ink-dim);
+}
+.ny-idea-spec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.tz-idea-acts {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.tz-idea-people {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.tz-idea-people > small {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.tz-idea > .ny-done {
+  grid-column: 1 / -1;
+}
+.tz-came {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0 var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  line-height: 17px;
+  color: var(--ink-dim);
+}
+.tz-came b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+/* On a quiet day Ask found leads the page: its rows three across. */
+.tz-found-wide .tz-ideas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 var(--space-6);
+}
+
+/* ---- The foot: the week and the pinned lists, one strip on a desk. ---- */
+.dash-a-v2 .tz-strip {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 52px;
+  padding: var(--space-3) 18px;
+  border-radius: var(--radius-3xl);
+}
+.tz-week {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-aside);
+  line-height: 18px;
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.tz-week > svg {
+  flex: none;
+  color: var(--ink-dim);
+}
+@media (hover: hover) {
+  .tz-week:hover {
+    color: var(--ink);
+  }
+}
+.tz-pins {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tz-pin > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+/* ---- Setting up: what is left to set up and what was brought in, one pane, a hairline between; none while neither
+   draws. ---- */
+.tps:empty {
+  display: none;
+}
+.dash-a-v2 .tps > .tq {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.dash-a-v2 .tps > .tq::after {
+  display: none;
+}
+.tps > .tq + .tq {
+  border-top: 1px solid var(--line);
+}
+.dash-a-v2 .tps > .today-setup,
+.dash-a-v2 .tps :is(.today-brought-head, .today-brought-facts, .today-brought-foot) {
+  padding-inline: 18px;
+}
+
+/* ---- Why Listen could not speak, on a line of its own under the head's sentence. ---- */
+.today-listen-why {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* ==== On a phone: the same blocks in one column, each group of Need you a pane of its own. ==== */
+.main-scroll > .dash-a-v2-glass.dash-a-v2-phone {
+  display: flex;
+  flex-direction: column;
+}
+/* Need you has no pane of its own on a phone: the head says what its name would, and each group is a pane under its name. */
+.dash-a-v2 .today-queue[data-phone] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.dash-a-v2 .today-queue[data-phone]::after {
+  display: none;
+}
+.today-queue[data-phone] .ny-groups {
+  gap: var(--space-3);
+}
+.today-queue[data-phone] .ny-group-head {
+  padding: 0 2px 6px;
+}
+.dash-a-v2 .today-queue[data-phone] .ny-pane {
+  padding: 2px 14px;
+  border-radius: var(--radius-3xl);
+}
+.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row {
+  position: relative;
+  min-height: 62px;
+  border-top: 0;
+}
+.today-queue[data-phone] .ny-pane .cl-attn-row + .cl-attn-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 48px;
+  height: 1px;
+  background: var(--line);
+}
+.today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work)::before {
+  left: 0;
+}
+/* The card's words to four lines (Edit opens them whole, in the sheet). */
+.today-queue[data-phone] .cl-attn-work .ny-words,
+.today-queue[data-phone] .cl-attn-work .ny-said {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.today-queue[data-phone] .cl-attn-work .ny-notes > .ny-notes-part:nth-child(n + 2),
+.today-queue[data-phone] .cl-attn-work .ny-signed {
+  display: none;
+}
+.dash-a-v2 .today-queue[data-phone] > .tq-foot {
+  display: flex;
+  padding: 0 2px;
+}
+@media (max-width: 720px) {
+  .dash-a-v2 .tz-pane,
+  .dash-a-v2 .tpd,
+  .dash-a-v2 [data-testid="today-card"] {
+    border-radius: var(--radius-3xl);
+  }
+  .dash-a-v2 .tpd,
+  .dash-a-v2 .tz-found {
+    padding: 0 var(--space-4) 6px;
+  }
+  .tpd-head {
+    flex-wrap: wrap;
+    gap: 0 10px;
+    min-height: 0;
+    padding: var(--space-3) 0 var(--space-2);
+  }
+  .tpd-note {
+    order: 3;
+    flex: 0 0 100%;
+    line-height: 17px;
+    white-space: normal;
+  }
+  .tz-found-wide .tz-ideas {
+    display: flex;
+    flex-direction: column;
+  }
+  .tz-since-list {
+    padding: var(--space-1) 14px;
+  }
+}
+
+/* Today so far on a phone: the four figures in one row, each its number over its short name, and the week under them. */
+.dash-a-v2 .tz-sofar {
+  display: block;
+  padding: 2px var(--space-4) 6px;
+}
+.tz-sofar-figs .tc-figs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 -8px;
+  padding: 0;
+}
+.tz-sofar-figs .tc-fig,
+.tz-sofar-figs .tc-fig + .tc-fig {
+  min-width: 0;
+  padding: 2px var(--space-2);
+  border-left: 1px solid var(--line);
+}
+.tz-sofar-figs .tc-fig:first-child {
+  border-left: 0;
+}
+.tz-sofar-figs .tc-fig-n {
+  font-size: var(--text-2xl);
+}
+.tz-sofar-figs .tc-fig-w {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.tz-sofar-figs .tc-fig-m {
+  display: none;
+}
+.tz-sofar .tz-week {
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 10px 0 var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.tz-sofar .tz-week > svg {
+  margin-top: var(--space-1);
+}
+.tz-pinsbox {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* The end: the page says it is done, above the tab bar. */
+.tz-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0;
+  padding: 14px 0 0;
+  font-size: var(--text-aside);
+  color: var(--ink-dim);
+}

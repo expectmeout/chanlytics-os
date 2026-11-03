@@ -12,7 +12,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   audiences: "3cf311d9336ac944",
   billing: "80ed6362ee44c991",
   broadcasts: null,
-  calendar: "4c6b3974192ebabb",
+  calendar: "5f12f72ccde0120e",
   calendar_runs: "90d2dc4ed423470f",
   channels: "a12f574e80a0299e",
   conversations: "74c8626e3e95c9dd",
@@ -34,6 +34,6 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   sequences: "48ad27460b83e231",
   settings: "e5dce53299bd2ad0",
   setup: "9e17be38598ad9f6",
-  today: "d798123ac989580e",
+  today: "3bb6caeb90c01576",
   today_pins: "d3fd87a670594687",
 };

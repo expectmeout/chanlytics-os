@@ -1,24 +1,23 @@
 /**
- * The day's card: today and tomorrow as the calendar reads them, who is coming and when, what is open, and the
- * appointment playbooks' line, in the workspace's word. Its foot line is today-period.ts's.
+ * The day: today and tomorrow as the calendar reads them, who is coming and when, what is open, and the appointment
+ * playbooks' line, in the workspace's word; and the day as Today's second zone says it (todayZoneDay). Yesterday's visits
+ * to mark are To do's rows (today-to-do.ts).
  */
+import { addressOf } from "../activity/record-address";
 import { visitDoor } from "../calendar/appointment-key";
 import type { VisitMark } from "../calendar/calendar-dto";
 import type { MatchVia } from "../calendar/calendar-people";
-import {
-  VISIT_ASK_WORDS,
-  VISIT_WORDS,
-  clockLabel,
-  visitLineOfBlock,
-  visitStands,
-  type VisitLineVM,
-} from "../calendar/calendar-words";
-import { clockInZone } from "../calendar/zone-math";
+import { VISIT_WORDS, clockLabel, visitStands } from "../calendar/calendar-words";
+import { clockInZone, dayInZone } from "../calendar/zone-math";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing";
-import { initialsOf } from "../conversations/thread-contact";
+import { contactName, shortName } from "../conversations/thread-contact";
+import type { ConversationDto } from "../conversations/thread-dto";
+import { DAY_MS } from "../shared/time";
+import { capitalize } from "../shared/words";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { triggerOf, triggerWords } from "../playbooks/playbook-triggers";
-import type { TodayQueueRowVM } from "./today-vm";
+import { TODAY_PHONE_WORDS as P } from "./today-bands";
+import { unmarkedVisitsOf } from "./today-to-do";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 
 /* ------------------------------ the day ---------------------------------- */
@@ -32,7 +31,16 @@ interface DayBlockLike {
   title: string;
   /** The title with the person's name taken out of it (visit-service.ts visitTitleWithout). */
   service: string;
-  person: { id: string; name: string; via?: MatchVia | null } | null;
+  /**
+   * Who it is for, and what the board's own read knows of them (CalendarBlockVM.person.facts): the day says one fact of
+   * them under who is coming, their last visit, from it (Today in three zones, 2 Nov 2026).
+   */
+  person: {
+    id: string;
+    name: string;
+    via?: MatchVia | null;
+    facts?: { last_visit_at?: string | null } | null;
+  } | null;
   /** ISO instants: when it begins and ends, which a visit line reads to say whether it is over (CalendarBlockVM has both). */
   start?: string;
   end?: string;
@@ -52,16 +60,27 @@ export interface DayFrameLike {
   closed: { yes: boolean; note: string | null };
   blocks: DayBlockLike[];
   allDay: DayBlockLike[];
-  windows: Array<{ label: string }>;
+  /** The times the receptionist would offer: their words, and where each starts (hours) and how long it is (minutes). */
+  windows: Array<{ label: string; t?: number; dur?: number }>;
+  /**
+   * The spans of the day OUTSIDE the business's hours, in hours on its clock (CalendarDayVM.bands, calendar.ts
+   * dayBandsOf): the whole grid on a day it is closed, else the gaps before, between and after its hours. The one that
+   * runs to the grid's end begins at closing.
+   */
+  bands?: ReadonlyArray<{ from: number; to: number }>;
 }
 export interface CalendarLike {
   days: DayFrameLike[];
   /** The clock now, as hours in the business's zone (14.5 is 2:30 PM). */
   now: number;
+  /** The business's zone (CalendarVM.timezone): what a visit's date is said in. */
+  timezone?: string;
   feed: { state: "ok" | "unavailable" | "none" };
   stats: { next: string };
   /** The hours the Calendar's grid draws, whole hours (CalendarVM.hours): the span a phone's day bar is drawn over. */
   hours?: { start: number; end: number };
+  /** The shortest time the receptionist offers, minutes (CalendarVM.offer): no freed part shorter is offered. */
+  offer?: { slot: number };
 }
 /** A playbook card as the playbooks surface publishes it. */
 export interface PlaybookCardLike {
@@ -104,6 +123,11 @@ export interface TodayDayItemVM {
   to: string;
   /** Where it sits on the day, in hours on the business's clock (14.5 is 2:30 PM); null for an all-day entry. */
   at: { from: number; to: number } | null;
+  /**
+   * One fact of who is coming, from the board's own read (Today in three zones, 2 Nov 2026): "Last here Aug 12", or "First
+   * visit" where the record holds none before; null where nobody is matched or their visits were not read.
+   */
+  fact: string | null;
 }
 
 /**
@@ -134,7 +158,10 @@ export interface TodayDayFrameVM {
   /** How many of the day's entries the cap left out, and the line that says so ("2 more on the Calendar"). */
   more: number;
   moreLine: string | null;
-  /** Today's bar, over every visit that stands (the card's cap leaves none out of it); null on tomorrow and with none. */
+  /**
+   * The day's bar, over every visit that stands (the card's cap leaves none out of it); now on it only today, so tomorrow's
+   * bar has no mark. Null with no timed visit.
+   */
   bar: TodayDayBarVM | null;
 }
 
@@ -210,6 +237,11 @@ export interface TodayDayVM {
    * guess at a pick.
    */
   word: AppointmentWord;
+  /**
+   * How many the freed time's step would offer an hour to (the playbooks read's count for `slot_opened`), which a freed
+   * hour's line says; null with no such step running, the playbooks unread, or a count the server could not make.
+   */
+  freedCandidates?: number | null;
 }
 
 /**
@@ -219,6 +251,21 @@ export interface TodayDayVM {
 function markedOf(b: DayBlockLike): TodayDayItemVM["said"] {
   const status = b.visit?.status;
   return status === "kept" || status === "missed" ? { status, word: VISIT_WORDS[status] } : null;
+}
+
+/**
+ * The one fact the day says of who is coming (Today in three zones, 2 Nov 2026): when they were last in, on the business's
+ * calendar ("Last here Aug 12"), or that this is their first visit where the record holds none before it, in the season
+ * or before (calendar-person-facts.ts last_visit_at). Nothing where nobody is matched, it is not known whether they were in
+ * before, or the board's zone is unknown.
+ */
+function visitFactOf(b: DayBlockLike, tz: string | undefined, word: AppointmentWord): string | null {
+  const last = b.person?.facts?.last_visit_at;
+  if (last === undefined || !tz) return null;
+  if (last === null) return `First ${appointmentWords(word).one}`;
+  const at = Date.parse(last);
+  if (!Number.isFinite(at)) return null;
+  return `Last here ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}`;
 }
 
 /** Rows on Today's day card; the Calendar has the rest. */
@@ -276,6 +323,7 @@ export function todayDay(
     said: markedOf(b),
     to: visitDoor(dayKey, b.visit?.id),
     at: allDay ? null : { from: b.t, to: b.t + b.dur / 60 },
+    fact: visitFactOf(b, cal.timezone, word),
   });
   const frames: TodayDayFrameVM[] = picked.map((d) => {
     // A cancelled visit is none: not listed, not counted, never the next.
@@ -322,7 +370,7 @@ export function todayDay(
         : null,
       missed,
       open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label),
-      bar: d.today ? todayDayBar(timed, cal.hours ?? null, cal.now) : null,
+      bar: todayDayBar(timed, cal.hours ?? null, d.today ? cal.now : null),
     };
   });
   let reminders: TodayDayVM["reminders"] = null;
@@ -358,6 +406,8 @@ export function todayDay(
     nextOpening: feed === "ok" && cal.stats.next !== "—" ? cal.stats.next : null,
     reminders,
     word,
+    // How many could take an hour a cancellation freed: the freed time's step's next run, where it runs (decision 0082).
+    freedCandidates: playbooks?.rows.find((p) => p.trigger === "slot_opened" && p.runs)?.candidates ?? null,
   };
 }
 
@@ -405,149 +455,320 @@ export function todayDayNext(cal: (CalendarLike & { timezone: string }) | null, 
   };
 }
 
-/* ------------------------------ yesterday's visits to mark (decision 0047, D1-visit-mark) ---------------------------- */
+/* ------------------------------ the day as Today's second zone says it (Today in three zones, 2 Nov 2026) ----------- */
 
-/** Yesterday's visits the queue names: three, as the steps due are; the rest are one row. */
-const TODAY_VISITS_MAX = 3;
-
-/** One of yesterday's visits nobody has marked, as the one visit line, with the record's row a press is said on. */
-export interface TodayVisitAskVM {
-  line: VisitLineVM;
-  /** The record's row (VisitMark.id): what POST calendar/visits/[id] says Kept or Missed on. */
-  markId: string;
-  /** The person it is for: the row wears their face. */
-  person: { id: string; name: string };
-  /** The visit on the Calendar (visitDoor): the row's door. */
+/** One of the two cells over the day's bar: who is under way or next and the one after, or tomorrow's first two. */
+export interface TodayZoneCellVM {
+  /** "Now", "Next", "Then" or "First". */
+  eyebrow: string;
+  now: boolean;
+  /** When it starts, or the span of the one under way ("11 AM – 12:30 PM"). */
+  when: string;
+  /** "Noor Haddad · Cut" */
+  what: string;
+  fact: string | null;
   to: string;
 }
 
-/** Yesterday's unmarked visits: the ones Today names, how many in all, the workspace's word for one, and where the rest are. */
-export interface TodayVisitsAskedVM {
-  items: TodayVisitAskVM[];
-  count: number;
-  word: AppointmentWord;
-  /** The Calendar on yesterday, where every one of them is. */
-  to: string;
+/** A line of the day at its time; the page lays them among what goes on its own and what went (the runs are Sent's). */
+export interface TodayZoneLineVM {
+  key: string;
+  /** Where it falls, in hours on the business's clock: what orders the lines. */
+  at: number;
+  time: string;
+  title: string;
+  sub: string;
+  kind: "visit" | "back" | "open";
+  /** The glyph before its title: none for a visit. */
+  glyph: "clock" | "plus" | null;
+  /** An hour nothing is booked in: its title in the amber. */
+  open: boolean;
+  to: string | null;
+  /**
+   * On an hour a cancellation freed today: the visit it was, which Offer it offers to who asked and never booked (the edge
+   * reads the time from the visit itself).
+   */
+  freed: { visitId: string } | null;
 }
 
-/** What the rows say that a visit line's own words do not. */
-const VISITS_ASKED_WORDS = {
-  rest: (n: number, W: ReturnType<typeof appointmentWords>) => `${n} more ${n === 1 ? W.one : W.many} to mark`,
-  restSentence: "Nobody has said whether they came, yesterday.",
-  open: "Open",
-  calendar: "on the Calendar",
-} as const;
+/** Someone who comes back today from Not now: their thread, their name, and when (TodayVM.back). */
+export interface TodayBackVM {
+  conversationId: string;
+  who: string;
+  /** ISO instant their Not now ends. */
+  until: string;
+}
 
-/** Visits to mark in a count, for To do's line: "3 appointments to mark". */
-export function todayVisitsSub(n: number, word: AppointmentWord): string {
-  const W = appointmentWords(word);
-  return `${n} ${n === 1 ? W.one : W.many} to mark`;
+/** Today's second zone: its name and line, the two cells, the bar, its lines, and what it leaves to the Calendar. */
+export interface TodayZoneDayVM {
+  /** "The day", or "Tomorrow" once today has closed (by the business's hours, else its last visit). */
+  title: string;
+  note: string;
+  tomorrow: boolean;
+  cells: TodayZoneCellVM[];
+  bar: TodayDayBarVM | null;
+  lines: TodayZoneLineVM[];
+  /** Today's visits that are over and not drawn: "3 earlier". */
+  earlier: number;
+  /** The visits the Calendar holds past the ones the day lists. */
+  more: number;
+  /**
+   * Today's visits that have ended and nobody has said whether they came to, by the one visit line (calendar-words.ts
+   * visitLineOfBlock `unmarked`, the rule To do's visits to mark are asked by): the foot's "1 to mark" once the day turned.
+   */
+  toMark: number;
 }
 
 /**
- * Yesterday's visits nobody has said whether they came to (product call of 11 Oct 2026, approved): a visit of the day
- * before today's that has ended, that the record keeps a row for (so a word can be said on it) and that is for a person
- * the board matched. Their lines are the one visit line (visitLineOfBlock), judged at `nowMs`; the first three are named,
- * in the day's order, and the count is all of them. Null with none, and without the day before today in the calendar the
- * page holds (a board moved to another span holds none of it). An event nobody is matched to is not asked about: a lunch
- * on the owner's calendar is no visit, and the Calendar's panel says it for the rest.
+ * Who comes back from Not now in the next day, soonest first (TodayVM.back): the threads put off whose time ends ahead.
+ * The day draws those whose time falls today, at it (todayZoneDay).
  */
-export function todayVisitsAsked(
-  cal: CalendarLike | null,
-  nowMs: number,
-  word: AppointmentWord,
-  max = TODAY_VISITS_MAX,
-): TodayVisitsAskedVM | null {
-  if (!cal) return null;
-  const idx = cal.days.findIndex((d) => d.today);
-  const yesterday = idx > 0 ? cal.days[idx - 1] : null;
-  if (!yesterday) return null;
-  const asked: TodayVisitAskVM[] = [];
-  for (const b of [...yesterday.blocks].sort((x, y) => x.t - y.t)) {
-    if (!b.person || !b.visit || !b.visit.id || !b.start || !b.end) continue;
-    const to = visitDoor(yesterday.key, b.visit.id);
-    const line = visitLineOfBlock(
-      {
-        id: b.id,
-        title: b.title,
-        time: b.time,
-        start: b.start,
-        end: b.end,
-        visit: { id: b.visit.id, status: b.visit.status },
-        person: b.person,
-      },
-      nowMs,
-      "Yesterday",
-      to,
-    );
-    if (line.unmarked) asked.push({ line, markId: b.visit.id, person: { id: b.person.id, name: b.person.name }, to });
-  }
-  if (!asked.length) return null;
-  return { items: asked.slice(0, max), count: asked.length, word, to: `calendar/${yesterday.key}` };
+export function todayBackOf(conversations: readonly ConversationDto[], now: Date): TodayBackVM[] {
+  const nowMs = now.getTime();
+  return conversations
+    .flatMap((c) => {
+      const until = c.state === "snoozed" && c.snooze_until ? Date.parse(c.snooze_until) : Number.NaN;
+      return Number.isFinite(until) && until > nowMs && until - nowMs <= DAY_MS
+        ? [{ conversationId: c.id, who: contactName(c), until: new Date(until).toISOString() }]
+        : [];
+    })
+    .sort((a, b) => Date.parse(a.until) - Date.parse(b.until));
 }
 
-/** One visit to mark as a row: the person and the question, the visit on the Calendar as the door and Kept and Missed as the verbs. */
-function visitRow(a: TodayVisitAskVM): TodayQueueRowVM {
-  const { line, person } = a;
+/** Who and what, as the cells say it: "Camila Ortiz · Color"; the service alone where nobody is named. */
+const whoAndWhat = (b: TodayDayItemVM): string =>
+  (b.person ? [b.person.name, b.service] : [b.service || b.title]).filter(Boolean).join(" · ");
+
+/** A line for a visit after the cells: who, then what and how long. */
+function visitLineOf(v: TodayDayItemVM): TodayZoneLineVM {
   return {
-    id: `q-visit-${a.markId}`,
+    key: v.id,
+    at: v.at ? v.at.from : 0,
+    time: v.start,
+    title: v.person ? v.person.name : v.service || v.title,
+    sub: [v.person ? v.service : "", v.dur].filter(Boolean).join(" · "),
     kind: "visit",
-    conversationId: null,
-    callId: null,
-    person_id: person.id,
-    who: person.name,
-    initials: initialsOf(person.name),
-    channel: "Calendar",
-    when: [line.day, line.time].filter(Boolean).join(", "),
-    sentence: VISIT_ASK_WORDS.question,
-    quoted: false,
-    status: [VISIT_ASK_WORDS.unmarked, line.title],
-    tone: "warn",
-    warn: false,
-    cta: { label: VISIT_WORDS.kept, to: a.to },
-    also: null,
-    visit: { id: a.markId, asks: line.asks },
-    waitedMs: Number.NEGATIVE_INFINITY,
-  };
-}
-
-/** The row for the visits past the named ones: how many, and the door to the Calendar on yesterday. */
-function visitsRestRow(asked: TodayVisitsAskedVM): TodayQueueRowVM {
-  const rest = asked.count - asked.items.length;
-  const W = appointmentWords(asked.word);
-  return {
-    id: "q-visits-more",
-    kind: "visits",
-    conversationId: null,
-    callId: null,
-    person_id: null,
-    who: VISITS_ASKED_WORDS.rest(rest, W),
-    initials: `+${rest}`,
-    channel: "Calendar",
-    when: "",
-    sentence: VISITS_ASKED_WORDS.restSentence,
-    quoted: false,
-    status: [VISIT_ASK_WORDS.unmarked, VISITS_ASKED_WORDS.calendar],
-    tone: "warn",
-    warn: false,
-    cta: { label: VISITS_ASKED_WORDS.open, to: asked.to },
-    also: null,
-    waitedMs: Number.NEGATIVE_INFINITY,
+    glyph: null,
+    open: false,
+    to: v.to,
+    freed: null,
   };
 }
 
 /**
- * Today's queue with yesterday's visits to mark among its rows (0047): a row for each of those named (three at most) and one
- * for the rest, after everyone who waits on a person and the steps due, before a call worth a listen. They are the team's
- * to-do as a step is: nobody waits on them, so they never take a seat from a person (the card draws the queue in order),
- * they are not counted in the head's number (it is who needs you), and the queue the brief built, which Ask, the widget
- * and the away card read, is left as it was. With none to mark, the rows as they were.
+ * When the day closes, in hours on the business's clock: where its hours end, which is where the closed span that runs to
+ * the grid's end begins (DayFrameLike.bands); else, on a day it is closed, a weekday its hours leave out or with no hours
+ * set, the end of its last visit; null on a day with neither, which never turns (the build's lane L2).
  */
-export function withVisitsAsked(rows: TodayQueueRowVM[], asked: TodayVisitsAskedVM | null): TodayQueueRowVM[] {
-  if (!asked) return rows;
-  const mine = asked.items.map(visitRow);
-  if (asked.count > asked.items.length) mine.push(visitsRestRow(asked));
-  const firstCall = rows.findIndex((r) => r.kind === "call");
-  const at = firstCall < 0 ? rows.length : firstCall;
-  return [...rows.slice(0, at), ...mine, ...rows.slice(at)];
+function closesAt(frame: DayFrameLike, items: readonly TodayDayItemVM[], gridEnd: number | undefined): number | null {
+  if (!frame.closed.yes && gridEnd !== undefined) {
+    const tail = frame.bands?.find((b) => b.to === gridEnd);
+    if (tail && tail.from < gridEnd) return tail.from;
+  }
+  const ends = items.flatMap((i) => (i.at ? [i.at.to] : []));
+  return ends.length ? Math.max(...ends) : null;
+}
+
+/** "Open · 45 min", "Open · 1h": an hour with nothing booked in it, by its length, as the canvas says each. */
+const openTitle = (minutes: number) =>
+  `Open · ${minutes > 0 && minutes < 60 ? `${Math.round(minutes)} min` : durationLabel(minutes) || "now"}`;
+
+/**
+ * The hours a cancellation freed today that are still ahead and still open: the longest part of the visit that was inside
+ * a window the receptionist would offer, at least one of its slots long (as contracts freedTimeOf picks it), "Open · 45
+ * min", who cancelled, and the freed visit, which Offer it offers to how many could take it while that part has not begun.
+ * Tomorrow's first open window instead, once the day has turned: "Nothing booked yet".
+ */
+function openLinesOf(
+  frame: DayFrameLike,
+  at: { now: number; tomorrow: boolean; slot: number },
+  W: ReturnType<typeof appointmentWords>,
+  could: number | null,
+): TodayZoneLineVM[] {
+  const { now, tomorrow } = at;
+  const windows = frame.windows.filter(
+    (w): w is { label: string; t: number; dur: number } =>
+      typeof w.t === "number" && typeof w.dur === "number" && (tomorrow || w.t + w.dur / 60 > now),
+  );
+  if (tomorrow) {
+    const [w] = windows;
+    return w
+      ? [
+          {
+            key: `open-${w.t}`,
+            at: w.t,
+            time: clockLabel(w.t),
+            title: openTitle(w.dur),
+            sub: "Nothing booked yet",
+            kind: "open",
+            glyph: "plus",
+            open: true,
+            to: null,
+            freed: null,
+          },
+        ]
+      : [];
+  }
+  return frame.blocks.flatMap((b) => {
+    if (b.visit?.status !== "cancelled" || !b.visit.id || !b.start || !b.end) return [];
+    const visitEnd = b.t + b.dur / 60;
+    let part: { from: number; to: number } | null = null;
+    for (const w of windows) {
+      const from = Math.max(w.t, b.t);
+      const to = Math.min(w.t + w.dur / 60, visitEnd);
+      if (to > from && (!part || to - from > part.to - part.from)) part = { from, to };
+    }
+    // A part shorter than a slot frees no time anyone could book: the edge would make no offer of it either.
+    if (!part || part.to <= now || (part.to - part.from) * 60 < at.slot) return [];
+    const who = b.person ? shortName(b.person.name) : null;
+    // Offered only while the open part is still to come: one already under way nobody can be offered, or take.
+    const ahead = part.from > now;
+    return [
+      {
+        key: `freed-${b.id}`,
+        at: part.from,
+        time: clockLabel(part.from),
+        title: openTitle((part.to - part.from) * 60),
+        sub: [
+          who ? `${who} cancelled.` : `${capitalize(W.a)} was cancelled.`,
+          could && ahead ? P.offer.could(could) : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+        kind: "open",
+        glyph: "plus",
+        open: true,
+        to: null,
+        freed: ahead ? { visitId: b.visit.id } : null,
+      },
+    ];
+  });
+}
+
+/** Who comes back today from Not now, still ahead: "Dana Ruiz comes back", at their time. */
+function backLinesOf(back: readonly TodayBackVM[], tz: string, nowMs: number, todayKey: string): TodayZoneLineVM[] {
+  return back.flatMap((b) => {
+    const at = Date.parse(b.until);
+    if (!Number.isFinite(at) || at <= nowMs) return [];
+    const { hh, mm } = clockInZone(tz, at);
+    const hours = hh + mm / 60;
+    if (dayInZone(tz, at).key !== todayKey) return [];
+    return [
+      {
+        key: `back-${b.conversationId}`,
+        at: hours,
+        time: clockLabel(hours),
+        title: `${b.who} comes back`,
+        sub: "From Not now",
+        kind: "back" as const,
+        glyph: "clock" as const,
+        open: false,
+        to: addressOf({ kind: "conversation", id: b.conversationId }),
+        freed: null,
+      },
+    ];
+  });
+}
+
+/** The two cells: the visit under way, else the next, and the one after it; tomorrow's first two, once the day turned. */
+function dayCellsOf(items: readonly TodayDayItemVM[], tomorrow: boolean): { cells: TodayZoneCellVM[]; used: number } {
+  const timed = items.filter((i) => !i.allDay);
+  const ahead = tomorrow ? timed : timed.filter((i) => i.phase === "now" || i.phase === "next" || i.phase === "later");
+  const [first, second] = ahead;
+  if (!first) return { cells: [], used: 0 };
+  const now = first.phase === "now";
+  const eyebrows: readonly [string, string] = tomorrow ? [P.first, P.then] : now ? [P.now, P.next] : [P.next, P.then];
+  const cell = (i: TodayDayItemVM, eyebrow: string, isNow: boolean): TodayZoneCellVM => ({
+    eyebrow,
+    now: isNow,
+    when: isNow ? i.time : i.start,
+    what: whoAndWhat(i),
+    fact: i.fact,
+    to: i.to,
+  });
+  return {
+    cells: [cell(first, eyebrows[0], now), ...(second ? [cell(second, eyebrows[1], false)] : [])],
+    used: second ? 2 : 1,
+  };
+}
+
+/**
+ * Today's second zone (Today in three zones, 2 Nov 2026): what's ahead first. The visit under way or next and the one
+ * after, each with one fact of who is coming; the bar with now on it; then, at their times, the visits after them, who
+ * comes back from Not now, and an hour a cancellation freed; what is over is folded ("3 earlier"). Once the day has
+ * closed (by the business's hours where Settings hold them, else after its last visit; never on a day with neither) it
+ * turns to tomorrow: its first two, its visits and its first open hour. Null where the calendar says no day.
+ */
+export function todayZoneDay(
+  cal: CalendarLike | null,
+  day: TodayDayVM | null,
+  back: readonly TodayBackVM[],
+  nowMs: number,
+): TodayZoneDayVM | null {
+  if (!cal || !day) return null;
+  const todayFrame = cal.days.find((d) => d.today) ?? null;
+  const today = day.frames.find((f) => f.today) ?? null;
+  if (!todayFrame || !today) return null;
+  const close = closesAt(todayFrame, today.items, cal.hours?.end);
+  const next = day.frames.find((f) => !f.today) ?? null;
+  const nextFrame = next ? (cal.days.find((d) => d.key === next.key) ?? null) : null;
+  const tomorrow = close !== null && cal.now >= close && !!next && !!nextFrame;
+  const frame = tomorrow && next ? next : today;
+  const raw = tomorrow && nextFrame ? nextFrame : todayFrame;
+  const W = appointmentWords(day.word);
+  const { cells, used } = dayCellsOf(frame.items, tomorrow);
+  const timed = frame.items.filter((i) => !i.allDay);
+  const ahead = tomorrow ? timed : timed.filter((i) => i.phase !== "past");
+  const tz = cal.timezone ?? "UTC";
+  const lines = [
+    ...ahead.slice(used).map(visitLineOf),
+    ...(tomorrow ? [] : backLinesOf(back, tz, nowMs, todayFrame.key)),
+    ...openLinesOf(raw, { now: cal.now, tomorrow, slot: cal.offer?.slot ?? 0 }, W, day.freedCandidates ?? null),
+  ].sort((a, b) => a.at - b.at);
+  const n = frame.items.length + frame.more - frame.missed;
+  return {
+    title: tomorrow ? P.tomorrow : P.day,
+    note: tomorrow
+      ? n
+        ? `${n} ${n === 1 ? W.one : W.many}`
+        : `No ${W.many}`
+      : todayDayNote(frame, day.nextOpening, day.word),
+    tomorrow,
+    cells,
+    bar: frame.bar,
+    lines,
+    earlier: tomorrow ? 0 : timed.filter((i) => i.phase === "past").length,
+    more: frame.more,
+    toMark: toMarkOn(todayFrame, nowMs),
+  };
+}
+
+/** Today's visits that have ended with nobody's word on whether they came, by the rule To do asks yesterday's by. */
+const toMarkOn = (frame: DayFrameLike, nowMs: number): number => unmarkedVisitsOf(frame, nowMs, "Today").length;
+
+/**
+ * The foot of the day once it has turned to tomorrow: how today went, its visits, the ones still to mark, and how many
+ * of the customer messages the receptionist answered. "Today: 8 visits, 1 to mark · 31 of 34 answered".
+ */
+export function todayWentFoot(
+  today: TodayDayFrameVM | null,
+  toMark: number,
+  answered: { value: number | null; of?: number } | null,
+  word: AppointmentWord,
+): string {
+  const W = appointmentWords(word);
+  const visits = today ? today.items.length + today.more - today.missed : 0;
+  const parts = [
+    `${visits} ${visits === 1 ? W.one : W.many}${toMark ? `, ${toMark} to mark` : ""}`,
+    answered && answered.value !== null && answered.of ? `${answered.value} of ${answered.of} answered` : "",
+  ].filter(Boolean);
+  return `Today: ${parts.join(" · ")}`;
+}
+
+/** The day's foot otherwise: what is over, folded, and what the Calendar holds past the lines drawn. */
+export function todayDayFoot(earlier: number, more: number, word: AppointmentWord): string {
+  const W = appointmentWords(word);
+  if (earlier && more) return `${P.earlier(earlier)} · ${more} more on the Calendar`;
+  if (earlier) return P.earlier(earlier);
+  return more ? P.dayMore(more, W.one, W.many) : "";
 }

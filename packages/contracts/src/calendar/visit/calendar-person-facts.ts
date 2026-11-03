@@ -40,6 +40,13 @@ export interface CalendarPersonFactsDto {
    * booked after it waits on nobody (deal-consultations.ts consultationHeld). Absent from a read before it.
    */
   next_visit_at?: string | null;
+  /**
+   * When their last visit that is over began (visitsAt's `last`): what Today's day says under who is coming ("Last here
+   * Aug 12"). Null where the record holds none before the one they come for, in the season or before it (the server's
+   * boardVisits): "First visit". Absent where neither is known (their visits were not read, or none was over in the season
+   * and the record was not asked of before it), and from a read before it: then nothing is said.
+   */
+  last_visit_at?: string | null;
 }
 
 /** The deal's columns of a row, and nothing else: what dealOf reads. */
@@ -71,10 +78,21 @@ function stepColumnsOf(r: PersonRowDto): StepColumns | null {
   };
 }
 
-/** A person's facts from their People row, at the read's clock in the business's zone: the server's half. */
-export function calendarPersonFactsOf(r: PersonRowDto, tz: string, nowMs: number): CalendarPersonFactsDto {
+/**
+ * A person's facts from their People row, at the read's clock in the business's zone: the server's half. `first`: the
+ * record holds no visit of theirs before the one they come for, in the season or before it (the server's boardVisits).
+ */
+export function calendarPersonFactsOf(
+  r: PersonRowDto,
+  tz: string,
+  nowMs: number,
+  first: boolean,
+): CalendarPersonFactsDto {
   const last = lastContactOf(r, tz, nowMs);
+  const visits = visitsAt(r.visits ?? null, nowMs);
+  const lastVisit = visits?.state === "ok" ? (visits.last?.start ?? (first ? null : undefined)) : undefined;
   return {
+    ...(lastVisit !== undefined ? { last_visit_at: lastVisit } : {}),
     state: personStateFor(r, nowMs, tz, null),
     business: businessTrailOf({
       nameSource: asNameSource(r.name_source),
@@ -85,7 +103,7 @@ export function calendarPersonFactsOf(r: PersonRowDto, tz: string, nowMs: number
     last: { at: last.at, by: last.by },
     phone: r.phone_e164 ?? null,
     email: r.email ?? null,
-    next_visit_at: visitsAt(r.visits ?? null, nowMs)?.next?.start ?? null,
+    next_visit_at: visits?.next?.start ?? null,
   };
 }
 
