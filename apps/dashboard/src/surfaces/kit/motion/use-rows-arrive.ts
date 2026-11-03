@@ -18,6 +18,7 @@
  * until then (Ruben's recording, 2 Nov 2026). People's rows land clean under the same fade, so a table keeps it.
  */
 import { useCallback, useRef } from "react";
+import { onAPhone } from "../../legacy-verbs";
 import { cameBack } from "./held-list";
 
 /** The fade: as the house's `arrive-in` (kit.css), twelve rows, each 30 ms after the one above, the eighth on at once. */
@@ -28,8 +29,6 @@ const FIRST = 12;
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 /** A table's rows: those of its own row groups, never a nested table's. */
 const TABLE_ROWS = ":scope > tbody > tr";
-/** A phone's width, where a list's rows draw the line between them (mobile.css). */
-const PHONE_QUERY = "(max-width: 900px)";
 
 /** The parts of a list that `fadeRowsIn` reads: its rows, each able to animate. */
 interface ArrivingList {
@@ -39,9 +38,6 @@ interface ArrivingList {
 /** Whether the person has asked for less motion, where the browser can say. */
 const lessMotion = (): boolean =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** Whether this is a phone's width, where the browser can say. */
-const phoneWide = (): boolean => typeof matchMedia === "function" && matchMedia(PHONE_QUERY).matches;
 
 /**
  * Fade the first rows of a list in where they stand, one after another: a table's own rows, or the rows `rows` names
@@ -71,15 +67,15 @@ export function fadeRowsIn(list: ArrivingList, rows: string = TABLE_ROWS): numbe
  */
 export function useRowsArrive<T extends HTMLElement = HTMLTableElement>(
   rows: string = TABLE_ROWS,
-  { onPhone = true }: { onPhone?: boolean } = {},
+  { onPhone: fadesOnPhone = true }: { onPhone?: boolean } = {},
 ): (el: T | null) => void {
   const arrived = useRef(false);
   return useCallback(
     (el: T | null) => {
       if (!el || arrived.current) return;
       arrived.current = true;
-      if (!cameBack(el) && (onPhone || !phoneWide())) fadeRowsIn(el, rows);
+      if (!cameBack(el) && (fadesOnPhone || !onAPhone())) fadeRowsIn(el, rows);
     },
-    [rows, onPhone],
+    [rows, fadesOnPhone],
   );
 }
