@@ -3,9 +3,9 @@
  * out bound, before any gate decides whether the receptionist may speak (decision 0001).
  *
  * ingestMessage takes the InboundContext that openInbound bound and returns Ingested (./context.ts), or nothing when
- * the message stops here. A short code (a sender nothing can be sent back to) is recorded and not answered, and so is a
- * sender off the pilot allowlist, which binds only the environment's own WhatsApp number and is compared as digits on
- * both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim, once it is processed or a reply
+ * the message stops here. A short code (a sender nothing can be sent back to) is recorded and not answered, and so are a
+ * one-time code a service sent (contracts oneTimeCodeOf, the reader every wire shares) and a sender off the pilot
+ * allowlist, which binds only the environment's own WhatsApp number and is compared as digits on both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim, once it is processed or a reply
  * names it, because a missed auto-reply beats a double text. Every other message is persisted before anything can
  * fail, its memory is read back through the persist port (a thread that cannot be read comes back UNKNOWN, and
  * ./gates.ts hands it to a person), an address the customer gives in their own typed or tapped words is kept where none
@@ -13,8 +13,8 @@
  * wire shapes the words for the carrier (the texting footer on a first reply), send goes through the sink's one door,
  * which re-reads consent, the pause and the workspace's status, and tell is the owner's handoff mail.
  *
- * Every message is answered after its acknowledgement (decision 0031): its door records it (recordMessage, which sets
- * aside a short code and a sender off the allowlist as the whole phase does) and answers the provider, and a job takes it
+ * Every message is answered after its acknowledgement (decision 0031), on every wire: its door records it (recordMessage,
+ * which sets aside what the whole phase sets aside) and answers the provider, and a job takes it
  * up again through the whole phase. Its ingest is then a redelivery by construction, so the replay gate lets it through
  * while the message is unprocessed and nothing has answered it yet (the persist port's `answered`, which
  * reads the reply that names it): a job taken up again after a runner died mid-turn still answers, and one whose turn
@@ -97,6 +97,7 @@ async function setAside(cx: InboundContext): Promise<boolean> {
   if (shortCode(from)) {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    cx.L.info("short_code_set_aside");
     await sink.unreachableSender();
     await sink.processed(handledOf(SET_ASIDE));
     return true;
@@ -126,6 +127,7 @@ async function setAside(cx: InboundContext): Promise<boolean> {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    cx.L.info("wa_skip_allowlist");
     await sink.allowlistSkip();
     await sink.processed(handledOf(SET_ASIDE));
     return true;
@@ -140,8 +142,8 @@ async function setAside(cx: InboundContext): Promise<boolean> {
  */
 export async function recordMessage(cx: InboundContext): Promise<IngestResult | null | undefined> {
   if (await setAside(cx)) return undefined;
-  // The door that calls this schedules the message's answer next (a text's, a WhatsApp message answered later), and that
-  // job takes the message in again: a yes it carried that does not land now is written there, or the job is tried again.
+  // The door that calls this schedules the message's answer next, and that job takes the message in again. The yeses it
+  // carries are kept with it here, in the ingest's own transaction (00515), so nothing is left for the job to write.
   const ing = await ingestOrSay(cx);
   return ing && !ing.is_new ? undefined : ing;
 }

@@ -1,5 +1,5 @@
 /**
- * The receptionist's world, as inbound-executed.test.mjs (whatsapp/) runs the message path over it: the edge's adapter
+ * The receptionist's world, as inbound/phases/ runs the message path over it: the edge's adapter
  * (apps/edge/lib/inbound/arrival.ts) for real, its pure gates as themselves, and everything outside them (the database,
  * the memory, the tenant runtime, the sink, the alerts, the pager, the model) as fakes handed in through ports.ts. A
  * fixture is a WhatsApp message as Meta sends it, handed over in the one shape its door makes of it (decision 0001, step
@@ -95,7 +95,7 @@ export function world(over = {}) {
   // The live hold on it (`control`, 00132: a call in progress, a person who took it over), as the wire reads it.
   const memory = {
     history: [],
-    replies: [],
+    replies: Array.from({ length: over.repliesToday ?? 0 }, () => Date.now()),
     pausedUntil: over.pausedUntil ?? 0,
     textedBefore: false,
     control: over.control ?? null,

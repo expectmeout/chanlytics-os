@@ -55,6 +55,7 @@ corepack pnpm gen:schema-sets                 # the closed sets, after a migrati
 corepack pnpm gen:db-types                    # database.types.ts, after a migration (needs the stack)
 corepack pnpm gen:schema-snapshot             # supabase/schema.sql, after a migration (needs the stack)
 corepack pnpm gen:data-model                  # docs/data-model.md, from the snapshot and packages/db (no stack)
+corepack pnpm gen:inbound-gates               # docs/inbound-gates.md, the order a message is taken through, from core's INBOUND_GATES (no stack)
 corepack pnpm gen:sorted-lists                # every package's barrels in one order, so two lanes' new names land apart (land runs it)
 ```
 

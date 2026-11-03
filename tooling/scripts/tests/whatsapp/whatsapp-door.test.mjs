@@ -272,7 +272,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: f
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording
- * what crosses it: the shape inbound-executed.test.mjs runs handleInbound
+ * what crosses it: the shape inbound/phases/ runs handleInbound
  * over, whose model throws so no model is ever reached. Its database is the
  * door's own, through pg(), exactly as realPorts() hands it over; its memory
  * -- Postgres, the only one -- is readable, so what the reply posture decides

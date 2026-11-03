@@ -63,7 +63,7 @@ export function seeingOf(at: Answering) {
         tell(asked, {
           said: `[${n.rawType} message]`,
           answered: "(no reply sent — a person on your team has this thread)",
-          why: "wrote while held",
+          why: "wrote_while_held",
         }),
       ]);
       return { pausedUntil: 0, way: { escalation: escalationOf(await asked), reply: "none" } };
@@ -100,7 +100,7 @@ export function seeingOf(at: Answering) {
       tell(asked, {
         said: `[${n.rawType} message]`,
         answered: `(${why})`,
-        why: "non-text message",
+        why: "non_text",
         pausedHours: pausedUntil ? pauseHours : null,
       }),
     ]);

@@ -52,6 +52,7 @@ import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { recordWhatsapp } from "./answer-later.js";
+import { planWhatsappChange } from "./delivery-plan.js";
 import { handDeliveryOn } from "../imports/history-import.js";
 import { recordReceipts } from "./receipts.js";
 import { pgSafe, IngestFailed } from "../inbound/persist.js";
@@ -246,72 +247,48 @@ async function handleChange(
       }).catch(() => {});
     }
   }
-  if (field === "messages" && v.messages && routingFailed) {
-    // The database did not answer. Nothing can be recorded and nothing
-    // can be said in anyone's voice, so this is NOT acknowledged: the
-    // 503 below has Meta redeliver, and the ingest's is_new gate makes
-    // that retry a no-op once one lands. The environment's own number is
-    // no exception: it once rode a blip out on a baked copy of its
-    // profile, and now waits for the read like every other workspace.
-    owed += v.messages.length;
-    L.error("wa_skip_routing_failed", {
-      phone_number_id: phoneNumberId,
-      messages: v.messages.length,
-    });
-    await alertUnroutable("whatsapp_unreadable", phoneNumberId, v.messages.length);
-  } else if (field === "messages" && v.messages && unroutable) {
-    // Customers are texting a line whose channel is switched off. Nobody
-    // is answering them and nothing is being recorded, so this has to
-    // reach a human — throttled, because the alternative is one email per
-    // inbound message for as long as the channel stays off.
-    L.error("wa_skip_unroutable", {
-      phone_number_id: phoneNumberId,
-      messages: v.messages.length,
-    });
-    await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
-  } else if (field === "messages" && v.messages) {
-    owed += await takeMessages(db, routedChannel, v, phoneNumberId);
-  } else if ((field === "messages" && v.statuses) || field === "smb_message_echoes") {
-    // A receipt and an owner's echo are the database's to keep, as a message is, so one whose number could not
-    // be routed is not acknowledged either: the 503 below has Meta send it again, and each is safe to receive
-    // twice (receipts.ts; recordEchoAndPause). Acknowledged, a failed receipt went unflagged and an echo unkept,
-    // so the receptionist went on answering over the owner, and Meta never sent either again.
-    const echoes = field === "smb_message_echoes" ? (v.message_echoes ?? []) : null;
-    if (routingFailed) {
-      const n = echoes ? echoes.length : (v.statuses?.length ?? 0);
-      owed += n;
-      L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId, [echoes ? "echoes" : "receipts"]: n });
-    } else if (echoes) owed += await recordEchoes(db, routedChannel, echoes);
-    else owed += await recordReceipts(db, tenantId, v.statuses ?? []);
-  } else if (HISTORY_FIELDS.has(String(field))) {
+  // What to do with it is the plan's (./delivery-plan.ts, run every way in its own test): taken in, owed, or said and
+  // let go. Nothing the database could not keep is acknowledged.
+  const echoes = field === "smb_message_echoes" ? (v.message_echoes ?? []) : [];
+  const plan = planWhatsappChange(
+    field,
+    { messages: v.messages?.length ?? 0, statuses: v.statuses?.length ?? 0, echoes: echoes.length },
+    !db ? "no_database" : routingFailed ? "lookup_failed" : routedChannel ? "routed" : "unroutable",
+    HISTORY_FIELDS.has(String(field)),
+  );
+  // What it carried, as each line counts it: messages, an owner's echoes, or receipts.
+  const carried =
+    field === "messages" && v.messages?.length
+      ? { messages: v.messages.length }
+      : echoes.length
+        ? { echoes: echoes.length }
+        : { receipts: v.statuses?.length ?? 0 };
+  if (plan.log === "wa_skip_routing_failed")
+    L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId ?? null, ...carried });
+  else if (plan.log === "wa_skip_unroutable")
+    L.error("wa_skip_unroutable", { phone_number_id: phoneNumberId ?? null, ...carried });
+  else if (plan.log === "wa_event") L.info("wa_event", { field });
+  // Customers nobody is answering reach a person, once a window: the routing read failed, or the number is nobody's.
+  if (plan.alert) await alertUnroutable(plan.alert, phoneNumberId, v.messages?.length ?? 0);
+  owed += plan.owed;
+  if (plan.take === "messages" && db && routedChannel) owed += await takeMessages(db, routedChannel, v);
+  else if (plan.take === "echoes") owed += await recordEchoes(db, routedChannel, echoes);
+  else if (plan.take === "receipts") owed += await recordReceipts(db, tenantId, v.statuses ?? []);
+  else if (plan.take === "history")
     owed += await handHistory(db, field, delivery, { tenantId, unroutable, routingFailed, phoneNumberId });
-  } else {
-    L.info("wa_event", { field });
-  }
   return owed;
 }
 
 /**
- * A change's messages, each recorded and its answer scheduled as its job (./answer-later.ts recordWhatsapp). How many the
- * database did not keep, which the door must not acknowledge: every one when there is no database to keep them in. A
- * change that names no number to route by is nobody's to answer, and is said as a number no workspace holds is.
+ * A routed change's messages, each recorded and its answer scheduled as its job (./answer-later.ts recordWhatsapp). How
+ * many the database did not keep, which the door must not acknowledge.
  */
 async function takeMessages(
-  db: ReturnType<typeof pg>,
-  routed: RoutedChannel | null,
+  db: NonNullable<ReturnType<typeof pg>>,
+  routed: RoutedChannel,
   v: WaChangeValue,
-  phoneNumberId: string | undefined,
 ): Promise<number> {
   const messages = v.messages ?? [];
-  if (!db) {
-    L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId, messages: messages.length });
-    return messages.length;
-  }
-  if (!routed) {
-    L.error("wa_skip_unroutable", { phone_number_id: phoneNumberId ?? null, messages: messages.length });
-    await alertUnroutable("whatsapp", phoneNumberId, messages.length);
-    return 0;
-  }
   let owed = 0;
   for (const m of messages) {
     // A tail and a type, never the number or the words: the row under RLS holds those, and a log is read by whoever

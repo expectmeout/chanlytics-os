@@ -2,6 +2,8 @@ export { answerInbound, recordInbound } from "./answer";
 export type { CarriedChannel, InboundCarrier, InboundInput } from "./answer";
 export { resolveConsent } from "./consent";
 export type { ConsentDecision, ConsentInputs, ConsentSource } from "./consent";
+export { INBOUND_GATES } from "./order";
+export type { InboundGate } from "./order";
 export { IngestFailed } from "./ports";
 export type {
   BookingRequestHold,

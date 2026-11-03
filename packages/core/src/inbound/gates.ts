@@ -76,7 +76,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     optInNow: n.consent.optIn,
     // What Postgres says after this message was applied (ingest_inbound), or nothing when there is no record.
     recorded: ing ? isOptedOutContact(ing) : null,
-    // A message already held (a text's answer job, a redelivery) said its START when it was first taken in.
+    // A message already held (its answer job, a redelivery) said its START when it was first taken in.
     takenAgain: ing?.is_new === false,
   });
   const optedOut = consent.optedOut;

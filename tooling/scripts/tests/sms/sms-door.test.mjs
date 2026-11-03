@@ -307,7 +307,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: f
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording
- * what crosses it: the shape inbound-executed.test.mjs runs handleInbound over,
+ * what crosses it: the shape inbound/phases/ runs handleInbound over,
  * whose model is never reached. The door passes handleInbound no ports, so this
  * is what realPorts() answers with. Its sink sends on the wire handleInbound
  * builds for the message, as the real sink's door does, so an answer on a text

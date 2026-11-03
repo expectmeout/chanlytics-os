@@ -375,7 +375,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.equal(
     (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
     (code.match(/ports\.persist\.ingest\(\s*db,\s*tenantId,\s*n[,)]/g) ?? []).length,
-    "every ingest hands over the message, which says its own wire (and the line it came in on, as its fourth argument: run in inbound-executed.test.mjs)",
+    "every ingest hands over the message, which says its own wire (and the line it came in on, as its fourth argument: run in inbound/phases/)",
   );
   assert.ok(
     code.includes(

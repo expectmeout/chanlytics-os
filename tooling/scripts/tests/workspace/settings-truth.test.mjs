@@ -106,7 +106,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // The notice's words are named (tell(asked, { said, answered, why, pausedHours }), #1547), so each branch's pause is
   // read by its name.
   assert.ok(
-    /why: "non-text message",\s*pausedHours: pausedUntil \? pauseHours : null,/.test(inbound),
+    /why: "non_text",\s*pausedHours: pausedUntil \? pauseHours : null,/.test(inbound),
     "the acknowledgement states it only when it actually acknowledged",
   );
   assert.equal(

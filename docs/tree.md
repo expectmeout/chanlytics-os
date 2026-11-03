@@ -16,6 +16,7 @@ apps/edge/lib/
   email/
   google/
   imports/
+  inbound/
   instagram/
   intake/
   leads/

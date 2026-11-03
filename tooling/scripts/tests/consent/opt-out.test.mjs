@@ -172,7 +172,7 @@ test("the patterns are anchored and case-insensitive", () => {
   // unreadable branch or never: a customer tapping a thumbs-up got "sorry, I
   // can't read that", the receptionist muted itself for 24h, an escalation
   // opened and the owner was emailed. RUN, order and all, in
-  // whatsapp/inbound-executed.test.mjs ("a thumbs-up or a system notice").
+  // inbound/phases/ ("a thumbs-up or a system notice").
 
   test("a location or contact card escalates WITHOUT the cannot-read apology", () => {
     // Both are legible to a person and normalizeInbound already wrote them as

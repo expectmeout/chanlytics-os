@@ -53,10 +53,10 @@ test("a change that throws is said and asked for again, and the change after it 
       {
         id: "waba-1",
         changes: [
-          // A change whose messages are not a list: reading it throws.
+          // A change whose message is not one: taking it in throws.
           {
             field: "messages",
-            value: { metadata: { phone_number_id: "111" }, messages: { not: "a list" }, statuses: [{}] },
+            value: { metadata: { phone_number_id: "111" }, messages: [null], statuses: [{}] },
           },
           // A message to a number no workspace holds: read, said, and acknowledged as unroutable.
           {

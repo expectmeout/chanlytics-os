@@ -202,7 +202,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   // The DECISION is made where the routing needs it; the DOWNLOAD waits until
   // the cap, the budget, the billing pause and the mode have all agreed there
   // will be a reply, so none of them pays 25MB for bytes it throws away: RUN in
-  // whatsapp/inbound-executed.test.mjs ("a workspace that will not answer never
+  // inbound/phases/ ("a workspace that will not answer never
   // pays to download the photo").
   assert.ok(
     wa.indexOf("const photo: { mime: string; base64: string } | null = null;") < 0,

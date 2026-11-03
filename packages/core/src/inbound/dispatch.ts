@@ -3,7 +3,6 @@
  * draft, the hold that could not be written, and the send, told apart by what the wire answered.
  */
 import type { Json } from "@chanlytics/db";
-import { reasonLabelOf } from "@chanlytics/contracts";
 import { causeOf } from "../messages/send";
 import { holdPlan } from "./steps";
 import { GO, type Answering } from "./context";
@@ -101,8 +100,7 @@ function turnHold(at: Answering, turn: Turn, details: string): Asked {
 }
 
 /** What the people told of a handoff read as its cause. */
-const handoffWhy = (turn: Turn, otherwise: string): string =>
-  turn.bookingRequest ? reasonLabelOf("booking_request") : otherwise;
+const handoffWhy = (turn: Turn, otherwise: string): string => (turn.bookingRequest ? "booking_request" : otherwise);
 
 /** A veto window that did not happen is recorded; a hold that could not be written keeps the words; a draft waits. */
 export async function heldOrKept(
@@ -148,7 +146,7 @@ export async function heldOrKept(
       tell(asked, {
         said: bodyText,
         answered: replyText,
-        why: "held for low confidence; the hold could not be scheduled, so nothing was sent",
+        why: "low confidence, not held",
         pausedHours: pauseHours,
       }),
     );
@@ -255,7 +253,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
       tell(asked, {
         said: bodyText,
         answered: "(send failed — the customer received no reply)",
-        why: "wa_send_failed",
+        why: "send_failed",
       }),
       asked,
     ]);

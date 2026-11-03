@@ -2,7 +2,7 @@
  * A customer's no is told once, on the bell (decision 0048; NS-6 and S1-07 of the wiring plan, task 1.8).
  *
  * A typed STOP is recorded by ingest_inbound with its contact.consent_changed event in the message's own transaction, and the
- * receptionist opens no hold for it (the gate, run here; the whole path in whatsapp/inbound-executed.test.mjs). The owner is
+ * receptionist opens no hold for it (the gate, run here; the whole path in inbound/phases/). The owner is
  * told from the event, whichever door wrote it, in the Inbox's words: a kind of its own, a line on the bell whose mail is the
  * business's choice and never always, and no phone. Run on the pure half (contracts optOutOf and optOutNotice), the kind's
  * place in the table the page draws, and the receptionist's gate; the subscriber that tells it is run in

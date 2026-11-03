@@ -6875,10 +6875,10 @@ end $$;
 
 
 --
--- Name: ingest_inbound(uuid, text, text, text, text, text, text, text, timestamp with time zone, jsonb, jsonb, boolean, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: ingest_inbound(uuid, text, text, text, text, text, text, text, timestamp with time zone, jsonb, jsonb, boolean, boolean, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb DEFAULT NULL::jsonb, p_meta jsonb DEFAULT '{}'::jsonb, p_opt_out boolean DEFAULT false, p_opt_in boolean DEFAULT false) RETURNS jsonb
+CREATE FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb DEFAULT NULL::jsonb, p_meta jsonb DEFAULT '{}'::jsonb, p_opt_out boolean DEFAULT false, p_opt_in boolean DEFAULT false, p_opt_in_marketing boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -6907,9 +6907,13 @@ begin
     p_wa_profile_name, 'observed', 'inbound', '{}'::jsonb, now());
   v_contact_id := (v_person->>'contact_id')::uuid;
 
-  -- A STOP or a START is written below, once the message is known to be new (00361). The person's row is locked
-  -- here, where that write used to be, so the person, the thread and the message are still locked in that order.
-  if p_opt_out or p_opt_in then
+  -- A STOP or a START is written below, once the message is known to be new (00361), and so are the yeses a message
+  -- carries (00515). The person's row is locked here, where that write used to be, so the person, the thread and the
+  -- message are still locked in that order. A START's channel is noted under note_yes_on_channel's own lock, taken
+  -- here at its full strength so it is never raised later in the transaction.
+  if p_opt_in then
+    perform 1 from contacts where id = v_contact_id for update;
+  elsif p_opt_out or p_opt_in_marketing then
     perform 1 from contacts where id = v_contact_id for no key update;
   end if;
 
@@ -6979,6 +6983,26 @@ begin
   -- Read back AFTER the update above, so a STOP arriving in this very batch is
   -- already reflected in what the caller is told.
   select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;
+
+  -- The yeses this message carries, kept with it (00515): written here or not at all, and a repeat of the message,
+  -- returned above, writes neither (its answer was written when it was kept).
+  --
+  -- A START is a yes on the channel it came on (contracts consent-channels.ts). The event above is written only when
+  -- the answer changed, so a START by text from someone already opted in on WhatsApp is noted here (00297): the event
+  -- that adds the channel, written only where their list lacks it.
+  if p_opt_in then
+    perform public.note_yes_on_channel(p_tenant_id, v_contact_id, p_channel, p_message_external_id, p_body);
+  end if;
+  -- YES OFFERS, the other answer (contracts consent.ts): its own column and its own ledger line, as the customer's own
+  -- message, with what they wrote beside it (00110). Never under a stop that stands after this message: the way back
+  -- from a STOP is START, and a yes kept under it would be one no later stop could end (00323). A refusal is the
+  -- message's: nothing is kept, and the provider sends it again.
+  if p_opt_in_marketing and v_consent is distinct from 'opted_out' and v_dnc is not true then
+    perform public.set_marketing_consent(
+      p_tenant_id, v_contact_id, 'opted_in', 'customer_message', null,
+      jsonb_build_object('channel', p_channel, 'message_external_id', p_message_external_id,
+                         'words', nullif(left(coalesce(p_body, ''), 80), '')));
+  end if;
 
   -- a new customer message reopens a closed thread (never overrides a human)
   if v_state in ('archived', 'snoozed') then
@@ -14485,6 +14509,43 @@ COMMENT ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_devic
 
 
 --
+-- Name: note_person_email(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_email text;
+begin
+  select c.email into v_email
+    from contacts c
+   where c.id = p_contact_id and c.tenant_id = p_tenant_id and c.erased_at is null
+     for no key update;
+  if not found then
+    return 'not_found';
+  end if;
+  if v_email is not null then
+    return 'had_one';
+  end if;
+  begin
+    perform public.set_person_email(p_contact_id, p_email);
+  exception when unique_violation then
+    return 'taken';
+  end;
+  return 'kept';
+end $$;
+
+
+--
+-- Name: FUNCTION note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00516): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
+
+
+--
 -- Name: note_sweep_backlog(text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14560,7 +14621,7 @@ end $$;
 -- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'The edge''s door, right after ingest_inbound for a START (One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
+COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00515; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
 
 
 --
@@ -46472,11 +46533,11 @@ GRANT ALL ON FUNCTION public.ingest_call(p_tenant_id uuid, p_retell_call_id text
 
 
 --
--- Name: FUNCTION ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean) TO service_role;
 
 
 --
@@ -47734,6 +47795,14 @@ GRANT ALL ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id 
 
 REVOKE ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) TO service_role;
+
+
+--
+-- Name: FUNCTION note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) TO service_role;
 
 
 --

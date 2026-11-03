@@ -213,7 +213,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
   // The message path is a verb over ports now, and apps/edge/lib/inbound/arrival.ts
   // is its adapter: handleInbound takes the one inbound shape (decision 0001, step 3),
-  // which whatsapp-door.test.mjs and inbound-executed.test.mjs CALL rather than read.
+  // which whatsapp-door.test.mjs and the inbound phase tests (inbound/phases/) CALL rather than read.
   // The verb is answer.ts's order of phases, each declared in a module beside it
   // (decision 0001), in the order it calls them; what each one does is run there.
   const HOME = {

@@ -1,7 +1,7 @@
 /**
  * The message path: one inbound customer message, from the tenant's runtime
  * to a reply, a hold or a handoff. WhatsApp, text and Instagram DMs alike, and the verb the
- * doors' adapters call (apps/edge/lib/whatsapp/inbound.ts).
+ * doors' adapter calls (apps/edge/lib/inbound/arrival.ts: recordInbound at the door, answerInbound in the job).
  *
  * This file is the order, and only the order: each step is a function in a
  * module beside it. The control plane is read first (./context.ts). Then the
@@ -27,7 +27,8 @@
  *
  * The decisions with no side effects live in steps.ts as truth tables; this
  * file is the order they happen in, and the ORDER IS THE PRODUCT
- * (docs/conversation-flow.md §5.1).
+ * (./order.ts says it once, as data: INBOUND_GATES, which docs/inbound-gates.md is written from and the verb is
+ * run against, tests/inbound/the-gates-run-in-their-order.test.mjs).
  */
 // Values first: the header above then rides on an import the declaration build drops, and stays out of index.d.ts.
 import { GO, openInbound } from "./context";
