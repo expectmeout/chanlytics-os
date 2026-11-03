@@ -29,7 +29,9 @@ import {
   OPENING_CHARS_MAX,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
+  openingAskedOf,
   reachOutCountryOf,
+  type RewriteStep,
   type WrittenOpening,
 } from "../packages/contracts.js";
 import {
@@ -93,6 +95,8 @@ export const CHECK_GIVE_UP_MS = 60 * 60_000;
 export const CHECK_BACKOFF_MINUTES = [1, 2, 4, 8, 15] as const;
 /** A workspace that may not spend, or has no room, is asked again this much later (R2). */
 export const CHECK_GATE_WAIT_MS = 3_600_000;
+/** The most of what a site said a send keeps (00505 sequence_sends_website_says_shape). */
+const WEBSITE_SAYS_KEPT_MAX = 800;
 /** A check_unavailable hold with no rule broken goes back to be checked this long after it was held (R4). */
 export const CHECK_RELEASE_AFTER_MS = 3_600_000;
 
@@ -157,24 +161,40 @@ function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
 }
 
 /**
- * A leased send's check input (checkInputOf), with what its business's website says read by the platform's page reader
- * when the writer is asked (siteReaderOf, 30 Oct 2026).
+ * A leased send's check input (checkInputOf), with what its business's website says when the writer is asked: what the
+ * send kept from the last read (00505), else read by the platform's page reader (siteReaderOf, 30 Oct 2026), the
+ * reading said as a step since only a page read anew takes time. `onStep` hears each step the check takes.
  */
 function sendInputOf(
   u: UncheckedSend,
   words: { subject: string | null; body: string },
   ws: CheckWorkspace,
   country: string | null,
+  onStep?: (step: RewriteStep) => void,
 ): CheckInput {
+  const kept = u.send.website_says?.trim() || null;
+  const read = siteReaderOf(u.record.website_host);
+  const site = kept
+    ? () => Promise.resolve(kept)
+    : read
+      ? async () => {
+          onStep?.("reading");
+          return read();
+        }
+      : undefined;
   return {
     ...checkInputOf(u.record, words, ws.opening, u.template_language, u.included_for, country),
-    site: siteReaderOf(u.record.website_host),
+    site,
+    asked: openingAskedOf(u.send.rewrite_asked),
+    onStep,
   };
 }
 
 /**
  * One tick of the check: the holds to check again, then the sends leased to this tick, each workspace's gates asked
  * before any call, then each send's check, a few at once, until the budget. `ask` is the model (tests give their own).
+ * With `sendIds` (a person pressed them: Rewrite the opening, 00505), those sends alone, whatever their day, and nothing
+ * the clock does around them (its releases and its notices are the next tick's).
  */
 export async function checkSends(p: {
   db: Db;
@@ -182,6 +202,9 @@ export async function checkSends(p: {
   started: number;
   log: Logger;
   tenantId?: string;
+  sendIds?: string[];
+  /** Hears each step a send's check takes, as it takes it (00505: a pressed rewrite says them). */
+  onStep?: (sendId: string, step: RewriteStep) => void;
   ask?: AskModel;
   budget?: CheckBudget;
   notice?: HeldNoticeSend;
@@ -214,14 +237,18 @@ export async function checkSends(p: {
   const write = (u: UncheckedSend, patch: Partial<ReachOutSendRow>) =>
     recordCheck(db, { tenantId: u.send.tenant_id, id: u.send.id, gen: u.check_gen, patch });
 
+  const pressed = p.sendIds !== undefined;
+
   /* the holds the model could not answer, an hour on: checked again (R4) */
-  try {
-    out.released = await releaseUnavailableHolds(db, {
-      before: new Date(now.getTime() - CHECK_RELEASE_AFTER_MS),
-      tenantId: p.tenantId,
-    });
-  } catch (e) {
-    error("reach_out_check_release_failed", {}, e);
+  if (!pressed) {
+    try {
+      out.released = await releaseUnavailableHolds(db, {
+        before: new Date(now.getTime() - CHECK_RELEASE_AFTER_MS),
+        tenantId: p.tenantId,
+      });
+    } catch (e) {
+      error("reach_out_check_release_failed", {}, e);
+    }
   }
 
   const rows = await uncheckedSends(db, {
@@ -229,6 +256,7 @@ export async function checkSends(p: {
     perWorkspace: CHECK_PER_WORKSPACE_PER_TICK,
     aheadMinutes: CHECK_AHEAD_MS / 60_000,
     tenantId: p.tenantId,
+    sendIds: p.sendIds,
   });
   out.read = rows.length;
 
@@ -248,8 +276,10 @@ export async function checkSends(p: {
   for (const [tenantId, sends] of byTenant) {
     let why: string | null = null;
     try {
-      if (!(await workspaceMaySpend(db, tenantId))) why = "billing";
-      else if ((await monthSent(db, tenantId, now)) >= REACH_OUT_MONTH_EMAILS) why = "month_spent";
+      // Both read at once: a pressed rewrite waits on them before its first call (00505).
+      const [mays, sent] = await Promise.all([workspaceMaySpend(db, tenantId), monthSent(db, tenantId, now)]);
+      if (!mays) why = "billing";
+      else if (sent >= REACH_OUT_MONTH_EMAILS) why = "month_spent";
     } catch (e) {
       // Its leases lapse in two minutes, and the next tick asks again.
       error("reach_out_check_gate_failed", { tenant_id: tenantId }, e);
@@ -300,7 +330,7 @@ export async function checkSends(p: {
         return;
       }
       const ws = await once(workspaces, s.tenant_id, () => checkWorkspaceOf(db, s.tenant_id));
-      const input = sendInputOf(u, w, ws, country);
+      const input = sendInputOf(u, w, ws, country, p.onStep && ((step) => p.onStep?.(s.id, step)));
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
       const cap = REACH_OUT_CHECKS_PER_DAY;
@@ -338,6 +368,8 @@ export async function checkSends(p: {
         checked_at: at,
         ...(keep ?? { opening: null, angle: null, facts_used: [] }),
         hold_detail: c.detail ? c.detail.slice(0, 120) : null,
+        // What the site said, kept for the next time this email's opening is written (00505).
+        ...(c.site && c.site !== s.website_says ? { website_says: c.site.slice(0, WEBSITE_SAYS_KEPT_MAX) } : {}),
         checked_words: checkedWordsOf(w, u.signed_by, ws.bookingLink !== null),
         check_after: null,
         ...(c.hold ? { state: "held", reason: c.hold } : {}),
@@ -353,6 +385,6 @@ export async function checkSends(p: {
     }
   };
   for (let i = 0; i < go.length; i += CHECK_AT_ONCE) await Promise.all(go.slice(i, i + CHECK_AT_ONCE).map(one));
-  out.noticed = await noticeHeldRuns({ db, now, error, tenantId: p.tenantId, send: p.notice });
+  if (!pressed) out.noticed = await noticeHeldRuns({ db, now, error, tenantId: p.tenantId, send: p.notice });
   return out;
 }

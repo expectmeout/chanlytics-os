@@ -21,12 +21,14 @@ import {
 } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { writeOpeningsNow } from "@/legacy-bridge/verbs/openings";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, refusalToast, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { HeldEmailRow, SEQUENCE_HELD_IDS } from "../reach-out/held-row";
+import { RewriteAsk } from "../reach-out/rewrite-ask";
 import { RoToSendRows } from "../reach-out/to-send";
 import { pressed } from "./verbs";
 
@@ -48,6 +50,8 @@ interface NeedsProps {
  */
 export function SequenceNeeds({ sequenceId, rows, count, timezone, flash, onDecided }: NeedsProps) {
   const [busy, setBusy] = useState<string | null>(null);
+  // The held email whose Rewrite the opening is asking what should change (00505): one at a time.
+  const [asking, setAsking] = useState<string | null>(null);
   const vm = peopleNeedsOf(rows, { timezone, now: Date.now() });
   if (vm.held.length === 0 && vm.toSend.length === 0 && vm.unread.length === 0) return null;
   const may = canDo("approve");
@@ -55,6 +59,7 @@ export function SequenceNeeds({ sequenceId, rows, count, timezone, flash, onDeci
   const handed = rows.filter((r) => r.group === "to_send").length;
   // A door is the decide verb; Take out, at step 1, the leave verb on their place, as People's own Take out (Put back undoes it).
   const answer = async (h: SequenceHeldVM, door: HeldChoice) => {
+    if (door === "rewrite") return void setAsking(h.id);
     setBusy(h.id);
     if (door === "take_out")
       await pressed(
@@ -73,24 +78,29 @@ export function SequenceNeeds({ sequenceId, rows, count, timezone, flash, onDeci
     setBusy(null);
   };
   // Each through its own verb, one after another; what was done is said once, and the first refusal in its door's words:
-  // the held that may go as they read (Send N anyway), or those held for their words, each written again (Rewrite all N).
+  // the held that may go as they read (Send N anyway), or those held for their words, each written again (Rewrite all N),
+  // their openings then written together by one check (00505), not each on its own.
   const decideAll = async (key: "all" | "rewrite", held: readonly SequenceHeldVM[]) => {
     setBusy(key);
-    let done = 0;
+    const decided: string[] = [];
     let no: ApiRefusal | null = null;
     for (const h of held) {
       const r = await commitVerb("sequence_send_decide", {
         send_id: h.id,
         decision: key === "all" ? "include" : "rewrite",
+        check: false,
         name: h.name,
         run_id: h.batchId,
       });
-      if (r.ok) done += 1;
+      if (r.ok) decided.push(h.id);
       else no ??= r;
     }
+    const written = key === "rewrite" ? await writeOpeningsNow(decided) : 0;
     setBusy(null);
+    const done = decided.length;
     if (no) flash(refusalToast(no));
-    else flash({ tone: "ok", msg: key === "all" ? N.wentAll(done) : N.rewroteAll(done), undo: null });
+    else if (key === "all") flash({ tone: "ok", msg: N.wentAll(done), undo: null });
+    else flash({ tone: "ok", msg: written === done ? N.wroteAll(done) : N.rewroteAll(done), undo: null });
     onDecided();
   };
   return (
@@ -141,6 +151,19 @@ export function SequenceNeeds({ sequenceId, rows, count, timezone, flash, onDeci
                 busy={busy !== null}
                 onAnswer={(door) => void answer(h, door)}
                 ids={SEQUENCE_HELD_IDS}
+                asking={
+                  asking === h.id ? (
+                    <RewriteAsk
+                      sendId={h.id}
+                      runId={h.batchId}
+                      name={h.name}
+                      flash={flash}
+                      moved={onDecided}
+                      onBack={() => setAsking(null)}
+                      testid="sq-rewrite"
+                    />
+                  ) : null
+                }
               />
             ))}
           </div>

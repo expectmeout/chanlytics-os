@@ -9,7 +9,7 @@
  * the business's tile, its name, why in a muted line with the claim in ink, and its answers as pills.
  */
 import { REACH_OUT_SHEET_WORDS, type HeldAnswer, type HeldChoice, type MarkedOpening } from "@chanlytics/contracts";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Button } from "../../kit/button/button";
 import { Face, faceTileOf } from "../../kit/face/face";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -74,6 +74,8 @@ interface HeldRowProps {
   ids: HeldRowIds;
   /** A row of a list (a sequence's Needs you), or of the run's amber card. */
   look?: "row" | "card";
+  /** Rewrite the opening's ask (rewrite-ask.tsx), drawn in place of the answers while it is open (00505). */
+  asking?: ReactNode;
 }
 
 /** Why, as the card says it: the claim the check could not back, in its quotes, set in ink. */
@@ -86,7 +88,7 @@ function heldWhyParts(why: string) {
 }
 
 /** The row on the run's amber card: the business's tile, its name, why, its answers as pills, and a refusal under them. */
-function HeldCardRow({ h, may, busy, said = null, onAnswer, ids }: HeldRowProps) {
+function HeldCardRow({ h, may, busy, said = null, onAnswer, ids, asking = null }: HeldRowProps) {
   return (
     <div className="ro-hrow" data-testid={ids.row}>
       <Face person={{ name: h.name }} tile={faceTileOf(h.name)} />
@@ -108,7 +110,8 @@ function HeldCardRow({ h, may, busy, said = null, onAnswer, ids }: HeldRowProps)
         </div>
         <p className="ro-hrow-why">{heldWhyParts(h.why)}</p>
         {h.opening ? <HeldOpening o={h.opening} className="ro-hrow-opening" testId={ids.opening} /> : null}
-        {may && h.answers.length > 0 ? (
+        {asking}
+        {may && !asking && h.answers.length > 0 ? (
           <div className="ro-hrow-acts">
             {h.answers.map((a) => (
               <Button
@@ -137,7 +140,7 @@ function HeldCardRow({ h, may, busy, said = null, onAnswer, ids }: HeldRowProps)
 
 export function HeldEmailRow(p: HeldRowProps) {
   if (p.look === "card") return <HeldCardRow {...p} />;
-  const { h, may, busy, said = null, onAnswer, ids } = p;
+  const { h, may, busy, said = null, onAnswer, ids, asking = null } = p;
   return (
     <ListRow
       face={{ person: { name: h.name }, size: "sm" }}
@@ -164,11 +167,12 @@ export function HeldEmailRow(p: HeldRowProps) {
               {said}
             </span>
           ) : null}
+          {asking}
         </div>
       )}
       // The answers as one group in the facts' line, which wraps them on a phone: three stood in a row past its edge.
       facts={
-        may
+        may && !asking
           ? [
               <div key="answers" className="sq-held-answers">
                 {h.answers.map((a) => (

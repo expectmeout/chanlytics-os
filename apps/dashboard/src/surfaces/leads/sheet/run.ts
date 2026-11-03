@@ -48,6 +48,8 @@ export interface SheetRun {
   openPicker: () => void;
   /** The dock's own ask: They wrote back…. */
   askSaid: () => void;
+  /** The dock's own ask: what should change in the opening, before it is written again (00505). */
+  askRewrite: () => void;
   /** Said once their place moved: read it again. */
   moved: () => void;
   /** The sheet is over another page (a record): its record is that page, and its adds have no pile. */
@@ -211,7 +213,7 @@ async function approveOne(r: SheetRun) {
 }
 
 /** An answer to their email: the decide verb a held email's row and the record press, its door named. */
-export async function decideEmail(r: SheetRun, door: HoldDoor): Promise<void> {
+async function decideEmail(r: SheetRun, door: HoldDoor): Promise<void> {
   const row = r.place ? r.place.place : null;
   if (!row || !row.send_id) return;
   await pressed(
@@ -266,6 +268,8 @@ export async function runSheetAct(s: Pick<LeadSheetSlotVM, "act" | "door">, r: S
     case "approve":
       return approveOne(r);
     case "decide":
+      // Rewrite the opening asks what should change first, in the dock's place; every other answer is pressed as it is.
+      if (s.door === "rewrite") return r.askRewrite();
       return s.door ? decideEmail(r, s.door) : undefined;
     case "take_out":
       return takeOut(r);
