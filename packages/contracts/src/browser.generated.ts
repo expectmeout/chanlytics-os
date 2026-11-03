@@ -342,7 +342,7 @@ export { DEFAULT_WEEK, leadFactOf, listingPeriodsOf, weekHoursOf } from "./reach
 export { composeLinksOf, mailtoOf } from "./reach-out/owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./reach-out/owner/lead-doors";
 export { CAMPAIGN_EMAIL_TAG, isCampaignEmail, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, WHY_FROM_MAPS, whyFrom } from "./reach-out/reach-out";
-export { heldNoticeWords, REACH_OUT_RUN_REREAD_MS, REACH_OUT_TO_SEND_LABELS, reachOutRunMoving, reachOutRunWordsOf, TO_SEND_ALL_WORDS, toSendAllOf, toSendEveryOf, toSendRowOf, toSendRunsOf, toSendSaidWords, toSendWordsOf, waitingRunsDoor } from "./reach-out/reach-out-approval";
+export { heldNoticeWords, REACH_OUT_RUN_REREAD_MS, REACH_OUT_TO_SEND_LABELS, reachOutRunMoving, reachOutRunWordsOf, TO_SEND_ALL_WORDS, toSendRowOf, toSendSaidWords, toSendWordsOf, waitingRunsDoor } from "./reach-out/reach-out-approval";
 export { BOOKED_SEEN_CAP, bookedSeenOf } from "./reach-out/reach-out-booked";
 export { chainFirstSender, previewLinesOf, previewRefusedWords, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_NEW_LIST_WORDS, REACH_OUT_PREVIEW_WORDS, REACH_OUT_SHEET_PARTS, reachOutAddHandStep, reachOutAddStep, reachOutAfterDayChoices, reachOutChainBodyOf, reachOutDefaultName, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutMayAddStep, reachOutMayPickMailbox, reachOutPreviewOf, reachOutSavedWords, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutVersionDraftOf, reachOutWhoWords } from "./reach-out/reach-out-draft";
 export { REACH_OUT_DECISIONS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_SAID_OUTCOMES } from "./reach-out/reach-out-dtos";
@@ -494,6 +494,7 @@ export { bellFeed, bellOlderOf, holdMarksOf } from "./waits/hold-rows";
 export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeStillWaits, settledNoticeIds } from "./waits/notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends";
 export { noticeTone } from "./waits/notice-tones";
+export { toSendAllOf, toSendEveryOf, toSendRunsOf } from "./waits/to-send";
 export { WAIT_ROW_WORDS, waitRowsOf } from "./waits/wait-rows";
 export { heldReplyNotice, WAIT_ACT_WORDS, WAIT_KINDS, WAIT_RULES, waitEndsWords, waitRuleOf } from "./waits/wait-rules";
 export { batchHeldEmails, needsYouCount, runDecidedOnItsPage, runDraftedEmails, runHeldEmails, runsThatWait, runTooLate, runWaitsOnYou, threadWait, threadWaits, waitsOf } from "./waits/waits";
