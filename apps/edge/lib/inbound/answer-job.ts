@@ -19,8 +19,28 @@ import { answerText } from "../sms/inbound-text.js";
 
 type Db = SupabaseClient<Database>;
 
-/** An answer job, by what its door recorded; its turn answered by `deadline` when the ledger gives one (core answer.ts). */
+/** The wires an answer job answers on. */
+export type AnswerWire = "whatsapp" | "sms" | "instagram";
+
+/**
+ * The wire an answer job is for: its payload says it (`wire`, since 3 Nov 2026). A job its door wrote before then is read
+ * by what it carries, as every door wrote it: `wa` a WhatsApp message, `ig` a DM, and otherwise a text. Kept for the
+ * jobs a deploy finds waiting, which a day's ledger has long finished.
+ */
+export function wireOf(payload: Record<string, unknown>): AnswerWire {
+  const said = payload.wire;
+  if (said === "whatsapp" || said === "sms" || said === "instagram") return said;
+  return payload.wa ? "whatsapp" : payload.ig ? "instagram" : "sms";
+}
+
+/** An answer job, by its wire; its turn answered by `deadline` when the ledger gives one (core answer.ts). */
 export function answerInboundJob(db: Db, job: ClaimedJob, deadline?: number): Promise<void> {
-  if (job.payload.wa) return answerWhatsapp(db, job, deadline);
-  return job.payload.ig ? answerDm(db, job, deadline) : answerText(db, job, deadline);
+  switch (wireOf(job.payload)) {
+    case "whatsapp":
+      return answerWhatsapp(db, job, deadline);
+    case "instagram":
+      return answerDm(db, job, deadline);
+    case "sms":
+      return answerText(db, job, deadline);
+  }
 }
