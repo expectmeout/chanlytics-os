@@ -15,7 +15,7 @@ import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback } from "react";
 import type { AskApi } from "../legacy-bridge/ask";
 import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk } from "./frame-doors";
-import type { StayingPage, SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
+import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 
 /** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
 export interface LegacyFlash {
@@ -53,7 +53,6 @@ declare global {
  * the frame fills as it renders. They are named here too, with the verbs a surface already imports from this file.
  */
 export { askAbout, backFrom, navigate, openAsk };
-export type { StayingPage, SwipeHandlers };
 
 /** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
 export function actingRole(): string {

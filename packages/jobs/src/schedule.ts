@@ -47,6 +47,16 @@ function dedupeKeyOf({ tenantId, kind, payload }: ScheduleParams): string | null
         : null;
     case "lead_collect":
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
+    // A round's start, and each batch of its checks, one waiting at a time (00506): the sweep carrying a round on beside
+    // the job its last commit wrote, or the probe's pass beside the owner's answer, starts or checks it once. A Check
+    // again carries its own nonce, so it is never held behind the round's own checks. lead_collect_commit writes the
+    // same keys (lead_next_job_key).
+    case "lead_round_start":
+      return field("round_id") ? `lead_round_start:${field("round_id")}` : null;
+    case "lead_check":
+      return field("round_id")
+        ? `lead_check:${field("round_id")}:${field("again") ?? "round"}:${typeof p.batch === "number" ? p.batch : 0}`
+        : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
     // One read per delivery in each workspace (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again,

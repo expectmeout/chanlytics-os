@@ -181,6 +181,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-11-30",
   },
   {
+    name: "TYPESAFE_SCREEN",
+    mechanism: "edge_env",
+    does: "'1' (every workspace) or a list of workspace ids, with TYPESAFE_API_KEY set, has the second model screen each batch before the lead judge (decision 0085): a place it fails at the judge's floor is left out on its answer and never judged. The runner asks it only where the judge keeps its whole bound after it (00506).",
+    owner: "Ruben",
+    sunset: "2026-12-31",
+  },
+  {
     name: "LEAD_JUDGE_FALLBACKS",
     mechanism: "edge_env",
     does: "The lead judge's server-side fallback on a refusal (decision 14); on unless 'off'.",

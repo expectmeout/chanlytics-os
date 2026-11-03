@@ -529,14 +529,27 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     ),
     "on a phone the days arrive with the page, as they will stand",
   );
-  // And a view that comes in for another stops under the bar that sticks over the days, not only under the frame's top
-  // (kit/motion/view-deck.ts): after Day's board had scrolled to now, the Month came in with its row of names under the
-  // bar (Ruben's recording, 3 Nov 2026).
-  assert.ok(
-    blocksOf(css, "@media (max-width: 720px) {").some((b) =>
-      /\.main-scroll > \.calendar \.cal-body \{[^}]*scroll-margin-top: var\(--cal-bar-h, 0px\);/.test(b),
-    ),
-    "a view comes in under the bar",
+  // And nothing else moves them (spec 2026-11-03, a still Calendar on a phone): a view of the strip holds still, cut in
+  // where the deck slid it (kit/motion/view-deck.ts), and a read on its way leaves them as they are, where they faded to
+  // 45% and back; the days not read yet say so themselves. Each end of a move was a step on an iPhone (Ruben, 3 Nov 2026).
+  const still = blocksOf(css, "@media (max-width: 720px) {").join("\n");
+  assert.match(
+    still,
+    /\.main-scroll > \.calendar \.cal-body \{[^}]*transition: none;[^}]*--view-travel: none;/,
+    "a view of the strip holds still, and nothing on the days eases",
+  );
+  assert.match(still, /\.main-scroll > \.calendar\[data-loading\] \.cal-body \{[^}]*opacity: 1;/, "and never dims");
+  assert.doesNotMatch(
+    css,
+    /scroll-margin-top/,
+    "the page says where it stands after a change (board-dom.ts standAfter)",
+  );
+  // A head that holds today is as tall as one that does not: today's date is the accent's 22px circle, its head stood 3px
+  // taller, and Day's and Week's hours stepped 3px as the days changed to or from today (3 Nov 2026).
+  assert.match(
+    css,
+    /\.cal-dayhead \.cal-date \{[^}]*display: inline-grid;[^}]*min-width: 22px;[^}]*height: 22px;/,
+    "every day's date stands in the today mark's box",
   );
   // The week's and the month's lines stand on whole pixels: seven columns of a phone's width were 52.7px each and the
   // week's heads 52.25px tall, and the Week and the Month stepped a pixel as a slide ended, where the Day and the Agenda,
@@ -913,4 +926,164 @@ test("(lane C) a campaign's last day, and cold email on its own switch: a chain'
     "Bookings only",
   );
   assert.equal(value({ open: false, campaigns: false, cold: false }, both), "Bookings only");
+});
+
+/* ------------------------- a still Calendar on a phone (spec 2026-11-03) ------------------------- */
+// Every step in Ruben's four recordings of 3 Nov 2026 was the end of a move: the deck's slide between views, the swipe's
+// glide between days, a fade. While the days moved an iPhone drew them on a layer of their own, and as the move ended it
+// drew them on the page again, a pixel off. On a phone nothing moves the days now but the thumb scrolling them.
+
+/** A browser as the Calendar's page asks one, on a phone's width or a desk's, and what it was asked to scroll. */
+const browserFor = ({ phone }) => {
+  const kept = { window: globalThis.window, document: globalThis.document };
+  const root = { scrollTop: 0 };
+  const scrolls = [];
+  globalThis.document = { scrollingElement: root, documentElement: root, body: {} };
+  globalThis.window = {
+    matchMedia: (q) => ({ matches: phone && q.includes("720px") }),
+    getComputedStyle: (el) => ({ overflowY: "visible", paddingBottom: "0px", top: "0px", ...el?.computed }),
+    innerHeight: 760,
+    scrollY: 0,
+    scrollBy: (_x, y) => scrolls.push(["by", y]),
+    scrollTo: (_x, y) => scrolls.push(["to", y]),
+  };
+  globalThis.getComputedStyle = globalThis.window.getComputedStyle;
+  return {
+    scrolls,
+    done: () => {
+      for (const [name, value] of Object.entries(kept)) {
+        if (value === undefined) delete globalThis[name];
+        else globalThis[name] = value;
+      }
+      delete globalThis.getComputedStyle;
+    },
+  };
+};
+const boxAt = (top, more = {}) => ({ getBoundingClientRect: () => ({ top, bottom: top + 50, height: 50 }), ...more });
+
+test("a swipe across the days on a phone turns them as ‹ and › do, and nothing follows the finger", async () => {
+  const b = browserFor({ phone: true });
+  try {
+    const { touchSwipe } = await importSrc("apps/dashboard/src/surfaces/kit/motion/swipe.ts");
+    const { swipePagesOf } = await importSrc("apps/dashboard/src/surfaces/calendar/acts.tsx");
+    const moved = [];
+    const set = [];
+    const style = new Proxy({}, { set: (o, k, v) => (set.push(k), (o[k] = v), true) });
+    const pane = {
+      style,
+      offsetWidth: 375,
+      offsetHeight: 600,
+      scrollWidth: 375,
+      clientWidth: 375,
+      scrollHeight: 600,
+      clientHeight: 600,
+      parentElement: null,
+      matches: () => false,
+      closest: () => pane,
+    };
+    const h = touchSwipe({ pages: swipePagesOf((n) => moved.push(n)), when: () => true });
+    const swipe = (from, to) => {
+      h.onTouchStart({ touches: [{ clientX: from, clientY: 300 }], currentTarget: pane, target: pane });
+      for (const x of [from + (to - from) / 3, from + ((to - from) * 2) / 3, to])
+        h.onTouchMove({ touches: [{ clientX: x, clientY: 302 }], currentTarget: pane });
+      h.onTouchEnd({ changedTouches: [{ clientX: to, clientY: 302 }], currentTarget: pane });
+    };
+    swipe(300, 120);
+    assert.deepEqual(moved, [1], "a swipe to the left is the next days");
+    swipe(80, 260);
+    assert.deepEqual(moved, [1, -1], "and to the right the days before");
+    swipe(300, 285);
+    assert.deepEqual(moved, [1, -1], "a nudge is nothing");
+    assert.deepEqual(set, [], "and not one of them moved, faded or eased the days");
+    const sheet = { closest: () => sheet };
+    assert.equal(
+      swipePagesOf(() => moved.push(9))(pane, sheet),
+      null,
+      "a touch begun in a sheet over the days is the sheet's",
+    );
+  } finally {
+    b.done();
+  }
+});
+
+test("where the page stands after a change on a phone: the days' top under the bar, a board's hours where they were", async () => {
+  const { standAfter } = await importSrc("apps/dashboard/src/surfaces/calendar/board-dom.ts");
+  const b = browserFor({ phone: true });
+  try {
+    const bar = boxAt(146, { computed: { top: "146px" } });
+    const under = boxAt(120);
+    const shown = boxAt(260);
+    const at = (change, body, board = false) => standAfter({ body, bar, change, board, nowAt: null, opened: false });
+    at("days", under);
+    assert.deepEqual(
+      b.scrolls,
+      [["by", -76]],
+      "new days in the Agenda or the Month: their top just under the bar's foot",
+    );
+    b.scrolls.length = 0;
+    at("view", under, true);
+    assert.deepEqual(b.scrolls, [["by", -76]], "a new view too, a board's included");
+    b.scrolls.length = 0;
+    at("days", under, true);
+    at("days", shown);
+    at("view", shown);
+    at(null, under);
+    at("first", under);
+    assert.deepEqual(
+      b.scrolls,
+      [],
+      "a board keeps its hours across days (its heads stick), a top that shows is left, and so is the first draw",
+    );
+    // Near the foot of a shorter page the bar is pushed up out of its place: the days go under where it sticks, not
+    // where it stands for that moment (WebKit, the Agenda's next days from 400px down, 10px under the bar).
+    standAfter({
+      body: under,
+      bar: boxAt(136, { computed: { top: "146px" } }),
+      change: "days",
+      board: false,
+      nowAt: null,
+      opened: false,
+    });
+    assert.deepEqual(b.scrolls, [["by", -76]], "under where the bar sticks");
+  } finally {
+    b.done();
+  }
+  const desk = browserFor({ phone: false });
+  try {
+    standAfter({ body: boxAt(120), bar: boxAt(146), change: "view", board: false, nowAt: null, opened: false });
+    assert.deepEqual(desk.scrolls, [], "a desk's views scroll in a box of their own");
+  } finally {
+    desk.done();
+  }
+});
+
+test("a board that holds today opens at the hour before now, once for the view", async () => {
+  const { standAfter } = await importSrc("apps/dashboard/src/surfaces/calendar/board-dom.ts");
+  const b = browserFor({ phone: false });
+  try {
+    const grid = {
+      computed: { getPropertyValue: (k) => (k === "--cal-hour" ? "64px" : "") },
+      querySelector: () => null,
+    };
+    const board = {
+      computed: { overflowY: "auto" },
+      firstElementChild: grid,
+      scrollHeight: 1200,
+      clientHeight: 400,
+      scrollTop: 0,
+      parentElement: null,
+    };
+    const body = { ...boxAt(120), querySelector: (s) => (s === ".cal-scroll" ? board : null) };
+    const stand = (over) =>
+      standAfter({ body, bar: null, change: "first", board: true, nowAt: 10, opened: false, ...over });
+    assert.equal(stand({ nowAt: null }), false, "a board that does not hold today has not opened at now");
+    assert.equal(board.scrollTop, 0);
+    assert.equal(stand(), true);
+    assert.equal(board.scrollTop, 576, "nine hours of 64px down: the hour before ten");
+    board.scrollTop = 100;
+    assert.equal(stand({ change: "days", opened: true }), true);
+    assert.equal(board.scrollTop, 100, "opened once: a thumb's place is its own after that");
+  } finally {
+    b.done();
+  }
 });

@@ -39,6 +39,7 @@ import {
   DUPLICATE_REASON,
   JUDGE_MARGIN_MS,
   LEASE_SECONDS,
+  SCREEN_MARGIN_MS,
   LeadRetry,
   OUT_OF_AREA_REASON,
   PAGE_ITEMS,
@@ -110,6 +111,11 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
   }
 }
 
+/**
+ * One run's page, under its lease (collect above). A place the workspace already holds was read and paid for and is
+ * skipped: it is counted on the run (`already_yours`, 00506), so what a main phase pays again for its probe's places is
+ * measured before anything is changed for it.
+ */
 async function collectHeld(
   p: LeadPorts,
   round: LeadRoundRow,
@@ -188,8 +194,10 @@ async function collectHeld(
     const within = sharesWithin(cleans.filter((c) => !folded.has(c.raw.placeId)));
     const toJudge: Prepared[] = [];
     const rows: { prep: Prepared; shares: LeadShare[]; duplicateOf: string | null }[] = [];
+    let yours = 0;
     for (const prep of prepared) {
       const idn = identityOf(prep.clean, held, supp.placeIds, shares);
+      if (idn.kind === "already_yours") yours += 1;
       if (idn.kind === "already_yours" || idn.kind === "hidden") continue;
       const dup = folded.get(prep.clean.raw.placeId) ?? null;
       if (!prep.rule && geo.center && !inArea(geo.center, geo.radiusM, prep.clean.raw.location))
@@ -249,6 +257,7 @@ async function collectHeld(
       places,
       usage_usd: usage,
       items_seen: seen + end,
+      already_yours: yours,
       run_state: runDone ? remoteState : null,
       next: decision?.next ?? next,
       round: decision?.round ?? (round.state === "queued" ? { state: "probing", question: null, ending: null } : null),
@@ -319,7 +328,10 @@ async function judgedBatch(
   const out = { said: new Map<Prepared, Said>(), judgments: [] as CollectJudgment[], refused: null as string | null };
   if (!toJudge.length) return out;
   if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
-  const left = await screened(p, round, toJudge);
+  // The screen only where the judge keeps its whole bound after it; short of that, the judge reads every place itself.
+  const left = outOfTime(p, JUDGE_MARGIN_MS + SCREEN_MARGIN_MS)
+    ? new Map<Prepared, Said>()
+    : await screened(p, round, toJudge);
   for (const [prep, said] of left) out.said.set(prep, said);
   const rest = toJudge.filter((prep) => !left.has(prep));
   if (!rest.length) return out;
@@ -330,6 +342,8 @@ async function judgedBatch(
     (prep, ref) => factsOf(ref, prep.clean),
     (call) => opIdFor(runId, from, call),
     round,
+    // A refused answer is asked once more only with the judge's whole bound still left: past it, Needs review.
+    () => !outOfTime(p, JUDGE_MARGIN_MS),
   );
   for (const { items: asked, judged } of calls) {
     if (judged.refused && judged.why) out.refused = judged.why;
@@ -381,14 +395,15 @@ async function stopRun(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner
       items_seen: run.items_seen,
       run_state: FINAL_RUN_STATES.has(run.state) ? null : "aborted",
       next: null,
-      round:
-        round.state === "ended" || round.state === "checking"
-          ? null
-          : { state: "checking", question: null, ending: null, ending_pending: "stopped" },
+      round: null,
     };
+    // A round still on its way sends itself to its checks with "stopped" pending, the checks' job in the same commit.
+    if (round.state !== "ended" && round.state !== "checking") {
+      page.round = { state: "checking", question: null, ending: null, ending_pending: "stopped" };
+      page.next = { kind: "lead_check", batch: 0, run_after_seconds: 0 };
+    }
     const res = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset, page);
     if (!res.ok) return { kind: "lost", why: res.why };
-    if (page.round) await p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0);
     return { kind: "stopped" };
   } finally {
     await p.db.runRelease(run.id, owner, gen);

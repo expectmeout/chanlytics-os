@@ -3,7 +3,9 @@ import { z } from "zod";
 import {
   CONSENT_CHANNELS,
   FOLLOW_UP_CONDITIONS,
+  HELD_DECIDE_CARD,
   LEAD_LIST_MAX,
+  LEAD_REWRITE_CHANGE_MAX,
   PLAYBOOK_CARD_WORDS,
   PROPOSAL_SPECS,
   REACH_OUT_AFTER_DAYS,
@@ -368,24 +370,18 @@ async function sendOnCard(
   return { rec, name: row.name ?? "The business", send_id: id };
 }
 
-const DECIDE_TITLE: Record<(typeof REACH_OUT_DECISIONS)[number], string> = {
-  include: "Let it go as it is",
-  rewrite: "Write its opening again",
-  skip: "Leave it out of this batch",
-  not_a_fit: "Set the business aside",
-};
-
 async function proposeSendDecide(
   t: ToolContext,
-  input: { sequence_id: string; send_id: string; decision: (typeof REACH_OUT_DECISIONS)[number] },
+  input: { sequence_id: string; send_id: string; decision: (typeof REACH_OUT_DECISIONS)[number]; change?: string },
 ): Promise<ProposalOutcome> {
   const on = await sendOnCard(t, input, "held");
   if (isRefusal(on)) return refuse(on.refusal);
+  const change = input.decision === "rewrite" ? (input.change ?? "").trim() : "";
   return propose({
     kind: "sequence_send_decide",
-    title: `${DECIDE_TITLE[input.decision]}: ${on.name}`,
-    summary: `The email to ${on.name} that the check held, in ${on.rec.sequence.name}. An email let go may be on its way at once, so nothing undoes it.`,
-    payload: { send_id: on.send_id, decision: input.decision, name: on.name, sequence_id: on.rec.sequence.id },
+    title: `${HELD_DECIDE_CARD[input.decision].title}: ${on.name}`,
+    summary: `The email to ${on.name} that the check held, in ${on.rec.sequence.name}. ${HELD_DECIDE_CARD[input.decision].after(change)}`,
+    payload: { send_id: on.send_id, decision: input.decision, name: on.name, sequence_id: on.rec.sequence.id, change },
   });
 }
 
@@ -693,6 +689,13 @@ export const propose_sequence = defineActions({
         sequence_id: SEQUENCE_ID,
         send_id: z.string().describe("A held email's send_id, from sequences with action sequence (waiting_on_you)."),
         decision: z.enum(REACH_OUT_DECISIONS).describe("include, rewrite, skip or not_a_fit."),
+        change: z
+          .string()
+          .max(LEAD_REWRITE_CHANGE_MAX)
+          .optional()
+          .describe(
+            "Only with rewrite: what should change in the opening, in the words the person used; none where they said none.",
+          ),
       }),
       examples: [
         {
@@ -703,7 +706,7 @@ export const propose_sequence = defineActions({
       ],
       label: "Preparing the held email",
       words:
-        "Action decide answers an email the check held: include lets it go as it is, rewrite writes its opening again, skip leaves it out of this batch, not_a_fit sets its business aside. Nothing undoes it.",
+        "Action decide answers an email the check held: include lets it go as it is, rewrite writes its opening again at once (as the person says, with change) and can be undone, skip leaves it out of this batch, not_a_fit sets its business aside. Only a rewrite is undone.",
       build: proposeSendDecide,
     }),
     sent_by_hand: actAction({

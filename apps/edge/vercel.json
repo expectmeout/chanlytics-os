@@ -245,6 +245,9 @@
           "api/admin/calendar/freed-time.ts": {
             "maxDuration": 60
           },
+          "api/admin/reach-out/check.ts": {
+            "maxDuration": 60
+          },
           "api/admin/voice/session.ts": {
             "maxDuration": 60
           },

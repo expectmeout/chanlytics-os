@@ -130,10 +130,13 @@ export async function judgeCompanyBatch(
   opId: string,
   batch: number,
   round: { id: string; tenant_id: string },
+  /** Whether a second ask still fits before the function is killed, as judgeBatch's. */
+  mayAskAgain: () => boolean = () => true,
 ): Promise<JudgedCompanies> {
   if (!companies.length) return { answers: new Map(), judgment: null, refused: false, why: null };
   let why: string | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0 && !mayAskAgain()) break;
     const a = await judge.judgeCompanies(plan, companies, round.tenant_id, round.id);
     if ("refused" in a) {
       why = a.why;
@@ -159,10 +162,16 @@ export async function judgeBatch(
   round?: { id: string; tenant_id: string },
   /** Which of its batch's calls this is (judgeInCalls), kept with its judgment. */
   batch = 0,
+  /**
+   * Whether a second ask still fits before the function is killed (the runner's deadline): a refusal is asked once more
+   * only then, or its places are Needs review. A second call started short of its bound is killed mid-way and paid twice.
+   */
+  mayAskAgain: () => boolean = () => true,
 ): Promise<JudgedBatch> {
   if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false, why: null };
   let last: { refused: true; why: string } | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0 && !mayAskAgain()) break;
     const a = await judge.judge(plan, places, round?.tenant_id, round?.id);
     if ("refused" in a) {
       last = a;
@@ -191,6 +200,8 @@ export async function judgeInCalls<T>(
   facts: (item: T, ref: number) => PlaceFacts,
   opIdOf: (call: number, items: readonly T[]) => string,
   round?: { id: string; tenant_id: string },
+  /** Whether a call refused once may be asked again in the time left (judgeBatch). */
+  mayAskAgain?: () => boolean,
 ): Promise<{ items: T[]; judged: JudgedBatch }[]> {
   const size = judgeCallPlaces(plan);
   const calls: T[][] = [];
@@ -205,6 +216,7 @@ export async function judgeInCalls<T>(
         opIdOf(i, c),
         round,
         i,
+        mayAskAgain,
       ),
     })),
   );

@@ -52,7 +52,8 @@ export const LEAD_SHEET_WORDS = {
     readAll: "Read it all",
     less: "Show less",
     rewrite: "Rewrite the opening",
-    writing: "Being written, a minute or two.",
+    // The check writes it in seconds when it is pressed, on its clock's next minute when it is not (00505).
+    writing: "Being written…",
   },
   listing: "Listing",
   claimed: "Claimed by the owner",

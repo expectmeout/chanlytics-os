@@ -700,6 +700,85 @@ test("on a phone the reply box opens folded and opens as it is tapped or typed i
   }
 });
 
+test("folded, the box is one line of its words: a draft written over lines reads on one, the receptionist's spark before it while it is theirs, and an empty box its invitation (Ruben, 3 Nov 2026: a greeting over an empty line)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
+  const text = "Hi Rosa,\n\nYes, Friday works.\n\n  Shall I book 10 AM?";
+  const kept = { conversation_id: "c1", kind: "reply", for_message_id: "m1", made_at: ago(30) };
+  const glanceOf = async (words, typed = null) => {
+    setSurfaceValue("reply_drafts", {
+      drafts: words ? [{ ...kept, words: { text: words, subject: "", brief: null, asks: [] } }] : [],
+      complete: true,
+      fetchedAt: Date.now(),
+    });
+    fresh();
+    const thread = vmOf(dto, esc);
+    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    const first = draw();
+    if (typed !== null) find(first, (n) => n.type === "textarea").props.onChange({ target: { value: typed } });
+    // The box draws the kept words in its first frame, and what is typed as it is typed: the field holds what the line says.
+    const want = typed ?? words ?? "";
+    await until(() => find(draw(), (n) => n.type === "textarea").props.value === want, "the box's words");
+    const glance = find(draw(), byTestId("ix-composer-glance"));
+    const words_ = find(glance, hasClass("ix-composer-glance-words"));
+    return {
+      said: textOf(words_),
+      empty: words_.props["data-empty"],
+      spark: !!find(glance, (n) => n.props?.className === "ix-composer-drafted-spark"),
+      hidden: glance.props["aria-hidden"],
+    };
+  };
+  try {
+    const theirs = await glanceOf(text);
+    assert.equal(theirs.said, "Hi Rosa, Yes, Friday works. Shall I book 10 AM?", "every line on the one");
+    assert.equal(theirs.spark, true, "the receptionist's words, as the line over the open box says");
+    assert.equal(theirs.empty, undefined);
+    assert.equal(theirs.hidden, "true", "the eye's alone: the field is what a screen reader reads");
+    const changed = await glanceOf(text, "Hi Rosa,\nFriday at 10 it is.");
+    assert.equal(changed.said, "Hi Rosa, Friday at 10 it is.");
+    assert.equal(changed.spark, false, "a member's own words wear no spark");
+    const none = await glanceOf(null);
+    assert.equal(none.said, "Email to Rosa…", "an empty box says what it is for");
+    assert.equal(none.empty, "", "in the faint ink");
+  } finally {
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
+test("on a phone the reply box wears the sheet's handle, a button that opens it and folds it away, and takes its own pull; a desk's has neither", () => {
+  const win = globalThis.window;
+  const was = win.matchMedia;
+  const thread = vmOf(chat(), asked());
+  const draw = () => again(() => InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp" } }));
+  const foot = (tree) => find(tree, hasClass("ix-th-foot"));
+  const handle = (tree) => find(tree, byTestId("ix-th-foot-handle"));
+  try {
+    win.matchMedia = (q) => ({ matches: q.includes("720px"), addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const folded = draw();
+    assert.equal(handle(folded).props["aria-label"], "Open the reply", "named by where it goes");
+    assert.equal(handle(folded).props["aria-expanded"], false);
+    assert.equal(foot(folded).props["data-own-drag"], "", "a pull on it is its own, never the page's (page-give.ts)");
+    assert.equal(typeof foot(folded).props.onTouchStart, "function", "and a thumb moves it (dock.ts dockSwipe)");
+    handle(folded).props.onClick();
+    const open = draw();
+    assert.equal(foot(open).props["data-folded"], undefined, "pressed, it opens");
+    assert.equal(handle(open).props["aria-label"], "Fold the reply away");
+    assert.equal(handle(open).props["aria-expanded"], true);
+    handle(open).props.onClick();
+    assert.equal(foot(draw()).props["data-folded"], "", "pressed again, it folds away");
+    win.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const desk = draw();
+    assert.equal(handle(desk), undefined, "a desk's pane has the room: no handle");
+    assert.equal(foot(desk).props.onTouchStart, undefined, "and nothing to pull");
+  } finally {
+    win.matchMedia = was;
+  }
+});
+
 test("a draft taller than the box is read from its first line, and what the member types keeps its place", async () => {
   const { growWithWords } = await import(`${S}/inbox/thread/send-words.tsx`);
   const field = { style: {}, scrollHeight: 640, scrollTop: 380 };

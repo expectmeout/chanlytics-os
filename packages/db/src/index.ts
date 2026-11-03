@@ -260,6 +260,7 @@ export {
   reachOutSources,
 } from "./repositories/campaigns/reach-out-leads";
 export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
+export { decideSendDoor, sendOpeningsOf, undoSendRewrite } from "./repositories/campaigns/reach-out-rewrite";
 export { sequenceMakes } from "./repositories/campaigns/sequence-makes";
 export type { SequenceMake } from "./repositories/campaigns/sequence-makes";
 export {
@@ -558,17 +559,19 @@ export {
   ideasBasis,
   ideasClockAndLanguage,
   keepIdeas,
+  keepLeadPrices,
   leadAddresseeChoose,
   leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,
   leadPeopleSearchCreate,
+  leadPricesSeen,
   leadViewCounts,
   readIdeaHistory,
   readLeadOne,
   saveIdeasLine,
 } from "./repositories/leads";
-export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember } from "./repositories/leads";
+export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./repositories/leads";
 export {
   addToList,
   archiveList,

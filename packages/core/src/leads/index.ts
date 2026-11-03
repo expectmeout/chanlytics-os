@@ -64,6 +64,8 @@ export type { CheckAgain, CheckOutcome } from "./runner/check";
 export { collect } from "./runner/collect";
 export type { CollectOutcome } from "./runner/collect";
 export { MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_TRIES, markPlaces } from "./runner/mark-places";
+export { MAX_CARRY_ONS, nextStepOf, REDRIVE_AFTER_MS } from "./runner/next-step";
+export type { RoundStep, StepJobs, StepRound, StepRun } from "./runner/next-step";
 export { centerOf, memberOf, nearbyFor, takeBatch } from "./runner/places";
 export { rejudgeProbe } from "./runner/rejudge";
 export type { RejudgeOutcome } from "./runner/rejudge";
