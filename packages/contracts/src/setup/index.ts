@@ -82,6 +82,7 @@ export { FIRST_RUN_TRY_WORDS, firstRunTryOf, TRY_QUIET_AFTER_MS } from "./first-
 export type { FirstRunTryInput, FirstRunTryStage, FirstRunTryVM, TryTransferKey } from "./first-run-try";
 export {
   BROKEN_CONFIG_WORDS,
+  callsNotByPhone,
   forwardedLineOf,
   keptPhoneKind,
   LINE_CREDENTIALS_SENTENCE,
@@ -100,6 +101,7 @@ export {
   TEXTING_NEEDS_RECORD_CLAUSE,
   TEXTING_NEEDS_RECORD_SENTENCE,
   textingWords,
+  withWorkspaceChoices,
 } from "./setup";
 export type {
   LineDto,
@@ -112,6 +114,7 @@ export type {
   SetupState,
   SetupVerb,
   SetupVM,
+  SetupWorkspaceChoicesDto,
   WhatsappChoice,
 } from "./setup";
 export {
@@ -129,6 +132,7 @@ export {
   setupPutOffNext,
   setupRestsOf,
   TRY_SKIPPED,
+  WORKSPACE_MARKS,
 } from "./setup-put-off";
 export type { SetupPutOff, SetupPutOffChange, SetupPutOffWhy, SetupRests } from "./setup-put-off";
 /** The fold over the rows' table lives with the table (setup-rows.ts); the name is the one the page has always read. */

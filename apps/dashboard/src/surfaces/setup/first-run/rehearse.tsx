@@ -19,8 +19,8 @@ import { setupVerbs } from "../surface";
 
 const RW = FIRST_RUN_HELPERS.words.rehearse;
 
-/** What it reads from, beside the call: the card's facts, a line each, and questions to try. */
-function Using({ card }: { card: ReceptionistCardVM }): ReactNode {
+/** What it reads from, beside the call: the card's facts, a line each, and questions to try, its own business's. */
+function Using({ card, asks }: { card: ReceptionistCardVM; asks: readonly string[] }): ReactNode {
   const rows = card.rows.filter(
     (r) => r.key === "open" || r.key === "knows" || r.key === "books" || r.key === "speaks",
   );
@@ -38,7 +38,7 @@ function Using({ card }: { card: ReceptionistCardVM }): ReactNode {
       <p className="fr-detail">{RW.usingNote}</p>
       <span className="fr-label">{RW.tryAsking}</span>
       <ul className="fr-asks" data-testid="fr-asks">
-        {RW.asks.map((q) => (
+        {asks.map((q) => (
           <li key={q} className="chip">
             {q}
           </li>
@@ -90,6 +90,8 @@ function Skip({ fr, flash, go }: { fr: FirstRunVM; flash: (f: LegacyFlash) => vo
 export function FrRehearse(o: {
   fr: FirstRunVM;
   card: ReceptionistCardVM;
+  /** "Try asking", from the business's own facts (FIRST_RUN_HELPERS.rehearseAsks). */
+  asks: readonly string[];
   bookingLink: string | null;
   trained: number;
   canEdit: boolean;
@@ -152,7 +154,7 @@ export function FrRehearse(o: {
         <Skip fr={fr} flash={flash} go={go} />
         {o.foot ?? null}
       </div>
-      <Using card={card} />
+      <Using card={card} asks={o.asks} />
     </div>
   );
 }

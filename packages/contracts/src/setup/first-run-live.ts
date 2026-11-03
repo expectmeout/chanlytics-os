@@ -2,7 +2,7 @@
  * The first run's last step, Live (docs/superpowers/plans/2026-09-24-first-run-5-try-live.md, 5b; canvas R9, P8, C2):
  * what the receptionist answers, who it puts callers through to, where it emails the owner and what it knows, the
  * greeting every caller hears, and the "you're live" email Finish sends. "It will / Not yet" is the Business tab's own
- * card (business-can.jsx), drawn as it is there. Every sentence is here; the page and the edge compose.
+ * card (the Business tab's), drawn as it is there. Every sentence is here; the page and the edge compose.
  */
 import { formatPhoneDisplay } from "../shared/phone";
 import { possessive } from "../shared/words";
@@ -47,10 +47,12 @@ export const FIRST_RUN_LIVE_WORDS = {
   greeting: (words: string) => `Every caller hears “${words}”`,
   finishNote: "We'll email you a copy of this.",
   /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
-  emailSubject: (business: string | null) =>
+  emailSubject: (business: string | null, calls = true) =>
     business
-      ? `Your receptionist is answering ${possessive(business)} calls`
-      : "Your receptionist is answering your calls",
+      ? `Your receptionist is answering ${possessive(business)} ${calls ? "calls" : "customers"}`
+      : `Your receptionist is answering your ${calls ? "calls" : "customers"}`,
+  /** WhatsApp answering (decision 0091: going live is any channel, calls or not). */
+  emailWhatsapp: (n: string) => `From now on, WhatsApp messages to ${n} are answered by your receptionist.`,
   emailTest: (length: string | null, from: string | null, through: string | null) =>
     `It answered your test call${length ? ` (${length})` : ""}${from ? ` from ${from}` : ""}${through ? ` through ${through}` : ""}.`,
   emailFrom: (kept: string | null, own: string | null, always = false) =>
@@ -160,6 +162,8 @@ export interface YouAreLiveInput {
   test: { from: string | null; length: string | null } | null;
   /** The workspace's Today, when the edge knows the dashboard's address. */
   todayUrl: string | null;
+  /** The WhatsApp number the receptionist answers, E.164, when one is connected; absent or null for none. */
+  whatsapp?: string | null;
 }
 
 /** The "you're live" email (canvas C2): what the test call proved, what happens from now on, and where alerts go. */
@@ -167,12 +171,15 @@ export function youAreLiveEmail(i: YouAreLiveInput): { subject: string; body: st
   const W = FIRST_RUN_LIVE_WORDS;
   const own = formatPhoneDisplay(i.own);
   const kept = formatPhoneDisplay(i.kept);
+  const wa = formatPhoneDisplay(i.whatsapp ?? null);
+  const calls = !!(own || kept);
   const lines = [
     i.test ? W.emailTest(i.test.length, formatPhoneDisplay(i.test.from), kept) : null,
-    W.emailFrom(kept, own, i.always),
-    W.emailThrough(formatPhoneDisplay(i.handoff)),
+    calls || !wa ? W.emailFrom(kept, own, i.always) : null,
+    wa ? W.emailWhatsapp(wa) : null,
+    calls || !wa ? W.emailThrough(formatPhoneDisplay(i.handoff)) : null,
     W.emailAlerts,
     i.todayUrl ? W.emailOpen(i.todayUrl) : null,
   ].filter((x): x is string => !!x);
-  return { subject: W.emailSubject(i.business), body: `${lines.join("\n\n")}\n` };
+  return { subject: W.emailSubject(i.business, calls || !wa), body: `${lines.join("\n\n")}\n` };
 }

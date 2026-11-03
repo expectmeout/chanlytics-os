@@ -345,6 +345,6 @@ export function leadDb(db: Db): LeadDb {
     },
     zoneOf: async (tenantId) => (await workspaceZoneOf(db, tenantId)) || DEFAULT_TIMEZONE,
     leadSearchesOn: (tenantId) => bool("lead_searches_on", { p_tenant_id: tenantId }),
-    maySpend: (tenantId) => workspaceMaySpend(db, tenantId),
+    maySpend: (tenantId) => workspaceMaySpend(db, tenantId, "leads"),
   };
 }

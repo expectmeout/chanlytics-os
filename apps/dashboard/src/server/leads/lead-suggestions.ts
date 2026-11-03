@@ -227,7 +227,7 @@ async function roomOf(
   try {
     const row = await ideasClockAndLanguage(ctx.supabase, tenantId);
     const used = await monthUsed(ctx, tenantId, leadMonth(tenantFactsOf(row).timezone, now));
-    return { leadsLeft: Math.max(0, LEAD_MONTHLY_ALLOWANCE - used.allowance), language: languageOf(row?.locale ?? "") };
+    return { leadsLeft: Math.max(0, used.cap - used.allowance), language: languageOf(row?.locale ?? "") };
   } catch {
     return { leadsLeft: LEAD_MONTHLY_ALLOWANCE, language: "en" };
   }

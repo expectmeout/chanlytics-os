@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_RUN_HELPERS, FIRST_RUN_TRIAL_DAYS, GET_YES_ROUTE, setupSteps } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS, GET_YES_ROUTE, setupSteps } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const PRICE = { id: "price_example", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Plan" };
@@ -105,10 +105,10 @@ const answeringDto = (extra = [], over = {}) =>
     ...over,
   });
 
-test("Pay (5A): what starts and what it asks after, the plan's price, and the trial as FIRST_RUN_TRIAL_DAYS says it, never more", () => {
+test("Pay (5A): what starts and what it asks after, the plan's price, and the trial as the checkout gives it, never more", () => {
   const gl = goLive(dtoOf({ calendar: { state: "ok" } }), { whatsapp: "same" });
   assert.equal(gl.stage, "pay");
-  assert.equal(FIRST_RUN_TRIAL_DAYS, 0, "D2: no trial until Ruben says");
+  // One trial from every door (decision 0090): the deployment's 14 days, the number included.
   assert.deepEqual(gl.pay, {
     starts: [
       { key: "calls", label: "Calls to +1 (305) 555-0100 nobody picks up", after: "one code, then one call" },
@@ -116,14 +116,14 @@ test("Pay (5A): what starts and what it asks after, the plan's price, and the tr
       { key: "bookings", label: "Bookings from your calendar", after: "nothing to do" },
     ],
     price: "$49.00 a month",
-    trial: "Charged today",
-    note: "Its number, calls and WhatsApp included. Cancel anytime from Billing.",
+    trial: "14 days free",
+    note: "Its number, calls and WhatsApp included. First charge on day 15. Cancel anytime from Billing.",
     after: [
       "Its number is bought for you",
       "Your booking-link message goes to Meta for approval · minutes to a day",
       "Then on your phone: dial one code, call your number once, approve WhatsApp",
     ],
-    secured: "Secured by Stripe",
+    secured: "Nothing is charged today · secured by Stripe",
   });
   assert.equal(gl.hands, 2, "the forwarding code and WhatsApp's approval");
   assert.equal(

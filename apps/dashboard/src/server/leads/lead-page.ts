@@ -6,7 +6,6 @@ import {
   AppError,
   isSystemOneModel,
   LEAD_KIND_KEY,
-  LEAD_MONTHLY_ALLOWANCE,
   LEAD_READ_SOURCES,
   type LeadCheck,
   type LeadCheckKey,
@@ -354,8 +353,8 @@ async function monthStanding(
 ): Promise<LeadMonthDto> {
   const { timezone } = await tenantFacts(ctx.supabase, tenantId);
   const used = await monthUsed(ctx, tenantId, leadMonth(timezone, now));
-  const left = Math.max(0, LEAD_MONTHLY_ALLOWANCE - used.allowance);
-  return { used: LEAD_MONTHLY_ALLOWANCE - left, left, renewsOn: renewsOnOf(timezone, now) };
+  const left = Math.max(0, used.cap - used.allowance);
+  return { used: used.cap - left, left, renewsOn: renewsOnOf(timezone, now) };
 }
 
 /**

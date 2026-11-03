@@ -232,7 +232,8 @@ test("REGRESSION (S9): Setup's billing row says test mode before anything it say
     [
       SAID,
       "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
-      "A phone number, texting and lead searches start with the plan.",
+      // What the trial covers (decision 0090: everything, up to its allowances).
+      "Your trial includes everything: your number, texting and every channel, up to 150 call minutes, 1,000 replies and 50 leads.",
     ],
     "REGRESSION: the charge was said with nothing about the keys",
   );

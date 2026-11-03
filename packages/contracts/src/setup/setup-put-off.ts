@@ -39,6 +39,13 @@ export const REHEARSE_SKIPPED = "rehearse-skipped";
 export const CHANNELS_SEEN = "channels-seen";
 
 /**
+ * The first run's marks that say a step of the WORKSPACE is done, kept on the workspace (setup_choices.marks, 00513,
+ * decision 0091) as well as in the member's view: whoever went on, every member and the back office then stand at the
+ * same step. A put-off for a week or for good stays the member's own.
+ */
+export const WORKSPACE_MARKS = [RECEPTIONIST_MET, REHEARSE_SKIPPED, CHANNELS_SEEN] as const;
+
+/**
  * "Not now" on the first run's Connect it to Google (decision 0073, R17): the member's own, as a row put off is. Your
  * business goes on without it; Setup's Google row keeps Connect for later.
  */
