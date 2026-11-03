@@ -12,19 +12,15 @@
  * leaving plays from there.
  */
 import type { TouchEvent as ReactTouchEvent } from "react";
+import { FLICK_PX, FLICK_SPEED, GRAB_PX } from "./pull";
 
 /** Where a two-rest sheet stands. */
 export type SheetRest = "half" | "full";
 
-/** How far a touch goes before it is a pull and not a tap. */
-const GRAB_PX = 6;
 /** How far a pull goes before it lands at the other rest. */
 const TURN_PX = 80;
 /** How far down a pull from half goes before it closes. */
 const CLOSE_PX = 160;
-/** A flick: fast enough (px a millisecond) over at least this far. */
-const FLICK_SPEED = 0.5;
-const FLICK_PX = 24;
 
 /** One touch on a sheet: where it began, how far it has gone, and whether it moves the sheet or is the body's. */
 interface Grab {
