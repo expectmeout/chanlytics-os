@@ -4,7 +4,8 @@
  * what the role allows and says why when it does not. `phone`: the bar is docked along the foot of a phone's pane and
  * scrolls sideways, so its menus are placed against the window (MoreMenu escape), which that scroll cannot cut off.
  * `lead` is a page's own act, drawn first after the count (the Pipeline's Mark as passed · N); `acts` names which of
- * People's own it keeps ("lists", "consent", "receptionist", "note", "export"), every one where it is not given.
+ * People's own it keeps ("lists", "consent", "receptionist", "note", "export", "delete"), every one where it is not
+ * given.
  * The hooks are one hook's (bulk-state.ts), in the order the bar always kept its state.
  */
 import type { ReactNode } from "react";

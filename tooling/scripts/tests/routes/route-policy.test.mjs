@@ -112,6 +112,8 @@ const FRESH = [
   "DELETE contacts/[id]",
   // Not a person (00483): deletes the person as Delete person does, after saying their mail is automated.
   "POST contacts/[id]/not-a-person",
+  // People's Delete… for a selection: each person as Delete person deletes one, fifty at a press.
+  "POST contacts/erase",
   "POST contacts/[id]/merge",
   "DELETE leads/[id]",
   "POST billing/checkout",

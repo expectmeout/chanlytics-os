@@ -20,6 +20,7 @@ import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 import { messagesChoices } from "./messages";
 import type { MessagesChoice } from "./messages";
+import { DELETE_MANY_WORDS, DeleteManyQuestion, mayDeleteMany } from "./delete-many";
 
 /** One step of the phone's sheet: its title, a way back to the list it came from, and its body. */
 interface Step {
@@ -28,7 +29,7 @@ interface Step {
   body: ReactNode;
 }
 
-/** More: what a selection can become past a list and a note, each behind the role that may do it. */
+/** More: what a selection can become past a list and a note, each behind the role that may do it; last, an owner's Delete…. */
 function moreStep(b: BulkCtx, a: BulkActs, messages: boolean): Step {
   const { st, onSheet, canEdit, activeSaved, ids, keeps } = b;
   // What the page keeps of People's acts (the Pipeline keeps its lists and its file).
@@ -73,6 +74,25 @@ function moreStep(b: BulkCtx, a: BulkActs, messages: boolean): Step {
             }}
             testid="bulk-drop-list"
           />
+        ) : null}
+        {mayDeleteMany(b) ? (
+          <>
+            <PhoneSheetRow
+              icon="ban"
+              label={DELETE_MANY_WORDS.notAPerson}
+              disabled={busy}
+              onClick={() => a.askDelete(true)}
+              testid="bulk-not-a-person"
+            />
+            <PhoneSheetRow
+              icon="x"
+              label={DELETE_MANY_WORDS.delete}
+              danger
+              disabled={busy}
+              onClick={() => a.askDelete(false)}
+              testid="bulk-delete"
+            />
+          </>
         ) : null}
       </div>
     ),
@@ -259,10 +279,11 @@ export function dockAct(o: {
  * The dock's acts for who may use them: a list, a note and More for whoever may change people; a file alone for whoever
  * may only export, which needs no sheet. With nobody picked yet they stand and wait.
  */
-/** Whether More has anything past the acts up front: Messages and receptionist, or a list to take them off. */
+/** Whether More has anything past the acts up front: Messages and receptionist, a list to take them off, or Delete…. */
 const moreHolds = (b: BulkCtx) =>
   messagesChoices(b, { yes: () => () => undefined, mode: () => undefined }).length > 0 ||
-  (b.canEdit && !!b.activeSaved && !!b.activeSaved.byHand && b.keeps("lists"));
+  (b.canEdit && !!b.activeSaved && !!b.activeSaved.byHand && b.keeps("lists")) ||
+  mayDeleteMany(b);
 
 function dockActs(b: BulkCtx, a: BulkActs) {
   const { st, onSheet, onClear, canEdit, canExport, ids, keeps, lead } = b;
@@ -403,6 +424,7 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
       >
         {step ? step.body : null}
       </Sheet>
+      {mayDeleteMany(b) ? <DeleteManyQuestion b={b} a={a} /> : null}
     </>
   );
 }
