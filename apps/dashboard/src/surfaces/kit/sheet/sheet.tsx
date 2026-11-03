@@ -36,7 +36,8 @@ import { onAPhone, touchSwipe } from "../../legacy-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { cx } from "../variants";
 import { useBackCloses } from "./back";
-import { restSwipe, type SheetRest } from "./rests";
+import { SheetHandle, type SheetRestControl } from "./handle";
+import { restSwipe } from "./rests";
 
 /** A step inside a job: the way back to the one it came from, named for a screen reader, its glyph drawn. */
 export type SheetBack = { label: string; glyph: ReactElement; onBack: () => void };
@@ -85,7 +86,7 @@ type SheetShape =
        * page's (`at`), and `onRest` asks to move it: the handle is a button that turns it, named by `turn`, and a pull
        * moves it, from half down to close. On a desk it is the side pane, and has none.
        */
-      rest?: { at: SheetRest; onRest: (at: SheetRest) => void; turn: { up: string; down: string } };
+      rest?: SheetRestControl;
       back?: undefined;
     }
   | {
@@ -237,25 +238,6 @@ function jobParts(p: SheetProps & { shape: "job" }) {
   );
 }
 
-/**
- * The handle: a mark of the pull, or, on a sheet with two rests, a button that turns it to the other, said by where it
- * goes.
- */
-function handleOf(rest: SheetProps["rest"], testid: string | undefined) {
-  if (!rest) return <div className="sheet-handle" aria-hidden="true" />;
-  const to: SheetRest = rest.at === "half" ? "full" : "half";
-  return (
-    <button
-      type="button"
-      className="sheet-handle"
-      aria-label={to === "full" ? rest.turn.up : rest.turn.down}
-      aria-expanded={rest.at === "full"}
-      onClick={() => rest.onRest(to)}
-      data-testid={partId(testid, "handle")}
-    />
-  );
-}
-
 /** A modal sheet, over the page's wash, drawn on the document's body. */
 export function Sheet(props: SheetProps) {
   const { open, onClose, initialFocus, className, ref, testid, backCloses } = props;
@@ -306,7 +288,7 @@ export function Sheet(props: SheetProps) {
             : touchSwipe({ onDown: onClose, when: onAPhone }))}
           render={(p, state) => <section {...p} data-leaving={closingWord(state)} />}
         >
-          {handleOf(shown.rest, testid)}
+          <SheetHandle rest={shown.rest} testid={testid} />
           {shown.shape === "job" ? jobParts(shown) : recordParts(shown)}
         </Dialog.Popup>
       </Dialog.Portal>

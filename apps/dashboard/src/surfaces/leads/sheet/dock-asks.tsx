@@ -1,14 +1,17 @@
 /**
  * What the lead sheet's foot draws beyond its presses: their email handed over, the row every To send draws, its acts
- * alone in the dock (its mail apps, Sent or Skip), and They wrote back…, what they replied in five words, which stops
- * their place as a read reply does, in the dock's place. Every word is contracts'.
+ * alone in the dock (its mail apps, Sent or Skip), They wrote back…, what they replied in five words, which stops
+ * their place as a read reply does, in the dock's place, and Rewrite the opening's what should change. Every word is
+ * contracts'.
  */
 import { toSendRowOf, type LeadPeekVM, type SequencePlaceDto, type ToSendRowVM } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { RoSaidAsk } from "../../campaigns/reach-out/said-ask";
 import { RoToSendRows } from "../../campaigns/reach-out/to-send";
+import { RewriteAsk } from "../../campaigns/reach-out/rewrite-ask";
 import { refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../peek/types";
+import type { SheetUiState } from "./sheet-ui";
 
 interface DockAskProps {
   vm: LeadPeekVM;
@@ -79,5 +82,33 @@ export function SheetSaidAsk(
         testid="lead-sheet-said"
       />
     </div>
+  );
+}
+
+/**
+ * Rewrite the opening, asked in the dock's place (00505; campaigns/reach-out/rewrite-ask.tsx): the email said as being
+ * written while it is, and the Undo a landed rewrite keeps beside it.
+ */
+export function SheetRewrite(p: {
+  row: { send_id: string | null; batch_id: string | null };
+  name: string;
+  flash: Flash;
+  moved: () => void;
+  put: (next: Partial<SheetUiState>) => void;
+}) {
+  const sendId = p.row.send_id;
+  if (!sendId) return null;
+  return (
+    <RewriteAsk
+      sendId={sendId}
+      runId={p.row.batch_id}
+      name={p.name}
+      flash={p.flash}
+      moved={p.moved}
+      onBack={() => p.put({ ask: null })}
+      onWriting={(on) => p.put({ writing: on })}
+      onLanded={(kept) => p.put({ undo: kept ? { sendId, kept } : null })}
+      testid="lead-sheet-rewrite"
+    />
   );
 }

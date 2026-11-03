@@ -1779,6 +1779,20 @@
       "rate": "playbook",
       "spend": false
     },
+    "POST reach-out-sends/[id]/undo-rewrite": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST reach-out-sends/check": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": true
+    },
     "POST reach-outs/[id]/leads/check": {
       "kind": "write",
       "scope": "row",

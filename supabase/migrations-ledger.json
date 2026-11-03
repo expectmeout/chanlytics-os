@@ -44,8 +44,7 @@
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
     "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
     "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
-    "00504": "claimed by cm-empty-batch (#2061, a run with nothing to send waits on nobody), open when cm-page-open's 00507-00510 were recorded",
-    "00505": "claimed by cm-opening-rewrite (#2064, an opening is written again as its owner says), open when cm-page-open's 00507-00510 were recorded",
+    "00504": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, a run with nothing to send waits on nobody), open and not on main when an opening is written again as its owner says took 00505; record drops this once #2061 lands",
     "00506": "claimed by cm-lead-ten (the lead finder's lanes 1-4), not pushed when cm-page-open's 00507-00510 were recorded"
   },
   "migrations": {
@@ -509,6 +508,7 @@
     "00501_a_stopped_erasure_finishes.sql": "6bb9bed2b8523bb7ca1b7e2b6150169c637ad7d4f82580e0de5cdd3a77159ad5",
     "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097",
     "00503_a_held_reply_goes_now_on_a_member_s_word.sql": "d146d35b50cabf0036dc908583c0ec44738c34288bab59f800cfb407fc7816f8",
+    "00505_an_opening_is_written_again_as_its_owner_says.sql": "0dbe0500d8bc1ce2960b1ff7bcf7c93807a76390871661c4fc93394b2c3e3dc0",
     "00507_a_notice_is_told_at_its_commit.sql": "39515d841c3c1b5da1745462e524713e26403169d5c954d57719f1cd9c50f514",
     "00508_a_tab_catches_up_on_what_it_missed.sql": "b64c74d956520fd81e1057aab33f4f9264ff646f8576cac4515070df62e684b0",
     "00509_a_tab_says_what_it_could_not_hear.sql": "fbda66b1af65dac11e21f4ac10b56e973d0f08c3d97281c9cf6c1363118ce831",
