@@ -109,6 +109,12 @@ export interface Offer {
   readonly answer: boolean;
 }
 
+/**
+ * Whether an answer has a way of its own to come, the format or the answer tool: then words beside a call are the model
+ * thinking aloud, never the answer. Only with neither is plain text how it answers (D15).
+ */
+export const answerHasItsWay = (offer: Offer): boolean => offer.format || offer.answer;
+
 /** The tools as the API takes them (registry.ts). */
 type Tools = ReturnType<typeof toApiTools>;
 

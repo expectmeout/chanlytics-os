@@ -34,10 +34,10 @@ export const LAST_ROUND_WORDS = "This is the last round: answer now through the 
  * A round's calls, the answer tool's apart (they are the answer, never a read or a card), and the answer the round
  * wrote, if any, with how: the first answer call's input ("{}" when it is empty, which shapes to no answer), else its
  * JSON as text -- written even with the format refused, since the rules ask for it -- or words where no call stands
- * beside them or the format was refused. Words beside a call, where the format asks for JSON, are the model thinking
- * aloud.
+ * beside them or the answer has no way of its own to come (refusals.ts answerHasItsWay). Words beside a call, where it
+ * has one, are the model thinking aloud.
  */
-export function roundAnswer(blocks: RoundBlock[], format: boolean) {
+export function roundAnswer(blocks: RoundBlock[], hasItsWay: boolean) {
   const used = blocks.filter((b) => b.type === "tool_use");
   const answered = used.filter((b) => b.name === ANSWER_TOOL_NAME);
   const calls = used.filter((b) => b.name !== ANSWER_TOOL_NAME);
@@ -46,7 +46,7 @@ export function roundAnswer(blocks: RoundBlock[], format: boolean) {
     .map((b) => b.text)
     .join("")
     .trim();
-  const prose = text && (text.startsWith("{") || !format || !calls.length) ? text : "";
+  const prose = text && (text.startsWith("{") || !hasItsWay || !calls.length) ? text : "";
   const [first] = answered;
   return first
     ? { used, answered, calls, written: first.json.trim() || "{}", via: "tool" as const }
