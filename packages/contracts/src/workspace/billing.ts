@@ -181,7 +181,7 @@ export type SpendKind = (typeof SPEND_KINDS)[number];
  * until the card is fixed. `none` is absent wherever money leaves for a provider: a workspace that never entered a card
  * buys nothing, and `incomplete` is the minutes an abandoned Checkout leaves behind.
  */
-export const SPEND_STATUSES: Readonly<Record<SpendKind, readonly BillingStatus[]>> = {
+const SPEND_STATUSES: Readonly<Record<SpendKind, readonly BillingStatus[]>> = {
   number: ["trialing", "active"],
   texting: ["trialing", "active"],
   leads: ["trialing", "active"],

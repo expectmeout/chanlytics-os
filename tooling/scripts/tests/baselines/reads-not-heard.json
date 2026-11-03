@@ -535,6 +535,15 @@
       }
     },
     {
+      "kind": "account",
+      "why": "The month's allowance of leads the page counts against is the plan's (00512 lead_allowance: a free trial's 50 until it pays, then the month's), read inside the leads' month (leadAllowanceOf). The plan moves a few times in a workspace's life, at the end of its trial or a change of plan; the page reads it again when it is reached for, and a search's own reserve reads it at the door (lead_reserve).",
+      "reads": {
+        "leads": [
+          "billing_accounts"
+        ]
+      }
+    },
+    {
       "kind": "over-read",
       "field": "q",
       "why": "The Inbox reads GET conversations for its threads. The same route answers Conversations' search box (`q`, through search_messages, which looks in calls' transcripts as well as in messages) and keeps only the threads a message says the words in: the Inbox never sends the words, and the box's answer is a search's, asked again for each new words and never kept.",

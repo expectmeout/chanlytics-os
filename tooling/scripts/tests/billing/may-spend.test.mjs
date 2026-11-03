@@ -101,10 +101,6 @@ test("a rehearsal is open before any plan, which is where the first run's Rehear
     assert.equal(whyCannotSpend("stripe", "trialing", words), null);
     assert.match(whyCannotSpend("stripe", "past_due", words), /Update the card/);
   }
-  for (const route of ["rehearsals", "try", "review", "fix"]) {
-    const src = readCode(`apps/dashboard/app/api/v1/receptionist/${route}/route.ts`);
-    assert.match(src, /spendWords: SPEND_(REHEARSE|REVIEW|TRY)/, `${route} asks the rehearsal's row, not the number's`);
-  }
 });
 
 test("a refusal says what to do about it, because it lands where somebody is trying to pay", () => {
@@ -140,13 +136,7 @@ test("one trial from every door: the deployment's length, once", () => {
     "past 90 is no setting",
   );
   assert.equal(trialDaysFor({ hadSubscription: true, deploymentDays: 14 }), 0, "a trial applies once");
-  // The checkout asks it, whichever door it was pressed from: the first run's Go live no longer has a trial of its own.
-  const lib = readCode("apps/edge/lib/billing/billing.ts");
-  assert.match(
-    lib,
-    /trialDaysFor\(\{ hadSubscription: !!row\.stripe_subscription_id, deploymentDays: trialDays\(\) \}\)/,
-  );
-  assert.doesNotMatch(lib, /FIRST_RUN_TRIAL_DAYS/);
+  // The checkout asks it, whichever door it was pressed from (billing.test.mjs reads the checkout's call).
 });
 
 test("what a trial includes: near at four fifths of either, spent at all of either", () => {

@@ -24,12 +24,11 @@ import { setupChoicesOf, type Database } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { liveLineOf, planBuy, provisionJob } from "./line-ops.js";
-import type { LineDbRow } from "./line-resume.js";
 
 type Db = SupabaseClient<Database>;
 
 /** What starting the chosen number came to: started, already there, or why nothing was started. */
-export type ChosenLineOutcome =
+type ChosenLineOutcome =
   | { kind: "started"; lineId: string; number: string }
   | { kind: "stands" }
   | {
@@ -39,7 +38,7 @@ export type ChosenLineOutcome =
     };
 
 /** What to do, from the facts: buy this number, search this area code for one, or nothing and why. */
-export type ChosenLinePlan =
+type ChosenLinePlan =
   | { kind: "buy"; number: string; areaCode: number | null }
   | { kind: "search"; areaCode: number }
   | { kind: "stands" }
@@ -66,7 +65,7 @@ export function planChosenLine(f: {
 }
 
 /** The ports the start needs beyond the database: the provider (search and its name), and the clock. */
-export interface ChosenLinePorts {
+interface ChosenLinePorts {
   choice: LineProviderChoice | null;
   now: () => Date;
 }
@@ -129,25 +128,25 @@ export async function startChosenLine(
       provider: ports.choice.name,
       number,
       areaCode,
-      others: (lines.data ?? []) as LineDbRow[],
+      others: lines.data ?? [],
       now,
     });
     if (buy.kind === "refuse") return { kind: "stands" };
     const ins = await db.from("lines").insert(buy.row).select("*").single();
     // Two starts crossed (the webhook and the sweep, or the owner's own tab): the database holds one line a workspace
     // (lines_one_live_per_tenant_idx, 00195), and the other's line stands.
-    if (ins.error) return ins.error.code === "23505" ? { kind: "stands" } : failed(ins.error.message);
+    if (ins.error) return ins.error.code === "23505" ? { kind: "stands" } : startFailed(ins.error.message);
     await scheduleJob(db, provisionJob(tenantId, ins.data.id, "owner", now));
     return { kind: "started", lineId: ins.data.id, number };
   } catch (e) {
-    return failed(e instanceof Error ? e.message : String(e));
+    return startFailed(e instanceof Error ? e.message : String(e));
   }
 }
 
-const failed = (detail: string): ChosenLineOutcome => ({ kind: "none", why: "failed", detail });
+const startFailed = (detail: string): ChosenLineOutcome => ({ kind: "none", why: "failed", detail });
 
 /** How many workspaces one tick asks: a quarter hour's work, the rest the next tick's. */
-export const CHOSEN_LINES_PER_TICK = 50;
+const CHOSEN_LINES_PER_TICK = 50;
 
 export interface OwedLinesResult {
   looked: number;

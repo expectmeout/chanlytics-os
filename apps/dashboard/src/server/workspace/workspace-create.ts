@@ -139,7 +139,7 @@ export async function workspaceBegun(
  * workspace" screen would offer a name already taken. Best effort: metadata that would not clear must not fail a
  * workspace made.
  */
-export async function clearPendingWorkspace(ctx: RouteContext): Promise<void> {
+async function clearPendingWorkspace(ctx: RouteContext): Promise<void> {
   if (!pendingWorkspaceOf(ctx.metadata)) return;
   try {
     const { error: clearErr } = await ctx.supabase.auth.updateUser({ data: { [PENDING_WORKSPACE_KEY]: null } });

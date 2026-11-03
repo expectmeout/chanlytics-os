@@ -9,14 +9,14 @@
 import { TRIAL_SPENT_WORDS, trialSpentOf, trialUseWords } from "../packages/contracts.js";
 
 /** How many trials one tick looks at: a quarter hour's work, the rest the next tick's. */
-export const TRIALS_PER_TICK = 200;
+const TRIALS_PER_TICK = 200;
 
-export interface TrialUse {
+interface TrialUse {
   callSeconds: number;
   replies: number;
 }
 
-export interface TrialPorts {
+interface TrialPorts {
   /** The workspaces on a trial with a subscription to end early. */
   ids(): Promise<string[]>;
   useOf(tenantId: string): Promise<TrialUse>;
