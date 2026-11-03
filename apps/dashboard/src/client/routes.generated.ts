@@ -43,6 +43,7 @@ export const ROUTES = {
   "GET calls": { method: "GET", path: "/api/v1/calls" },
   "GET calls/[id]/export": { method: "GET", path: "/api/v1/calls/[id]/export" },
   "GET calls/[id]/recording": { method: "GET", path: "/api/v1/calls/[id]/recording" },
+  "GET changes": { method: "GET", path: "/api/v1/changes" },
   "GET channels": { method: "GET", path: "/api/v1/channels" },
   "GET channels/instagram": { method: "GET", path: "/api/v1/channels/instagram" },
   "GET channels/instagram/callback": { method: "GET", path: "/api/v1/channels/instagram/callback" },
@@ -391,6 +392,7 @@ export type Routes = {
   "GET calls": typeof import("../../app/api/v1/calls/route").GET;
   "GET calls/[id]/export": typeof import("../../app/api/v1/calls/[id]/export/route").GET;
   "GET calls/[id]/recording": typeof import("../../app/api/v1/calls/[id]/recording/route").GET;
+  "GET changes": typeof import("../../app/api/v1/changes/route").GET;
   "GET channels": typeof import("../../app/api/v1/channels/route").GET;
   "GET channels/instagram": typeof import("../../app/api/v1/channels/instagram/route").GET;
   "GET channels/instagram/callback": typeof import("../../app/api/v1/channels/instagram/callback/route").GET;

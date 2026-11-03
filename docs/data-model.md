@@ -127,6 +127,7 @@ what the script writes.
 | [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`voice_agents`](#voice_agents) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
+| [`workspace_notices_pending`](#workspace_notices_pending) | none | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
 
@@ -3620,6 +3621,21 @@ People who asked for a workspace while sign-up was closed. Service-role only: de
 Foreign keys:
 
 - `invited_by` → `auth.users` (`id`), on delete set null
+
+### workspace_notices_pending
+
+The notices a transaction will tell its workspaces at its commit (00507, decision 0019): written by workspace_tell_changes and workspace_tell_row_change, sent and deleted by workspace_tell_at_commit, a deferred constraint trigger, so a notice's clock is its commit's. Empty at rest; no session but the writing one ever sees a row.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | bigint | no | `identity (always)` |  |
+| `topic` | text | no |  |  |
+| `event` | text | no |  |  |
+| `payload` | jsonb | no |  |  |
 
 ## Views
 

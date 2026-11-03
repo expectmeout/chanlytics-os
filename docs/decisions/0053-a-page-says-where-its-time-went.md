@@ -57,7 +57,8 @@ outside the repository) found the speed machinery sound and its measurement blin
      reads, so no page changes when the engine under it does; the six caches leave surface by surface, each proved
      equal by value. Undone by putting the old engine back under the same seam.
    - **Next's flags**: `cacheComponents` in step 5, once its layout no longer reads the session (built);
-     `partialPrefetching` was decided beside it and is not taken (step 5 says why, and when it would be); the React
+     `partialPrefetching` was decided beside it and not taken then (step 5 says why); it is on since #1600 (14 October
+     2026), where Next 16.4 asks for the switch, as the status says; the React
      Compiler in step 7, on `src/surfaces` first, its build time measured beside its gain, since the
      build is what Vercel bills. `experimental.webVitalsAttribution` is not set: it feeds Next's own reporter, which the
      shell no longer uses. Each is one line of `next.config.ts`.
@@ -207,7 +208,8 @@ production numbers, and the one whose page is slowest goes first.
        workspace layout, which renders documents per request again and keeps every warm static.
      - Signed out, every address under `/w` (`x.png`, `.js`, a capital W, the router's own request) was the proxy's
        redirect, with its `?w=` and fragment and `private, no-store`.
-   - **`partialPrefetching` is not taken.** Its one gain here, a warm that serves every address of its route, came
+   - **`partialPrefetching` was not taken on 12 October 2026** (it is on since #1600, 14 October 2026, where Next 16.4
+     asks for the switch: the status says so). Its one gain here, a warm that serves every address of its route, came
      with `cacheComponents` and Next's default prefetch (varyParams re-keys a client page's segment across params):
      the person's address above asked for nothing without it. What it adds is a runtime prerender beside each dynamic
      render of a route that reads the request (Next's app-render), and nothing under `(os)` does. Taken when a page

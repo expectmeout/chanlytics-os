@@ -6,7 +6,7 @@
  */
 import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
-import { LEFT_THE_QUEUE, deliveryTicksOnly } from "@/legacy-bridge/surface-realtime";
+import { LEFT_THE_QUEUE, deliveryTicksOnly, type RealtimeChange } from "@/legacy-bridge/surface-realtime";
 import type { Output } from "@/client/api";
 import { declareReads, routeGateOpen, routePartsOf } from "@/legacy-bridge/surface-registry";
 import { firstDrawWaitsFor, surfaceSettles } from "@/legacy-bridge/surface-status";
@@ -85,6 +85,34 @@ followSettings("inbox", (held, settings) => {
 
 /** The open holds as the last read answered them: what a read the receipts alone asked for keeps (S10-2). */
 let lastHolds: Output<"GET escalations"> | null = null;
+/** The threads the last read of the list held, as it answered them: what a message's notice that names its threads updates. */
+let lastConversations: ConversationDto[] | null = null;
+/** How many threads the list holds: the read's own hundred (readers/conversations.ts THREADS_MAX). */
+const LIST_HOLDS = 100;
+
+/**
+ * The threads a read was asked for by, where only messages moved and each notice named its threads (00510): those are read by
+ * id and put in the list (threadsInto), one request of a few rows where the list was the hundred newest threads with forty
+ * messages each, for every message and every receipt. Anything else (a hold, a thread's own row, a call, a notice that
+ * named none, a write's or a pass's read) reads the list.
+ */
+export function threadsMovedBy(heard: readonly RealtimeChange[] | undefined): string[] | null {
+  if (!heard?.length) return null;
+  const ids = new Set<string>();
+  for (const c of heard) {
+    if (c.table !== "messages" || !c.threads?.length) return null;
+    for (const id of c.threads) ids.add(id);
+  }
+  return ids.size && ids.size <= LIST_HOLDS ? [...ids] : null;
+}
+
+/** The list with these threads as they are now: each in its place by its newest message, the hundred newest kept. */
+export function threadsInto(list: readonly ConversationDto[], moved: readonly ConversationDto[]): ConversationDto[] {
+  const byId = new Map(list.map((c) => [c.id, c]));
+  for (const c of moved) byId.set(c.id, c);
+  const newest = (c: ConversationDto) => (c.last_message_at ? Date.parse(c.last_message_at) : -Infinity);
+  return [...byId.values()].sort((a, b) => newest(b) - newest(a)).slice(0, LIST_HOLDS);
+}
 
 /** Whether the opening thread's waits were said: once a tab (openingThreadWaits). */
 let openingSaid = false;
@@ -140,13 +168,22 @@ export const inboxOverride: SurfaceOverride = {
     const readAt = api().sharesFrom();
     // A delivery's receipts move the threads' ticks alone: the holds are the last read's (deliveryTicksOnly, S10-2).
     const holdsHeld = deliveryTicksOnly(heard) ? lastHolds : null;
+    // A message's notices that named their threads: those threads alone, into the list the last read held (00510).
+    const moved = lastConversations ? threadsMovedBy(heard) : null;
+    const held = lastConversations;
     const [convData, escData, tz] = await Promise.all([
-      read("GET conversations"),
+      moved && held
+        ? read("GET conversations", { query: { ids: moved.join(",") } }).then((d) => ({
+            ...d,
+            conversations: threadsInto(held, d.conversations),
+          }))
+        : read("GET conversations"),
       holdsHeld ?? read("GET escalations", { query: { state: "open" } }),
       // Every time on a thread is said by the business's clock (zone.ts).
       workspaceZone(),
     ]);
     lastHolds = escData;
+    lastConversations = convData.conversations;
     const byConv = new Map<string, EscalationRow>();
     for (const e of escData.escalations) byConv.set(e.conversation_id, e);
 

@@ -76,8 +76,8 @@ export { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows, readAllRowsByKey } from "./page
 export type { Page } from "./paged";
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
-export { narrowedUpdates, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
-export type { SubscribeOptions } from "./realtime";
+export { narrowedUpdates, noticesSince, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
+export type { SubscribeOptions, ToldNotice } from "./realtime";
 export { askJournalDayRows, askJournalDue, journalMemberNames, keepAskJournal } from "./repositories/ask/journal";
 export type { AskJournalDueRow, JournalDecisionRow, JournalEventRow } from "./repositories/ask/journal";
 export {

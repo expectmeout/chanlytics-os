@@ -61,6 +61,7 @@ export const PLUMBING = new Set([
   "operator_pages",
   "platform_admins",
   "rate_hits",
+  "workspace_notices_pending",
   "ai_usage",
   "model_turns",
   "push_devices",
