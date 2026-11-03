@@ -5,14 +5,19 @@
  * failed row is final (jobs_guard), so a requeue is a fresh row; a claim's count may go back down on a row still
  * fired; and work the ledger holds once per subject answers with the database's own 23505.
  *
- * Every row here is made for a workspace of its own and is never due to a runner (a far due time), so no other suite's
- * claim can take it. Runs against the database `supabase start` builds on this machine, never production.
+ * Every row here is made for a workspace of its own, and every row this file writes itself is due far ahead. A requeue's
+ * row is not: requeueFailedJob writes it due now, as the back office's press does, and claim_due_jobs takes the oldest
+ * due row of the whole ledger, whoever's it is. Another suite's claim between the requeue and the read carried the fresh
+ * row off to `fired` (main's Database job, 3 Nov 2026), so this file takes the ledger's lock for the whole file
+ * (_file-lock.mjs), as every suite that claims does, and no claim runs while its rows are due. Runs against the
+ * database `supabase start` builds on this machine, never production.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { deferJob } from "../../../../packages/jobs/src/ledger.ts";
 import { requeueFailedJob } from "../../../../packages/jobs/src/schedule.ts";
+import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,12 +28,16 @@ const skip =
       ? "refusing a database that is not on this machine: this suite writes to the jobs ledger"
       : false;
 
+// The ledger is one queue the whole database suite shares (_file-lock.mjs): the rows a requeue makes are due now, so
+// no other suite claims while this file runs.
+let releaseLedger;
 let db;
 let T;
 const far = () => new Date(Date.now() + 30 * 86_400_000).toISOString();
 
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   const { data, error } = await db
     .from("tenants")
@@ -45,6 +54,7 @@ after(async () => {
     await db.from("jobs").delete().eq("tenant_id", T);
     await db.from("tenants").delete().eq("id", T);
   }
+  await releaseLedger?.();
 });
 
 /** A job of this workspace, taken to the state given the only way the ledger allows: scheduled, fired, then failed. */
