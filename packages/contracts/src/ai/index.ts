@@ -58,6 +58,7 @@ export type {
 } from "./models";
 export {
   judgeShadowSpecs,
+  LEAD_SCREEN_BOUND_MS,
   NO_READS,
   receptionistPrimary,
   receptionistShadowCall,
@@ -66,7 +67,6 @@ export {
   replyReadShadowCall,
   SECOND_KEY_OFF,
   secondKeyLets,
-  LEAD_SCREEN_BOUND_MS,
   SHADOW_CALL,
   SHADOW_CONFIDENT,
   SHADOW_GRACE_MS,
