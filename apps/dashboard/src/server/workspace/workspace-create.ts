@@ -24,6 +24,10 @@ import { env } from "@/server/env";
 import { log } from "@/server/log";
 import type { RouteContext } from "@/server/with-route";
 
+/** The error Postgres or PostgREST answers a call with an argument the function does not take. */
+const noSuchSignature = (code: string | null | undefined, message: string): boolean =>
+  code === "42883" || code === "PGRST202" || /could not find the function/i.test(message);
+
 const Body = z
   .object({
     name: z.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120),
@@ -71,10 +75,16 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
   const cookieCode = partnerCodeFromCookie(req.headers.get("cookie"));
   const partnerCode = cookieCode && parsed.data.partner === cookieCode ? cookieCode : null;
   const args = { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined };
-  const { data, error } = await createWorkspaceFn(
+  let { data, error } = await createWorkspaceFn(
     ctx.supabase,
     partnerCode ? { ...args, p_partner_code: partnerCode } : args,
   );
+  // A database without the partner's argument yet makes the workspace without it, and the drop is logged (0012): the
+  // workspace is made whichever deploys first.
+  if (error && partnerCode && noSuchSignature(error.code, error.message)) {
+    log.error("partner_code_dropped", { code: partnerCode, error: error.message });
+    ({ data, error } = await createWorkspaceFn(ctx.supabase, args));
+  }
 
   if (error) {
     // The messages on these codes are written for an owner to read — the
