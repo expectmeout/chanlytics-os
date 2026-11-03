@@ -13,8 +13,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { CROSS_FADE_MS, JOIN_FADE_MS, SUCCESSOR_WAIT_MS, TIMELINE_MS, createDeck, speedAt, springAt, travelOf } =
-  await import("../../../../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
+const {
+  CROSS_FADE_MS,
+  JOIN_FADE_MS,
+  SUCCESSOR_WAIT_MS,
+  TIMELINE_MS,
+  createDeck,
+  speedAt,
+  springAt,
+  travelOf,
+  viewDeck,
+} = await import("../../../../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
 
 /* ------------------------------ what stands in for a browser ------------------------------ */
 
@@ -502,6 +511,57 @@ test("what was scrolled in the page leaving is where it was in its copy", () => 
   const b = view({ dataset: { slide: "next" }, parentNode: a.parentNode });
   replace(seat, a, b);
   assert.equal(list.scrollTop, 420);
+});
+
+test("where the window scrolls, a view in place of another comes in under what stands over it: the top, and its own margin", () => {
+  // On a phone the Calendar's bar sticks under the frame's top, over its days. Day's board scrolled the window to now,
+  // and the Month came in under the frame's top alone, its row of days' names under the bar (Ruben's recording, 3 Nov
+  // 2026). A view says what of its page stands over it as its scroll margin, as the browser's own scrolls read it.
+  const root = { computed: { scrollPaddingTop: "146px" } };
+  const styleOf = (el) => ({ overflowY: "visible", scrollPaddingTop: "0px", scrollMarginTop: "0px", ...el?.computed });
+  const scrolls = [];
+  const kept = {
+    window: globalThis.window,
+    document: globalThis.document,
+    getComputedStyle: globalThis.getComputedStyle,
+  };
+  globalThis.document = { scrollingElement: root, documentElement: root, body: {} };
+  globalThis.getComputedStyle = styleOf;
+  globalThis.window = {
+    getComputedStyle: styleOf,
+    scrollY: 300,
+    history: {},
+    scrollTo: (_x, y) => scrolls.push(["to", y]),
+    scrollBy: (_x, y) => scrolls.push(["by", y]),
+  };
+  try {
+    const page = view();
+    const day = view();
+    const month = view({
+      rect: { left: 10, top: 152, width: 375, height: 600 },
+      computed: { scrollMarginTop: "50px" },
+    });
+    const pane = view({ rect: { left: 10, top: 100, width: 375, height: 600 } });
+    page.inside = [day, month, pane];
+    viewDeck.view("a frame under test")(page);
+    const seat = viewDeck.view("a page's views under test");
+    seat(day);
+    scrolls.length = 0;
+    replace(seat, day, month);
+    assert.deepEqual(scrolls, [["by", -44]], "its top at the bar's foot: 146 for the frame's top and 50 for the bar");
+    scrolls.length = 0;
+    replace(seat, month, pane);
+    assert.deepEqual(
+      scrolls,
+      [["by", -46]],
+      "a view with no margin of its own comes in under the frame's top, as before",
+    );
+  } finally {
+    for (const [name, value] of Object.entries(kept)) {
+      if (value === undefined) delete globalThis[name];
+      else globalThis[name] = value;
+    }
+  }
 });
 
 /* ------------------------------ a desk, and reduced motion ------------------------------- */
