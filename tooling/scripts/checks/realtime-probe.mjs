@@ -66,7 +66,7 @@ export function join(socket, key, topic, { private: priv }) {
       ),
     );
     ws.addEventListener("message", (e) => {
-      let reply = null;
+      let reply;
       try {
         reply = JSON.parse(String(e.data));
       } catch {
