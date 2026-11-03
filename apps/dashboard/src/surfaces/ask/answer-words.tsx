@@ -6,6 +6,7 @@ import { Fragment } from "react";
 import type { ReactNode } from "react";
 import type { AnswerBlock, AnswerList, AnswerRun, AskAnswer } from "@chanlytics/contracts";
 import { Icon } from "../kit/icon/icon";
+import { LinePress } from "../kit/line/line";
 import { askCalls } from "./shell";
 
 // A line of the answer's words as runs (contracts answerRuns): bold, italic or plain, each one text, and a door where
@@ -17,15 +18,9 @@ type OnNav = ((to: string) => void) | null;
 const AskRuns = ({ runs, onNav = null }: { runs: AnswerRun[]; onNav?: OnNav }) =>
   runs.map((r, k) =>
     r.to && onNav ? (
-      <button
-        key={k}
-        type="button"
-        className="ask-words-door"
-        onClick={() => onNav(r.to as string)}
-        data-testid="ask-words-door"
-      >
+      <LinePress key={k} kind="words" onClick={() => onNav(r.to as string)} data-testid="ask-words-door">
         {r.bold ? <strong>{r.text}</strong> : r.text}
-      </button>
+      </LinePress>
     ) : r.bold ? (
       <strong key={k}>{r.text}</strong>
     ) : r.italic ? (

@@ -20,6 +20,7 @@ import { ChartCard, SegmentBar } from "../kit/charts/card";
 import type { ChartConfig, ChartRow } from "../kit/charts/geometry";
 import { LineChart } from "../kit/charts/line";
 import { Icon } from "../kit/icon/icon";
+import { LinePress } from "../kit/line/line";
 import type { useAskSpeech } from "./hooks";
 import type { LineWords } from "./words";
 
@@ -241,10 +242,10 @@ export const AskRows = ({
     // One tab stop: the keys walk the list from the line (aria-activedescendant), so a chip is never reached by Tab.
     if (ahChip(it))
       return (
-        <button key={i} type="button" tabIndex={-1} {...shared} className={`ask-chip${sel ? " sel" : ""}`}>
+        <LinePress key={i} kind="chip" selected={sel} tabIndex={-1} {...shared}>
           <span>{it.label}</span>
-          {it.meta ? <span className="ask-chip-meta">{it.meta}</span> : null}
-        </button>
+          {it.meta ? <span className="line-chip-meta">{it.meta}</span> : null}
+        </LinePress>
       );
     return (
       <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`}>
@@ -256,8 +257,8 @@ export const AskRows = ({
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
         {it.type === "thread" ? (
-          <button
-            type="button"
+          <LinePress
+            kind="remove"
             className="ask-row-del"
             tabIndex={-1}
             aria-label={t.deleteThread}
@@ -269,7 +270,7 @@ export const AskRows = ({
             data-testid="ask-row-del"
           >
             <Icon name="x" size={10} />
-          </button>
+          </LinePress>
         ) : null}
       </div>
     );
@@ -400,9 +401,9 @@ export const AskActs = ({
   // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
   return (
     <span className="ask-acts" data-testid="ask-acts">
-      <button
-        type="button"
-        className="ask-line-btn quiet"
+      <LinePress
+        kind="act"
+        className="ask-act"
         onClick={copy}
         aria-label={t.copy}
         title={t.copy}
@@ -412,11 +413,12 @@ export const AskActs = ({
         <span className="ask-act-word" aria-hidden="true">
           {t.copyWord}
         </span>
-      </button>
+      </LinePress>
       {speech.canSpeak ? (
-        <button
-          type="button"
-          className={`ask-line-btn quiet${reading || loading ? " on" : ""}`}
+        <LinePress
+          kind="act"
+          on={reading || loading}
+          className="ask-act"
           onClick={read}
           aria-label={word}
           aria-pressed={reading}
@@ -428,7 +430,7 @@ export const AskActs = ({
           <span className="ask-act-word" aria-hidden="true">
             {word}
           </span>
-        </button>
+        </LinePress>
       ) : null}
     </span>
   );
@@ -478,9 +480,9 @@ export const AskChart = ({ c, t, onNav }: { c: Chart; t: LineWords; onNav: (to: 
       <span className="ask-breakdown-from">
         {t.from} {c.source.label}
         {c.source.door ? (
-          <button type="button" className="ask-receipt-door" onClick={() => onNav(c.source.to)}>
+          <LinePress kind="open" onClick={() => onNav(c.source.to)}>
             {t.open}
-          </button>
+          </LinePress>
         ) : null}
       </span>
     </div>
@@ -508,9 +510,9 @@ export const AskBreakdown = ({ b, t, onNav }: { b: Breakdown; t: LineWords; onNa
         <span className="ask-breakdown-from">
           {t.from} {b.source.label}
           {b.source.door ? (
-            <button type="button" className="ask-receipt-door" onClick={() => b.source && onNav(b.source.to)}>
+            <LinePress kind="open" onClick={() => b.source && onNav(b.source.to)}>
               {t.open}
-            </button>
+            </LinePress>
           ) : null}
         </span>
       ) : null}

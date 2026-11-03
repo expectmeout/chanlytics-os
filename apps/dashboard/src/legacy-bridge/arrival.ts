@@ -11,6 +11,7 @@
  * the app boots, and a read that ran before the ✦ existed showed on nothing; it still lasts as long as the boot,
  * should the boot still be out.
  */
+import { askCalls } from "../surfaces/legacy-verbs";
 import { hearNeedsYou, needsYouNow as heardCount } from "../surfaces/needs-you";
 import { MASCOT } from "./mascot";
 import { watchArrival } from "./mascot/arrival";
@@ -35,23 +36,18 @@ const STANDING_EVENTS = [
 ];
 
 type Globals = {
-  __ask?: {
-    rightNowParts?: () => { people: number; runs: number; searches: number };
-    followUpsDue?: () => readonly unknown[];
-  };
   __notifs?: { unread?: () => number; onChange?: (cb: () => void) => () => void };
 };
 
 /** Whether something needs you: people, runs or searches, as Ask says it, a follow-up of Ask's come due, or a notification not read yet. */
 export const needsYouNow = (): boolean => {
-  const w = window as unknown as Globals;
-  const A = w.__ask;
+  const A = askCalls();
   if (A && typeof A.rightNowParts === "function") {
     const p = A.rightNowParts();
     if (p.people || p.runs || p.searches) return true;
   }
   if (A && typeof A.followUpsDue === "function" && A.followUpsDue().length) return true;
-  const bell = w.__notifs;
+  const bell = (window as unknown as Globals).__notifs;
   return !!bell && typeof bell.unread === "function" && bell.unread() > 0;
 };
 

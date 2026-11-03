@@ -53,10 +53,25 @@ export const FIXED_NOW = Date.UTC(2026, 8, 28, 20, 2, 0);
  * refuses. What is left to record is the kit's gallery, which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has
  * no routes, so its one is a name. A page that leaves the shell takes its route out of this list in the same change, and
  * styles/style-equality-pages.test.mjs fails the one that does not. A change to a page that has left is proved elsewhere
- * (docs/runbook.md, "Prove a style change").
+ * (docs/runbook.md, "Prove a style change"), but for Ask's Line, which every page draws over itself and which the harness
+ * draws for itself: the `ask` record's routes are its states (e2e-harness/ask-states.tsx), each a thing a person sees.
  */
 export const PAGES = {
   kit: ["kit"],
+  ask: [
+    "rest",
+    "earlier",
+    "typing",
+    "scoped",
+    "answer",
+    "streaming",
+    "card",
+    "receipt",
+    "failed",
+    "latest",
+    "deleting",
+    "listening",
+  ],
 };
 
 /** A desk and a phone. The phone is a touch screen, so the shell's 44px floor under a coarse pointer is drawn. */
@@ -688,7 +703,7 @@ async function recordTo(file, against, limit) {
 }
 
 async function selfTest() {
-  const pages = { salon: ["today", "clients"] };
+  const pages = { ask: ["rest", "card"] };
   const log = (line) => console.log(`  ${line}`);
   console.log("two recordings of one tree, then a third with --radius-md moved one step");
   const first = await record({ pages, log });

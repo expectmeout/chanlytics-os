@@ -3096,6 +3096,88 @@ export const FAMILIES = [
       },
     ],
   },
+  {
+    family: "Line",
+    about:
+      "What a conversation is pressed and typed through (surfaces/kit/line/line.tsx, Ask's Line): the circle at a field's " +
+      "end, an answer's small acts, the questions offered, its rows and figures, the doors in its words, and the field.",
+    entries: [
+      {
+        id: "line-send",
+        html:
+          `<button type="button" class="line-send" aria-label="Send">${icon("arrow-right", 15)}</button> ` +
+          `<button type="button" class="line-send" aria-label="Send" disabled>${icon("arrow-right", 15)}</button>`,
+      },
+      {
+        id: "line-talk",
+        html:
+          `<button type="button" class="line-send line-talk" aria-label="Talk">${icon("phone", 15)}</button> ` +
+          `<button type="button" class="line-send line-talk on" aria-label="Talk">${icon("phone", 15)}</button> ` +
+          `<button type="button" class="line-send line-talk" aria-label="Talk" data-state="speaking">${icon("phone", 15)}</button>`,
+      },
+      {
+        id: "line-act",
+        html:
+          `<button type="button" class="line-act" aria-label="Copy">${icon("check", 14)}</button> ` +
+          `<button type="button" class="line-act on" aria-label="Stop">${icon("check", 14)}</button>`,
+      },
+      {
+        id: "line-chip",
+        html:
+          `<button type="button" class="line-chip"><span>What should I do next?</span><span class="line-chip-meta">A card</span></button> ` +
+          `<button type="button" class="line-chip sel"><span>Who wrote today?</span>${icon("check", 12)}</button>`,
+      },
+      {
+        id: "line-next",
+        html: `<button type="button" class="line-chip line-next"><span>Draft both replies?</span></button>`,
+      },
+      {
+        id: "line-clear",
+        html: `<button type="button" class="line-clear" aria-label="Clear">${icon("x", 9)}</button>`,
+      },
+      {
+        id: "line-remove",
+        html: `<button type="button" class="line-remove" aria-label="Delete">${icon("x", 10)}</button>`,
+      },
+      {
+        id: "line-fold",
+        html: `<button type="button" class="line-fold" aria-expanded="false"><span>Campaign: Reminder</span></button>`,
+      },
+      {
+        id: "line-letgo",
+        html: `<button type="button" class="line-letgo" aria-pressed="true">${icon("phone", 18)}Let go to ask</button>`,
+      },
+      {
+        id: "line-latest",
+        html: `<button type="button" class="line-latest">${icon("check", 13)}Latest</button>`,
+      },
+      {
+        id: "line-item",
+        html:
+          `<button type="button" class="line-item"><span>A</span><span>Ana Reyes</span>${icon("chevron", 12)}</button>` +
+          `<button type="button" class="line-item sel"><span>S</span><span>Sam Ortiz</span>${icon("chevron", 12)}</button>` +
+          `<div class="line-item plain"><span>S</span><span>Sam Ortiz, again</span></div>`,
+      },
+      {
+        id: "line-figure",
+        html:
+          `<button type="button" class="line-figure">12</button> calls today, ` +
+          `<span class="line-figure plain">4</span> booked`,
+      },
+      {
+        id: "line-door",
+        html: `<button type="button" class="line-door" aria-label="Open">${icon("arrow-right", 11)}</button>`,
+      },
+      { id: "line-open", html: `<button type="button" class="line-open">Open</button>` },
+      { id: "line-words", html: `Write back to <button type="button" class="line-words">Ana Reyes</button> first.` },
+      {
+        id: "line-field",
+        html:
+          `<textarea class="line-field" rows="1" placeholder="Ask anything"></textarea>` +
+          `<textarea class="line-field" rows="1" placeholder="Listening…" data-listening="true"></textarea>`,
+      },
+    ],
+  },
 ];
 
 /* ---- the document ---- */
@@ -3232,6 +3314,30 @@ ${families.map(familyHtml).join("\n")}
 const BEHAVES_CSS = `
     .gx-room { height: 150vh; }
 `;
+
+/**
+ * The page that draws Ask's states (ask-states.tsx): the app's stylesheets in the app's order with nothing of the
+ * gallery's layout, so the shell holds the page to the window as it does in the app, and the Line stands on what it stands
+ * on there. Its bundle sets the theme.
+ */
+export function askStatesDocument(bundle = "/_hx/ask-states.js") {
+  return `<!doctype html>
+<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chanlytics · Ask's states</title>
+  ${documentLinks().join("\n  ")}
+  ${APP_RULES}
+  <style>:root { --font-geist: "Geist"; --font-geist-mono: "Geist Mono"; }</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="${bundle}"></script>
+</body>
+</html>
+`;
+}
 
 /**
  * The page that runs the kit's components (kit-behaves.tsx), in the gallery's stylesheets and layout: its bundle

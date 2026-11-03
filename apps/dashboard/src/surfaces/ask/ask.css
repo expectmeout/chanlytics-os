@@ -1,0 +1,1892 @@
+/* Ask as the Line (surfaces/ask/line/line.tsx; docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6, and the
+   Stage's section 5): one window, a head, the three in a hero, the rows or a conversation as one thread, the field at
+   the foot. On a phone it is the whole screen; on a desk the same window is a panel of glass docked at the right, the
+   sidebar's twin, beside a page that stays live (Ruben, 16 Oct 2026: "i like it on mobile ... on desktop i dont like
+   this", then "keep the page live"). The scrim and the window keep the mockup's .ask-overlay and .ask-modal (their fade in dashboard-a-v2.css,
+   their leaving in components.css); what the Line changes is here, with the answer's parts, the cards, the mic, the
+   phone's ✦ and the phone's takeover. Imported last, so its phone rules win over mobile.css. No key symbol is drawn
+   (D17). */
+
+/* ---- The window: a column, everywhere ---- */
+.ask-modal.ask-line {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* A phone's takes focus as it opens so no keyboard rises (S10); the window needs no ring to say so. */
+.ask-modal.ask-line:focus {
+  outline: none;
+}
+/* One character: while the Line is open the three stand in it, not also on the top bar's button. */
+body.ask-open .tb-ask .tb-ask-face {
+  visibility: hidden;
+}
+
+/* ---- A desk: the panel docked at the right, 14px from the window's edges as the sidebar is from its own, over a page
+   that stays the member's and keeps its layout: pressed, scrolled and typed in with Ask open (surfaces/ask/line/ says what the
+   keys and focus do). It drifts in from the right as it fades up, and back; its glass is at the end. Tried and dropped
+   the same day (Ruben, 16 Oct 2026: "not smooth when it opens and closes, i almost liked when it opened over"): the page
+   narrowing to make room, which re-laid it out under the moving panel, and the panel sliding its whole width. ---- */
+@media (min-width: 721px) {
+  /* The panel's width: layout's own number, which its toasts (below) read too. */
+  :root {
+    --ask-dock: 440px;
+  }
+  .ask-overlay.ask-line-scrim {
+    /* No wash, no fade and no filter of its own: an opacity or a filter on the overlay, even a zero blur, makes it the
+       backdrop root of the panel inside, whose glass then blurs only the empty overlay and leaves the page sharp behind
+       its faint fill; the fade it had (dashboard-a-v2.css ask-fade, components.css wash-out) did that for the length of
+       every opening and closing. The panel moves itself (below). */
+    background: transparent;
+    backdrop-filter: none;
+    animation: none;
+    /* The page under it takes every press: only the panel takes its own. */
+    pointer-events: none;
+    /* Under what the page opens over itself, its menus (240), sheets (400), dialogs and toasts, which come over the
+       panel and go; over the page's own bars. */
+    z-index: 230;
+    justify-content: flex-end;
+    align-items: stretch;
+    padding: 14px;
+    overflow: hidden;
+  }
+  .ask-overlay.ask-line-scrim[data-leaving="true"] {
+    animation: none;
+  }
+  .ask-modal.ask-line {
+    position: relative;
+    width: var(--ask-dock);
+    max-width: 100%;
+    max-height: none;
+    pointer-events: auto;
+  }
+  /* Ask's own toasts (usePPToast's stack, `ask-flash`) stand in the panel, over its field; the page's stay the page's. */
+  .ask-flash {
+    left: auto;
+    right: calc(14px + var(--ask-dock) / 2);
+    transform: translateX(50%);
+    bottom: 96px;
+    max-width: calc(var(--ask-dock) - 32px);
+  }
+}
+/* In: it fades up quickly and drifts the long way on the slow deceleration, so the moment glass at part opacity lets the
+   page show through it is short and the move is the soft part. Out: one quicker even curve. The glass is blurred from
+   the first frame, since the overlay neither fades nor filters (above). */
+@media (min-width: 721px) and (prefers-reduced-motion: no-preference) {
+  .ask-overlay > .ask-line {
+    animation:
+      ask-dock-up 180ms var(--ease-out),
+      ask-dock-in var(--duration-slow) var(--ease-out);
+  }
+  .ask-overlay[data-leaving="true"] > .ask-line {
+    animation: ask-dock-out 200ms var(--ease-in-out) forwards;
+  }
+}
+@keyframes ask-dock-up {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ask-dock-in {
+  from {
+    translate: 24px 0;
+  }
+}
+@keyframes ask-dock-out {
+  to {
+    opacity: 0;
+    translate: 16px 0;
+  }
+}
+
+/* ---- The foot: the band as the field, last in the column, the one button inside it (spec 5.1); a capsule of the inset's
+   glass (the Glass block at the end). The three and what Ask reads are the hero's. ---- */
+.ask-stage {
+  flex: none;
+  order: 9;
+  display: grid;
+  margin: 8px 12px 10px;
+  padding: 0 8px 0 16px;
+  border-radius: var(--radius-xl);
+}
+.ask-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+}
+.ask-line-right {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* An answer's two acts, Copy and Read aloud (surfaces/ask/turn.tsx AskActs): under the newest answer in the thread. */
+.ask-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* What Ask has read (AskReads; the spec 2026-09-27-ask-chat-on-a-phone, D12): one list under the three, its lines on one
+   left edge in the middle, the newest live after the reading dot in coral ink, the earlier dim after a small square;
+   each comes in with a wash (.ask-read, below). */
+.ask-reading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+}
+.ask-reading-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+  animation: ask-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ask-pulse {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.ask-scope {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 180px;
+  height: 26px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+}
+.ask-scope > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The delete question sits under the middle, over the foot. */
+.ask-line .ask-confirm {
+  flex: none;
+  order: 8;
+  margin: 8px 12px 0;
+  max-width: none;
+}
+/* The head: Earlier, and New in a conversation, at the left; the close at the right, the kit's quiet round button as they
+   are its quiet capsules, so the three answer a pointer alike, and 44px on a phone, a thumb's reach. */
+.ask-line-head {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 52px;
+  padding: 4px 6px 0 8px;
+}
+.ask-line-head .ask-line-close {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+}
+.ask-line-head .ask-head-act {
+  height: 36px;
+}
+.ask-line-head .ask-head-act[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--bg-hover);
+}
+/* What a screen reader hears once an answer is whole: its headline (spec 6.10). Not drawn. */
+.ask-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A chip of words to pick (the peek's tones, leads-peek.jsx). */
+.ask-follow-chip {
+  font: inherit;
+  font-size: var(--text-label);
+  color: var(--ink);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  padding: 5px 11px;
+  cursor: pointer;
+  text-align: left;
+}
+@media (hover: hover) {
+  .ask-follow-chip:hover {
+    border-color: var(--line-strong);
+    background: var(--bg-hover);
+  }
+}
+
+/* ---- Under the band: Right now, chips for the questions, compact rows for the conversations; the question while Ask
+   reads. No hairline on top: the band's own is it. ---- */
+/* Its bar shows only while it scrolls (`data-scrolling`, surfaces/ask/line/ useArScrollCues), and once scrolled what passes
+   under the head fades out at the top edge (`data-scrolled`) rather than being cut by it. */
+.ask-line-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color var(--duration-slow) var(--ease-out);
+}
+.ask-line-body[data-scrolling] {
+  scrollbar-color: var(--line-strong) transparent;
+}
+.ask-line-body[data-scrolled] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 20px);
+  mask-image: linear-gradient(to bottom, transparent, #000 20px);
+}
+.ask-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px 10px 14px;
+}
+/* A section: its label, its rows, its chips (surfaces/ask/home.tsx). The gap above is between sections, never between rows. */
+.ask-rows-sec {
+  display: flex;
+  flex-direction: column;
+}
+.ask-rows-label {
+  padding: 0 6px 6px;
+  font-size: var(--text-label);
+  color: var(--ink-dim);
+}
+/* A section's note under its chips (Leads' consent rule, surfaces/ask/home.tsx): one dim line at the chips' own 6px gutter. */
+.ask-rows-note {
+  margin: 6px 0 0;
+  padding: 0 6px;
+  font-size: var(--text-label);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+.ask-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 8px 0 10px;
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ask-row.sel {
+  background: var(--bg-hover);
+}
+.ask-row-glyph {
+  flex: none;
+  color: var(--ink-dim);
+}
+.ask-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ask-row-label {
+  font-size: var(--text-base);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ask-row.thread .ask-row-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ask-row-sub,
+.ask-row-meta {
+  flex: none;
+  font-size: var(--text-label);
+  color: var(--ink-dim);
+}
+.ask-row.now {
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 6px 6px 8px;
+}
+.ask-row.now .ask-row-label {
+  flex: 1;
+}
+/* Three pills at most (people, runs, searches); the Spanish ones outgrow a phone's width, so they wrap. */
+.ask-now-pills {
+  display: inline-flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ask-now-brief {
+  flex: none;
+}
+/* The × is the kit's (kit.css, .line-remove): whether a row wears it is the row's. */
+.ask-row-del {
+  display: none;
+}
+.ask-row.thread:hover .ask-row-del,
+.ask-row.thread.sel .ask-row-del {
+  display: inline-flex;
+}
+/* Under a finger every conversation wears its ×: it waited for a pointer's hover or the keys' row, and a tap on the row
+   opens it, so a phone could delete nothing (Ruben, 18 Oct 2026). Quiet in the faint ink, its press wider than its 24px
+   box, and still asked about first (the Line's Confirm). */
+@media (pointer: coarse) {
+  .ask-row.thread .ask-row-del {
+    display: inline-flex;
+    position: relative;
+  }
+  .ask-row.thread .ask-row-del::after {
+    content: "";
+    position: absolute;
+    inset: -6px -10px;
+  }
+}
+.ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 6px;
+}
+/* Earlier's chip for the rest sits under its rows, a breath below the last. */
+.ask-row + .ask-chips {
+  padding-top: 6px;
+}
+.ask-rows-empty {
+  padding: 18px 20px;
+  font-size: var(--text-aside);
+  color: var(--ink-dim);
+}
+.ask-trace {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+.ask-trace .ask-turn-q {
+  margin-bottom: 2px;
+}
+
+/* ---- The answer: Say, Show and Do (spec S3), one column since the rail of the three's squares left (16 Oct 2026) ---- */
+.ask-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px 18px;
+}
+.ask-turn-q {
+  margin: 0 0 2px 30px;
+  font-size: var(--text-aside);
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.ask-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.ask-part {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.ask-part.show,
+.ask-part.do {
+  animation: ask-part-in 160ms var(--ease-out) both;
+}
+.ask-part.do {
+  animation-delay: 60ms;
+}
+@keyframes ask-part-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+.ask-say {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ask-headline {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: 1.42;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.ask-detail {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ask-prose {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* The answer's words, formatted (AskWords over contracts answerBlocks): paragraphs, a heading over a part, lists nested
+   three deep, and a table that scrolls sideways where it is wider than the answer. The detail's and the prose's own
+   type and ink stay theirs; each line is its own element, so the words keep no white space of their own. */
+.ask-words {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  white-space: normal;
+}
+.ask-words > p {
+  margin: 0;
+}
+.ask-words strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+.ask-words-head {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.ask-words-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 0 22px;
+}
+.ask-words-list .ask-words-list {
+  padding-top: 4px;
+}
+.ask-words-list > li::marker {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* A customer's own words, quoted: a rule at the left, the words a shade quieter. A callout is what must come first. */
+.ask-words-quote {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--line);
+  color: var(--ink-muted);
+}
+.ask-words-quote > p,
+.ask-words-callout-words > p {
+  margin: 0;
+}
+.ask-words-callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-inset-fill);
+  color: var(--ink);
+}
+.ask-words-callout > svg {
+  margin-top: 3px;
+  color: var(--ink-dim);
+}
+.ask-words-callout[data-tone="warn"] {
+  background: var(--warn-soft);
+}
+.ask-words-callout[data-tone="warn"] > svg {
+  color: var(--warn-ink);
+}
+.ask-words-callout-words {
+  display: grid;
+  gap: 4px;
+}
+.ask-words-table {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.ask-words-table table {
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.ask-words-table th,
+.ask-words-table td {
+  min-width: 56px;
+  overflow-wrap: normal;
+  padding: 6px 14px 6px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.ask-words-table th {
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+/* Words wrap inside their cell, so a table fits the panel where it can; a number never breaks. */
+.ask-words-table .ask-words-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.ask-turn.failed .ask-prose,
+.ask-turn.failed .ask-headline {
+  font-size: var(--text-md);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0;
+  color: var(--ink-dim);
+}
+.ask-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  margin-left: 2px;
+  vertical-align: -3px;
+  background: var(--accent);
+  border-radius: var(--radius-stem);
+  animation: ask-blink 1s steps(2, start) infinite;
+}
+@keyframes ask-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.ask-unverified {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  margin-left: 30px;
+  font-size: var(--text-xs);
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+  border-radius: var(--radius-full);
+  padding: 3px 9px;
+}
+.ask-show {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.ask-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.ask-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inset);
+  background: var(--bg-raised);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.ask-tile:has(:focus-visible),
+.ask-tile.open {
+  background: var(--bg-hover);
+  border-color: var(--line-strong);
+}
+.ask-tile-label {
+  font-size: var(--text-read);
+  color: var(--ink-muted);
+  margin-left: 5px;
+}
+.ask-tile-note {
+  font-size: var(--text-read);
+  color: var(--ink-dim);
+}
+.ask-tile-from {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* The keys' focus (the value is a button) or a press: where the figure comes from shows (S4). A pointer resting on it
+   changes nothing: the value's tooltip says it (surfaces/ask/turn.tsx AskFigure). The hover that swapped the note for the source
+   drew a band and ran the source into the label on the one-line figures ("todayFrom Today", Ruben's recording, 16 Oct
+   2026). */
+.ask-tile:has(:focus-visible) .ask-tile-from,
+.ask-tile-from[data-open="true"] {
+  display: inline-flex;
+}
+.ask-tile:has(:focus-visible) .ask-tile-note,
+.ask-tile.open .ask-tile-note {
+  display: none;
+}
+.ask-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* A chart the answer drew (the answer canvas, C3): the kit's card, and where it was read from under it. */
+.ask-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ask-breakdown-title {
+  font-size: var(--text-aside);
+  font-weight: 500;
+  color: var(--ink);
+}
+.ask-breakdown-from {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--text-label);
+  color: var(--ink-dim);
+}
+/* What they asked to see as a list (contracts AskList): a real list in the answer's ink, its bullet or number dim; one
+   entry to a line with no mark for lines. */
+.ask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 0 22px;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--ink);
+}
+.ask-list.lines {
+  gap: 2px;
+  padding-left: 0;
+  list-style: none;
+}
+.ask-list > li {
+  padding-left: 2px;
+  overflow-wrap: anywhere;
+}
+.ask-list > li::marker {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ask-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -10px;
+}
+.ask-item-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset-fill);
+  color: var(--ink-muted);
+}
+.ask-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ask-item-top {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 8px;
+}
+.ask-item-title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--ink);
+}
+.ask-item-meta {
+  font-size: var(--text-label);
+  color: var(--ink-dim);
+}
+.ask-item-line {
+  font-size: var(--text-aside);
+  line-height: 1.45;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ask-item-chev {
+  color: var(--ink-faint);
+}
+.ask-do {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.ask-do-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ask-do-row .ask-open.sel {
+  background: var(--bg-hover);
+  border-color: var(--line-strong);
+}
+
+/* ---- Cards: a proposal the person approves (the spec 2026-09-27-ask-chat-on-a-phone, D16): who or what it touches,
+   the change as it will land on the sunken ground, what follows, then its acts with Not now apart; after the act one
+   line on the sunken ground. The card is the one raised surface; no coloured edge: coral is only for Ask at work. On the
+   window's glass it is the glass the page's panes are and its grounds the inset's: an opaque card stood on the panel as
+   a near-black slab in dark. ---- */
+.ask-card {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--shadow-sm);
+  padding: 12px 12px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ask-card.dismissed,
+.ask-card.undone {
+  opacity: 0.6;
+}
+.ask-card-head {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 11px;
+  align-items: center;
+}
+.ask-card-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-mark);
+  background: var(--surface-inset-fill);
+  color: var(--ink-muted);
+}
+.ask-card-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ask-card-title {
+  font-size: var(--text-title);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ask-card-kind {
+  font-size: var(--text-label);
+  line-height: 1.35;
+  color: var(--ink-dim);
+}
+.ask-card-change {
+  padding: 10px 12px;
+  border-radius: var(--radius-inset);
+  background: var(--surface-inset-fill);
+}
+.ask-card-summary {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A reply as the sent bubble it will be: the Inbox's, as a question in a phone's thread is. */
+.ask-card-change.bubble {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+}
+.ask-card-change.bubble .ask-card-summary {
+  max-width: 90%;
+  padding: 8px 12px;
+  border: 1px solid var(--bubble-us-line);
+  border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xs) var(--radius-xl);
+  background: var(--bubble-us-bg);
+}
+.ask-card-note {
+  font-size: var(--text-xs);
+  color: var(--warn);
+}
+.ask-card-foot {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+/* A card's change as a sheet (AskSheet, the answer canvas C1): what holds it first, in the warn tone, then a row a fact on a key column. */
+.ask-spec {
+  display: grid;
+  gap: 8px;
+}
+.ask-spec-hold {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--warn-ink);
+}
+.ask-spec-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.ask-spec-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+.ask-spec-row dt {
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.ask-spec-row dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ask-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ask-card-not-now {
+  margin-left: auto;
+}
+.ask-card-receipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-aside);
+  line-height: 1.4;
+  color: var(--ink);
+}
+.ask-card-said {
+  flex: 1;
+  min-width: 0;
+}
+/* A playbook's undo asks first: its question takes a line of its own under what happened. */
+.ask-card-receipt > .confirm {
+  flex: 1 1 100%;
+}
+.ask-card-receipt .ok {
+  color: var(--ok-ink);
+}
+.ask-card-undo {
+  margin-left: auto;
+}
+/* The take-back clock (AskRing): a hairline ring emptying over a send's own window, from where the window stands and for
+   what is left of it (surfaces/ask/turn.tsx sets both). Under reduced motion it holds still as long (the block at the end), so
+   its end still takes the Undo. */
+.ask-card-ring {
+  flex: none;
+  color: var(--ink-muted);
+}
+/* What became of a card, where focus lands after a press (surfaces/ask/card.tsx): always in the card, so what fills it is
+   announced; empty it takes back the card's gap. Approve while its press runs, dimmed as the kit's button that cannot be
+   pressed, keeping the focus a disabled button would drop. */
+.ask-told:empty {
+  margin-top: -10px;
+}
+.ask-landing:focus {
+  outline: none;
+}
+.ask-landing:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.ask-press[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Cards side by side (surfaces/ask/card.tsx AskCards, and a plan's steps): one open, the rest folded to their head, what
+   they share said once over them. The head is the press: a folded card's whole face, with the card's own padding. */
+.ask-together {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.ask-alike {
+  display: grid;
+  gap: 4px;
+  padding: 0 2px;
+}
+.ask-fold {
+  grid-template-columns: 32px minmax(0, 1fr) 12px;
+}
+.ask-fold-chev {
+  color: var(--ink-faint);
+  rotate: 90deg;
+  transition: rotate var(--duration-fast) var(--ease-out);
+}
+.ask-fold[aria-expanded="true"] .ask-fold-chev {
+  rotate: -90deg;
+}
+.ask-fold-line {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+.ask-shut {
+  padding: 0;
+}
+.ask-shut .ask-fold {
+  padding: 11px 12px 11px 14px;
+  border-radius: inherit;
+}
+/* Why a step folded cannot go yet is said on it too, on the head's left edge. */
+.ask-shut > p {
+  margin-top: -10px;
+  padding: 0 12px 11px 57px;
+}
+@media (hover: hover) {
+  .ask-shut .ask-fold:hover {
+    background: var(--bg-hover);
+  }
+}
+.ask-ring-track,
+.ask-ring-arc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+.ask-ring-track {
+  opacity: 0.2;
+}
+.ask-ring-arc {
+  stroke-dasharray: 40.84;
+  stroke-linecap: round;
+  animation: ask-ring linear forwards;
+}
+@keyframes ask-ring {
+  to {
+    stroke-dashoffset: 40.84;
+  }
+}
+@keyframes ask-ring-still {
+  to {
+    opacity: 1;
+  }
+}
+/* A plan's cards as one group (surfaces/ask/turn.tsx AskPlan; the marketing manager's spec §5.8): its steps a column at the cards'
+   own gap, each step's head a quiet line over its card (.ask-step-n), and the one press for the steps that send nothing
+   on a line of its own above them (.ask-steps-press), so it keeps its own width. Layout alone: the head's words are the
+   kit's (.rec-hint), the press the kit's button, a send's wait the kit's state pill. */
+.ask-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.ask-step {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ask-step-n {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+.ask-steps-press {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- The Line's layout, a phone's screen and a desk's panel alike (the Stage's spec, section 5; Ruben, 16 Oct 2026:
+   the desk's Line is the phone's, docked at the right). The phone's own (its screen, the keys, its ✦, its touch sizes)
+   is the block after this one. ---- */
+.phone-ask {
+  display: none;
+}
+/* The middle is one scroller (surfaces/ask/line/ draws the thread and the hero in it), so they scroll with the answer. At
+   rest, while it listens and while a phone's field is in use, what it holds stands centred; the auto margins fall to
+   nothing once it overflows, so a long list still scrolls from its top (spec 5.2, 5.9). */
+.ask-line-body.rest,
+.ask-line-body.composing {
+  display: flex;
+  flex-direction: column;
+}
+.ask-line-body.rest > :first-child,
+.ask-line-body.composing > :first-child {
+  margin-top: auto;
+}
+.ask-line-body.rest > :last-child,
+.ask-line-body.composing > :last-child {
+  margin-bottom: auto;
+}
+/* Composing (a phone's field focused, its keyboard up; surfaces/ask/line/, spec 5.9): the rows go as the field slides up over
+   their place, and the three, at their size with the standing pills under them, slide to the middle's centre. Their
+   fold stays closed while they are gone and opens again as they return (220ms), so the return is one motion too. */
+.ask-rows-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 220ms var(--ease-out);
+}
+.ask-rows-fold > .ask-rows {
+  min-height: 0;
+  overflow: hidden;
+}
+.ask-rows-fold.gone {
+  grid-template-rows: 0fr;
+}
+.ask-line-body .ask-rows {
+  animation: ask-rows-in 160ms var(--ease-out);
+}
+@keyframes ask-rows-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.ask-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 20px 0;
+}
+/* The three: a hold listens (useHoldPress), so the stage takes no scroll, selection or tap flash of its own. The
+   canvas fits its box every frame, so the squares shrink with the stage as an answer is written (spec 5.5, R3). With
+   a phone's keys up they keep their size where it fits, and on a small screen take at most 45% of what is shown, so
+   they stay above the field with the pills under them (spec 5.9). */
+.ask-hero-stage {
+  display: block;
+  width: 100%;
+  height: min(232px, 34dvh, calc((100dvh - var(--ask-keys, 0px) - var(--vv-top, 0px)) * 0.45));
+  border: 0;
+  padding: 0;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: height 200ms var(--ease-out);
+}
+.ask-hero-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ask-hero.small .ask-hero-stage {
+  height: 78px;
+}
+/* Earlier: the three step aside and the conversations take the middle (surfaces/ask/line/ `away`). */
+.ask-hero.away {
+  display: none;
+}
+/* The question under the three: 14px in ink after a 7px dark square while Ask reads (spec 5.4), 12.5px dim once
+   they have shrunk over the answer (spec 5.5). */
+.ask-hero .ask-turn-q {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-title);
+  color: var(--ink);
+}
+.ask-hero .ask-turn-q::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  vertical-align: 1px;
+  border-radius: var(--radius-dot);
+  background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised));
+}
+.ask-hero.small .ask-turn-q {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ask-hero.small .ask-turn-q::before {
+  content: none;
+}
+.ask-read {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  line-height: 1.35;
+  animation: wash-in 160ms var(--ease-out) both;
+}
+.ask-read.now {
+  color: var(--accent-ink);
+}
+.ask-read-tile {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin: 0 1px;
+  border-radius: var(--radius-tile);
+  background: var(--ink-faint);
+}
+.ask-read .ask-reading-dot {
+  width: 8px;
+  height: 8px;
+}
+.ask-read-time {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.ask-heard {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: var(--text-hero);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+/* The question is the hero's, said once: the turn's own copy and the one under it while Ask reads are not drawn. */
+.ask-line-body .ask-turn > .ask-turn-q,
+.ask-trace .ask-turn-q {
+  display: none;
+}
+/* At rest the home stands centred under the three: Right now, then the page's questions as chips (spec 5.2). A row
+   keeps the full width (Earlier, the words typed, the jumps), and Right now centres its own parts. */
+.ask-rows {
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px 12px;
+}
+.ask-rows-sec {
+  align-items: center;
+  width: 100%;
+}
+/* Centred, the chips would take their own width and a long one would run past both edges: they keep to the section's. */
+.ask-rows-sec > .ask-chips {
+  max-width: 100%;
+}
+.ask-rows-sec > .ask-row {
+  align-self: stretch;
+}
+/* A section of rows (Earlier, the jumps; surfaces/ask/home.tsx `list`) reads down a left edge, its label on its rows'. */
+.ask-rows-sec.list {
+  align-items: stretch;
+}
+.ask-rows-sec.list > .ask-rows-label {
+  padding-left: 10px;
+}
+.ask-row.now {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  min-height: 0;
+  padding: 0;
+}
+.ask-row.now .ask-row-label {
+  font-size: var(--text-md);
+  line-height: 1.45;
+  max-width: 32ch;
+}
+/* Stacked and centred, the wrapped pills centre too and never run past the 375px the row has. */
+.ask-now-pills {
+  justify-content: center;
+  max-width: 100%;
+}
+.ask-row.now.sel {
+  background: transparent;
+}
+.ask-chips {
+  justify-content: center;
+}
+.ask-rows-note {
+  text-align: center;
+}
+.ask-turn {
+  padding: 8px 16px 16px;
+}
+/* Right now on a desk, where the keys stand as Ask opens (Enter asks it): its Brief me wears the kit button's hover, or
+   with nothing waiting, the row itself a soft ground. A phone has no keys to stand anywhere. */
+@media (min-width: 721px) {
+  .ask-row.now {
+    padding: 8px 12px;
+    border-radius: var(--radius-lg);
+  }
+  .ask-row.now.sel:not(.waiting) {
+    background: var(--bg-hover);
+  }
+  .ask-row.now.sel .ask-now-brief {
+    background: var(--bg-hover);
+    border-color: var(--line-strong);
+  }
+}
+
+/* ---- One thread (docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md): every turn in full, your words a
+   sent bubble, the three leading the newest answer, the next questions over the field ---- */
+/* The middle is the newest question's offsetParent, so it can stand it at its top (surfaces/ask/hooks.ts useAskPin, D5); the
+   newest turn is at least the middle's height, so its answer grows down into the room under the question. */
+.ask-line-body {
+  position: relative;
+}
+.ask-line-body.thread .ask-now {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-top: 8px;
+}
+.ask-thread-turn {
+  display: flex;
+  flex-direction: column;
+  padding-top: 14px;
+}
+/* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
+.ask-q {
+  align-self: flex-end;
+  max-width: 80%;
+  margin: 0 16px 0 56px;
+  padding: 10px 14px;
+  border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-sm) var(--radius-2xl);
+  border: 1px solid var(--bubble-us-line);
+  background: var(--bubble-us-bg);
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+/* The three leading the newest answer (D3, D11): large while Ask reads; the moment its words arrive they stand at the
+   answer's start, speaking (`sig speaking`), and stay there, still, once it is whole. One move: the stage narrows from
+   the full width to the mark at its left edge as it shrinks, and the canvas fits its box every frame, so the three
+   glide from the middle to the answer's start as they ease down. */
+.ask-hero-stage {
+  transition:
+    height 200ms var(--ease-out),
+    width 200ms var(--ease-out);
+}
+.ask-hero.thinking {
+  padding: 12px 16px 0;
+  gap: 18px;
+}
+.ask-hero.thinking .ask-hero-stage {
+  height: min(190px, 28dvh);
+}
+.ask-hero.sig {
+  align-items: flex-start;
+  padding: 8px 16px 0;
+}
+.ask-hero.sig .ask-hero-stage {
+  width: 34px;
+  height: 28px;
+}
+/* The answer, lighter (D8): no rail, a 17px headline, the detail in ink, its rows bordered, each figure one line. */
+.ask-answer {
+  gap: 16px;
+}
+.ask-items {
+  margin: 0;
+  gap: 8px;
+}
+.ask-figures {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ask-tile,
+.ask-tile.open,
+.ask-tile:has(:focus-visible) {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.ask-tile-note,
+.ask-tile.open .ask-tile-note,
+.ask-tile:has(:focus-visible) .ask-tile-note {
+  display: inline;
+}
+.ask-tile-note::before {
+  content: " · ";
+}
+.ask-tile-from[data-open="true"],
+.ask-tile:has(:focus-visible) .ask-tile-from {
+  display: flex;
+  margin-top: 2px;
+}
+.ask-unverified {
+  margin-left: 0;
+}
+/* Copy and Read aloud under the newest answer (AskActs, D14), their glyphs on the answer's left edge; on a desk each
+   says its word beside its glyph, where two bare glyphs were missed. */
+.ask-now > .ask-acts {
+  gap: 2px;
+  margin-top: -10px;
+  padding: 0 16px 8px 5px;
+  animation: wash-in 160ms var(--ease-out) both;
+}
+.ask-now > .ask-acts > .ask-act {
+  width: 36px;
+  height: 36px;
+}
+.ask-act-word {
+  display: none;
+}
+@media (min-width: 721px) {
+  .ask-now > .ask-acts {
+    gap: 4px;
+    margin-top: -6px;
+    padding-left: 10px;
+  }
+  .ask-now > .ask-acts > .ask-act {
+    gap: 6px;
+    width: auto;
+    height: 32px;
+    padding: 0 10px 0 8px;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+  }
+  .ask-act-word {
+    display: inline;
+  }
+}
+/* The newest answer's next questions over the field (D6): one row that scrolls sideways, never cut. It fades at its
+   right edge, so it reads as a row that scrolls (D15), and keeps room at its end so the last question clears the
+   fade once scrolled to. */
+.ask-next-row {
+  order: 8;
+  flex: none;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px 0;
+  scrollbar-width: none;
+  animation: wash-in 160ms var(--ease-out) both;
+}
+.ask-next-row::-webkit-scrollbar {
+  display: none;
+}
+.ask-next-row {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+}
+.ask-next-row::after {
+  content: "";
+  flex: none;
+  width: 24px;
+}
+.ask-next-row .ask-next {
+  flex: none;
+  max-width: none;
+  height: 34px;
+  font-size: var(--text-aside);
+}
+.ask-next-row .ask-next > span:first-child {
+  overflow: visible;
+}
+/* While an answer is on its way its next questions' room is held (`.hold`), so the thread does not jump up when they
+   arrive. On a desk the row wraps: the panel is narrow and a row cut at its edge was missed, with no swipe to find it. */
+.ask-next-row.hold {
+  height: 42px;
+}
+@media (min-width: 721px) {
+  .ask-next-row {
+    flex-wrap: wrap;
+    overflow: visible;
+    padding: 8px 16px 0;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .ask-next-row::after {
+    content: none;
+  }
+  .ask-next-row > * {
+    max-width: 100%;
+  }
+  .ask-next-row > * > span:first-child {
+    overflow: hidden;
+  }
+}
+/* An answer with cards keeps them in the thread, under its cards and on the answer's edge: over the field they stood on the card. */
+.ask-now > .ask-next-row {
+  order: 0;
+  padding: 0 16px 14px;
+}
+/* The three come forward over the field to listen (D4); the thread dims under them and its own face hides. */
+.ask-listen {
+  order: 8;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 16px 0;
+  animation: wash-in 160ms var(--ease-out) both;
+}
+.ask-listen-stage {
+  display: block;
+  width: 100%;
+  height: min(116px, 16dvh);
+}
+.ask-listen .ask-heard {
+  margin: 0;
+  font-size: var(--text-heard);
+}
+.ask-line-body.thread > * {
+  transition: opacity 200ms var(--ease-out);
+}
+.ask-line-body.dim > * {
+  opacity: 0.36;
+}
+.ask-line-body.dim .ask-hero {
+  visibility: hidden;
+}
+/* Latest (D7): over the field, and over the next questions when they stand. */
+.ask-latest {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 84px);
+  translate: -50% 0;
+  animation: wash-in 160ms var(--ease-out) both;
+}
+.ask-latest[data-over-next="1"] {
+  bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 126px);
+}
+
+@media (max-width: 720px) {
+  /* The ✦ sits in the tab bar's own row, at its right end, where the bar keeps a place for it (mobile.css). It is the
+     cards' own surface with the three on it, ink at rest and coral while Ask works, as the top bar's face is (the
+     primary act is ink in this system and coral is a state; a coral ✦ said "live" all day), and its state is a dot
+     on the disc's rim (`.ask-disc`, surfaces/kit/face/ask-face.tsx AskDisc; the spec 2026-09-25-the-ask-button-on-a-phone,
+     B9). The tap is 44px; the disc is 40 inside it, so the rim runs close to the three. */
+  .phone-ask {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    border-radius: var(--radius-circle);
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+    color: var(--ink);
+    z-index: 121;
+  }
+  /* The three in the ✦ (surfaces/kit/face/ask-face.tsx, on the raised ground), over the disc: the tile is set (`side`,
+     surfaces/frame/shell-chrome.tsx, 14px), not fitted, and the canvas is 3.2 tiles by 2.72, the room everything the three do needs
+     round them. The tile was 12.5px on a canvas of 40 by 34, the 40px disc's own; in the 62px circle the mark stood
+     small with empty glass round it, so it is a tile's eighth larger and the circle is as it was (Ruben, 7 Oct 2026).
+     The engine draws the mark 0.225 of a tile above the canvas's middle (character.ts CENTRE_Y) so that the ink and the
+     shadow it casts balance; at this size the shadow is a hair, and the ink is what reads as centred, so the canvas
+     sits that much lower in the disc. */
+  .phone-ask .phone-ask-face {
+    display: block;
+    width: 45px;
+    height: 38px;
+    position: relative;
+    z-index: 1;
+    translate: 0 calc(0.225 * 14px);
+  }
+  .phone-ask:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+  .phone-ask:active {
+    transform: scale(0.96);
+  }
+  /* The disc, and its dot. The disc is the cards' surface, lifted by their shadow and nothing else: no hairline, the
+     three's own edge is the edge. The dot is the usage's standing, said the way this app says every state
+     (components.css, the badges): nothing under 80%, so the ✦ is furniture; from 80% (`data-usage`) the amber dot
+     "needs you" wears everywhere here, breathing; at 100% red. It rides the rim at the top right with the surface's
+     own ring around it. What needs you on the page is the three's own colour: lit where they stand as a page arrives,
+     and kept lit while something waits (legacy-bridge/arrival.ts); the states while Ask works. Chosen from the canvas
+     (Ruben, 25 Sep: "let's go with 4", then "the dot only past 80%, amber then red; if something needs attention the
+     three stay in colour at rest"); the beam it replaces is B3 to B5 of the spec. Nothing sets `data-usage` yet (AskDisc
+     says why), so the dot waits, undrawn, for the usage surface. */
+  .phone-ask .ask-disc {
+    position: absolute;
+    border-radius: var(--radius-circle);
+    pointer-events: none;
+    background: var(--bg-raised);
+    --dot: var(--warn);
+    --dot-on: 0;
+  }
+  .phone-ask .ask-disc[data-usage="warned"] {
+    --dot: var(--warn);
+    --dot-on: 1;
+  }
+  .phone-ask .ask-disc[data-usage="over"] {
+    --dot: var(--danger);
+    --dot-on: 1;
+  }
+  .phone-ask .ask-disc::before {
+    content: "";
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-circle);
+    background: var(--dot);
+    box-shadow: var(--shadow-rim);
+    opacity: var(--dot-on);
+    transition: opacity 0.5s ease;
+    animation: ask-dot-breathe 2.6s ease-in-out infinite;
+  }
+  @keyframes ask-dot-breathe {
+    50% {
+      transform: scale(0.78);
+    }
+  }
+  /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
+  html.in-app .phone-ask {
+    bottom: calc(10px + var(--app-inset-bottom, 0px));
+  }
+  /* Inside a page that takes the screen over (data-takeover on its root: a thread, a call) the reply box IS the action,
+     and Send sits a thumb from here. Ask comes back with the list, and is there under the page as a thumb carries it back
+     (data-carrying, mobile.css). A bar docked at the foot (data-dock, mobile.css) takes the same room. */
+  :root:not([data-carrying]) body:has([data-takeover]) .phone-ask {
+    display: none;
+  }
+  /* A dock fades the circle aside with the tab bar, and brings it back as the dock plays out (mobile.css); not under a page
+     a thumb carries back to its list, where the circle stands as on the list (data-carrying). */
+  .phone-ask {
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      visibility 0s linear 0s;
+  }
+  :root:not([data-carrying]) body:has([data-dock]:not([data-leaving])) .phone-ask {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      visibility 0s linear var(--duration-fast);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .phone-ask,
+    body:has([data-dock]) .phone-ask {
+      transition: none;
+    }
+  }
+  /* A page that takes the screen over, pushed in over its list (kit/motion/held-list.ts, data-pushing): the circle leaves
+     with the list as the tab bar does (mobile.css), rather than stand under the page, where its lower edge showed beneath
+     the thread at the window's foot until it had landed (Ruben's iPhone recording, 23 Oct 2026). */
+  :root[data-pushing] body:has([data-takeover]) .phone-ask {
+    opacity: 0;
+    translate: 0 6px;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      translate var(--duration-fast) var(--ease-out),
+      visibility 0s linear var(--duration-fast);
+  }
+
+  /* Every dialog on the ask overlay sits on the bottom edge on a phone (the Calendar's visit drew on it until it moved to
+     the kit's Sheet, calendar/visit/visit-sheet.tsx). The Line itself is the whole screen. Behind
+     a dialog the page wears the phone's one veil (tokens.css --surface-veil): it wore the ink's wash, which lightened
+     a dark page. */
+  .ask-overlay {
+    padding: 0;
+    align-items: flex-end;
+    background: var(--surface-veil);
+  }
+  .ask-overlay.ask-line-scrim {
+    padding: 0;
+  }
+  /* The screen: the head, the middle that scrolls, the foot above the keys (--ask-keys) and the home bar. The keys are
+     what the document says (kit/motion/keyboard.ts watchKeyboard): what a keyboard covers once it is up (--kb), and, from the moment
+     a field is focused until it is up, the height the last one had (kb-expected, --kb-last), so the room is there at
+     once and the browser finds the field above the keys and has nothing to move the view for. Making the room as the
+     browser reported the keys, then following its word on how far it had moved the view, jumped the screen one way or
+     the other (Ruben's recording, 25 Sep): its word comes before the move or long after, never with it. Should it move
+     the view all the same (a keyboard of another height, the first ever on a device), the screen slides down by as
+     much and is as tall as what is left (--vv-top), eased. What stands on the room is the page's own slide
+     (surfaces/ask/hooks.ts slide). With the keys up the home bar is under them, so no room is kept for it. It fades in over
+     the kit's wash and leaves as a dialog does (components.css), never dropping as a sheet. */
+  .ask-modal.ask-line {
+    --ask-keys: var(--kb, 0px);
+    position: fixed;
+    inset: 0;
+    max-width: none;
+    width: auto;
+    max-height: none;
+    height: calc(100dvh - var(--vv-top, 0px));
+    translate: 0 var(--vv-top, 0px);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys));
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--bg);
+    animation: wash-in var(--duration-base) var(--ease-out);
+    transition:
+      padding-bottom 250ms var(--ease-out),
+      translate 250ms var(--ease-out);
+  }
+  html.kb-up .ask-modal.ask-line {
+    padding-bottom: var(--ask-keys);
+  }
+  html.kb-expected .ask-modal.ask-line {
+    --ask-keys: var(--kb-last, 0px);
+    padding-bottom: var(--ask-keys);
+    transition: translate 250ms var(--ease-out);
+  }
+  /* The close a thumb's reach (the head, above). */
+  .ask-line-head .ask-line-close {
+    width: 44px;
+    height: 44px;
+  }
+  /* While it listens the band stays drawn under the pill, hidden: the button in it holds the finger until the lift. */
+  .ask-line .ask-stage.listening {
+    display: none;
+  }
+  .ask-line-input {
+    font-size: var(--field-text-touch);
+    min-height: 44px;
+  }
+  .ask-send {
+    width: 36px;
+    height: 36px;
+  }
+  .ask-row {
+    min-height: 48px;
+  }
+  .ask-item {
+    min-height: 48px;
+  }
+  /* While it listens: "Let go to ask" where the field was, where the finger that held the mic lifts (spec 5.3). */
+  .ask-letgo-wrap {
+    order: 9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px 12px;
+  }
+  /* A card a thumb can act on (D16): the words and the line a size up, and its acts the house's on a phone: 44px
+     capsules worded at the base step, as every sheet's foot and question are (19 Oct 2026: 8px corners and 14px words). */
+  .ask-card-title,
+  .ask-card-summary {
+    font-size: var(--text-md);
+  }
+  .ask-spec-rows {
+    gap: 4px;
+  }
+  .ask-card-actions .btn {
+    height: var(--control-h-touch);
+    padding: 0 16px;
+    font-size: var(--text-base);
+    border-radius: var(--control-radius);
+  }
+  .ask-card-actions .ask-card-not-now {
+    padding: 0 10px;
+  }
+  .ask-card-receipt {
+    min-height: 44px;
+    padding: 6px 6px 6px 12px;
+    font-size: var(--text-base);
+  }
+  .ask-card-receipt .btn {
+    height: 32px;
+    padding: 0 10px;
+    font-size: var(--text-aside);
+  }
+}
+
+/* ---- Ask's glass circle, on a phone (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.3) ----
+   In the Glass look the ✦ is its own glass circle beside the tab bar's capsule, as tall as the bar (decision 12;
+   liquid.py tabbar): the disc of 25 September drawn in the control layer's glass, with its sheen, its rim and its
+   depth, and its usage dot riding the circle's rim. The bar and the room the page keeps for both are mobile.css's.
+   Each rule names the look inside :where() and comes after the rule it restyles; none matches in Classic. */
+@media (max-width: 720px) {
+  .phone-ask {
+    right: 14px;
+    bottom: var(--bar-foot);
+    width: 62px;
+    height: 62px;
+  }
+  .phone-ask .ask-disc {
+    inset: 0;
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-float-depth);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .phone-ask .ask-disc::before {
+    top: 6px;
+    right: 6px;
+  }
+  .phone-ask .ask-disc::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+}
+
+/* Last, so it wins over the phone's own motion too: nothing moves but the finger's drag. */
+@media (prefers-reduced-motion: reduce) {
+  /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */
+  .phone-ask .ask-disc::before {
+    animation: none;
+  }
+  .ask-cursor,
+  .ask-reading-dot,
+  .ask-part.show,
+  .ask-part.do,
+  .ask-modal.ask-line,
+  .ask-listen,
+  .ask-latest,
+  .ask-read,
+  .ask-next-row,
+  .ask-now > .ask-acts {
+    animation: none;
+  }
+  /* The take-back ring holds still for as long, so its end still comes, and takes the Undo with it. */
+  .ask-ring-arc {
+    animation-name: ask-ring-still;
+  }
+  .ask-hero-stage,
+  .ask-modal.ask-line,
+  .ask-rows-fold,
+  .ask-line-body.thread > *,
+  .ask-fold-chev {
+    transition: none;
+  }
+  .ask-line-body .ask-rows {
+    animation: none;
+  }
+}
+/* ---- Ask's window, in Glass (the plan's step 5.4; the control layer's glass, as every pop is) ----
+   The window (the overlay's one child: the ratchet counts a class named modal, so it is reached as that) is a pop of the
+   control layer over the page's wash: its radius, its edge and its depth; what Ask says of right now an inset, and the
+   questions it offers capsules of the inset's fill. Each rule names the look inside :where(); none matches in Classic. */
+.ask-overlay > * {
+  border: 1px solid var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  background: var(--surface-pop-fill);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-pop-depth);
+}
+.ask-suggestion {
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+@media (hover: hover) {
+  .ask-suggestion:hover {
+    background: var(--surface-control-fill);
+  }
+}
+
+/* ---- Ask's takeover on a phone, in Glass (Ruben, 2 Oct 2026: "it seems to have a background; remove it so it follows the
+   transparent styling") ----
+   The phone's Line is the whole screen, and it drew one: a window of the page's own ground (`background: var(--bg)`, nearly
+   opaque once the pop's fill and blur sat on it) over a scrim of the sunken ground at 64%, so the page behind was gone
+   and the three stood on a flat black screen. Here the scrim is the glass: the control layer's blur over a soft veil, so
+   the page's own light and colour come through softened; the window over it keeps nothing of its own; and the field at
+   the foot is the inset's capsule, not a dark pill. The window is reached as the overlay's child, since a class named
+   modal is a primitive's word to the ratchet. */
+@media (max-width: 720px) {
+  .ask-overlay.ask-line-scrim {
+    background: color-mix(in oklab, var(--surface-scrim) 55%, transparent);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .ask-overlay > .ask-line {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+/* The field at the foot is the inset's capsule, on a phone's screen and in a desk's panel. */
+.ask-line .ask-stage {
+  border: 0;
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+
+/* ---- Ask's panel on a desk, in Glass: the sidebar's own surface (components.css .sidebar), its fill, sheen and depth
+   and its rim, with the control layer's blur, so the two read as one pair either side of the page. ---- */
+@media (min-width: 721px) {
+  .ask-overlay > .ask-line {
+    border: 0;
+    border-radius: var(--surface-control-radius);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    backdrop-filter: var(--surface-control-blur);
+    box-shadow: var(--surface-control-depth);
+  }
+  .ask-overlay > .ask-line::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+}

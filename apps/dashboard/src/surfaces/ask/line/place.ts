@@ -5,7 +5,7 @@
 import type { AskMessageVM, AskScope } from "@chanlytics/contracts";
 import { AH_OPEN_OVER } from "../hooks";
 import { askKindGlyph } from "../card-parts";
-import { inboxThreads, liveCalls, routeNow } from "../shell";
+import { inboxThreads, liveCalls, mediaSays, routeNow } from "../shell";
 import type { Conversation, Line, LineRoute, QuickTurn } from "./types";
 
 // A hold's lift that makes no click on the button (the finger let go elsewhere) is forgotten after this.
@@ -52,8 +52,8 @@ export const arNowKey = (active: Conversation | null, quick: QuickTurn | null) =
   return q ? q.id : quick ? `quick:${quick.q}` : "";
 };
 
-export const arPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
-export const arStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+export const arPhone = () => mediaSays("(max-width: 720px)");
+export const arStill = () => mediaSays("(prefers-reduced-motion: reduce)");
 
 // Where the three come from as the Line opens: the top bar's button, where it is drawn. On a phone the ✦ is gone
 // before the takeover comes in (surfaces/frame/shell-chrome.tsx draws it only while Ask is closed), so the takeover's own fade is it.

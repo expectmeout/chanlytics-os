@@ -142,6 +142,13 @@
   /* The top corners of the phone's action sheet (the kit's Menu from the bottom edge): the sheet's 16 and 6 more. */
   --radius-sheet: 22px;
   --radius-full: 999px;
+  /* A thread's small marks (Ask's Line): the caret's stem, the tile before what it read, and the one before a question. */
+  --radius-stem: 1px;
+  --radius-tile: 1.5px;
+  --radius-dot: 2px;
+  /* What stands inside a card (Ask's): its mark, and the sunken ground of what it would change. */
+  --radius-mark: 9px;
+  --radius-inset: 10px;
   /* A circle, whatever the box's size: a face, a dot. --radius-full rounds a wide box into a capsule, this into an
      ellipse; on a square box the two are one circle. The stylesheets still write 50% by hand for it (step 2.2). */
   --radius-circle: 50%;
@@ -298,6 +305,8 @@
      lightened it; a record's sheet the whole scrim, nearly three times as dark; the bell and a menu none (Ruben, 7 Oct
      2026). --surface-scrim itself fades the page behind a desk's side sheet. */
   --surface-veil: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
+  /* The ring that stands a small mark clear of the raised ground it rides (the dot on Ask's ✦). */
+  --shadow-rim: 0 0 0 2px var(--bg-raised);
   /* The wash behind a sheet or a dialog: the scrim on a desk, the veil on a phone (below, at 900px). */
   --surface-wash: var(--surface-scrim);
   /* Where the three pools of light stand (the canvases' glow). They stand still here; on a desk each is a layer of its
@@ -338,6 +347,14 @@
   --sheet-phone-xs: 12.5px;
   --sheet-phone-sm: 13.5px;
   --sheet-phone-base: 15px;
+  /* A conversation's own steps, Ask's Line (kit.css, the line; ask.css): between the scale's, since a thread is read closer
+     than a page. A label, a note or a word beside a source; a quiet line of a row; the three's question; an answer's words
+     and a person's; what a mic heard over a field. */
+  --text-label: 12px;
+  --text-aside: 13px;
+  --text-title: 14px;
+  --text-read: 15px;
+  --text-heard: 20px;
   --sheet-phone-xl: 18px;
   /* A face drawn as a tile (the run-to-leads canvas's businesses): a rounded square in one of four hues, its initials
      white over it, a hairline of light inside its edge. The same in both themes: a tile is its own ground. */

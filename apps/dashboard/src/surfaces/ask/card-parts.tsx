@@ -6,8 +6,10 @@ import { useState, type RefObject } from "react";
 import type { AskCardSheet, AskProposal, AskProposalOutcome } from "@chanlytics/contracts";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
 import { SEARCH_CARD_REPLACED } from "@chanlytics/contracts";
+import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
 import { Icon } from "../kit/icon/icon";
+import { LinePress } from "../kit/line/line";
 import { askCalls, gate } from "./shell";
 import type { LineWords } from "./words";
 
@@ -193,8 +195,8 @@ export const AskCardHead = ({ p, t, fold = null }: { p: AskProposal; t: LineWord
       </div>
     );
   return (
-    <button
-      type="button"
+    <LinePress
+      kind="fold"
       className="ask-card-head ask-fold"
       aria-expanded={fold.open}
       onClick={fold.toggle}
@@ -206,7 +208,7 @@ export const AskCardHead = ({ p, t, fold = null }: { p: AskProposal; t: LineWord
         {fold.open ? null : <span className="ask-fold-line">{p.line || p.summary}</span>}
       </span>
       <Icon name="chevron" size={12} className="ask-fold-chev" />
-    </button>
+    </LinePress>
   );
 };
 
@@ -345,13 +347,13 @@ export const AskCardActs = ({
     return (
       <div className="ask-card-actions">
         {typeof pl.to === "string" && pl.door ? (
-          <button className="btn btn-primary btn-sm" onClick={() => onNav(pl.to as string)} data-testid="ask-card-door">
+          <Button variant="primary" size="sm" onClick={() => onNav(pl.to as string)} data-testid="ask-card-door">
             {pl.door as string}
-          </button>
+          </Button>
         ) : null}
-        <button className="btn btn-ghost btn-sm ask-card-not-now" onClick={onDismiss} disabled={busy}>
+        <Button variant="quiet" size="sm" className="ask-card-not-now" onClick={onDismiss} disabled={busy}>
           {t.notNow}
-        </button>
+        </Button>
       </div>
     );
   return (
@@ -362,9 +364,11 @@ export const AskCardActs = ({
         </span>
       ) : null}
       {waits ? null : (
-        <button
+        <Button
           ref={approveRef}
-          className="btn btn-primary btn-sm ask-press"
+          variant="primary"
+          size="sm"
+          className="ask-press"
           onClick={onApprove}
           disabled={!!(press && press.disabled)}
           aria-disabled={busy || undefined}
@@ -373,32 +377,33 @@ export const AskCardActs = ({
           {...gate(gateKey, "approve this card")}
         >
           {busy ? t.working : press ? press.label : p.kind === "reply" ? t.send : t.approve}
-        </button>
+        </Button>
       )}
       {p.kind === "reply" && pl.conversation_id ? (
-        <button
-          className="btn btn-ghost btn-sm"
+        <Button
+          variant="quiet"
+          size="sm"
           onClick={() => {
             onNav(`inbox/th-${pl.conversation_id as string}`);
             if (A) A.editReply(p);
           }}
         >
           {t.editComposer}
-        </button>
+        </Button>
       ) : null}
       {openRoute && !hideOpen && (more || !aside) ? (
-        <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>
+        <Button variant="quiet" size="sm" onClick={() => onNav(openRoute)}>
           {/^campaigns\/sequences\/new(:|$)/.test(openRoute) ? t.openNew : t.openIt}
-        </button>
+        </Button>
       ) : null}
       {aside ? (
-        <button className="btn btn-ghost btn-sm" onClick={onMore} aria-expanded={!!more} data-testid="ask-card-details">
+        <Button variant="quiet" size="sm" onClick={onMore} aria-expanded={!!more} data-testid="ask-card-details">
           {t.details}
-        </button>
+        </Button>
       ) : null}
-      <button className="btn btn-ghost btn-sm ask-card-not-now" onClick={onDismiss} disabled={busy}>
+      <Button variant="quiet" size="sm" className="ask-card-not-now" onClick={onDismiss} disabled={busy}>
         {t.notNow}
-      </button>
+      </Button>
     </div>
   );
 };
@@ -495,14 +500,16 @@ export const AskCardReceipt = ({
             : receipt}
       </span>
       {can && !armed ? (
-        <button
-          className="btn btn-ghost btn-sm ask-card-undo"
+        <Button
+          variant="quiet"
+          size="sm"
+          className="ask-card-undo"
           onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo}
           aria-disabled={busy || undefined}
           title={clock ? (p.undo ?? undefined) : undefined}
         >
           {clock ? t.undo : p.undo}
-        </button>
+        </Button>
       ) : null}
       {can && armed ? (
         <Confirm
@@ -517,9 +524,9 @@ export const AskCardReceipt = ({
         />
       ) : null}
       {state === "failed" ? (
-        <button className="btn btn-ghost btn-sm ask-card-undo" onClick={onRetry}>
+        <Button variant="quiet" size="sm" className="ask-card-undo" onClick={onRetry}>
           {t.tryAgain}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

@@ -15,7 +15,7 @@ import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
 import type { SurfaceNames } from "@/legacy-bridge/surface-status";
-import { askAbout, canDo, holdStill, mayAtLeast } from "../legacy-verbs";
+import { askAbout, askCalls, canDo, holdStill, mayAtLeast } from "../legacy-verbs";
 import { fn, object, type Flash } from "../shell-doors";
 
 export { askAbout, canDo, holdStill, mayAtLeast };
@@ -45,7 +45,7 @@ export function appNavigate(route: string): void {
 /* -------------------------------- the voice -------------------------------- */
 
 /**
- * Ask's one voice, reading aloud (`window.__ask`, legacy-bridge/ask/speech.ts): the brief's words, spoken as the vendor
+ * Ask's one voice, reading aloud (legacy-verbs.ts askCalls, legacy-bridge/ask/speech.ts): the brief's words, spoken as the vendor
  * makes them, through one player the bridge owns (never the pane's, so a pane drawn again mid-sentence changes nothing
  * of the clip). Nobody speaks back: Today's Listen is not a conversation (the spec's §3.5 as amended 4 Oct 2026).
  */
@@ -65,7 +65,7 @@ interface AskSpeech {
 
 /** Ask's voice where the shell has wired it and the device can play it; nothing in a stand-in window. */
 export function askSpeech(): AskSpeech | undefined {
-  const a = object<Partial<AskSpeech>>("__ask");
+  const a: Partial<AskSpeech> | undefined = askCalls();
   if (
     !a ||
     typeof a.canSpeak !== "function" ||
@@ -85,7 +85,7 @@ type AskCardCommit =
   | { ok: true; receipt: string; undo: Record<string, unknown> | null; made: { kind: string; id: string } | null }
   | { ok: false; message: string; moved?: boolean };
 
-/** Ask's cards, pressed where the Line is not open (`window.__ask`): the verb walk a card commits by, and its outcome kept. */
+/** Ask's cards, pressed where the Line is not open (legacy-verbs.ts askCalls): the verb walk a card commits by, and its outcome kept. */
 interface AskCardDoor {
   commit(p: AskProposal): Promise<AskCardCommit>;
   outcome(messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean>;
@@ -93,7 +93,7 @@ interface AskCardDoor {
 
 /** Ask's card door where the shell has wired it (Ask's ideas in Need you, decisions 0070 and 0071); nothing in a stand-in window. */
 export function askCards(): AskCardDoor | undefined {
-  const a = object<Partial<AskCardDoor>>("__ask");
+  const a: Partial<AskCardDoor> | undefined = askCalls();
   return a && typeof a.commit === "function" && typeof a.outcome === "function" ? (a as AskCardDoor) : undefined;
 }
 

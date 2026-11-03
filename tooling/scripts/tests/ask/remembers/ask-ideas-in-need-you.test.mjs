@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import { NEED_YOU_WORDS } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, textOf, press, kitPages, settle } from "../../_legacy-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { importSrc } from "../../_source.mjs";
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
 Object.assign(globalThis.window, kitPages);
@@ -41,7 +43,7 @@ const CARDS = [card("p-1", "Write to Rosa"), card("p-2", "Write to Ana"), card("
 function door() {
   const commits = [];
   const outcomes = [];
-  W.__ask = {
+  holdAsk({
     commit: (p) =>
       new Promise((land) => {
         commits.push({ p, land });
@@ -50,7 +52,7 @@ function door() {
       new Promise((land) => {
         outcomes.push({ messageId, pid, state: o.state, moved: o.moved, land: () => land(true) });
       }),
-  };
+  });
   return { commits, outcomes };
 }
 

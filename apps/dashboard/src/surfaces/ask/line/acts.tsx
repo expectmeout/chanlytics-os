@@ -1,7 +1,7 @@
 /** The Line's acts, made before the hooks that call them. */
 import type { AskProposalOutcome, AskThreadVM } from "@chanlytics/contracts";
 import type { Conversation, Line } from "./types";
-import { frameMove, navigate } from "../shell";
+import { navigate } from "../shell";
 import { arPhone } from "./place";
 
 /** Going somewhere, a question back in the field, leaving the turn in flight, Clear, a card's outcome, a conversation opened or deleted, and Stop. */
@@ -33,10 +33,10 @@ export const arActs = (ln: Line) => {
   // the Line closes; ⌘K brings the conversation back. On a phone the place takes the takeover's entry (replaced, never
   // pushed over it and then gone back from), so Back from there is the page Ask was opened over.
   const nav = (to: string, how?: { leave?: boolean }) => {
-    if (pushed.current && frameMove()) {
+    if (pushed.current) {
       pushed.current = false;
       onClose();
-      frameMove()?.(to, { replace: true });
+      navigate(to, { replace: true });
       return;
     }
     if (!(how && how.leave) && !arPhone()) {
@@ -59,7 +59,7 @@ export const arActs = (ln: Line) => {
     turnSeq.current += 1;
     if (live) {
       setLive(null);
-      if (M) M.mood.set("idle");
+      M.mood.set("idle");
     }
   };
   // Clear: the conversation ends, spoken or typed, and the Line is home again; the thread stays in Earlier.

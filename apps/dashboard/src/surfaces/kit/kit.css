@@ -7622,3 +7622,408 @@ textarea.rec-input,
     opacity: 1;
   }
 }
+
+/* ---------- The line: what a conversation is pressed and typed through (kit/line/line.tsx) ----------
+   Ask's Line. None of it is a button of the kit: a .btn has a height, a padding and the control layer's glass, and these
+   stand in a sentence or on a line of their own, each with no ground of a button's. Where one is placed, and any size a
+   width changes, is the page's (ask.css). */
+
+/* One press at a field's end: the mic with no words, Send with words, Stop while a turn runs. An ink circle, faint only
+   where there is neither a voice nor words, coral while it listens; its glyph blooms in as the role turns and the ground
+   crosses over. A hold on the mic never scrolls or selects through it. */
+.line-send {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: var(--ink);
+  color: var(--bg);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.line-send:disabled {
+  background: var(--bg-active);
+  color: var(--ink-faint);
+  cursor: default;
+}
+@media (hover: hover) {
+  .line-send:not(:disabled):hover {
+    background: oklch(from var(--ink) calc(l + 0.08) c h);
+  }
+}
+.line-send.line-talk.on {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+@media (hover: hover) {
+  .line-send.line-talk.on:hover {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+}
+/* The agent speaking (data-state, the hold's answer coming back aloud): a ring breathes out of the mic, so the voice on
+   the line is seen as well as heard; the next hold cuts it off. */
+.line-talk {
+  position: relative;
+}
+.line-send.line-talk[data-state="speaking"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 2px solid var(--accent);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  animation: line-live 1s ease-out infinite;
+}
+@keyframes line-live {
+  0% {
+    opacity: 0.9;
+    scale: 0.9;
+  }
+  70%,
+  100% {
+    opacity: 0;
+    scale: 1.4;
+  }
+}
+.line-send .icon {
+  animation: line-bloom 160ms var(--ease-out) both;
+}
+@keyframes line-bloom {
+  from {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+}
+
+/* An answer's small acts, Copy and Read aloud: a quiet glyph, its word beside it where the page has room. Under a pointer
+   or a key it takes the hover's ground and keeps its ink; while it reads, the accent's. */
+.line-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--control-radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.line-act:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+@media (hover: hover) {
+  .line-act:hover {
+    background: var(--bg-hover);
+    outline: none;
+  }
+}
+.line-act.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+/* A question offered: a capsule of the inset's fill. An act's words run to sixty letters, so a chip never grows past its
+   wrap, a phone's included. `next` follows an answer, a small tile before its words. */
+.line-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+  text-align: left;
+}
+.line-chip > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.line-chip .icon,
+.line-chip-meta {
+  color: var(--ink-dim);
+}
+.line-chip-meta {
+  font-size: var(--text-xs);
+}
+.line-chip.sel {
+  border-color: var(--line-strong);
+  background: var(--bg-hover);
+}
+@media (hover: hover) {
+  .line-chip:hover {
+    border-color: var(--line-strong);
+    background: var(--bg-hover);
+  }
+}
+.line-chip.line-next::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-dot);
+  background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised));
+}
+
+/* The × in what a field is scoped to, and a row's: words of a line, with no ground until a pointer reaches a row's. */
+.line-clear {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .line-clear:hover {
+    color: var(--ink);
+  }
+}
+.line-remove {
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .line-remove:hover {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+}
+
+/* A card's head that folds it: the whole head one press, with no ground of its own. What it holds the page lays out. */
+.line-fold {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.line-fold:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* While a phone listens: the pill a held mic is lifted from, where the field was, and the words it takes the finger to. */
+.line-letgo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 60px;
+  border: 0;
+  border-radius: var(--radius-bubble);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  touch-action: none;
+  user-select: none;
+}
+
+/* The way back to the newest question: a raised pill that floats where the page stands it. */
+.line-latest {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-md);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* A line of an answer that opens what it names: a mark, its words, a chevron; `plain` says a row with no door of its own,
+   an earlier one already opening that place, and is drawn on a <div>. */
+.line-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 12px;
+  column-gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-row);
+  background: var(--surface-pane-fill);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.line-item.sel {
+  background: var(--bg-hover);
+}
+@media (hover: hover) {
+  .line-item:hover {
+    background: var(--bg-hover);
+  }
+}
+.line-item.plain {
+  grid-template-columns: 24px minmax(0, 1fr);
+  cursor: default;
+}
+.line-item.plain:hover {
+  background: transparent;
+}
+@media (hover: hover) {
+  .line-item.plain:hover {
+    background: var(--surface-pane-fill);
+  }
+}
+
+/* A number in a sentence of its own. With a source it is a press, underlined dotted: where it comes from opens under it. */
+.line-figure {
+  display: inline;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-read);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  cursor: pointer;
+}
+.line-figure.plain {
+  cursor: default;
+}
+button.line-figure {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ink-faint);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+/* The glyph that goes where a figure came from; the word that opens a source; a row the answer's words name, underlined in
+   their own ink. */
+.line-door {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .line-door:hover {
+    color: var(--ink);
+  }
+}
+.line-open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-label);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.line-words {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: inherit;
+}
+.line-words:hover {
+  text-decoration-color: currentColor;
+}
+.line-words:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+
+/* The field: a line that grows with its words, from one to six, then scrolls, so a pasted message keeps its lines. It has
+   no box of its own: the page's band is its ground, and a mic listening colours what it says while empty. */
+.line-field {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  max-height: 164px;
+  padding: 10px 0;
+  line-height: 24px;
+  resize: none;
+  overflow-y: auto;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-lg);
+  letter-spacing: -0.012em;
+  color: var(--ink);
+}
+.line-field::placeholder {
+  color: var(--ink-dim);
+}
+.line-field[data-listening="true"]::placeholder {
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line-send.line-talk[data-state="speaking"]::after {
+    animation: none;
+    opacity: 0.6;
+    scale: 1.12;
+  }
+  .line-send {
+    transition: none;
+  }
+  .line-send .icon {
+    animation: none;
+  }
+}

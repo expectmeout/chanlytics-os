@@ -1,6 +1,7 @@
 /** The Line's hooks: one concern each, called in the order AskReal always called them. */
 import type { AskedSeed, Line } from "./types";
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { MASCOT } from "@/legacy-bridge/mascot";
 import { trapFocus } from "../../kit/focus/trap";
 import {
   ahSlide,
@@ -16,7 +17,7 @@ import {
   useHoldPress,
   useHoldSpace,
 } from "../hooks";
-import { mascotNow, tabMemory } from "../shell";
+import { tabMemory } from "../shell";
 import { arEscape, arFaceFrom, arNowKey, arOverAsk, arPhone, arRoute, arScopeLabel, arStill } from "./place";
 
 /** Talking: held on the mic, a Space held on an empty line, a phone's three held a beat; said where the browser cannot listen. The hold is the one mic, and its words go the typed way (the spec's §3.5 as amended 5 Oct, evening): their reads drawn as they run, the answer read aloud in Ask's voice as it lands (arSubmitter). */
@@ -27,7 +28,7 @@ export const useArVoice = (ln: Line) => {
     disabled: !!live,
     onWords: (words) => {
       setQuery(words);
-      if (M) M.mood.hear(0.8);
+      M.mood.hear(0.8);
     },
     onHeard: (heard, error) => {
       if (heard) {
@@ -100,11 +101,10 @@ export const useArMood = ({ M, talk, live, quick, speech, composing }: Line) => 
   // a first word of "idle" ended that read on nothing.
   const moodSaid = useRef("idle");
   useEffect(() => {
-    if (!M || moodState === moodSaid.current) return;
+    if (moodState === moodSaid.current) return;
     moodSaid.current = moodState;
     M.mood.set(moodState);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- said as the mood changes; the mood's object is one for the whole app
-  }, [moodState]);
+  }, [M, moodState]);
 };
 
 /** A phone's field in use: the slide to where the screen made room, and no composing once the Line closes. */
@@ -117,8 +117,7 @@ export const useArSlide = ({ open, composing, setComposing, slideFrom, stageRef,
     slideFrom.current = null;
     const id = requestAnimationFrame(() => ahSlide(from, stageRef.current, heroRef.current));
     return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once as composing begins; the refs are the same refs for the Line's life
-  }, [composing]);
+  }, [composing, slideFrom, stageRef, heroRef]);
   useEffect(() => {
     if (!open) setComposing(false);
   }, [open, setComposing]);
@@ -149,8 +148,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
     ];
     evs.forEach((e) => window.addEventListener(e, bump));
     return () => evs.forEach((e) => window.removeEventListener(e, bump));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- what opening does, once each opening; Ask's object, the setters and the refs do not change
-  }, [open]);
+  }, [open, A, openedAt, setScope, threadsReady, setThreads, setTick]);
 
   // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; legacy-bridge/ask/api.ts),
   // so the server has read the rows on screen before the question comes. Never waited on; a page that cannot say what it
@@ -166,8 +164,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
       }
     }, 0);
     return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- warmed as the Line opens and as the page under it moves; Ask's object does not change
-  }, [open, route.page, route.param]);
+  }, [open, A, route.page, route.param]);
 
   // Open: the three move from the button into the line (a FLIP), and the button's own face hides while they stand here
   // (ask.css, body.ask-open), so there is one character. With reduced motion they are simply here.
@@ -188,7 +185,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
         box && window.getComputedStyle
           ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0]) || 0
           : 0;
-      const fit = mascotNow()?.fitSide || ((w, h) => Math.min(w / 3.8, h / 3.2));
+      const fit = MASCOT.fitSide;
       const dx = a.left + a.width / 2 - (b.left - slid + b.width / 2);
       const dy = a.top + a.height / 2 - (b.top + b.height / 2);
       const k = b.width && b.height ? fit(a.width, a.height) / fit(b.width, b.height) : 0;
@@ -204,8 +201,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
     return () => {
       if (body && body.classList) body.classList.remove("ask-open");
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once each opening; the ref is the same ref for the Line's life
-  }, [open]);
+  }, [open, faceRef]);
 
   // On a desk the page beside the panel is live: as it moves (a press there, or an answer's Open), the scope follows it,
   // so the next question is about what is on screen. A phone's takeover covers the page, which does not move under it.
@@ -243,12 +239,11 @@ export const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech
 // the conversation ends (Clear, or deleted), never by the Line being made, or when the kept one cannot be read, so a
 // thread that will not read does not flash on every open.
 export const useArMemory = ({ open, A, query, setQuery, active, asked, openThread }: Line) => {
-  const mem = tabMemory;
   const threadWas = useRef<string | null>(null);
   // Open: what the tab kept comes back. A kept conversation is read first and the words go back after it, since
   // opening a thread empties the field; a request the shell sent as it opened (asked) wins over a kept conversation.
   useEffect(() => {
-    const m = mem();
+    const m = tabMemory();
     if (!open || !A || !m) return;
     const kept = m.draft("ask");
     const words = typeof kept === "string" && kept && !query ? kept : null;
@@ -262,22 +257,23 @@ export const useArMemory = ({ open, A, query, setQuery, active, asked, openThrea
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once each opening, with what that draw holds: a later change is not what the tab kept
   }, [open]);
   useEffect(() => {
-    const m = mem();
+    const m = tabMemory();
     if (!m) return;
     if (query.trim()) m.keepDraft("ask", query);
     else if (open) m.dropDraft("ask");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as the words change, never as the Line opens or closes: being made forgets nothing
   }, [query]);
+  // As the conversation's id changes, not each message of it.
+  const id = active ? active.id : null;
+  const conversing = !!active;
   useEffect(() => {
-    const m = mem();
-    const id = active ? active.id : null;
+    const m = tabMemory();
     const had = threadWas.current;
     threadWas.current = id;
     if (!m) return;
     if (id) m.keepDraft("ask-thread", id);
-    else if (!active && had) m.dropDraft("ask-thread");
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- as the conversation's id changes, not each message of it
-  }, [active && active.id]);
+    else if (!conversing && had) m.dropDraft("ask-thread");
+  }, [id, conversing]);
 };
 
 /** Where focus goes: the field on a desktop, the dialog on a phone or any touch screen, the field again after "Type instead"; a phone's dialog holds it (trapFocus), a desk's panel shares it with the page beside it. */
@@ -322,8 +318,7 @@ export const useArFocus = ({
     if (talk.listening || !typing.current) return;
     typing.current = false;
     if (inputRef.current) inputRef.current.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- as listening ends; the refs are the same refs for the Line's life
-  }, [talk.listening]);
+  }, [talk.listening, typing, inputRef]);
 };
 /** What the shell sends as it opens the Line, and the keys anywhere in it. */
 export const useArSeedKeys = ({
@@ -352,8 +347,7 @@ export const useArSeedKeys = ({
     };
     window.addEventListener("ask:seed", onSeed);
     return () => window.removeEventListener("ask:seed", onSeed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one listener for the Line's life, open or closed; the ref and the setter do not change
-  }, []);
+  }, [asked, setTick]);
 
   const beside = useAskEscBeside(open && !!A);
   useEffect(() => {
@@ -395,30 +389,30 @@ export const useArSeedKeys = ({
 
 /** Where the keys stand: back to the top whenever what is under the line changes, and kept in sight as they move. */
 export const useArWalk = ({ query, active, open, view, quick, live, setSel, setMove, bodyRef, sel, move }: Line) => {
-  // A new place to stand whenever what is under the line changes; not on every piece of a streaming answer.
+  // A new place to stand whenever what is under the line changes; not on every piece of a streaming answer, so `running`
+  // and never `live`.
+  const running = !!live;
   useEffect(() => {
     setSel(0);
     setMove(-1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- as what is under the line changes, never each piece of a streaming answer: `!!live`, not `live`
-  }, [query, active, open, view, quick, !!live]);
+  }, [query, active, open, view, quick, running, setSel, setMove]);
   // Earlier and the home start at their top; in a thread the newest question stands at its top, once per question or
   // conversation, never again as its answer lands (D5, D10). The row or move the keys stand on stays in sight.
   const fromTop = view !== "rows" || !(active || quick);
+  const said = active ? active.messages.length : 0;
   useEffect(() => {
     if (bodyRef.current && fromTop) bodyRef.current.scrollTop = 0;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- as a message is added or the view moves, not as an answer streams; the ref does not change
-  }, [active && active.messages.length, quick, view, fromTop]);
+  }, [said, quick, view, fromTop, bodyRef]);
   useAskPin(bodyRef, arNowKey(active, quick), open && view === "rows" && !!(active || quick));
   useEffect(() => {
     const b = bodyRef.current;
     if (!b || !("querySelector" in b)) return;
-    const el = b.querySelector<HTMLElement>(".ask-row.sel, .ask-chip.sel, .ask-item.sel, .ask-open.sel");
+    const el = b.querySelector<HTMLElement>(".ask-row.sel, .line-chip.sel, .ask-item.sel, .ask-open.sel");
     if (!el || !el.getBoundingClientRect) return;
     const top = el.getBoundingClientRect().top - b.getBoundingClientRect().top - b.clientTop + b.scrollTop,
       h = el.offsetHeight;
     if (top < b.scrollTop) b.scrollTop = Math.max(0, top - 8);
     else if (top + h > b.scrollTop + b.clientHeight) b.scrollTop = top + h - b.clientHeight + 8;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- as the keys move; the ref does not change
-  }, [sel, move]);
+  }, [sel, move, bodyRef]);
   useAskScrollCues(bodyRef, open); // its bar while it scrolls, its top edge faded once scrolled (../hooks.ts)
 };

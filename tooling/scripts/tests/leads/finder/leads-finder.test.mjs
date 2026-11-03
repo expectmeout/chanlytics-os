@@ -5,7 +5,7 @@
  * (surfaces/leads/finder: plan-panel.tsx, plan-card.tsx, strip-view.tsx, with strip.ts's view model and amend.ts's two
  * acts), called with the props the page hands it, pressed, and read. Their words come from contracts by import, as the
  * page's do; nothing here publishes a name on the window for them. The two acts that reach out are run against what they
- * reach: Ask's door is a fake `window.__ask` (legacy-verbs.ts askCalls), and a search's answer is a fake `window.fetch`,
+ * reach: Ask's door is a fake held by `holdAsk` (legacy-verbs.ts), and a search's answer is a fake `window.fetch`,
  * so the request it makes is read as it would go over the wire (surface.ts answerSearch). The page itself is proved in leads-honest.test.mjs; here the three components are proved on their own
  * props, so a change to one of them fails here and not four files away. A fresh Find is Ask's, proved in
  * ask-palette.test.mjs: nothing here composes one.
@@ -26,6 +26,8 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
+import { importSrc } from "../../_source.mjs";
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -319,11 +321,11 @@ const pickOption = (st, id, option, over = {}) => {
 
 test("a changed count re-plans without the model, and a changed area makes a new version the owner approves", () => {
   const sent = [];
-  globalThis.window.__ask = {
+  holdAsk({
     send: async (i) => {
       sent.push(i);
     },
-  };
+  });
   const st = { plan: PLAN, pick: null, refusal: null };
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
@@ -419,7 +421,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
 
 test("Find N leads commits the card through the route, and a refusal is said under the button in the route's words", async () => {
   const committed = [];
-  globalThis.window.__ask = {
+  holdAsk({
     commit: async (p) => {
       committed.push(p);
       return {
@@ -427,7 +429,7 @@ test("Find N leads commits the card through the route, and a refusal is said und
         message: "This month's searching budget is used. A smaller search, or a phone standard, may still fit.",
       };
     },
-  };
+  });
   const { st, set } = page({ stage: "plan", proposal: CARD, plan: PLAN });
   await leadFinderApprove(st.proposal, st.plan, set);
   assert.equal(committed.length, 1);
@@ -439,13 +441,13 @@ test("Find N leads commits the card through the route, and a refusal is said und
     "This month's searching budget is used. A smaller search, or a phone standard, may still fit.",
   );
   assert.equal(refused.props.role, "alert");
-  globalThis.window.__ask = {
+  holdAsk({
     commit: async () => ({
       ok: true,
       receipt: "Finding 200 personal trainers. It carries on if you leave; Leads shows it.",
       undo: { search_id: "s1" },
     }),
-  };
+  });
   const ok = page({ stage: "plan", proposal: CARD, plan: PLAN, words: "x" });
   const r = await leadFinderApprove(ok.st.proposal, ok.st.plan, ok.set);
   assert.deepEqual(
@@ -489,7 +491,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
   const sent = [];
   const amended = { ...PLAN, count: 50, exclusions: [], asked: "include the chains too" };
   const amends = { search_id: "s-b", name: "personal trainers", question: ANSWERING.question };
-  globalThis.window.__ask = {
+  holdAsk({
     send: async (input, on) => {
       sent.push(input);
       on({ t: "trace", text: "Reading what you asked" });
@@ -502,7 +504,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
         },
       });
     },
-  };
+  });
   const { st, set } = page({ words: "include the chains too" });
   set.more = ANSWERING;
   const tree = drawFinder(st, { answering: ANSWERING });
@@ -537,12 +539,12 @@ test("answering: the panel says the question, sends the owner's words as one tur
   // panel's: both are refused under the input, nothing to approve.
   const refused = "That would start a new search. Say your answer to the question instead.";
   for (const payload of [{ plan: amended }, { plan: amended, amends: { ...amends, search_id: "s-other" } }]) {
-    globalThis.window.__ask = {
+    holdAsk({
       send: async (input, on) => {
         sent.push(input);
         on({ t: "final", message: { text: "", proposals: [{ ...CARD, payload: { ...CARD.payload, ...payload } }] } });
       },
-    };
+    });
     const fresh = page({ words: "include the chains too" });
     fresh.set.more = ANSWERING;
     assert.equal(await leadAnswerPlan(fresh.st.words, fresh.set), null);
@@ -554,12 +556,12 @@ test("answering: the panel says the question, sends the owner's words as one tur
   }
   assert.equal(sent.length, 3);
   // A search that keeps no thread (made on the page, or before 00172) sends none: the route starts one.
-  globalThis.window.__ask = {
+  holdAsk({
     send: async (input, on) => {
       sent.push(input);
       on({ t: "final", message: { text: "", proposals: [] } });
     },
-  };
+  });
   const unthreaded = page({ words: "  include the chains too " });
   unthreaded.set.more = { ...ANSWERING, threadId: null };
   await leadAnswerPlan(unthreaded.st.words, unthreaded.set);
@@ -575,12 +577,12 @@ test("answering: the panel says the question, sends the owner's words as one tur
 });
 
 test("answering: a refusal is words under the input and no card, with what was typed still there; Enter and Send my answer send, nothing typed sends nothing, and the panel is the page's own overlay", async () => {
-  globalThis.window.__ask = {
+  holdAsk({
     send: async (input, on) => {
       on({ t: "trace", text: "Reading what you asked" });
       on({ t: "final", message: { id: "m2", text: "I can only find businesses in the US for now.", proposals: [] } });
     },
-  };
+  });
   const { st, set } = page({ words: "look in Toronto instead" });
   set.more = ANSWERING;
   const card = await leadAnswerPlan(st.words, set);
@@ -595,9 +597,9 @@ test("answering: a refusal is words under the input and no card, with what was t
     "look in Toronto instead",
     "what they typed is still there to change",
   );
-  globalThis.window.__ask = {
+  holdAsk({
     send: async (input, on) => on({ t: "error", text: "Chanlytics didn't answer — ask again in a moment." }),
-  };
+  });
   await leadAnswerPlan(st.words, set);
   assert.equal(
     st.refusal,
@@ -660,7 +662,7 @@ test("answering: the card's count is words, its button updates the search, an an
   const amends = { search_id: "s-b", name: "personal trainers", question: ANSWERING.question };
   const committed = [];
   const never = wire();
-  globalThis.window.__ask = {
+  holdAsk({
     commit: async (p) => {
       committed.push(p);
       return {
@@ -669,7 +671,7 @@ test("answering: the card's count is words, its button updates the search, an an
         undo: null,
       };
     },
-  };
+  });
   const approved = { ...PLAN, version: 2, count: 200, exclusions: [] };
   const { st: s2, set } = page({
     stage: "plan",
@@ -694,11 +696,11 @@ test("answering: the card's count is words, its button updates the search, an an
   );
   // The page's Include (a strip's step, no card): the plan is sent as given and the route versions it.
   const posted = wire();
-  globalThis.window.__ask = {
+  holdAsk({
     commit: async () => {
       throw new Error("a plan opened on the page is not a card");
     },
-  };
+  });
   const given = { ...PLAN, version: 4, count: 50 };
   const { st: s3, set: set3 } = page({ stage: "plan", proposal: null, plan: given, more: ANSWERING });
   assert.equal((await leadFinderApprove(s3.proposal, s3.plan, set3)).ok, true);

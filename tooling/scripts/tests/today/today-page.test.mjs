@@ -41,6 +41,8 @@ import {
 } from "../_legacy-react.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 import { headline as periodHeadline } from "./_headline.mjs";
+import { importSrc } from "../_source.mjs";
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 const ZONE = "America/New_York";
 // 4 PM in New York on Friday 18 September 2026.
@@ -1809,8 +1811,7 @@ test("the head's Listen reads the brief's words in Ask's voice, says it is getti
   clear();
   set({ today: busy(), headline: headline() });
   const s = speechStub();
-  W.__ask = s.stub;
-  globalThis.__ask = s.stub;
+  holdAsk(s.stub);
   try {
     const listen = headListen(true);
     assert.ok(listen, "a voice: Listen, beside the greeting");
@@ -1837,8 +1838,7 @@ test("the head's Listen reads the brief's words in Ask's voice, says it is getti
     assert.equal(headListen().props["aria-pressed"], false);
     assert.equal(s.spoken.length, 1, "and asked for nothing more");
   } finally {
-    delete W.__ask;
-    delete globalThis.__ask;
+    holdAsk(undefined);
   }
 });
 
@@ -1848,8 +1848,7 @@ test("the head's Listen: a mouse gone down on it asks for the brief's clips befo
   const s = speechStub();
   const warmed = [];
   s.stub.warmSpeech = (text, purpose) => warmed.push({ text, purpose });
-  W.__ask = s.stub;
-  globalThis.__ask = s.stub;
+  holdAsk(s.stub);
   try {
     const listen = headListen(true);
     listen.props.onPointerDown({ pointerType: "touch", button: 0 });
@@ -1871,8 +1870,7 @@ test("the head's Listen: a mouse gone down on it asks for the brief's clips befo
     const older = headListen();
     assert.doesNotThrow(() => older.props.onPointerDown({ pointerType: "mouse", button: 0 }));
   } finally {
-    delete W.__ask;
-    delete globalThis.__ask;
+    holdAsk(undefined);
   }
 });
 
@@ -1880,8 +1878,7 @@ test("the head's Listen: a clip that could not be made says why beside it, in th
   clear();
   set({ today: busy(), headline: headline() });
   const s = speechStub();
-  W.__ask = s.stub;
-  globalThis.__ask = s.stub;
+  holdAsk(s.stub);
   try {
     press(headListen(true));
     s.fail("Voice is off while this workspace is paused or its plan has ended.");
@@ -1899,8 +1896,7 @@ test("the head's Listen: a clip that could not be made says why beside it, in th
     assert.equal(s.spoken.length, 2, "the next press tries again");
     assert.equal(byTestId(headSentence(), "today-listen-why"), null, "and the old reason is gone");
   } finally {
-    delete W.__ask;
-    delete globalThis.__ask;
+    holdAsk(undefined);
   }
 });
 
@@ -1908,8 +1904,7 @@ test("the head's Listen: a head said again while the clip plays (Today redrew it
   clear();
   set({ today: busy(), headline: headline() });
   const s = speechStub();
-  W.__ask = s.stub;
-  globalThis.__ask = s.stub;
+  holdAsk(s.stub);
   try {
     press(headListen(true));
     s.land();
@@ -1921,8 +1916,7 @@ test("the head's Listen: a head said again while the clip plays (Today redrew it
     s.ends();
     assert.equal(headListen().props["aria-pressed"], false, "the clip ending lets go of Stop");
   } finally {
-    delete W.__ask;
-    delete globalThis.__ask;
+    holdAsk(undefined);
   }
 });
 
@@ -1935,8 +1929,7 @@ test("Listen reads the brief: who needs you with the oldest wait, the calendar's
     __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]),
   });
   const s = speechStub();
-  W.__ask = s.stub;
-  globalThis.__ask = s.stub;
+  holdAsk(s.stub);
   try {
     press(headListen(true));
     const said = s.spoken[0].text;
@@ -1950,8 +1943,7 @@ test("Listen reads the brief: who needs you with the oldest wait, the calendar's
     assert.ok(said.includes(busy().recap.line), said);
     assert.match(said, /Win-back is waiting for your approval: .*Waits for your OK until the end of its day/, said);
   } finally {
-    delete W.__ask;
-    delete globalThis.__ask;
+    holdAsk(undefined);
   }
 });
 

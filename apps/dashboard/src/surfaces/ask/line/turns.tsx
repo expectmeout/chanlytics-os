@@ -48,10 +48,8 @@ const arQuickTurn = async (ln: Line, q: string, pending: Promise<AskAnswer>, spo
       void A.threads().then(setThreads);
     }
   });
-  if (M) {
-    M.mood.set("idle");
-    M.mood.react("nod");
-  }
+  M.mood.set("idle");
+  M.mood.react("nod");
   if (spoken) arAnswerAloud(ln, A.answerSpoken(answer));
 };
 /** A conversation a quick answer opened, once its turn is kept: in the thread it landed in, or in none if it was not. */
@@ -152,7 +150,7 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }: Line, turn: Turn, ev: S
   if (ev.t === "trace") {
     setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
     // a read that landed: the three's orbit surges and a light runs down them (mascot mood.ts pulse)
-    if (M && M.mood.pulse) M.mood.pulse(0.7);
+    M.mood.pulse(0.7);
     return;
   }
   if (ev.t === "say") {
@@ -163,14 +161,14 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }: Line, turn: Turn, ev: S
     );
     if (!back) turn.spoke = true;
     const len = ev.headline.length + ev.detail.length;
-    if (M && len > turn.said) M.mood.beat(Math.min(1, (len - turn.said) / 6));
+    if (len > turn.said) M.mood.beat(Math.min(1, (len - turn.said) / 6));
     turn.said = len;
     return;
   }
   if (ev.t === "delta") {
     setLive((prev) => (prev ? { ...prev, text: prev.text + ev.text } : prev));
     turn.spoke = true;
-    if (M) M.mood.beat(Math.min(1, ev.text.length / 6));
+    M.mood.beat(Math.min(1, ev.text.length / 6));
     return;
   }
   if (ev.t === "final") turn.final = ev.message;
@@ -188,11 +186,9 @@ const arTurnLanded = (
   setLive(null);
   buzz(8);
   // Done: a failure shakes; an answer that streamed nods on its own as the row settles, one that did not nods here.
-  if (M) {
-    M.mood.set("idle");
-    if (final.failed) M.mood.react("shake");
-    else if (!turn.spoke) M.mood.react("nod");
-  }
+  M.mood.set("idle");
+  if (final.failed) M.mood.react("shake");
+  else if (!turn.spoke) M.mood.react("nod");
   setActive((prev) =>
     prev
       ? { ...prev, id: turn.threadId || prev.id, messages: withAnswerLanded(prev.messages, final, Date.now()) }

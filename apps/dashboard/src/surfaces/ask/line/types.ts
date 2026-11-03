@@ -164,7 +164,7 @@ export interface Line extends LineState {
   onClose: () => void;
   /** Ask, wired to the workspace: null only before the bridge installs it, when the Line draws nothing and nothing presses. */
   A: AskApi;
-  M: Mascot | null;
+  M: Mascot;
   t: LineWords;
   route: LineRoute;
   surface: AskSurface;

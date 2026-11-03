@@ -1,5 +1,5 @@
 /**
- * Ask, wired to the workspace: window.__ask.
+ * Ask, wired to the workspace, and held where a page imports it (legacy-verbs.ts askCalls).
  *
  * Six small modules, composed here: what the palette shows before a model
  * is asked (ask/palette.ts), the Ask routes and the streamed turn
@@ -48,6 +48,7 @@ import { spokenTurns } from "./ask/spoken";
 import { pageContext, type ThreadMessage } from "./ask/context";
 import { askFollowUps } from "./ask/follow-ups";
 import { askColumn } from "./ask/column";
+import { holdAsk } from "@/surfaces/legacy-verbs";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
@@ -225,6 +226,9 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     cardOpenRoute: (p) => pageSpecs.now()?.cardOpenRoute(p) ?? null,
     context: (route, words, thread) => pageContext(win, route, words, thread),
   };
+  holdAsk(ask);
+  // On the window only for what stands outside the bundle and has no import: the nightly's specs, which ask it what the
+  // page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts). Nothing of the app reads it here.
   (win as unknown as { __ask?: AskApi }).__ask = ask;
   return ask;
 }

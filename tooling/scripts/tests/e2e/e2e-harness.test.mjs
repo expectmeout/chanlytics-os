@@ -65,17 +65,24 @@ test("the salon record reaches the branches the nightly's data cannot: a list at
   assert.equal(p.languages.length, PROFILE_LIMITS.languages - 1, "one Add must fill the languages list");
   assert.equal(new Set(p.languages).size, p.languages.length, "each language once, whatever the cap is");
   assert.ok(p.services.length > 1 && Object.keys(p.hours).length === 7);
-  assert.deepEqual(SCENARIOS, ["nightly", "salon", "pipeline", "email-only", "kit"]);
+  assert.deepEqual(SCENARIOS, ["nightly", "salon", "pipeline", "email-only", "kit", "ask"]);
 });
 
-test("the kit record's page is the kit's gallery, and every other record's the mockup with its fixture first", () => {
+test("the kit record's page is the kit's gallery, Ask's its states, and every other record's the mockup with its fixture first", () => {
   for (const name of SCENARIOS) {
     const record = scenario(name, NOW);
     const page = pageOf(record);
     const gallery = name === "kit";
+    const states = name === "ask";
     assert.equal(record.gallery === true, gallery, `${name}: only the kit record draws the gallery`);
+    assert.equal(record.askStates === true, states, `${name}: only the ask record draws Ask's states`);
     assert.equal(page.includes('class="gx-entry"'), gallery, `${name}: the gallery's entries`);
-    assert.equal(page.includes("/_hx/fixture.js"), !gallery, `${name}: the fixture, which the gallery never runs`);
+    assert.equal(page.includes("/_hx/ask-states.js"), states, `${name}: Ask's states, a bundle of their own`);
+    assert.equal(
+      page.includes("/_hx/fixture.js"),
+      !gallery && !states,
+      `${name}: the fixture, which neither of the two runs`,
+    );
     assert.ok(page.includes("/_hx/app.css"), `${name}: the app's own rules, on every record's page`);
   }
   // No workspace of its own: the nightly's record, so every read the harness answers is the nightly's.
@@ -305,7 +312,10 @@ test("the document carries the app's own rules after the mockup's stylesheets, t
   const html = documentWithFixture();
   const at = (needle) => html.indexOf(needle);
   assert.ok(at("/_hx/app.css") > 0, "the app's rules are in the document");
-  assert.ok(at("/_hx/app.css") > at("styles/ask.css"), "after the last of the mockup's stylesheets, as in the app");
+  assert.ok(
+    at("/_hx/app.css") > at("surfaces/ask/ask.css"),
+    "after the last of the mockup's stylesheets, as in the app",
+  );
   assert.ok(at("/_hx/app.css") < at("</head>"));
   const rules = appRules();
   assert.equal(/@import/.test(rules), false, "and not the stylesheets again: the document already has them");

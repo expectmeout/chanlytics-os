@@ -23,6 +23,7 @@ import {
 } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -616,7 +617,7 @@ test("REGRESSION (N20): a failed Ask turn offers Try again on the latest answer,
     proposals: [],
   };
   const props = { t, lang: "en", onFollow() {}, onNav() {}, speech: { canSpeak: false }, flash() {} };
-  globalThis.window.__ask = undefined;
+  holdAsk(undefined);
   let retried = 0;
   cells = [];
   frames.begin();

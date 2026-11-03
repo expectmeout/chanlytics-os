@@ -147,13 +147,6 @@ const SAMPLES = {
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
-  // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (surfaces/kit/face/ask-face.tsx:
-  // the top bar's button, the Stage and the phone's ✦), so the mockup's Ask has its face.
-  "/data/mascot.js": {
-    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/mascot/index.ts"),
-    globalName: "__MS",
-    footer: "__MS.installMascot();",
-  },
 };
 const built = new Map();
 
@@ -225,7 +218,6 @@ export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
 export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
 export const askLineBundle = () => sampleBundle("/data/ask-line.js");
 export const peopleGlobalsHarnessBundle = () => sampleBundle("/data/people-globals-harness.js");
-export const mascotBundle = () => sampleBundle("/data/mascot.js");
 
 export const send = (res, status, type, body) => {
   res.writeHead(status, { "content-type": type, "cache-control": "no-store, must-revalidate" });

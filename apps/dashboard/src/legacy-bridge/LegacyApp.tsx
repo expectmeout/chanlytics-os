@@ -96,7 +96,6 @@ import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/override";
 import { sequencesOverride } from "@/surfaces/campaigns/sequences/surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
-import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
 import { installAppBridge } from "./app-bridge";
 import { installSetup, setupOverride } from "@/surfaces/setup/override";
@@ -164,7 +163,6 @@ installPlaybooks();
 installReplies();
 installCalendar();
 // The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
-installMascot();
 // On a phone the three take a page in as it arrives and notice what comes for you (arrival.ts).
 installArrival();
 // Inside the native shell the page speaks the bridge (app-bridge.ts): its route, its needs, the shell's asks.

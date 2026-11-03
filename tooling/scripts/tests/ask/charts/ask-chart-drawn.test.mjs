@@ -136,7 +136,7 @@ test("its table and CSV hold every number, under what each row is", () => {
 });
 
 test("where it was read from stays under the card, its door the page's", () => {
-  const door = (tree) => find(tree, (n) => n.props?.className === "ask-receipt-door");
+  const door = (tree) => find(tree, (n) => n.props?.kind === "open");
   const went = [];
   const tree = draw(WHO, { onNav: (to) => went.push(to) });
   assert.match(textOf(tree), /From Reports/);

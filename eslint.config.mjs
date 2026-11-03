@@ -291,8 +291,6 @@ export const KIT_PENDING = [
   "apps/dashboard/src/surfaces/leads",
   "apps/dashboard/src/surfaces/setup",
   "apps/dashboard/src/surfaces/settings",
-  // Ask's Line, as the JSX drew it: its pieces become the kit's in its own step.
-  "apps/dashboard/src/surfaces/ask",
   // The frame's flash, moved from data-bits.jsx as the JSX drew it (the one-system plan, step 2).
   "apps/dashboard/src/surfaces/frame",
 ];

@@ -13,8 +13,9 @@
  * through askCalls(). No key symbol is drawn (D17): the shortcuts sheet lists the keys (contracts SHORTCUTS), opened by ? or
  * the account menu.
  */
+import { MASCOT } from "@/legacy-bridge/mascot";
 import { useAskGrow, useAskLatest, useAskWarm } from "../hooks";
-import { askCalls, mascotNow } from "../shell";
+import { askCalls } from "../shell";
 import { askText } from "../words";
 import { arActs } from "./acts";
 import { arBody, arFoot, arHero, arLineEnd, arLineView } from "./draw";
@@ -42,8 +43,7 @@ import { arActivate, arHeroState, arOnKey, arUnder } from "./under";
 export const AskReal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const A = askCalls();
   // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts), standing in the line.
-  const M = mascotNow();
-  const ln = { open, onClose, A, M, ...useArLine(A) } as Line;
+  const ln = { open, onClose, A, M: MASCOT, ...useArLine(A) } as Line;
   ln.t = askText(ln.lang);
   const route = arRoute();
   ln.route = route;

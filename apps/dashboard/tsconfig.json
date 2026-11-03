@@ -31,7 +31,8 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "../../tooling/scripts/e2e-harness/kit-behaves.tsx"
+    "../../tooling/scripts/e2e-harness/kit-behaves.tsx",
+    "../../tooling/scripts/e2e-harness/ask-states.tsx"
   ],
   "exclude": ["node_modules", "src/legacy"],
   "references": [

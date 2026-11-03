@@ -1,7 +1,6 @@
 /**
- * The three, published to the legacy pages the way Today's helpers are (today.ts): one object on window, installed
- * at boot by LegacyApp.tsx. The pages draw the faces and call these; they never reach into the bridge's modules.
- * `mood` is the one mood of Ask for the whole app: the palette says it, every face follows it (mood.ts).
+ * The three: one object the Line and the faces import (surfaces/ask/shell.ts, surfaces/kit/face/ask-face.tsx). `mood` is
+ * the one mood of Ask for the whole app: the palette says it, every face follows it (mood.ts).
  */
 import { createCharacter, fitSide, FIT, STATES } from "./character";
 import { mountCharacter, type Mounted } from "./driver";
@@ -34,13 +33,3 @@ export const MASCOT = {
   STATES,
 } as const;
 export type Mascot = typeof MASCOT;
-
-declare global {
-  interface Window {
-    __mascot?: Mascot;
-  }
-}
-
-export function installMascot(): void {
-  window.__mascot = MASCOT;
-}
