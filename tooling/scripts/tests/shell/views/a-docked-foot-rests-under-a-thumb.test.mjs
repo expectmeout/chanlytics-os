@@ -7,12 +7,18 @@
  *
  * Run against rests.ts itself, on an element that keeps the listener the gesture adds to it, as a browser's does.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 
 const { dockSwipe } = await import("../../../../../apps/dashboard/src/surfaces/kit/sheet/rests.ts");
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** The gesture's clock, held: how fast a pull went is read from it, so a slow one is one the clock says took long. */
+const realNow = Date.now;
+let clock = 1_000_000;
+Date.now = () => clock;
+after(() => {
+  Date.now = realNow;
+});
 
 /** The foot: its style, and the touchmove listener the gesture reads it with (not passive, so a pull can be refused). */
 const foot = () => {
@@ -90,7 +96,7 @@ test("folded, a pull up opens it once it has gone 16px, and the page under it do
   assert.deepEqual(asked, ["open"], "a pull down from folded is nothing");
 });
 
-test("open, a pull down follows the finger; let go past 64px it folds, and short of it it settles back", async () => {
+test("open, a pull down follows the finger; let go past 64px it folds, and short of it it settles back", () => {
   const { h, asked } = world(true);
   const el = foot();
   pull(
@@ -122,7 +128,7 @@ test("open, a pull down follows the finger; let go past 64px it folds, and short
     ],
     "down",
   );
-  await wait(120);
+  clock += 120;
   h.onTouchEnd({ currentTarget: slow });
   assert.deepEqual(asked, ["fold"], "30px, slowly: back where it was, open");
   assert.equal(slow.style.transform, "");

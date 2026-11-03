@@ -718,7 +718,9 @@ test("folded, the box is one line of its words: a draft written over lines reads
     const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
     const first = draw();
     if (typed !== null) find(first, (n) => n.type === "textarea").props.onChange({ target: { value: typed } });
-    for (let i = 0; i < 5; i++) await settle();
+    // The box draws the kept words in its first frame, and what is typed as it is typed: the field holds what the line says.
+    const want = typed ?? words ?? "";
+    await until(() => find(draw(), (n) => n.type === "textarea").props.value === want, "the box's words");
     const glance = find(draw(), byTestId("ix-composer-glance"));
     const words_ = find(glance, hasClass("ix-composer-glance-words"));
     return {
