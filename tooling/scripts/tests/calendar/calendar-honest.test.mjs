@@ -421,9 +421,13 @@ const page = (props = {}) => {
   try {
     const drawn = CalendarPage({ ...addr, ...props });
     // The frame draws the page's act on its row of views (board-parts.tsx calendarAct: the bar on a desk, Settings on a
-    // phone): here it hangs from the page's node, so a search of the page finds it where a person does, beside the board.
-    const act = standingSaid()?.act;
-    return act ? { ...drawn, props: { ...drawn.props, children: [...(drawn.props.children ?? []), act] } } : drawn;
+    // phone), and on a phone the range and the steps under it (calendarHead): here they hang from the page's node, so a
+    // search of the page finds them where a person does, beside the board.
+    const said = standingSaid();
+    const placed = [said?.act, said?.under].filter(Boolean);
+    return placed.length
+      ? { ...drawn, props: { ...drawn.props, children: [...(drawn.props.children ?? []), ...placed] } }
+      : drawn;
   } finally {
     globalThis.setInterval = si;
     globalThis.clearInterval = ci;
@@ -1167,6 +1171,31 @@ test("a link can name a day: the page opens it in Day view, on a phone too", () 
     const tree = page();
     assert.equal(shownView(tree), "day");
     assert.equal(textOf(byTestId(tree, "cal-range")), "Thu · Sep 10");
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+});
+
+test("on a phone the bar is the frame's, under its row of views, and the page draws none of its own", () => {
+  // Stuck in the page under the frame's top, the range and the steps stepped a pixel or two under the thumb as the window
+  // scrolled, where the top over them held still (Ruben's recording, 3 Nov 2026): they stand in the top now
+  // (kit/head/standing.ts `under`), Settings beside the views as before.
+  fresh();
+  globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  try {
+    const tree = page();
+    const said = standingSaid();
+    const heads = all(tree, (n) =>
+      String(n.props?.className ?? "")
+        .split(" ")
+        .includes("cal-head"),
+    );
+    assert.deepEqual(heads, [said.under], "one bar, the frame's: none in the page, where it stuck");
+    const bar = byTestId(said.under, "cal-bar");
+    assert.ok(bar, "the bar under the frame's views");
+    for (const id of ["cal-prev", "cal-today", "cal-next", "cal-range"]) assert.ok(byTestId(bar, id), `${id} in it`);
+    assert.ok(byTestId(said.act, "cal-options"), "and Settings beside the views");
+    assert.equal(byTestId(said.act, "cal-range"), null, "the range under them, not beside them");
   } finally {
     delete globalThis.window.matchMedia;
   }

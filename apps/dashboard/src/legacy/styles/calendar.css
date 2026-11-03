@@ -384,33 +384,41 @@
 
 /* ---- The bar ---- */
 /* The first pane stands 14px under the bar, as the Inbox's and People's stand under the frame's row of views. */
-.main-scroll > .calendar .cal-head {
-  padding: 0 0 14px;
+/* On a phone the bar is the frame's top's, under its row of views (kit/head/standing.ts `under`): 16 under the views (the
+   slot's 14 between its rows, and 2), as the slot stood over the page, and the first pane 14 under it, as the Inbox's and
+   People's stand under theirs; across, at the boards' 12px from the screen's edges (below), out of the slot's gutter, as
+   it stood in the page. Every rule names it in the frame's top, as heavy as they were when they named the page's. */
+.frame-top .pg-under-slot > .cal-head {
+  margin-inline: calc(var(--space-3) - var(--gutter-page));
+  padding: 2px 0 0;
 }
-.main-scroll > .calendar .cal-bar {
+.frame-top .pg-slot:has(> .pg-under-slot > .cal-head) {
+  padding-bottom: 14px;
+}
+.frame-top .pg-under-slot .cal-bar {
   gap: var(--space-2) var(--space-3);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-steps {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-steps {
   padding: 2px;
   border: 0;
   border-radius: var(--radius-full);
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-steps > * {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-steps > * {
   height: var(--control-h-md);
   border-radius: var(--radius-full);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-steps > * + * {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-steps > * + * {
   border-left: 0;
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-title {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-title {
   min-height: var(--control-h-lg);
   margin-left: 0;
   padding: 0 var(--space-2) 0 var(--space-3);
   border-radius: var(--radius-full);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-title-range {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-title-range {
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
@@ -424,10 +432,10 @@
   }
 }
 
-:is(.main-scroll > .calendar, .cal-act) .cal-tools {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-tools {
   margin-left: auto;
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-tools .cal-service {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-tools .cal-service {
   height: var(--control-h-lg);
   padding-left: var(--space-4);
   border: 0;
@@ -671,11 +679,11 @@
 @media (max-width: 720px) {
   /* Under the frame's row of views (Settings at its right, the act's rules), the bar is one row: the range, then the
      steps at the right, where a thumb finds them wherever the range's words end; then the first day. */
-  .main-scroll > .calendar .cal-bar {
+  .frame-top .pg-under-slot .cal-bar {
     flex-wrap: nowrap;
     column-gap: var(--space-2);
   }
-  .main-scroll > .calendar .cal-when {
+  .frame-top .pg-under-slot .cal-when {
     flex: 1 0 auto;
   }
   /* The pane is the column the page leaves (mobile.css): it never pulls, and the body takes the room under the notices
@@ -723,11 +731,11 @@
   /* The steps, a week's day heads and Hours and rules keep the size they are drawn at (the touch floor made the steps' row
      48, each head 57 and the foot 56), with the thumb's 44 as an invisible margin where a neighbour leaves the room: the
      board gets the forty pixels, which is what a nine-hour day needs to fit. */
-  .main-scroll > .calendar .cal-steps > * {
+  .frame-top .pg-under-slot .cal-steps > * {
     position: relative;
     min-height: var(--control-h-md);
   }
-  .main-scroll > .calendar .cal-steps > *::after {
+  .frame-top .pg-under-slot .cal-steps > *::after {
     content: "";
     position: absolute;
     inset: -6px 0;
