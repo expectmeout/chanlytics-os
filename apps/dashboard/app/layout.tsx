@@ -8,6 +8,7 @@ import {
   themeColorOf,
   DEFAULT_LOOK_PREF,
 } from "@chanlytics/contracts";
+import { OUTLINE_ROUTES } from "@/surfaces/frame/places";
 import "./globals.css";
 
 /**
@@ -109,9 +110,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
         <script dangerouslySetInnerHTML={{ __html: inAppBootScript() }} />
-        {/* What the frame's outline is drawn by, before paint: the sidebar this device keeps, and the first run's address
-            (contracts outlineBootScript, surfaces/frame/outline.tsx). */}
-        <script dangerouslySetInnerHTML={{ __html: outlineBootScript() }} />
+        {/* What the frame's outline is drawn by, before paint: the sidebar this device keeps, the first run's address, the place
+            the route lights and whether its page searches in Ask's line (contracts outlineBootScript, surfaces/frame/places.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: outlineBootScript(OUTLINE_ROUTES) }} />
         {/* The route's own reads, started here rather than after the shell has mounted (contracts routePrefetchScript). An
             async module, inline: it runs as it is parsed. A plain inline script waits for every stylesheet before it, and React
             sets the frame's thirteen ahead of anything in the head, so the reads left only once the last had come (on

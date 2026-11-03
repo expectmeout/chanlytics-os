@@ -215,6 +215,9 @@ jobs:
           # GitHub sets that for the pull-request job too, which is meant to
           # run credential-free.
           REQUIRE_SERVICE_CREDENTIALS: "1"
+          # Every request says what it touched, for the refresh map's derivation (decision 0058 stage C, the page-open
+          # PRD's P4): the suite runs every write path in its own workspace, which a week of production's sample does not.
+          E2E_TOUCHES_ALL: "1"
           E2E_BASE_URL: https://app.chanlytics.com
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}

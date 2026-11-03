@@ -2870,7 +2870,7 @@ $$;
 -- Name: FUNCTION claim_due_jobs(p_limit integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a paused kind is left where it is (00506). Takes back a fired row whose lease ran out with attempts + 1.';
+COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a paused kind is left where it is (00515). Takes back a fired row whose lease ran out with attempts + 1.';
 
 
 --
@@ -5801,7 +5801,7 @@ end $$;
 -- Name: FUNCTION finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) IS 'A run that sent its last batch: marked sent, with its event (broadcast.sent and its tally, as packages/db builds every event row), in one transaction (00507). False when it was not sending (another chain finished it, or it was stopped), and then nothing is written. The service role''s alone.';
+COMMENT ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) IS 'A run that sent its last batch: marked sent, with its event (broadcast.sent and its tally, as packages/db builds every event row), in one transaction (00516). False when it was not sending (another chain finished it, or it was stopped), and then nothing is written. The service role''s alone.';
 
 
 --
@@ -7157,7 +7157,7 @@ end $$;
 -- Name: FUNCTION job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) IS 'The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00506), or null when it carries none. The one spelling of the rule.';
+COMMENT ON FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) IS 'The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00515), or null when it carries none. The one spelling of the rule.';
 
 
 --
@@ -7189,7 +7189,7 @@ end $$;
 -- Name: FUNCTION job_kind_pause(p_kind text, p_why text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.job_kind_pause(p_kind text, p_why text) IS 'Pauses a job kind (00506): no claim takes its rows until it is resumed, and they wait where they are. The reason is the operator''s, said on Health. Answers {kind, paused_at} or {error: no_reason | unknown_kind}. The Console''s act, on the service role.';
+COMMENT ON FUNCTION public.job_kind_pause(p_kind text, p_why text) IS 'Pauses a job kind (00515): no claim takes its rows until it is resumed, and they wait where they are. The reason is the operator''s, said on Health. Answers {kind, paused_at} or {error: no_reason | unknown_kind}. The Console''s act, on the service role.';
 
 
 --
@@ -7218,7 +7218,7 @@ end $$;
 -- Name: FUNCTION job_kind_resume(p_kind text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.job_kind_resume(p_kind text) IS 'Resumes a paused job kind (00506) and asks the tick for what waited. Answers {kind, resumed} or {error: unknown_kind}. The Console''s act, on the service role.';
+COMMENT ON FUNCTION public.job_kind_resume(p_kind text) IS 'Resumes a paused job kind (00515) and asks the tick for what waited. Answers {kind, resumed} or {error: unknown_kind}. The Console''s act, on the service role.';
 
 
 --
@@ -7241,7 +7241,7 @@ $$;
 -- Name: FUNCTION jobs_backlog(p_wait interval); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_backlog(p_wait interval) IS 'How many jobs the claim could take and has not for longer than p_wait (default two minutes): scheduled rows past their due time and fired rows past their lease (00506), a paused kind''s left out (Health names those). Zero when the heartbeat is draining.';
+COMMENT ON FUNCTION public.jobs_backlog(p_wait interval) IS 'How many jobs the claim could take and has not for longer than p_wait (default two minutes): scheduled rows past their due time and fired rows past their lease (00515), a paused kind''s left out (Health names those). Zero when the heartbeat is draining.';
 
 
 --
@@ -7260,7 +7260,7 @@ begin
     if OLD.state = 'scheduled' and NEW.state not in ('fired', 'canceled') then
       raise exception 'a scheduled job may only be fired or canceled (% refused)', NEW.state;
     end if;
-    -- A run that threw puts its job back to wait for its next try (00506), with its claims counted as they were, or one
+    -- A run that threw puts its job back to wait for its next try (00515), with its claims counted as they were, or one
     -- fewer for a run that never started (a kind this runner did not know): the next claim counts on from there.
     if OLD.state = 'fired' and NEW.state = 'scheduled' and NEW.attempts > OLD.attempts then
       raise exception 'a job put back to wait keeps its attempts (% -> % refused)', OLD.attempts, NEW.attempts;
@@ -7277,7 +7277,7 @@ end $$;
 -- Name: FUNCTION jobs_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00506); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00515); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
 
 
 --
@@ -7325,7 +7325,7 @@ $$;
 -- Name: FUNCTION jobs_ledger_now(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_ledger_now() IS 'What the Console''s Health draws of the ledger now (00506): by lane, how many run, are due, wait for a retry and ran past their lease, and the oldest due in seconds; by kind, its lane, its pause and its last day''s failed and done; when the canary last finished. The service role''s alone.';
+COMMENT ON FUNCTION public.jobs_ledger_now() IS 'What the Console''s Health draws of the ledger now (00515): by lane, how many run, are due, wait for a retry and ran past their lease, and the oldest due in seconds; by kind, its lane, its pause and its last day''s failed and done; when the canary last finished. The service role''s alone.';
 
 
 --
@@ -15272,6 +15272,30 @@ $$;
 
 
 --
+-- Name: page_freshness(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.page_freshness(p_days integer DEFAULT 7) RETURNS TABLE(metric text, page text, part text, reports bigint, total double precision)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select v.metric, v.page, v.part, count(*), sum(v.value)
+    from public.page_vitals v
+   where v.metric in ('FEED_DOWN', 'FEED_BACK', 'READ_FAILED')
+     and v.at >= now() - make_interval(days => greatest(1, least(p_days, 30)))
+   group by v.metric, v.page, v.part
+   order by v.metric, sum(v.value) desc;
+$$;
+
+
+--
+-- Name: FUNCTION page_freshness(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.page_freshness(p_days integer) IS 'What tabs could not hear or read over the last p_days (00509; the page-open PRD, L7): for each metric (FEED_DOWN ms, FEED_BACK, READ_FAILED by surface), page and part, how many reports and their total. Counts and durations only. The service role''s.';
+
+
+--
 -- Name: page_speed(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -21288,7 +21312,7 @@ end $$;
 -- Name: FUNCTION queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) IS 'A queued reply and its outbound_send job, written together or not at all (00507): the message (id, tenant_id, conversation_id, contact_id, channel, sender, type, body, meta) queued, its thread stamped, its job due at p_due_at with p_payload and the message''s id. Answers the message''s id. The service role''s alone.';
+COMMENT ON FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) IS 'A queued reply and its outbound_send job, written together or not at all (00516): the message (id, tenant_id, conversation_id, contact_id, channel, sender, type, body, meta) queued, its thread stamped, its job due at p_due_at with p_payload and the message''s id. Answers the message''s id. The service role''s alone.';
 
 
 --
@@ -26769,7 +26793,7 @@ $$;
 -- Name: FUNCTION schedule_canary(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.schedule_canary() IS 'Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00506). pg_cron calls it every minute (jobs-canary).';
+COMMENT ON FUNCTION public.schedule_canary() IS 'Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00515). pg_cron calls it every minute (jobs-canary).';
 
 
 --
@@ -31180,7 +31204,7 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
            ok.at                                  as last_ok,
            lt.status                              as last_status,
            lt.message                             as last_message,
-           -- Judged by job (00506): when the newest row of its kind was done, and whether any workspace of ours is
+           -- Judged by job (00515): when the newest row of its kind was done, and whether any workspace of ours is
            -- there for the clock to schedule it in.
            case when e.judged_by = 'job' then
              (select max(d.updated_at) from public.jobs d where d.kind = e.kind and d.state = 'done')
@@ -31207,7 +31231,7 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
         when not o.job_active then
           'the cron job ' || o.jobname || ' is disabled'
 
-        -- Judged by the work it puts on the ledger: its newest done row (00506).
+        -- Judged by the work it puts on the ledger: its newest done row (00515).
         when o.judged_by = 'job' and not coalesce(o.job_watched, false) then
           null
         when o.judged_by = 'job' and o.max_silence is null then
@@ -32905,6 +32929,39 @@ COMMENT ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to da
 
 
 --
+-- Name: workspace_notices_since(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) RETURNS TABLE(event text, payload jsonb)
+    LANGUAGE plpgsql
+    SET search_path TO ''
+    AS $$
+declare
+  v_topic text := 'workspace:' || p_tenant_id::text || ':changes';
+begin
+  perform set_config('realtime.topic', v_topic, true);
+  return query
+    select m.event, m.payload
+      from realtime.messages m
+     where m.topic = v_topic
+       and m.extension = 'broadcast'
+       -- The row's own clock (the sending transaction's start) for the partitions; the notice's own (its commit, 00507)
+       -- for the moment asked. A transaction an hour long is longer than any the product runs.
+       and m.inserted_at >= (p_since at time zone 'utc') - interval '1 hour'
+       and coalesce((m.payload ->> 'at')::timestamptz, m.inserted_at at time zone 'utc') >= p_since
+     order by m.inserted_at, m.id
+     limit 201;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) IS 'Decision 0019 step 4 (00508): the notices told on a workspace''s topic since a moment, read by a member as Realtime would admit them (workspace_changes_member_read), at most 201 (the 201st says there were more). A tab catches up on its load and on a rejoin. Never a row.';
+
+
+--
 -- Name: workspace_partner(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32952,6 +33009,40 @@ COMMENT ON FUNCTION public.workspace_partner(p_tenant uuid) IS 'The owner''s vie
 
 
 --
+-- Name: workspace_tell_at_commit(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_tell_at_commit() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  kept record;
+begin
+  -- The row as it stands now, not as it was inserted: a deferred trigger is handed the inserted row, and a later statement
+  -- of the transaction may have added to what it tells (00510's threads).
+  delete from public.workspace_notices_pending where id = new.id returning topic, event, payload into kept;
+  if not found then
+    return null;
+  end if;
+  -- The clock now, at the commit: a read that began before it may not hold the change; one that began after it does.
+  perform realtime.send(
+    kept.payload || jsonb_build_object('at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+    kept.event,
+    kept.topic,
+    true);
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_tell_at_commit(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_tell_at_commit() IS 'Decision 0019 (00507): sends one notice a statement kept for its workspace, at the commit, with the commit''s clock as `at`, and deletes its row. A deferred constraint trigger on workspace_notices_pending.';
+
+
+--
 -- Name: workspace_tell_changes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32960,16 +33051,16 @@ CREATE FUNCTION public.workspace_tell_changes() RETURNS trigger
     SET search_path TO ''
     AS $$
 declare
-  -- What this transaction has told already. Its notices all become visible at its commit, together, so a second
-  -- notice of a workspace's table and event (and a call's same statuses) would tell a tab nothing more: a loop of
-  -- statements, as the lead finder's commits are, tells each workspace once, not once a row. A savepoint rolled back
-  -- takes its notices and this memory of them back with it.
+  -- What this transaction has told already. Its notices all go at its commit, together, so a second notice of a
+  -- workspace's table and event (and a call's same statuses) would tell a tab nothing more: a loop of statements, as the
+  -- lead finder's commits are, tells each workspace once, not once a row. A thread's notice gathers the threads instead
+  -- (00510). A savepoint rolled back takes its notices and this memory of them back with it.
   told text := coalesce(current_setting('chanlytics.workspace_told', true), '');
   had text := told;
   w record;
   said text;
-  -- When this statement told (UTC, to the millisecond), the clock a tab compares with the read it started (0047).
-  noted_at text := to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+  v_topic text;
+  threads jsonb;
 begin
   -- A trigger's argument names the column its table's changes are judged by (calls: status), carried as the distinct
   -- values the statement left; every other table's notice is its name and the operation alone.
@@ -32979,13 +33070,46 @@ begin
     select c.tenant_id, jsonb_agg(distinct to_jsonb(c) ->> tg_argv[0]) from changed c where tg_nargs > 0 group by c.tenant_id
   loop
     said := '|' || w.tenant_id::text || ' ' || tg_table_name || ' ' || tg_op || coalesce(' ' || w.statuses::text, '') || '|';
-    continue when strpos(told, said) > 0;
+    v_topic := 'workspace:' || w.tenant_id::text || ':changes';
+    -- The threads this statement touched in this workspace, where its table is one a thread is made of. Read through
+    -- to_jsonb: the function serves every watched table, and a column one table lacks may not be named.
+    threads := case
+      when tg_table_name = 'conversations' then
+        (select jsonb_agg(distinct to_jsonb(c) ->> 'id') from changed c where c.tenant_id = w.tenant_id)
+      when tg_table_name in ('messages', 'escalations', 'calls') then
+        (select jsonb_agg(distinct to_jsonb(c) ->> 'conversation_id') from changed c
+          where c.tenant_id = w.tenant_id and to_jsonb(c) ->> 'conversation_id' is not null)
+      else null
+    end;
+    if strpos(told, said) > 0 then
+      -- Told already in this transaction: its threads join the notice kept for the commit, or the notice names none.
+      if tg_table_name in ('messages', 'conversations', 'escalations', 'calls') then
+        update public.workspace_notices_pending p
+           set payload = case
+             when threads is null or not (p.payload ? 'threads') then p.payload - 'threads'
+             when (select count(*) from (select jsonb_array_elements_text(p.payload -> 'threads')
+                                         union select jsonb_array_elements_text(threads)) u) > 50 then p.payload - 'threads'
+             else jsonb_set(p.payload, '{threads}', (select jsonb_agg(distinct t) from (
+                    select jsonb_array_elements_text(p.payload -> 'threads') as t
+                    union select jsonb_array_elements_text(threads)) u))
+           end
+         where p.topic = v_topic
+           and p.event = tg_op
+           and p.payload ->> 'table' = tg_table_name
+           and (p.payload -> 'statuses') is not distinct from w.statuses;
+      end if;
+      continue;
+    end if;
     told := told || said;
-    perform realtime.send(
-      jsonb_strip_nulls(jsonb_build_object('table', tg_table_name, 'op', tg_op, 'statuses', w.statuses, 'at', noted_at)),
+    insert into public.workspace_notices_pending (topic, event, payload)
+    values (
+      v_topic,
       tg_op,
-      'workspace:' || w.tenant_id::text || ':changes',
-      true);
+      jsonb_strip_nulls(jsonb_build_object(
+        'table', tg_table_name,
+        'op', tg_op,
+        'statuses', w.statuses,
+        'threads', case when jsonb_array_length(coalesce(threads, '[]')) between 1 and 50 then threads end)));
   end loop;
   if told <> had then
     perform set_config('chanlytics.workspace_told', told, true);
@@ -32998,7 +33122,7 @@ end $$;
 -- Name: FUNCTION workspace_tell_changes(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.workspace_tell_changes() IS 'Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column its values, and the clock when it was told (at, 0047); once per transaction for each. Never a row.';
+COMMENT ON FUNCTION public.workspace_tell_changes() IS 'Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column its values, and for a thread''s four tables the threads touched (threads, at most 50, gathered across the transaction; 00510); once per transaction for each, kept in workspace_notices_pending and sent at the commit with the commit''s clock as `at` (00507). Never a row.';
 
 
 --
@@ -33027,14 +33151,11 @@ begin
     return null;
   end if;
   perform set_config('chanlytics.workspace_told', told || said, true);
-  perform realtime.send(
-    jsonb_build_object(
-      'table', tg_table_name,
-      'op', tg_op,
-      'at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
-    tg_op,
+  insert into public.workspace_notices_pending (topic, event, payload)
+  values (
     'workspace:' || tenant::text || ':changes',
-    true);
+    tg_op,
+    jsonb_build_object('table', tg_table_name, 'op', tg_op));
   return null;
 end $$;
 
@@ -33043,7 +33164,7 @@ end $$;
 -- Name: FUNCTION workspace_tell_row_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): the table, the operation and the clock when it was told, once per transaction for each workspace, table and event. Never a row.';
+COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): the table and the operation, once per transaction for each workspace, table and event, kept in workspace_notices_pending and sent at the commit with the commit''s clock as `at` (00507). Never a row.';
 
 
 --
@@ -34454,7 +34575,7 @@ CREATE TABLE public.job_kinds (
 -- Name: TABLE job_kinds; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.job_kinds IS 'One row a job kind (00506, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role''s alone.';
+COMMENT ON TABLE public.job_kinds IS 'One row a job kind (00515, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role''s alone.';
 
 
 --
@@ -36079,7 +36200,7 @@ CREATE TABLE public.page_vitals (
     CONSTRAINT page_vitals_detail_check CHECK (((jsonb_typeof(detail) = 'object'::text) AND (pg_column_size(detail) <= 2048))),
     CONSTRAINT page_vitals_device_check CHECK ((device = ANY (ARRAY['desk'::text, 'phone'::text]))),
     CONSTRAINT page_vitals_id_check CHECK ((id ~ '^[A-Za-z0-9-]{1,64}$'::text)),
-    CONSTRAINT page_vitals_metric_check CHECK ((metric = ANY (ARRAY['LCP'::text, 'INP'::text, 'CLS'::text, 'FCP'::text, 'TTFB'::text, 'READY'::text, 'SETTLED'::text]))),
+    CONSTRAINT page_vitals_metric_check CHECK ((metric = ANY (ARRAY['LCP'::text, 'INP'::text, 'CLS'::text, 'FCP'::text, 'TTFB'::text, 'READY'::text, 'SETTLED'::text, 'FEED_DOWN'::text, 'FEED_BACK'::text, 'READ_FAILED'::text]))),
     CONSTRAINT page_vitals_page_check CHECK ((page ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
     CONSTRAINT page_vitals_part_check CHECK ((part ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
     CONSTRAINT page_vitals_value_check CHECK (((value >= (0)::double precision) AND (value <= (600000)::double precision)))
@@ -37422,7 +37543,7 @@ COMMENT ON COLUMN public.sweep_status.woken_at IS 'When a row written to the led
 -- Name: COLUMN sweep_status.kind; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sweep_status.kind IS 'For a clock judged by job (00506): the job kind whose newest done row says whether the ledger is running its work.';
+COMMENT ON COLUMN public.sweep_status.kind IS 'For a clock judged by job (00515): the job kind whose newest done row says whether the ledger is running its work.';
 
 
 --
@@ -37764,6 +37885,39 @@ COMMENT ON TABLE public.waitlist IS 'People who asked for a workspace while sign
 --
 
 COMMENT ON COLUMN public.waitlist.invited_at IS 'When an invite was sent. Null means still waiting, and the partial index on that predicate is what makes the queue cheap to read.';
+
+
+--
+-- Name: workspace_notices_pending; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public.workspace_notices_pending (
+    id bigint NOT NULL,
+    topic text NOT NULL,
+    event text NOT NULL,
+    payload jsonb NOT NULL
+);
+
+
+--
+-- Name: TABLE workspace_notices_pending; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.workspace_notices_pending IS 'The notices a transaction will tell its workspaces at its commit (00507, decision 0019): written by workspace_tell_changes and workspace_tell_row_change, sent and deleted by workspace_tell_at_commit, a deferred constraint trigger, so a notice''s clock is its commit''s. Empty at rest; no session but the writing one ever sees a row.';
+
+
+--
+-- Name: workspace_notices_pending_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.workspace_notices_pending ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.workspace_notices_pending_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -39062,6 +39216,14 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: workspace_notices_pending workspace_notices_pending_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_notices_pending
+    ADD CONSTRAINT workspace_notices_pending_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ai_usage_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -39639,7 +39801,7 @@ CREATE UNIQUE INDEX jobs_dedupe_kept ON public.jobs USING btree (dedupe_key) WHE
 -- Name: INDEX jobs_dedupe_kept; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON INDEX public.jobs_dedupe_kept IS 'A subject held once while its row is kept and not failed (job_kinds.once_kept, 00506, 00508): a webhook replayed after the work was done finds it, and a failed row never blocks a replay.';
+COMMENT ON INDEX public.jobs_dedupe_kept IS 'A subject held once while its row is kept and not failed (job_kinds.once_kept, 00515, 00517): a webhook replayed after the work was done finds it, and a failed row never blocks a replay.';
 
 
 --
@@ -39668,6 +39830,20 @@ CREATE INDEX jobs_due_scheduled ON public.jobs USING btree (due_at) WHERE (state
 --
 
 CREATE INDEX jobs_fired_at_idx ON public.jobs USING btree (fired_at) WHERE (state = 'fired'::text);
+
+
+--
+-- Name: jobs_lead_collect_once; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX jobs_lead_collect_once ON public.jobs USING btree (((payload ->> 'run_id'::text)), ((payload ->> 'seq'::text))) WHERE ((kind = 'lead_collect'::text) AND (state <> 'failed'::text));
+
+
+--
+-- Name: INDEX jobs_lead_collect_once; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.jobs_lead_collect_once IS 'One live collect per page of a run, however often the webhook, the sweep and the commit each ask for it. A failed collect does not count, so a run whose stop collect failed can be stopped again.';
 
 
 --
@@ -41698,6 +41874,13 @@ CREATE TRIGGER tenants_set_updated_at BEFORE UPDATE ON public.tenants FOR EACH R
 --
 
 CREATE TRIGGER tenants_zone_guard BEFORE INSERT OR UPDATE OF timezone ON public.tenants FOR EACH ROW EXECUTE FUNCTION public.tenants_zone_guard();
+
+
+--
+-- Name: workspace_notices_pending workspace_notices_told_at_commit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER workspace_notices_told_at_commit AFTER INSERT ON public.workspace_notices_pending DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.workspace_tell_at_commit();
 
 
 --
@@ -45966,6 +46149,12 @@ ALTER TABLE public.voice_agents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: workspace_notices_pending; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.workspace_notices_pending ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: -
 --
 
@@ -48542,6 +48731,14 @@ GRANT ALL ON FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_
 
 REVOKE ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION page_freshness(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.page_freshness(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.page_freshness(p_days integer) TO service_role;
 
 
 --
@@ -51286,12 +51483,29 @@ GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to 
 
 
 --
+-- Name: FUNCTION workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION workspace_partner(p_tenant uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.workspace_partner(p_tenant uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_tell_at_commit(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_tell_at_commit() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_tell_at_commit() TO service_role;
 
 
 --
@@ -52962,6 +53176,20 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.voice_agents TO service_role;
 --
 
 GRANT ALL ON TABLE public.waitlist TO service_role;
+
+
+--
+-- Name: TABLE workspace_notices_pending; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workspace_notices_pending TO service_role;
+
+
+--
+-- Name: SEQUENCE workspace_notices_pending_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.workspace_notices_pending_id_seq TO service_role;
 
 
 --

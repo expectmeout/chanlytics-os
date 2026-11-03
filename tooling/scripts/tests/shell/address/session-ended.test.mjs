@@ -151,3 +151,22 @@ test("the client tells the two 401s apart by what the refusal says, and a client
   await createApi(deps({ fetch: async () => new Response("<html>", { status: 401 }) }))("GET conversations");
   assert.deepEqual(events, ["signed-out"]);
 });
+
+test("the raw answer (Ask's stream, Google's redirects) tells the two 401s apart too, and keeps its body for the caller", async () => {
+  const events = [];
+  const client = createApi({
+    fetch: async (url) =>
+      url.includes("ended")
+        ? refused({ code: "unauthorized", message: "Sign in again to do this.", details: SESSION_ENDED })
+        : refused({ code: "unauthorized", message: "Sign in required." }),
+    workspace: () => "bayside",
+    onSignedOut: () => events.push("signed-out"),
+    onSessionEnded: () => events.push("session-ended"),
+    refresh: async () => {},
+  });
+  const ended = await client.raw("GET ask/threads", { query: { ended: "1" } });
+  assert.equal(ended.status, 401);
+  const plain = await client.raw("GET ask/threads");
+  assert.deepEqual(events, ["session-ended", "signed-out"], "the Auth server's end is ended first, as a read's is");
+  assert.equal((await plain.json()).ok, false, "the caller still reads the answer it was given");
+});

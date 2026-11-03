@@ -23,6 +23,27 @@
   }
 }
 
+/* The place the address lights (places.ts OUTLINE_ROUTES), lit as the frame lights it (components.css .nav-item.active):
+   a lit row's words are heavier, and an outline that lit none stood People's 3px narrower than the frame's (the nightly
+   of 2 Nov 2026). */
+html[data-outline-lit="home"] .frame-outline .nav-item[data-nav="home"],
+html[data-outline-lit="inbox"] .frame-outline .nav-item[data-nav="inbox"],
+html[data-outline-lit="people"] .frame-outline .nav-item[data-nav="people"],
+html[data-outline-lit="calendar"] .frame-outline .nav-item[data-nav="calendar"],
+html[data-outline-lit="campaigns"] .frame-outline .nav-item[data-nav="campaigns"],
+html[data-outline-lit="reports"] .frame-outline .nav-item[data-nav="reports"] {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+/* A page that searches its list says it in Ask's line (topbar.tsx TbSearchLine): its words are the page's, so the outline
+   keeps the line's room and says no label in it, as the frame says none. */
+html[data-outline-search] .frame-outline .tb-ask-label {
+  display: none;
+}
+
 /* An open row's inset, which the frame's row says in its own style (sidebar/sidebar.tsx SidebarRow). */
 .frame-outline .sidebar:not(.collapsed) .nav-item {
   padding-left: 10px;

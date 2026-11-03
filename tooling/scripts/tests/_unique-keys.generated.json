@@ -995,6 +995,50 @@
     },
     {
       "table": "jobs",
+      "name": "jobs_lead_collect_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "path": [
+            "payload",
+            "run_id"
+          ],
+          "text": true
+        },
+        {
+          "path": [
+            "payload",
+            "seq"
+          ],
+          "text": true
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "kind"
+            },
+            "right": {
+              "value": "lead_collect"
+            }
+          },
+          {
+            "cmp": "<>",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "failed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "jobs",
       "name": "jobs_dedupe_live",
       "primary": false,
       "nullsNotDistinct": false,
@@ -3035,6 +3079,18 @@
           "lower": {
             "column": "email"
           }
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "workspace_notices_pending",
+      "name": "workspace_notices_pending_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
         }
       ],
       "where": null

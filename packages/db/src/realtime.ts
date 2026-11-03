@@ -3,7 +3,7 @@
  * how. The database tells each workspace what changed (00265): a notice on the private topic `workspace:<id>:changes`
  * when a statement on a watched table changes its rows, once a transaction for each table and event, naming the table
  * and the event, the statuses a call's or a message update's statement left, and the clock when it was told (`at`,
- * 00408). It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
+ * 00408): its transaction's commit, since 00507, when the notice goes. It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
  * topics (the one policy on realtime.messages) and lets nobody speak on them. The session token is pushed to Realtime
  * EXPLICITLY before the channel joins: relying on supabase-js's auth-listener propagation races the join, and a private
  * channel that joins as `anon` is refused.
@@ -239,7 +239,13 @@ export function watchedEvents(): Array<{ table: string; events: Event[] }> {
  * What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. And, as the
  * fourth argument, the clock the database told it by (`at`, ISO 8601 in UTC): absent from a notice sent before 00408.
  */
-type OnChange = (row: { tenant_id: string; status?: string }, table: string, event: string, at?: string) => void;
+type OnChange = (
+  row: { tenant_id: string; status?: string },
+  table: string,
+  event: string,
+  at?: string,
+  threads?: readonly string[],
+) => void;
 
 interface Listener {
   onChange: OnChange;
@@ -349,13 +355,62 @@ function report(listener: Listener, topic: string, status: string): void {
  * left, and each is a change of its own, so a rule that reads a status reads every one; they share the notice's clock.
  */
 function tell(hearing: Hearing, tenantId: string, message: { event?: string; payload?: unknown }): void {
-  const notice = (message.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown };
+  const notice = (message.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown; threads?: unknown };
   if (typeof notice.table !== "string") return;
   const table = notice.table;
   const event = message.event ?? "*";
   const at = typeof notice.at === "string" ? notice.at : undefined;
   const statuses = Array.isArray(notice.statuses) ? notice.statuses : [undefined];
+  const threads = threadsOf(notice.threads);
   for (const listener of [...hearing.listeners])
     for (const status of statuses)
-      listener.onChange({ tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}) }, table, event, at);
+      listener.onChange(
+        { tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}) },
+        table,
+        event,
+        at,
+        threads,
+      );
+}
+
+/** The threads a thread's notice names (00510), or none: where it named more than it carries, a tab reads the list. */
+function threadsOf(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const ids = value.filter((v): v is string => typeof v === "string" && v.length > 0);
+  return ids.length ? ids : undefined;
+}
+
+/** A notice as the topic told it, read back (workspace_notices_since): its table, event, statuses and clock. Never a row. */
+export interface ToldNotice {
+  table: string;
+  event: string;
+  statuses: string[] | null;
+  at: string | null;
+  /** The threads a thread's notice names (00510), or null: the tab reads the list. */
+  threads: string[] | null;
+}
+
+/** The most notices one catch-up answers: past it the tab reads everything again, as before step 4. */
+export const CATCH_UP_MOST = 200;
+
+/**
+ * The notices told on a workspace's topic since `since` (ISO 8601), read as the member (00508; decision 0019 step 4): what
+ * a tab missed while it loaded or while its feed was down. `whole` is false where there were more than CATCH_UP_MOST.
+ */
+export async function noticesSince(
+  client: SupabaseClient<Database>,
+  tenantId: string,
+  since: string,
+): Promise<{ notices: ToldNotice[]; whole: boolean }> {
+  const { data, error } = await client.rpc("workspace_notices_since", { p_tenant_id: tenantId, p_since: since });
+  if (error) throw error;
+  const rows = data ?? [];
+  const notices = rows.slice(0, CATCH_UP_MOST).flatMap((row): ToldNotice[] => {
+    const p = (row.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown; threads?: unknown };
+    if (typeof p.table !== "string") return [];
+    const statuses = Array.isArray(p.statuses) ? p.statuses.filter((s): s is string => typeof s === "string") : null;
+    const at = typeof p.at === "string" ? p.at : null;
+    return [{ table: p.table, event: row.event, statuses, at, threads: threadsOf(p.threads) ?? null }];
+  });
+  return { notices, whole: rows.length <= CATCH_UP_MOST };
 }

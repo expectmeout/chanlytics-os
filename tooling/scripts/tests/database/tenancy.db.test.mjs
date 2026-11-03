@@ -1025,6 +1025,8 @@ const OTHER_TABLES = {
   client_errors: "none", // the errors pages hit (00469): no workspace, a hash of who; the service role's alone
   platform_admins: "none",
   rate_hits: "none",
+  // A transaction's notices kept for its commit (00507): empty at rest, each row deleted as it is told; the service role's alone.
+  workspace_notices_pending: "empty",
   sweep_status: "none",
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
   job_kinds: "none", // each job kind's lane, once-only rule and pause (00515): platform-wide rows, the service role's alone
@@ -1272,13 +1274,15 @@ test(
     const raised = await partner.client.from("partners").update({ share_bp: 10000 }).eq("id", ctx.partner).select("id");
     if (!raised.error && raised.data.length > 0) note("partners", "a partner raised their own share");
 
-    for (const table of Object.keys(OTHER_TABLES).filter((t) => OTHER_TABLES[t] === "none")) {
+    for (const table of Object.keys(OTHER_TABLES).filter((t) => ["none", "empty"].includes(OTHER_TABLES[t]))) {
       const counted = await db.from(table).select("*", { count: "exact", head: true });
       if (counted.error) {
         note(table, `the service role could not count: ${counted.error.message}`);
         continue;
       }
-      if (!(counted.count >= 1)) note(table, "nothing to read, so the proof would be vacuous");
+      // A table empty at rest proves its scope by the grant alone (below): no member may even ask.
+      if (OTHER_TABLES[table] === "none" && !(counted.count >= 1))
+        note(table, "nothing to read, so the proof would be vacuous");
       const asViewer = await seen(viewer.client, table, []);
       const asOwner = await seen(owner.client, table, []);
       if (!nothing(asViewer)) note(table, `the service role's table was readable by a member (${asViewer})`);

@@ -8,6 +8,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import { FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { scrollerOf } from "../../kit/motion/page-scroll";
+import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { liveOverride } from "../../live/surface";
 import { billingVerbs } from "../../settings/billing/surface";
 import { waConnect } from "../../settings/connections/whatsapp";
@@ -57,7 +58,8 @@ export function useWaitingLook(waits: Waits): void {
     const t = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       void setupVerbs.peek();
-      if (waits === "call") void liveOverride.apply().catch(() => undefined);
+      // Through the runner, as every read of a surface is: its status, its snapshot and a 401's sign-out with it.
+      if (waits === "call") void refreshSurfaces([liveOverride]);
     }, WAIT_LOOK_MS);
     return () => clearInterval(t);
   }, [waits]);

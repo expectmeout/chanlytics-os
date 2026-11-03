@@ -46,6 +46,7 @@ export const ROUTE_KEYS = [
   "GET calls",
   "GET calls/[id]/export",
   "GET calls/[id]/recording",
+  "GET changes",
   "GET channels",
   "GET channels/instagram",
   "GET channels/instagram/callback",
