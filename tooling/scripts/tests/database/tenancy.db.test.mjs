@@ -261,6 +261,8 @@ before(async () => {
   });
   ctx.segment = await seed("segments", { tenant_id: A, name: "tenancy segment" });
   await seed("segment_members", { tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact }, null);
+  // The workspace's first-run choices (00513): one row a workspace, which setup_choice_set writes.
+  await seed("setup_choices", { tenant_id: A, whatsapp: "same" }, null);
   await seed("deals", { tenant_id: A, contact_id: ctx.contact, stage: "proposed" }, null);
   await seed("person_notes", { tenant_id: A, contact_id: ctx.contact, body: "tenancy note" }, null);
   // The appointments record and the notices ledger (00345): members read; the booking_read job writes.
@@ -772,6 +774,8 @@ const TENANT_TABLES = {
     () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
   ],
   segments: ["member", () => ({ tenant_id: A, name: "stranger segment" })],
+  // What the first run chose for the workspace (00513, decision 0091): its members read it; setup_choice_set writes.
+  setup_choices: ["member", () => ({ tenant_id: A, whatsapp: "later" })],
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],
   person_notes: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, body: "stranger note" })],

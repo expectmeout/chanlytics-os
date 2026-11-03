@@ -514,7 +514,7 @@
     "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097",
     "00503_a_held_reply_goes_now_on_a_member_s_word.sql": "d146d35b50cabf0036dc908583c0ec44738c34288bab59f800cfb407fc7816f8",
     "00505_an_opening_is_written_again_as_its_owner_says.sql": "0dbe0500d8bc1ce2960b1ff7bcf7c93807a76390871661c4fc93394b2c3e3dc0",
-    "00512_the_trial_covers_everything.sql": "8c116dc8c75d8127d37d86f019978d978f3da29b12ac9d83adf5463036584e8c",
+    "00512_the_trial_covers_everything.sql": "e65ee89f1817d3c8c703afa4fc82977e838a5d84d4128cd371e66a1a1d24a070",
     "00513_a_workspace_s_setup_choices_are_its_own.sql": "eb4f1914515a3ed5712b1c748089656a29d8952ca9bbe30d13616da25491922f",
     "00514_going_live_is_one_write.sql": "a2fb906b77ba80c43c511fe0c832bba6b7783bea4d4f24906c743af879c2c6e0"
   }

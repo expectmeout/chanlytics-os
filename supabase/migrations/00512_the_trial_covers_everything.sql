@@ -85,20 +85,26 @@ $$;
 
 create or replace function public.lead_allowance(p_tenant_id uuid)
 returns numeric
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
 as $$
+begin
+  -- A member reads their own workspace's; the service role (no session: lead_reserve asked by the edge) any.
+  if auth.uid() is not null and not public.may_read_workspace(p_tenant_id) then
+    raise exception 'Not a member of this workspace.' using errcode = '42501';
+  end if;
   -- contracts leadAllowanceFor: the trial's leads while the workspace is on a trial, else the month's.
-  select case when exists (select 1 from public.billing_accounts b
+  return case when exists (select 1 from public.billing_accounts b
                             where b.tenant_id = p_tenant_id and b.mode = 'stripe' and b.status = 'trialing')
-              then public.lead_cap('trial_leads') else public.lead_cap('month_leads') end
+              then public.lead_cap('trial_leads') else public.lead_cap('month_leads') end;
+end;
 $$;
 revoke all on function public.lead_allowance(uuid) from public, anon;
 grant execute on function public.lead_allowance(uuid) to authenticated, service_role;
 comment on function public.lead_allowance(uuid) is
-  'The leads a workspace may count this month (00512, decision 0090): lead_cap(''trial_leads'') while its billing says trialing, else lead_cap(''month_leads''). contracts'' leadAllowanceFor; lead_reserve asks it, and the Leads page reads the same number. Readable by a member: it says a cap, never a row.';
+  'The leads a workspace may count this month (00512, decision 0090): lead_cap(''trial_leads'') while its billing says trialing, else lead_cap(''month_leads''). contracts'' leadAllowanceFor; lead_reserve asks it, and the Leads page reads the same number. A member reads their own workspace''s alone (may_read_workspace); it says a cap, never a row.';
 
 create or replace function public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric)
 returns jsonb

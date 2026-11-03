@@ -233,7 +233,7 @@ test(
     });
 
     for (const [who, client, mode, status] of [
-      ["the owner", owner, "stripe", "trialing"],
+      ["the owner", owner, "stripe", "incomplete"],
       ["the owner", owner, "stripe", "none"],
       ["the partner", partner, "stripe", "past_due"],
       ["the partner", partner, "stripe", "canceled"],
@@ -252,10 +252,12 @@ test(
       assert.deepEqual(await footprint(), before_, `${status}: nothing reserved, made or scheduled`);
     }
 
-    // A workspace invoiced by hand is never asked for a card, and an active plan spends: each door goes past the gate.
+    // A workspace invoiced by hand is never asked for a card, an active plan spends, and so does a free trial (decision
+    // 0090: the trial covers everything, leads up to its own allowance): each door goes past the gate.
     for (const [mode, status] of [
       ["direct", "none"],
       ["stripe", "active"],
+      ["stripe", "trialing"],
     ]) {
       await billing(mode, status);
       const d = doors(partner);
