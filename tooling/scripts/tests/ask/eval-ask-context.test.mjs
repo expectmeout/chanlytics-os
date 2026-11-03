@@ -1432,7 +1432,7 @@ test("the announcement counts turns: a case of two is two, each on its own surfa
       "  today: 1 case(s), 2 turn(s) × 3 = 6 turns ≈ $0.07",
       "  people: 2 case(s), 3 turn(s) (3 with the page) × 3 = 9 turns ≈ $0.11",
       "  settings: 1 case(s), 2 turn(s) (2 with the page) × 3 = 6 turns ≈ $0.07",
-      "4 cases, 7 turns × 3 = 21 turns ≈ $0.25 at the baseline $0.012 a turn (spec §9), and 9 warms (POST ask/warm, no model); 3 settings note(s) approved between the turns and put back",
+      "4 cases, 7 turns × 3 = 21 turns ≈ $0.25 at $0.012 a turn, as measured (eval-ask.mjs PER_TURN), and 9 warms (POST ask/warm, no model); 3 settings note(s) approved between the turns and put back",
       "",
     ].join("\n"),
   );
@@ -1465,14 +1465,14 @@ test("--list says every case and its second turn, its page, the turns and their 
   });
   assert.equal(run.status, 0, run.stderr);
   for (const c of CASES) assert.ok(run.stdout.includes(`${c.id} · ${c.surface ?? "today"}`), c.id);
-  // A turn is a turn: a case of two turns is two, each priced at the baseline. A workspace that names nothing it holds
-  // runs only the cases that need nothing of it, by the runner's own reading of a case's needs.
+  // A turn is a turn: a case of two turns is two, each priced at what a turn cost (PER_TURN). A workspace that names
+  // nothing it holds runs only the cases that need nothing of it, by the runner's own reading of a case's needs.
   const ran = CASES.filter((c) => !skipFor(c, []));
   assert.ok(ran.length < CASES.length && ran.every((c) => !c.needs?.length));
   const n = ran.length;
   const turns = ran.reduce((k, c) => k + 1 + (c.then ? 1 : 0), 0);
   assert.ok(
-    run.stdout.includes(`${n} cases, ${turns} turns × 3 = ${turns * 3} turns ≈ $${(turns * 3 * 0.012).toFixed(2)}`),
+    run.stdout.includes(`${n} cases, ${turns} turns × 3 = ${turns * 3} turns ≈ $${(turns * 3 * 0.15).toFixed(2)}`),
     run.stdout.slice(-600),
   );
   assert.match(run.stdout, /\n {2}inbox: 7 case\(s\), 8 turn\(s\) \(8 with the page\) × 3 = 24 turns/);
@@ -1499,7 +1499,7 @@ test("--list says every case and its second turn, its page, the turns and their 
       announcement(
         ran.map((c) => ({ ...c, surface: c.surface ?? "today" })),
         3,
-        0.012,
+        0.15,
       ),
     ),
   );
@@ -1707,7 +1707,7 @@ test("card_fields_present and proposals_not (the review after the merge, batch E
   ]);
 });
 
-test("card_fields_each (the effort sweep, 15 Oct 2026): every value named at a path is held by a card of the kind, so a message asked for in Spanish too is two cards, never the Spanish one alone", () => {
+test("card_fields_each (the effort sweep, 15 Oct 2026): every value named at a path is held by a card of the kind; a message asked for in Spanish too beside an English one the Library holds is the Spanish card alone (2 Nov 2026)", () => {
   const card = (kind, payload) => ({ id: "p", kind, title: "t", summary: "s", payload });
   const m = (...proposals) => ({ text: "", proposals, tools: [], answer: { do: { next: [] } } });
   const both = { card_fields_each: { message: { language: ["en_US", "es"] } } };
@@ -1727,9 +1727,9 @@ test("card_fields_each (the effort sweep, 15 Oct 2026): every value named at a p
   // A dotted path reads into the payload as card_fields_absent's does.
   const dotted = { card_fields_each: { message: { "versions.whatsapp.body": ["Hola"] } } };
   assert.deepEqual(setupCardsFails(dotted, m(card("message", { versions: { whatsapp: { body: "Hola" } } }))), []);
-  // The case it was made for asks for both languages of its message.
+  // The case it was made for asks for the Spanish message alone: the Library holds the English win-back (2 Nov 2026).
   const spanishToo = CASES.find((c) => c.id === "write_winback_spanish");
-  assert.deepEqual(spanishToo.expect.card_fields_each, both.card_fields_each);
+  assert.deepEqual(spanishToo.expect.card_fields_each, { message: { language: ["es"] } });
 });
 
 /* ---- X5-4: a thread snoozed between two warm turns, judged and woken ---- */

@@ -242,10 +242,10 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "EDGE_PROVIDERS",
     mechanism: "dashboard_env",
-    does: "'live' lets a preview or a laptop reach the real providers through its edge.",
+    does: "'live' lets a preview or a laptop reach the real providers through its edge; 'model' the model alone (Ask's turns, its warm, the drafts), every provider door still shut (env.ts modelLive).",
     owner: "platform",
     sunset: null,
-    kept: "Only production reaches the providers unless a preview is pointed at sandbox keys.",
+    kept: "Only production reaches the providers unless a preview is pointed at sandbox keys; 'model' is how a change to Ask is measured on a laptop, through production's edge, before it lands.",
   },
   {
     name: "vision",

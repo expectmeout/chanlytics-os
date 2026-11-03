@@ -505,6 +505,30 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   );
   // A fade where it stands: rising 3px as well, the Calendar read on a phone as shifting as it drew (Ruben, 23 Oct 2026).
   assert.match(css, /@keyframes cal-in \{ from \{ opacity: 0; \} \}/, "an arrival that moves nothing");
+  // On a phone the days stand whole on the first frame: faded in, the Agenda's stood a pixel low under the bar and jumped
+  // up as the fade ended, where the bar over them stood still (Ruben's recording, 3 Nov 2026).
+  const blocksOf = (text, head) => {
+    const out = [];
+    for (let at = text.indexOf(head); at !== -1; at = text.indexOf(head, at + 1)) {
+      let depth = 0;
+      let end = at;
+      for (let i = at + head.length - 1; i < text.length; i++) {
+        if (text[i] === "{") depth++;
+        else if (text[i] === "}" && --depth === 0) {
+          end = i;
+          break;
+        }
+      }
+      out.push(text.slice(at, end + 1));
+    }
+    return out;
+  };
+  assert.ok(
+    blocksOf(css, "@media (max-width: 720px) {").some((b) =>
+      /\.main-scroll > \.calendar \.cal-body \{[^}]*animation: none;/.test(b),
+    ),
+    "on a phone the days arrive with the page, as they will stand",
+  );
 });
 
 test("the board drawn right: overlapping blocks take lanes, a block outside the hours widens the grid, and a person's thread rides with the block", () => {

@@ -520,6 +520,15 @@ export const refuse = (why: string): ProposalOutcome => ({
  * either (D7). A builder whose kind needs more than an operator refuses a member below it first, in its route's words
  * (`roleAtLeast`, `proposalBelowNeeds`).
  */
+/**
+ * What holds a card, as the model is told it beside the card's title (decision 0088, item 5): the card's own holds
+ * (AskCardSheet.holds), where it has any, so the answer written beside the card leaves them out, as the setup rule asks
+ * of it. Nothing where the card holds nothing, or has no sheet. One rule for a card alone and for a plan's step
+ * (act/plan.ts), which carries no summary.
+ */
+export const holdsSaid = (p: Pick<AskProposal, "sheet"> | undefined): { holds?: string[] } =>
+  p?.sheet?.holds.length ? { holds: p.sheet.holds } : {};
+
 export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at">, noted?: string): ProposalOutcome => {
   const spec = PROPOSAL_SPECS[p.kind];
   const proposal: AskProposal = {
@@ -539,6 +548,7 @@ export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at"
       id: proposal.id,
       card: proposal.title,
       summary: proposal.summary,
+      ...holdsSaid(proposal),
       ...(noted ? { also_say: `${noted}: say so in the answer beside the card` } : {}),
       note:
         p.kind === "fix"
