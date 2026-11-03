@@ -11,6 +11,7 @@ import type {
   ConsoleWhy,
   FindRowDto,
   HealthWindow,
+  JobKind,
   PlatformActDto,
   PrivacyRequestDto,
   ReportKind,
@@ -97,6 +98,20 @@ export const consoleVerbs = {
     why: ConsoleWhy;
   }): Promise<Wrote<{ subscriber: string; scheduled: number }>> =>
     wroteAnswer(await api()("POST platform/deliveries/redrive", { body })),
+  /** Run again, a whole kind: every job of it that failed since a moment, each once. */
+  requeueKind: async (body: {
+    kind: JobKind;
+    since: string;
+    why: ConsoleWhy;
+  }): Promise<Wrote<{ kind: JobKind; requeued: number; refused: number }>> =>
+    wroteAnswer(await api()("POST platform/jobs/requeue-kind", { body })),
+  /** A kind of background work paused, so no claim takes it, or resumed. */
+  pauseKind: async (body: {
+    kind: JobKind;
+    paused: boolean;
+    why: ConsoleWhy;
+  }): Promise<Wrote<{ kind: JobKind; paused: boolean }>> =>
+    wroteAnswer(await api()("POST platform/jobs/pause", { body })),
   /** Health's bug reports: the last thirty days of "Something isn't working". */
   bugs: async (): Promise<Read<ConsoleBugs>> => readAnswer(await api()("GET platform/support/bugs")),
   /** A question answered or open again; an ask answered, done, or open again. One press: its reason is its code. */

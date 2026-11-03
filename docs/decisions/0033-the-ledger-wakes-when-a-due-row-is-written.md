@@ -1,13 +1,13 @@
 # 0033 · The ledger wakes when a due row is written, and the claim counts capacity
 
-**Status:** Built, steps 1, 2 and 4 (6 October 2026, 00333 and 00335): the wake, the dedupe key, capacity and turns in
-the claim. Decided on 6 October 2026 (Ruben: "all approved"), with 0031, and proposed the same day; step 3, the three
-indexes retiring, waits on the dedupe key's index covering what they cover (found on 6 October 2026: they hold a
-subject once in every state but failed, the key's index only while scheduled or fired), and the reach-out sender keeps its own count until its sends are jobs (0031, Phase
-4). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at
-`6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the
-code. Nothing of it is built; the two changes the trace proposed in the ledger's neighbourhood that this note declines
-are recorded under Decision. Where this note and the code disagree, the code wins.
+**Status:** Built, all four steps. Steps 1, 2 and 4 on 6 October 2026 (00333 and 00335): the wake, the dedupe key,
+capacity and turns in the claim. Step 3 on 3 November 2026 (00526, 00528 and 00529, decision 0089): one index holds the kinds whose
+subject is kept once (`jobs_dedupe_kept`), and two of the three bespoke indexes went (`jobs_lead_collect_once` stays
+while three SQL writers name its columns in `on conflict`); the key is written by the database from each kind's
+job_kinds row, whoever inserts. Capacity went with it (00526): nothing ever wrote a `job_capacity` row, and
+the reach-out sender's own per-domain count it waited on had gone when its sends became jobs. Decided on 6 October 2026
+(Ruben: "all approved"), with 0031, and proposed the same day. Written against commit `b9a4d5c` (main, 5 October 2026).
+Where this note and the code disagree, the code wins.
 
 ## Context
 

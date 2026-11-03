@@ -21,6 +21,7 @@ import {
   type ContactId,
   type TenantId,
   MIN_MS,
+  MEMBER_REPLY_STALE_MS,
   SEND_GRACE_MS,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
@@ -129,6 +130,11 @@ export type SendPayload = { message_id: string; conversation_id: string } & (
      * start and holds it as a person's own words (messages/send.ts).
      */
     starts?: true;
+    /**
+     * When the reply is too late to leave by itself (ISO; its grace plus MEMBER_REPLY_STALE_MS, decision 0089): past it
+     * the send door refuses it as too late, and its thread is handed to the person who wrote it.
+     */
+    stale_after?: string;
   };
 
 /** The email a reply answers, as the thread stores it. */
@@ -685,6 +691,8 @@ async function queueReply(
       ...(channel === "email" ? { to_email: to } : channel === "instagram" ? { to_instagram: to } : { to_phone: to }),
       ...(template ? { template: template.job } : { body: messageBody }),
       ...(cmd.starts ? { starts: true as const } : {}),
+      // Words written for the moment: held for the person who wrote them if an outage keeps them past it (decision 0089).
+      stale_after: new Date(dueAt.getTime() + MEMBER_REPLY_STALE_MS).toISOString(),
     });
   } catch (e) {
     // Never leave an orphan queued row that silently never sends -- nor one a

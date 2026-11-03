@@ -42,7 +42,7 @@ function ledger(job = {}, { faults = {}, unique = [] } = {}) {
         tenant_id: A,
         kind: "email_ingest",
         state: "failed",
-        payload: { email_id: "e-1" },
+        payload: { mailbox_id: "mb-1", received_id: "e-1" },
         due_at: "2026-09-29T10:00:00.000Z",
         created_at: "2026-09-29T09:00:00.000Z",
         last_error: "the key was restricted",
@@ -99,7 +99,11 @@ test("a failed job is run again as a fresh row of its kind and payload, due now,
   assert.deepEqual([failed.id, failed.state, failed.last_error], [J, "failed", "the key was restricted"]);
   assert.equal(again.tenant_id, A);
   assert.equal(again.kind, "email_ingest");
-  assert.deepEqual(again.payload, { email_id: "e-1" });
+  assert.deepEqual(
+    again.payload,
+    { mailbox_id: "mb-1", received_id: "e-1", requeue_of: J },
+    "its payload, naming the job it copies (decision 0089): a second press finds the copy by it",
+  );
   assert.ok(Date.parse(again.due_at) >= before - 1000 && Date.parse(again.due_at) <= Date.now() + 1000, "due now");
 });
 
@@ -143,7 +147,7 @@ test("a job of any kind whose run put words on a wire before it failed is never 
   // row, which answered the customer a second time.
   const spoke = ledger({
     kind: "inbound_answer",
-    payload: { message_id: "m-7" },
+    payload: { message_id: "m-7", conversation_id: "c-7" },
     spoke_at: "2026-09-29T09:59:58.000Z",
   });
   await assert.rejects(
@@ -153,7 +157,11 @@ test("a job of any kind whose run put words on a wire before it failed is never 
   assert.deepEqual([spoke.tables.events, spoke.tables.jobs.length], [[], 1], "nothing recorded, nothing run");
 
   // One that failed before it spoke (its model's turn threw) put nothing on the wire, and is run again.
-  const quiet = ledger({ kind: "inbound_answer", payload: { message_id: "m-8" }, spoke_at: null });
+  const quiet = ledger({
+    kind: "inbound_answer",
+    payload: { message_id: "m-8", conversation_id: "c-8" },
+    spoke_at: null,
+  });
   assert.deepEqual(await platformJobRequeue(quiet.office, A, J, WHY), { ok: true, job_id: J, kind: "inbound_answer" });
   assert.equal(quiet.tables.jobs.length, 2);
 });
@@ -242,7 +250,7 @@ test("a dead letter is run again once: a second press, or a second person, finds
     tenant_id: A,
     kind: "email_ingest",
     state: "scheduled",
-    payload: { email_id: "e-2" },
+    payload: { mailbox_id: "mb-1", received_id: "e-2" },
     due_at: "2026-09-29T11:00:00.000Z",
     created_at: "2026-09-29T10:30:00.000Z",
   });

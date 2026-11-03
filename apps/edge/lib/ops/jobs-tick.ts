@@ -47,6 +47,7 @@ import {
   dispatchJob,
   scheduleJob,
   scheduleJobOnce,
+  kindPolicyOf,
   lateFields,
   CLAIM_FOR_MS,
   CLAIM_SLOTS,
@@ -56,6 +57,7 @@ import {
   LEASE_SECONDS,
   RELAY_LIMIT,
   type ClaimedJob,
+  type TickCounts,
 } from "../packages/jobs.js";
 import { relayEvents, workspaceIsOurs } from "../packages/db.js";
 import type { SweepTick } from "./sweep-door.js";
@@ -98,6 +100,15 @@ const pagerOf =
     tenantId && (await workspaceIsOurs(db, tenantId)) ? "ours" : pageOperator({ db }, key, subject, body);
 
 /**
+ * Of these workspaces, the ones that are a customer's: not ours (tenants.ours, 00469). A workspace whose row cannot be read
+ * is counted as a customer's, so a read that failed never keeps a page from the platform.
+ */
+async function customersOf(db: SweepTick["db"], tenantIds: readonly string[]): Promise<Set<string>> {
+  const ours = await Promise.all(tenantIds.map((t) => workspaceIsOurs(db, t).then((o) => (o ? null : t))));
+  return new Set(ours.filter((t): t is string => t !== null));
+}
+
+/**
  * What the jobs bring in (decision 0073): a connection's history a part at a time (the mailbox's six months, its people,
  * its calendar, WhatsApp's), with the grants that live here, the business's website read for Check (R10), and a lead's
  * preview built (0079).
@@ -127,6 +138,38 @@ async function phoneWires(db: SweepTick["db"], tenantId: string) {
   };
 }
 
+/**
+ * The heartbeat's two pages, counting the customers' work alone: our own workspaces' (the nightly suite's, the smoke's)
+ * are Health's under Ours, never a page (decision 0068), as a failed delivery's already were (pagerOf).
+ */
+async function pageWhatTheCustomersWaited(
+  db: SweepTick["db"],
+  by: Pick<TickCounts, "replyLateBy" | "failedBy">,
+  tally: Parameters<typeof massFailureBody>[0],
+): Promise<void> {
+  const customers = await customersOf(db, [...new Set([...Object.keys(by.replyLateBy), ...Object.keys(by.failedBy)])]);
+  const replyLateMs = Math.max(
+    0,
+    ...Object.entries(by.replyLateBy).flatMap(([t, ms]) => (customers.has(t) ? [ms] : [])),
+  );
+  const failed = Object.entries(by.failedBy).reduce((n, [t, k]) => (customers.has(t) ? n + k : n), 0);
+  // A reply that waited more than a minute for the ledger is the platform's condition: replies are claimed before
+  // anything else, so every runner was busy with replies or the heartbeat was slow. Paged once per window.
+  if (replyLateMs > REPLY_LATE_PAGE_MS) {
+    await pageOperator(
+      { db },
+      "jobs_replies_late",
+      "A reply waited more than a minute for the ledger",
+      replyLateBody(replyLateMs),
+    );
+  }
+  // Many failures in one heartbeat are also the platform's condition: one page with the counts in words and where to
+  // look. Each failed job has already told whom its kind tells (packages/jobs/src/tick.ts); the page is in addition to
+  // those, not instead of them.
+  if (failed >= MASS_FAILURE_PAGE)
+    await pageOperator({ db }, "jobs_mass_failure", `${failed} jobs failed in one heartbeat`, massFailureBody(tally));
+}
+
 export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
     // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
@@ -141,6 +184,10 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
       {
         claim: (lease) => claimNext(db, lease),
         dispatch: async (job, deadline) => {
+          // A kind that never puts words on a wire is handed none, and reads no credential to run (packages/jobs kinds.ts
+          // `wires`): a phone's receipts, a lead's page or the canary never asks the vault for a WhatsApp token. A kind
+          // this build does not know is bound as every sending kind is, since nothing here can say it sends nothing.
+          const wired = kindPolicyOf(job.kind)?.wires ?? true;
           // Each wire is bound on its own (phoneWires): a mailbox that could not be read is email's wire unbound (core
           // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
           // A broadcast's batch may send OFFERS by email: only for that job is the campaigns domain asked about (it is
@@ -149,12 +196,17 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
           // verified closes offers and the run stops, and one it could not be asked about makes a run of offers wait while
           // the email wire stays bound for everything else (emailBoundFor says each).
           const offers = job.kind === "broadcast_send" ? await campaignsBinding() : ({ state: "none" } as const);
-          const { email, campaigns, closed, unread } = await emailBoundFor(db, job.tenant_id, offers, L);
+          const bound = wired ? await emailBoundFor(db, job.tenant_id, offers, L) : null;
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
-          const intake = emailIntake(db, campaigns, closed, unread);
+          const intake = bound ? emailIntake(db, bound.campaigns, bound.closed, bound.unread) : null;
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
-          const wire = { ...(await phoneWires(db, job.tenant_id)), ...(email !== undefined ? { email } : {}) };
+          const wire = wired
+            ? {
+                ...(await phoneWires(db, job.tenant_id)),
+                ...(bound?.email !== undefined ? { email: bound.email } : {}),
+              }
+            : {};
           // The job as its handler holds it. What the handler says of it (that it spoke: ledger markSpoke) is carried
           // back to the claim once it returns or throws, where the ledger judges a retry from it.
           const claimed: ClaimedJob = {
@@ -230,30 +282,9 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
     );
     // How late each kind's first claim came rides on the heartbeat's line (0018,
     // step 1), and the reply lane's worst beside them; the answer to pg_net keeps its counts alone.
-    const { lateMs, replyLateMs, ...tally } = counts;
-    L.info("jobs_tick", { ...tally, relayed, ...lateFields(lateMs), reply_late_ms: replyLateMs });
-    // A reply that waited more than a minute for the ledger is the platform's condition: replies are claimed before
-    // anything else, so every runner was busy with replies or the heartbeat was slow. Paged once per window.
-    if (replyLateMs > REPLY_LATE_PAGE_MS) {
-      await pageOperator(
-        { db },
-        "jobs_replies_late",
-        "A reply waited more than a minute for the ledger",
-        replyLateBody(replyLateMs),
-      );
-    }
-    // Many failures in one heartbeat are also the platform's condition: one page
-    // with the counts in words and where to look. Each failed job has already
-    // alerted its own workspace's owner (packages/jobs/src/tick.ts); the page is
-    // in addition to those, not instead of them.
-    if (tally.failed + tally.gaveUp >= MASS_FAILURE_PAGE) {
-      await pageOperator(
-        { db },
-        "jobs_mass_failure",
-        `${tally.failed + tally.gaveUp} jobs failed in one heartbeat`,
-        massFailureBody(tally),
-      );
-    }
+    const { lateMs, replyLateMs, replyLateBy, failedBy, skipped, ...tally } = counts;
+    L.info("jobs_tick", { ...tally, skipped, relayed, ...lateFields(lateMs), reply_late_ms: replyLateMs });
+    await pageWhatTheCustomersWaited(db, { replyLateBy, failedBy }, tally);
     return json(200, { ok: true, ...tally });
   } catch (e) {
     // Only the claim throws out of runTick; everything per job is caught inside

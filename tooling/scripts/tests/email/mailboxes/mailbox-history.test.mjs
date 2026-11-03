@@ -21,6 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
+import { settleJob } from "../../../../../packages/jobs/src/settle.ts";
 import { rows } from "../../_rows.mjs";
 import { fieldsOf, linesOf } from "../../_log-lines.mjs";
 import { ledgerDoor } from "../../imports/_ledger-door.mjs";
@@ -477,7 +478,7 @@ test("a message the mailbox refuses for good is counted, said and gone on withou
   );
 });
 
-test("a part the provider stops part way notes what it brought and where it stood; the job ledger tries it again from there, and its last try says so on the row, with Try again", async () => {
+test("a part the provider stops part way notes what it brought and where it stood; the job ledger tries it again from there, and when it will not, the ledger says so on the row, with Try again", async () => {
   const w = world();
   const listed = [MESSAGES.p1, MESSAGES.o1, { id: "x1", threadId: "t8" }, MESSAGES.n1];
   const down = gmailWith(listed, { x1: DOWN });
@@ -498,7 +499,8 @@ test("a part the provider stops part way notes what it brought and where it stoo
     ["received", 1],
     "where it stood: the message it could not read, among the rest",
   );
-  // The try the ledger will not repeat: the row says it stopped, with Try again beside it.
+  // The try the ledger will not repeat: it throws as every try does, and the ledger's settle (packages/jobs settle.ts,
+  // reached whether the last try threw or a run died on it) says it stopped on the row, with Try again beside it.
   const last = gmailWith(listed, { x1: DOWN });
   try {
     await assert.rejects(
@@ -508,6 +510,16 @@ test("a part the provider stops part way notes what it brought and where it stoo
   } finally {
     last.restore();
   }
+  await settleJob(
+    w.db,
+    {
+      id: "job-mailbox-1",
+      kind: "history_import",
+      tenant_id: T,
+      payload: { source: "mailbox", seq: "run:1", connection_id: w.mailbox.id },
+    },
+    false,
+  );
   row = ledger(w, "mailbox");
   assert.deepEqual([row.state, row.last_error], ["failed", IMPORT_STOPPED_WORDS.failed]);
   // A part of the stopped run that wakes reads nothing (decision 0086): only a run of its own starts it again.

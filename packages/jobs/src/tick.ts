@@ -33,6 +33,12 @@ import { saySettled, type Settled } from "./settle";
 
 export type TickFields = Record<string, string | number | boolean | null | undefined>;
 
+/**
+ * How a dispatched job came back: it did its work, it found nothing to do and says why (the row it names is gone, a
+ * switch is off: never counted as work done), or nothing here knows its kind.
+ */
+export type DispatchOutcome = "done" | "unknown_kind" | { skipped: string };
+
 export interface TickLog {
   info(event: string, fields?: TickFields): void;
   warn(event: string, fields?: TickFields): void;
@@ -43,7 +49,7 @@ export interface TickPorts {
   /** The next due job, claimed for this run; null when nothing is due. */
   claim(leaseSeconds: number): Promise<LedgerRow | null>;
   /** Run it. `deadline` is when a handler that loops must stop starting new outward work. */
-  dispatch(job: LedgerRow, deadline: number): Promise<"done" | "unknown_kind">;
+  dispatch(job: LedgerRow, deadline: number): Promise<DispatchOutcome>;
   complete(job: LedgerRow): Promise<boolean>;
   fail(job: LedgerRow, reason: string): Promise<boolean>;
   /** Keep a job that threw, to be claimed again once `untilIso` passes (ledger deferJob). False when this run no longer holds it. */
@@ -93,6 +99,13 @@ export interface TickCounts {
   gaveUp: number;
   /** Threw, and kept to be tried again later (ledger RETRY_WAITS_MS). */
   deferred: number;
+  /** Came back with nothing to do, and said why (DispatchOutcome `skipped`): recorded done, never counted as work. */
+  skipped: number;
+  /**
+   * How many of the heartbeat's jobs failed or were given up, by workspace: the platform's mass-failure page counts only
+   * the customers' (our own workspaces' are Health's, decision 0068).
+   */
+  failedBy: Record<string, number>;
   /**
    * How late each kind's first claim came, at worst, in milliseconds past its row's due time (decision 0018, step 1).
    * A later claim of the same row is a retry or a lease that ran out, not a wait in the queue, so it is not counted.
@@ -104,6 +117,8 @@ export interface TickCounts {
    * one can, and it is the one the route pages on (REPLY_LATE_PAGE_MS).
    */
   replyLateMs: number;
+  /** The reply lane's worst wait by workspace, so the page that waits on it can leave our own out. */
+  replyLateBy: Record<string, number>;
 }
 
 /** Keep the worst wait among a kind's first claims: now, less the row's due time; a claim before it waited none. */
@@ -112,7 +127,15 @@ function noteLate(c: TickCounts, job: LedgerRow, now: number): void {
   const late = Math.max(0, now - Date.parse(job.due_at));
   if (Number.isNaN(late)) return;
   c.lateMs[job.kind] = Math.max(c.lateMs[job.kind] ?? 0, late);
-  if (job.lane === 0) c.replyLateMs = Math.max(c.replyLateMs, late);
+  if (job.lane === 0) {
+    c.replyLateMs = Math.max(c.replyLateMs, late);
+    c.replyLateBy[job.tenant_id] = Math.max(c.replyLateBy[job.tenant_id] ?? 0, late);
+  }
+}
+
+/** One job of the heartbeat that failed or was given up, counted by its workspace. */
+function noteFailed(c: TickCounts, job: LedgerRow): void {
+  c.failedBy[job.tenant_id] = (c.failedBy[job.tenant_id] ?? 0) + 1;
 }
 
 /** The heartbeat's line is flat, so each kind's worst wait is a field of its own: `late_ms_<kind>`. */
@@ -123,7 +146,18 @@ export function lateFields(lateMs: Record<string, number>): Record<string, numbe
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
   const started = opts.startedAt ?? ports.now();
   const deadlineFor = (kind: string) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
-  const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 };
+  const c: TickCounts = {
+    claimed: 0,
+    done: 0,
+    failed: 0,
+    gaveUp: 0,
+    deferred: 0,
+    skipped: 0,
+    failedBy: {},
+    lateMs: {},
+    replyLateMs: 0,
+    replyLateBy: {},
+  };
   const slots = Math.max(1, Math.floor(opts.slots ?? 1));
   const running: Promise<void>[] = [];
   // Set by the first thing that throws out of a slot; every slot stops claiming, and the tick throws once what runs has
@@ -174,18 +208,21 @@ async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: Tic
   if (verdictFor(job) === "give_up") {
     await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
     c.gaveUp += 1;
+    noteFailed(c, job);
     return;
   }
 
-  let outcome: "done" | "unknown_kind";
+  let outcome: DispatchOutcome;
   try {
     outcome = await ports.dispatch(job, deadline);
   } catch (e) {
     const msg = errText(e);
     // A kind written to be run again is kept and tried again later, rather
     // than failed for good on its first throw (ledger RETRY_WAITS_MS). The
-    // last try falls through to the failure below, and is told as one.
-    const wait = retryWait(job, ports.random);
+    // last try falls through to the failure below, and is told as one. A throw
+    // that says its work provably never happened is never tried again: nothing
+    // another try could change (a payload its kind cannot run on).
+    const wait = isCertainFailure(e) ? null : retryWait(job, ports.random);
     if (wait !== null) {
       const until = await keepForLater(ports, job, wait, (untilIso) => ports.defer(job, untilIso, msg));
       if (until) ports.log.warn("job_deferred", keptFields(job, until, msg));
@@ -198,6 +235,7 @@ async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: Tic
     const sure = isCertainFailure(e) ? { why: e.why } : null;
     await conclude(ports, job, msg, sure !== null, "failed", sure?.why);
     c.failed += 1;
+    noteFailed(c, job);
     return;
   }
 
@@ -214,16 +252,24 @@ async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: Tic
     }
     await conclude(ports, job, reason, true, "unknown_kind");
     c.failed += 1;
+    noteFailed(c, job);
     return;
   }
+
+  // Nothing to do, and the handler said why: the row is done, the line says so, and the work is not counted as done.
+  const skipped = typeof outcome === "object" ? outcome.skipped : null;
+  if (skipped !== null)
+    ports.log.info("job_skipped", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, why: skipped });
 
   // The work is done; what follows only records it. A write that fails here
   // must not be reported as the work failing: the lease brings the row back
   // and verdictFor judges it, which for a send is an honest "unknown" rather
   // than a false "failed".
   try {
-    if (await ports.complete(job)) c.done += 1;
-    else ports.log.warn("job_complete_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+    if (await ports.complete(job)) {
+      if (skipped !== null) c.skipped += 1;
+      else c.done += 1;
+    } else ports.log.warn("job_complete_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
   } catch (e) {
     ports.log.error("job_complete_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
   }
@@ -337,6 +383,14 @@ async function conclude(
     }
   }
   if (TOLD_ELSEWHERE.has(job.kind)) return;
+  // A run handed to a fresh one carries on by itself (settle.ts: a broadcast resumed, or one already coming): nothing an
+  // owner can act on, so nobody's bell rings; the line says it, and Health counts it. The owner hears when it fails for
+  // good, MAX_RESUMES runs on, or when no fresh run could be handed it (decision 0089, D5). It used to tell the owner
+  // each time, up to five times a run.
+  if (resumed === true) {
+    ports.log.info("job_resumed_untold", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind });
+    return;
+  }
   try {
     // conclude() is only ever reached for a job that failed or never came
     // back, so this is the one place job_failed is the truth.

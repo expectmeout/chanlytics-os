@@ -311,6 +311,7 @@ const JOB_WORDS: Record<JobKind, string> = {
   website_read: "Reading a business's website",
   preview_build: "Making a lead's preview",
   erasure_finish: "Finishing a person's erasure",
+  canary: "The ledger's proof that it runs",
 };
 
 /** A job's kind in words; an unknown kind said as it is. */

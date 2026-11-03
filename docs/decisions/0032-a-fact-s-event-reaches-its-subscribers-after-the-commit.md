@@ -3,8 +3,11 @@
 **Status:** Built, steps 1 to 4 (6 October 2026, 00334 and 00336 with packages/jobs, packages/db and apps/edge): the
 envelope, subscriptions, outbox, deliveries, the relay first in every tick, the event_deliver kind, the audit
 subscriber, and the intake ledger seven webhook doors write before their verdict, with its purge, its scrub and its
-replay door. Decided on 6 October 2026 (Ruben: "all approved"), with 0031, and proposed the same day; the catalogue's schema
-per kind arrives with each subscriber that reads one, and step 5, the first real subscriber, is Phase 2's. Written
+replay door. The audit subscriber went in 00456; six subscribers act today (contracts EVENT_SUBSCRIBERS: reach_out_booked,
+owner_notice, consent_notice, visit_notice, team_notice, freed_time_offer), so step 5 is built too. A delivery whose run
+died before its subscriber's verdict is settled failed by the ledger, so Deliver again reaches it (decision 0089). Decided
+on 6 October 2026 (Ruben: "all approved"), with 0031, and proposed the same day; the catalogue's schema per kind arrives
+with each subscriber that reads one. Written
 against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at `6a8e85f` (main,
 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the code. Where this
 note and the code disagree, the code wins.

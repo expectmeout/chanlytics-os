@@ -1398,9 +1398,40 @@ Every version of a workspace's settings is kept while it is in force and 400 day
 ## Read the jobs ledger
 
 Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's
-intake, the lead finder, a phone told. pg_cron asks every ten seconds whether one is due and calls `api/jobs/tick`,
-which runs up to three at once (`CLAIM_SLOTS`; `1` is the old one at a time). The claim takes a reply first, then someone
-waiting who is not a customer, then bulk, each workspace taking its turn at bulk (decision 0018).
+intake, the lead finder, a phone told. pg_cron asks every two seconds whether one is due and calls `api/jobs/tick` at once
+for a row that just came due, and every ten seconds for the rest of the ledger; a tick runs up to three at once
+(`CLAIM_SLOTS`). The claim takes a reply first, then someone waiting who is not a customer, then bulk, each workspace
+taking its turn in each lane (decision 0018). Each kind's lane and once-only rule is its row in `job_kinds` (00526); a
+job that threw waits `scheduled` for its next try, so `fired` always means running (decision 0089).
+
+### When the ledger pages
+
+Each page names its condition (`operator_pages.key`); our own workspaces' work never pages (Health shows it under Ours).
+
+- **`/api/health` names `jobs_canary`.** The ledger's own check has not finished for three minutes: pg_cron, pg_net, the
+  edge, the claim or a handler stopped. `select * from sweep_health() where sweep in ('jobs', 'jobs_canary');` says which:
+  `jobs` unhealthy is the clock or the edge's answer (its note or status code); `jobs` healthy and `jobs_canary` not is the
+  claim or the run (read the edge's `jobs_tick` and `jobs_tick_failed` lines). The canary runs in our first workspace.
+- **`jobs_backlog`.** Work the claim could take and has not for two minutes, a lease that ran out counted too: `select
+kind, state, count(*), min(due_at) from jobs where (state = 'scheduled' and due_at < now() - interval '2 minutes') or
+(state = 'fired' and lease_until < now() - interval '2 minutes') group by 1, 2;`. A paused kind is never counted.
+- **`jobs_replies_late`.** A customer's reply waited a minute for its claim: see "Is a reply waiting?" below.
+- **`jobs_mass_failure`.** Ten or more customers' jobs failed in one heartbeat: the page holds the query; the same
+  `last_error` across workspaces is a shared cause (a provider's key, the database, a deploy).
+- **`jobs_paused:<kind>`.** A kind is paused, on purpose, and nothing of it runs until it is resumed: the Console's
+  Health, Background work, The ledger now, Resume. Paged once per window while it holds.
+- **`job_payload_refused:<kind>`.** A job was written without an id its handler needs (packages/jobs kinds.ts `ids`): it
+  failed as never run. The writer is ours; the page names the job.
+- **`event_deliver_failed:<subscriber>`, a lead search's collect.** The platform's to mend: Deliver again (Health) once it
+  is, never Run again; a search says it stopped by itself.
+
+**The incident lever.** A provider answering garbage, a run that should not go on, a handler a deploy broke: pause its
+kind on Health (it asks why; the Admin log keeps it). Its rows wait where they are, due or not, and Resume makes what
+waited due at once, oldest first. A send already claimed finishes; nothing new of the kind is claimed.
+
+**After an outage.** Run every failed job of a kind again since a moment (Health, The ledger now, Run every failed one
+again: `POST /api/v1/platform/jobs/requeue-kind`), at most 200 a press, each once (a copy names the job it copies,
+`requeue_of`). Sends, and jobs that spoke, are never run again: send them again from the thread or the broadcast.
 
 - **Is a reply waiting?** Each `jobs_tick` line in the edge's logs carries `late_ms_<kind>`, the worst first-claim wait of
   each kind in that heartbeat, and `reply_late_ms`, the reply lane's. A reply claimed more than a minute late pages the

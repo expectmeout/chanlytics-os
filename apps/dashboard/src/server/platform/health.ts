@@ -1,8 +1,9 @@
 import "server-only";
 
 /**
- * Health's read and its two doors (decision 0068): what the Console's Health page draws, a subscriber's failed
- * deliveries sent again once its cause is mended, and the error a member's page hit kept for Health to group.
+ * Health's read and its doors (decision 0068): what the Console's Health page draws, a subscriber's failed deliveries
+ * sent again once its cause is mended, every failed job of one kind run again after an outage, a kind of background work
+ * paused or resumed (decision 0089), and the error a member's page hit kept for Health to group.
  *
  * Every part is a side read: Health is opened when something is wrong, so a part that cannot be read says so (null),
  * never nothing, and never takes the page down with it. The view models decide what a null says (contracts
@@ -13,17 +14,23 @@ import "server-only";
  */
 import { createHash } from "node:crypto";
 import {
+  failedJobsOfKind,
   healthBacklog,
   healthClientErrors,
   healthClocks,
   healthFailedJobs,
+  healthLedgerNow,
   healthPages,
   healthParts,
   healthSweeps,
   healthWorkspaces,
   keepClientError,
+  pauseJobKind,
+  recordEvent,
   redriveDeliveries,
+  resumeJobKind,
 } from "@chanlytics/db";
+import { requeueFailedJob } from "@chanlytics/jobs";
 import {
   AppError,
   DAY_MS,
@@ -37,6 +44,8 @@ import {
   type HealthPartsDto,
   type HealthWindow,
   type HealthWorkspaceDto,
+  type JobKind,
+  type LedgerNowDto,
   type OperatorPageDto,
 } from "@chanlytics/contracts";
 import { side } from "./console";
@@ -48,7 +57,7 @@ import { serviceDb } from "../service-db";
 import { log } from "@/server/log";
 
 /** How many rows each list reads at most: more than a month of a healthy platform's, few enough to send whole. */
-const HEALTH_ROWS = { workspaces: 2000, failedJobs: 200, pages: 100, clientErrors: 5000 } as const;
+const HEALTH_ROWS = { workspaces: 2000, failedJobs: 200, pages: 100, clientErrors: 5000, requeueKind: 200 } as const;
 
 /** A read's rows, or its failure thrown for side() to say. */
 const healthRowsOf = <T>(r: { data: T | null; error: { message: string } | null }): T => {
@@ -133,6 +142,35 @@ async function pagesRead(office: BackOffice): Promise<OperatorPageDto[]> {
   return healthRowsOf(await healthPages(office.db, HEALTH_ROWS.pages));
 }
 
+/** The ledger now (jobs_ledger_now, 00526): by lane, by kind, and the canary's last finish. */
+async function ledgerRead(office: BackOffice): Promise<LedgerNowDto> {
+  const raw = healthRowsOf(await healthLedgerNow(office.db));
+  const j: Record<string, unknown> = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const rows = (v: unknown): Record<string, unknown>[] =>
+    Array.isArray(v) ? v.filter((r): r is Record<string, unknown> => !!r && typeof r === "object") : [];
+  const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
+  return {
+    lanes: rows(j.lanes).map((l) => ({
+      lane: Number(l.lane),
+      running: Number(l.running) || 0,
+      due: Number(l.due) || 0,
+      waiting: Number(l.waiting) || 0,
+      expired: Number(l.expired) || 0,
+      oldest_due_s: Number(l.oldest_due_s) || 0,
+    })),
+    kinds: rows(j.kinds).map((k) => ({
+      kind: String(k.kind),
+      lane: Number(k.lane),
+      paused_at: text(k.paused_at),
+      paused_why: text(k.paused_why),
+      failed_day: Number(k.failed_day) || 0,
+      done_day: Number(k.done_day) || 0,
+    })),
+    canary_done_at: text(j.canary_done_at),
+    read_at: text(j.read_at) ?? new Date().toISOString(),
+  };
+}
+
 async function backlogRead(office: BackOffice): Promise<number> {
   const due = healthRowsOf(await healthBacklog(office.db));
   return Number(due);
@@ -152,12 +190,13 @@ async function clientErrorsRead(office: BackOffice, sinceIso: string): Promise<C
  */
 export async function consoleHealth(office: BackOffice, days: HealthWindow, now = Date.now()): Promise<HealthDto> {
   const sinceIso = new Date(now - days * DAY_MS).toISOString();
-  const [workspaces, clocks, backlog, failedJobs, pages, dayRows, parts, clientErrors, vitals, speed] =
+  const [workspaces, clocks, backlog, failedJobs, ledger, pages, dayRows, parts, clientErrors, vitals, speed] =
     await Promise.all([
       side("health_workspaces", () => workspacesRead(office)),
       side("health_clocks", () => clocksRead(office, days)),
       side("health_backlog", () => backlogRead(office)),
       side("health_failed_jobs", () => failedJobsRead(office, sinceIso)),
+      side("health_ledger", () => ledgerRead(office)),
       side("health_pages", () => pagesRead(office)),
       platformDays(office, days),
       side("health_parts", () => partsRead(office, days)),
@@ -172,6 +211,7 @@ export async function consoleHealth(office: BackOffice, days: HealthWindow, now 
     clocks,
     backlog,
     failed_jobs: failedJobs,
+    ledger,
     pages,
     day_rows: dayRows,
     parts,
@@ -203,6 +243,78 @@ export async function healthRedrive(
       outcome: "done",
       note: out.scheduled ? `${out.scheduled} scheduled again.` : "None was failed or paused.",
     }),
+  );
+}
+
+/**
+ * Run again, a whole kind: every job of `kind` that failed for good since `sinceIso`, after an outage mended, each once,
+ * through the one press's own door (requeueFailedJob: a send, or a job that spoke, is never run again; a job already
+ * run again is left; each run again is on its workspace's ledger as the staff member's act). The Admin log has who, why
+ * and how many went; at most HEALTH_ROWS.requeueKind a press, oldest first.
+ */
+export async function healthRequeueKind(
+  office: BackOffice,
+  kind: JobKind,
+  sinceIso: string,
+  why: ConsoleWhy,
+): Promise<{ kind: JobKind; requeued: number; refused: number }> {
+  return takeAct(
+    office,
+    { act: "job_requeue_kind", why, tenantId: null, target: "platform", targetId: kind },
+    async () => {
+      let rows: { id: string; tenant_id: string }[];
+      try {
+        rows = await failedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
+      } catch {
+        throw new AppError("internal", "The failed jobs could not be read. Try again in a moment.", 503);
+      }
+      let requeued = 0;
+      let refused = 0;
+      for (const row of rows) {
+        const r = await requeueFailedJob(office.db, row.tenant_id, row.id, async (k) => {
+          const { error } = await recordEvent(office.db, row.tenant_id, "platform.acted", "job", row.id, {
+            action: `requeue:${k}`,
+            by: office.userId,
+            by_email: office.email,
+          });
+          if (error) throw new Error(error);
+        }).catch(() => null);
+        if (r?.outcome === "requeued") requeued += 1;
+        else refused += 1;
+      }
+      return { kind, requeued, refused };
+    },
+    (out) => ({
+      outcome: "done",
+      note: `${out.requeued} run again${out.refused ? `, ${out.refused} left as they are` : ""}.`,
+    }),
+  );
+}
+
+/**
+ * Pause or resume a kind of background work (00526 job_kind_pause, job_kind_resume): paused, no claim takes its rows and
+ * they wait where they are; resumed, what waited is due at once. The incident lever: a provider answering garbage, a run
+ * that should not go on, a handler a deploy broke. The reason is said on Health and in the Admin log.
+ */
+export async function healthPauseKind(
+  office: BackOffice,
+  kind: JobKind,
+  paused: boolean,
+  why: ConsoleWhy,
+): Promise<{ kind: JobKind; paused: boolean }> {
+  return takeAct(
+    office,
+    { act: "job_kind_pause", why, tenantId: null, target: "platform", targetId: kind },
+    async () => {
+      const { data, error } = paused
+        ? await pauseJobKind(office.db, kind, [why.kind, why.ticket, why.note].filter(Boolean).join(": ").slice(0, 500))
+        : await resumeJobKind(office.db, kind);
+      const answered = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+      if (error || !answered || typeof answered.error === "string")
+        throw new AppError("internal", "That kind could not be changed just now. Try again in a moment.", 503);
+      return { kind, paused };
+    },
+    (out) => ({ outcome: "done", note: out.paused ? "Paused." : "Resumed." }),
   );
 }
 
