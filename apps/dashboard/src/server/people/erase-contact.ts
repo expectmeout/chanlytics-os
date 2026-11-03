@@ -31,7 +31,7 @@ export function eraseContact(ctx: RouteContext, contact: ErasedContact) {
       providerCalls: async (callIds) => {
         if (!deployment.providersLive) return { asked: 0, deleted: 0, refused: callIds.length };
         const r = await callEdge(
-          "/api/admin/erase-calls",
+          "/api/admin/voice/erase-calls",
           { tenant_id: contact.tenant_id, call_ids: callIds },
           { workspace: contact.tenant_id, user: ctx.userId, timeoutMs: ERASE_CALLS_TIMEOUT_MS },
         );

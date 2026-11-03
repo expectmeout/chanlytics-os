@@ -23,14 +23,14 @@
  * unset, the door places nothing (voice_canary_unset).
  */
 import crypto from "node:crypto";
-import { createPhoneCall } from "../packages/channels.js";
-import { canaryCallFacts, canaryLineOf, type CanaryCallFacts } from "../packages/db.js";
-import { MIN_MS, UUID, isE164 } from "../packages/contracts.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
-import { pageOperator } from "../ops/page-operator.js";
+import { createPhoneCall } from "../../packages/channels.js";
+import { canaryCallFacts, canaryLineOf, type CanaryCallFacts } from "../../packages/db.js";
+import { MIN_MS, UUID, isE164 } from "../../packages/contracts.js";
+import { json, refuse } from "../../http.js";
+import { pg } from "../../pg.js";
+import { env } from "../../env.js";
+import { errField, logger } from "../../log.js";
+import { pageOperator } from "../../ops/page-operator.js";
 
 /** One canary call a half hour at most: the key can place no more, whoever holds it. */
 const CANARY_EVERY_MS = 30 * MIN_MS;
@@ -63,7 +63,7 @@ function canaryConfig(): CanaryConfig | null {
 }
 
 /** What judgeCanary says of a call: each check, whether it held, and the ones that did not. */
-export interface CanaryVerdict {
+interface CanaryVerdict {
   ok: boolean;
   checks: Record<string, boolean>;
   failed: string[];

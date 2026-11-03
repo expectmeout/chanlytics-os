@@ -171,13 +171,7 @@ test("the converger, the diagnostic and the provisioning script all read the sam
     converge.includes("signEdgeToken(SECRET, DOOR, { body })"),
     "a token for this door that names no workspace",
   );
-  const door = readCode("apps/edge/lib/voice/voice-converge.ts");
-  assert.ok(door.includes("planAgentSettings(before as unknown as LiveAgentSettings, opts)"));
-  assert.ok(door.includes("planVoiceConvergence(llm, desiredVoiceShell(url, headers))"), "and the shell beside it");
-  assert.ok(
-    door.indexOf("createAgentVersion(cfg, agentId, working)") < door.indexOf("updateRetellLlm(cfg, shell.llmId"),
-    "a published version cannot change: the draft is made BEFORE any patch lands",
-  );
+  // The door's plan, its shell beside it and the draft made before any patch lands are run in voice-doors.test.mjs.
   // The diagnostic's agent-settings drift is run in diag-door.test.mjs.
   const adapter = readCode("packages/channels/src/voice/voice-retell.ts");
   assert.ok(adapter.includes('data_storage_retention_days: num("data_storage_retention_days")'));

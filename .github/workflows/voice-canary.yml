@@ -3,7 +3,7 @@ name: Voice canary
 # Once a day a real call walks the road a customer's call takes (decision 0092): a scripted caller rings a workspace
 # of ours, and ten minutes later the edge is asked what the call left behind -- a row, the business's facts composed
 # within Retell's budget, an analysis, a line in the thread, the owner's notice told in full, the audio stored, the
-# hold let go, and Retell's signature on the inbound door and the webhook (apps/edge/lib/voice/voice-canary.ts). It
+# hold let go, and Retell's signature on the inbound door and the webhook (apps/edge/lib/voice/watch/voice-canary.ts). It
 # runs here, outside the database's failure domain, as pg_cron does not. A failure pages the platform from the edge and
 # opens one issue here, or comments on the one open.
 #

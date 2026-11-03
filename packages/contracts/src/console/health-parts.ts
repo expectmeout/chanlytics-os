@@ -4,7 +4,7 @@
  * the connections that are not healthy. From one read (platform_health_parts, 00469), every row keyed by whether its
  * workspace is ours. Pure.
  */
-import { CALL_ENDING_MENDS, CALL_ENDING_PLATFORM_WORDS } from "../voice/call-endings";
+import { CALL_ENDING_MENDS, CALL_ENDING_PLATFORM_WORDS } from "../voice/call-endings-platform";
 import type { ModelPurpose } from "../ai/models";
 import { creditRanOut } from "../ai/usage";
 import { capitalize } from "../shared/words";
@@ -205,7 +205,7 @@ export function sendsOf(parts: HealthPartsDto | null, scope: HealthScope): Sends
 
 // ----------------------------------------------------------------------------------------------------- calls
 
-/** A call's end, in words: the provider's reason as a person says it (the one table, voice/call-endings.ts). */
+/** A call's end, in words: the provider's reason as a person says it (the one table's platform half, voice/call-endings-platform.ts). */
 const CALL_REASON_WORDS: Record<string, string> = CALL_ENDING_PLATFORM_WORDS;
 
 /** The reasons that are ours to mend, never a caller's choice: the table's platform endings and what mends each. */

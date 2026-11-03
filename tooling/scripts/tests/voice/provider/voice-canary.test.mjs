@@ -1,5 +1,5 @@
 /**
- * The daily canary call (decision 0092, apps/edge/lib/voice/voice-canary.ts): its own key opens its door and nothing
+ * The daily canary call (decision 0092, apps/edge/lib/voice/watch/voice-canary.ts): its own key opens its door and nothing
  * else does; with any setting missing it places nothing; and the verdict names every part of a customer's call the
  * canary's call failed to leave behind -- the row, the business's facts composed, the analysis, the line in the thread,
  * the notice claimed and told, the audio, the hold let go, Retell's signature on the inbound door and the webhook.
@@ -22,7 +22,7 @@ for (const k of [
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { canaryKeyMatches, judgeCanary, voiceCanary } = await import(at("apps/edge/lib/voice/voice-canary.ts"));
+const { canaryKeyMatches, judgeCanary, voiceCanary } = await import(at("apps/edge/lib/voice/watch/voice-canary.ts"));
 
 /** A canary call that left everything behind. */
 const whole = () => ({

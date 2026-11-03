@@ -306,45 +306,10 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
   // awaited work after them, so they were the ones it never recorded.
   steps.push({ kind: "delivery", callId: res.call_id ?? null, data: deliveryRow(e, res) });
 
-  // The call belongs in the customer's one thread, not a silo -- written
-  // once the SUMMARY exists. Message bodies are immutable (P3), and a note
-  // written on call_ended read "No summary available." forever: in the
-  // thread, in the WhatsApp bot's memory, and read aloud as the caller's
-  // context on their next call. A call the provider never analyses gets its
-  // line from the reconcile sweep instead. A missed call has nothing to
-  // summarise and is told as it ends (MISSED_CALL_LINE), so the text
-  // receptionist and the next call know they rang (decision 0092).
-  const missedNow = event === "call_ended" && !res.skipped && isMissedCall(n);
-  if (res.conversation_id && (analyzed || n.summary !== null || n.inVoicemail === true || missedNow)) {
-    steps.push({
-      kind: "note",
-      conversationId: res.conversation_id,
-      contactId: res.contact_id,
-      body: callSummaryLine(n),
-      externalId: `call:${n.retellCallId}`,
-      channelTsIso: n.startedAtIso,
-      callId: res.call_id,
-    });
-  }
-
-  // The hold this call has on the caller's thread (00132), taken at the
-  // inbound door so the text receptionist does not answer the same person
-  // while they are on the phone. A call that is over lets it go; a call
-  // still running renews it, which is what keeps a long one from lapsing
-  // mid-sentence. Only ever its OWN hold: a person who took the thread over
-  // during the call keeps it, because release names the holder. A delivery
-  // older than the row (skipped above) says nothing about the call now: a
-  // retried call_started after the end would renew a hold the end let go,
-  // and the caller's next text would go unanswered for fifteen minutes.
-  if (res.conversation_id && !res.skipped) {
-    steps.push({
-      kind: "hold",
-      conversationId: res.conversation_id,
-      retellCallId: n.retellCallId,
-      // A call that never connected is over too: renewing its hold kept the receptionist off the thread until it lapsed.
-      over: n.status === "ended" || n.status === "error" || n.status === "not_connected" || analyzed,
-    });
-  }
+  const note = noteStep(event, n, res);
+  if (note) steps.push(note);
+  const hold = holdStep(n, res, analyzed);
+  if (hold) steps.push(hold);
 
   // The analysis says a person must call them back: the thread lands on
   // Needs you with what to do, and the receptionist steps aside on it for
@@ -372,18 +337,8 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
 
   steps.push(...guardSteps(n, res, f));
 
-  // A call that ended the platform's way is the platform's to mend, now: the provider's credit or payment, too many calls
-  // at once, our own inbound webhook, a provider's error. Every other call to every workspace may end the same way until
-  // it is (callEndingOf; the page is once per reason per window, pageOperator).
-  const ending = event === "call_ended" && !res.skipped ? callEndingOf(n.disconnectionReason) : null;
-  if (ending?.pages && n.disconnectionReason) {
-    steps.push({
-      kind: "page_platform",
-      reason: n.disconnectionReason,
-      words: ending.platform,
-      mend: ending.mend ?? "Look the call up in the voice provider's log by its time.",
-    });
-  }
+  const page = platformPage(event, n, res);
+  if (page) steps.push(page);
 
   // The email and the memory note happen ONCE per call. Retell retries a
   // slow delivery and replays inside the signature window; the claim is what
@@ -394,6 +349,60 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
   const copy = recordingCopy(n, res, analyzed);
   if (copy) steps.push(copy);
   return { steps, about, callId: res.call_id ?? null };
+}
+
+/**
+ * The call's line in the customer's one thread, not a silo, written once the SUMMARY exists. Message bodies are
+ * immutable (P3), and a note written on call_ended read "No summary available." forever: in the thread, in the WhatsApp
+ * bot's memory, and read aloud as the caller's context on their next call. A call the provider never analyses gets its
+ * line from the reconcile sweep instead. A missed call has nothing to summarise and is told as it ends
+ * (MISSED_CALL_LINE), so the text receptionist and the next call know they rang (decision 0092).
+ */
+function noteStep(event: CallEvent["event"], n: NormalizedCall, res: IngestCallResult): CallStep | null {
+  if (!res.conversation_id) return null;
+  const missedNow = event === "call_ended" && !res.skipped && isMissedCall(n);
+  if (event !== "call_analyzed" && n.summary === null && n.inVoicemail !== true && !missedNow) return null;
+  return {
+    kind: "note",
+    conversationId: res.conversation_id,
+    contactId: res.contact_id,
+    body: callSummaryLine(n),
+    externalId: `call:${n.retellCallId}`,
+    channelTsIso: n.startedAtIso,
+    callId: res.call_id,
+  };
+}
+
+/**
+ * The hold this call has on the caller's thread (00132), taken at the inbound door so the text receptionist does not
+ * answer the same person while they are on the phone. A call that is over lets it go; a call still running renews it,
+ * which is what keeps a long one from lapsing mid-sentence. Only ever its OWN hold: a person who took the thread over
+ * during the call keeps it, because release names the holder. A delivery older than the row (skipped) says nothing
+ * about the call now: a retried call_started after the end would renew a hold the end let go, and the caller's next
+ * text would go unanswered for fifteen minutes.
+ */
+function holdStep(n: NormalizedCall, res: IngestCallResult, analyzed: boolean): CallStep | null {
+  if (!res.conversation_id || res.skipped) return null;
+  // A call that never connected is over too: renewing its hold kept the receptionist off the thread until it lapsed.
+  const over = analyzed || n.status === "ended" || n.status === "error" || n.status === "not_connected";
+  return { kind: "hold", conversationId: res.conversation_id, retellCallId: n.retellCallId, over };
+}
+
+/**
+ * A call that ended the platform's way is the platform's to mend, now: the provider's credit or payment, too many calls
+ * at once, our own inbound webhook, a provider's error. Every other call to every workspace may end the same way until
+ * it is (callEndingOf; the page is once per reason per window, pageOperator).
+ */
+function platformPage(event: CallEvent["event"], n: NormalizedCall, res: IngestCallResult): CallStep | null {
+  if (event !== "call_ended" || res.skipped || !n.disconnectionReason) return null;
+  const ending = callEndingOf(n.disconnectionReason);
+  if (!ending?.pages) return null;
+  return {
+    kind: "page_platform",
+    reason: n.disconnectionReason,
+    words: ending.platform,
+    mend: ending.mend ?? "Look the call up in the voice provider's log by its time.",
+  };
 }
 
 /**

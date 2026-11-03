@@ -215,8 +215,65 @@ async function readBack(cfg: { apiKey: string }, agentId: string, opts: { locale
   };
 }
 
+/** A step the provider refused: which, its status and its answer. */
+type StepFailed = { step: string; status: number; body: unknown };
+
+/**
+ * One agent's plan applied. A published version cannot change, so the patches go on a new draft made from it; the
+ * shell's first, since a new draft clones the LLM with it and the patch must land on what the draft points at. Published
+ * when asked, else the new draft is named. What was done is written on `out`; the step the provider refused, or null.
+ */
+async function applyOne(
+  cfg: { apiKey: string },
+  a: {
+    agentId: string;
+    before: Record<string, unknown>;
+    plan: ReturnType<typeof planAgentSettings>;
+    shell: Awaited<ReturnType<typeof shellPlanOf>>;
+    opts: { locales?: string[] };
+    publish: boolean;
+  },
+  out: Record<string, unknown>,
+): Promise<StepFailed | null> {
+  const { agentId, before, plan, shell } = a;
+  let working = typeof before.version === "number" ? before.version : null;
+  if (before.is_published === true && working !== null) {
+    const draft = await createAgentVersion(cfg, agentId, working);
+    if (!draft.ok) return { step: "create_version", status: draft.status, body: draft.body };
+    working = typeof draft.body?.version === "number" ? (draft.body.version as number) : working;
+    out.draft_version = working;
+  }
+  if (shell?.plan.llmPatch) {
+    const llmPatched = await updateRetellLlm(cfg, shell.llmId, shell.plan.llmPatch);
+    if (!llmPatched.ok) return { step: "update_llm", status: llmPatched.status, body: llmPatched.body };
+  }
+  if (plan.agentPatch) {
+    const patched = await updateAgent(cfg, agentId, plan.agentPatch);
+    if (!patched.ok) return { step: "update", status: patched.status, body: patched.body };
+  }
+  out.applied = true;
+  // The version the patches went on, where it is not the one that was there: a new draft to publish or to name.
+  const drafted = working !== null && working !== before.version ? working : null;
+  if (a.publish && drafted !== null) {
+    const pub = await publishAgentVersion(cfg, agentId, drafted, "converged from the edge");
+    if (!pub.ok) return { step: "publish", status: pub.status, body: pub.body };
+    out.published_version = drafted;
+  } else if (drafted !== null) {
+    out.note = newDraftNote(drafted, before.version);
+  }
+  out.after = await readBack(cfg, agentId, a.opts);
+  logger().info("voice_converge", {
+    agent_id: agentId,
+    from: before.version ?? null,
+    working,
+    published: out.published_version ?? null,
+    keys: out.patch_keys,
+    shell_keys: shell?.plan.llmPatch ? Object.keys(shell.plan.llmPatch).join(",") : "",
+  });
+  return null;
+}
+
 export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): Promise<Response> {
-  const L = logger();
   if (auth.workspace)
     return refuse(403, "platform_only", "this door converges every workspace's agent: the platform's alone");
   const apiKey = env.RETELL_API_KEY;
@@ -241,52 +298,11 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
     const { opts, plan, out } = await planOne(agentId, before);
     const shell = body.shell === false ? null : await shellPlanOf(cfg, before, out);
     if (apply && (plan.agentPatch || shell?.plan.llmPatch)) {
-      // A published version cannot change: the patch goes on a new draft.
-      let working = typeof before.version === "number" ? before.version : null;
-      if (before.is_published === true && working !== null) {
-        const draft = await createAgentVersion(cfg, agentId, working);
-        if (!draft.ok) {
-          agents.push({ ...out, error: { step: "create_version", status: draft.status, body: draft.body } });
-          continue;
-        }
-        working = typeof draft.body?.version === "number" ? (draft.body.version as number) : working;
-        out.draft_version = working;
+      const failed = await applyOne(cfg, { agentId, before, plan, shell, opts, publish }, out);
+      if (failed) {
+        agents.push({ ...out, error: failed });
+        continue;
       }
-      // The shell first: a new draft clones the LLM with it, so the patch lands on what the draft points at.
-      if (shell?.plan.llmPatch) {
-        const llmPatched = await updateRetellLlm(cfg, shell.llmId, shell.plan.llmPatch);
-        if (!llmPatched.ok) {
-          agents.push({ ...out, error: { step: "update_llm", status: llmPatched.status, body: llmPatched.body } });
-          continue;
-        }
-      }
-      if (plan.agentPatch) {
-        const patched = await updateAgent(cfg, agentId, plan.agentPatch);
-        if (!patched.ok) {
-          agents.push({ ...out, error: { step: "update", status: patched.status, body: patched.body } });
-          continue;
-        }
-      }
-      out.applied = true;
-      if (publish && working !== null && working !== before.version) {
-        const pub = await publishAgentVersion(cfg, agentId, working, "converged from the edge");
-        if (!pub.ok) {
-          agents.push({ ...out, error: { step: "publish", status: pub.status, body: pub.body } });
-          continue;
-        }
-        out.published_version = working;
-      } else if (working !== null && working !== before.version) {
-        out.note = newDraftNote(working, before.version);
-      }
-      out.after = await readBack(cfg, agentId, opts);
-      L.info("voice_converge", {
-        agent_id: agentId,
-        from: before.version ?? null,
-        working,
-        published: out.published_version ?? null,
-        keys: out.patch_keys,
-        shell_keys: shell?.plan.llmPatch ? Object.keys(shell.plan.llmPatch).join(",") : "",
-      });
     }
     if (pinNumber) {
       const latestPublished =

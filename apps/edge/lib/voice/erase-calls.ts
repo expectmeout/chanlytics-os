@@ -8,7 +8,7 @@
  * erasure cannot undo: a call the provider would not delete is counted, logged and left to its retention, and never
  * stops the erasure.
  *
- * Two roads to it: the dashboard's press, through POST /api/admin/erase-calls (a token for this door, the workspace and
+ * Two roads to it: the dashboard's press, through POST /api/admin/voice/erase-calls (a token for this door, the workspace and
  * the member, since the provider key lives here alone: eraseCallsDoor), and the erasure_finish job on this edge, which is
  * handed eraseCallsAtProvider as its port (jobs-tick.ts).
  */
@@ -24,7 +24,7 @@ import { workspaceFor, type Admitted } from "../admin-auth.js";
 const MAX_CALLS = 200;
 
 /** What the provider said of a person's calls: how many were asked about, deleted (or gone already), and refused. */
-export interface CallsErased {
+interface CallsErased {
   asked: number;
   deleted: number;
   refused: number;

@@ -21,13 +21,13 @@ import {
   getRetellLlm,
   voiceShellDrift,
   type RetellConcurrency,
-} from "../packages/channels.js";
-import { activeVoiceAgents, type Database } from "../packages/db.js";
-import { edgeFnUrl } from "../dashboard-origin.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
-import { pageOperator } from "../ops/page-operator.js";
-import { signatureOnly } from "./voice-door-auth.js";
+} from "../../packages/channels.js";
+import { activeVoiceAgents, type Database } from "../../packages/db.js";
+import { edgeFnUrl } from "../../dashboard-origin.js";
+import { env } from "../../env.js";
+import { errField, logger } from "../../log.js";
+import { pageOperator } from "../../ops/page-operator.js";
+import { signatureOnly } from "../voice-door-auth.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -38,7 +38,7 @@ const CONCURRENCY_PAGE_SHARE = 0.8;
 const DRIFT_HOUR_UTC = 6;
 
 /** Whether the account is near its limit: the share it is on, or null when the provider did not say both numbers. */
-export function concurrencyShare(c: RetellConcurrency | null): number | null {
+function concurrencyShare(c: RetellConcurrency | null): number | null {
   if (!c || c.current === null || c.limit === null || c.limit <= 0) return null;
   return c.current / c.limit;
 }

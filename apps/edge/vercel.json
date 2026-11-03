@@ -59,7 +59,7 @@
           "api/admin/mailboxes.ts": {
             "maxDuration": 60
           },
-          "api/admin/erase-calls.ts": {
+          "api/admin/voice/erase-calls.ts": {
             "maxDuration": 60
           },
           "api/admin/voice-converge.ts": {

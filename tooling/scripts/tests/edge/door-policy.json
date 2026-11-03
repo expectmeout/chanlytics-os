@@ -57,14 +57,6 @@
         "aud": "/api/admin/email/wire"
       }
     },
-    "POST /api/admin/erase-calls": {
-      "wrapper": "adminDoor",
-      "knock": "authorizeAdmin",
-      "knock_in": "POST in apps/edge/api/admin/erase-calls.ts",
-      "knock_args": {
-        "aud": "/api/admin/erase-calls"
-      }
-    },
     "POST /api/admin/eval": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",
@@ -316,6 +308,14 @@
       "knock_in": "POST in apps/edge/api/admin/voice-provision.ts",
       "knock_args": {
         "aud": "/api/admin/voice-provision"
+      }
+    },
+    "POST /api/admin/voice/erase-calls": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/voice/erase-calls.ts",
+      "knock_args": {
+        "aud": "/api/admin/voice/erase-calls"
       }
     },
     "POST /api/admin/voice/session": {

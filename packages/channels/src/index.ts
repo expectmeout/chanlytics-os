@@ -492,8 +492,6 @@ export {
   updatePhoneNumber,
   updateRetellLlm,
   verifyRetellSignature,
-  webCallBody,
-  webCallMadeOf,
 } from "./voice/voice-retell";
 export type {
   ListCallsPage,
@@ -508,7 +506,6 @@ export type {
   RetellLlmConfig,
   RetellTranscriptTurn,
   RetellWrite,
-  WebCallMade,
 } from "./voice/voice-retell";
 export {
   agentSettingsDrift,
@@ -543,6 +540,8 @@ export type {
   VoiceConvergencePlan,
   VoiceShellTarget,
 } from "./voice/voice-shell";
+export { webCallBody, webCallMadeOf } from "./voice/voice-web-call";
+export type { WebCallMade } from "./voice/voice-web-call";
 export {
   contactsSyncedOf,
   fetchMediaBytes,

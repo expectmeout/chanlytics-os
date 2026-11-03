@@ -23,7 +23,7 @@ post-call analysis fields, the call's feel and the call's limits (`CALL_LIMITS`:
 silence, a week at the provider). Every fact arrives per call from the same composition the WhatsApp receptionist reads.
 
 **Drift** is any live agent off that shell: `/api/diag` shows it, the health sweep pages it once a day
-(`apps/edge/lib/voice/voice-watch.ts`), and the edge's converger fixes it (`POST /api/admin/voice-converge`, the
+(`apps/edge/lib/voice/watch/voice-watch.ts`), and the edge's converger fixes it (`POST /api/admin/voice-converge`, the
 agent's settings and the LLM's shell, dry run by default, and with `pin_number` a number bound to latest_published;
 `tooling/scripts/ops/voice/voice-converge.mjs` is its thin client, and the provider key never leaves the edge).
 
@@ -47,7 +47,7 @@ by itself, the AI disclosure), with no way to tell.
 | `POST /api/retell-availability`                     | The agent's open-times tool                  | The same                                                            |
 | `POST /api/cron/calls`                              | pg_cron, when the calls table owes something | The sweep key                                                       |
 | `POST /api/admin/whisper`, `hand-over`, `stop-call` | The dashboard's Live controls                | A token for the door, the workspace and the member                  |
-| `POST /api/admin/erase-calls`                       | The dashboard's erasure                      | A token for the door, the workspace and the member                  |
+| `POST /api/admin/voice/erase-calls`                 | The dashboard's erasure                      | A token for the door, the workspace and the member                  |
 | `POST /api/voice-canary`                            | The daily canary (GitHub)                    | `x-canary-key`                                                      |
 
 Each knock let in on the inbound and tool doors is kept as a `webhook.auth` row naming its door; `/api/diag`

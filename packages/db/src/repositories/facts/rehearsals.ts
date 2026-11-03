@@ -466,7 +466,7 @@ export async function voiceAgentsBeforeANumber(db: Db): Promise<string[]> {
 
 /**
  * Every agent a voice line answers in now, across workspaces (an active voice channel's external id): what the health
- * sweep holds to the shell once a day (lib/voice/voice-watch.ts, decision 0092). A read that fails throws.
+ * sweep holds to the shell once a day (lib/voice/watch/voice-watch.ts, decision 0092). A read that fails throws.
  */
 export async function activeVoiceAgents(db: Db): Promise<Array<{ tenantId: string; agentId: string }>> {
   const { data, error } = await platformWide(db)

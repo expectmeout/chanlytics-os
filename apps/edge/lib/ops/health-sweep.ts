@@ -36,7 +36,7 @@ import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
-import { watchVoice } from "../voice/voice-watch.js";
+import { watchVoice } from "../voice/watch/voice-watch.js";
 import { env } from "../env.js";
 import type { SweepTick } from "./sweep-door.js";
 

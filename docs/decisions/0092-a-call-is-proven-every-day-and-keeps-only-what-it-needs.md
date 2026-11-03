@@ -56,7 +56,7 @@ none longer than two minutes, and what held it back was what nothing watched or 
     cost, latency, token usage, the analysis, the metadata); the rows kept so far are cut the same way, and a live turn
     no longer rewrites the payload.
 11. **An erasure reaches the provider.** Before the rows go, the person's calls are asked to be deleted at the provider
-    (`POST /api/admin/erase-calls` from the route, the edge's own function from the finish job), best effort.
+    (`POST /api/admin/voice/erase-calls` from the route, the edge's own function from the finish job), best effort.
 12. **Minutes are shown.** Settings › Billing says the month's call minutes. A plan's allowance and what happens past it
     wait for decision 0037's pricing.
 
