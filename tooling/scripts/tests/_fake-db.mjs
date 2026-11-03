@@ -158,6 +158,16 @@ function equalsCell(have, val) {
   return have === val;
 }
 
+/** SQL's LIKE: % is any run, _ one character, and a NULL matches nothing. */
+function likes(value, pattern) {
+  if (value == null) return false;
+  const source = String(pattern)
+    .split("")
+    .map((ch) => (ch === "%" ? ".*" : ch === "_" ? "." : ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    .join("");
+  return new RegExp(`^${source}$`).test(String(value));
+}
+
 function matches(row, filters, defaults = {}) {
   // A column a row leaves out has its default in the database (jobs.state is 'scheduled'), and a filter reads that.
   const read = (r, col) => {
@@ -283,9 +293,13 @@ function matches(row, filters, defaults = {}) {
                                 return cell(row, c) != null && listValues(v).includes(String(cell(row, c)));
                               throw new Error(`fakeDb: or() clause ${clause} is not modelled`);
                             })
-                          : (() => {
-                              throw new Error(`fakeDb: no filter called ${op}()`);
-                            })(),
+                          : // PostgREST's `.like(col, "r%")`: modelled for the lead sweep, which reads a run's
+                            // finished collects only where it wrote them (likes, above).
+                            op === "like"
+                            ? likes(read(row, col), val)
+                            : (() => {
+                                throw new Error(`fakeDb: no filter called ${op}()`);
+                              })(),
   );
 }
 
@@ -1942,6 +1956,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       },
       contains(col, val) {
         q.filters.push(["contains", col, val]);
+        return proxy;
+      },
+      like(col, pattern) {
+        q.filters.push(["like", col, pattern]);
         return proxy;
       },
       is(col, val) {

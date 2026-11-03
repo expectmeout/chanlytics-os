@@ -27,7 +27,7 @@
  * collect.ts, check.ts and sweep.ts.
  */
 
-import { MIN_MS } from "@chanlytics/contracts";
+import { LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS } from "@chanlytics/contracts";
 import { JUDGE_TIMEOUT_MS } from "../judge";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 
@@ -45,6 +45,12 @@ export const DEADLINE_MARGIN_MS = 8_000;
  * committed, and the batch is paid for twice when the job is tried again.
  */
 export const JUDGE_MARGIN_MS = JUDGE_TIMEOUT_MS;
+/**
+ * What the judge's screen (decision 0085) may take before the judge is asked: its bound, and the write of its usage
+ * after it. The screen is asked only with this and the judge's own margin left, so the judge is never started short of
+ * its bound because the screen ran first (3 Nov 2026: the margin was checked before the screen, not after it).
+ */
+export const SCREEN_MARGIN_MS = LEAD_SCREEN_BOUND_MS + SHADOW_WRITE_MS;
 /** An unknown start with no run at the provider after this long is failed. */
 export const UNKNOWN_START_GRACE_MS = 10 * MIN_MS;
 /** The key our runs carry in their input, so the sweep can tell ours from anyone else's. */

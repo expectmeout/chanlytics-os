@@ -63,7 +63,7 @@ what the script writes.
 | [`lead_niche_priors`](#lead_niche_priors) | none | on, no policy, so only the service role reaches it |
 | [`lead_operations`](#lead_operations) | none | on, 1 policy |
 | [`lead_places`](#lead_places) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
-| [`lead_platform`](#lead_platform) | none | on, no policy, so only the service role reaches it |
+| [`lead_platform`](#lead_platform) | `packages/db/src/repositories/leads.ts` | on, no policy, so only the service role reaches it |
 | [`lead_preferences`](#lead_preferences) | none | on, 1 policy |
 | [`lead_previews`](#lead_previews) | `packages/db/src/repositories/campaigns/lead-previews.ts` | on, 1 policy |
 | [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
@@ -1553,7 +1553,7 @@ Foreign keys:
 
 One row. searches_on is the kill switch for every workspace; tenants_on lists the workspaces that may search while it is off (release A's internal runs). Read through lead_searches_on(); written by hand.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/leads.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1566,6 +1566,7 @@ One row. searches_on is the kill switch for every workspace; tenants_on lists th
 | `prices_checked_at` | timestamp with time zone | yes |  |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `cards_on` | text[] | no | `ARRAY['local_businesses'::text]` | The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it. |
+| `prices` | jsonb | no | `'{}'::jsonb` | Each lead source's event prices by actor and event, as the price watch last read them (00506): the baseline the next daily read is compared with, a rise past a tenth or a new charge paged to the platform, since the cards' prices (contracts LEAD_CARDS) and the SQL ceiling are written by hand. |
 
 ### lead_preferences
 
@@ -1679,6 +1680,8 @@ The unit of execution and of money: the probe (seq 1), each top-up and each Find
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `platform_day` | text | no | `to_char((now() AT TIME ZONE 'UTC'::text), 'YYYY-MM-DD'::text)` | The platform-wide day counter (tenant_id null, UTC) this round reserved in, so every release and settle reaches the row it took from, whatever day it is when the round ends. |
 | `nearby` | jsonb | no | `'[]'::jsonb` | Where to look next when the round ran dry (00145): the nearest ZIP centres past its area, as the plan's area rows, nearest first; [] when it found what it asked for. |
+| `state_since` | timestamp with time zone | no | `now()` | When the round last moved (00506): set by lead_rounds_guard on every change of state. The lead sweep carries a round quiet since then on (core nextStepOf), and ends one nothing can carry on through lead_round_end_stuck. |
+| `judge_usd` | numeric(10,4) | no | `0` | What judging the round cost (00506): the usage ledger's lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month's budget and both days. |
 
 Foreign keys:
 
@@ -1721,6 +1724,7 @@ One provider execution: a discover run per term, a check run per batch of addres
 | `usage_usd` | numeric(10,4) | no | `0` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `finished_at` | timestamp with time zone | yes |  |  |
+| `already_yours` | integer | no | `0` | Places the run read and paid for that the workspace already held, skipped as yours (00506): what a main phase pays again for its probe's places, measured before anything is changed for it. |
 
 Foreign keys:
 

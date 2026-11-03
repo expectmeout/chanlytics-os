@@ -1,5 +1,12 @@
 # People: a real table, and leads Claude finds for you
 
+**As built, 3 November 2026: `docs/lead-finder.md`.** Amended since this was written: §0.1's contact standard is a
+preference, not a gate (decision 0010, L1); §0.2's allowance is still the constant 500, and 0010's plan allowance of 250
+and its packs are not built; §0.4's "Chanlytics sends nothing to a lead" became a sequence to leads sent from the
+business's own mailbox (decisions 0056 and 0057); §0.5's next job is written in the page's own commit, and later rounds
+size from the search's running yield (00506). The decisions numbered here (§16, 1–32) are this PRD's, not
+`docs/decisions/`'s.
+
 Status: **v3, 19 September 2026.** Every decision is recorded in §16 (1–32) and the two external reviews are folded in (`docs/plans/2026-09-18-lead-finder-review.md`); the five contracts in §0 are stated once and every later section refers to them. Phase 0 is built (#677, #679, 00138 in production, reviewed 19 September); Phase 1 is not. Written against origin/main `fbc5d871`. The design canvas it describes is https://claude.ai/artifact/NnY2jZEtx5LBmopmHR2QDj (21 artboards in four rows; the first is live). v1 (17 September) assumed its yields; v2 replaced every assumption with the calibration Ruben approved on 18 September: ten Google Maps runs across nine niches, 140 email checks and one deeper crawl, about $2.10 of the $5 approved (Appendix C); those changes are still marked **Changed after calibration**. v3 (19 September) restructures Phase 1 into releases A, B and C (decision 24), rewrites the data model around rounds, places and reservations (§12), and adds decisions 30–32.
 
 **What v3 changed, in one paragraph.** §0 is now the five contracts (qualification, counting and money, sources, consent, a search's life) that S1 asked for; the lines they override in v2 are gone. The judge answers per criterion and code decides the class (26); a lead is a place (25); only Qualified leads count and a searching budget bounds cost (18, 27); a converted lead's yes comes only from them (19); leads come only through Apify actors and Claude picks a card (22, 23, 28); rounds are immutable with plan versions (S5, S15); the runner claims, leases and commits (E1–E4); undo is a server record (E9); the endings are one closed set (S7); suppression is by what happened (S8); every copy line claims only what was seen (P2, P3, S12). §12.3–12.6 hold the new shape; §14 the three releases; §16 the three new decisions.

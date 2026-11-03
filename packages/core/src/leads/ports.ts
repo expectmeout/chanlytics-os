@@ -232,6 +232,12 @@ export interface CollectJudgment {
   tokens: number;
 }
 
+/** The job a commit writes with its page: lead_collect_commit inserts it once, under its dedupe key. */
+export type LeadNextJob =
+  | { kind: "lead_collect"; seq: string; run_after_seconds: number }
+  | { kind: "lead_check"; batch: number; run_after_seconds: number }
+  | { kind: "lead_round_start"; resume: true; run_after_seconds: number };
+
 /**
  * One page, as lead_collect_commit takes it: everything a commit writes, in
  * one call (E4). `round.ending` ends the round inline; `round.ending_pending`
@@ -245,8 +251,15 @@ export interface CollectPage {
   /** The run's usage as the provider reports it now; the commit settles the difference from the row. */
   usage_usd: number;
   items_seen: number;
+  /** The page's places the workspace already held, read and paid for and skipped (B4: what a main phase pays twice). */
+  already_yours?: number;
   run_state: LeadRunState | null;
-  next: { kind: "lead_collect"; seq: string; run_after_seconds: number } | null;
+  /**
+   * The job that follows, written in the page's own transaction (PRD §0.5: "each page of results is one commit … the next
+   * job"): the run's next collect, the round's checks, or the main phase once the probe passed. Never scheduled after the
+   * commit: a function killed between the two left the round waiting on a job nobody wrote (3 Nov 2026).
+   */
+  next: LeadNextJob | null;
   /** `nearby` (D3): where to look next when the round ran dry, written with the ending it belongs to. */
   round: {
     state: LeadRoundState | null;
@@ -333,6 +346,8 @@ export interface LeadDb {
   run(id: string): Promise<LeadRunRow | null>;
   runsOfRound(roundId: string): Promise<LeadRunRow[]>;
   membersOfRound(roundId: string): Promise<LeadMemberRow[]>;
+  /** Every member of the search, of every round: what a top-up or a renewal sizes from (PRD §0.5, "the running yield"). */
+  membersOfSearch(searchId: string): Promise<LeadMemberRow[]>;
   /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
   placeIdsHeld(tenantId: TenantId, placeIds: string[]): Promise<Map<string, string>>;
   sharesOf(
