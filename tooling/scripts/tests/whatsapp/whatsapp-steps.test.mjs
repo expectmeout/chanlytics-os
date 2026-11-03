@@ -189,12 +189,18 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
   const person = holdCopy({ brainCfg, personMode: "never", replyMode: "never", configBroken: false });
   assert.deepEqual(
     [person.personHold, person.reason, person.botText, person.why],
-    [true, "person_hold", "(held — you handle this person yourself)", "this person is set to never"],
+    [true, "person_hold", "(held — you handle this person yourself)", "this person is set to Stays quiet"],
   );
-  assert.match(person.details, /You set the receptionist to 'never' for this person/);
+  // The mode in the Autonomy pane's own words, never the stored token an owner never sees.
+  assert.match(person.details, /You set the receptionist to Stays quiet for this person/);
   const policy = holdCopy({ brainCfg, personMode: null, replyMode: "ask", configBroken: false });
-  assert.deepEqual([policy.personHold, policy.reason, policy.why], [false, "policy_block", "reply mode ask"]);
-  assert.match(policy.details, /Reply mode is 'ask'/);
+  assert.deepEqual(
+    [policy.personHold, policy.reason, policy.why],
+    [false, "policy_block", "replies are set to Asks you"],
+  );
+  assert.match(policy.details, /Replies are set to Asks you/);
+  for (const said of [person, policy])
+    assert.doesNotMatch(`${said.details} ${said.why}`, /'?\b(ask|never|veto|auto)\b'?/);
   const broken = holdCopy({ brainCfg: null, personMode: null, replyMode: "auto", configBroken: true });
   assert.deepEqual([broken.reason, broken.why], ["policy_block", "settings could not be read"]);
   assert.match(broken.details, /invalid field/);

@@ -59,6 +59,7 @@ const OWN_WORDS: ReadonlyMap<string, string> = new Map([
   ["no model", "the receptionist has no model to answer with"],
   ["location", "shared a location"],
   ["contacts", "sent a contact card"],
+  ["share", "shared a post"],
   ["message not recorded", "their message could not be recorded"],
   ["opt-in not confirmed", "the confirmation of their yes could not be sent"],
 ]);

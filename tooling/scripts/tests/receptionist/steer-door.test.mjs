@@ -782,7 +782,8 @@ test("a steered text is shaped as the draft it replaces was: the first text to a
   );
   const shaped = long.tables.messages.find((m) => m.id === cut.message_id).body;
   assert.equal(shaped.length, SMS_MAX_CHARS, "never past what one text can carry");
-  assert.ok(shaped.endsWith("…"), "and cut where the reader can see it was");
+  // A first text: the words are cut where the reader can see it, and the footer the filing promises arrives whole.
+  assert.ok(shaped.endsWith(`…\n${SMS_FOOTER}`), "cut where the reader can see it was, the footer whole after it");
 
   // WhatsApp has no footer: its draft is the model's words, as before.
   const x = fresh();

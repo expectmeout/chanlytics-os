@@ -128,6 +128,16 @@ test("the footer rides the first reply only, never twice, never over the ceiling
   const long = smsBody("x".repeat(2000), false);
   assert.equal(long.length, SMS_MAX_CHARS);
   assert.ok(long.endsWith("…"));
+  // A long FIRST reply: the words are cut and the disclosure is not, since it is the one part the filing promises.
+  const firstLong = smsBody("x".repeat(2000), true);
+  assert.equal(firstLong.length, SMS_MAX_CHARS, "still under Twilio's ceiling");
+  assert.ok(firstLong.endsWith(`…\n${SMS_FOOTER}`), "the footer arrives whole, after the cut words");
+  // A STOP said some other way is not the disclosure: the footer still rides.
+  assert.equal(
+    smsBody("Our STOP-and-go parking is free.", true),
+    `Our STOP-and-go parking is free.\n${SMS_FOOTER}`,
+    "only words that say how to stop stand in for the footer",
+  );
   assert.equal(
     smsInboundUrl("https://chanlytics-messaging.vercel.app/api/retell-fn"),
     "https://chanlytics-messaging.vercel.app/api/inbound-sms",

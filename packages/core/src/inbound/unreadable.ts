@@ -7,6 +7,7 @@
 import { isVisionMime, toBase64, VISION_MAX_BYTES } from "./vision";
 import { GO, type Answering } from "./context";
 import { speaksUnattended } from "./reply-posture";
+import { modeSaid } from "./steps";
 import { escalationOf, handledOf, type WayOut } from "./handled";
 
 /** Whether the receptionist will look at this photo, and how it says what it will not read. */
@@ -90,8 +91,8 @@ export function seeingOf(at: Answering) {
         : !brainCfg
           ? "no auto-reply configured"
           : personMode
-            ? `no acknowledgement — this person is set to '${replyMode}'`
-            : `no acknowledgement — reply mode is '${replyMode}'`;
+            ? `no acknowledgement — this person is set to ${modeSaid(replyMode)}`
+            : `no acknowledgement — replies are set to ${modeSaid(replyMode)}`;
     const asked = sink.escalate("non_text", `Customer sent a ${n.rawType} message — ${why}.`);
     await Promise.all([
       ...(pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : []),

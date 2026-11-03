@@ -253,7 +253,6 @@ export {
   inboundFromSms,
   lineCodesFrom,
   mergeConsent,
-  oneTimeCodeOf,
   sameSignature,
   SMS_FOOTER,
   SMS_HELD_DETAILS,

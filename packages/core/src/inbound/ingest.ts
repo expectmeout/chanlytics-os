@@ -25,7 +25,7 @@
  * handoff mail; the WhatsApp door counts it into a 503, so Meta redelivers, and the SMS door refuses with a 503 and
  * alerts the platform on the same signal.
  */
-import { shortCode, addressInMessage } from "@chanlytics/contracts";
+import { shortCode, addressInMessage, oneTimeCodeOf } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Wire } from "../deliver";
@@ -76,29 +76,6 @@ async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<Inge
 }
 
 /**
- * A one-time code, as services word one: four to eight digits (a letter prefix allowed, "G-123456") with the word for a
- * code beside them -- "verification code is 482913", "482913 is your login code", "use 4829 to sign in" -- or the line
- * asking it never be shared. A code word is required, so a person's own numbers are theirs: a one-time clean of 1,200
- * sq ft, a security deposit of 2,500, a log-in error 5003, a gate code, a confirmation code (the review of 11 Oct 2026
- * found the first draft took all of those). A long message is a person's.
- */
-const KIND_OF_CODE = String.raw`(?:verification|security|one[- ]time|log ?in|sign[- ]in|authentication|2fa|otp)`;
-const A_CODE = String.raw`(?:[A-Z]{1,3}-)?\d{4,8}`;
-const ONE_TIME_CODE = new RegExp(
-  [
-    String.raw`\b${KIND_OF_CODE}\s+(?:code|pin|passcode)\b[^\n]{0,20}?\b${A_CODE}\b`,
-    String.raw`\b${A_CODE}\s+is\s+your\b[^\n]{0,40}?\b(?:code|pin|passcode)\b`,
-    String.raw`\buse\s+${A_CODE}\s+to\s+(?:sign in|log in|login|verify|confirm)\b`,
-    String.raw`\b(?:do not|don'?t|never) share (?:this|the|your) code\b`,
-  ].join("|"),
-  "i",
-);
-function oneTimeCode(body: string | null | undefined): boolean {
-  const t = (body ?? "").trim();
-  return t.length > 0 && t.length <= 320 && ONE_TIME_CODE.test(t);
-}
-
-/**
  * A sender the receptionist never answers, recorded and set aside: a short code, a one-time code from any number, or
  * a sender off the pilot allowlist. True when the message was one, and is finished with.
  */
@@ -137,7 +114,9 @@ async function setAside(cx: InboundContext): Promise<boolean> {
 
   // A one-time code a service sent from an ordinary number reads like a person's text to everything else, and was
   // answered with a sales reply (the engine review's second pass, 11 Oct 2026). Recorded for the owner, not answered.
-  if (oneTimeCode(cx.n.body)) {
+  // Read by the one reader every wire's door asks (contracts oneTimeCodeOf), so a WhatsApp message and a text are judged
+  // alike, and a customer who mentions a code of their own ("Hi! Your security code is 4512.") is answered.
+  if (oneTimeCodeOf((cx.n.body ?? "").trim())) {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     cx.L.info("one_time_code_set_aside");
@@ -206,6 +185,18 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
   // writes; a read that cannot be made comes back UNKNOWN and is handed to a
   // person below.
   const ing: IngestResult | null = await recordOrSay();
+
+  // Atomic concurrent-redelivery gate, asked before anything more is read: a redelivery (Meta's retries are the common
+  // case) stops here, and the memory and the ways out below are never read or bound for it. ingest_inbound's is_new
+  // claim IS the dedupe, and it is stronger than the `seen` array the retired store kept (a unique index two concurrent
+  // lambdas cannot both miss). A missed auto-reply beats a double text, so processed-state is deliberately not
+  // consulted -- but by a job that answers a message after its acknowledgement, whose ingest is always a redelivery: it
+  // goes on while the message is unprocessed and no reply names it yet.
+  if (ing && !ing.is_new && !(resume && !ing.processed && !(await answeredBefore(cx, ing)))) {
+    L.info("wa_skip_pg_dupe");
+    return;
+  }
+
   // Bound once, and never rebound. The closures below hold this memory and
   // read it after awaits, which is only sound while the binding itself cannot
   // change under them.
@@ -272,15 +263,5 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
     });
   };
 
-  // Atomic concurrent-redelivery gate. ingest_inbound's is_new claim IS the
-  // dedupe, and it is stronger than the `seen` array the retired store kept (a
-  // unique index two concurrent lambdas cannot both miss).
-  // A missed auto-reply beats a double text, so processed-state is deliberately
-  // not consulted -- but by the job that answers a text after its acknowledgement, whose ingest is always a
-  // redelivery: it goes on while the message is unprocessed and no reply names it yet.
-  if (ing && !ing.is_new && !(resume && !ing.processed && !(await answeredBefore(cx, ing)))) {
-    L.info("wa_skip_pg_dupe");
-    return;
-  }
   return { ing, thread, ingestMs, sink, wire, send, tell };
 }

@@ -149,8 +149,9 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // something, and normalizeInbound has already written it as a sentence. What
   // would be wrong is the apology: acknowledging it as unreadable tells the
   // customer we did not receive what they plainly sent. So this escalates like
-  // the branch below, without the ack and without muting the receptionist.
-  if (n.kind === "location" || n.kind === "contacts") {
+  // the branch below, without the ack and without muting the receptionist. A post or a reel a person shared in a DM is
+  // the same: its link is in the words, and what to make of it is a person's (decision 0001, step 8).
+  if (n.kind === "location" || n.kind === "contacts" || n.kind === "share") {
     const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
     await Promise.all([
       asked,

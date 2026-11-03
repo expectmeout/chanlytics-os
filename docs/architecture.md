@@ -343,7 +343,7 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   (`shadow` rows, 00275), read a week at a time by `ai_shadow_agreement`, and never used; a failure of it is logged and
   never reaches a customer. `apps/edge/lib/shadow.ts` runs it.
 - **The switches** are listed once, with an owner and a day (`contracts/ai/flags.ts`), and the receptionist's regression
-  cases run nightly against a sandbox key when the repository holds one (`.github/workflows/nightly-evals.yml`).
+  cases run weekly against an eval key when the repository holds one (`.github/workflows/nightly-evals.yml`).
 
 ## The packages, and the direction of dependency
 

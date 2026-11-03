@@ -57,7 +57,15 @@ export interface WaChangeValue {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
   contacts?: Array<{ wa_id?: string; profile?: { name?: string } }>;
   messages?: WaRawMessage[];
-  statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown; pricing?: unknown }>;
+  /** Receipts for what we sent: `timestamp` is when Meta says the status happened, in seconds, as a string. */
+  statuses?: Array<{
+    id?: string;
+    status?: string;
+    timestamp?: string;
+    recipient_id?: string;
+    errors?: unknown;
+    pricing?: unknown;
+  }>;
   message_echoes?: Array<{ to?: string; id?: string; text?: { body?: string } }>;
   /** A chunk of the chat history the business shared as its app was kept (coexistence, the `history` field). */
   history?: WaHistoryChunk[];

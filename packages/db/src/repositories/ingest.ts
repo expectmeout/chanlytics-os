@@ -574,21 +574,35 @@ export async function countSentToday(
   return count ?? 0;
 }
 
-/** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
+/**
+ * Delivery receipts: the message the provider's id names moves to the status; the monotone rank is enforced by trigger.
+ * Whether a row carries the id: false for a receipt about history we never wrote, or about a send whose row has not been
+ * given the provider's id yet (its receipt can beat our own write). A move the guard refuses (a receipt arriving after a
+ * later one: monotone, terminal) is a receipt already applied, and true. Any other failure THROWS, so the door does not
+ * acknowledge a status it did not keep: logged, until 3 Nov 2026, and the receipt acknowledged, which left an Inbox row
+ * at "sent" for good.
+ */
 export async function recordStatusByExternalId(
   db: Db,
   tenantId: string,
   externalId: string,
   status: "sent" | "delivered" | "read" | "failed",
   errorDetail?: Json,
-): Promise<void> {
+): Promise<boolean> {
   const patch: { status: typeof status; error?: Json } = { status };
   if (errorDetail) patch.error = errorDetail;
-  const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
-  // Unknown wamid (pre-dual-write history) or monotone/terminal rejection: log-and-continue.
-  if (error && !/monotone|terminal/.test(error.message)) {
+  const { data, error } = await db
+    .from("messages")
+    .update(patch)
+    .eq("tenant_id", tenantId)
+    .eq("external_id", externalId)
+    .select("id");
+  if (error && /monotone|terminal/.test(error.message)) return true;
+  if (error) {
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
+    throw new Error(`record_status: ${error.message}`);
   }
+  return (data ?? []).length > 0;
 }
 
 /**

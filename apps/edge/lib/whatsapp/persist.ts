@@ -107,8 +107,8 @@ const waCfg = waCfgFor;
 /**
  * Write the receptionist's reply as a DRAFT and schedule it to fire.
  *
- * Returns false when it could not be queued, and the caller then sends
- * immediately. That fallback is deliberate: an un-vetoed reply is a worse
+ * Returns the draft's id, or null when it could not be queued, and the caller
+ * then sends immediately (core inbound/dispatch.ts heldOrKept). That fallback is deliberate: an un-vetoed reply is a worse
  * outcome than a vetoed one, and no reply at all is worse than both. An
  * unreachable database or a scheduling failure must not leave a customer
  * waiting on an answer that was already written.
@@ -346,16 +346,6 @@ function pgFinishing(db: SupabaseClient<Database> | null, tenantId: string | nul
  */
 const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;
 
-/** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
-/**
- * `rt` is threaded in so the media download uses the TENANT's credentials.
- *
- * fetchMediaBytes ran on waCfg() with no argument — the environment pair —
- * while the runtime holding this tenant's own credentials was already in scope
- * at every call site. For tenant #2 that is a download attempted with another
- * business's token against their WABA, which cannot succeed: every voice note
- * and photo their customers send would fail to store.
- */
 /** What the draft queue says of a reply it holds: when it goes, whether the confidence dial held it, its words, whose. */
 type HeldReplyFacts = { atMs: number; unsure: boolean; reply: string; who: string | null };
 
@@ -429,6 +419,14 @@ async function whatsappMediaOf(
   return cfg ? await fetchMediaBytes(cfg, ref.provider_media_id) : null;
 }
 
+/**
+ * All PG bookkeeping for one inbound message; every method no-ops when unconfigured.
+ *
+ * `rt` is threaded in so the media download uses the TENANT's credentials. fetchMediaBytes ran on waCfg() with no
+ * argument, the environment pair, while the runtime holding this tenant's own credentials was already in scope at every
+ * call site: for a second tenant that is a download attempted with another business's token against their WABA, which
+ * cannot succeed, so every voice note and photo their customers send would fail to store.
+ */
 export function pgSink(
   db: SupabaseClient<Database> | null,
   tenantId: string | null,

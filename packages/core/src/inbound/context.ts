@@ -37,8 +37,16 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   const db = ports.db();
   const t0 = Date.now();
   // Bound once, here, where the tenant becomes known. Every line below carries
-  // it, which is the only way that stays true as this function changes.
-  const L = ports.log({ tenant_id: tenantId, wamid: n.externalId, from_tail: phoneTail(from), type: n.rawType });
+  // it, which is the only way that stays true as this function changes. The wire too: the lines keep their wa_ names
+  // (the names are the contract alerting greps for), so `channel` is what tells a text's or a DM's from WhatsApp's, and
+  // `wamid` is the provider's id for the message on whichever wire it came.
+  const L = ports.log({
+    tenant_id: tenantId,
+    channel,
+    wamid: n.externalId,
+    from_tail: phoneTail(from),
+    type: n.rawType,
+  });
   // The control plane, through its one door (PRD §03). A tenant with no brain
   // profile never auto-replies, and a control plane that cannot be READ holds
   // the thread for a person: silence over someone else's voice, and no second

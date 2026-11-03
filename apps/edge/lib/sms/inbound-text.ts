@@ -54,7 +54,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { text } from "../http.js";
 import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "../packages/channels.js";
+import { smsInboundFrom, inboundFromSms, type SmsInbound } from "../packages/channels.js";
 import type { Database, IngestResult, Json } from "../packages/db.js";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
 import { smsSenderFor, type SmsSender } from "./sms.js";
@@ -63,7 +63,7 @@ import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";
 import { errField, logger } from "../log.js";
-import { phoneTail } from "../packages/contracts.js";
+import { oneTimeCodeOf, phoneTail } from "../packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
 

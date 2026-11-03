@@ -151,9 +151,9 @@ function holdsTheEvalKeyAlone(y, variable, runnerFile) {
   return steps;
 }
 
-test("the nightly evals run on a clock once they are switched on and on demand, fail with no key, and hold no other secret: never the production key", () => {
+test("the receptionist's evals run weekly once they are switched on and on demand, fail with no key, and hold no other secret: never the production key", () => {
   const y = yamlCode(".github/workflows/nightly-evals.yml");
-  assert.match(y, /cron: "0 10 \* \* \*"/);
+  assert.match(y, /cron: "0 10 \* \* 1"/, "Mondays: the eval key spends the credit the receptionist answers with");
   // Its behaviour is nightly-evals.test.mjs's.
   holdsTheEvalKeyAlone(y, "NIGHTLY_EVALS", "tooling/scripts/evals/nightly.mjs");
 });

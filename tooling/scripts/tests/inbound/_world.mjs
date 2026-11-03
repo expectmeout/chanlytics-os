@@ -125,6 +125,8 @@ export function world(over = {}) {
     lines: [],
     // What each ingest was told about the visit (the verb's fifth argument): `{ jobFollows: true }` at the door of a message a job answers next.
     visits: [],
+    // How many times the thread's memory was read: a redelivery stops before it (core inbound/ingest.ts).
+    threadReads: 0,
   };
   const rt = over.rt ?? runtime();
   const recordIngest = over.ingest ?? (async (_db, _tenant, n) => ingested(n));
@@ -139,8 +141,9 @@ export function world(over = {}) {
     persist: {
       // What readThreadState returns for the conversation the ingest named,
       // or an UNKNOWN thread when there is nothing to read it against.
-      thread: async (_db, _tenant, ing) =>
-        ing && !over.unreadable
+      thread: async (_db, _tenant, ing) => {
+        seen.threadReads += 1;
+        return ing && !over.unreadable
           ? structuredClone({
               history: memory.history,
               pausedUntil: memory.pausedUntil,
@@ -148,7 +151,8 @@ export function world(over = {}) {
               textedBefore: memory.textedBefore,
               control: memory.control,
             })
-          : { history: [], pausedUntil: -1, replies: [], control: null, unknown: true },
+          : { history: [], pausedUntil: -1, replies: [], control: null, unknown: true };
+      },
       // Persist first, with the atomic is_new claim that IS the redelivery
       // gate. Bound per run, where the message id is known.
       ingest: recordIngest,
@@ -289,8 +293,14 @@ export function world(over = {}) {
       ports.persist.sink = sink;
     };
   };
-  /** The fixture in the one shape its door hands over (decision 0001, step 3): on the world's line when it has one. */
-  const shaped = (m) => ({ ...inboundFromWhatsapp(m, value), ...(over.carrier ? { channel: "sms" } : {}) });
+  /**
+   * The fixture in the one shape its door hands over (decision 0001, step 3): on the world's line when it has one, or as
+   * a case reshapes it (`shape`: a DM's own kinds, which no WhatsApp fixture carries).
+   */
+  const shaped = (m) => {
+    const n = { ...inboundFromWhatsapp(m, value), ...(over.carrier ? { channel: over.carrier.channel ?? "sms" } : {}) };
+    return over.shape ? over.shape(n) : n;
+  };
   /** The door's half of a text answered after its acknowledgement: recorded, nothing answered (recordInboundMessage). */
   const record = async (m) => {
     const unbind = bind(m);

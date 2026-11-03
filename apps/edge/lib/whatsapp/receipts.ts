@@ -22,7 +22,7 @@ import {
   type Database,
   type Json,
 } from "../packages/db.js";
-import { phoneTail } from "../packages/contracts.js";
+import { MIN_MS, phoneTail } from "../packages/contracts.js";
 import { logger, type Logger } from "../log.js";
 import { flagLateFailure } from "../receptionist/late-failure.js";
 import { pgSafe } from "./persist.js";
@@ -59,6 +59,19 @@ async function keepCost(
   await pgSafe("cost", () => keepMessageCost(db, tenantId, id, pricing));
 }
 
+/**
+ * How long a failure receipt for a message we cannot find is asked for again: long enough for the send's own write of
+ * Meta's id to land (a second or two), short of Meta's redelivery schedule turning a receipt about history into days of
+ * retries.
+ */
+const RECEIPT_RACE_MS = 10 * MIN_MS;
+
+/** Whether Meta sent this receipt within RECEIPT_RACE_MS (its own `timestamp`, in seconds); one with no time is not. */
+function youngReceipt(s: Receipt, nowMs = Date.now()): boolean {
+  const at = Number(s.timestamp) * 1000;
+  return Number.isFinite(at) && at > 0 && nowMs - at < RECEIPT_RACE_MS;
+}
+
 /** How many receipts the database would not take, which must come again (0 when every one was recorded). */
 export async function recordReceipts(
   db: SupabaseClient<Database> | null,
@@ -92,8 +105,19 @@ export async function recordReceipts(
           again += 1;
           return;
         }
+        // A failure about a send whose row does not carry Meta's id YET (its receipt beat our own write): asked for again
+        // while it is young, so the owner hears of it once the row has its id; past that it is history we never wrote.
+        if (flagged === "not_ours" && youngReceipt(s)) {
+          again += 1;
+          return;
+        }
       }
-      await pgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error));
+      // A status the database did not keep is asked for again (the write throws: pg_status_failed): acknowledged, the
+      // row stood at "sent" for good. Applying it twice is safe (the guard keeps the rank monotone).
+      if ((await pgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error))) === undefined) {
+        again += 1;
+        return;
+      }
       await keepCost(L, db, tenantId, id, s);
       if (stopped) {
         const recorded = await pgSafe("offers_stop", () => recordWhatsAppOffersStop(db, { tenantId, externalId: id }));

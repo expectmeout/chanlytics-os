@@ -760,7 +760,7 @@ test("a person set to Never who sends a voice note hears nothing back, and the t
     w.seen.escalations.map((e) => e.reason),
     ["non_text"],
   );
-  assert.match(w.seen.escalations[0].details, /this person is set to 'never'/);
+  assert.match(w.seen.escalations[0].details, /this person is set to Stays quiet/);
   assert.deepEqual(w.seen.alerts, [], `a person is told: ${FROM_ITS_EVENT}`);
   assert.equal(w.seen.pauses.length, 0, "nothing was said, so nothing is paused");
   assert.equal(w.seen.processed, 1);

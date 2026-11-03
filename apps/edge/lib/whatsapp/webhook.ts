@@ -8,7 +8,9 @@
  *
  * Production engine: inbound message -> guardrailed Claude brain -> reply,
  * with history, human-pause (coexistence echoes), rate caps, staleness guard,
- * and escalation alerts via Resend.
+ * and every hold told to the owner from its event (decision 0043). Each change of
+ * a delivery is done on its own (handleChange): a change that throws costs only
+ * what it carried, which Meta is asked to send again.
  *
  * Shape: this file is the webhook — verification, the signature, routing by
  * phone number id, and echoes; the statuses are lib/whatsapp/receipts.ts. What
@@ -184,6 +186,138 @@ async function recordEchoes(db: ReturnType<typeof pg>, routed: RoutedChannel | n
   return owed.length - kept;
 }
 
+/** One change of a delivery, as Meta sends it: what it is about (`field`) and what it carries. */
+type Change = { field?: string; value?: WaChangeValue };
+
+/**
+ * One change of a delivery, done: routed by its number or its WABA, and its messages, receipts, echoes or history taken
+ * in. How many of what it carried the database did not keep, which the door must not acknowledge (0 when all were).
+ */
+async function handleChange(
+  entry: { id?: string },
+  change: Change,
+  delivery: { key: string; kept: boolean },
+): Promise<number> {
+  let owed = 0;
+  const v = change.value || {};
+  const field = change.field;
+  // Multi-tenant routing key (Blueprint §3): phone_number_id -> tenant.
+  let tenantId: string | null = null;
+  let routedChannel: RoutedChannel | null = null;
+  let unroutable = false;
+  let routingFailed = false;
+  const db = pg();
+  // The account's own news (quality, limits, templates, reviews) is keyed
+  // on the WABA, not on a number: routed by waba_id, kept as an event,
+  // and alerted through the same path a failed send uses.
+  if (db && field && WABA_FIELDS.has(field)) {
+    // What the notice was addressed to; which account it is about is the function's to say (a partner's notice is
+    // addressed to the partner's portfolio and names the account itself).
+    const entryId = String(entry.id || "");
+    const value = v as unknown as Record<string, unknown>;
+    const outcome = await handleWabaChange(db, entryId, { field, value }, (tid) => notificationsFor(db, tid));
+    L.info("wa_waba_event", { field, waba_id: accountOf(entryId, value)?.waba ?? null, outcome });
+    return owed;
+  }
+  const phoneNumberId = v.metadata?.phone_number_id;
+  const isEnvDefault = !!phoneNumberId && phoneNumberId === (env.WHATSAPP_PHONE_ID || "");
+  if (db && phoneNumberId) {
+    const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
+    if (routed) {
+      tenantId = routed.tenantId;
+      routedChannel = routed;
+    } else if (lookupFailed) {
+      // The database did not answer. That is an infra blip, not a
+      // decision: nothing is recorded and nothing is said, and the 503
+      // below has the provider redeliver once the read works.
+      routingFailed = true;
+      L.error("wa_routing_lookup_failed", { phone_number_id: phoneNumberId });
+    } else {
+      // The database ANSWERED and this channel is not active — disabled,
+      // deleted, or never ours. That is a deliberate state, so we neither
+      // reply nor persist. A log line disappears; a metric built on
+      // messages_in would undercount this traffic invisibly and forever.
+      unroutable = true;
+      L.error("wa_unroutable", { phone_number_id: phoneNumberId });
+      await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
+        channel: "whatsapp",
+        phone_number_id: phoneNumberId,
+      }).catch(() => {});
+    }
+  }
+  if (field === "messages" && v.messages && routingFailed) {
+    // The database did not answer. Nothing can be recorded and nothing
+    // can be said in anyone's voice, so this is NOT acknowledged: the
+    // 503 below has Meta redeliver, and the ingest's is_new gate makes
+    // that retry a no-op once one lands. The environment's own number is
+    // no exception: it once rode a blip out on a baked copy of its
+    // profile, and now waits for the read like every other workspace.
+    owed += v.messages.length;
+    L.error("wa_skip_routing_failed", {
+      phone_number_id: phoneNumberId,
+      messages: v.messages.length,
+    });
+    await alertUnroutable("whatsapp_unreadable", phoneNumberId, v.messages.length);
+  } else if (field === "messages" && v.messages && unroutable) {
+    // Customers are texting a line whose channel is switched off. Nobody
+    // is answering them and nothing is being recorded, so this has to
+    // reach a human — throttled, because the alternative is one email per
+    // inbound message for as long as the channel stays off.
+    L.error("wa_skip_unroutable", {
+      phone_number_id: phoneNumberId,
+      messages: v.messages.length,
+    });
+    await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
+  } else if (field === "messages" && v.messages) {
+    for (const m of v.messages) {
+      // A tail and a type, never the number or the words: the row under RLS
+      // holds those, and a log is read by whoever reads logs.
+      L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });
+      // Per MESSAGE, not per batch. Any throw used to unwind to the one
+      // outer catch below, which returns 200 — so a single failure meant
+      // Meta never retried AND every remaining message in the batch was
+      // never handled at all. The message itself is already persisted by
+      // then, so it stays visible for reconciliation.
+      try {
+        await answerHereOrLater(m, v, tenantId, routedChannel, isEnvDefault);
+      } catch (e) {
+        if (e instanceof IngestFailed) owed += 1;
+        L.error("wa_inbound_failed", { id: m.id, error: errField(e) });
+      }
+    }
+  } else if ((field === "messages" && v.statuses) || field === "smb_message_echoes") {
+    // A receipt and an owner's echo are the database's to keep, as a message is, so one whose number could not
+    // be routed is not acknowledged either: the 503 below has Meta send it again, and each is safe to receive
+    // twice (receipts.ts; recordEchoAndPause). Acknowledged, a failed receipt went unflagged and an echo unkept,
+    // so the receptionist went on answering over the owner, and Meta never sent either again.
+    const echoes = field === "smb_message_echoes" ? (v.message_echoes ?? []) : null;
+    if (routingFailed) {
+      const n = echoes ? echoes.length : (v.statuses?.length ?? 0);
+      owed += n;
+      L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId, [echoes ? "echoes" : "receipts"]: n });
+    } else if (echoes) owed += await recordEchoes(db, routedChannel, echoes);
+    else owed += await recordReceipts(db, tenantId, v.statuses ?? []);
+  } else if (HISTORY_FIELDS.has(String(field))) {
+    owed += await handHistory(db, field, delivery, { tenantId, unroutable, routingFailed, phoneNumberId });
+  } else {
+    L.info("wa_event", { field });
+  }
+  return owed;
+}
+
+/**
+ * What a change carried that a failure inside it leaves unkept, so the door asks for it again: its messages, receipts or
+ * echoes, each safe to receive twice (the replay gate, the monotone receipt, one echo one row), and a history chunk,
+ * which is the same run when it comes again. The account's own news is acknowledged: kept as an event, a second copy
+ * would be a second event.
+ */
+function owedBy(change: Change): number {
+  const v = change.value ?? {};
+  if (change.field === "messages") return (v.messages?.length ?? 0) + (v.statuses?.length ?? 0);
+  if (change.field === "smb_message_echoes") return v.message_echoes?.length ?? 0;
+  return HISTORY_FIELDS.has(String(change.field)) ? 1 : 0;
+}
+
 export async function receiveWhatsappEvent(request: Request): Promise<Response> {
   const raw = await request.text();
   if (!signedByMeta(request, raw)) return refuse(401, "bad_signature");
@@ -205,108 +339,14 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
   try {
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
-        const v = change.value || {};
-        const field = change.field;
-        // Multi-tenant routing key (Blueprint §3): phone_number_id -> tenant.
-        let tenantId: string | null = null;
-        let routedChannel: RoutedChannel | null = null;
-        let unroutable = false;
-        let routingFailed = false;
-        const db = pg();
-        // The account's own news (quality, limits, templates, reviews) is keyed
-        // on the WABA, not on a number: routed by waba_id, kept as an event,
-        // and alerted through the same path a failed send uses.
-        if (db && field && WABA_FIELDS.has(field)) {
-          // What the notice was addressed to; which account it is about is the function's to say (a partner's notice is
-          // addressed to the partner's portfolio and names the account itself).
-          const entryId = String(entry.id || "");
-          const value = v as unknown as Record<string, unknown>;
-          const outcome = await handleWabaChange(db, entryId, { field, value }, (tid) => notificationsFor(db, tid));
-          L.info("wa_waba_event", { field, waba_id: accountOf(entryId, value)?.waba ?? null, outcome });
-          continue;
-        }
-        const phoneNumberId = v.metadata?.phone_number_id;
-        const isEnvDefault = !!phoneNumberId && phoneNumberId === (env.WHATSAPP_PHONE_ID || "");
-        if (db && phoneNumberId) {
-          const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
-          if (routed) {
-            tenantId = routed.tenantId;
-            routedChannel = routed;
-          } else if (lookupFailed) {
-            // The database did not answer. That is an infra blip, not a
-            // decision: nothing is recorded and nothing is said, and the 503
-            // below has the provider redeliver once the read works.
-            routingFailed = true;
-            L.error("wa_routing_lookup_failed", { phone_number_id: phoneNumberId });
-          } else {
-            // The database ANSWERED and this channel is not active — disabled,
-            // deleted, or never ours. That is a deliberate state, so we neither
-            // reply nor persist. A log line disappears; a metric built on
-            // messages_in would undercount this traffic invisibly and forever.
-            unroutable = true;
-            L.error("wa_unroutable", { phone_number_id: phoneNumberId });
-            await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
-              channel: "whatsapp",
-              phone_number_id: phoneNumberId,
-            }).catch(() => {});
-          }
-        }
-        if (field === "messages" && v.messages && routingFailed) {
-          // The database did not answer. Nothing can be recorded and nothing
-          // can be said in anyone's voice, so this is NOT acknowledged: the
-          // 503 below has Meta redeliver, and the ingest's is_new gate makes
-          // that retry a no-op once one lands. The environment's own number is
-          // no exception: it once rode a blip out on a baked copy of its
-          // profile, and now waits for the read like every other workspace.
-          unrecorded += v.messages.length;
-          L.error("wa_skip_routing_failed", {
-            phone_number_id: phoneNumberId,
-            messages: v.messages.length,
-          });
-          await alertUnroutable("whatsapp_unreadable", phoneNumberId, v.messages.length);
-        } else if (field === "messages" && v.messages && unroutable) {
-          // Customers are texting a line whose channel is switched off. Nobody
-          // is answering them and nothing is being recorded, so this has to
-          // reach a human — throttled, because the alternative is one email per
-          // inbound message for as long as the channel stays off.
-          L.error("wa_skip_unroutable", {
-            phone_number_id: phoneNumberId,
-            messages: v.messages.length,
-          });
-          await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
-        } else if (field === "messages" && v.messages) {
-          for (const m of v.messages) {
-            // A tail and a type, never the number or the words: the row under RLS
-            // holds those, and a log is read by whoever reads logs.
-            L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });
-            // Per MESSAGE, not per batch. Any throw used to unwind to the one
-            // outer catch below, which returns 200 — so a single failure meant
-            // Meta never retried AND every remaining message in the batch was
-            // never handled at all. The message itself is already persisted by
-            // then, so it stays visible for reconciliation.
-            try {
-              await answerHereOrLater(m, v, tenantId, routedChannel, isEnvDefault);
-            } catch (e) {
-              if (e instanceof IngestFailed) unrecorded += 1;
-              L.error("wa_inbound_failed", { id: m.id, error: errField(e) });
-            }
-          }
-        } else if ((field === "messages" && v.statuses) || field === "smb_message_echoes") {
-          // A receipt and an owner's echo are the database's to keep, as a message is, so one whose number could not
-          // be routed is not acknowledged either: the 503 below has Meta send it again, and each is safe to receive
-          // twice (receipts.ts; recordEchoAndPause). Acknowledged, a failed receipt went unflagged and an echo unkept,
-          // so the receptionist went on answering over the owner, and Meta never sent either again.
-          const echoes = field === "smb_message_echoes" ? (v.message_echoes ?? []) : null;
-          if (routingFailed) {
-            const n = echoes ? echoes.length : (v.statuses?.length ?? 0);
-            unrecorded += n;
-            L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId, [echoes ? "echoes" : "receipts"]: n });
-          } else if (echoes) unrecorded += await recordEchoes(db, routedChannel, echoes);
-          else unrecorded += await recordReceipts(db, tenantId, v.statuses ?? []);
-        } else if (HISTORY_FIELDS.has(String(field))) {
-          unrecorded += await handHistory(db, field, delivery, { tenantId, unroutable, routingFailed, phoneNumberId });
-        } else {
-          L.info("wa_event", { field });
+        // Each change on its own: a throw in one used to unwind to the catch below, which acknowledged every change after
+        // it unread, the way a throw in one message once cost the rest of its batch (handleChange's per-message try).
+        try {
+          unrecorded += await handleChange(entry, change, delivery);
+        } catch (e) {
+          const owed = owedBy(change);
+          unrecorded += owed;
+          L.error("wa_webhook_error", { field: change.field ?? null, owed, error: errField(e) });
         }
       }
     }
