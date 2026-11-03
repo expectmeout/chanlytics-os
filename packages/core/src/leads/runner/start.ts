@@ -8,7 +8,7 @@ import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
 import { peoplePlanOf } from "@chanlytics/contracts";
 import { CARDS, MAPS_RUN_TIMEOUT_SECS } from "../cards";
 import { runIdFor, sha256Hex } from "../ids";
-import type { LeadPorts } from "../ports";
+import type { LeadPorts, LeadRoundRow } from "../ports";
 import { mainAsk, probeAsk, probeYield, runCaps } from "../sizing";
 import { claimOrRecover, startFailed } from "./claim";
 import { startPeople } from "./people";
@@ -84,6 +84,19 @@ async function nothingToStart(p: LeadPorts, roundId: string, phase: Phase, untri
   return { kind: "started", phase, runs: untried };
 }
 
+/** The even yield a later round sizes from when its search has judged nothing yet. */
+export const UNMEASURED_YIELD = 0.5;
+
+/**
+ * The yield a top-up or a renewal sizes from (PRD §0.5, "later rounds use the running yield"): the search's own, over
+ * every place its rounds judged, and an even one only when it judged none. A search whose places qualified at a tenth
+ * used to ask the provider for a fifth of what it needed, and ended "few new matches" (3 Nov 2026).
+ */
+async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> {
+  const judged = (await p.db.membersOfSearch(round.search_id)).filter(wasJudged);
+  return judged.length ? probeYield(judged) : UNMEASURED_YIELD;
+}
+
 export async function startRound(p: LeadPorts, roundId: string, owner: string, resume = false): Promise<StartOutcome> {
   const round = await p.db.round(roundId);
   if (!round || round.state === "ended") return { kind: "not_open" };
@@ -119,8 +132,8 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     const members = await p.db.membersOfRound(round.id);
     const judged = members.filter(wasJudged);
     const counted = members.filter((m) => m.counted).length;
-    // Round 1 sizes from its probe; a top-up or a renewal has no probe of its own and starts from an even yield.
-    const y = round.purpose === "probe" ? probeYield(judged) : 0.5;
+    // Round 1 sizes from its probe; a top-up or a renewal from what the search found in every round before it.
+    const y = round.purpose === "probe" ? probeYield(judged) : await runningYield(p, round);
     // The question said "I'm dropping X: it mostly returned those", and a yes accepted it. An answer that changed the
     // plan is a new plan, and its terms are the owner's: the dropped one finds the very kind they just included.
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;

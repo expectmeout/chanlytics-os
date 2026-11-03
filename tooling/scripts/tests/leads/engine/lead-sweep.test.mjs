@@ -1,6 +1,8 @@
 /**
  * The lead finder's sweep: the planner on rows, and the route run at the cron
- * door over the world in memory (the _cron-doors-world harness).
+ * door over the world in memory (the _cron-doors-world harness). Since 00506 a
+ * quiet round is carried on from where it stands (core nextStepOf), and only
+ * one nothing can carry on is ended, with the ending it had pending.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -11,9 +13,10 @@ import {
   CLAIMED_STALE_MS,
   LEASE_STALE_MS,
   QUESTION_WAIT_MS,
-  ROUND_STUCK_MS,
   GIVE_UP_FAILED_COLLECTS,
+  carrySeq,
 } from "../../../../../apps/edge/lib/leads/lead-sweep.ts";
+import { MAX_CARRY_ONS, REDRIVE_AFTER_MS } from "../../../../../packages/core/src/leads/runner/next-step.ts";
 import { at, knock, answer, vault } from "../../_cron-doors-world.mjs";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 
@@ -38,18 +41,24 @@ const run = (over = {}) => ({
   lease_gen: 0,
   lease_until: null,
   created_at: iso(NOW - 60_000),
+  part: "probe",
   collect_scheduled: false,
   collects_failed: 0,
   ...over,
 });
+/** A round quiet a moment past the wait before it is carried on. */
 const round = (over = {}) => ({
   id: "rd1",
   tenant_id: TENANT,
   state: "queued",
+  purpose: "probe",
+  ending_pending: null,
   waiting_since: null,
-  created_at: iso(NOW - ROUND_STUCK_MS - 1),
+  state_since: iso(NOW - REDRIVE_AFTER_MS - 1),
+  created_at: iso(NOW - 3 * 3_600_000),
   ...over,
 });
+const jobs = (over = {}) => new Map([["rd1", { start: false, check: false, carriedOn: 0, ...over }]]);
 
 test("the planner: a running run nobody is collecting is collected; one past 45 minutes is aborted and read once more; an unknown start is reconciled; a stale claim is marked unknown; a stale lease is released by its own owner and generation; a question a day old ends its round", () => {
   const seq = `s${Math.floor(NOW / 60_000)}`;
@@ -135,41 +144,84 @@ test("the planner: a running run nobody is collecting is collected; one past 45 
   );
 });
 
-test("the planner: a round stuck with nothing live is ended once its hour is up, so its allowance and its share of the day's cap come back", () => {
-  const stuck = [{ kind: "end_stuck", roundId: "rd1", tenantId: TENANT }];
+test("the planner: a quiet round is carried on from where it stands -- its start, its main phase, a collect of its newest finished run, or its checks -- never ended while something can carry it on (3 Nov 2026)", () => {
+  const carry = carrySeq(NOW);
+  const plan = (runs, rd, j = jobs()) => planLeadSweep({ runs, rounds: [rd], roundJobs: j }, NOW);
   assert.deepEqual(
-    planLeadSweep({ runs: [], rounds: [round()] }, NOW),
-    stuck,
-    "a start job that died leaves a round queued with no run at all, and only the sweep ends it",
+    plan([], round()),
+    [{ kind: "carry_start", roundId: "rd1", tenantId: TENANT, resume: false }],
+    "a start job that died leaves a round queued with no run at all: the sweep starts it, it no longer ends it",
   );
   assert.deepEqual(
-    planLeadSweep({ runs: [], rounds: [round({ created_at: iso(NOW - 60_000) })] }, NOW),
+    plan([], round({ state_since: iso(NOW - 60_000) })),
     [],
-    "a minute old is not an hour",
+    "a round that moved a minute ago is between two of its steps",
   );
   assert.deepEqual(
-    planLeadSweep({ runs: [run()], rounds: [round()] }, NOW),
+    plan([run()], round()),
     [{ kind: "collect", runId: "r1", tenantId: TENANT, seq: `s${Math.floor(NOW / 60_000)}` }],
-    "a round with a run still live is nobody's to end",
+    "a round with a run still at the provider is its run's to carry",
   );
   assert.deepEqual(
-    planLeadSweep({ runs: [run({ state: "succeeded" })], rounds: [round({ state: "checking" })] }, NOW),
-    stuck,
-    "a round whose runs are all done and whose last commit never landed",
+    plan([run({ state: "succeeded" })], round({ state: "probing" })),
+    [{ kind: "carry_collect", runId: "r1", tenantId: TENANT, seq: carry }],
+    "a probe whose last run finished and never told the round: its collect decides what that end should have",
   );
   assert.deepEqual(
-    planLeadSweep(
-      { runs: [], rounds: [round({ state: "waiting_on_owner", waiting_since: iso(NOW - 3_600_000) })] },
-      NOW,
+    plan([run({ state: "succeeded" })], round({ state: "running" })),
+    [{ kind: "carry_start", roundId: "rd1", tenantId: TENANT, resume: true }],
+    "a probe that passed and whose main phase was never started",
+  );
+  assert.deepEqual(
+    plan(
+      [run({ state: "succeeded" }), run({ id: "r2", state: "succeeded", part: "main" })],
+      round({ state: "running" }),
     ),
+    [{ kind: "carry_collect", runId: "r2", tenantId: TENANT, seq: carry }],
+    "a main phase whose last run finished and never sent the round to its checks",
+  );
+  assert.deepEqual(
+    plan([run({ state: "succeeded", part: "main" })], round({ state: "checking", ending_pending: "target_reached" })),
+    [{ kind: "carry_check", roundId: "rd1", tenantId: TENANT }],
+    "REGRESSION: a round whose runs are all done and whose checks were never written is checked -- it was ended 'the source failed', over its pending ending, with its addresses left Checking for good",
+  );
+  assert.deepEqual(
+    plan(
+      [
+        run({ state: "succeeded", part: "main" }),
+        run({ id: "c1", purpose: "check", part: "check", state: "succeeded" }),
+      ],
+      round({ state: "checking" }),
+    ),
+    [{ kind: "carry_collect", runId: "c1", tenantId: TENANT, seq: carry }],
+    "a check that finished and never told the round reads its answers again",
+  );
+  assert.deepEqual(plan([], round(), jobs({ start: true })), [], "its start is on its way");
+  assert.deepEqual(plan([], round({ state: "checking" }), jobs({ check: true })), [], "its checks are on their way");
+  assert.deepEqual(
+    plan([run({ state: "succeeded", collect_scheduled: true })], round({ state: "probing" })),
+    [],
+    "a collect of its run is on its way",
+  );
+  assert.deepEqual(
+    plan([], round({ state: "waiting_on_owner", waiting_since: iso(NOW - 3_600_000) })),
     [],
     "a question keeps its own day to be answered",
   );
-  assert.deepEqual(
-    planLeadSweep({ runs: [], rounds: [round({ state: "ended" })] }, NOW),
-    [],
-    "an ended round is done with",
-  );
+  assert.deepEqual(plan([], round({ state: "ended" })), [], "an ended round is done with");
+});
+
+test("the planner: a round carried on three times and still quiet is ended through the door that looks again, with the ending it had pending, else the source's failure", () => {
+  assert.equal(MAX_CARRY_ONS, 3);
+  const since = iso(NOW - REDRIVE_AFTER_MS - 1);
+  const plan = (rd, carriedOn) => planLeadSweep({ runs: [], rounds: [rd], roundJobs: jobs({ carriedOn }) }, NOW);
+  assert.deepEqual(plan(round({ state: "checking" }), 2), [{ kind: "carry_check", roundId: "rd1", tenantId: TENANT }]);
+  assert.deepEqual(plan(round({ state: "checking", ending_pending: "target_reached" }), 3), [
+    { kind: "end_stuck", roundId: "rd1", tenantId: TENANT, ending: "target_reached", since },
+  ]);
+  assert.deepEqual(plan(round(), 3), [
+    { kind: "end_stuck", roundId: "rd1", tenantId: TENANT, ending: "source_failed", since },
+  ]);
 });
 
 test("the planner: a run whose collects failed for good three times is given up, never collected or aborted again; two failures are still collected", () => {
@@ -223,7 +275,8 @@ test("the loop, and its end: a run whose collect fails for good is collected aga
     allowance_used: 3,
     cost_reserved_usd: 2,
     cost_usd: 0.4,
-    created_at: ago(ROUND_STUCK_MS + 10 * 60_000),
+    state_since: ago(20 * 60_000),
+    created_at: ago(3 * 3_600_000),
   });
   w.T.lead_runs.push({
     id: "r1",
@@ -277,7 +330,7 @@ test("the route: refused without the key; with it, the rows are read, each actio
   const w = leadWorld();
   Object.assign(w.rpcs, vault);
   const old = new Date(Date.now() - QUESTION_WAIT_MS - 60_000).toISOString();
-  const stale = new Date(Date.now() - ROUND_STUCK_MS - 60_000).toISOString();
+  const stale = new Date(Date.now() - REDRIVE_AFTER_MS - 60_000).toISOString();
   w.T.lead_rounds.push(
     {
       id: "rd1",
@@ -294,9 +347,10 @@ test("the route: refused without the key; with it, the rows are read, each actio
       allowance_used: 0,
       cost_reserved_usd: 1,
       cost_usd: 0,
+      state_since: old,
       created_at: old,
     },
-    // A round whose lead_round_start job died: queued, no run of its own, and its reservation held for ever until the sweep ends it.
+    // A round whose lead_round_start job died: queued, no run of its own. The sweep starts it (it used to end it).
     {
       id: "rd2",
       tenant_id: TENANT,
@@ -312,6 +366,7 @@ test("the route: refused without the key; with it, the rows are read, each actio
       allowance_used: 0,
       cost_reserved_usd: 1,
       cost_usd: 0,
+      state_since: stale,
       created_at: stale,
     },
   );
@@ -361,30 +416,91 @@ test("the route: refused without the key; with it, the rows are read, each actio
     marked_unknown: 0,
     released: 1,
     questions_ended: 1,
-    rounds_ended: 1,
+    rounds_ended: 0,
+    carried_on: 1,
     given_up: 0,
     failed: 0,
     source: "off",
   });
   assert.deepEqual(
-    w.T.jobs.map((j) => [j.kind, j.payload.run_id, /^s\d+$/.test(j.payload.seq)]),
-    [["lead_collect", "r1", true]],
+    w.T.jobs.map((j) => [
+      j.kind,
+      j.payload.run_id ?? j.payload.round_id,
+      j.payload.carry_on ?? /^s\d+$/.test(j.payload.seq),
+    ]),
+    [
+      ["lead_collect", "r1", true],
+      ["lead_round_start", "rd2", true],
+    ],
   );
   assert.deepEqual(
     [w.T.lead_runs[1].lease_owner, w.T.lead_rounds[0].state, w.T.lead_rounds[0].ending],
     [null, "ended", "question_unanswered"],
   );
   assert.deepEqual(
-    [w.T.lead_rounds[1].state, w.T.lead_rounds[1].ending, w.T.lead_rounds[1].allowance_reserved],
-    ["ended", "source_failed", 0],
-    "the stuck round is ended and gives its allowance back",
+    [w.T.lead_rounds[1].state, w.T.lead_rounds[1].allowance_reserved],
+    ["queued", 5],
+    "the round whose start died is started, its reservation still its own",
   );
   // Again: nothing twice.
   const [, again] = await answer(await knock(POST, "leads"));
   assert.deepEqual(
-    [again.collected, again.released, again.questions_ended, again.rounds_ended],
-    [0, 0, 0, 0],
-    "the collect is already coming; the lease, the question and the stuck round are done",
+    [again.collected, again.released, again.questions_ended, again.rounds_ended, again.carried_on],
+    [0, 0, 0, 0, 0],
+    "the collect and the start are already coming; the lease and the question are done",
   );
-  assert.equal(w.T.jobs.length, 1);
+  assert.equal(w.T.jobs.length, 2);
+});
+
+test("the route's ending: a checking round carried on three times and still quiet is ended by lead_round_end_stuck with the ending it had pending, and none of its addresses is left checking", async () => {
+  const w = leadWorld();
+  Object.assign(w.rpcs, vault);
+  const ago = (ms) => new Date(Date.now() - ms).toISOString();
+  const since = ago(REDRIVE_AFTER_MS + 30 * 60_000);
+  w.T.lead_rounds.push({
+    id: "rd1",
+    tenant_id: TENANT,
+    search_id: "s1",
+    seq: 1,
+    purpose: "probe",
+    plan: {},
+    state: "checking",
+    waiting_since: null,
+    ending: null,
+    ending_pending: "target_reached",
+    allowance_reserved: 10,
+    allowance_used: 10,
+    cost_reserved_usd: 2,
+    cost_usd: 0.5,
+    state_since: since,
+    created_at: ago(3 * 3_600_000),
+  });
+  w.T.leads.push({ id: "l1", tenant_id: TENANT, email: "hello@a.example", email_state: "checking" });
+  w.T.lead_search_members.push({ search_id: "s1", lead_id: "l1", round_id: "rd1", tenant_id: TENANT, counted: false });
+  // Three carry-ons of its checks the sweep wrote since it last moved, each done and the round still quiet.
+  for (let i = 0; i < MAX_CARRY_ONS; i++)
+    w.T.jobs.push({
+      id: `j${i}`,
+      tenant_id: TENANT,
+      kind: "lead_check",
+      state: "done",
+      due_at: ago(20 * 60_000 - i),
+      payload: { round_id: "rd1", batch: 0, carry_on: true },
+      attempts: 1,
+      created_at: ago(20 * 60_000 - i),
+    });
+  setPg(w.db);
+  const [, body] = await answer(await knock(POST, "leads"));
+  assert.deepEqual([body.rounds_ended, body.carried_on, body.failed], [1, 0, 0]);
+  const rd1 = w.T.lead_rounds[0];
+  assert.deepEqual(
+    [rd1.state, rd1.ending],
+    ["ended", "target_reached"],
+    "the ending it had pending, not the source's failure",
+  );
+  assert.equal(
+    w.T.leads[0].email_state,
+    "unknown",
+    "an address that never answered is Couldn't check, for Check again",
+  );
 });
