@@ -114,6 +114,19 @@ before(async () => {
     await db.from("tenant_channels").insert({ tenant_id: T, kind: "sms", external_id: LINE, number_e164: LINE }),
     "sms line",
   );
+  // The texting line the carriers approved, with its Messaging Service: the send door lets a text leave only on one
+  // (core deliver-text.ts, db textLineFacts).
+  ok(
+    await db.from("lines").insert({
+      tenant_id: T,
+      provider: "twilio",
+      e164: LINE,
+      messaging_service_sid: `MG${RUN}`,
+      sms_state: "active",
+      voice_state: "none",
+    }),
+    "the texting line",
+  );
   routedWa = (await edge.resolveChannelDetailed(db, "whatsapp", PNID)).channel;
   routedSms = (await edge.resolveChannelDetailed(db, "sms", LINE)).channel;
   assert.ok(routedWa && routedSms, "both lines route to the workspace");
