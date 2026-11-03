@@ -668,6 +668,32 @@ test("a list's own rows arrive as a table's do, and the ref that brings them in 
   );
 });
 
+test("a list can say its rows stand on a phone; a table's keep their fade there, and both fade in at a desk", () => {
+  const arrives = (args, phone) => {
+    fresh();
+    let ref = null;
+    const Probe = () => {
+      ref = useRowsArrive(...args);
+      return null;
+    };
+    again(() => h(Probe, {}));
+    const row = moving("row");
+    const keep = globalThis.matchMedia;
+    globalThis.matchMedia = (q) => ({ matches: phone && q.includes("900px") });
+    try {
+      ref({ querySelectorAll: () => [row] });
+    } finally {
+      globalThis.matchMedia = keep;
+    }
+    return row.runs.length;
+  };
+  const standing = [":scope > .ix-thread", { onPhone: false }];
+  assert.equal(arrives(standing, true), 0, "a list that says so stands on a phone");
+  assert.equal(arrives(standing, false), 1, "and fades in at a desk");
+  assert.equal(arrives([], true), 1, "a table fades in on a phone: its rows land clean");
+  assert.equal(arrives([], false), 1, "and at a desk");
+});
+
 test("a list drawn in groups answers group by group as its view changes, and the table with its heads holds still", () => {
   const groups = [moving("tbody-1"), moving("tbody-2")];
   const tableEl = { ...moving("table"), querySelectorAll: (sel) => (sel === ":scope > tbody" ? groups : []) };

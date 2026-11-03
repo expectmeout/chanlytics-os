@@ -12,7 +12,10 @@
  * unseen for its turn, and nothing is left on it after. Not under reduced motion, and not for a list coming back from
  * under the row it opened (held-list.ts): it is where it was left, as the screen showed it under that row's page, and
  * React's Activity, which kept People's scope as a person stood over it, draws it as a mount again (Ruben, 20 Oct 2026:
- * every row faded up 4px as the person went).
+ * every row faded up 4px as the person went). On a phone the Inbox's rows stand whole on the first frame instead
+ * (`onPhone: false`), and Conversations', drawn as they are, with them: as each row's fade ended its first letters and
+ * its mail glyphs stepped a device pixel, down the list a beat apart, and the line over every other row stood missing
+ * until then (Ruben's recording, 2 Nov 2026). People's rows land clean under the same fade, so a table keeps it.
  */
 import { useCallback, useRef } from "react";
 import { cameBack } from "./held-list";
@@ -25,6 +28,8 @@ const FIRST = 12;
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 /** A table's rows: those of its own row groups, never a nested table's. */
 const TABLE_ROWS = ":scope > tbody > tr";
+/** A phone's width, where a list's rows draw the line between them (mobile.css). */
+const PHONE_QUERY = "(max-width: 900px)";
 
 /** The parts of a list that `fadeRowsIn` reads: its rows, each able to animate. */
 interface ArrivingList {
@@ -34,6 +39,9 @@ interface ArrivingList {
 /** Whether the person has asked for less motion, where the browser can say. */
 const lessMotion = (): boolean =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Whether this is a phone's width, where the browser can say. */
+const phoneWide = (): boolean => typeof matchMedia === "function" && matchMedia(PHONE_QUERY).matches;
 
 /**
  * Fade the first rows of a list in where they stand, one after another: a table's own rows, or the rows `rows` names
@@ -59,18 +67,19 @@ export function fadeRowsIn(list: ArrivingList, rows: string = TABLE_ROWS): numbe
 /**
  * The ref for the list's element: its first rows fade in on the draw that first puts it in the page, and never again on
  * that page (a draw that puts it back, held-list.ts, is no arrival either). `rows` names a list's own rows where they
- * are not a table's.
+ * are not a table's; `onPhone: false` says they stand whole on the first frame at a phone's width.
  */
 export function useRowsArrive<T extends HTMLElement = HTMLTableElement>(
   rows: string = TABLE_ROWS,
+  { onPhone = true }: { onPhone?: boolean } = {},
 ): (el: T | null) => void {
   const arrived = useRef(false);
   return useCallback(
     (el: T | null) => {
       if (!el || arrived.current) return;
       arrived.current = true;
-      if (!cameBack(el)) fadeRowsIn(el, rows);
+      if (!cameBack(el) && (onPhone || !phoneWide())) fadeRowsIn(el, rows);
     },
-    [rows],
+    [rows, onPhone],
   );
 }
