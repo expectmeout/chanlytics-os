@@ -26,11 +26,11 @@ import type { SweepTick } from "../ops/sweep-door.js";
 import { lineAccount, lineByNumber } from "./sms.js";
 
 /** The canary's words: a customer's ordinary question, which the receptionist answers. Found in the record by them. */
-export const CANARY_WORDS = "Hi! Are you open today? (a daily check from Chanlytics)";
+const CANARY_WORDS = "Hi! Are you open today? (a daily check from Chanlytics)";
 /** The check waits this long after the text was sent: the answer is a job, and the model takes its seconds. */
-export const CHECK_AFTER_MS = 10 * MIN_MS;
+const CHECK_AFTER_MS = 10 * MIN_MS;
 /** A canary text older than this is yesterday's: a new one is sent. */
-export const CHECK_WITHIN_MS = 45 * MIN_MS;
+const CHECK_WITHIN_MS = 45 * MIN_MS;
 
 /** What the canary reaches outside the database: the provider, its two settings, the clock and the pager. */
 interface CanaryWorld {

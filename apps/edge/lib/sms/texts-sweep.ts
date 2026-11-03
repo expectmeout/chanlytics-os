@@ -33,11 +33,11 @@ import { lineAccount } from "./sms.js";
 /** How far back a line's record is read: a day of an outage, at most, is taken in. */
 const TEXTS_LOOKBACK_MS = 24 * HOUR_MS;
 /** A text younger than this is the door's: it may be taking it in now. */
-export const TEXTS_SETTLE_MS = 2 * MIN_MS;
+const TEXTS_SETTLE_MS = 2 * MIN_MS;
 /** No line is read after this, counted from the door's first line (vercel.json holds the function at sixty seconds). */
 const TEXTS_YIELD_AT_MS = 40_000;
 /** The door a text is knocked on again at, as Twilio is told to post it. */
-export const TEXT_DOOR_PATH = "/api/inbound-sms";
+const TEXT_DOOR_PATH = "/api/inbound-sms";
 
 /** What the sweep reaches outside the database: the door, the line provider, the edge's own origin and the clock. */
 interface TextsSweepWorld {

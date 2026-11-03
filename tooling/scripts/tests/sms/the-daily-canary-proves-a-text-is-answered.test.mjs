@@ -12,10 +12,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { sweepCanary, CANARY_WORDS, CHECK_AFTER_MS, CHECK_WITHIN_MS } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/canary.ts")).href
-);
+const { sweepCanary } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/canary.ts")).href);
 
+/** The canary's words and its two waits, as canary.ts says them: held here so a change to them is a change seen. */
+const CANARY_WORDS = "Hi! Are you open today? (a daily check from Chanlytics)";
+const CHECK_AFTER_MS = 10 * 60_000;
+const CHECK_WITHIN_MS = 45 * 60_000;
 const T = "aaaaaaaa-0000-4000-8000-0000000000c1";
 const TO = "+13055550160";
 const SERVICE = "MG00000000000000000000000000000c01";

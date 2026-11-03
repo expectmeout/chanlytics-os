@@ -14,10 +14,11 @@ import { twilioSignature } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { sweepUnheardTexts, TEXTS_SETTLE_MS, TEXT_DOOR_PATH } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/texts-sweep.ts")).href
-);
+const { sweepUnheardTexts } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/texts-sweep.ts")).href);
 
+/** How young a text the sweep leaves to the door, and the door it knocks on, as texts-sweep.ts says them. */
+const TEXTS_SETTLE_MS = 2 * 60_000;
+const TEXT_DOOR_PATH = "/api/inbound-sms";
 const T = "aaaaaaaa-0000-4000-8000-0000000000a1";
 const LINE = {
   id: "11111111-0000-4000-8000-000000000001",
