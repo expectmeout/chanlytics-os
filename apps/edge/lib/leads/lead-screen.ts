@@ -12,7 +12,7 @@
  */
 import { askSystemOne, type LeadJudge, type LeadScreen, type SystemOneReply } from "../packages/channels.js";
 import {
-  SECOND_MS,
+  LEAD_SCREEN_BOUND_MS,
   SHADOW_TIMEOUT_MS,
   SHADOW_WRITE_MS,
   SYSTEM_ONE_MODEL,
@@ -33,8 +33,11 @@ import { pg } from "../pg.js";
 
 /** How many places are asked at once: TypeSafe's rate is the account's, shared by every search running. */
 const IN_FLIGHT = 8;
-/** The most a batch's screen may take: past it, what has not answered goes to the judge, which has its own bound to keep. */
-const SCREEN_BOUND_MS = 8 * SECOND_MS;
+/**
+ * The most a batch's screen may take (contracts LEAD_SCREEN_BOUND_MS): past it, what has not answered goes to the judge,
+ * which has its own bound to keep; the runner asks the screen only when both fit (core runner/rules.ts SCREEN_MARGIN_MS).
+ */
+const SCREEN_BOUND_MS = LEAD_SCREEN_BOUND_MS;
 
 /** The key when the screen is on for a workspace: the judge's route names a floor, the switch names it, the key is set. */
 function screenKey(tenantId: string | undefined): string | null {

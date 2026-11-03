@@ -189,6 +189,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "rate_store_memory_by_configuration",
   "reach_out_chain_totals_read_failed",
   "reach_out_last_days_read_failed",
+  "reach_out_rewrite_unchecked",
+  "reach_out_rewrite_unread",
   "receptionist_series_missing",
   "receptionist_try_failed",
   "recording_audit_unavailable",

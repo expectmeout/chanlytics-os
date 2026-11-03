@@ -44,8 +44,19 @@
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
     "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
     "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
-    "00504": "cm-empty-batch's 'a run with nothing to send waits on nobody' (#2061), not on main when 00519 was numbered",
-    "00505": "cm-opening-rewrite's opening rewrite, claimed and not on main when 00519 was numbered"
+    "00504": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, a run with nothing to send waits on nobody), open and not on main when an opening is written again as its owner says took 00505; record drops this once #2061 lands",
+    "00507": "claimed by cm-page-open (#2070, shell/page-open-to-a-ten, 00507 to 00510: page open to a ten), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00508": "claimed by cm-page-open (#2070, shell/page-open-to-a-ten, 00507 to 00510: page open to a ten), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00509": "claimed by cm-page-open (#2070, shell/page-open-to-a-ten, 00507 to 00510: page open to a ten), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00510": "claimed by cm-page-open (#2070, shell/page-open-to-a-ten, 00507 to 00510: page open to a ten), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00511": "claimed by cm-empty-batch (#2061, sequences/a-batch-with-nothing-to-send-waits-on-nobody, renumbered from 00504), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00512": "claimed by cm-onboarding-v2 (#2069, onboarding/to-a-ten, 00512 to 00514: the trial covers everything), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00513": "claimed by cm-onboarding-v2 (#2069, onboarding/to-a-ten, 00512 to 00514: the trial covers everything), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00514": "claimed by cm-onboarding-v2 (#2069, onboarding/to-a-ten, 00512 to 00514: the trial covers everything), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00515": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00516": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00517": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above",
+    "00518": "claimed by cm-job-ledger (jobs/the-ledger-finished, 00515 to 00518: the job ledger finished, docs/migration-claims.md), not on main when the voice lane (voice/to-a-ten, a call tells its owner once and keeps only what it needs) took 00519 and 00520; it lands here or above"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -508,7 +519,9 @@
     "00501_a_stopped_erasure_finishes.sql": "6bb9bed2b8523bb7ca1b7e2b6150169c637ad7d4f82580e0de5cdd3a77159ad5",
     "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097",
     "00503_a_held_reply_goes_now_on_a_member_s_word.sql": "d146d35b50cabf0036dc908583c0ec44738c34288bab59f800cfb407fc7816f8",
-    "00519_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "864e554d1ba6444b0eaaeb9778d313e8caccb7dc9fda9fb2ae1bb09934fb57f5",
-    "00520_the_notices_a_call_owes_are_found_by_their_own_index.sql": "3db0b6654b8f11fca63ef021004af3d606a3cc3a6161ed0e9b50c96d8539e2bc"
+    "00505_an_opening_is_written_again_as_its_owner_says.sql": "0dbe0500d8bc1ce2960b1ff7bcf7c93807a76390871661c4fc93394b2c3e3dc0",
+    "00506_a_search_never_stalls_and_every_spend_is_counted.sql": "612e07416d565204e49c9850d714ca3b9742b25216a432eadea1a198eb3ac652",
+    "00519_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "2eaff72ee67287b47c18e65738f48dbeaa1cdcdcfd9b8b45a80b4e4e492ed7eb",
+    "00520_the_notices_a_call_owes_are_found_by_their_own_index.sql": "20a4342fc9484c5d381486e25a632ffc7996f9a47da9ee7aec644591e5d02677"
   }
 }

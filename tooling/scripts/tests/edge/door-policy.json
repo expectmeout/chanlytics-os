@@ -222,6 +222,14 @@
         "aud": "/api/admin/reach-out-preview"
       }
     },
+    "POST /api/admin/reach-out/check": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/reach-out/check.ts",
+      "knock_args": {
+        "aud": "/api/admin/reach-out/check"
+      }
+    },
     "POST /api/admin/rehearsal/agent": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

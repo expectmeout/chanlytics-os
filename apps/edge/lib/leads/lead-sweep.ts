@@ -7,19 +7,32 @@
  * reconciled against the provider's own list (core reconcileUnknownRuns); a
  * claim that never recorded a start is marked unknown so the next sweep
  * reconciles it; a stale lease is released by its own owner and generation;
- * a question unanswered for a day ends its round, keeping what was found; a
- * round with nothing live left, an hour old, is ended "the source failed",
- * which is what 00140's trigger_leads_sweep promises for a round whose start
- * job died before it wrote a run -- until something ends it, its allowance
- * and its share of the platform's day cap are held for ever and the clock
- * calls this route every five minutes for nothing.
+ * a question unanswered for a day ends its round, keeping what was found.
  *
- * Every action is idempotent: a collect is scheduled once per minute key, a
+ * Every other round that has not ended is asked what it needs next (core
+ * nextStepOf): a round whose next job was never written is carried on from
+ * where it stands -- its start, a collect of its newest finished run, or its
+ * checks -- and only a round nothing can carry on, or one carried on three
+ * times and still quiet, is ended, with the ending it had pending, through
+ * 00506's lead_round_end_stuck, which looks again under its own lock. It used
+ * to end every round an hour old with nothing live as "the source failed",
+ * over the ending it had pending and with its addresses left "Checking…" for
+ * good (3 Nov 2026).
+ *
+ * Every action is idempotent: a collect is scheduled once per minute key, the
+ * round's start and checks once while one is live (jobs_dedupe_live), a
  * release names the generation it saw, an ending is a conditional move. A
  * sweep that runs twice does nothing twice.
  */
 
-import { MIN_MS, HOUR_MS } from "../packages/contracts.js";
+import {
+  MIN_MS,
+  HOUR_MS,
+  type LeadRoundEnding,
+  type LeadRoundPurpose,
+  type LeadRoundState,
+} from "../packages/contracts.js";
+import { nextStepOf, type StepRun } from "../packages/core.js";
 
 export const RUN_MAX_AGE_MS = 45 * MIN_MS;
 export const STARTING_STALE_MS = 10 * MIN_MS;
@@ -27,8 +40,6 @@ export const STARTING_STALE_MS = 10 * MIN_MS;
 export const CLAIMED_STALE_MS = 60 * MIN_MS;
 export const LEASE_STALE_MS = 2 * MIN_MS;
 export const QUESTION_WAIT_MS = 24 * HOUR_MS;
-/** A round this old with no run of its own still live is stuck: a run is capped at 45 minutes, so an hour is past every way it could still be working. */
-export const ROUND_STUCK_MS = 60 * MIN_MS;
 /**
  * A run whose collects failed for good this often is given up. Each failed collect is the ledger's three tries over
  * twelve minutes (RETRY_WAITS_MS) and a page for the platform, never a bell (packages/jobs TOLD_ELSEWHERE), and the
@@ -53,6 +64,8 @@ export interface SweepRunRow {
   lease_gen: number;
   lease_until: string | null;
   created_at: string;
+  /** Which part of its round the run is: a check, or a discovery run of the probe or the main phase (core runIdFor). */
+  part: StepRun["part"];
   /** A lead_collect job for this run is scheduled or fired. */
   collect_scheduled: boolean;
   /** The lead_collect jobs for this run that failed for good, each after its three tries. */
@@ -62,12 +75,30 @@ export interface SweepRunRow {
 export interface SweepRoundRow {
   id: string;
   tenant_id: string;
-  state: string;
+  state: LeadRoundState;
+  purpose: LeadRoundPurpose;
+  ending_pending: LeadRoundEnding | null;
   waiting_since: string | null;
+  /** When the round last moved (00506's lead_rounds.state_since). */
+  state_since: string;
   created_at: string;
 }
 
+/** A round's own jobs, as the sweep read them: its start and its checks on their way, and the carry-ons that ran. */
+export interface SweepRoundJobs {
+  start: boolean;
+  check: boolean;
+  carriedOn: number;
+}
+
+/** A job that carries a quiet round on (core nextStepOf), written by the sweep. */
+export type CarryAction =
+  | { kind: "carry_start"; roundId: string; tenantId: string; resume: boolean }
+  | { kind: "carry_collect"; runId: string; tenantId: string; seq: string }
+  | { kind: "carry_check"; roundId: string; tenantId: string };
+
 type SweepAction =
+  | CarryAction
   | { kind: "collect"; runId: string; tenantId: string; seq: string }
   | { kind: "abort"; runId: string; tenantId: string; apifyRunId: string; seq: string }
   | { kind: "give_up"; runId: string; apifyRunId: string; owner: string }
@@ -76,58 +107,94 @@ type SweepAction =
   | { kind: "orphan"; runId: string; owner: string }
   | { kind: "release_lease"; runId: string; owner: string; gen: number }
   | { kind: "end_question"; roundId: string; tenantId: string }
-  | { kind: "end_stuck"; roundId: string; tenantId: string };
+  | { kind: "end_stuck"; roundId: string; tenantId: string; ending: LeadRoundEnding; since: string };
 
-export function planLeadSweep(rows: { runs: SweepRunRow[]; rounds: SweepRoundRow[] }, now: number): SweepAction[] {
+/** The seq of a collect the sweep writes to carry a round on: its own word, so the carry-ons can be counted. */
+export const carrySeq = (now: number): string => `r${Math.floor(now / MIN_MS)}`;
+
+/** What one run needs (§12.5), from its row alone. */
+function runActions(r: SweepRunRow, now: number, seq: string): SweepAction[] {
   const out: SweepAction[] = [];
-  const seq = `s${Math.floor(now / MIN_MS)}`;
-  for (const r of rows.runs) {
-    if (r.lease_owner && r.lease_until && Date.parse(r.lease_until) < now - LEASE_STALE_MS) {
-      out.push({ kind: "release_lease", runId: r.id, owner: r.lease_owner, gen: r.lease_gen });
-    }
-    if (r.state === "unknown") {
-      out.push({ kind: "reconcile", runId: r.id });
-      continue;
-    }
-    if (r.state === "starting" && r.claimed_by && Date.parse(r.claimed_at ?? r.created_at) < now - STARTING_STALE_MS) {
-      // The claimer never recorded a start: the next sweep reconciles it as unknown.
-      out.push({ kind: "mark_unknown", runId: r.id, owner: r.claimed_by });
-      continue;
-    }
-    if (r.state === "claimed" && !r.claimed_by && Date.parse(r.created_at) < now - CLAIMED_STALE_MS) {
-      out.push({ kind: "orphan", runId: r.id, owner: `sweep:${Math.floor(now / MIN_MS)}` });
-      continue;
-    }
-    if (r.state !== "running" || !r.apify_run_id) continue;
-    if (r.collects_failed >= GIVE_UP_FAILED_COLLECTS) {
-      // Not collected again, so not rung again: failed in our books, and the round ends with it when nothing else of
-      // it is live. A collect still on its way then finds the round ended, so it is not waited for.
-      out.push({
-        kind: "give_up",
-        runId: r.id,
-        apifyRunId: r.apify_run_id,
-        owner: `sweep:${Math.floor(now / MIN_MS)}`,
-      });
-      continue;
-    }
-    if (Date.parse(r.created_at) < now - RUN_MAX_AGE_MS) {
-      out.push({ kind: "abort", runId: r.id, tenantId: r.tenant_id, apifyRunId: r.apify_run_id, seq });
-      continue;
-    }
-    if (!r.collect_scheduled) out.push({ kind: "collect", runId: r.id, tenantId: r.tenant_id, seq });
+  if (r.lease_owner && r.lease_until && Date.parse(r.lease_until) < now - LEASE_STALE_MS) {
+    out.push({ kind: "release_lease", runId: r.id, owner: r.lease_owner, gen: r.lease_gen });
   }
-  const working = new Set(rows.runs.filter((r) => LIVE_RUN_STATES.has(r.state)).map((r) => r.round_id));
+  if (r.state === "unknown") return [...out, { kind: "reconcile", runId: r.id }];
+  if (r.state === "starting" && r.claimed_by && Date.parse(r.claimed_at ?? r.created_at) < now - STARTING_STALE_MS)
+    // The claimer never recorded a start: the next sweep reconciles it as unknown.
+    return [...out, { kind: "mark_unknown", runId: r.id, owner: r.claimed_by }];
+  if (r.state === "claimed" && !r.claimed_by && Date.parse(r.created_at) < now - CLAIMED_STALE_MS)
+    return [...out, { kind: "orphan", runId: r.id, owner: `sweep:${Math.floor(now / MIN_MS)}` }];
+  if (r.state !== "running" || !r.apify_run_id) return out;
+  if (r.collects_failed >= GIVE_UP_FAILED_COLLECTS)
+    // Not collected again, so not rung again: failed in our books, and the round ends with it when nothing else of
+    // it is live. A collect still on its way then finds the round ended, so it is not waited for.
+    return [
+      ...out,
+      { kind: "give_up", runId: r.id, apifyRunId: r.apify_run_id, owner: `sweep:${Math.floor(now / MIN_MS)}` },
+    ];
+  if (Date.parse(r.created_at) < now - RUN_MAX_AGE_MS)
+    return [...out, { kind: "abort", runId: r.id, tenantId: r.tenant_id, apifyRunId: r.apify_run_id, seq }];
+  if (!r.collect_scheduled) out.push({ kind: "collect", runId: r.id, tenantId: r.tenant_id, seq });
+  return out;
+}
+
+/** What one round needs, asked of core's one reading (nextStepOf) once its question is not what it waits on. */
+function roundAction(
+  rd: SweepRoundRow,
+  runs: readonly SweepRunRow[],
+  jobs: SweepRoundJobs,
+  now: number,
+): SweepAction | null {
+  if (rd.state === "ended") return null;
+  if (rd.state === "waiting_on_owner") {
+    // A question is waiting on a person, not stuck: it keeps its own day.
+    return rd.waiting_since && Date.parse(rd.waiting_since) < now - QUESTION_WAIT_MS
+      ? { kind: "end_question", roundId: rd.id, tenantId: rd.tenant_id }
+      : null;
+  }
+  const step = nextStepOf(
+    {
+      id: rd.id,
+      state: rd.state,
+      purpose: rd.purpose,
+      ending_pending: rd.ending_pending,
+      since: Date.parse(rd.state_since),
+    },
+    runs.map((r) => ({ id: r.id, state: r.state, part: r.part, created_at: r.created_at })),
+    { ...jobs, collectFor: new Set(runs.filter((r) => r.collect_scheduled).map((r) => r.id)) },
+    now,
+  );
+  switch (step.kind) {
+    case "none":
+      return null;
+    case "start":
+      return { kind: "carry_start", roundId: rd.id, tenantId: rd.tenant_id, resume: step.resume };
+    case "collect":
+      return { kind: "carry_collect", runId: step.runId, tenantId: rd.tenant_id, seq: carrySeq(now) };
+    case "check":
+      return { kind: "carry_check", roundId: rd.id, tenantId: rd.tenant_id };
+    case "end":
+      return { kind: "end_stuck", roundId: rd.id, tenantId: rd.tenant_id, ending: step.ending, since: rd.state_since };
+  }
+}
+
+export function planLeadSweep(
+  rows: { runs: SweepRunRow[]; rounds: SweepRoundRow[]; roundJobs?: ReadonlyMap<string, SweepRoundJobs> },
+  now: number,
+): SweepAction[] {
+  const seq = `s${Math.floor(now / MIN_MS)}`;
+  const out: SweepAction[] = rows.runs.flatMap((r) => runActions(r, now, seq));
+  const noJobs: SweepRoundJobs = { start: false, check: false, carriedOn: 0 };
   for (const rd of rows.rounds) {
-    if (rd.state === "ended") continue;
-    if (rd.state === "waiting_on_owner") {
-      // A question is waiting on a person, not stuck: it keeps its own day.
-      if (rd.waiting_since && Date.parse(rd.waiting_since) < now - QUESTION_WAIT_MS)
-        out.push({ kind: "end_question", roundId: rd.id, tenantId: rd.tenant_id });
-      continue;
-    }
-    if (!working.has(rd.id) && Date.parse(rd.created_at) < now - ROUND_STUCK_MS) {
-      out.push({ kind: "end_stuck", roundId: rd.id, tenantId: rd.tenant_id });
-    }
+    const a = roundAction(
+      rd,
+      rows.runs.filter((r) => r.round_id === rd.id),
+      rows.roundJobs?.get(rd.id) ?? noJobs,
+      now,
+    );
+    if (a) out.push(a);
   }
   return out;
 }
+
+export { LIVE_RUN_STATES };

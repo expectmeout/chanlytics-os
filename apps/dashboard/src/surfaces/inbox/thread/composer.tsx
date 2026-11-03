@@ -462,10 +462,35 @@ function sendButton(c: ComposerDraw, boxed: boolean) {
   );
 }
 
+/**
+ * The box folded on a phone (thread.tsx foldAsRead), one line under what is owed: its words on that line whatever lines
+ * they were written on, cut with an ellipsis, and the receptionist's spark before them while they are its draft, or the
+ * box's own invitation while it holds none; the caret at its end says it opens (Ruben, 3 Nov 2026: two lines of the
+ * words stood a greeting over an empty line). The field itself stays for a keyboard and a screen reader, out of sight.
+ */
+function foldedGlance(c: ComposerDraw, placeholder: string) {
+  const words = c.text.replace(/\s+/g, " ").trim();
+  const theirs = !!c.drafted && !!words && c.text.trim() === c.drafted.trim();
+  return (
+    <span className="ix-composer-glance" aria-hidden="true" data-testid="ix-composer-glance">
+      {theirs ? <Icon name="spark" size={12} className="ix-composer-drafted-spark" /> : null}
+      <span className="ix-composer-glance-words" data-empty={words ? undefined : ""}>
+        {words || placeholder}
+      </span>
+      <Icon name="chevron-up" size={14} />
+    </span>
+  );
+}
+
 function realComposer(c: ComposerDraw) {
   const { thread, text, write, taRef, onType, aside } = c;
   // An email, or a draft the receptionist wrote, is the box; a chat with nothing drafted is the one line.
   const boxed = thread.primaryChannel === "email" || !!c.drafted;
+  // A teammate's thread: what a reply does is the one thing left to say, and the box says it (the dock says nothing
+  // there).
+  const placeholder = thread.claimedByOther
+    ? THREAD_PANE_WORDS.takeFrom(holderName(thread.assigneeUserId ?? null) ?? "a teammate")
+    : `${thread.replyVia || "WhatsApp"} to ${shortName(thread.who)}…`;
   const field = (
     <textarea
       ref={taRef}
@@ -475,13 +500,7 @@ function realComposer(c: ComposerDraw) {
         write(e.target.value);
         if (onType) onType();
       }}
-      // A teammate's thread: what a reply does is the one thing left to say, and the box says it (the dock says
-      // nothing there).
-      placeholder={
-        thread.claimedByOther
-          ? THREAD_PANE_WORDS.takeFrom(holderName(thread.assigneeUserId ?? null) ?? "a teammate")
-          : `${thread.replyVia || "WhatsApp"} to ${shortName(thread.who)}…`
-      }
+      placeholder={placeholder}
       aria-label={`Reply to ${thread.who}`}
       rows={boxed ? 4 : 1}
     />
@@ -505,10 +524,7 @@ function realComposer(c: ComposerDraw) {
       <div className="ix-composer-draft">
         {draftedLine(c)}
         {field}
-        {/* Folded on a phone (thread.tsx foldAsRead), the caret that says it opens: a press anywhere on the box opens it. */}
-        <span className="ix-composer-unfold" aria-hidden="true">
-          <Icon name="chevron-up" size={14} />
-        </span>
+        {foldedGlance(c, placeholder)}
         {signedLine(c)}
         {c.rewrite[0] ? <RewriteLine c={c} /> : null}
       </div>
