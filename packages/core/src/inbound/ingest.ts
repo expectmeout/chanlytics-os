@@ -41,23 +41,13 @@ import type { HoldWords, InboundContext, Ingested } from "./context";
 // copy, and IngestFailed travels up to the webhook, which answers 503 so
 // Meta redelivers (the ingest's is_new gate makes that idempotent). Twilio
 // retries nothing, so the SMS ingress alerts the platform on the same signal.
-async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<IngestResult | null> {
+async function ingestOrSay(cx: InboundContext): Promise<IngestResult | null> {
   const { ports, db, tenantId, n, from, notifyTarget, L, channel } = cx;
   try {
-    // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3). A door
-    // that schedules the message's answer says so (jobFollows): a yes the message carried that fails to land here is
-    // the job's to write, and it raises if it cannot (db ingestInbound).
-    return await ports.persist.ingest(
-      db,
-      tenantId,
-      n,
-      cx.routed?.channelId ?? null,
-      jobFollows ? { jobFollows } : undefined,
-    );
+    // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3).
+    return await ports.persist.ingest(db, tenantId, n, cx.routed?.channelId ?? null);
   } catch (e) {
-    // A message that IS kept, whose yes did not land (kept), loses no words: no copy goes to the mailbox saying it was
-    // not recorded. The throw still travels: the provider sends it again, or the job is tried again.
-    if (e instanceof IngestFailed && !e.kept) {
+    if (e instanceof IngestFailed) {
       // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
       try {
         await ports.alertStaff(
@@ -152,7 +142,7 @@ export async function recordMessage(cx: InboundContext): Promise<IngestResult | 
   if (await setAside(cx)) return undefined;
   // The door that calls this schedules the message's answer next (a text's, a WhatsApp message answered later), and that
   // job takes the message in again: a yes it carried that does not land now is written there, or the job is tried again.
-  const ing = await ingestOrSay(cx, true);
+  const ing = await ingestOrSay(cx);
   return ing && !ing.is_new ? undefined : ing;
 }
 

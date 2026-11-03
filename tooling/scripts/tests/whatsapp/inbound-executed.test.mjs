@@ -280,36 +280,6 @@ test("an ingest the database refuses is not swallowed: IngestFailed surfaces and
   assert.equal(w.seen.sent.length, 0, "nothing is said to a customer whose words were not kept");
 });
 
-test("a message the database kept, whose yes did not land, still surfaces as IngestFailed but is not mailed as lost", async () => {
-  // db AnswerNotKept, as the edge's pgIngest passes it on (kept): the provider sends the message again, or the job is tried
-  // again, and either visit writes the yes. The words are on record, so no copy goes to the workspace saying they are not.
-  const w = world({
-    ingest: async () => {
-      throw new IngestFailed("marketing_consent_write_failed: connection reset", true);
-    },
-  });
-  await assert.rejects(
-    () => w.run(text("YES OFFERS")),
-    (e) => e instanceof IngestFailed && e.kept === true,
-  );
-  assert.deepEqual(w.seen.alerts, [], "nothing says the words were lost: they were not");
-  assert.equal(w.seen.sent.length, 0, "and nothing is said to a customer whose yes is not yet kept");
-});
-
-test("only the door of a message a job answers next leaves a failed yes to that job: the job's visit raises it", async () => {
-  const w = world();
-  await w.record(text("YES OFFERS", "wamid.job-1"));
-  assert.deepEqual(w.seen.visits, [{ jobFollows: true }], "the door that schedules the answer says so");
-  await w.run(text("YES OFFERS", "wamid.job-1"), {}, true);
-  assert.deepEqual(
-    w.seen.visits.at(-1),
-    null,
-    "the job that answers it asks for nothing: a yes that fails there is raised",
-  );
-  await w.run(text("YES OFFERS", "wamid.direct-1"));
-  assert.deepEqual(w.seen.visits.slice(-2), [{ jobFollows: true }, null], "every message's door, then its job");
-});
-
 test("STOP records the opt-out, opens no hold, tells nobody itself, answers nothing, and keeps no second copy of the answer", async () => {
   // A STOP is news, not a wait (decision 0048): the answer is the consent its ingest wrote with its event, the owner is told
   // once on the bell from that event (SUBSCRIBERS.consent_notice), and nothing is asked of a person who can do nothing.

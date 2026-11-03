@@ -8224,6 +8224,7 @@ export type Database = {
           p_message_external_id: string
           p_meta?: Json
           p_opt_in?: boolean
+          p_opt_in_marketing?: boolean
           p_opt_out?: boolean
           p_phone_e164: string
           p_tenant_id: string
@@ -8946,6 +8947,10 @@ export type Database = {
           p_vitals: Json
         }
         Returns: number
+      }
+      note_person_email: {
+        Args: { p_contact_id: string; p_email: string; p_tenant_id: string }
+        Returns: string
       }
       note_sweep_backlog: {
         Args: { p_remaining: number; p_sweep: string }

@@ -185,7 +185,8 @@ test("the patterns are anchored and case-insensitive", () => {
     // assertion would have been reading the code it exists to rule out.
     const rest = edgeSrc.slice(at);
     const branch = rest.slice(0, rest.indexOf("\n  }") + 4);
-    assert.ok(branch.includes("sink.escalate"), "a person has to be told");
+    // handToAPerson (core handled.ts) writes the hold, tells the owner and stamps the message, every time.
+    assert.ok(/handToAPerson\(at, \{\s*reason: "non_text"/.test(branch), "a person has to be told");
     assert.ok(!branch.includes("fallbacks.non_text"), "must not send the unreadable acknowledgement");
     assert.ok(!branch.includes("sink.pause"), "must not mute the receptionist");
   });
@@ -200,8 +201,11 @@ test("the patterns are anchored and case-insensitive", () => {
     const at = edgeSrc.indexOf('age === "stale"');
     assert.ok(at > -1);
     const branch = edgeSrc.slice(at, at + 700);
-    assert.ok(/sink\.escalate\(\s*"stale"/.test(branch), "escalate rather than return quietly");
-    assert.ok(branch.includes("tell("), "and tell somebody");
+    // handToAPerson (core handled.ts) escalates and tells the owner in one step.
+    assert.ok(
+      /handToAPerson\(\s*at,\s*\{\s*reason: "stale"/.test(branch),
+      "escalate and tell, rather than return quietly",
+    );
     assert.ok(!/wa_skip_stale/.test(edgeSrc), "the silent drop must be gone, not merely bypassed");
   });
 }

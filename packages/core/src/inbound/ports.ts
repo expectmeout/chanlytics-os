@@ -64,17 +64,11 @@ export interface InboundDb {
  * customer's words to the workspace mailbox, and the edge's persist adapter
  * throws it (apps/edge/lib/whatsapp/persist.ts re-exports it for the two doors
  * that count it into their 503).
- *
- * `kept`: the message IS recorded, and what failed is a yes it carried (db AnswerNotKept: a START's channel, YES OFFERS).
- * The provider is still told to send it again (the redelivery finds the message unhandled and writes the yes), and a job
- * is tried again, but nobody is told the words were lost: they were not.
  */
 export class IngestFailed extends Error {
-  readonly kept: boolean;
-  constructor(message: string, kept = false) {
+  constructor(message: string) {
     super(message);
     this.name = "IngestFailed";
-    this.kept = kept;
   }
 }
 
@@ -355,8 +349,6 @@ export interface InboundPorts {
       n: InboundMessage & { channel: InboundChannel },
       /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
       line?: string | null,
-      /** A job takes this message up next (a door that records it and schedules its answer): a yes that fails here is left owed to that job. */
-      opts?: { jobFollows?: boolean },
     ): Promise<IngestResult | null>;
     sink(
       db: InboundDb | null,

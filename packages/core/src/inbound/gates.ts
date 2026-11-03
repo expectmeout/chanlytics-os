@@ -74,11 +74,8 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   const consent = resolveConsent({
     optOutNow: n.consent.optOut,
     optInNow: n.consent.optIn,
-    // Absence is not an answer. `consent` and `dnc` are optional on the ingest
-    // result (packages/db ingest.ts) — "readers must treat absence as 'nothing
-    // on record', never as a block" — and a row carrying neither read as
-    // `false`, an affirmative "they are opted in".
-    recorded: ing && (ing.consent !== undefined || ing.dnc !== undefined) ? isOptedOutContact(ing) : null,
+    // What Postgres says after this message was applied (ingest_inbound), or nothing when there is no record.
+    recorded: ing ? isOptedOutContact(ing) : null,
     // A message already held (a text's answer job, a redelivery) said its START when it was first taken in.
     takenAgain: ing?.is_new === false,
   });

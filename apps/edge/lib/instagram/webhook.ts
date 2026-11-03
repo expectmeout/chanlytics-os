@@ -142,7 +142,7 @@ async function takeMessage(
     return 0;
   } catch (err) {
     log.error("ig_inbound_failed", { id: e.mid, error: errField(err) });
-    return err instanceof IngestFailed && !err.kept ? 1 : 0;
+    return err instanceof IngestFailed ? 1 : 0;
   }
 }
 

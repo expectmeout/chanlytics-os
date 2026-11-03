@@ -39,9 +39,9 @@
  * reads the line and its routing again and takes the text up again through the whole phase (answerArrival), so a runner
  * killed mid-turn leaves a job the ledger claims again, which answers while the message is unprocessed and no reply
  * names it, and never texts twice. A job that could not be written may be a write that landed, so nothing is answered
- * here and the deadman sweep hands a text no job holds to a person. When recording throws, only a text the database did not keep (IngestFailed) is refused, with a 503 so the
- * provider redelivers, and the platform is told; anything later already happened after the words were recorded, and
- * is acknowledged.
+ * here and the deadman sweep hands a text no job holds to a person. When recording throws, only a text the database did
+ * not keep (IngestFailed) is refused, with a 503 so the provider redelivers, and the platform is told; anything later
+ * already happened after the words were recorded, and is acknowledged.
  *
  * Every answer is an empty TwiML <Response/>: no reply from here; the reply, when there is one, goes out through the
  * Messaging Service like every other text. Lines carry tails, never numbers (sid, from_tail, to_tail), and never the
@@ -143,10 +143,7 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
     // Twilio retries nothing on its own: a text the database did not accept is
     // refused so the provider redelivers, and the platform is told now.
-    // A text the database KEPT, whose yes did not land (kept: only the door's own answer, taken when the job's kind was
-    // refused), is not one it refused: Twilio sends nothing again, so the 503 and the alert that it was not recorded would
-    // be wrong. The failure is in the line above, by name.
-    const after = smsAfterThrow(e instanceof IngestFailed && !e.kept);
+    const after = smsAfterThrow(e instanceof IngestFailed);
     if (after.alert) await alertUnroutable("sms", inbound.to, 1, after.alert);
     return twiml(after.status);
   }

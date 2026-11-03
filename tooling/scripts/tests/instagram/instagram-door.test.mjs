@@ -410,7 +410,7 @@ test("a routing read that fails, or a DM the database did not take, is not ackno
   v.open();
   receptionist({
     ingest: () => {
-      throw new IngestFailed("ingest_inbound: connection reset", false);
+      throw new IngestFailed("ingest_inbound: connection reset");
     },
   });
   const failed = await post(

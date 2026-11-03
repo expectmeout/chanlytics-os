@@ -123,8 +123,6 @@ export function world(over = {}) {
     emails: [],
     // The line each message was ingested on (the verb's fourth argument), for the first touch the database stamps (K3).
     lines: [],
-    // What each ingest was told about the visit (the verb's fifth argument): `{ jobFollows: true }` at the door of a message a job answers next.
-    visits: [],
     // How many times the thread's memory was read: a redelivery stops before it (core inbound/ingest.ts).
     threadReads: 0,
   };
@@ -265,9 +263,8 @@ export function world(over = {}) {
     delivered.add(key);
     const body = m.text?.body ?? null;
     if (isNew && body) memory.history.push({ role: "user", content: body });
-    ports.persist.ingest = async (db, tenant, n, line, visit) => {
+    ports.persist.ingest = async (db, tenant, n, line) => {
       seen.lines.push(line ?? null);
-      seen.visits.push(visit ?? null);
       const rec = await recordIngest(db, tenant, n);
       return (
         rec && {

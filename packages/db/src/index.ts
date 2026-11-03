@@ -533,12 +533,13 @@ export type { BusinessReadRow } from "./repositories/imports/business-reads";
 export { importCursorOf, importRowOf, importsOf, noteImport } from "./repositories/imports/ledger";
 export type { ImportLedgerRow, ImportNote, ImportRunRow } from "./repositories/imports/ledger";
 export {
-  AnswerNotKept,
   countSentToday,
   ingestInbound,
   keepMessageCost,
+  keepMessageMedia,
   markProcessed,
   messageByExternalId,
+  noteEmailTheyGave,
   pauseConversation,
   recordOutbound,
   recordStatusByExternalId,
@@ -547,7 +548,7 @@ export {
   stampHandled,
   wireRowOf,
 } from "./repositories/ingest";
-export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
+export type { EmailNoted, IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
   againIdeas,
   claimIdeas,
