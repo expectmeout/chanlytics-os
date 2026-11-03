@@ -29,7 +29,9 @@ rig's: eight rows to its five.
    comes after the warning: it stands directly over the group. _Undo: an empty `alike`._
 5. **The answer does not say it again.** A line of the answer that only repeats a hold of a card still waiting is not
    drawn (`wordsLessHolds`, by the line's words, whatever its marks). Copy and Read aloud keep the whole answer. A model's
-   paraphrase is its own words and stays: see Not done.
+   paraphrase is its own words and stays, so the rule that sets up cards tells it to leave a hold out of the answer beside
+   them (`prompt-rules.ts`). It still says that each run waits for them: item 6 puts that row behind Details. _Undo: the
+   rule's last sentence._
 6. **A sheet keeps what no press turns on behind Details** (`AskCardSheet` row `aside`). What goes out, to whom, when and by
    what channel never is, nor is a hold. On a campaign, Other messages and Sends are aside: its first batch waits for an OK
    whatever the mode, so neither changes what a press does. Open waits behind Details too, so a phone's acts are one row of
@@ -68,8 +70,9 @@ ground as painted with the words hidden, at both widths and in both themes: 5.4:
 
 ## Not done, and why
 
-- **The model is not told to leave a card's warning out.** The prompt already asks for one sentence over a card, and a
-  rule more wants a paid evaluation to prove it. Until then a paraphrase in the answer is a second saying.
+- **No real turn has shown item 5's rule at work.** On most card turns the model never reads a hold: cards alone are
+  answered by code, an answer beside a card is written before its result, and a plan's result holds its steps' titles.
+  It can still say one it read elsewhere, as `setup_leads_refused` did on 2 November 2026, before the rule.
 - **No Approve in a card's head, and none pinned to the field.** Either would put the press where it could be made before
   the facts it turns on were seen.
 - **The answer's words are not clamped.** They are Ask's answer, and a warning in them must not fold away.
