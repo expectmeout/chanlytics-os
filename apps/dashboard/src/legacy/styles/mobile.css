@@ -1158,9 +1158,9 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      foot (a pane's foot, a call's whisper) sticks over the screen's foot where the tab bar rests: sticky, not fixed as a
      person's dock is. It rests no nearer the foot than the point Safari reads (tokens.css --foot-clear), as the tab bar
      itself does since 4 Nov 2026: at the bar's 4px in an iPhone's browser a foot stood on that point's line, and a
-     pixel lower Safari would paint its band under it for as long as the page stayed open. A capsule the page passes under takes its blur on a layer of its own
-     (a filter on it would hold its menu, kit.css). Where the page draws a pull at its top, only the rows give
-     (page-give.ts). */
+     pixel lower Safari would paint its band under it for as long as the page stayed open. An open thread's reply box
+     rests on the same line (below). A capsule the page passes under takes its blur on a layer of its own (a filter on
+     it would hold its menu, kit.css). Where the page draws a pull at its top, only the rows give (page-give.ts). */
   :root {
     --held-foot: max(var(--bar-foot), var(--foot-clear, 0px));
   }
@@ -1243,10 +1243,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     display: flex;
     flex-direction: column;
     gap: 6px;
-    /* The reply box alone, as a chat's foot is, on the page's own light down to the screen's edge, with room for the home
-       bar where there is one; it was the raised ground across the screen with a hairline over it (the thread canvas,
-       1 Nov 2026). */
-    padding: 10px 12px calc(16px - var(--foot-clear, 0px) + env(safe-area-inset-bottom, 0px));
+    /* The reply box alone, as a chat's foot is, on the page's own light down to the screen's edge; it was the raised
+       ground across the screen with a hairline over it (the thread canvas, 1 Nov 2026). Its foot rests on the line the
+       tab bar's does on the list the thread opened from (--held-foot, above: clear of the home bar where there is one,
+       and in an iPhone's browser on --foot-clear, off the point Safari reads, where the bar rests too), so the two meet
+       as a thread slides in and out. 16px up, it stood 12px over the bar's line (Ruben's iPhone, 4 Nov 2026). */
+    padding: 10px 12px calc(var(--held-foot) - var(--foot-clear, 0px));
     border-top: 0;
     background: transparent;
   }
@@ -1278,7 +1280,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      sheet, its top corners round and lifted off the words, while the foot had a ground of its own. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
     gap: 10px;
-    padding: 14px 14px calc(16px - var(--foot-clear, 0px) + env(safe-area-inset-bottom, 0px));
+    padding: 14px 14px calc(var(--held-foot) - var(--foot-clear, 0px));
   }
   /* What the thread needs from you is as tall as what it says, as the rest of the page is. On a desk it may take part of
      the pane and scroll inside it (inbox.css); a state taller than the reply box was cut under its own lower edge with its
