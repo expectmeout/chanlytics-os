@@ -106,6 +106,16 @@ export function holdStill(control: Element | null | undefined, change: () => voi
 }
 
 /**
+ * A change drawn at once (React's flushSync, which the shell publishes with its React), so what follows it in the same
+ * press finds the page as it now stands: the folded reply box opened before its field takes the caret. Else just run.
+ */
+export function drawnNow(change: () => void): void {
+  const flush = window.ReactDOM?.flushSync;
+  if (flush) flush(change);
+  else change();
+}
+
+/**
  * Move the address (`move`: a sheet's close, which may be a Back), then run `then` once the route on screen has moved
  * (the frame's address, `CHANLY.address.hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
  * lands a moment after it is asked for, so what follows it waits for it. Where the frame hears no address (the
