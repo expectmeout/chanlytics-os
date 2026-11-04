@@ -17,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, sinceWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
@@ -40,8 +40,7 @@ import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-t
 import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
-import { headerSub, IxWho, ixWhoPress, wireBadge, type Countdown } from "./who";
-import { ixOnPhone } from "../rules";
+import { headerSub, IxWho, wireBadge, type Countdown } from "./who";
 import { takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../legacy-verbs";
@@ -573,31 +572,14 @@ function ThreadBusinessSheet({ asked, onClose }: { asked: BusinessAsked | null; 
 
 /**
  * The face, the name and what is known of them, one link to their page, and the doors to their visit and business beside
- * it. On a phone (`menu`) the three open the thread's sheet, whose head is their page: a ⋯ took the name's room (3 Nov).
+ * it. A phone's too: the name opened the thread's sheet from 3 Nov 2026, and its page was a press further away (Ruben,
+ * 4 Nov 2026: "clicking on the name should lead to its person page"; More is the sheet's again, ThreadHeader).
  */
-function headerMain(
-  props: ThreadHeaderProps,
-  facts: HeaderFacts,
-  alsoLeads: ReactNode,
-  menu: { phone: boolean; sheet: (press: ReactElement) => ReactElement },
-) {
+function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: ReactNode) {
   const { thread, channelLabels, onOpenClient = () => {}, onBack = null } = props;
   // Who this is opens their page: the face, the name and the line under it are one link (IxWho), as a messaging app's
   // header is. The page was a press away only through Actions › Open profile. A caller with no person has no page.
   const personTo = thread.clientId ? `clients/${thread.clientId}` : null;
-  const whoParts = {
-    who: thread.who,
-    avatar: thread.avatar,
-    priority: thread.priority,
-    hued: true,
-    badge: thread.real ? wireBadge(thread, channelLabels || {}) : null,
-  };
-  const said = (
-    <>
-      {headerName(thread, personTo)}
-      {headerSub(thread, channelLabels, facts.person, props.countdown ?? { remaining: null, paused: false })}
-    </>
-  );
   return (
     <div className="ix-th-head-main">
       {/* Phone only (mobile.css): the list and the thread take turns. The arrow alone: the top bar says Inbox over it,
@@ -615,13 +597,18 @@ function headerMain(
           <Icon name="chevron" size={20} className="icon-turned" />
         </Button>
       )}
-      {menu.phone ? (
-        menu.sheet(ixWhoPress({ ...whoParts, label: THREAD_PANE_WORDS.moreFor(thread.who), children: said }))
-      ) : (
-        <IxWho to={personTo} go={() => onOpenClient(thread.clientId)} {...whoParts}>
-          {said}
-        </IxWho>
-      )}
+      <IxWho
+        to={personTo}
+        go={() => onOpenClient(thread.clientId)}
+        who={thread.who}
+        avatar={thread.avatar}
+        priority={thread.priority}
+        hued
+        badge={thread.real ? wireBadge(thread, channelLabels || {}) : null}
+      >
+        {headerName(thread, personTo)}
+        {headerSub(thread, channelLabels, facts.person, props.countdown ?? { remaining: null, paused: false })}
+      </IxWho>
       {thread.real && !demoSession() ? visitDoor(facts) : null}
       {alsoLeads}
     </div>
@@ -710,21 +697,9 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   // A line under the head's row (a reply's signer offered, a step due): on a phone the bar holds two rows, and is a card.
   const signer = person && person.signer && !demoSession() ? person.signer : null;
   const step = person && person.nextStep && !demoSession() ? person.nextStep : null;
-  const headActs = { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive };
-  // On a phone the thread's sheet opens from who it is with, and no ⋯ stands beside them (headerMain).
-  const phone = ixOnPhone();
-  const sheet = (press: ReactElement) => (
-    <Menu
-      trigger={press}
-      nativeTrigger={false}
-      label={THREAD_PANE_WORDS.moreFor(thread.who)}
-      groups={actionsMenu(thread, dealActs, headActs, facts)}
-    />
-  );
-
   return (
     <header className="ix-th-head" data-stacked={signer || step ? "" : undefined}>
-      {headerMain(props, facts, alsoLeads, { phone, sheet })}
+      {headerMain(props, facts, alsoLeads)}
       <div className="ix-th-actions">
         {/* The header says each thing once. A real thread's line under the name names its channel ("WhatsApp · +1 …"),
             and a chip said it again; a seeded thread's line is about the client, so its chips stay. Snooze and the
@@ -744,27 +719,26 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
         {/* More, three dots on an inset round a thumb finds: "Actions" and its chevron took a third of the header on a
             phone, beside a name cut short, and the canvas's caret read as a fold beside a reply box that folds (2 Nov
             2026). Its menu says what to do with the conversation, the person, the deal and the file, each under its
-            heading; on a phone it is the kit's sheet, headed by who it is about. */}
+            heading; on a phone it is the kit's sheet, headed by who it is about. A phone's opened from the name from
+            3 Nov 2026, with no ⋯ (Ruben, 4 Nov 2026: "i prefer the 3 dots we had on the right"). */}
         {deskActs(thread, onSnooze, onArchive)}
-        {phone ? null : (
-          <Menu
-            trigger={
-              <Button
-                variant="soft"
-                size="touch"
-                iconOnly
-                className="ix-th-more"
-                title={THREAD_PANE_WORDS.more}
-                aria-label={THREAD_PANE_WORDS.moreFor(thread.who)}
-                data-testid="ix-th-more"
-              >
-                <Icon name="more" size={18} />
-              </Button>
-            }
-            label={THREAD_PANE_WORDS.moreFor(thread.who)}
-            groups={actionsMenu(thread, dealActs, headActs, facts)}
-          />
-        )}
+        <Menu
+          trigger={
+            <Button
+              variant="soft"
+              size="touch"
+              iconOnly
+              className="ix-th-more"
+              title={THREAD_PANE_WORDS.more}
+              aria-label={THREAD_PANE_WORDS.moreFor(thread.who)}
+              data-testid="ix-th-more"
+            >
+              <Icon name="more" size={18} />
+            </Button>
+          }
+          label={THREAD_PANE_WORDS.moreFor(thread.who)}
+          groups={actionsMenu(thread, dealActs, { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive }, facts)}
+        />
       </div>
       {thread.fromAd ? fromAdLine(thread.fromAd) : null}
       {/* A reply's signer offered as their name (0052): said here, where the owner is reading the reply, on one row, its
