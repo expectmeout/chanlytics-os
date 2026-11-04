@@ -232,7 +232,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
           : m.reason;
   const fitTitle =
     m.class === "excluded"
-      ? `Left out: ${excludedBy ?? m.reason}`
+      ? `${LEAD_LEFT_OUT_WORD}: ${excludedBy ?? m.reason}`
       : m.class === "qualified" && rated
         ? `${m.reason} · ${rated.score} from ${rated.reviews}`
         : m.reason;
@@ -475,7 +475,7 @@ export function leadSearchEmptyWords(
   return null;
 }
 
-/** "322 leads · 272 ready · 3 searches", and "1 search needs you" when one waits. */
+/** "322 leads · 272 new · 3 searches", and "1 search needs you" when one waits. */
 export function leadsStanding(
   counts: LeadCounts,
   searches: LeadSearchDto[],
@@ -483,7 +483,10 @@ export function leadsStanding(
   const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
   return {
     total: `${counts.all} leads`,
-    parts: [`${counts.ready} ready`, `${searches.length} ${searches.length === 1 ? "search" : "searches"}`],
+    parts: [
+      `${counts.ready} ${LEAD_STAGE_WORDS.ready.toLowerCase()}`,
+      `${searches.length} ${searches.length === 1 ? "search" : "searches"}`,
+    ],
     needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null,
   };
 }

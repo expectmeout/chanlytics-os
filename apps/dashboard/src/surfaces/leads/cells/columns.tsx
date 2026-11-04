@@ -8,7 +8,7 @@
  * `leads_page` takes, and the server sorts them (the table runs on the read's order); the filters' columns hold the
  * page's narrowings, which the read applies (00500): the Excluded view's chip, the band's fit, the Filter's reach.
  */
-import { LEAD_REVIEW_ACT_WORDS, placeWordOf, type LeadRowVM } from "@chanlytics/contracts";
+import { LEAD_REVIEW_ACT_WORDS, type LeadRowVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate, hasTouchSwipe, touchSwipe } from "../../legacy-verbs";
@@ -21,7 +21,7 @@ import { PlaceWord } from "../../campaigns/sequences/place/parts";
 import { leadDtoFor } from "../surface";
 import { LeadRowCall } from "./call-menu";
 import { LeadHover, LeadTip, ldPlacePop } from "./hover";
-import { LeadRatedCard, ldBusinessCell, ldClientOf, ldPeopleOf, ldTalkingDoor } from "./name-cell";
+import { LeadRatedCard, ldBusinessCell, ldClientOf, ldPeopleOf, ldPlaceRowOf, ldTalkingDoor } from "./name-cell";
 import { LeadSlot, LeadSlotShape } from "./shapes";
 import type { LeadCellCtx } from "./types";
 
@@ -109,13 +109,6 @@ const LeadRowActions = ({
  * the lead sheet and the record use: Held, Waits for your OK, Yours to send, Wrote back in amber; In and the sequence's
  * name with when, in green; Done or Left with why. Nothing for a lead in no sequence.
  */
-/** The place as a phone's card says it under the name, in words: "In Bookstore intro · Step 1 Tue 9:00 AM". */
-const ldPlaceWords = (l: LeadRowVM): string | null => {
-  const place = l.cls === "excluded" ? null : (leadDtoFor(l.id)?.place ?? null);
-  if (!place) return null;
-  const w = placeWordOf(place, { name: place.name, state: place.state }, { tz: reachOuts.zone(), nowMs: Date.now() });
-  return w.line ? `${w.word} · ${w.line}` : w.word;
-};
 const ldReachOutLine = (l: LeadRowVM) => {
   const place = l.cls === "excluded" ? null : (leadDtoFor(l.id)?.place ?? null);
   return place ? (
@@ -340,12 +333,17 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
   // member who may not find leads gets no slide.
   const slides = l.cls === "review" && !!(x && x.canFind) && hasTouchSwipe();
   const W = LEAD_REVIEW_ACT_WORDS;
+  // One status (the phone walk of 3 Nov 2026): a lead in a sequence wears its place there, "Waits for your OK" in amber,
+  // and its line says the step and the sequence; "New" beside "Waits for your OK" read as two answers to one question.
+  const place = ldPlaceRowOf(l);
   return plRowCard({
     face: { initials: l.tile.initials, image: l.tile.image, mark: l.tile.logo },
     pick,
     name: l.name,
     pill: ldClientOf(l, x) ? (
       <StatePill kind="deal" value="won" testid="lead-state" />
+    ) : place ? (
+      <StatePill kind="tone" value={place.tone} label={place.word} testid="lead-state" />
     ) : (
       <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />
     ),
@@ -357,7 +355,7 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
         ? l.fitLabel
         : l.cls === "review" && x && x.sectioned
           ? l.sub
-          : ldPlaceWords(l) || l.waitsOn || ldPeopleOf(l, x)?.line || l.sub,
+          : (place && place.line) || l.waitsOn || ldPeopleOf(l, x)?.line || l.sub,
     leadTestid: "lead-sub",
     swipe: slides
       ? touchSwipe({

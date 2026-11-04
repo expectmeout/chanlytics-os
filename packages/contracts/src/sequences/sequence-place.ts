@@ -5,11 +5,12 @@
  *
  *   SequencePlaceDto     sequence_place: the sequence, the lead's row as its People tab files it, its sends, how replies come
  *   SequencePlaceOfDto   sequence_places_of: many leads' places, one row a lead
- *   placeWordOf          the word beside a name, its tone, and the line under it (a table's cell, the sheet's head)
+ *   placeWordOf          the word beside a name, its tone, and the line under it (a table's cell, a row, the sheet's head)
  *   placeRailOf          the record's rail drawn for one lead (their place) or as they'd get it (before they join)
  */
 import { clockDate, clockNear } from "../shared/clock";
 import { capitalize, plural } from "../shared/words";
+import type { ReachOutWhyNot } from "../reach-out/reach-out-leads";
 import { isReachOutHold } from "../reach-out/reach-out-words";
 import { heldWhyOf } from "./sequence-held";
 import type { SequenceState } from "./sequence";
@@ -105,6 +106,37 @@ export const PLACE_WORDS: Record<SequencePeopleGroup, string> = {
   left: "Left",
 };
 
+/** In it, as a row says it, where the sequence is named in the line under the word, never in the word. */
+const PLACE_IN_ROW_WORD = "In sequence";
+
+/** A lead on a sequence's list that its next batch cannot take: the word, amber, with why in the line. */
+export const PLACE_NOT_PLANNED_WORD = "Not planned";
+
+/**
+ * Why a lead on a sequence's list is not planned, in the door's own reasons (reach_out_why_not, read for the list's leads
+ * by sequence_queued_why_not): its row said "In its next batch" of a lead no batch could ever take (the phone walk of 3 Nov
+ * 2026: three plumbers whose addresses could not be checked). Checking is no reason: the address is on its way.
+ */
+const NOT_PLANNED_WORDS: Partial<Record<ReachOutWhyNot, string>> = {
+  gone: "No longer in your leads",
+  closed: "Already worked",
+  customer: "Already a customer",
+  suppressed: "Asked not to be written to",
+  written: "Already written to",
+  shared: "Shares a number or site with another lead",
+  no_email: "No email address",
+  unconfirmed: "Their address can't be confirmed",
+  invalid: "Their address bounced",
+  unchecked: "Their address couldn't be checked",
+};
+
+/** Why a lead on a list is not planned, or null where its next batch can take it. */
+export const placeNotPlannedOf = (why: string | null): string | null =>
+  why ? (NOT_PLANNED_WORDS[why as ReachOutWhyNot] ?? null) : null;
+
+/** A lead on a list whose address is still being checked: it joins the batch after that. */
+const QUEUED_CHECKING = "Joins once their address is checked";
+
 /** The places that need you. */
 const NEEDS_YOU: ReadonlySet<SequencePeopleGroup> = new Set(["waiting", "held", "to_send", "replied"]);
 /** The places that still stand: who is in it, as its Leads tab counts them. */
@@ -128,21 +160,27 @@ const queuedLine = (state: SequenceState): string =>
 const stepWordOf = (r: PlaceRow) => `Step ${r.place ?? 1}`;
 
 /**
- * The word beside a lead's name and the line under it, wherever its place is said (Leads' cell, the sheet's head, the
- * picker): what needs you by its own word, the step and the sequence under it; a place that stands as In and the
- * sequence's name, with when; one that ended as Done or Left, with why.
+ * The word beside a lead's name and the line under it, wherever its place is said (Leads' cell, a row, the sheet's head,
+ * the picker): what needs you by its own word, the step and the sequence under it; a place that stands as In and the
+ * sequence's name, with when; a lead on a list its next batch cannot take as Not planned, with why; one that ended as
+ * Done, or by why it left ("Taken out", "Wrote back"), never "Left", which Leads' Filtered out once sat beside.
  */
 export function placeWordOf(
   r: PlaceRow,
   seq: { name: string; state: SequenceState },
   clock: { tz: string; nowMs: number },
-  /** Leads' cell names the sequence in the word ("In Bookstore intro"); the sheet's head, beside its name, does not. */
-  named = true,
+  /**
+   * Where the sequence is named: in the word ("In Bookstore intro", Leads' Stage cell), in the line under a short word
+   * ("line": a row, whose one status is the place's word: In sequence, then "Step 1 Tue 9:00 AM · Bookstore intro"), or
+   * nowhere for In it (false: the sheet's head, which says it beside).
+   */
+  named: boolean | "line" = true,
 ): { word: string; tone: PlaceTone; line: string | null } {
   const at = r.at ? Date.parse(r.at) : NaN;
   const when = Number.isFinite(at) ? clockNear(at, clock.tz, clock.nowMs) : null;
   const tone = placeToneOf(r.group);
-  const inIt = named ? `In ${seq.name}` : PLACE_WORDS.in;
+  const inIt = named === true ? `In ${seq.name}` : named === "line" ? PLACE_IN_ROW_WORD : PLACE_WORDS.in;
+  const withName = (line: string) => (named === "line" ? `${line} · ${seq.name}` : line);
   switch (r.group) {
     case "waiting":
     case "held":
@@ -150,18 +188,25 @@ export function placeWordOf(
       return { word: PLACE_WORDS[r.group], tone, line: `${stepWordOf(r)} · ${seq.name}` };
     case "replied":
       return { word: PLACE_WORDS.replied, tone, line: when ? `${seq.name} · ${when}` : seq.name };
-    case "queued":
-      return { word: inIt, tone, line: queuedLine(seq.state) };
+    case "queued": {
+      const not = placeNotPlannedOf(r.why);
+      if (not)
+        return { word: PLACE_NOT_PLANNED_WORD, tone: "warn", line: named === false ? not : `${not} · ${seq.name}` };
+      return { word: inIt, tone, line: withName(r.why === "checking" ? QUEUED_CHECKING : queuedLine(seq.state)) };
+    }
     case "next":
-      return { word: inIt, tone, line: when ? `${stepWordOf(r)} ${when}` : stepWordOf(r) };
+      return { word: inIt, tone, line: withName(when ? `${stepWordOf(r)} ${when}` : stepWordOf(r)) };
     case "in":
-      return { word: inIt, tone, line: when ? `Next step ${when}` : "Between steps" };
+      return { word: inIt, tone, line: withName(when ? `Next step ${when}` : "Between steps") };
     case "done":
       return { word: PLACE_WORDS.done, tone, line: `${seq.name} · every step went` };
     case "left":
-      return { word: PLACE_WORDS.left, tone, line: `${seq.name} · ${sequenceLeftWords(r.why) || "taken out"}` };
+      return { word: placeLeftWord(r.why), tone, line: seq.name };
   }
 }
+
+/** Why someone left, as the word that stands for their place: "Taken out", "Wrote back", "Unsubscribed". */
+export const placeLeftWord = (why: string | null): string => capitalize(sequenceLeftWords(why) || "taken out");
 
 /* -------------------------------------------------------------------------------------------- a held email -- */
 

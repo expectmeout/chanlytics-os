@@ -5,6 +5,7 @@
  * as they would get them. Every rule is contracts'; this only gathers their inputs from the reads.
  */
 import {
+  chainPaceOf,
   LEAD_SHEET_WORDS as W,
   leadCardStepsOf,
   leadDockOf,
@@ -69,9 +70,23 @@ interface SheetInputs {
   railRecord: SequenceRecordDto | null;
   /** That record is still being read. */
   railReading: boolean;
-  /** How many an OK sends in their batch (the record's count), where it is known. */
-  batch?: number;
+  /** The batch their step waits in, where the record holds it. */
+  waiting?: SheetWaiting | null;
   pile: SheetPileFacts | null;
+}
+
+/**
+ * The batch their step waits in, by the record's needs: how many an OK sends (held emails left out) and how many the check
+ * held, when it was made, and the mailbox and the pace its sequence writes at (contracts chainPaceOf).
+ */
+export interface SheetWaiting {
+  ready: number;
+  held: number;
+  at: string;
+  /** The one mailbox it writes from; null where it writes from several, or from none. */
+  from: string | null;
+  /** How many a day its mailboxes may send; null where the record does not say. */
+  pace: number | null;
 }
 
 /** The Sequence line's steps: which lens, the sequence it draws, its rows, and each email's words for this lead. */
@@ -123,6 +138,8 @@ export interface SheetFacts {
   /** Only what to press; null when nothing needs you, and the sheet draws no foot. */
   dock: LeadSheetDockVM | null;
   rail: SheetRail | null;
+  /** The batch their step waits in, which Approve asks about. */
+  waiting: SheetWaiting | null;
 }
 
 /** The send states that have written to a lead, or are about to: a business gets one sequence. */
@@ -352,7 +369,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
         canCall: c.lead.canCall,
         canLater: !!(i.row && i.row.searchId),
         closed: c.closed,
-        batch: i.batch,
+        batch: i.waiting ? i.waiting.ready : undefined,
       });
   const verdict = leadVerdictOf(i.vm);
   const checks = leadSheetChecksLineOf(i.vm);
@@ -374,7 +391,9 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     phone: phone ? { value: phone.value, confirmed: i.vm.slots.phone.state === "ok", today: i.vm.today } : null,
     firstEmail: !!c.card.email,
     steps,
-    batch: i.batch ?? null,
+    batch: i.waiting ? i.waiting.ready : null,
+    batchAt: i.waiting ? i.waiting.at : null,
+    pace: i.waiting ? i.waiting.pace : null,
     tz: i.tz,
     nowMs,
   });
@@ -408,5 +427,25 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     elsewhere,
     dock,
     rail,
+    waiting: i.waiting ?? null,
   };
 }
+
+/**
+ * The batch the lead's step waits in, by the record's needs: how many an OK sends (held emails left out), how many the
+ * check held, when it was made, and the mailbox and the pace its sequence writes at (chainPaceOf, as its run's screen
+ * says them).
+ */
+export const waitingOf = (rec: SequenceRecordDto | null, batchId: string | null): SheetWaiting | null => {
+  if (!rec || !batchId) return null;
+  const b = rec.sequence.needs.batches.find((x) => x.id === batchId);
+  if (!b) return null;
+  const pace = rec.chain ? chainPaceOf(rec.chain) : null;
+  return {
+    ready: b.people,
+    held: b.held ?? 0,
+    at: b.at,
+    from: pace ? pace.from : null,
+    pace: pace ? pace.share : null,
+  };
+};

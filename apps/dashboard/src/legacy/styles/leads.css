@@ -1463,6 +1463,8 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--line-strong); border-top-color: var(--accent); border-radius: var(--radius-circle); animation: lw-spin 0.9s linear infinite; }
 @keyframes lw-spin { to { rotate: 1turn; } }
 @media (prefers-reduced-motion: reduce) { .lw-spin { animation: none; } }
+/* Approve's ask: Read all on a line of its own under what it says, where its touch height leaves the words' lines alone. */
+.lw-approve-read { display: block; }
 /* A held email's choices, in the dock's place: whose email it is, under the question. */
 /* What a held email's check flagged, before its choices. */
 

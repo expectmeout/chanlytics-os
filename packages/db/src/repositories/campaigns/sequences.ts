@@ -27,7 +27,7 @@ import type {
 import type { Database, Json } from "../../database.types";
 import { readAllRows } from "../../paged";
 import { answer, type DoorResult } from "./reach-out-leads";
-import { putBackOf, withOpenings, withReadyCounts } from "./sequence-waiting";
+import { putBackOf, withListedWhyNot, withOpenings, withPlaceWhyNot, withReadyCounts } from "./sequence-waiting";
 
 type Db = SupabaseClient<Database>;
 
@@ -534,7 +534,7 @@ export async function sequencePlaceOf(db: Db, tenantId: string, leadId: string):
   const got = data as SequencePlaceDto | null;
   if (!got || !got.sequence || !got.place) return null;
   const place = { ...got, sends: Array.isArray(got.sends) ? got.sends : [] };
-  const [row] = await withOpenings(db, tenantId, [place.place]);
+  const [row] = await withOpenings(db, tenantId, [await withPlaceWhyNot(db, tenantId, leadId, place)]);
   return { ...place, place: row ?? place.place, put_back: await putBackOf(db, tenantId, place) };
 }
 
@@ -548,7 +548,7 @@ export async function sequencePlacesOf(
   const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
   if (error) throw new Error(`cannot read where the leads stand: ${error.message}`);
   const rows: unknown = data;
-  return Array.isArray(rows) ? (rows as SequencePlaceOfDto[]) : [];
+  return Array.isArray(rows) ? withListedWhyNot(db, tenantId, rows as SequencePlaceOfDto[]) : [];
 }
 
 /** What a sequence sent, a batch a row, newest first (00442 sequence_history). */

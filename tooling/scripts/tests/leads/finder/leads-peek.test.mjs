@@ -715,7 +715,11 @@ test("a Needs review lead says so and offers Keep and Leave out; one left out sa
     }),
   });
   tree = out.draw().tree;
-  assert.match(textOf(byTestId(tree, "lead-sheet-verdict")), /^Left out/, "the finder's own call, its verdict first");
+  assert.match(
+    textOf(byTestId(tree, "lead-sheet-verdict")),
+    /^Filtered out/,
+    "the finder's own call, its verdict first",
+  );
   await press(byTestId(tree, "lead-sheet-put_back"));
   assert.deepEqual(
     flashes.map((f) => f.msg),
