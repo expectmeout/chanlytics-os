@@ -522,5 +522,5 @@ export { dockSlotsOf, LEAD_DOCK_WORDS, leadDockOf } from "./sheet/lead-sheet-doc
 export type { LeadSheetDockFacts, LeadSheetDockVM } from "./sheet/lead-sheet-dock";
 export { leadHistoryOf, leadLinesOf } from "./sheet/lead-sheet-lines";
 export type { LeadHistoryRowVM, LeadLineId, LeadLineVM } from "./sheet/lead-sheet-lines";
-export { LEAD_NOW_WORDS, leadNowOf } from "./sheet/lead-sheet-now";
+export { LEAD_NOW_WORDS, leadApproveAskOf, type LeadApproveAskVM, leadNowOf } from "./sheet/lead-sheet-now";
 export type { LeadNowFactVM, LeadNowVM } from "./sheet/lead-sheet-now";

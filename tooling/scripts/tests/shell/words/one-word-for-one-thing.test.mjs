@@ -336,7 +336,7 @@ test("D1-lead-class-words: the band's tabs say the pills' three words, with the 
     [
       ["qualified", "12 Qualified"],
       ["review", "3 Needs review"],
-      ["excluded", "2 Left out"],
+      ["excluded", "2 Filtered out"],
     ],
   );
   for (const c of band.classes) assert.equal(c.label, `${c.count} ${stateLabel("lead_class", c.id)}`, c.id);

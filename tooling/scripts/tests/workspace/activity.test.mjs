@@ -698,7 +698,7 @@ test("a lead's life says what happened, from the fields its writers file, in the
     "12 leads moved · Closed · Went quiet",
     "the bulk door writes one row for the act, with its count",
   );
-  assert.equal(activityWords("lead.stage", { stage: "ready", count: 1, bulk: true }), "1 lead moved · Ready");
+  assert.equal(activityWords("lead.stage", { stage: "ready", count: 1, bulk: true }), "1 lead moved · Not contacted");
   assert.equal(
     activityWords("lead.stage", { stage: "toString", reason: "constructor" }),
     "A lead moved",

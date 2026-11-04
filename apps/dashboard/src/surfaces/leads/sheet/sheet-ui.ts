@@ -8,7 +8,7 @@ import type { RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
 
 /** Which step of the sheet is open, and what the dock asks in its place. */
 export type SheetStep = "card" | "picker" | "new";
-type DockAsk = null | "said" | "stop" | "rewrite";
+type DockAsk = null | "said" | "stop" | "rewrite" | "approve";
 
 /** What the sheet holds for the lead on screen, as it was left for that lead and none other. */
 export interface SheetUiState {

@@ -144,13 +144,22 @@ function tick(log = tickLog()) {
   const run = jobs.runTick(
     {
       claim: async (lease) => {
-        if (!(await oursWaiting())) return null;
-        const row = await jobs.claimNext(db, lease);
-        if (row && row.tenant_id !== T) {
-          strays.push(row);
-          return null;
+        for (;;) {
+          if (!(await oursWaiting())) return null;
+          const row = await jobs.claimNext(db, lease);
+          if (!row || row.tenant_id === T) return row;
+          // Not this file's. The local clock's canary (00526, every minute) is handed out before a busy workspace's due
+          // row (claim_due_jobs serves a workspace with nothing running first), so this tick met it mid-run and gave up
+          // its own job (the 3 Nov 2026 reds). Any row not ours is put out of reach and never run, as the ledger's own
+          // race does (jobs/the-ledger-holds-its-rules); another suite's still counts as a stray.
+          if (row.kind !== "canary") strays.push(row);
+          ok(
+            await db
+              .from("jobs")
+              .update({ lease_until: new Date(Date.now() + 3_600_000).toISOString() })
+              .eq("id", row.id),
+          );
         }
-        return row;
       },
       dispatch: (job, deadline) =>
         jobs.dispatchJob(ctxFor(job, deadline), {
