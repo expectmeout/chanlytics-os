@@ -683,6 +683,20 @@
       "rate": "thread_state",
       "spend": false
     },
+    "POST conversations/[id]/not-a-customer": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "thread_state",
+      "spend": false
+    },
+    "POST conversations/[id]/reply-anyway": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "thread_state",
+      "spend": false
+    },
     "POST conversations/[id]/reply": {
       "kind": "write",
       "scope": "row",

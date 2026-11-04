@@ -157,6 +157,13 @@ export const JOB_KINDS = [
    * role, in the lane of someone waiting. Internal work written to be run again: every leg is keyed on the person.
    */
   "erasure_finish",
+  /**
+   * One thread's reply written ahead for a person (00538, decision 0093): scheduled by the hold's subscriber and the
+   * drafts' sweep, payload { conversation_id, draft_kind, message_id?, rules }, keyed on all four while one waits, in the
+   * reply lane: someone is about to read it. The receptionist's brain writes it and it is kept on the thread. Internal
+   * work written to be run again: a second run finds the draft and pays nothing.
+   */
+  "reply_draft",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
@@ -168,7 +175,8 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * `consent_notice` tells it once on the bell when a customer asked to stop, from the consent event whichever door wrote
  * it (decision 0048, 00409); `visit_notice` tells it once on the bell when a booking arrived, from the appointment's
  * event whichever door wrote it (00410, S1-01); `team_notice` tells it once on the bell when a teammate joined, from
- * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082).
+ * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082);
+ * `reply_draft` has a held thread's reply written ahead, from the hold's own events (decision 0093, 00538).
  */
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",
@@ -177,6 +185,7 @@ export const EVENT_SUBSCRIBERS = [
   "visit_notice",
   "team_notice",
   "freed_time_offer",
+  "reply_draft",
 ] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 
@@ -334,6 +343,11 @@ export const EVENT_KINDS = [
   "conversation.snooze_expired",
   /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
   "escalation.changed",
+  /**
+   * The door found this thread already handed to a person and the same reason standing (00538): they wrote again on a
+   * held thread, so its draft answers an older message. { reason }, on the conversation. Evidence: nothing is told of it.
+   */
+  "escalation.refreshed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   /**
@@ -778,6 +792,13 @@ export const DECISION_VERBS = [
    * subject 'appointment' (the request's row), payload booked, its start, the person and the service.
    */
   "answer_booking_request",
+  /**
+   * A thread set aside as not a customer's (00539, decision 0093): a member said so, and it was archived with its address
+   * marked; or a member said it was one after all, and it waits on them again. Subject 'conversation', payload what was
+   * undone by it.
+   */
+  "not_a_customer",
+  "reply_anyway",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

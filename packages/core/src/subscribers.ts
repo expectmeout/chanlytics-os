@@ -38,6 +38,9 @@
  *                     receptionist's calendar, and offered through the edge's door, which runs the workspace's step on
  *                     slot_opened (decision 0082, 00498). Each change that offers nothing says why in one log line. The
  *                     offer is once per appointment (sequence_batches_offered_once), so a second run makes nothing new.
+ *   reply_draft       a thread handed to a person, its hold moved, or a customer writing on it again (escalation.opened,
+ *                     .changed, .refreshed; 00538) asks whether it is owed a draft (core conversations/reply-draft.ts),
+ *                     and the job that writes it. The row's claim is the once-only, so a second run schedules nothing.
  */
 import {
   bookingArriving,
@@ -146,6 +149,11 @@ export interface SubscriberPorts {
    */
   offerFreedTime(tenantId: string, freed: FreedTimeRun): Promise<FreedTimeOffer>;
   /**
+   * Whether the thread is owed a draft, and if so its row claimed and its job scheduled (decision 0093). Throws when it could
+   * not be asked, so the delivery tries again.
+   */
+  askReplyDraft(tenantId: string, ref: { conversationId: string } | { escalationId: string }): Promise<void>;
+  /**
    * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
    * once for the event the news names. Throws when it could not, so the delivery tries again.
    */
@@ -171,6 +179,13 @@ function holdOfEvent(event: DeliveredEvent): { conversationId: string } | { esca
     return { conversationId: event.subject_id };
   if (event.kind === "escalation.changed") return { escalationId: event.subject_id };
   return null;
+}
+
+/** Which thread a hold's event asks a draft for: holdOfEvent's, and a thread they wrote on again, by its own id (00538). */
+function draftHoldOfEvent(event: DeliveredEvent): { conversationId: string } | { escalationId: string } | null {
+  if (event.kind === "escalation.refreshed" && event.subject_type === "conversation" && event.subject_id)
+    return { conversationId: event.subject_id };
+  return holdOfEvent(event);
 }
 
 /** The reason a hold's event says it holds for: an opened hold's, or the one a change moved it to. */
@@ -243,6 +258,10 @@ async function offerForNews(
 }
 
 export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
+  reply_draft: async (event, ports) => {
+    const ref = draftHoldOfEvent(event);
+    if (ref) await ports.askReplyDraft(event.tenant_id, ref);
+  },
   reach_out_booked: async (event, ports) => {
     if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return;
     const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : {};

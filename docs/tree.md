@@ -13,6 +13,7 @@ apps/edge/api/
 apps/edge/lib/
   billing/
   calendar/
+  drafts/
   email/
   google/
   imports/

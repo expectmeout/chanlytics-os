@@ -5,16 +5,17 @@
  * The composer is a function per box, called by `Composer` and not drawn as a component of its own, so the tree is the
  * tree it was; its hooks stay in `Composer`, in the order they were, and each effect's body is a function beside it.
  */
-import { emailSignedLine, optOutWords, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { emailSignedLine, optOutWords, shortName, THREAD_PANE_WORDS, type ReplyDraftView } from "@chanlytics/contracts";
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
-import { rewriteReplyDraft } from "../verbs";
+import type { DraftWant } from "../../today/need-you/drafts";
 import { Icon } from "../../kit/icon/icon";
 import { FOCUS_COMPOSER_MS, SAVED_NOTICE_MS } from "../constants";
 import { ixInDialog } from "../keys";
 import { appNavigate, canDo, gate, tabMemory } from "../shell";
 import type { Thread } from "../types";
 import { takeCarriedReply } from "../carried-reply";
-import { keptReplyNow, keptReplyOf, signedNow, signedOf } from "./kept-draft";
+import { signedNow, signedOf } from "./kept-draft";
+import { holdsDraft, overRow, RewriteLine, useThreadDraft, whySaid } from "./reply-draft-row";
 import { useReplyDraftDoor } from "./reply-strip";
 import { detailField } from "./shell-thread";
 import { holderName } from "../../holder-names";
@@ -26,7 +27,7 @@ import { Button } from "../../kit/button/button";
 type SetText = Dispatch<SetStateAction<string>>;
 /** What an email from the box is signed with: words, none, or not said yet (undefined). */
 type SetSigned = (s: string | null) => void;
-type BoxRef = RefObject<HTMLTextAreaElement | null>;
+export type BoxRef = RefObject<HTMLTextAreaElement | null>;
 
 /** A reply carried in from another page ("Text the booking link", carried-reply.ts): only into an empty composer, and once. */
 function putCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
@@ -36,38 +37,6 @@ function putCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
   window.setTimeout(() => {
     if (taRef.current) taRef.current.focus();
   }, FOCUS_COMPOSER_MS);
-}
-
-/**
- * Need you's drafted reply (kept-draft.ts), where the strip says it can be changed or sent from here: only into an empty
- * box, and only while this thread is the one open. The box is drawn with it where the newest kept drafts hold it (Composer's
- * first words); the thread's own read is asked for only where they cannot say, and what it says of the signature is kept too.
- */
-function putKeptDraft(thread: Thread, setText: SetText, setSigned: SetSigned, setDrafted: (w: string) => void) {
-  if (!thread.real) return;
-  const now = keptReplyNow(thread);
-  if (now !== undefined) {
-    if (now) {
-      setDrafted(now);
-      setText((cur) => (cur && cur.trim() ? cur : now));
-    }
-    return;
-  }
-  let open = true;
-  // A read that fails puts nothing: the box stays as the member left it.
-  void keptReplyOf(thread)
-    .then(({ words, signed }) => {
-      if (!open) return;
-      if (words) {
-        setDrafted(words);
-        setText((cur) => (cur && cur.trim() ? cur : words));
-      }
-      if (signed !== undefined) setSigned(signed);
-    })
-    .catch(() => undefined);
-  return () => {
-    open = false;
-  };
 }
 
 /**
@@ -157,7 +126,7 @@ interface ComposerProps {
 }
 
 /** Everything the boxes draw from: the props, the words, and what pressing does. */
-interface ComposerDraw extends ComposerProps {
+export interface ComposerDraw extends ComposerProps {
   text: string;
   setText: SetText;
   write: (v: string) => void;
@@ -171,13 +140,21 @@ interface ComposerDraw extends ComposerProps {
   setSaved: (v: boolean) => void;
   /** What an email from the box is signed with, for the member writing (decision 0081); null where nothing signs it. */
   signed: string | null;
-  /** The receptionist's draft the box was given (kept-draft.ts), said as its while the box holds it unchanged. */
+  /** The thread's draft (kept-draft.ts), in whichever state it is, and what reads it from the server. */
+  draft: ReplyDraftView | null;
+  want: DraftWant | null;
+  /** Its words, where it has words: said as Ask's while the box holds them unchanged. */
   drafted: string | null;
+  /** Use draft: its words put in the box, and what the box held kept a moment for Undo. */
+  putDraft: () => void;
+  /** What Undo gives back, for a few seconds after Use draft. */
+  undo: (() => void) | null;
+  /** The draft's words just came into the field: it draws them rising in. */
+  landed: boolean;
+  settled: () => void;
   /** The draft's Why this?, open or not, and the line that has it written again, open or not. */
   why: [boolean, (v: boolean) => void];
   rewrite: [boolean, (v: boolean) => void];
-  /** A new draft put in the box by a rewrite: the box says it is the receptionist's again. */
-  setDrafted: (w: string | null) => void;
   /** The field took the caret: what the email will be signed with is asked now, before the first key (Composer). */
   writing: () => void;
 }
@@ -285,8 +262,8 @@ function signedLine(c: ComposerDraw) {
   const W = THREAD_PANE_WORDS;
   const signed = c.signed && c.text.trim() ? c.signed : null;
   const [rewriting, setRewriting] = c.rewrite;
-  // Rewrite is for words in the box: an empty box stays the one field.
-  const canRewrite = !!c.thread.conversationId && (!!c.drafted || !!c.text.trim());
+  // Rewrite is for words in the box: an empty box stays the one field. Ask's own has it on the line that names it.
+  const canRewrite = !!c.want && !!c.text.trim() && !holdsDraft(c);
   if (!signed && !canRewrite) return null;
   return (
     <div className="ix-composer-signed" data-testid="ix-composer-signed">
@@ -327,101 +304,9 @@ function signedLine(c: ComposerDraw) {
   );
 }
 
-/** The line that has the receptionist write the box's draft again, as the member asks (Rewrite, above). */
-function RewriteLine({ c }: { c: ComposerDraw }) {
-  const W = THREAD_PANE_WORDS;
-  const [asked, setAsked] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<string | null>(null);
-  const id = c.thread.conversationId;
-  const go = async () => {
-    const how = asked.trim();
-    if (!how || busy || !id) return;
-    setBusy(true);
-    setSaid(null);
-    const r = await rewriteReplyDraft(id, how);
-    setBusy(false);
-    if (r.ok) {
-      c.write(r.words);
-      c.setDrafted(r.words);
-      setAsked("");
-      c.rewrite[1](false);
-    } else setSaid(r.message);
-  };
-  return (
-    <div className="ix-steer ix-composer-rewrite-line" data-testid="ix-composer-rewrite-line">
-      <Icon name="spark" size={13} className="ix-steer-spark" />
-      <input
-        className="ix-steer-input"
-        value={asked}
-        onChange={(e) => setAsked(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void go();
-        }}
-        placeholder={W.rewriteAsk}
-        maxLength={500}
-        disabled={busy}
-        aria-label={W.rewriteLabel}
-      />
-      <Button
-        variant="soft"
-        size="sm"
-        className="ix-press"
-        onClick={go}
-        disabled={busy || !asked.trim()}
-        {...gate("approve")}
-      >
-        {busy ? W.rewriting : W.rewrite}
-      </Button>
-      {said ? (
-        <span className="ix-composer-rewrite-said" role="status">
-          {said}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-// A real thread's reply box (the thread canvas, 1 Nov 2026), in one of two shapes. An email, or a draft the receptionist
-// wrote, is a box of the inset's ground: whose words they are and why, the words, what they are signed with, and under it
-// the box's acts, what stands beside Send at the left and Send at the right. A chat's is one line that grows, in an inset
-// capsule, with Send a coral round at its end. On a phone both are that line, with what an email's box holds over it.
-/**
- * Over the words, while the box holds the receptionist's draft as it wrote it: whose they are, and Why this? (the thread
- * canvas, 1 Nov 2026). The draft sat in the box unlabelled and read as the member's own typing; once it is changed, it is
- * theirs.
- */
-function draftedLine(c: ComposerDraw) {
-  const W = THREAD_PANE_WORDS;
-  if (!c.drafted || !c.text.trim() || c.text.trim() !== c.drafted.trim()) return null;
-  const [open, setOpen] = c.why;
-  return (
-    <>
-      <div className="ix-composer-drafted" data-testid="ix-composer-drafted">
-        <span className="ix-composer-drafted-words">
-          <Icon name="spark" size={12} className="ix-composer-drafted-spark" />
-          {W.drafted}
-        </span>
-        <Button
-          variant="quiet"
-          size="text"
-          className="ix-composer-why ix-press"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-          data-testid="ix-composer-why"
-        >
-          {W.whyThis}
-        </Button>
-      </div>
-      {open && (
-        <div className="ix-composer-why-said" data-testid="ix-composer-why-said">
-          <span className="ix-composer-why-lead">{W.draftWhy}</span>
-          <span>{W.draftUsed(c.thread.primaryChannel === "email", !!c.signed)}</span>
-        </div>
-      )}
-    </>
-  );
-}
+// A real thread's reply box (the thread canvas, 1 Nov 2026), in one of two shapes under one row (overRow): the thread's draft
+// and Hand back. An email's is a box of the inset's ground: the words and what they are signed with, and under it Send. A
+// chat's is one line that grows, in an inset capsule, with Send a coral round at its end. On a phone both are that line.
 
 /** The box's Send: its words for an email or a draft ("Send email"), a coral round with its arrow for a chat. */
 function sendButton(c: ComposerDraw, boxed: boolean) {
@@ -466,28 +351,39 @@ function sendButton(c: ComposerDraw, boxed: boolean) {
 
 /**
  * The box folded on a phone (thread.tsx foldAsRead), one line under what is owed: its words on that line whatever lines
- * they were written on, cut with an ellipsis, and the receptionist's spark before them while they are its draft, or the
- * box's own invitation while it holds none; the caret at its end says it opens (Ruben, 3 Nov 2026: two lines of the
- * words stood a greeting over an empty line). The field itself stays for a keyboard and a screen reader, out of sight.
+ * they were written on, cut with an ellipsis, and Ask's spark before them while they are its draft; a draft ready for an
+ * empty box, greyed, which the tap that opens the box puts in, since the tap is on it (decision 0093); or the box's own
+ * invitation while it holds none; the caret at its end says it opens (Ruben, 3 Nov 2026: two lines of the words stood a
+ * greeting over an empty line). The field itself stays for a keyboard and a screen reader, out of sight.
  */
 function foldedGlance(c: ComposerDraw, placeholder: string) {
   const words = c.text.replace(/\s+/g, " ").trim();
-  const theirs = !!c.drafted && !!words && c.text.trim() === c.drafted.trim();
+  const offered = offersDraft(c);
+  const said = words || (offered ? (c.drafted ?? "").replace(/\s+/g, " ").trim() : "");
   return (
-    <span className="ix-composer-glance" aria-hidden="true" data-testid="ix-composer-glance">
-      {theirs ? <Icon name="spark" size={12} className="ix-composer-drafted-spark" /> : null}
+    <span
+      className="ix-composer-glance"
+      aria-hidden="true"
+      data-testid="ix-composer-glance"
+      data-offers={offered ? "" : undefined}
+      onClick={offered ? c.putDraft : undefined}
+    >
+      {holdsDraft(c) || offered ? <Icon name="spark" size={12} className="ix-composer-drafted-spark" /> : null}
       <span className="ix-composer-glance-words" data-empty={words ? undefined : ""}>
-        {words || placeholder}
+        {said || placeholder}
       </span>
       <Icon name="chevron-up" size={14} />
     </span>
   );
 }
 
+/** Whether the folded line offers the thread's draft: one ready, and nothing in the box for it to replace. */
+const offersDraft = (c: ComposerDraw): boolean => !!c.drafted && !c.text.trim();
+
 function realComposer(c: ComposerDraw) {
-  const { thread, text, write, taRef, onType, aside } = c;
-  // An email, or a draft the receptionist wrote, is the box; a chat with nothing drafted is the one line.
-  const boxed = thread.primaryChannel === "email" || !!c.drafted;
+  const { thread, text, write, taRef, onType } = c;
+  // An email is the box; a chat is the one line, under the same row, however long the draft put in it.
+  const boxed = thread.primaryChannel === "email";
   // A teammate's thread: what a reply does is the one thing left to say, and the box says it (the dock says nothing
   // there).
   const placeholder = thread.claimedByOther
@@ -505,6 +401,8 @@ function realComposer(c: ComposerDraw) {
       placeholder={placeholder}
       aria-label={`Reply to ${thread.who}`}
       onFocus={c.writing}
+      data-landed={c.landed ? "" : undefined}
+      onAnimationEnd={c.settled}
       // One line that grows with its words (send-words.tsx growWithWords); a desk's box keeps four lines (inbox.css).
       rows={1}
     />
@@ -512,8 +410,12 @@ function realComposer(c: ComposerDraw) {
   if (!boxed)
     return (
       <>
-        <div className="ix-composer ix-composer-row" data-shape="slim">
+        {overRow(c)}
+        {whySaid(c)}
+        {c.rewrite[0] ? <RewriteLine c={c} /> : null}
+        <div className="ix-composer ix-composer-row" data-shape="slim" data-glance={offersDraft(c) ? "" : undefined}>
           {field}
+          {offersDraft(c) ? foldedGlance(c, placeholder) : null}
           {sendButton(c, false)}
         </div>
         {thread.veto ? (
@@ -525,15 +427,15 @@ function realComposer(c: ComposerDraw) {
     );
   return (
     <div className="ix-composer ix-composer-row" data-shape="box">
+      {overRow(c)}
       <div className="ix-composer-draft">
-        {draftedLine(c)}
+        {whySaid(c)}
         {field}
         {foldedGlance(c, placeholder)}
         {signedLine(c)}
         {c.rewrite[0] ? <RewriteLine c={c} /> : null}
       </div>
       <div className="ix-composer-acts">
-        {aside}
         <span className="ix-composer-gap" />
         {sendButton(c, true)}
       </div>
@@ -646,11 +548,8 @@ export const Composer = ({
     if (v && v.trim() && v !== reply) tabMemory()?.keepDraft("reply", v, draftOf);
     else tabMemory()?.dropDraft("reply", draftOf);
   };
-  // Else the receptionist's, else the reply Ask kept for their newest message, where the newest kept drafts hold it (they
-  // come with the Inbox's first reads): drawn with its words, never filled in a beat after the box (putKeptDraft).
-  const [text, setText] = useState(
-    () => (draftOf && tabMemory()?.draft<string>("reply", draftOf)) || reply || keptReplyNow(thread) || "",
-  );
+  // Else the receptionist's. The thread's draft is never put here by itself: the box is the member's, and Use draft is a press.
+  const [text, setText] = useState(() => (draftOf && tabMemory()?.draft<string>("reply", draftOf)) || reply || "");
   const write = (v: string) => {
     setText(v);
     keepWords(v);
@@ -684,10 +583,7 @@ export const Composer = ({
   // What an email from the box is signed with: drawn with the box where the newest kept drafts say it (undefined where they
   // cannot), else from the thread's own read, the kept draft's where the box asks that one, else once the box has words.
   const [signed, setSigned] = useState<string | null | undefined>(() => signedNow(thread));
-  // The receptionist's draft the box was given, where it was (kept-draft.ts): the box says whose its words are.
-  const [drafted, setDrafted] = useState<string | null>(() => (thread.real ? keptReplyNow(thread) || null : null));
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread: the box is filled as it opens, never again under the member
-  useEffect(() => putKeptDraft(thread, setText, setSigned, setDrafted), [thread.id]);
+  const drafting = useThreadDraft(thread, { text, write, taRef });
   // Asked as the caret comes into the box, so what stands over its line comes with the first key, whole: asked at the
   // first key, Rewrite came alone and the signature half a second after it, the line moving again under the thumb
   // (Ruben's recording, 4 Nov 2026). An empty box nobody writes in still asks nothing.
@@ -744,10 +640,9 @@ export const Composer = ({
     saved,
     setSaved,
     signed: signed ?? null,
-    drafted,
+    ...drafting,
     why,
     rewrite,
-    setDrafted,
     writing: () => setWriting(true),
     aside,
   };

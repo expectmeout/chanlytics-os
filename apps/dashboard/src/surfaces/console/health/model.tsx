@@ -4,7 +4,7 @@
  * answer, the API's own reason beside it (kept since 00469; none before). A key out of credit is said as such, since it
  * stops every call. Every word is contracts' (modelCallsOf).
  */
-import { dollarsWords, modelCallsOf, workspaceNamer, type HealthScope } from "@chanlytics/contracts";
+import { dollarsWords, draftUsesOf, modelCallsOf, workspaceNamer, type HealthScope } from "@chanlytics/contracts";
 import { Figure } from "../../kit/figure/figure";
 import { NoneRow, ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
@@ -18,6 +18,7 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
       </ScreenSection>
     );
   const m = modelCallsOf(h.parts, scope);
+  const drafts = draftUsesOf(h.parts, scope);
   const nameOf = workspaceNamer(h.workspaces);
   const credit = m.failureGroups.some((g) => g.credit);
   return (
@@ -31,6 +32,13 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
           {...(m.noAnswer ? { tone: credit ? ("fail" as const) : ("warn" as const) } : {})}
         />
         <Figure label="What it cost" value={dollarsWords(m.usd)} meta="as the usage ledger priced each call" />
+        <Figure
+          label="Drafts sent as written"
+          value={n(drafts.asWritten)}
+          meta={`of the replies sent in ${h.days} days`}
+        />
+        <Figure label="Drafts edited" value={n(drafts.edited)} meta="changed, then sent" />
+        <Figure label="Drafts not used" value={n(drafts.notUsed)} meta="a reply written apart from one" />
       </dl>
       <ScreenSection title="By what it was for" sub="the most spent first" testid="console-health-model-purposes">
         {m.byPurpose.length === 0 ? (

@@ -37,11 +37,17 @@ export function shortLabel(r: TodayQueueRowVM): string {
   return "Reply";
 }
 
-/** The draft a row wants written ahead (drafts.ts): a reply, or a call back's brief; none for the rest. */
+/** The draft a row reads (drafts.ts): a reply, or a call back's brief; none for the rest. */
 export function draftWantOf(r: TodayQueueRowVM): DraftWant | null {
   if (r.kind === "callback")
     return r.conversationId && r.writes
-      ? { conversationId: r.conversationId, kind: "brief", forMessageId: r.writes.for_message_id }
+      ? {
+          conversationId: r.conversationId,
+          kind: "brief",
+          forMessageId: r.writes.for_message_id,
+          expected: true,
+          askedAtMs: r.writes.for_message_at_ms ?? null,
+        }
       : null;
   if (r.request || !REPLY_KINDS.has(r.kind)) return null;
   return replyWant(r);

@@ -34,6 +34,7 @@ import { eraseCallsAtProvider } from "../voice/erase-calls.js";
 import { env } from "../env.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
 import { expoPush } from "./push.js";
+import { draftEdge } from "../drafts/draft-writer.js";
 import { replyReader } from "../reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
@@ -239,6 +240,8 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               ...(leads ? { leads } : {}),
               // The reading of a reach-out's reply (model, spend, notice): with no model key it says no_model and is read later.
               replies: replyReader(db),
+              // A thread's draft (decision 0093): the receptionist's brain in its draft voice, and the sender's reader.
+              drafts: draftEdge(db),
               // The reading of a booking tool's notice: the model, the spend and the person it is for.
               bookings: bookingReader(db),
               calendar: { feedNames: feedNamesFor(db) }, // a reminder asks the owner's calendar beside the record

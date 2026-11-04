@@ -140,6 +140,8 @@ const WORDS: Record<string, string> = {
   make_sequence: "Made a sequence",
   discard_sequence: "Let a sequence go",
   answer_booking_request: "Answered a request to book",
+  not_a_customer: "Said it was not a customer",
+  reply_anyway: "Said it was a customer after all",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -178,6 +180,7 @@ const WORDS: Record<string, string> = {
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
   "escalation.changed": "A handover's reason changed",
+  "escalation.refreshed": "They wrote again on a held thread",
   "escalation.opened": "A thread was handed to the team",
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",

@@ -8,12 +8,19 @@ import type {
   BookingNoticePorts,
   EmailIngestPorts,
   ReplyAsked,
+  ReplyDraftPorts,
   ReplyNotice,
   ReplyReadPorts,
   Wire,
 } from "@chanlytics/core";
 import type { Database, Json } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** What a thread's draft needs of the edge: the writer, and the reader of what a sender is. */
+export type ReplyDraftEdge = {
+  write: ReplyDraftPorts["write"];
+  readSender: ReplyDraftPorts["sender"]["read"];
+};
 
 export interface PushReceipt {
   to: string;
@@ -38,6 +45,12 @@ export interface PushPort {
 
 export interface JobContext {
   db: SupabaseClient<Database>;
+  /**
+   * A thread's draft (decision 0093), as the edge holds it: the writer is the receptionist's brain over the workspace's whole
+   * runtime, and the reader of a stranger's email the model's. INJECTED like the two below. Optional so a test context need
+   * not supply one; a reply_draft job in a runtime without it fails loudly rather than guessing.
+   */
+  drafts?: ReplyDraftEdge;
   /**
    * The job's own tenant's wires, bound by the edge where the credentials
    * are: WhatsApp on the tenant's credentials, the texting line when the

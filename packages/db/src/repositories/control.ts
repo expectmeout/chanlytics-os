@@ -196,6 +196,44 @@ export interface HandedBack {
  * open escalation resolved by it, in one transaction. Null when no thread of the workspace's answered, and then nothing
  * was written; a refusal is thrown as it came, with nothing written either.
  */
+/**
+ * A thread set aside is not a customer's, or with `undo` is back on the list (00539 conversation_not_a_customer), on the
+ * member's own session. The decision's id, or null where no row moved.
+ */
+export async function notACustomerThread(db: Db, p: MemberMove & { undo: boolean }): Promise<string | null> {
+  const { data, error } = await db.rpc("conversation_not_a_customer", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_undo: p.undo,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) throw error;
+  return decisionIdOf(data);
+}
+
+/**
+ * A thread set aside is a customer's after all (00539 conversation_reply_anyway), on the member's own session. The
+ * decision's id, or null where no row moved.
+ */
+export async function replyAnywayThread(db: Db, p: MemberMove): Promise<string | null> {
+  const { data, error } = await db.rpc("conversation_reply_anyway", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) throw error;
+  return decisionIdOf(data);
+}
+
+/** The decision a door's answer names, where it moved a row. */
+function decisionIdOf(data: unknown): string | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = (data as Record<string, unknown>).decision_id;
+  return typeof id === "string" ? id : null;
+}
+
 export async function handBackThread(db: Db, p: MemberMove): Promise<HandedBack | null> {
   const { data, error } = await db.rpc("conversation_hand_back", {
     p_tenant_id: p.tenantId,

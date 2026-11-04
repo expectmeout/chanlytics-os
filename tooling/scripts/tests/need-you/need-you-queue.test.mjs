@@ -208,20 +208,24 @@ test("a reply row says what its reply answers and goes by: their newest message,
   );
   const of = (id) => vm.queue.rows.find((r) => r.conversationId === id);
   assert.equal(of("cv-sam").kind, "window");
-  assert.deepEqual(of("cv-sam").writes, {
+  const sayWithoutClock = ({ for_message_at_ms, ...w }) => {
+    assert.equal(typeof for_message_at_ms, "number", "when they wrote it, so a draft that never came is not said to");
+    return w;
+  };
+  assert.deepEqual(sayWithoutClock(of("cv-sam").writes), {
     for_message_id: "m-s2",
     wire: "WhatsApp",
     window_open: true,
     window_closes: "1:00 PM",
   });
-  assert.deepEqual(of("cv-chris").writes, {
+  assert.deepEqual(sayWithoutClock(of("cv-chris").writes), {
     for_message_id: "m-c",
     wire: "WhatsApp",
     window_open: false,
     window_closes: null,
   });
   assert.deepEqual(
-    of("cv-ana").writes,
+    sayWithoutClock(of("cv-ana").writes),
     { for_message_id: "m-a", wire: "Text", window_open: null, window_closes: null },
     "a text has no window",
   );

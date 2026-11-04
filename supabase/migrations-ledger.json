@@ -55,7 +55,11 @@
     "00521": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
     "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
     "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
-    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it"
+    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
+    "00534": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
+    "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
+    "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
+    "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -535,6 +539,8 @@
     "00530_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "714bae015abeccf83e9051d6e1e119050a54bb2c94a24a9bcdcba5e123b7ceba",
     "00531_the_notices_a_call_owes_are_found_by_their_own_index.sql": "4b9ee24206c26f33f2e25d81a8ef5d56803f10c401aba2402aee7c3b4a8e2ff2",
     "00532_a_run_with_nothing_to_send_waits_on_nobody.sql": "b87b90ff2e1415e18858489617fc27f60b616defa3ca4feb475e0d62417c52c9",
-    "00533_a_lead_on_a_list_says_why_no_batch_takes_it.sql": "c36db149b55b028d7910d44121195b599142bcccac349cee7373adc9a9500de5"
+    "00533_a_lead_on_a_list_says_why_no_batch_takes_it.sql": "c36db149b55b028d7910d44121195b599142bcccac349cee7373adc9a9500de5",
+    "00538_a_reply_is_drafted_when_it_is_owed.sql": "46c269906885d9f093781f2d721d2952fc8b324611ce117b6876b7ed803a2d1b",
+    "00539_a_thread_not_a_customers_is_set_aside.sql": "ed8f905391eca8bbd7fff50db6469862ed7c45dc1935c51df00a04626b08b418"
   }
 }

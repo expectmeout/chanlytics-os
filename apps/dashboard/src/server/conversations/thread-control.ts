@@ -1,6 +1,6 @@
 import "server-only";
-import { MIN_MS } from "@chanlytics/contracts";
-import { claimControl } from "@chanlytics/db";
+import { MIN_MS, type ReplyDraftKind } from "@chanlytics/contracts";
+import { claimControl, type ConversationDraftRow } from "@chanlytics/db";
 import { deployment } from "../env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 
@@ -40,6 +40,29 @@ export async function takeThreadControl(
  * key lives there; RLS and the role door have already been checked by the
  * route that calls this.
  */
+/**
+ * A member's change to a thread's draft, or their Try again (decision 0093): the edge holds the writer, as it holds the
+ * brain a held reply is rewritten by, and keeps the words on the thread's row. The call's answer is that row.
+ */
+export async function draftAtTheEdge(
+  ask: { conversationId: string; kind: ReplyDraftKind; instruction: string | null },
+  asker: { workspace: string; user: string },
+): Promise<{ ok: true; draft: ConversationDraftRow } | { ok: false; reason: EdgeReason; detail: string | null }> {
+  if (!deployment.providersLive) return { ok: false, reason: "preview", detail: null };
+  const r = await callEdge(
+    "/api/admin/draft",
+    {
+      conversation_id: ask.conversationId,
+      kind: ask.kind,
+      ...(ask.instruction ? { instruction: ask.instruction } : {}),
+    },
+    { ...asker, timeoutMs: STEER_TIMEOUT_MS },
+  );
+  const j = (r.body ?? {}) as { ok?: boolean; draft?: ConversationDraftRow; detail?: unknown };
+  if (edgeAnswered(r) && j.ok && j.draft) return { ok: true, draft: j.draft };
+  return { ok: false, reason: edgeReasonOf(r), detail: typeof j.detail === "string" ? j.detail : null };
+}
+
 export async function steerDraft(
   messageId: string,
   text: string,

@@ -62,6 +62,7 @@ const EVERY_CLOCK = {
   calendar: "calendar-people-sweep",
   calls: "call-reconcile",
   deadman: "deadman-sweep",
+  drafts: "drafts-sweep",
   google: "google-listings-sweep",
   health: "sweep-health",
   jobs: "jobs-tick",

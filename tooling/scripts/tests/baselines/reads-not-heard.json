@@ -1073,20 +1073,6 @@
       }
     },
     {
-      "kind": "unfed",
-      "why": "The drafts Ask kept for Need you's rows (decision 0071), which Today reads with its own first reads. The feed does not tell of conversation_drafts: a draft is written by the row that wants it (POST conversations/[id]/draft), which lays it on itself and reads the drafts again behind it where Today is drawn; a teammate's is taken as a row asks for it, and one answering an older message is written again by the row.",
-      "reads": {
-        "reply_drafts": [
-          "conversation_drafts"
-        ]
-      },
-      "rereadAfter": {
-        "reply_drafts": [
-          "POST conversations/[id]/draft"
-        ]
-      }
-    },
-    {
       "kind": "over-read",
       "why": "The words a reply from a kept draft would be signed with (00487): which mailbox a thread's reply leaves from (the message the customer wrote to) and that mailbox's signature. The surface holds them for the rows and draws nothing of them; a new message makes the row ask for a new draft, which carries the signature as it stands, and a signature changed in Settings is read with the next draft or once the drafts have aged.",
       "reads": {
@@ -1131,6 +1117,20 @@
         ],
         "inbox": [
           "escalations"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The threads set aside as not a customer's (00539), for Today's one line. A thread is set aside only with its draft row written, which the feed tells of, so a message on a thread need not read the drafts again.",
+      "reads": {
+        "reply_drafts": [
+          "conversations"
+        ]
+      },
+      "heardWith": {
+        "reply_drafts": [
+          "conversation_drafts"
         ]
       }
     }

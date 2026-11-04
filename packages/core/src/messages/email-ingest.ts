@@ -175,6 +175,17 @@ export interface EmailIngestPorts {
    * claims. Absent on a connected mailbox's own intake, whose sorting asked it before the email was scheduled.
    */
   senderSaid?(tenantId: string, address: string): Promise<MailboxSenderVerdict | null>;
+  /**
+   * What the sender was read to be, on this road as on a connected mailbox's (decision 0093, one judge), for an email that
+   * claims to be a person's from someone the business does not talk with: the kept reading, or one read now. A sender read
+   * as selling to the business, or as a program, answers why it is left, and is noted on the owner's list; anything else,
+   * a model that did not answer among them, answers null, and it comes in. Never throws. Absent on a connected mailbox's own
+   * intake, whose sorting asked it before the email was scheduled.
+   */
+  senderLeft?(
+    tenantId: string,
+    email: { from: string; name: string | null; subject: string | null; words: string | null; answers: boolean },
+  ): Promise<"pitch" | "notice" | null>;
   now(): number;
 }
 
@@ -190,6 +201,7 @@ export type EmailIngestOutcome =
   | "our_own"
   | "erased_person"
   | "left_as_said"
+  | "left_as_read"
   | "no_sender"
   | "gone";
 
@@ -198,14 +210,15 @@ export const EMAIL_BODY_MAX = 20_000;
 
 /** What the person who opens the thread is told, by what the email claimed to be. */
 export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated"> | "reach_out", string> = {
-  // Nothing sends an email on its own (decision 0073, R15): Need you drafts the reply in the owner's voice (decision
-  // 0071), and it leaves from their mailbox on their press.
-  person: "An email arrived. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
+  // Nothing sends an email on its own (decision 0073, R15), and it leaves from their mailbox on their press. Whether a
+  // draft is ready is the draft's own to say (decision 0093): this is kept on the hold, and a sentence kept here said "a
+  // reply is drafted for you" of a thread Ask had written nothing for, or a pitch it never would.
+  person: "An email arrived. Nothing was sent: it's yours to answer.",
   automated:
     "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
   // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.
   reach_out:
-    "They wrote back to your sequence. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one.",
+    "They wrote back to your sequence. Nothing is sent without you: read it here, and answer it when you're ready.",
 };
 
 export async function ingestEmail(
@@ -248,10 +261,10 @@ export async function ingestEmail(
   if (aside) return aside;
   // What the workspace said of the sender, before what the email claims: "Not a person" holds on this road as on a
   // connected mailbox's, and the address still heard from its forward, so it is stamped.
-  const word = await senderWordOf(ports, mailbox.tenant_id, address);
-  if (word === "automated") {
+  const { word, left } = await senderSortedAs(ports, mailbox.tenant_id, email, address);
+  if (left) {
     await ports.received(mailbox.id, at);
-    return "left_as_said";
+    return left;
   }
   const taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation"> =
     claim === "booking_notice" || claim === "forwarding_confirmation" ? "automated" : claim;
@@ -300,6 +313,29 @@ export async function ingestEmail(
   await ports.received(mailbox.id, at);
   if (reachOut) return "kept_for_the_reading";
   return flagged ? "kept_for_a_person" : "kept_quietly";
+}
+
+/**
+ * What the workspace said of the sender, and whether the email is left where it is: as it said, or, where it said nothing and
+ * the email claims to be a person's, as they were read to be (decision 0093, one judge, where this road asks: senderLeft).
+ */
+async function senderSortedAs(
+  ports: EmailIngestPorts,
+  tenantId: string,
+  email: IncomingEmail,
+  address: string,
+): Promise<{ word: MailboxSenderVerdict | null; left: "left_as_said" | "left_as_read" | null }> {
+  const word = await senderWordOf(ports, tenantId, address);
+  if (word === "automated") return { word, left: "left_as_said" };
+  if (word || email.claim !== "person") return { word, left: null };
+  const read = await ports.senderLeft?.(tenantId, {
+    from: address,
+    name: email.from?.name ?? null,
+    subject: email.subject,
+    words: email.text ? replyTextOf(email.text) : null,
+    answers: !!email.inReplyTo,
+  });
+  return { word, left: read ? "left_as_read" : null };
 }
 
 /** What the workspace said of the sender, or null where it said nothing, or this road does not ask (senderSaid). */

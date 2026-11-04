@@ -32,7 +32,13 @@ function clockAt(tz: string, atMs: number): string {
 /** What a row's draft is asked for: its thread's reply to their newest message; none where the words are already written. */
 export function replyWant(row: TodayQueueRowVM): DraftWant | null {
   if (!row.conversationId || !row.writes || row.prepared) return null;
-  return { conversationId: row.conversationId, kind: "reply", forMessageId: row.writes.for_message_id };
+  return {
+    conversationId: row.conversationId,
+    kind: "reply",
+    forMessageId: row.writes.for_message_id,
+    expected: row.writes.window_open !== false,
+    askedAtMs: row.writes.for_message_at_ms ?? null,
+  };
 }
 
 /** A thread snoozed from its row, and the record its Wake sends. */
@@ -134,8 +140,8 @@ function sendLabel(closed: boolean, refused: Refused | null, send: string): stri
 }
 
 /** The row's words as they stand: the member's own once changed, else the receptionist's or Ask's draft. */
-function useWords(row: TodayQueueRowVM, mine: string | null, may: boolean) {
-  const draft = useDraft(replyWant(row), may);
+function useWords(row: TodayQueueRowVM, mine: string | null) {
+  const draft = useDraft(replyWant(row));
   const written = row.prepared ?? (draft?.state === "ready" ? draft.draft.words.text : "");
   return { draft, written, words: mine ?? written };
 }
@@ -157,7 +163,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
   const [refused, setRefused] = useRowState<Refused | null>(row.id, "refused", null);
   // Sent from this row as it is drawn now (not a send still counting from before a move back to Today): Undo takes the keys.
   const [sentHere, setSentHere] = useState(false);
-  const { draft, written, words } = useWords(row, mine, may);
+  const { draft, written, words } = useWords(row, mine);
   const { s: send, seconds, share } = useSend(row.id);
   const notNow = useNotNow(p, setSnoozed);
   const marked = useMarkDone(p);
