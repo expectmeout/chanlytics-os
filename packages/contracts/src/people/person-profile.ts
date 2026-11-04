@@ -19,6 +19,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import type { HolderNames, PersonMode } from "./person-receptionist";
 import { DM_CLOSED, mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
 import type { PersonRowVM } from "./person-row";
+import { sinceWords } from "./person-since";
 import { campaignsOf, inSequencesOf, ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, REPLY_WIRE, type PersonChannel } from "./person-words";
@@ -42,7 +43,6 @@ import {
   receptionistModeOf,
   replyFields,
   rightNowOf,
-  sinceWords,
   smartListsOf,
 } from "./person-cards";
 import {

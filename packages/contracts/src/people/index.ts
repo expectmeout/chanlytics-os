@@ -145,7 +145,6 @@ export {
 export type { PeopleAggregates, PeopleListAction } from "./people-lists";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
-export { sinceWords } from "./person-cards";
 export type { PersonAboutFact, PersonFact, PersonRightNow } from "./person-cards";
 export {
   CONSENT_RESET_SOURCE,
@@ -218,6 +217,7 @@ export { cameFromOf, threadHeadFactOf, threadPersonFactsOf, toPersonRowVM, visit
 export type { PersonRowVM, ThreadHeadFact, ThreadPersonFact } from "./person-row";
 export { ago } from "./person-row-facts";
 export type { PersonFirstContact, PersonLastContact } from "./person-row-facts";
+export { sinceWords } from "./person-since";
 export {
   attentionOf,
   holderOf,
