@@ -2622,9 +2622,8 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 }
 /* The head (the thread canvas, 1 Nov 2026): one bar of the raised ground with a hairline under it, who it is at its
    left (the name at the large step, where it stands and one fact under it), and the acts on the conversation at its
-   right: Snooze and Archive as outlined words and More as a square of the same, on a desk; on a phone none, since who
-   it is opens the thread's sheet (3 Nov 2026), and a call's More in Conversations is a soft 44px round (the phone's
-   rules, below). */
+   right: Snooze and Archive as outlined words and More as a square of the same, on a desk; More alone, a soft 44px
+   round, on a phone (the phone's rules, below). */
 .ix-th-head {
   gap: 12px;
   padding: 12px 20px;
@@ -4151,14 +4150,15 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
   .inbox .ix-thread.active:is(:hover, [data-hover]) {
     background: var(--hover-fill);
   }
-  /* The thread's head on a phone (the thread canvas, 1 Nov 2026): the chevron back in a thumb's 40 by 44, and who it
-     is (the face at 40 in their hue with the wire on its edge, the name and its chevron, where it stands and one fact),
-     which opens the thread's sheet, with no More beside it (header.tsx headerMain, 3 Nov 2026; a call's head in
-     Conversations keeps its More, the soft 44px round below), on the page's own light: the paper Safari stands its bar
-     over the clock on runs on under it, and the conversation fades out under it (mobile.css). It was a bar of the
-     raised ground with a hairline under it (1 to 4 Nov 2026), a step lighter than the paper over the clock, and before
-     that one 52px capsule of the control layer's glass, 8px from the sides (Ruben's iPhone, 4 Nov 2026: "the top header
-     and bottom fully in the new background"). */
+  /* The thread's head on a phone (the thread canvas, 1 Nov 2026): the chevron back in a thumb's 40 by 44, who it is (the
+     face at 40 in their hue with the wire on its edge, the name, where it stands and one fact), one link to their page,
+     and More, a soft 44px round, which opens the thread's sheet, on the page's own light: the paper Safari stands its
+     bar over the clock on runs on under it, and the conversation fades out under it (mobile.css). From 3 Nov 2026 the
+     name opened the sheet, a chevron beside it, with no More (Ruben, 4 Nov 2026: "i prefer the 3 dots we had on the
+     right", and the name "should lead to its person page"). It was a bar of the raised ground with a hairline under it
+     (1 to 4 Nov 2026), a step lighter than the paper over the clock, and before that one 52px capsule of the control
+     layer's glass, 8px from the sides (Ruben's iPhone, 4 Nov 2026: "the top header and bottom fully in the new
+     background"). */
   :is(.inbox, .conversations)[data-takeover] .ix-thread-pane > .ix-th-head {
     gap: 8px;
     margin: 0;
@@ -4193,6 +4193,11 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
   :is(.inbox, .conversations)[data-takeover] .ix-th-name {
     font-size: var(--text-lg);
     line-height: var(--leading-tight);
+  }
+  /* The face, the name and the line under it are all the press to their page, as a contact is in a messaging app, so
+     the name wears no chevron to say so (Ruben, 4 Nov 2026: "no need for the >"). */
+  :is(.inbox, .conversations)[data-takeover] .ix-th-head .ix-th-go {
+    display: none;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-th-meta {
     margin-top: 0;
