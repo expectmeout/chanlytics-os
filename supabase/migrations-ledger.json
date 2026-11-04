@@ -56,10 +56,13 @@
     "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
     "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
     "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
-    "00534": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00538 above every claim; it lands above or beside it",
-    "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00538 above every claim; it lands above or beside it",
-    "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00538 above every claim; it lands above or beside it",
-    "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00538 above every claim; it lands above or beside it"
+    "00534": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00541 above every claim; it lands above or beside it",
+    "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00541 above every claim; it lands above or beside it",
+    "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00541 above every claim; it lands above or beside it",
+    "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when what a search reads of a site took 00541 above every claim; it lands above or beside it",
+    "00538": "claimed by cm-reply-drafts (#2091, inbox/one-reply-draft, a reply is drafted once), open and not on main when what a search reads of a site took 00541 above every claim; it lands above or beside it",
+    "00539": "claimed by cm-reply-drafts (#2091, inbox/one-reply-draft, a reply is drafted once), open and not on main when what a search reads of a site took 00541 above every claim; it lands above or beside it",
+    "00540": "claimed by cm-lead-send (#2092, leads/a-one-off-leaves-from-the-mailbox, a lead's own email), open and not on main when what a search reads of a site took 00541 above every claim; it lands above or beside it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
