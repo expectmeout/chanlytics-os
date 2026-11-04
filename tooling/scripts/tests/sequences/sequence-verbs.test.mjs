@@ -166,6 +166,16 @@ test("a step taken away and people taken out say what the door did, and keep no 
     verbSpec("sequence_leave").receipt({ payload: { enrollment_ids: ["e1", "e2"] } }, { left: 2 }),
     "2 people taken out",
   );
+  assert.equal(
+    verbSpec("sequence_leave").receipt({ payload: { enrollment_ids: ["e1"], leads: true } }, { left: 1 }),
+    "1 lead taken out",
+    "the lead sheet names their place by its enrollment, and they are still a lead",
+  );
+  assert.deepEqual(
+    commit("sequence_leave", { sequence_id: SEQ, enrollment_ids: ["e1"], leads: true }).body,
+    { enrollment_ids: ["e1"] },
+    "how it is said goes no further than the receipt",
+  );
   assert.ok("refused" in commit("sequence_leave", { sequence_id: SEQ }), "nobody named is no leave");
 });
 
@@ -180,6 +190,10 @@ test("a leave's undo puts them back through its own door, and says what stays ou
   assert.equal(u.receipt({ back: 2, sends_out: 0 }, kept), "2 people put back");
   assert.equal(u.receipt({ back: 1, sends_out: 1 }, kept), "1 person put back · 1 email left out stays out");
   assert.match(u.receipt({ back: 0, sends_out: 0 }, kept), /Nobody could be put back/);
+  const lead = card("sequence_leave", { sequence_id: SEQ, enrollment_ids: ["e1"], leads: true }).card;
+  const keptLead = u.record(lead, { left: 1, sequence_id: SEQ, decision_id: "d9" }, TAB);
+  assert.deepEqual(keptLead, { sequence_id: SEQ, decision_id: "d9", leads: true });
+  assert.equal(u.receipt({ back: 1, sends_out: 0 }, keptLead), "1 lead put back", "a lead is put back as a lead");
 });
 
 test("a step's new words say whether they wait for WhatsApp, and the undo gives back the words it had", () => {

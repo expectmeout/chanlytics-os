@@ -5,6 +5,7 @@
  */
 import {
   AppError,
+  LEAD_ASKED_NOT_WRITTEN,
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_NO_ADDRESS,
   LeadDraftAnswerSchema,
@@ -12,9 +13,11 @@ import {
   mailtoOf,
   siteHost,
 } from "@chanlytics/contracts";
+import { addressesSuppressed } from "@chanlytics/db";
 import { workspaceOffer } from "./lead-helpers";
 import type { LeadRow } from "./lead-searches";
 import { askForJson } from "../model-json";
+import { serviceDb } from "../service-db";
 import type { RouteContext } from "../with-route";
 
 /* -------------------------------------------------------------- the draft */
@@ -77,8 +80,11 @@ interface DraftAnswer {
 /**
  * One draft for one lead (§9.3). Refused before any model call when the
  * workspace has no address of its own (US law asks for one at the foot of a
- * business email) and when this lead has no address that reaches them. The
- * foot is code's, and the owner's own mail app sends it.
+ * business email), when this lead has no address that reaches them, and when
+ * that address is on the never-again list: an opt-out is honoured here as the
+ * send door and the finder honour it, by the same predicate, and a list that
+ * cannot be read is no yes. The foot is code's, and the owner's own mail app
+ * sends it.
  */
 export async function draftFor(
   ctx: Pick<RouteContext, "supabase" | "userId">,
@@ -90,6 +96,8 @@ export async function draftFor(
   if (!lead.email || lead.email_state === "none" || lead.email_state === "invalid") {
     throw new AppError("conflict", "This lead has no address that reaches them. Call instead.", 409);
   }
+  const held = await addressesSuppressed(serviceDb(), lead.tenant_id, [lead.email]);
+  if (held.size > 0) throw new AppError("conflict", LEAD_ASKED_NOT_WRITTEN, 409);
   const facts = await draftFacts(ctx, lead);
   const said =
     input.tone === "shorter"

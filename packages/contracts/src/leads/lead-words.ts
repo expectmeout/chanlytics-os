@@ -130,6 +130,9 @@ export const LEAD_LOCKED_LINE =
 
 export const LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
 
+/** An address on the never-again list: no email is written to it here, as no sequence writes to it. */
+export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no email is written here.";
+
 export const LEAD_NO_ADDRESS =
   "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
 

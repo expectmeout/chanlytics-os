@@ -73,6 +73,8 @@ interface SheetInputs {
   /** The batch their step waits in, where the record holds it. */
   waiting?: SheetWaiting | null;
   pile: SheetPileFacts | null;
+  /** The page can write them an email of your own (Leads' sheet; not over a record, which has no draft of its own). */
+  writes: boolean;
 }
 
 /**
@@ -135,7 +137,9 @@ export interface SheetFacts {
   place: SequencePlaceDto | null;
   /** The sequence that has them, where it is not the pick. */
   elsewhere: { id: string | null; name: string; written: boolean } | null;
-  /** Only what to press; null when nothing needs you, and the sheet draws no foot. */
+  /** An email of your own can be written to them here: an address that reaches them, on a page with the draft. */
+  canWrite: boolean;
+  /** Only what to press; null where nothing is left to press, and the sheet draws no foot. */
   dock: LeadSheetDockVM | null;
   rail: SheetRail | null;
   /** The batch their step waits in, which Approve asks about. */
@@ -294,7 +298,10 @@ function firstMailOf(vm: LeadPeekVM, card: LeadCardFacts): SheetMail | null {
   };
 }
 
-/** The email their step holds, its opening as it goes: read before an OK, or marked where the check refused it. */
+/**
+ * The email their step holds, its opening as it goes: read before an OK, marked where the check refused it, or the one
+ * up next, approved and on its day. Only one waiting for an OK is written again.
+ */
 function stepMailOf(vm: LeadPeekVM, place: SequencePlaceDto, rail: SheetRail | null): SheetMail | null {
   const row = place.place;
   const step = rail ? rail.steps.get(row.place ?? 1) : null;
@@ -307,7 +314,7 @@ function stepMailOf(vm: LeadPeekVM, place: SequencePlaceDto, rail: SheetRail | n
     body: step.body,
     opening: markedOpeningOf(row.opening, { reason: row.why, detail: row.hold_detail }),
     writing,
-    rewrite: !held && !writing && !!row.opening,
+    rewrite: row.group === "waiting" && !writing && !!row.opening,
     tall: held,
   };
 }
@@ -358,6 +365,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
   const unread = i.place.failed;
   // Nothing is offered that a read could take back, and nothing where their place could not be read.
   const held = reading || unread !== null;
+  const canWrite = i.writes && c.lead.hasEmail && c.lead.emailState !== "invalid";
   const dock = held
     ? null
     : leadDockOf({
@@ -367,6 +375,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
         blocked: c.blocked,
         elsewhere,
         canCall: c.lead.canCall,
+        canWrite,
         canLater: !!(i.row && i.row.searchId),
         closed: c.closed,
         batch: i.waiting ? i.waiting.ready : undefined,
@@ -425,6 +434,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     history,
     place,
     elsewhere,
+    canWrite,
     dock,
     rail,
     waiting: i.waiting ?? null,
