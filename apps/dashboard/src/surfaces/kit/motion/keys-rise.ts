@@ -11,8 +11,13 @@
  * is under it, mobile.css), so nothing else need keep step with a copy the compositor moves. A translate on the box
  * itself would not do: the browser reads where the field is drawn to decide whether to lift the page. Under reduced
  * motion it is simply there.
+ *
+ * The copy is made the moment the room is (keyboard.ts whenKeysRoomMade), in the task the focus came in, so the first
+ * frame the screen draws has it where the box stood. Made a frame later, it came too late on an iPhone: the screen had
+ * been drawn with the box already in the room, and the box went up in one frame with the conversation gone from under it
+ * (Ruben's recording, 4 Nov 2026).
  */
-import { typesIn } from "./keyboard";
+import { typesIn, whenKeysRoomMade } from "./keyboard";
 import { motionReduced } from "./swipe";
 
 /** The keys' own beat on iOS: what they take to rise (ask/hooks.ts AH_KEYS_MS, mobile.css's 250ms). */
@@ -56,6 +61,9 @@ function rise(box: HTMLElement, from: DOMRect, along: HTMLElement | null) {
   });
   screen.appendChild(copy);
   box.style.opacity = "0";
+  // Held clear under its copy, the box glides no height of its own (use-height-glide.ts): a box opened by the press that
+  // focused it glided from its folded height under the copy, and the conversation followed that, not the copy.
+  box.setAttribute("data-rising", "");
   if (along) {
     along.style.transition = "none";
     along.style.marginBottom = `${by}px`;
@@ -75,6 +83,7 @@ function rise(box: HTMLElement, from: DOMRect, along: HTMLElement | null) {
     box.removeEventListener("focusout", land);
     copy.remove();
     box.style.removeProperty("opacity");
+    box.removeAttribute("data-rising");
     if (along) {
       along.style.removeProperty("transition");
       along.style.removeProperty("margin-bottom");
@@ -87,12 +96,14 @@ function rise(box: HTMLElement, from: DOMRect, along: HTMLElement | null) {
 
 /**
  * As `target`, a field in `box`, takes the focus: where the box stands is read now, before the screen makes the keys'
- * room, and a frame later, once it is made, the box rises into it (watchKeyboard hears the focus after the page does).
- * Not while the keys are up already: a field the focus moves to then needs no room.
+ * room, and the moment it is made the box rises into it (watchKeyboard hears the focus after the page does, in the same
+ * task). Not while the keys are up already: a field the focus moves to then needs no room. A room not made as this focus
+ * is heard (no keyboard expected) is not waited for.
  */
 export function riseWithKeys(target: EventTarget | null, box: HTMLElement | null, along: HTMLElement | null): void {
   if (!box || !box.parentElement || !typesIn(target) || motionReduced()) return;
-  if (document.documentElement.classList.contains("kb-up") || typeof requestAnimationFrame !== "function") return;
+  if (document.documentElement.classList.contains("kb-up")) return;
   const from = box.getBoundingClientRect();
-  requestAnimationFrame(() => rise(box, from, along));
+  const stop = whenKeysRoomMade(() => rise(box, from, along));
+  setTimeout(stop);
 }

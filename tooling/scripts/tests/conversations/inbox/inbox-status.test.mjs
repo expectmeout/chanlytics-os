@@ -508,6 +508,42 @@ test("what an email from the box is signed with is read for its thread once the 
   }
 });
 
+test("what an email is signed with is asked as the caret comes into the box, so the first key brings the signature and Rewrite over the line together (Ruben's recording, 4 Nov 2026: Rewrite came alone, the signature half a second after)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const realFetch = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    asked.push(new URL(String(url), "https://app.example").pathname);
+    const data = { drafts: [], complete: true, signed: { c1: "Sam Reyes\nHarbor Moving" } };
+    return new Response(JSON.stringify({ ok: true, data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    setSurfaceValue("reply_drafts", { drafts: [], complete: true, fetchedAt: Date.now() });
+    fresh();
+    const thread = vmOf(dto);
+    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    const field = () => find(draw(), (n) => n.type === "textarea");
+    await settle();
+    assert.deepEqual(asked, [], "an empty box nobody writes in asks nothing");
+    field().props.onFocus();
+    await until(() => (draw(), asked.length === 1), "asked as the caret comes in");
+    await settle();
+    field().props.onChange({ target: { value: "F" } });
+    const first = draw();
+    assert.equal(textOf(find(first, byTestId("ix-composer-signed-words"))), "Signed Sam Reyes · Harbor Moving");
+    assert.ok(find(first, byTestId("ix-composer-rewrite")), "Rewrite in the same draw as the signature");
+    assert.deepEqual(asked, ["/api/v1/conversations/drafts"], "the thread's own read, once");
+  } finally {
+    globalThis.fetch = realFetch;
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
 test("REGRESSION: the reply box and a seeded approval draw no key -- Send said ⌘↵ and the card's foot A, D and E, beside the ? sheet that lists them", () => {
   fresh();
   const box = InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
@@ -673,19 +709,24 @@ test("on a phone the reply box opens folded and opens as it is tapped or typed i
     const folded = foot(draw());
     assert.equal(folded.props["data-folded"], "", "folded as the thread opens on a phone");
     // A thumb that lands on it on its way up or down the conversation is no tap: it stays folded (Ruben, 2 Nov 2026: a
-    // drag on the reply box moved it). A press is read off the box it lands on, as the browser hands it.
+    // drag on the reply box moved it). A press is read off the box it lands on, as the browser hands it. It opens at the
+    // tap's click, once the press has gone to what was under the finger (Ruben's recording, 4 Nov 2026: opened as the
+    // finger lifted, the box grew under it, and the click landed on Hand back or on nothing).
     const box = {};
     const press = (props, type, x, y) => props[type]({ currentTarget: box, clientX: x, clientY: y });
     press(folded.props, "onPointerDown", 200, 700);
     assert.equal(foot(draw()).props["data-folded"], "", "a touch alone does not open it");
-    press(foot(draw()).props, "onPointerUp", 200, 560);
+    assert.equal(foot(draw()).props.onPointerUp, undefined, "nor does the finger lifting: the click is the tap");
+    press(foot(draw()).props, "onClick", 200, 560);
     assert.equal(foot(draw()).props["data-folded"], "", "a drag up the screen does not open it");
     press(foot(draw()).props, "onPointerDown", 200, 700);
     press(foot(draw()).props, "onPointerCancel", 200, 700);
-    press(foot(draw()).props, "onPointerUp", 200, 700);
+    press(foot(draw()).props, "onClick", 200, 700);
     assert.equal(foot(draw()).props["data-folded"], "", "nor one the browser took for a scroll");
+    press(foot(draw()).props, "onClick", 200, 700);
+    assert.equal(foot(draw()).props["data-folded"], "", "nor a click no finger pressed (a key's)");
     press(foot(draw()).props, "onPointerDown", 200, 700);
-    press(foot(draw()).props, "onPointerUp", 202, 703);
+    press(foot(draw()).props, "onClick", 202, 703);
     assert.equal(foot(draw()).props["data-folded"], undefined, "tapped, it opens");
     fresh();
     foot(draw()).props.onFocus();
@@ -694,7 +735,7 @@ test("on a phone the reply box opens folded and opens as it is tapped or typed i
     fresh();
     const desk = foot(draw());
     assert.equal(desk.props["data-folded"], undefined, "a desk's pane has the room");
-    assert.equal(desk.props.onPointerUp, undefined, "and nothing to open");
+    assert.equal(desk.props.onClick, undefined, "and nothing to open");
   } finally {
     win.matchMedia = was;
   }

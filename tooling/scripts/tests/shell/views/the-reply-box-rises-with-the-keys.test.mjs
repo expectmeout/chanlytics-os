@@ -5,11 +5,12 @@
  * finds the field above where the keys land and lifts nothing; drawn as it stood, the box went up by the whole room in
  * one frame, and the conversation with it. What the eye sees is a still copy of the box going from where the box stood
  * to where it stands over the keys' beat, the box held clear meanwhile, and the conversation reaching down to the copy's
- * top and given its place back as the copy rises. Landed, or the focus gone from the box first, the box is itself again
- * at once.
+ * top and given its place back as the copy rises. The copy is made the moment the room is (keyboard.ts keysRoomMade), in
+ * the focus's own task: made a frame later, an iPhone had drawn the box in the room already, and no copy rose at all
+ * (Ruben's recording, 4 Nov 2026). Landed, or the focus gone from the box first, the box is itself again at once.
  *
  * Run against the module itself, on a screen, a box, a conversation and a field that answer what it asks of them, with
- * frames that run as the test lets them and the clock's timers mocked.
+ * the room made as the test makes it and the clock's timers mocked.
  */
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,11 +21,10 @@ const rootClasses = new Set();
 let reduced = false;
 globalThis.window = { matchMedia: (q) => ({ matches: reduced && q.includes("reduce") }) };
 globalThis.document = { documentElement: { classList: { contains: (c) => rootClasses.has(c) } } };
-const frames = [];
-globalThis.requestAnimationFrame = (fn) => frames.push(fn);
-const runFrame = () => frames.splice(0).forEach((fn) => fn());
 
 const { riseWithKeys } = await import("../../../../../apps/dashboard/src/surfaces/kit/motion/keys-rise.ts");
+// The document saying a keyboard is expected, in the task the focus came in (watchKeyboard's focusin calls it).
+const { keysRoomMade } = await import("../../../../../apps/dashboard/src/surfaces/kit/motion/keyboard.ts");
 
 const camel = (name) => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 /** An element's style, which keeps every value written to it in order (`writes`), where a browser keeps the last. */
@@ -136,8 +136,13 @@ test("a field focused in the reply box: a copy of it rises from where it stood t
     riseWithKeys(field, box, along);
     assert.equal(screen.children.length, 1, "nothing moves before the room is made");
     box.rect = rect(729 - ROOM, 812 - ROOM);
-    runFrame();
+    keysRoomMade();
 
+    assert.equal(
+      screen.children.length,
+      2,
+      "made the moment the room is, in the focus's own task: no frame waited for",
+    );
     const copy = screen.children.at(-1);
     assert.notEqual(copy, box, "a copy of the box, over it");
     assert.equal(copy.attrs["aria-hidden"], "true", "hidden from a screen reader");
@@ -161,6 +166,11 @@ test("a field focused in the reply box: a copy of it rises from where it stood t
       "over the keys' beat",
     );
     assert.equal(box.style.opacity, "0", "the box itself held clear: its field keeps the focus");
+    assert.equal(
+      box.attrs["data-rising"],
+      "",
+      "and said to be rising, so no glide of its own height plays under the copy",
+    );
     assert.deepEqual(
       written(along.style, "marginBottom"),
       [`-${ROOM}px`, "0px"],
@@ -173,6 +183,7 @@ test("a field focused in the reply box: a copy of it rises from where it stood t
     mock.timers.tick(1);
     assert.ok(!screen.children.includes(copy), "landed, the copy is let go");
     assert.equal(box.style.opacity, undefined, "and the box is itself again, where the copy landed");
+    assert.equal("data-rising" in box.attrs, false, "no longer rising");
     assert.equal(along.style.marginBottom, undefined);
     assert.equal(along.style.transition, undefined);
     assert.equal((box.listeners.focusout || []).length, 0, "nothing left listening");
@@ -187,11 +198,12 @@ test("the focus gone from the box before it lands (sent, or the keys put away): 
     const { screen, box, along, field } = thread();
     riseWithKeys(field, box, along);
     box.rect = rect(729 - ROOM, 812 - ROOM);
-    runFrame();
+    keysRoomMade();
     assert.equal(screen.children.length, 2, "rising");
     box.listeners.focusout.forEach((fn) => fn());
     assert.equal(screen.children.length, 1, "the copy let go at once");
     assert.equal(box.style.opacity, undefined);
+    assert.equal("data-rising" in box.attrs, false);
     mock.timers.tick(300);
     assert.equal(screen.children.length, 1, "and once only");
   } finally {
@@ -204,7 +216,7 @@ test("nothing rises where nothing would: a press, the keys up already, motion re
     const { screen, box, along, field } = thread();
     const target = setUp({ box, field }) ?? field;
     riseWithKeys(target, box, along);
-    runFrame();
+    keysRoomMade();
     assert.equal(screen.children.length, 1, `${why}: no copy`);
     assert.equal(box.style.opacity, undefined, `${why}: the box as it is`);
   };
@@ -215,9 +227,24 @@ test("nothing rises where nothing would: a press, the keys up already, motion re
   reduced = true;
   still(() => null, "motion reduced: the box is simply there");
   reduced = false;
-  still(() => null, "no room made (a keyboard that never comes), so the box did not move");
+  still(() => null, "the room said made, yet the box did not move (no room for these keys)");
   still(({ box }) => {
     box.isConnected = false;
     box.rect = rect(729 - ROOM, 812 - ROOM);
-  }, "the thread closed before the frame");
+  }, "the thread closed before the room was made");
+});
+
+test("a room not made as the focus is heard is not waited for: a keyboard expected later (another field, another focus) raises no copy of this box", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const { screen, box, along, field } = thread();
+    riseWithKeys(field, box, along);
+    mock.timers.tick(0);
+    box.rect = rect(729 - ROOM, 812 - ROOM);
+    keysRoomMade();
+    assert.equal(screen.children.length, 1, "the focus's task is over: nothing waits on it any more");
+    assert.equal(box.style.opacity, undefined);
+  } finally {
+    mock.timers.reset();
+  }
 });
