@@ -66,23 +66,18 @@ export function leadReplyNote(p: {
   business: string;
   /** The reach-out email they answered, its first words. */
   answered: string | null;
-  /** The chain's signature ({{your name}}), when it has one. */
-  signedBy: string | null;
   kind: "answer" | "thanks";
 }): string {
   const name = promptSafeName(p.business);
   const business = name ? fencedInline("profile_name", name) : "a business";
   const answered = flatClip(p.answered, 600);
-  const signedBy = flatClip(p.signedBy, 60);
   return [
     `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
     `answer for the owner to read, change and send: it is not sent until they do.`,
     answered ? `The reach-out they answered said: "${answered}"` : null,
-    `Write an email: plain paragraphs, no emoji, no subject line, no markdown.`,
-    signedBy ? `End it signed "${signedBy}".` : `End it signed with the business's name.`,
     p.kind === "thanks"
       ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.`
-      : `Answer what they asked or said from the business's own facts. When a fact is not there, say the owner will follow up.`,
+      : `Answer what they asked or said from the business's own facts.`,
   ]
     .filter((l): l is string => l !== null)
     .join("\n");

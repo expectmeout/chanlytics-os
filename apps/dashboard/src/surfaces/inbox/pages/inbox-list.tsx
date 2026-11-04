@@ -354,7 +354,8 @@ function bucketTabs(L: ListCtx) {
         label: b.label,
         hint: b.hint,
         tone: b.accent ? ("warn" as const) : undefined,
-        glyph: buckets.length > 3 ? <Icon name={b.icon} size={13} /> : undefined,
+        // A real inbox's words alone, its Set aside among them: with glyphs, four tabs ran past a desk's list.
+        glyph: buckets.length > 4 ? <Icon name={b.icon} size={13} /> : undefined,
         count: (b.count ?? 0) > 0 ? b.count : undefined,
       }))}
     />

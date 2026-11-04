@@ -3393,13 +3393,62 @@ end $$;
 
 
 --
+-- Name: conversation_draft_claim(uuid, uuid, text, uuid, integer, text, boolean, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text DEFAULT 'hold'::text, p_again boolean DEFAULT false, p_stale_before timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_took uuid;
+begin
+  if not exists (select 1 from public.conversations c where c.id = p_conversation_id and c.tenant_id = p_tenant_id) then
+    return false;
+  end if;
+  insert into public.conversation_drafts as d
+    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, used, why_failed, tries)
+  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, '{}'::jsonb, null, now(),
+          'writing', p_source, p_rules, '{}'::text[], null, 1)
+  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
+     set for_message_id = excluded.for_message_id,
+         words = '{}'::jsonb,
+         made_by = null,
+         made_at = now(),
+         state = 'writing',
+         source = excluded.source,
+         rules = excluded.rules,
+         used = '{}'::text[],
+         why_failed = null,
+         tries = case
+           when d.for_message_id is not distinct from excluded.for_message_id and d.rules is not distinct from excluded.rules
+             then d.tries + 1
+           else 1
+         end
+   where d.for_message_id is distinct from excluded.for_message_id
+      or d.rules is distinct from excluded.rules
+      or (p_again and d.state = 'failed')
+      or (d.state = 'writing' and p_stale_before is not null and d.made_at < p_stale_before)
+  returning d.id into v_took;
+  return v_took is not null;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone) IS 'A thread''s draft says it is being written, once a message, kind and edition (00538, decision 0093): true when this call took it. A row for this message and edition is left alone, unless it failed and this asks again, or its claim is older than p_stale_before.';
+
+
+--
 -- Name: conversation_draft_keep(uuid, uuid, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_actor uuid := auth.uid();
   v_row   public.conversation_drafts%rowtype;
@@ -3429,13 +3478,29 @@ begin
   ) then
     raise exception 'conversation_draft_keep: the message is the thread''s own' using errcode = '22023';
   end if;
-  insert into public.conversation_drafts as d (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at)
-  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now())
+  -- A dashboard a deploy behind (00538): its words say where the draft stands.
+  insert into public.conversation_drafts as d
+    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, why_failed)
+  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now(),
+          case
+            when p_kind = 'brief' and jsonb_typeof(p_words -> 'brief') = 'object' then 'ready'
+            when btrim(coalesce(p_words ->> 'text', '')) <> '' then 'ready'
+            when btrim(coalesce(p_words ->> 'pitch', '')) <> '' then 'pitch'
+            when jsonb_array_length(coalesce(nullif(p_words -> 'asks', 'null'::jsonb), '[]'::jsonb)) > 0 then 'asks'
+            else 'failed'
+          end,
+          'hold',
+          case when (p_words ->> 'rules') ~ '^[0-9]+$' then (p_words ->> 'rules')::integer end,
+          null)
   on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
      set for_message_id = excluded.for_message_id,
          words = excluded.words,
          made_by = excluded.made_by,
-         made_at = excluded.made_at
+         made_at = excluded.made_at,
+         state = excluded.state,
+         source = excluded.source,
+         rules = excluded.rules,
+         why_failed = null
   returning * into v_row;
   return jsonb_build_object(
     'conversation_id', v_row.conversation_id,
@@ -3444,7 +3509,7 @@ begin
     'words', v_row.words,
     'made_at', v_row.made_at
   );
-end $$;
+end $_$;
 
 
 --
@@ -3452,6 +3517,63 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) IS 'Keep Ask''s draft for a thread waiting on a person (decision 0071): a member who acts, the thread their workspace''s, the message it answers one of the thread''s own. One a thread and kind, the newest kept. Returns the draft, or {error: not_acting | not_found}.';
+
+
+--
+-- Name: conversation_draft_write(uuid, uuid, text, uuid, text, jsonb, text, integer, text[], text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[] DEFAULT '{}'::text[], p_why_failed text DEFAULT NULL::text, p_made_by uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.conversation_drafts%rowtype;
+begin
+  if p_words is null or jsonb_typeof(p_words) <> 'object' or octet_length(p_words::text) > 16000 then
+    raise exception 'conversation_draft_write: the words are one draft''s' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.conversations c where c.id = p_conversation_id and c.tenant_id = p_tenant_id) then
+    return null;
+  end if;
+  insert into public.conversation_drafts as d
+    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, used, why_failed, tries)
+  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, p_made_by, now(),
+          p_state, p_source, p_rules, coalesce(p_used, '{}'::text[]), p_why_failed, 1)
+  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
+     set words = excluded.words,
+         made_by = excluded.made_by,
+         made_at = excluded.made_at,
+         state = excluded.state,
+         source = excluded.source,
+         rules = excluded.rules,
+         used = excluded.used,
+         why_failed = excluded.why_failed
+   where d.for_message_id is not distinct from excluded.for_message_id
+  returning * into v_row;
+  if v_row.id is null then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'conversation_id', v_row.conversation_id,
+    'kind', v_row.kind,
+    'for_message_id', v_row.for_message_id,
+    'words', v_row.words,
+    'made_at', v_row.made_at,
+    'state', v_row.state,
+    'source', v_row.source,
+    'rules', v_row.rules,
+    'used', to_jsonb(v_row.used),
+    'why_failed', v_row.why_failed
+  );
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid) IS 'A thread''s draft kept (00538, decision 0093), only over a row for the same message: a slow run answers null rather than write over the newer message''s claim.';
 
 
 --
@@ -3569,6 +3691,63 @@ COMMENT ON FUNCTION public.conversation_hand_back(p_tenant_id uuid, p_conversati
 
 
 --
+-- Name: conversation_not_a_customer(uuid, uuid, boolean, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean DEFAULT false, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor    uuid := auth.uid();
+  v_id       uuid;
+  v_sender   text;
+  v_decision jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- Undone, it is on the list again, as what it was. No row is a thread that moved while the person looked.
+  update public.conversations
+     set set_aside_at = case when p_undo then now() end
+   where id = p_conversation_id and tenant_id = p_tenant_id
+     and (case when p_undo then set_aside_at is null and set_aside_why is not null else set_aside_at is not null end)
+  returning id into v_id;
+  if v_id is null then
+    return null;
+  end if;
+  v_sender := public.conversation_sender_address(p_tenant_id, p_conversation_id);
+  if v_sender is not null and v_sender <> '' then
+    if p_undo then
+      delete from public.mailbox_senders
+       where tenant_id = p_tenant_id and sender = v_sender and verdict = 'automated';
+    else
+      insert into public.mailbox_senders (tenant_id, sender, verdict, set_by, set_at)
+      values (p_tenant_id, v_sender, 'automated', v_actor, now())
+      on conflict (tenant_id, sender)
+        do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
+    end if;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('kind', 'address', 'verdict', case when p_undo then null else 'automated' end, 'by', v_actor));
+  end if;
+  v_decision := public.team_decision(p_tenant_id, v_actor, 'conversation', p_conversation_id, 'not_a_customer',
+                                     jsonb_build_object('undone', p_undo), p_via, p_undo_of);
+  return jsonb_build_object('set_aside', p_undo) || v_decision;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) IS 'A member says a thread set aside is not a customer''s (00539, decision 0093): off the list, still archived, its sender''s address automated, the decision, in one transaction; with p_undo, back on the list with the address unsaid. Null when no row moved. The domain stays the person page''s.';
+
+
+--
 -- Name: conversation_open(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3608,6 +3787,137 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) IS 'A member opens a person''s one thread, as themselves (an owner, an operator, or a partner whose session showed its second factor): the thread''s id, made when they had none and left untouched (no last_message_at: that is the message''s). Refuses a person who is not this workspace''s, or erased, being erased, or merged into another. Writes no message and no event: the reply route queues what follows.';
+
+
+--
+-- Name: conversation_reply_anyway(uuid, uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor    uuid := auth.uid();
+  v_id       uuid;
+  v_sender   text;
+  v_reason   text;
+  v_details  text;
+  v_decision jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- contracts' reopen move: open, with nothing else to clear, since setting aside cleared it.
+  update public.conversations
+     set state = 'open', set_aside_at = null, set_aside_why = null
+   where id = p_conversation_id and tenant_id = p_tenant_id and set_aside_at is not null
+  returning id into v_id;
+  if v_id is null then
+    return null;
+  end if;
+  -- Its sender is a person: this outranks what they were read to be, so they come in from here on (decision 0080's order).
+  v_sender := public.conversation_sender_address(p_tenant_id, p_conversation_id);
+  if v_sender is not null and v_sender <> '' then
+    insert into public.mailbox_senders (tenant_id, sender, verdict, set_by, set_at)
+    values (p_tenant_id, v_sender, 'person', v_actor, now())
+    on conflict (tenant_id, sender)
+      do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('kind', 'address', 'verdict', 'person', 'by', v_actor));
+  end if;
+  -- The row that said it was no customer's goes, so the claim the hold's own event makes takes this message.
+  delete from public.conversation_drafts d
+   where d.tenant_id = p_tenant_id and d.conversation_id = p_conversation_id and d.state = 'pitch';
+  v_decision := public.team_decision(p_tenant_id, v_actor, 'conversation', p_conversation_id, 'reply_anyway',
+                                     '{}'::jsonb, p_via, p_undo_of);
+  -- The hold it left, open again: its reason and what it said, through the one door a thread is handed to a person by.
+  select e.reason, e.details into v_reason, v_details
+    from public.escalations e
+   where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id
+   order by e.created_at desc
+   limit 1;
+  perform public.escalation_open(p_tenant_id, p_conversation_id, coalesce(v_reason, 'email_review'), v_details);
+  return jsonb_build_object('reopened', true) || v_decision;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) IS 'A member says a thread set aside is a customer''s after all (00539, decision 0093): open again, its sender a person, its hold re-opened with its first reason (so a draft is owed), the decision, in one transaction. Null when no row moved.';
+
+
+--
+-- Name: conversation_sender_address(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select lower(btrim(coalesce(
+    (select m.meta -> 'email' ->> 'from'
+       from public.messages m
+      where m.tenant_id = p_tenant_id and m.conversation_id = p_conversation_id and m.sender = 'customer'
+      order by m.created_at desc
+      limit 1),
+    (select k.email
+       from public.conversations c
+       join public.contacts k on k.id = c.contact_id and k.tenant_id = c.tenant_id
+      where c.tenant_id = p_tenant_id and c.id = p_conversation_id)
+  )));
+$$;
+
+
+--
+-- Name: FUNCTION conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) IS 'The address a thread''s sender wrote from (00539): what a member''s word about the thread is said of. For the two doors below.';
+
+
+--
+-- Name: conversation_set_aside(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  if p_why is null or p_why not in ('pitch', 'notice') then
+    raise exception 'conversation_set_aside: a thread is set aside as a pitch or a notice' using errcode = '22023';
+  end if;
+  -- contracts' archive move, whole, and what it was set aside as. A thread someone already has is theirs, and is left alone.
+  update public.conversations
+     set state = 'archived', paused_until = null, snooze_until = null, assignee_user_id = null,
+         set_aside_at = now(), set_aside_why = p_why
+   where id = p_conversation_id and tenant_id = p_tenant_id and assignee_user_id is null
+  returning id into v_id;
+  if v_id is null then
+    return false;
+  end if;
+  -- The platform's own close, as a reading's is: no member is named as resolving it, and no decision is recorded.
+  update public.escalations
+     set state = 'resolved'
+   where conversation_id = p_conversation_id and tenant_id = p_tenant_id and state = 'open';
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) IS 'A thread set aside as not a customer''s, in one transaction (00539, decision 0093): archived, said so, its open hold resolved. False where someone has the thread. The service role''s.';
 
 
 --
@@ -5224,13 +5534,17 @@ begin
               jsonb_build_object('reason', p_reason));
       return 'opened';
     end if;
-    -- A customer writing while a person has the thread is the open hold's, whatever its reason (00454): nothing written.
+    -- A customer writing while a person has the thread is the open hold's, whatever its reason (00454): nothing written
+    -- but that they wrote (00538).
     if p_reason = 'wrote_while_held' then
       select e.id into v_id
         from public.escalations e
        where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id and e.state = 'open'
          and e.reason is distinct from p_reason;
       if v_id is not null then
+        insert into public.events (tenant_id, kind, category, version, subject_type, subject_id, data)
+        values (p_tenant_id, 'escalation.refreshed', 'message', 1, 'conversation', p_conversation_id,
+                jsonb_build_object('reason', p_reason));
         return 'refreshed';
       end if;
     end if;
@@ -5248,6 +5562,9 @@ begin
      where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id and e.state = 'open'
     returning e.id into v_id;
     if v_id is not null then
+      insert into public.events (tenant_id, kind, category, version, subject_type, subject_id, data)
+      values (p_tenant_id, 'escalation.refreshed', 'message', 1, 'conversation', p_conversation_id,
+              jsonb_build_object('reason', p_reason));
       return 'refreshed';
     end if;
   end loop;
@@ -5259,7 +5576,7 @@ end $$;
 -- Name: FUNCTION escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00388): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. A wrote_while_held asked of a thread already held never takes the open reason''s place: it writes nothing and answers refreshed (00454). An open one resolved in between leaves room, and a new one is opened. The service role''s.';
+COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00388): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed, with escalation.refreshed: they wrote again, 00538), in one transaction. A wrote_while_held asked of a thread already held never takes the open reason''s place: it answers refreshed (00454). An open one resolved in between leaves room, and a new one is opened. The service role''s.';
 
 
 --
@@ -7491,7 +7808,10 @@ CREATE TABLE public.conversations (
     control_ref text,
     control_until timestamp with time zone,
     note_checked_at timestamp with time zone,
+    set_aside_at timestamp with time zone,
+    set_aside_why text,
     CONSTRAINT conversations_control_check CHECK ((((control_kind IS NULL) = (control_until IS NULL)) AND ((control_kind IS NULL) OR (control_kind = ANY (ARRAY['person'::text, 'call'::text]))) AND ((control_kind IS DISTINCT FROM 'person'::text) OR (control_by IS NOT NULL)) AND ((control_kind IS DISTINCT FROM 'call'::text) OR (control_ref IS NOT NULL)) AND ((control_kind IS NOT NULL) OR ((control_by IS NULL) AND (control_ref IS NULL))))),
+    CONSTRAINT conversations_set_aside_why_check CHECK (((set_aside_why IS NULL) OR (set_aside_why = ANY (ARRAY['pitch'::text, 'notice'::text])))),
     CONSTRAINT conversations_state_check CHECK ((state = ANY (ARRAY['open'::text, 'needs_human'::text, 'snoozed'::text, 'archived'::text])))
 );
 
@@ -7515,6 +7835,20 @@ COMMENT ON COLUMN public.conversations.control_until IS 'When the hold lapses on
 --
 
 COMMENT ON COLUMN public.conversations.note_checked_at IS 'When the note sweep last read this conversation (0007): it reads again only after newer customer messages have gone quiet.';
+
+
+--
+-- Name: COLUMN conversations.set_aside_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversations.set_aside_at IS 'When the thread was set aside as not a customer''s (00539, decision 0093), and still is: null once a member answered it.';
+
+
+--
+-- Name: COLUMN conversations.set_aside_why; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversations.set_aside_why IS 'What its sender was read as: pitch, or notice (a program''s mail). Kept past set_aside_at, for an Undo.';
 
 
 --
@@ -25890,6 +26224,74 @@ COMMENT ON FUNCTION public.rename_mailbox(p_mailbox_id uuid, p_from_name text) I
 
 
 --
+-- Name: reply_draft_uses(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reply_draft_uses(p_days integer) RETURNS TABLE(ours boolean, use text, n bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select t.ours, m.meta -> 'draft' ->> 'use', count(*)
+    from public.messages m
+    join public.tenants t on t.id = m.tenant_id
+   where m.created_at >= now() - make_interval(days => greatest(p_days, 1))
+     and m.direction = 'outbound'
+     and m.meta -> 'draft' ->> 'use' is not null
+   group by t.ours, m.meta -> 'draft' ->> 'use';
+$$;
+
+
+--
+-- Name: FUNCTION reply_draft_uses(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reply_draft_uses(p_days integer) IS 'How the replies members sent over a window used the thread''s draft (00539, decision 0093): as written, edited or not used, by whether the workspace is ours. Health''s number.';
+
+
+--
+-- Name: reply_drafts_due(integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer DEFAULT 50) RETURNS TABLE(tenant_id uuid, conversation_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select e.tenant_id, e.conversation_id
+    from public.escalations e
+    left join public.conversation_drafts d
+      on d.tenant_id = e.tenant_id
+     and d.conversation_id = e.conversation_id
+     and d.kind = case when e.reason = 'callback' then 'brief' else 'reply' end
+   where e.state = 'open'
+     and e.reason not in ('opt_out', 'booking_request')
+     and (
+       d.id is null
+       or d.rules is distinct from p_rules
+       or d.for_message_id is distinct from (
+         select m.id
+           from public.messages m
+          where m.tenant_id = e.tenant_id and m.conversation_id = e.conversation_id and m.sender = 'customer'
+          order by m.created_at desc
+          limit 1
+       )
+       or (d.state = 'writing' and d.made_at < now() - interval '5 minutes')
+       or (d.state = 'failed' and d.why_failed = 'not_drafted' and d.tries < 3 and d.made_at < now() - interval '15 minutes')
+       or (d.state = 'failed' and d.why_failed in ('budget', 'may_not_spend', 'no_receptionist') and d.made_at < now() - interval '12 hours')
+     )
+   -- The newest first: a hold nothing can be drafted for (a window shut) is asked about every tick, and never starves one.
+   order by e.created_at desc
+   limit greatest(p_limit, 0);
+$$;
+
+
+--
+-- Name: FUNCTION reply_drafts_due(p_rules integer, p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer) IS 'The open holds whose draft is owed another look (00538): none kept, another edition, an older message, a claim that died, or a failure due another try. contracts replyDraftOwed still says whether each is owed.';
+
+
+--
 -- Name: reply_was_typed(uuid, uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32551,6 +32953,34 @@ COMMENT ON FUNCTION public.trigger_deadman_sweep() IS 'Asks the edge to flag esc
 
 
 --
+-- Name: trigger_drafts_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_drafts_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (
+       select 1 from public.escalations e
+        where e.state = 'open' and e.reason not in ('opt_out', 'booking_request')
+     ) then
+    return public.request_sweep('drafts', '/api/cron/drafts');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('drafts', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_drafts_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_drafts_sweep() IS 'The drafts sweep''s clock (decision 0093). Calls the edge (/api/cron/drafts) only while a hold is open; otherwise records that it looked.';
+
+
+--
 -- Name: trigger_google_sweep(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -34276,7 +34706,15 @@ CREATE TABLE public.conversation_drafts (
     words jsonb DEFAULT '{}'::jsonb NOT NULL,
     made_by uuid,
     made_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT conversation_drafts_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'brief'::text])))
+    state text,
+    source text,
+    rules integer,
+    used text[] DEFAULT '{}'::text[] NOT NULL,
+    why_failed text,
+    tries smallint DEFAULT 0 NOT NULL,
+    CONSTRAINT conversation_drafts_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'brief'::text]))),
+    CONSTRAINT conversation_drafts_source_check CHECK ((source = ANY (ARRAY['hold'::text, 'reach_out'::text, 'rewrite'::text]))),
+    CONSTRAINT conversation_drafts_state_check CHECK ((state = ANY (ARRAY['writing'::text, 'ready'::text, 'pitch'::text, 'asks'::text, 'failed'::text])))
 );
 
 
@@ -34285,6 +34723,48 @@ CREATE TABLE public.conversation_drafts (
 --
 
 COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_keep.';
+
+
+--
+-- Name: COLUMN conversation_drafts.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.state IS 'Where the draft stands (00538, decision 0093): writing, ready, pitch (not a customer''s, so no reply was written), asks, failed. Set writing by conversation_draft_claim, the rest by conversation_draft_write.';
+
+
+--
+-- Name: COLUMN conversation_drafts.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.source IS 'What asked for it: the thread''s hold, a reply to a sequence, a member''s change to it.';
+
+
+--
+-- Name: COLUMN conversation_drafts.rules; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.rules IS 'The edition of the rules it was written under (contracts REPLY_DRAFT_RULES): one from another edition is no draft, and the sweep writes it again.';
+
+
+--
+-- Name: COLUMN conversation_drafts.used; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.used IS 'What the drafter handed the model, as Why this? says it: said by code from its own prompt, never by the model.';
+
+
+--
+-- Name: COLUMN conversation_drafts.why_failed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.why_failed IS 'Why it was not written, where state is failed: a word of contracts ReplyDraftWhy.';
+
+
+--
+-- Name: COLUMN conversation_drafts.tries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.tries IS 'How many times it has been asked of this message and edition: the sweep stops at three.';
 
 
 --
@@ -34372,7 +34852,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text, 'sequence'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text])))
 );
 
 
@@ -39901,6 +40381,13 @@ CREATE UNIQUE INDEX contacts_tenant_phone_uq ON public.contacts USING btree (ten
 
 
 --
+-- Name: conversation_drafts_state; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversation_drafts_state ON public.conversation_drafts USING btree (tenant_id, state);
+
+
+--
 -- Name: conversations_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42281,6 +42768,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.capability_activatio
 
 
 --
+-- Name: conversation_drafts workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.conversation_drafts REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: conversations workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -42509,6 +43003,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.capability_activatio
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.contacts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: conversation_drafts workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.conversation_drafts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -42768,6 +43269,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.capability_activatio
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE OF display_name, wa_profile_name, phone_e164, email, notes, proposal_url, consent, consent_source, consent_updated_at, dnc, marketing_consent, marketing_consent_source, marketing_consent_updated_at, email_marketing, email_marketing_source, email_marketing_updated_at, consent_channels, marketing_channels, email_suppressed_at, email_suppressed_reason, merged_into_contact_id, erased_at, lead_id, name_source ON public.contacts FOR EACH ROW WHEN (((old.display_name IS DISTINCT FROM new.display_name) OR (old.wa_profile_name IS DISTINCT FROM new.wa_profile_name) OR (old.phone_e164 IS DISTINCT FROM new.phone_e164) OR (old.email IS DISTINCT FROM new.email) OR (old.notes IS DISTINCT FROM new.notes) OR (old.proposal_url IS DISTINCT FROM new.proposal_url) OR (old.consent IS DISTINCT FROM new.consent) OR (old.consent_source IS DISTINCT FROM new.consent_source) OR (old.consent_updated_at IS DISTINCT FROM new.consent_updated_at) OR (old.dnc IS DISTINCT FROM new.dnc) OR (old.marketing_consent IS DISTINCT FROM new.marketing_consent) OR (old.marketing_consent_source IS DISTINCT FROM new.marketing_consent_source) OR (old.marketing_consent_updated_at IS DISTINCT FROM new.marketing_consent_updated_at) OR (old.email_marketing IS DISTINCT FROM new.email_marketing) OR (old.email_marketing_source IS DISTINCT FROM new.email_marketing_source) OR (old.email_marketing_updated_at IS DISTINCT FROM new.email_marketing_updated_at) OR (old.consent_channels IS DISTINCT FROM new.consent_channels) OR (old.marketing_channels IS DISTINCT FROM new.marketing_channels) OR (old.email_suppressed_at IS DISTINCT FROM new.email_suppressed_at) OR (old.email_suppressed_reason IS DISTINCT FROM new.email_suppressed_reason) OR (old.merged_into_contact_id IS DISTINCT FROM new.merged_into_contact_id) OR (old.erased_at IS DISTINCT FROM new.erased_at) OR (old.lead_id IS DISTINCT FROM new.lead_id) OR (old.name_source IS DISTINCT FROM new.name_source))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
+-- Name: conversation_drafts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.conversation_drafts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -47101,12 +47609,28 @@ GRANT ALL ON FUNCTION public.contacts_before_erased() TO service_role;
 
 
 --
+-- Name: FUNCTION conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid) TO service_role;
 
 
 --
@@ -47127,12 +47651,46 @@ GRANT ALL ON FUNCTION public.conversation_hand_back(p_tenant_id uuid, p_conversa
 
 
 --
+-- Name: FUNCTION conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION conversation_open(p_tenant_id uuid, p_contact_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) TO service_role;
 
 
 --
@@ -50658,6 +51216,22 @@ GRANT ALL ON FUNCTION public.rename_mailbox(p_mailbox_id uuid, p_from_name text)
 
 
 --
+-- Name: FUNCTION reply_draft_uses(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reply_draft_uses(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reply_draft_uses(p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION reply_drafts_due(p_rules integer, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer) TO service_role;
+
+
+--
 -- Name: FUNCTION reply_was_typed(p_tenant_id uuid, p_conversation_id uuid, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51758,6 +52332,14 @@ GRANT ALL ON FUNCTION public.trigger_channel_quality_sweep() TO service_role;
 
 REVOKE ALL ON FUNCTION public.trigger_deadman_sweep() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_deadman_sweep() TO service_role;
+
+
+--
+-- Name: FUNCTION trigger_drafts_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_drafts_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_drafts_sweep() TO service_role;
 
 
 --

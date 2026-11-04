@@ -33,15 +33,15 @@ export const NOT_A_PERSON_WORDS = {
 
 /**
  * What the section says, row by row. What Ask prepared is headed by what it is, then whose (the refined canvas, 31 Oct
- * 2026): "Reply · drafted by Ask" over words that go to them, which the member types in where they stand; "Call notes ·
+ * 2026): "Reply · Ask's draft" over words that go to them, which the member types in where they stand; "Call notes ·
  * only you see these" over words that are read and never sent, which is why nothing there is typed in.
  */
 export const NEED_YOU_WORDS = {
   door: "Open Inbox",
   reply: "Reply",
-  drafted: "drafted by Ask",
-  drafting: "Ask is writing…",
-  couldNot: "Ask couldn't write this one.",
+  drafted: "Ask's draft",
+  drafting: "Ask is drafting…",
+  couldNot: "Ask couldn't draft this one.",
   asks: (question: string) => `Ask needs to know: ${question}`,
   /**
    * What they wrote was not a customer's, so Ask wrote no reply: what it is, in Ask's one sentence. The verdict is said
@@ -108,6 +108,10 @@ export const NEED_YOU_WORDS = {
    * what waits for your OK or your answer, your own to-dos, and who has waited past a week, one row at the end.
    */
   group: { next: "Up next", waiting: "Waiting on you", ok: "To decide", todo: "To do", old: "Older" },
+  /** Need you's foot, where threads were set aside as not a customer's (decision 0093): what one was, or how many. */
+  setAside: (n: number, about: string | null) =>
+    n === 1 ? `Set aside · ${about ?? "1 not a customer's"}` : `Set aside · ${n} not customers'`,
+  setAsideOpen: "Look",
   /** How many need you, as the head says it before anything else: the badge's number. */
   count: (n: number) => (n === 1 ? "1 needs you." : `${n} need you.`),
   /** The same count said after a line that is down, which leads. */

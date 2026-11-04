@@ -21,6 +21,7 @@ import {
   healthFailedJobs,
   healthLedgerNow,
   healthPages,
+  healthDraftUses,
   healthParts,
   healthSweeps,
   healthWorkspaces,
@@ -130,7 +131,12 @@ async function partsRead(office: BackOffice, days: number): Promise<HealthPartsD
   // Each ending in the platform's words and what mends it, from the one table (contracts callEndingOf): the page reads
   // them off the rows, and loads no table of every ending the provider names.
   const read: HealthPartsDto = parts;
-  return { ...read, calls: read.calls.map((r) => ({ ...r, ...endingSaid(r.reason) })) };
+  // What the drafts came to has its own small read: a read that fails costs the line, never the page.
+  const uses = await healthDraftUses(office.db, days).then(
+    (r) => (r.error ? [] : (r.data ?? []).map((u) => ({ ours: u.ours, use: u.use, n: Number(u.n) }))),
+    () => [],
+  );
+  return { ...read, draft_uses: uses, calls: read.calls.map((r) => ({ ...r, ...endingSaid(r.reason) })) };
 }
 
 /** An ending as Health says it: its words in a sentence, and what mends it where it is ours. */

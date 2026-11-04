@@ -25,6 +25,14 @@
         "aud": "/api/admin/calendar/freed-time"
       }
     },
+    "POST /api/admin/draft": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/draft.ts",
+      "knock_args": {
+        "aud": "/api/admin/draft"
+      }
+    },
     "POST /api/admin/email/alert-test": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",
@@ -433,6 +441,16 @@
         "noDbEvent": "deadman_no_db"
       },
       "verb": "sweepDeadman in apps/edge/lib/receptionist/deadman-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/drafts": {
+      "wrapper": "sweepDoor",
+      "sweep": "drafts",
+      "sweep_options": {
+        "noDbEvent": "drafts_sweep_no_db"
+      },
+      "verb": "sweepDrafts in apps/edge/lib/drafts/draft-sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },

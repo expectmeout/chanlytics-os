@@ -187,7 +187,9 @@ export const ROUTES = {
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
   "POST conversations/[id]/draft": { method: "POST", path: "/api/v1/conversations/[id]/draft" },
   "POST conversations/[id]/hand-back": { method: "POST", path: "/api/v1/conversations/[id]/hand-back" },
+  "POST conversations/[id]/not-a-customer": { method: "POST", path: "/api/v1/conversations/[id]/not-a-customer" },
   "POST conversations/[id]/reply": { method: "POST", path: "/api/v1/conversations/[id]/reply" },
+  "POST conversations/[id]/reply-anyway": { method: "POST", path: "/api/v1/conversations/[id]/reply-anyway" },
   "POST conversations/[id]/snooze": { method: "POST", path: "/api/v1/conversations/[id]/snooze" },
   "POST conversations/[id]/take-over": { method: "POST", path: "/api/v1/conversations/[id]/take-over" },
   "POST conversations/[id]/wake": { method: "POST", path: "/api/v1/conversations/[id]/wake" },
@@ -542,7 +544,9 @@ export type Routes = {
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;
   "POST conversations/[id]/draft": typeof import("../../app/api/v1/conversations/[id]/draft/route").POST;
   "POST conversations/[id]/hand-back": typeof import("../../app/api/v1/conversations/[id]/hand-back/route").POST;
+  "POST conversations/[id]/not-a-customer": typeof import("../../app/api/v1/conversations/[id]/not-a-customer/route").POST;
   "POST conversations/[id]/reply": typeof import("../../app/api/v1/conversations/[id]/reply/route").POST;
+  "POST conversations/[id]/reply-anyway": typeof import("../../app/api/v1/conversations/[id]/reply-anyway/route").POST;
   "POST conversations/[id]/snooze": typeof import("../../app/api/v1/conversations/[id]/snooze/route").POST;
   "POST conversations/[id]/take-over": typeof import("../../app/api/v1/conversations/[id]/take-over/route").POST;
   "POST conversations/[id]/wake": typeof import("../../app/api/v1/conversations/[id]/wake/route").POST;

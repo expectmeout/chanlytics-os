@@ -270,6 +270,11 @@ export function policyRules(
   return out;
 }
 
+/** The money row as a draft says it (decision 0093): the person who will send it decides, in their own words. */
+export function draftMoneyRule(): string {
+  return `Money: ${POLICY_COVERS.money} is not yours to decide or promise. Do not agree, refuse or quote terms; say you will come back to them about it.`;
+}
+
 export interface PolicyRow {
   id: string;
   class: PolicyClass;

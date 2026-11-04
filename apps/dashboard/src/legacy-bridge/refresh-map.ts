@@ -290,6 +290,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // The thread verbs, and the two that act on a held draft.
   "POST conversations/[id]/take-over": thread,
   "POST conversations/[id]/hand-back": thread,
+  "POST conversations/[id]/not-a-customer": thread,
+  "POST conversations/[id]/reply-anyway": thread,
   "POST conversations/[id]/snooze": thread,
   "POST conversations/[id]/wake": thread,
   "POST conversations/[id]/archive": thread,

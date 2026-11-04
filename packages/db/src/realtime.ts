@@ -68,6 +68,9 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", events: EVERY },
   { table: "segment_members", events: EVERY },
+  // a thread's draft claimed, written or let go, by the job, the sweep or a member's change: Today's rows, the Inbox's rows and
+  // its reply box repaint (00538, decision 0093)
+  { table: "conversation_drafts", events: EVERY },
   // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00440)
   { table: "sequence_replies", events: EVERY },
   // a batch made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns

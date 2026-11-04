@@ -36,10 +36,10 @@ what the script writes.
 | [`contact_identities`](#contact_identities) | `packages/db/src/erasure/legs.ts`, `packages/db/src/repositories/channels/instagram.ts` | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`contacts`](#contacts) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`conversation_channel_state`](#conversation_channel_state) | none | on, 1 policy |
 | [`conversation_drafts`](#conversation_drafts) | `packages/db/src/repositories/ask/reply-drafts.ts` | on, 1 policy |
-| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
+| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`decisions`](#decisions) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequence-makes.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/waiting-on-you.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
@@ -776,7 +776,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -875,6 +875,12 @@ Ask's drafts written ahead for a thread waiting on a person (decision 0071): a r
 | `words` | jsonb | no | `'{}'::jsonb` |  |
 | `made_by` | uuid | yes |  |  |
 | `made_at` | timestamp with time zone | no | `now()` |  |
+| `state` | text | yes |  | Where the draft stands (00538, decision 0093): writing, ready, pitch (not a customer's, so no reply was written), asks, failed. Set writing by conversation_draft_claim, the rest by conversation_draft_write. |
+| `source` | text | yes |  | What asked for it: the thread's hold, a reply to a sequence, a member's change to it. |
+| `rules` | integer | yes |  | The edition of the rules it was written under (contracts REPLY_DRAFT_RULES): one from another edition is no draft, and the sweep writes it again. |
+| `used` | text[] | no | `'{}'::text[]` | What the drafter handed the model, as Why this? says it: said by code from its own prompt, never by the model. |
+| `why_failed` | text | yes |  | Why it was not written, where state is failed: a word of contracts ReplyDraftWhy. |
+| `tries` | smallint | no | `0` | How many times it has been asked of this message and edition: the sweep stops at three. |
 
 Foreign keys:
 
@@ -888,7 +894,7 @@ Foreign keys:
 
 ### conversations
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -911,6 +917,8 @@ Foreign keys:
 | `control_ref` | text | yes |  |  |
 | `control_until` | timestamp with time zone | yes |  | When the hold lapses on its own. A hold with no expiry is how a thread ends up held for ever by somebody who has gone. |
 | `note_checked_at` | timestamp with time zone | yes |  | When the note sweep last read this conversation (0007): it reads again only after newer customer messages have gone quiet. |
+| `set_aside_at` | timestamp with time zone | yes |  | When the thread was set aside as not a customer's (00539, decision 0093), and still is: null once a member answered it. |
+| `set_aside_why` | text | yes |  | What its sender was read as: pitch, or notice (a program's mail). Kept past set_aside_at, for an Undo. |
 
 Foreign keys:
 

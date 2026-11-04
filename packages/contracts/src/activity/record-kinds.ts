@@ -25,6 +25,8 @@ export const RECORD_KINDS = {
   send: ["sequence_batches"],
   template: ["templates"],
   reach_out: ["sequence_replies"],
+  /** A thread's draft (decision 0093): written when a hold owes one, so a page hears it land. */
+  draft: ["conversation_drafts"],
   review: ["google_reviews", "google_listings", "google_connections"],
   facts: ["tenant_config"],
   rules: ["policies"],

@@ -226,7 +226,7 @@
   flex: 1 1 auto;
   min-width: 0;
 }
-/* What it is, before whose: "Reply · drafted by Ask", "Call notes · only you see these". */
+/* What it is, before whose: "Reply · Ask's draft", "Call notes · only you see these". */
 .ny-by-words b {
   font-weight: var(--weight-medium);
   color: var(--ink-muted);

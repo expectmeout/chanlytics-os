@@ -71,6 +71,7 @@ export type RecordRef =
  * (a variant of RecordRef) or why it cannot (a row here) before it compiles.
  */
 export const RECORDS_WITHOUT_AN_ADDRESS = {
+  draft: "a draft has no page of its own: it is read and used on its thread, whose address is the thread's.",
   notification:
     "a kept notice opens where its own row says (noticeRoute), which is the address of the record it is about; the notice has no page of its own",
   workspace:

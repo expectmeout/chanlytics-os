@@ -12,7 +12,6 @@ import assert from "node:assert/strict";
 import {
   REPLY_DRAFT_INSTRUCTION_MAX,
   ReplyDraftAskSchema,
-  replyDraftAbout,
   todayDay,
   todayDayBar,
   todayDayNote,
@@ -257,18 +256,4 @@ test("the draft door takes the member's words for a draft written again, at most
   assert.equal(REPLY_DRAFT_INSTRUCTION_MAX, 280);
   assert.ok(!ReplyDraftAskSchema.safeParse({ kind: "reply", instruction: "x".repeat(281) }).success, "past the most");
   assert.ok(!ReplyDraftAskSchema.safeParse({ kind: "reply", instruction: "   " }).success, "nothing said is no change");
-});
-
-test("Ask is asked to write its last draft again, the change in the member's words", () => {
-  const about = replyDraftAbout(
-    "reply",
-    { reason: null, details: null },
-    { was: "Hi Sofia, the trial is $120.", how: "Warmer" },
-  );
-  assert.ok(about.includes('It said: "Hi Sofia, the trial is $120."'), about);
-  assert.ok(about.endsWith("Change it this way: Warmer"), about);
-  assert.ok(
-    !replyDraftAbout("reply", { reason: null, details: null }).includes("again"),
-    "a first draft asks nothing of the kind",
-  );
 });

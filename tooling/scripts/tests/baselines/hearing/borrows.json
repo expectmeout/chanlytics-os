@@ -73,6 +73,6 @@
   "setup/rows": "",
   "today": "ask_morning broadcasts calendar google notifications people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins workspace",
   "today/need-you": "reply_drafts settings",
-  "today/zones": "ask_morning broadcasts calendar google notifications people playbooks reach_out_replies reports_headline settings setup today today_pins",
+  "today/zones": "ask_morning broadcasts calendar google notifications people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins",
   "waits": "today"
 }

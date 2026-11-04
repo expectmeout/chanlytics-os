@@ -3,6 +3,7 @@
  * holds anything to compose (hasProfile), its stored prompt when not (resolveSystemPrompt), and whose words stand
  * in the owner's place (whoseWords), which the Business tab's instructions box opens with (instructionsDraft).
  */
+import { noLinkDraft } from "./draft-audience";
 import { resolveFacts, type KnownFacts } from "../facts";
 import { samePhone } from "../../shared/phone";
 import { cannotSendLink, offersBookingLink, offersLinkOn } from "../no-booking-link";
@@ -140,7 +141,7 @@ export function resolveSystemPrompt(
   known?: KnownFacts | null,
   /**
    * Who reads what it writes: a customer (every reply, a steer, a call, the preview) or a draft a person sends as
-   * themselves (the reach-out reply draft), which is never told to say it is an assistant.
+   * themselves (a held thread's, a reach-out reply's: decision 0093), which is never told to say it is an assistant.
    */
   audience: PromptAudience = "customer",
 ): string {
@@ -151,7 +152,7 @@ export function resolveSystemPrompt(
     // first among the rules that follow it, and so is a call with a link and no line to send it by.
     // The standing rules (the money row, the fence) are said to every prompt, so the rules always follow it.
     const link = !offersBookingLink(brain)
-      ? [noLinkBooking(channel)]
+      ? [audience === "draft" ? noLinkDraft() : noLinkBooking(channel)]
       : channel === "voice" &&
           !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message, known?.texting_line)
         ? [cannotSendLink(facts.whatsapp_line.value)]

@@ -93,8 +93,8 @@ const VIA_GLYPH: Record<TodayQueueRowVM["channel"], string> = {
  * A row's verb as a short row draws it: Ask's mark first where its words for the row are ready (a reply drafted, a call's
  * notes), then the verb. Drawn, since it hears the row's draft as it lands.
  */
-function VerbWords({ row, may, words }: { row: TodayQueueRowVM; may: boolean; words: string }) {
-  const draft = useDraft(draftWantOf(row), may);
+function VerbWords({ row, words }: { row: TodayQueueRowVM; words: string }) {
+  const draft = useDraft(draftWantOf(row));
   return (
     <>
       {draft?.state === "ready" ? <Icon name="three" size={13} className="ny-ready" /> : null}
@@ -163,7 +163,7 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
           key={r.id}
           {...common}
           note=""
-          cta={{ label: <VerbWords row={r} may={c.may} words={shortLabel(r)} />, kind, onClick: open }}
+          cta={{ label: <VerbWords row={r} words={shortLabel(r)} />, kind, onClick: open }}
           also={null}
           onOpen={open}
         />

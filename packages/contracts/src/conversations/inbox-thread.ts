@@ -10,6 +10,7 @@ import { needsYouCount, threadWait, threadWaits, type WaitingThread, type Waits 
 import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { mayRing } from "../consent/consent";
+import { REPLY_DRAFT_WORDS } from "../need-you/reply-drafts";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, inboxThreadClock, waitedSince, type ThreadMoments } from "./thread-clock";
@@ -49,6 +50,10 @@ import {
   type EscalationDto,
 } from "./escalations";
 import type { InboxThreadVM } from "./inbox-thread-vm";
+
+/** Archived, and set aside while it stays so: a new message that came in anyway reopens it, an ordinary thread again. */
+const archivedOf = (dto: ConversationDto): Pick<InboxThreadVM, "archived" | "setAside"> =>
+  dto.state === "archived" ? { archived: true, ...(dto.set_aside_at ? { setAside: true } : {}) } : { archived: false };
 
 /**
  * Where a thread sits and who owes it work — the single implementation.
@@ -298,15 +303,16 @@ export const THREAD_PANE_WORDS = {
   send: "Send",
   handBack: "Hand back",
   /**
-   * A kept draft's Why this? (the thread canvas): the rule every kept draft is written by (contracts replyDraftAbout), and
-   * what it read. Never a reason the model gave: a kept draft keeps none.
+   * A kept draft's Why this? (the thread canvas): the rule every kept draft is written by (contracts DRAFT_RULES), and
+   * what it was handed (its `used`, said by code). Never a reason the model gave: a kept draft keeps none.
    */
   draftWhy:
-    "Answers what they wrote last, from your business's facts. Where a fact is missing, it says you'll get back to them today.",
-  draftUsed: (email: boolean, signed: boolean) =>
-    `Used: ${[email ? "their email" : "their message", "your facts", ...(signed ? ["your signature"] : [])].join(" · ")}`,
-  /** The dock's lead over a hold whose reply the receptionist drafted: what is owed is a look at its words. */
+    "Answers what they wrote last, from your business's facts. Where a fact is missing, it says you'll find out.",
+  draftUsed: (used: readonly string[], signed: boolean) =>
+    `Used: ${[...used, ...(signed ? ["your signature"] : [])].join(" · ")}`,
+  /** The dock's lead over a hold whose draft is ready. */
   checkDraft: DRAFTED_TODO,
+  ...REPLY_DRAFT_WORDS,
   /**
    * More's head: who it is about, how to reach them and since when (the person page's own words, people sinceWords:
    * "Since Aug 26"), and the way to their page. It lowered First contact's whole label, "first wrote aug 26", where every
@@ -329,8 +335,8 @@ export const THREAD_PANE_WORDS = {
   snoozeMeta: "Until tomorrow, 10:00 AM",
   archive: "Archive",
   archiveMeta: "Closes it. A new message brings it back.",
-  /** Over the reply box's words while they are the receptionist's draft, unchanged: whose they are. */
-  drafted: "Drafted by the receptionist",
+  /** Over the reply box's words while they are Ask's draft, unchanged. Only words that send themselves are the receptionist's. */
+  drafted: "Ask's draft",
   /** The handle on a phone's reply box, a button that opens it or folds it away, named by where it goes. */
   replyOpen: "Open the reply",
   replyFold: "Fold the reply away",
@@ -565,7 +571,7 @@ export function toInboxThreadVM(
     claimedByOther,
     assigneeUserId: dto.assignee_user_id ?? null,
     ask,
-    archived: dto.state === "archived",
+    ...archivedOf(dto),
     lastWord,
     unanswered,
     heldDraft,

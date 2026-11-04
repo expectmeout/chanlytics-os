@@ -142,7 +142,13 @@ export interface TodayQueueRowVM {
    * must answer (need-you/reply-drafts.ts); `wire` the words of the channel it goes by; `window_open` WhatsApp's free
    * reply window, open or shut (null on another wire), and `window_closes` when it shuts, on the business's clock.
    */
-  writes?: { for_message_id: string | null; wire: string; window_open: boolean | null; window_closes: string | null };
+  writes?: {
+    for_message_id: string | null;
+    for_message_at_ms?: number | null;
+    wire: string;
+    window_open: boolean | null;
+    window_closes: string | null;
+  };
   /**
    * On a `held` row only (decision 0071, E5): the receptionist's reply counting down its veto window, which Stop holds
    * (POST messages/[id]/cancel-send, the Inbox's Hold) and the row may then send as the member's own. `sends_at_ms` is

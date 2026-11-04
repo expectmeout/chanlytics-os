@@ -40,7 +40,7 @@ import { usePartShown } from "../../use-surface";
 import { broadcastsRead, runsPending, useRunsActing } from "../../waits/run-acts";
 import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { TODAY_HELPERS } from "../helpers";
-import { useDraftCounts, wantDrafts, type DraftWant } from "../need-you/drafts";
+import { useDraftCounts, useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
 import { NeedYouGroup, handBackAll, handedBackWords, type HandedBack } from "../need-you/groups";
 import { tellHeadSay } from "../need-you/head-say";
 import { Done } from "../need-you/parts";
@@ -73,16 +73,16 @@ export const NeedYou = () => {
   return vm ? <NeedYouList vm={vm} /> : null;
 };
 
-/** The drafts these rows want written ahead (rows.tsx draftWantOf): a reply, or a call back's brief. */
+/** The drafts these rows read (rows.tsx draftWantOf): a reply, or a call back's brief. */
 const draftWantsOf = (rows: readonly TodayQueueRowVM[]) => rows.map(draftWantOf).filter((w): w is DraftWant => !!w);
 
-/** The drafts the drawn rows want, asked for once per set: kept ones read, missing ones written by a member who acts. */
-function useDraftsAhead(wants: readonly DraftWant[], may: boolean) {
+/** The drafts the drawn rows read, asked for once per set, where the page's first reads did not hold them. */
+function useDraftsAhead(wants: readonly DraftWant[]) {
   const key = wants.map((w) => `${w.conversationId}:${w.kind}:${w.forMessageId ?? ""}`).join("|");
   useEffect(() => {
-    if (wants.length) void wantDrafts(wants, may);
+    if (wants.length) void wantDrafts(wants);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- asked for by its key: a row drawn again with the same threads and messages asks nothing
-  }, [key, may]);
+  }, [key]);
 }
 
 /**
@@ -90,10 +90,10 @@ function useDraftsAhead(wants: readonly DraftWant[], may: boolean) {
  * wait, a reply that goes on its own or the first window to shut within two hours. Told as the rows draw; the head says
  * nothing of it once the list goes.
  */
-function useTellHead(open: readonly TodayQueueRowVM[], may: boolean) {
+function useTellHead(open: readonly TodayQueueRowVM[]) {
   // A reply outside WhatsApp's window goes only as a template: Ask's words for it are not said as ready (the 10/10 read,
   // 2 Nov 2026: "Ask drafted a reply" over a card whose one press was Choose a template).
-  const counts = useDraftCounts(draftWantsOf(open.filter((r) => r.writes?.window_open !== false)), may);
+  const counts = useDraftCounts(draftWantsOf(open.filter((r) => r.writes?.window_open !== false)));
   const held = open.find((r) => r.kind === "held") ?? null;
   // The window that cannot wait is another person's: a held reply's own is said on its row, a day away, and the
   // receptionist is already answering them.
@@ -355,6 +355,27 @@ function listFoot(cut: { waiting: number; ok: number; todo: number }, todoDoor: 
 }
 
 /**
+ * The threads set aside as not a customer's (decision 0093), one quiet line under the list: they wait on nobody, so nothing
+ * counts them, and the line is where a wrong one is found. Heard as a draft lands.
+ */
+function SetAsideLine({ nav }: { nav: (to: string) => void }) {
+  useDraftsMoved();
+  const held = surfaceValue("reply_drafts");
+  const first = held?.setAside?.[0];
+  if (!first) return null;
+  const words = held.drafts.find((d) => d.conversation_id === first && d.kind === "reply")?.words.pitch ?? null;
+  return (
+    <div className="tq-foot" data-testid="today-set-aside">
+      <span>{W.setAside(held.setAside.length, words)}</span>
+      <Button variant="quiet" size="sm" className="tq-open" onClick={() => nav(`inbox/th-${first}`)}>
+        {W.setAsideOpen}
+        <Icon name={doorGlyph()} size={11} />
+      </Button>
+    </div>
+  );
+}
+
+/**
  * The borrowed reads that failed, said where their rows would stand, the rows above them current: the runs that may be
  * waiting, and the calls (a call back's). Called, not drawn.
  */
@@ -461,7 +482,7 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   const coral = oneCoral();
   // Only the rows drawn are drafted (decision 0071): the five waiting, not those past them. Older's rows on a phone, whose
   // walk steps into them; a desk draws Older as one row of names.
-  useDraftsAhead(draftWantsOf([...groups.next, ...drawn.waiting, ...(phone ? groups.old : [])]), may);
+  useDraftsAhead(draftWantsOf([...groups.next, ...drawn.waiting, ...(phone ? groups.old : [])]));
   const ctx: NeedYouRowsCtx = {
     nav,
     verbKind: coral.verbKind,
@@ -490,7 +511,7 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   useCoralTold(holds || olderCoral);
   // Ask's line over the people still waiting and drawn; how many need you is the one count, which hears what was acted on
   // here.
-  useTellHead(stillOpen([...groups.next, ...drawn.waiting], kept), may);
+  useTellHead(stillOpen([...groups.next, ...drawn.waiting], kept));
   useActedTold(kept);
   const olderGroup = olderRows.length ? (
     <NeedYouGroup key="old" title={W.group.old} count={null} pane={phone} testid="today-group-old">
@@ -510,15 +531,20 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
       phone={phone}
       groups={groupsDrawn}
       head={needYouHead(listDoorOf(groups.next.length + groups.waiting.length, runs.count), vm.done_today ?? 0, nav)}
-      foot={listFoot(
-        {
-          waiting: groups.waiting.length - drawn.waiting.length,
-          ok: groups.ok.length - drawn.ok.length + runs.cut,
-          todo: todo.cut,
-        },
-        todo.door,
-        nav,
-      )}
+      foot={
+        <>
+          {listFoot(
+            {
+              waiting: groups.waiting.length - drawn.waiting.length,
+              ok: groups.ok.length - drawn.ok.length + runs.cut,
+              todo: todo.cut,
+            },
+            todo.door,
+            nav,
+          )}
+          <SetAsideLine nav={nav} />
+        </>
+      }
       callsUnread={vm.callsRead === false}
       walk={phone ? listWalk([...order, ...todo.walk.rows, ...groups.old], { walk, setWalk }, ctx, todo) : null}
       toasts={

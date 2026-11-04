@@ -98,6 +98,9 @@
           "api/cron/deadman.ts": {
             "maxDuration": 60
           },
+          "api/cron/drafts.ts": {
+            "maxDuration": 60
+          },
           "api/cron/mailboxes.ts": {
             "maxDuration": 60
           },
@@ -237,6 +240,9 @@
             "maxDuration": 60
           },
           "api/admin/steer.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/draft.ts": {
             "maxDuration": 60
           },
           "api/admin/playbooks-run.ts": {

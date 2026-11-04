@@ -28,9 +28,15 @@ export function CallWork(p: WorkProps) {
   const { row, main, may, tz, flash, keep, unkeep } = p;
   const want =
     row.conversationId && row.writes
-      ? { conversationId: row.conversationId, kind: "brief" as const, forMessageId: row.writes.for_message_id }
+      ? {
+          conversationId: row.conversationId,
+          kind: "brief" as const,
+          forMessageId: row.writes.for_message_id,
+          expected: true,
+          askedAtMs: row.writes.for_message_at_ms ?? null,
+        }
       : null;
-  const draft = useDraft(want, may);
+  const draft = useDraft(want);
   // Kept by the row, not by this part: the sheet on a phone draws the same row's work after the page does (row-state.ts).
   const [phase, setPhase] = useRowState<"idle" | "how" | "reached" | "again">(row.id, "phase", "idle");
   const [undoOf, setUndoOf] = useRowState<Record<string, unknown> | null>(row.id, "undo", null);
