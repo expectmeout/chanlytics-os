@@ -145,6 +145,7 @@ export {
 export type { PeopleAggregates, PeopleListAction } from "./people-lists";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
+export { sinceWords } from "./person-cards";
 export type { PersonAboutFact, PersonFact, PersonRightNow } from "./person-cards";
 export {
   CONSENT_RESET_SOURCE,

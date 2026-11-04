@@ -1524,12 +1524,8 @@ test("REGRESSION (C1): a day past what the receptionist offers says so, and the 
     /not offered yet — it offers times up to 7 days ahead/,
     "REGRESSION: a day past the offer read as a day with nothing to offer",
   );
-  assert.ok(!day("2026-09-15").includes("nothing the receptionist would offer"));
-  assert.match(
-    day("2026-09-10"),
-    /nothing the receptionist would offer/,
-    "a day inside the offer with no times still says that",
-  );
+  assert.doesNotMatch(day("2026-09-15"), /Open[^:]*:\s*none\b/);
+  assert.match(day("2026-09-10"), /Open[^:]*:\s*none\b/, "a day inside the offer with no times still says that");
   assert.match(legend(tree), /through Sep 14/, "the legend names the last day it offers");
 });
 

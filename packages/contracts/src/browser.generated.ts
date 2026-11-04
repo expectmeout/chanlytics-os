@@ -289,6 +289,7 @@ export { GET_YES_PARAM, GET_YES_ROUTE, parsePeopleRoute, peopleRoute } from "./p
 export { pinTokens, TODAY_PINS_MAX, todayPins, togglePin } from "./people/lists/today-pins";
 export { cannotBeSentWords, NO_CHANNEL_REACH, NO_NUMBER_REACH, noChannelWords, noNumberWords, noYesWords, peopleAggregates, peopleListAction, saidYesWords, savedListAction } from "./people/people-lists";
 export { attentionRow } from "./people/person-attention";
+export { sinceWords } from "./people/person-cards";
 export { CONSENT_RESET_SOURCE, CONSENT_SOURCES, consentSourceLabel, mayReceive, OFFERS_YES_SOURCES, offersYesRefusal, OWN_MESSAGE_REFUSALS, ownMessageRefusal, saidYesTo, whyNotReceive, CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./people/person-consent";
 export { DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS } from "./people/person-doubts";
 export { MERGE_ANSWERS, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./people/person-merge";

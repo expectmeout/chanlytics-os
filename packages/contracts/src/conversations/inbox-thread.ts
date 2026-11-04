@@ -307,9 +307,12 @@ export const THREAD_PANE_WORDS = {
     `Used: ${[email ? "their email" : "their message", "your facts", ...(signed ? ["your signature"] : [])].join(" · ")}`,
   /** The dock's lead over a hold whose reply the receptionist drafted: what is owed is a look at its words. */
   checkDraft: DRAFTED_TODO,
-  /** More's head: who it is about, how to reach them and when they first wrote, and the way to their page. */
-  personLine: (reach: string | null, first: string | null) =>
-    [reach, first ? `first wrote ${first.toLowerCase()}` : null].filter(Boolean).join(" · "),
+  /**
+   * More's head: who it is about, how to reach them and since when (the person page's own words, people sinceWords:
+   * "Since Aug 26"), and the way to their page. It lowered First contact's whole label, "first wrote aug 26", where every
+   * other date reads "Aug 26" (3 Nov 2026).
+   */
+  personLine: (reach: string | null, since: string) => [reach, since].filter(Boolean).join(" · "),
   profile: "Profile",
   /** More's acts on the person: their receptionist, and the one that says they are no customer (decision 0080). */
   receptionistFor: (first: string) => `Receptionist for ${first}`,

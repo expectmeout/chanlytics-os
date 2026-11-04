@@ -15,7 +15,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, shortName, sinceWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -394,7 +394,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
     ? [
         {
           label: thread.who,
-          meta: W.personLine(row?.email ?? null, row?.firstContact?.label ?? null) || undefined,
+          meta: W.personLine(row?.email ?? null, row?.firstContact ? sinceWords(row) : "") || undefined,
           glyph: <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" hue={faceHueOf(thread.who)} />,
           hint: (
             <span className="ix-more-profile">

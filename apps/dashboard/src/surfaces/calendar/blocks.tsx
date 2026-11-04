@@ -630,10 +630,10 @@ function agendaOpenTimes(p: {
       </span>
     ))
   ) : (
+    // After "Open:", a day inside the offer with no times says "none" (3 Nov 2026: "Open: nothing the receptionist
+    // would offer" was the label's own word said again, longer).
     <span className="ag-none">
-      {service && service.consultFirst
-        ? "the receptionist offers a consultation for this, not the service"
-        : "nothing the receptionist would offer"}
+      {service && service.consultFirst ? "the receptionist offers a consultation for this, not the service" : "none"}
     </span>
   );
 }

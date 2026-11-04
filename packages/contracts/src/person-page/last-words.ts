@@ -5,8 +5,8 @@
  */
 import type { PersonTimelineItemVM } from "../people/person-timeline";
 
-/** The pane's title. */
-export const LAST_WORDS_TITLE = "Their last words";
+/** The pane's title: it holds ours as well as theirs, so never "Their last words" (3 Nov 2026: it titled our email). */
+export const LAST_WORDS_TITLE = "Latest";
 
 /** One bubble: who said it and when, what was said, and whether it was ours. */
 export interface LastWordVM {
@@ -30,7 +30,8 @@ export function lastWordsOf(timeline: readonly PersonTimelineItemVM[]): LastWord
     .map((t) => ({
       id: t.id,
       mine: t.kind !== "customer",
-      who: t.who,
+      // Theirs is "They": the page's head names them right above, and a team's whole name broke the line in two.
+      who: t.kind === "customer" ? "They" : t.who,
       when: [t.day, t.time].filter(Boolean).join(" · "),
       text: t.text.length > BUBBLE ? `${t.text.slice(0, BUBBLE - 1).trimEnd()}…` : t.text,
     }));
