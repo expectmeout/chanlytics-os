@@ -840,7 +840,15 @@ test("a lead that moved past its place (said no, a person now): the card promise
   );
 });
 
-test("History says an email you wrote yourself, as a call is said", () => {
+test("History says an email you wrote yourself, and never takes a sequence's send for one", () => {
+  const worked = { outcome: "emailed", note: null, at: "2026-10-16T15:00:00Z" };
+  const said = (place) => leadHistoryOf({ vm: { found: [], worked }, place, tz: TZ, nowMs: NOW }).map((r) => r.what);
+  const YOURS = "You wrote to them yourself";
+  assert.ok(said(placeOf("next")).includes(YOURS), "their sequence has sent nothing yet: the email is yours");
+  const went = said(placeOf("in", { place: 2 }, { sends: [sent(1)] }));
+  assert.equal(went.includes(YOURS), false, "a send of the sequence writes the same word on the lead (leadWritten)");
+  assert.ok(went.includes("Step 1 sent"), "and that send is said already, as its step");
+
   const rows = leadHistoryOf({
     vm: { found: [], worked: { outcome: "emailed", note: null, at: "2026-10-16T15:00:00Z" } },
     place: null,

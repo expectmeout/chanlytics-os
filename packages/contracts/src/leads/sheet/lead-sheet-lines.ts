@@ -101,6 +101,15 @@ function placeRows(place: SequencePlaceDto, tz: string, nowMs: number): LeadHist
   return rows;
 }
 
+/**
+ * Your last word with them: a call, or an email of your own. A sequence's send writes that same `emailed` on the lead
+ * (db leadWritten), so it is yours only where none of its sends has gone; one that has is said already, as its step.
+ */
+function lastWordOf(outcome: string | null, place: SequencePlaceDto | null): string | null {
+  if (outcome === "emailed") return place && place.sends.some((s) => s.sent_at) ? null : LW.wroteYourself;
+  return outcome ? (LEAD_CALL_OUTCOME_WORDS[outcome as LeadCallOutcome] ?? null) : null;
+}
+
 /** History: how we found them, what a sequence did, and your last word with them (a call and its note, or your email). */
 export function leadHistoryOf(p: {
   vm: Pick<LeadPeekVM, "found" | "worked">;
@@ -110,12 +119,7 @@ export function leadHistoryOf(p: {
 }): LeadHistoryRowVM[] {
   const found = p.vm.found.map((f) => ({ at: foundDay(f.at), what: f.what }));
   const worked = p.vm.worked;
-  const outcome =
-    worked.outcome === "emailed"
-      ? LW.wroteYourself
-      : worked.outcome
-        ? (LEAD_CALL_OUTCOME_WORDS[worked.outcome as LeadCallOutcome] ?? null)
-        : null;
+  const outcome = lastWordOf(worked.outcome, p.place);
   const called = leadDayOf(worked.at, p.tz, p.nowMs);
   return [
     ...found,
