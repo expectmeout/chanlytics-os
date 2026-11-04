@@ -217,7 +217,6 @@ export { cameFromOf, threadHeadFactOf, threadPersonFactsOf, toPersonRowVM, visit
 export type { PersonRowVM, ThreadHeadFact, ThreadPersonFact } from "./person-row";
 export { ago } from "./person-row-facts";
 export type { PersonFirstContact, PersonLastContact } from "./person-row-facts";
-export { sinceWords } from "./person-since";
 export {
   attentionOf,
   holderOf,
@@ -232,6 +231,6 @@ export {
 export type { PersonState, ThreadHolder } from "./person-state";
 export { consentChangeWords } from "./person-timeline";
 export type { PersonTimelineItemVM, PersonVisitAheadVM, TimelineKind } from "./person-timeline";
-// A person's wires and where they came from, in words: the leaf the list rules read too (person-words.ts).
-export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./person-words";
+// A person's wires, where they came from and since when, in words: the leaf the list rules read too (person-words.ts).
+export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./person-words";
 export type { PersonCameFrom, PersonChannel } from "./person-words";

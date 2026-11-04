@@ -300,10 +300,9 @@ export { bookingLinkAction, mayReach, proposalAction, proposalMessage, repliesWo
 export { asPersonMode, OWN_MODE_NAMED, ownModesOf, ownModesWords, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_MODES } from "./people/person-receptionist";
 export { cameFromOf, threadHeadFactOf, threadPersonFactsOf, toPersonRowVM, visitLineForDto } from "./people/person-row";
 export { ago } from "./people/person-row-facts";
-export { sinceWords } from "./people/person-since";
 export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABELS, personStanding, personStateFor, QUIET_AFTER_DAYS, stopToldBesideState } from "./people/person-state";
 export { consentChangeWords } from "./people/person-timeline";
-export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./people/person-words";
+export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
 export { businessRecordOf, leadPeopleIndex, leadPeopleOf, personHeadOf, worksAtOf } from "./person-page/business";
 export { businessTrailOf } from "./person-page/business-trail";
 export { callBackWaits, PERSON_CALL_OUTCOMES, PERSON_CALL_SAID_MAX, PERSON_CALL_WORDS, personCallClosesBack, personCallDays, personCallFoot, personCallLeadArgs, personCallNote, personCallOf, personCallSave } from "./person-page/call";
