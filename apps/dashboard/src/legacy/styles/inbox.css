@@ -3489,7 +3489,8 @@ html.legacy-on :is(.ix-held-acts, .ix-steer, .ix-composer-drafted, .ix-composer-
 .tl-email-head .tl-stamp {
   float: none;
   flex: none;
-  margin: 0;
+  /* At the head's end with or without a sender beside it: their own email in a conversation with them alone says none. */
+  margin: 0 0 0 auto;
   color: var(--ink-muted);
 }
 .ix-thread-pane .tl-msg.tl-email .tl-msg-subject {
@@ -4000,6 +4001,28 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
   }
   .inbox .ix-list > .ix-buckets {
     margin: 0 16px;
+  }
+  /* The search folded into a glyph at the buckets' end while it holds no words (inbox-list.tsx bucketTabs): the buckets
+     and the glyph one row, in the buckets' place, and the field under it takes no room while it rests, open while it has
+     the caret (the phone pass, 3 Nov 2026: its own row stood the first conversation at 248). */
+  .inbox .ix-list > .ix-bucket-row {
+    order: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0 8px 0 16px;
+  }
+  .inbox .ix-bucket-row > .ix-buckets {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .inbox .ix-bucket-row > .ix-find {
+    flex: none;
+  }
+  .inbox .ix-list > [data-folded]:not(:focus-within) {
+    height: 0;
+    padding: 0;
+    overflow: hidden;
   }
   /* The search under the tabs, at the strip's sides (the capsule is the kit's, 38px). */
   .inbox .ix-list > :nth-child(2) {

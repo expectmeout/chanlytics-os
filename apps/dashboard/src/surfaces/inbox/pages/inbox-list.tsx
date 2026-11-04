@@ -14,8 +14,9 @@
  * (ixPlace) is place.ts, a row, with the words of confidence, is list-rows.tsx, and the pick -- the boxes, the bar
  * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
  */
-import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
@@ -137,6 +138,8 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   setQuery: (v: string) => void;
   /** The search is the bar's line (a desk's): the row draws no box of its own. */
   inLine: boolean;
+  /** The phone's search field, which the buckets' glyph puts the caret in while it rests folded. */
+  findRef: RefObject<HTMLInputElement | null>;
   showViews: boolean;
   setShowViews: (v: boolean) => void;
   askArchive: boolean;
@@ -208,6 +211,7 @@ export function InboxList(props: InboxListProps) {
     testid: "inbox-search",
   });
   const [showViews, setShowViews] = useState(false);
+  const findRef = useRef<HTMLInputElement | null>(null);
   // Archiving real threads cannot be undone, so the bar asks first; a cleared selection drops the question.
   const [askArchive, setAskArchive] = useState(false);
   useEffect(() => {
@@ -276,6 +280,7 @@ export function InboxList(props: InboxListProps) {
     query,
     setQuery,
     inLine,
+    findRef,
     showViews,
     setShowViews,
     askArchive,
@@ -337,7 +342,7 @@ export function InboxList(props: InboxListProps) {
  */
 function bucketTabs(L: ListCtx) {
   const { buckets, activeBucket, onBucketChange } = L;
-  return (
+  const tabs = (
     <SubTabs
       label="Conversations by status"
       className="ix-buckets"
@@ -354,6 +359,28 @@ function bucketTabs(L: ListCtx) {
       }))}
     />
   );
+  if (L.inLine) return tabs;
+  // On a phone the search rests in a glyph at the buckets' end while it holds no words, as People's does: the field stays
+  // drawn, so the glyph's press puts the caret in it and a phone's keyboard with it (the phone pass, 3 Nov 2026: the
+  // capsule's own row stood the first conversation at 248).
+  return (
+    <div className="ix-bucket-row">
+      {tabs}
+      {L.query ? null : (
+        <Button
+          variant="plain"
+          size="sm"
+          iconOnly
+          className="ix-find"
+          aria-label={BAR_LINE_WORDS.inbox}
+          onClick={() => L.findRef.current?.focus()}
+          data-testid="inbox-find"
+        >
+          <Icon name="search" size={16} />
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -366,8 +393,10 @@ function bucketTabs(L: ListCtx) {
 function searchBox(L: ListCtx) {
   const { visible, allThreads, query, setQuery, views, showViews, setShowViews, inLine } = L;
   const toggle = views.some((v) => v.count > 0);
+  // A phone's empty search rests folded under the buckets' glyph (bucketTabs), open while it has the caret or words.
+  const folded = !inLine && !query;
   return (
-    <div className="ix-search-row">
+    <div className="ix-search-row" data-folded={folded || undefined}>
       {visible.length > 0 &&
         pickAll({
           ids: visible.map((t) => t.id),
@@ -381,6 +410,7 @@ function searchBox(L: ListCtx) {
           label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search threads, clients, tags"}
           value={query}
           onChange={setQuery}
+          inputRef={L.findRef}
           testid="inbox-search"
         />
       )}

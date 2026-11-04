@@ -99,9 +99,10 @@ const RULES = [
  * A reply to what was not a customer's is no reply: the inbox took a sales pitch for a person, the draft answered it with
  * the owner's booking link and a promise to get back today, and it waited five days as Needs you (2 Nov 2026). The model
  * says what it is, and the page offers Not a customer where it would have offered the words. Never for a first message.
+ * The page says "Not a customer:" before the sentence, so the sentence never says it again (3 Nov 2026: it did, twice).
  */
 const PITCH_RULE =
-  "First decide whether what they wrote last is from someone who wants what the business offers, or is already its customer. If it is not (a sales pitch, a vendor or an agency offering a service, an advertising or partnership offer, a newsletter, recruiting, a survey), write no reply: put one short sentence in `pitch` saying what it is and who from, and leave every other field empty. Otherwise leave `pitch` empty.";
+  "First decide whether what they wrote last is from someone who wants what the business offers, or is already its customer. If it is not (a sales pitch, a vendor or an agency offering a service, an advertising or partnership offer, a newsletter, recruiting, a survey), write no reply: put one short sentence in `pitch`, under 20 words, saying what it is and who from, and leave every other field empty. The page already says it is not a customer and that no reply is needed, so the sentence says neither. Otherwise leave `pitch` empty.";
 
 function shapeRules(input: DraftInput): string[] {
   if (input.how === "call")

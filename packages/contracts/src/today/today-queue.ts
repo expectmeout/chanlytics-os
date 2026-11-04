@@ -256,8 +256,11 @@ function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
     clock_ms: windowLeftMs(r.conv, f.now),
     // Someone asking to book, a time they picked or an ask for one: worth the most of anyone waiting (needYouOrder).
     ...(BOOKING_REASONS.has(e.reason) ? { booking: true } : {}),
-    // Why it was handed over, in a few words, for the open card's name line.
-    ...(reasonShort(e.reason) ? { why: reasonShort(e.reason) } : {}),
+    // Why it was handed over, in a few words, for the open card's name line; never "wrote by email" beside the mail glyph
+    // an address's face is, over a subject that wears it too (the phone pass, 3 Nov 2026: "email" three times a card).
+    ...(reasonShort(e.reason) && !(e.reason === "email_review" && r.who.includes("@"))
+      ? { why: reasonShort(e.reason) }
+      : {}),
   };
 }
 

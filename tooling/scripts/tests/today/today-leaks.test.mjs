@@ -303,7 +303,7 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
   assert.equal(noNumber.also, null, "REGRESSION: a door asking Ana for the yes she gave");
   assert.deepEqual(
     noNumber.cta,
-    { label: "Open People", to: "clients/seg:opted_in" },
+    { label: "See them", to: "clients/seg:opted_in" },
     "the number is People's list, and the door opens it",
   );
   assert.equal(
@@ -763,7 +763,7 @@ test("each row wears a word and an icon for its tone, and offers Ask its own fac
   );
   assert.deepEqual(
     [reach[0].cta.label, reach[0].also.label],
-    ["Open People", "Get their yes to offers"],
+    ["See them", "Get their yes to offers"],
     "and so do its two doors",
   );
 });

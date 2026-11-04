@@ -22,7 +22,7 @@ import { leadDtoFor } from "../surface";
 import { LeadRowCall } from "./call-menu";
 import { LeadHover, LeadTip, ldPlacePop } from "./hover";
 import { LeadRatedCard, ldBusinessCell, ldClientOf, ldPeopleOf, ldPlaceRowOf, ldTalkingDoor } from "./name-cell";
-import { LeadSlot, LeadSlotShape } from "./shapes";
+import { LeadSlot } from "./shapes";
 import type { LeadCellCtx } from "./types";
 
 /* ------------------------------------------------------------------ the row */
@@ -323,10 +323,10 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
 /* --------------------------------------------------------------- the phone */
 
 // A lead's row on a phone is People's (plRowCard; the phone pass, D8), so the two scopes are one list to the eye: the
-// business's mark or the listing's photo on its initials, its name and its state (Ready too, as a person's row always says
-// theirs); where it is, or what it waits on, or what left it out; and whether a phone and a mailbox reach it, how it is
-// rated and when it was found. Call is the lead's own page's first button -- the row opens it -- and C on a keyboard: a
-// 44px Call on every card made Leads' rows a second kind of list.
+// business's mark or the listing's photo on its initials, its name and its state (none for Ready, the silent default);
+// where it is, or what it waits on, or what left it out; and how it is rated and when it was found. Call is the lead's
+// own page's first button -- the row opens it -- and C on a keyboard: a 44px Call on every card made Leads' rows a second
+// kind of list.
 const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
   // Needs review on a phone (Ruben, 25 Sep): a thumb slides the row -- right to keep, left to exclude, the bell's way (the
   // shell's touchSwipe) -- over the act's word. The doors are the cell context's, the same the bench and the bar press; a
@@ -340,11 +340,13 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
     face: { initials: l.tile.initials, image: l.tile.image, mark: l.tile.logo },
     pick,
     name: l.name,
+    // Ready is the silent default (lead-row.ts stateTag) and wears nothing here either: "Not contacted" on nearly every
+    // row took a hundred pixels from the names (the phone pass, 3 Nov 2026).
     pill: ldClientOf(l, x) ? (
       <StatePill kind="deal" value="won" testid="lead-state" />
     ) : place ? (
       <StatePill kind="tone" value={place.tone} label={place.word} testid="lead-state" />
-    ) : (
+    ) : l.state === "ready" ? null : (
       <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />
     ),
     // Under a group's own heading (x.sectioned, the scope's review sections) the reason is said once, above. While a
@@ -378,19 +380,9 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
           </span>,
         ]
       : null,
+    // How a phone and a mailbox reach it is the lead's own page's to say: two unlabelled circles here read as nothing to
+    // a first look (the phone pass, 3 Nov 2026). Its rating and when it was found stay.
     facts: [
-      l.cls !== "excluded" ? (
-        <span
-          key="reach"
-          className="pl-card-reach"
-          role="img"
-          aria-label={`Phone: ${l.slots.phone.word}. Email: ${l.slots.mailbox.word}.`}
-          data-testid="lead-reach"
-        >
-          <LeadSlotShape state={l.slots.phone.state} />
-          <LeadSlotShape state={l.slots.mailbox.state} />
-        </span>
-      ) : null,
       l.rated ? (
         <span key="rated" className="pl-card-rated" data-testid="lead-rated">
           <Icon name="star" size={11} />

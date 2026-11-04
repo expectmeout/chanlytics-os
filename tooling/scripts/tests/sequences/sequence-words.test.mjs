@@ -457,6 +457,11 @@ test("a row ends on its state only where it is not On; the head's line says what
     "Leads from “Auto shops” · holds each batch for you to stop",
     "a list's row knows no feed",
   );
+  // A search named as the sequence is the name said again under itself (3 Nov 2026), so the line leaves it out.
+  assert.equal(
+    sequenceSubLine({ ...leads, name: " auto Shops" }, { ...rec, fed_by: "list" }, NOW),
+    "Leads · asks you before each first email",
+  );
 });
 
 test("what goes next: a made batch's day and size, else its first step's next run by its hour, never what it cannot know", () => {

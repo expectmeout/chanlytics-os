@@ -26,6 +26,7 @@ import {
 import { Button, Field, Menu, Meter, Panel } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
+import { useTodayOnPhone } from "../phone";
 import type { Flash } from "../shell";
 
 /** What a row's work is handed: the row, how its act is drawn, who may act, the clock, the toast, and the card's hold. */
@@ -538,10 +539,15 @@ export function NotNow({
    */
   letGo?: (() => void) | null;
 }) {
+  // On a phone the sheet says whose it is at its head (Ruben, 20 Oct 2026: a phone's menu heads with what it is about),
+  // and each time wears a clock, so every row's words stand on one edge with Mark done's and Not a person's (the phone
+  // pass, 3 Nov 2026: three edges, 30, 52 and 57).
+  const phone = useTodayOnPhone();
   return (
     <Menu
       align="start"
       label={label ?? W.notNowFor(who)}
+      head={phone ? { title: `${W.notNow} · ${who}`, close: <Icon name="x" size={13} /> } : undefined}
       trigger={
         <Button variant="quiet" disabled={busy} className="ny-not-now" onPointerDown={onOpen} onFocus={onOpen}>
           {W.notNow}
@@ -550,7 +556,12 @@ export function NotNow({
       }
       groups={[
         {
-          items: choices.map((c, i) => ({ label: c.label, hint: c.when, onSelect: () => onChoose(i) })),
+          items: choices.map((c, i) => ({
+            label: c.label,
+            hint: c.when,
+            glyph: <Icon name="clock" size={13} />,
+            onSelect: () => onChoose(i),
+          })),
           ...(caption ? { caption } : {}),
         },
         ...(markDone

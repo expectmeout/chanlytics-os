@@ -626,14 +626,19 @@ function emailEntry(
   const words = entry.body == null ? "" : String(entry.body).trim();
   const long = longEmail(words);
   const [shown, show] = whole;
+  // Their email says who it is from only where that is someone else (a colleague copied in): "Maya Chen to you" over each
+  // of theirs said the thread's head again, every email (the phone pass, 3 Nov 2026). Ours always say whose they are.
+  const theirsAlone = entry.from === "client" && (!entry.fromName || entry.fromName === thread.who);
   return (
     <div className={`${bubbleClass(entry, lines, arrived)} tl-email`} data-mid={entry.messageId}>
       <div className="tl-msg-bubble">
         <div className="tl-email-head">
-          <span className="tl-email-from" data-testid="tl-email-from">
-            {emailFrom(entry, thread)}
-            {entry.from === "client" && <span className="tl-email-to"> {W.emailToYou}</span>}
-          </span>
+          {theirsAlone ? null : (
+            <span className="tl-email-from" data-testid="tl-email-from">
+              {emailFrom(entry, thread)}
+              {entry.from === "client" && <span className="tl-email-to"> {W.emailToYou}</span>}
+            </span>
+          )}
           {bubbleCorner(p, named, why, true)}
         </div>
         {subject && (

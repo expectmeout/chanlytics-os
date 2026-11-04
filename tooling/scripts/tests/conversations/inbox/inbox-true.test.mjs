@@ -270,7 +270,7 @@ test("an email's hold says its line, and what the email claimed to be in the rea
     quiet([wrote("m1", "Your order shipped", 60)], { state: "needs_human" }),
     asked({ reason: "email_review", details: claim }),
   );
-  assert.equal(vm.holdLine, "They wrote by email — nothing has been sent");
+  assert.equal(vm.holdLine, "They wrote by email — nothing sent");
   assert.equal(vm.holdWhy, claim);
   assert.equal(vm.holdNote, undefined, "said once");
 });

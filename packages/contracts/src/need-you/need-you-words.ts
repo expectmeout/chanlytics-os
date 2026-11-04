@@ -27,7 +27,8 @@ function leftWords(seconds: number): string {
  */
 export const NOT_A_PERSON_WORDS = {
   act: "Not a person…",
-  actHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People",
+  /** One line under the act on a phone's sheet: what it does, in eight words (the phone pass, 3 Nov 2026: two lines). */
+  actHint: "Moves them out of People. Their mail stays.",
 } as const;
 
 /**
@@ -42,8 +43,12 @@ export const NEED_YOU_WORDS = {
   drafting: "Ask is writing…",
   couldNot: "Ask couldn't write this one.",
   asks: (question: string) => `Ask needs to know: ${question}`,
-  /** What they wrote was not a customer's, so Ask wrote no reply: what it is, in Ask's one sentence. */
-  pitch: (what: string) => `Not a customer, by the look of it: ${what}`,
+  /**
+   * What they wrote was not a customer's, so Ask wrote no reply: what it is, in Ask's one sentence. The verdict is said
+   * here once; the sentence says only what it is (3 Nov 2026: "Not a customer, by the look of it: … not a customer or
+   * prospect, so no reply" said it twice in five lines).
+   */
+  pitch: (what: string) => `Not a customer: ${what}`,
   edit: "Edit",
   editDraft: (who: string) => `Change the reply to ${who}`,
   /** While the member types in the words: what the head says, and the press that leaves them as they are. */
@@ -120,12 +125,16 @@ export const NEED_YOU_WORDS = {
     kept: "kept",
     retry: "Try again",
   },
-  /** Whoever has waited past a week, as one row at the end: how many, and who. */
-  older: { row: (n: number) => `${n} over a week` },
-  /** Every row past a week marked done at once, with one Undo: they leave Need you until they write again. */
+  /** Whoever has waited past a week, as one row at the end: how many, and who ("2 over a week" left out what was). */
+  older: { row: (n: number) => `${n} waiting over a week` },
+  /**
+   * Every row past a week marked done at once, with one Undo: they leave Need you until they write again. The words name
+   * no list: "They leave Need you" named a head a phone never draws, and read as the Inbox's "Needs you" misspelt
+   * (3 Nov 2026).
+   */
   oldDone: {
     act: "Mark all done",
-    detail: "They leave Need you. A new message from them brings them back.",
+    detail: "Off your list until they write again.",
     yes: "Mark done",
     done: (n: number) => (n === 1 ? "Marked done" : `${n} marked done`),
     failed: (n: number) => (n === 1 ? "One couldn't be marked done" : `${n} couldn't be marked done`),

@@ -13,6 +13,7 @@
 import {
   appointmentWords,
   businessTrailOf,
+  ESCALATION_REASON_SHORT,
   heldWords,
   isIdentifierName,
   rowReachWords,
@@ -624,6 +625,9 @@ export const PL_COLUMNS: PeopleColumn[] = [
 const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attention">, pick?: RowPick) => {
   const words = attentionWordsOf(p, attention);
   const asks = p.state === "needs_you" || p.state === "waiting_on_you";
+  // Whose turn it is ("they wrote last") or that they wrote by email is the third line's again ("They wrote · 7d ago"):
+  // said once there, and the row stands two lines (the phone pass, 3 Nov 2026).
+  const saysLast = p.state === "waiting_on_you" || p.stateDetail === ESCALATION_REASON_SHORT.email_review;
   const line = p.nextVisitLine;
   return plRowCard({
     face: { person: { name: p.name, initials: p.initials } },
@@ -638,7 +642,7 @@ const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attentio
     unread: plUnread(p),
     numeric: isIdentifierName(p.name),
     pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,
-    lead: asks && p.stateDetail ? p.stateDetail : words,
+    lead: saysLast ? null : asks && p.stateDetail ? p.stateDetail : words,
     leadTestid: asks && p.stateDetail ? "row-state-detail" : "row-words",
     facts: [
       // A stop the pill does not say (the State cell's, on a desktop): the first of the card's facts.

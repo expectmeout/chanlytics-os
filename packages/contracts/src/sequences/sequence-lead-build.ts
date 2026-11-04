@@ -50,7 +50,7 @@ export interface LeadRewriteDto {
 /** The record's words for a sequence to leads, said once. */
 export const LEAD_BUILD_WORDS = {
   /** The Start row: who joins, then the line under it. */
-  startAdd: "When you add a lead to ",
+  startAdd: "When you add a lead",
   startFound: "When a lead is ready in ",
   inIt: (n: number) => `${n} in it`,
   pace: (share: number, owner: boolean) => `up to ${share} a day, from ${owner ? "your inbox" : "your mailboxes"}`,
@@ -115,15 +115,19 @@ export const LEAD_BUILD_WORDS = {
   bookingLink: "Your booking link",
   bookingSave: "Save to Settings",
   bookingSaved: "Booking link saved",
-  /** Preview as a real lead. */
-  previewSub: (place: number) => `Step ${place}, as each lead gets it`,
+  /**
+   * Preview as a real lead: the step named once, in the head (the phone pass, 3 Nov 2026: "Step 1" stood in the head's
+   * line, the way back, the pager and the foot), the way back to its words, and the lead walked.
+   */
+  previewTitle: (place: number) => `Preview · Step ${place}`,
+  previewBack: "Edit",
   previewOf: (name: string, at: number, of: number) => `${name} · ${at} of ${of}`,
   yourInbox: "your inbox",
   prev: "Previous lead",
   next: "Next lead",
   example: "An example business: nobody is in it yet",
-  testLine: (place: number, name: string) => `Step ${place}, as ${name} gets it`,
-  testFact: "To your own inbox, marked as a test",
+  /** Beside Send me a test, on its line: where the test goes (the button says the rest). */
+  testFact: "To your inbox",
   heldLine: (n: number) => `${plural(n, "email", "emails")} held for you`,
   /** What holds the email previewed: a value they lack, or one of yours not set. */
   theyLack: (labels: string[]) => `They have no ${labels.join(" or ")}, so this email would wait for you.`,
@@ -321,12 +325,14 @@ export function leadDraftDockOf(
 
 /**
  * Where a sequence to leads starts, in its parts: who joins (each lead added to it, or the search's ready ones too, where
- * it adds them on its own), its name, and the line under: how many are in it and the day's pace.
+ * it adds them on its own), the search's name where there is one, and the line under: how many are in it and the day's
+ * pace. The sequence's own name is its head's, never said again here (3 Nov 2026: the head, its sub-line and this row
+ * said it three times).
  */
 export function leadStartOf(
   row: { name: string; in_it: number; first: { source_name?: string | null; search_name: string | null } | null },
   chain: Pick<ReachOutChainDto, "mailboxes" | "owner_sends" | "gap_minutes"> | null | undefined,
-): { lead: string; name: string; sub: string } {
+): { lead: string; name: string | null; sub: string } {
   const W = LEAD_BUILD_WORDS;
   const source = row.first?.source_name ?? null;
   const pace = chain ? chainPaceOf(chain) : null;
@@ -337,7 +343,7 @@ export function leadStartOf(
       : W.noMailbox;
   return {
     lead: source ? W.startFound : W.startAdd,
-    name: source ?? row.name,
+    name: source,
     sub: [W.inIt(row.in_it), sends].filter(Boolean).join(" · "),
   };
 }

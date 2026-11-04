@@ -3503,7 +3503,7 @@ test("Export these N is a press that POSTs the search's own view to the export r
 
 /* ------------------------------------- the phone ------------------------------------- */
 
-test("REGRESSION: on a phone a lead's row is People's row -- one cell of the face, the name and its state; where it is, what it waits on or what left it out; its reach, its rating and when it was found. Leads' cards were their own: a 40px tile, three columns and a 44px Call", async () => {
+test("REGRESSION: on a phone a lead's row is People's row -- one cell of the face, the name and its state where it is not Ready; where it is, what it waits on or what left it out; its rating and when it was found. Leads' cards were their own: a 40px tile, three columns and a 44px Call", async () => {
   await fresh();
   globalThis.__phone = true;
   try {
@@ -3518,16 +3518,11 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
       "one cell beside the face's box, as a person's row",
     );
     const card = cardOf("l1");
-    // The row is the kit's list row, the one People's is: its face, name, what trails the name, what was said, the facts.
-    for (const part of ["list-row-face", "list-row-name", "list-row-end", "list-row-said", "list-row-facts"])
-      assert.ok(
-        find(card, (n) =>
-          String(n.props?.className || "")
-            .split(/\s+/)
-            .includes(part),
-        ),
-        `a person's row, part for part: ${part}`,
-      );
+    // The kit's list row, People's: face, name, what trails it (on one that waits: Ready trails nothing), said, facts.
+    const partOf = (c, part) => find(c, (n) => ` ${n.props?.className || ""} `.includes(` ${part} `));
+    for (const part of ["list-row-face", "list-row-name", "list-row-said", "list-row-facts"])
+      assert.ok(partOf(card, part), `a person's row, part for part: ${part}`);
+    assert.ok(partOf(cardOf("l3"), "list-row-end"), "a person's row, part for part: list-row-end");
     const faceOf = (id) => find(cardOf(id), (n) => /\bface\b/.test(String(n.props?.className || "")));
     assert.equal(textOf(faceOf("l1")), ROWS[0].tile.initials, "the face: its initials, under the mark");
     // D6: the mark is the face on a phone too, on its own plate over the photo -- never the photo's circle crop.
@@ -3535,13 +3530,14 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     assert.deepEqual(faceImgs("l1"), [["face-photo face-mark", MARK_KEPT]], "the mark, contained on its plate");
     assert.deepEqual(faceImgs("l2"), [], "and a lead with neither keeps its initials");
     assert.equal(textOf(find(card, (n) => n.props?.className === "list-row-name")), "Zilker Strength Lab");
-    assert.equal(textOf(byTestId(card, "lead-state")), "Not contacted", "its state, as a person's row says theirs");
+    // REGRESSION (the phone pass, 3 Nov 2026): "Not contacted" on nearly every row took the names' room.
+    assert.equal(byTestId(card, "lead-state"), null, "Ready is the silent default, on a phone too");
     assert.equal(textOf(byTestId(card, "lead-sub")), L().rows[0].sub, "where it is");
     const facts = find(card, (n) => n.props?.className === "list-row-facts");
     assert.equal(
       all(facts, (n) => /\bld-slot-shape\b/.test(String(n.props?.className || ""))).length,
-      2,
-      "whether the phone and the mailbox reach them, as shapes",
+      0,
+      "how a phone and a mailbox reach them is the lead's own page's, never two unlabelled circles",
     );
     assert.match(textOf(byTestId(facts, "lead-rated")), /5\.0 · 16/, "how it is rated");
     assert.equal(textOf(byTestId(facts, "lead-found")), L().rows[0].foundLine, "and when it was found, in words");
@@ -3560,7 +3556,6 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     assert.equal(clsOf(byTestId(cardOf("l3"), "lead-state")), "pill pill-warn");
     assert.equal(textOf(byTestId(cardOf("l4"), "lead-sub")), "Chain");
     assert.equal(textOf(byTestId(cardOf("l4"), "lead-state")), L().rows[3].stateTag);
-    assert.equal(byTestId(cardOf("l4"), "lead-reach"), null, "nothing about a left-out place was checked");
     // The face is the checkbox, and while anyone is selected a tap on a row selects it rather than opening it.
     byTestId(rowOf(tree, "l1"), "row-select").props.onChange();
     tree = draw();
@@ -3621,7 +3616,10 @@ test("on a phone the list and search are one top under the frame's strip; Find l
   );
   door.props.onClick({ type: "click" });
   assert.deepEqual(opened, ["find"], "Find leads opens Ask");
-  assert.equal(byTestId(t, "leads-phone-find"), null, "the old coral square is gone");
+  // The old coral square is gone: the bar's find glyph is the search's, folded while it holds no words (3 Nov 2026).
+  const glyph = byTestId(t, "leads-phone-find");
+  assert.equal(glyph.props["aria-label"], "Search leads", "the glyph opens the search, not Ask");
+  assert.equal(find(glyph, (n) => n.type === Icon).props.name, "search", "the search's glyph");
   // The gate reads the role, as every gate does (frame-globals gate): an operator meets it at the door.
   await fresh({ role: "operator" });
   const gatedDoor = byTestId(bar({ canFind: false }), "leads-bar-find");
@@ -4333,21 +4331,22 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
     "Talking is said by the column once",
   );
 
-  // On a phone the row is People's (the phone pass), and its pill is the row's state -- Ready too, as a person's row
-  // always says theirs -- in the same registry tones.
+  // On a phone the row is People's (the phone pass), and its pill is the row's state in the same registry tones. Ready
+  // is the silent default there too: "Not contacted" on nearly every row took the names' room (3 Nov 2026).
   await fresh({ leads: { searches: [open], rows: dtos } });
   globalThis.__phone = true;
   const ph = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   globalThis.__phone = false;
   const pillOf = (id) => byTestId(rowOf(ph, id), "lead-state");
+  assert.equal(pillOf("p1"), null, "ready wears none");
   assert.deepEqual(
-    ["p1", "p2", "p3", "p4", "p5", "p6"].map((id) => cls((pillOf(id) || {}).rendered || pillOf(id))),
-    ["pill", "pill pill-info", "pill pill-ok", "pill pill-warn", "pill", "pill"],
-    "ready, contacted, talking, needs review, said no, left out",
+    ["p2", "p3", "p4", "p5", "p6"].map((id) => cls((pillOf(id) || {}).rendered || pillOf(id))),
+    ["pill pill-info", "pill pill-ok", "pill pill-warn", "pill", "pill"],
+    "contacted, talking, needs review, said no, left out",
   );
   assert.deepEqual(
-    ["p1", "p4", "p5", "p6"].map((id) => textOf(pillOf(id))),
-    ["Not contacted", rows[3].stateTag, "Said no", rows[5].stateTag],
+    ["p4", "p5", "p6"].map((id) => textOf(pillOf(id))),
+    [rows[3].stateTag, "Said no", rows[5].stateTag],
     "in the row's own words",
   );
 
