@@ -271,7 +271,6 @@ export function leadMonthPlanFacts(
     bound: month.left < count ? "allowance" : null,
     prior: prior ? prior.counts : null,
     priorOf: prior && prior.counts ? prior.of : null,
-    cannotSee: null,
     renewsOn: month.renewsOn,
     nearby: [...nearby],
   };

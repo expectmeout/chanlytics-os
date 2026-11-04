@@ -23,7 +23,6 @@ const FACTS = {
   bound: null,
   prior: null,
   priorOf: null,
-  cannotSee: null,
   renewsOn: "Nov 1",
   nearby: [],
 };
@@ -98,18 +97,6 @@ test("the press asks for what the month has room for, says why first, and posts 
   assert.equal(v.commit.payload.plan.terms, PLAN.terms, "the plan is the card's, but for the count");
   const none = searchCardView(places({}, { facts: { ...FACTS, leadsLeft: 0, bound: "allowance" } }));
   assert.deepEqual([none.press.label, none.press.disabled], ["No leads left this month", true]);
-  // A criterion the listing cannot show holds the press until it is said another way, in Ask.
-  const cannot = searchCardView(
-    places(
-      {},
-      {
-        plan: { ...PLAN, criteria: [{ key: "open_late", text: "open late", standard: "seen", required: true }] },
-        facts: { ...FACTS, cannotSee: { key: "open_late", text: "open late", likely: "likely open late" } },
-      },
-    ),
-  );
-  assert.equal(cannot.press.disabled, true);
-  assert.match(cannot.sheet.holds.at(-1), /can't be confirmed\. Say “likely open late” instead, or take it out\./);
 });
 
 test("a people card says who, what they are called, the companies as the directory files them and what they do, how big, where and how many, and where its people come from", () => {

@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   SEARCH_CARD_REPLACED,
   searchCardView,
@@ -153,7 +154,6 @@ const FACTS = {
   bound: null,
   prior: { places: 1_200, matched: 700, with_email: 406 },
   priorOf: "trainers",
-  cannotSee: null,
   renewsOn: "Oct 1",
   nearby: [NEARBY],
 };
@@ -264,7 +264,6 @@ test("every icon these three and the Leads doors name draws a shape of its own, 
     "check",
     "x",
     "lock",
-    "dashring",
     "clock",
     "users",
     "shield",
@@ -377,24 +376,27 @@ test("the contact standard is in the sentence and its picker switches it, and th
   assert.equal(st.pick, null);
 });
 
-test("a criterion says how sure it has to be, and a fact the card cannot see is said before anything is spent, with the likely version offered", () => {
+test("a criterion says how sure it has to be, and one asked for as seen holds nothing back", () => {
   const seen = planVersionOf(PLAN, {
     criteria: [{ key: "otc", text: "Already sell OTC medicine", standard: "seen", required: true }],
   });
-  const cannotSee = { key: "otc", text: "Already sell OTC medicine", likely: "Could sell OTC medicine" };
-  const st = { plan: seen, pick: null, refusal: null };
-  const facts = { ...FACTS, cannotSee };
-  const tree = drawCard(st, { facts });
+  const tree = drawCard({ plan: seen, pick: null, refusal: null });
   assert.match(textOf(byTestId(tree, "plan-sentence")), /already sell OTC medicine \(confirmed\)/);
-  assert.match(textOf(byTestId(tree, "plan-cannot-see")), /can't be confirmed\. Nothing has been spent\./);
-  assert.equal(byTestId(tree, "plan-approve").props.disabled, true, "nothing starts until the owner chooses");
-  click(byTestId(tree, "plan-take-likely"));
-  assert.deepEqual([st.plan.criteria[0].standard, st.plan.criteria[0].text], ["likely", "Could sell OTC medicine"]);
-  assert.equal(byTestId(drawCard(st, { facts }), "plan-approve").props.disabled, false, "chosen: it can start");
-  assert.equal(byTestId(drawCard(st, { facts }), "plan-cannot-see"), null);
-  const other = { plan: seen, pick: null, refusal: null };
-  click(byTestId(drawCard(other, { facts }), "plan-drop-unseen"));
-  assert.deepEqual(other.plan.criteria, [], "or the criterion goes, and the sentence with it");
+  assert.equal(byTestId(tree, "plan-approve").props.disabled, false);
+});
+
+test("a card an older build stored still draws and presses, on the page and on Ask's line: its facts hold a key nothing reads now", () => {
+  const frozen = JSON.parse(
+    fs.readFileSync(new URL("../../fixtures/ask-tool-results-7405e34b.json", import.meta.url), "utf8"),
+  );
+  const stored = JSON.parse(frozen.find((c) => c.call[0] === "propose_lead_search" && c.proposal).proposal);
+  const { plan, facts } = stored.payload;
+  assert.equal(Object.keys(facts).filter((k) => !(k in FACTS)).length, 1, "the one key this build has no word for");
+  const tree = drawCard({ plan, pick: null, refusal: null }, { facts });
+  assert.match(textOf(byTestId(tree, "plan-sentence")), /has a website \(confirmed\)/);
+  assert.equal(byTestId(tree, "plan-approve").props.disabled, false);
+  const line = searchCardView({ id: "p-stored", ...stored });
+  assert.deepEqual([line.sheet.holds, line.press.label, line.press.disabled], [[], "Find 100 leads", false]);
 });
 
 test("Leaving out is chips the owner can take back, Likely says what past searches found, and the facts are in leads with no dollar meter", () => {
