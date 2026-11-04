@@ -711,8 +711,8 @@ export const PERSON_RUNS = 20;
  * a row carries no time of its own and the newest is known only once each run's time is: a person is on few runs.
  */
 export async function personRuns(ctx: RouteContext, tenantId: string, contactId: string): Promise<PersonCampaignDto[]> {
-  const rows = await readAllRows<{
-    broadcast_id: string;
+  const read = await readAllRows<{
+    broadcast_id: string | null;
     state: string;
     reason: string | null;
     sent_at: string | null;
@@ -728,6 +728,8 @@ export async function personRuns(ctx: RouteContext, tenantId: string, contactId:
       .order("batch_id")
       .range(from, to),
   );
+  // A customer's send always names its batch (00540's check).
+  const rows = read.flatMap((r) => (r.broadcast_id ? [{ ...r, broadcast_id: r.broadcast_id }] : []));
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.broadcast_id);
   const runs = new Map<

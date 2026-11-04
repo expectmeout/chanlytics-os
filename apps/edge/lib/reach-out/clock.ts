@@ -35,6 +35,7 @@ import {
   heldStale,
   leadWritten,
   moveSend,
+  ofASequence,
   queuedOutcomes,
   runHanded,
   staleSends,
@@ -43,7 +44,7 @@ import {
   writtenEmail,
   writtenEmails,
   type Database,
-  type ReachOutSendRow,
+  type LeadSendRow,
 } from "../packages/db.js";
 import { sendMessageId } from "../packages/core.js";
 import { draftRefusalOf, isWaitRefusal } from "../packages/contracts.js";
@@ -85,7 +86,7 @@ function neverLeft(error: { reason?: string; http_status?: number } | null): boo
   return error.http_status === 429 || error.reason === "never_delivered" || error.reason === "orphaned";
 }
 
-const move = (db: Db, s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Promise<boolean> =>
+const move = (db: Db, s: LeadSendRow, patch: Partial<LeadSendRow>): Promise<boolean> =>
   moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
 
 /**
@@ -227,7 +228,7 @@ export async function reachOutClock(
       // Its receipt settles it (00177's guard lets exactly this row move on). A day with none: it may have gone.
       if (!q.written_at || now.getTime() - Date.parse(q.written_at) < UNKNOWN_OUTCOME_MS) continue;
       if (await move(db, s, { state: "failed", reason: "outcome_unknown" })) out.failed += 1;
-    } else if (q.status === "failed" && neverLeft(error)) {
+    } else if (q.status === "failed" && neverLeft(error) && ofASequence(s)) {
       again.push({ send: s, wrote: true });
       continue; // counted where it is planned again
     } else if (q.status === "failed") {
@@ -235,7 +236,9 @@ export async function reachOutClock(
       if (await move(db, s, { state: "failed", reason })) out.failed += 1;
     } else if (q.status === "canceled") {
       const reason = String(error?.reason ?? "canceled").slice(0, 60);
-      if (isWaitRefusal(reason)) {
+      // A lead's own email (00540) is never planned again: a member pressed Send now, and nothing leaves by surprise
+      // tomorrow. Its row says why it did not go.
+      if (isWaitRefusal(reason) && ofASequence(s)) {
         again.push({ send: s, wrote: true });
         continue;
       }

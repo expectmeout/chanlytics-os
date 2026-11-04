@@ -42,7 +42,7 @@ import {
 import { emailWordsFrom } from "@chanlytics/db";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { reachOutRequest } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/reach-out/request.ts")).href);
+const { reachOutRequest } = await import("@chanlytics/channels");
 
 const problems = (issues) => issues.map((i) => `${i.field}:${i.problem}${i.slot ? `:${i.slot}` : ""}`);
 const campaign = campaignEmailRules(2);

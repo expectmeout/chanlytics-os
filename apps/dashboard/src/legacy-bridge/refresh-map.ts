@@ -383,6 +383,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/export": leads,
   "DELETE leads/[id]": leads,
   "PUT lead-suggestions": leads,
+  "POST leads/[id]/send": () => [...leadsAnswered()],
   "POST leads/[id]/stage": () => [...leadsAnswered(), peopleOverride, ...reportsPeople()],
   // Outbound.
   // A broadcast made moves the month's emails and texts both composers say before a send, and Playbooks' composer reads

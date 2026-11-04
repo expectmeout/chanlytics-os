@@ -30,7 +30,6 @@ import {
   LEAD_CALL_OUTCOMES,
   LEAD_CALL_QUESTION,
   LEAD_CLOSED_WORDS,
-  LEAD_DRAFT_NOTE,
   LEAD_LEFT_OUT_WORD,
   LEAD_NOT_A_FIT_TITLE,
   LEAD_NOT_A_FIT_WHYS,
@@ -58,7 +57,6 @@ export {
   LEAD_LIST_WORDS,
   LEAD_SOURCE_WORD,
   LEAD_LOCKED_LINE,
-  LEAD_DRAFT_NOTE,
   LEAD_ASKED_NOT_WRITTEN,
   LEAD_NO_ADDRESS,
   LEAD_CONSENT_REFUSAL,
@@ -319,7 +317,6 @@ export const LEAD_WORDS = {
     { id: "warmer", label: "Warmer" },
   ],
   draftWriting: "Writing it…",
-  draftNote: LEAD_DRAFT_NOTE,
   copiedDraft: "Copied the email.",
   /** The browser kept the clipboard shut: nothing was copied, and the mail app still carries the email. */
   copyRefused: "Couldn't copy it here. Open it in your mail app instead.",

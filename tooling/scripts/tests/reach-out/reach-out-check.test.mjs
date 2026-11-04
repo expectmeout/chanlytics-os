@@ -21,7 +21,7 @@ import { at } from "../_cron-doors-world.mjs";
 const { checkOne, checkSends, checkBudget, backoffMs, CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_GIVE_UP_MS } =
   await import(at("apps/edge/lib/reach-out/check.ts"));
 const { hoursLine, checkInputOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
-const { checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts"));
+const { checkedWordsOf } = await import("@chanlytics/channels");
 const { REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
 
 const MIN = 60_000;

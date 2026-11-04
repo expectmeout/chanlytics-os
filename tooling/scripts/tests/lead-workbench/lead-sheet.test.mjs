@@ -593,12 +593,12 @@ test("History: how we found them, what a sequence did, and your last call, each 
   };
   const place = placeOf("left", { why: "removed", at: "2026-10-17T15:00:00Z" }, { sends: [sent(1)] });
   assert.deepEqual(
-    leadHistoryOf({ vm, place, tz: TZ, nowMs: NOW }),
+    leadHistoryOf({ vm, place, emails: [], tz: TZ, nowMs: NOW }),
     [
       { at: "Oct 12", what: "Google Maps · #7 for “salons”" },
       { at: "Oct 12", what: "Mailbox · Checked" },
-      { at: "Oct 16", what: "You added them to Bookstore intro" },
       { at: "Oct 14", what: "Step 1 sent" },
+      { at: "Oct 16", what: "You added them to Bookstore intro" },
       { at: "Oct 17", what: "Taken out" },
       { at: "Oct 16", what: "Left a voicemail: Back Tuesday" },
     ],
@@ -606,7 +606,7 @@ test("History: how we found them, what a sequence did, and your last call, each 
   );
   const quiet = { ...vm, worked: { outcome: null, note: null, at: null } };
   assert.equal(
-    leadHistoryOf({ vm: quiet, place: null, tz: TZ, nowMs: NOW }).length,
+    leadHistoryOf({ vm: quiet, place: null, emails: [], tz: TZ, nowMs: NOW }).length,
     2,
     "no sequence, no call: found alone",
   );
@@ -842,7 +842,8 @@ test("a lead that moved past its place (said no, a person now): the card promise
 
 test("History says an email you wrote yourself, and never takes a sequence's send for one", () => {
   const worked = { outcome: "emailed", note: null, at: "2026-10-16T15:00:00Z" };
-  const said = (place) => leadHistoryOf({ vm: { found: [], worked }, place, tz: TZ, nowMs: NOW }).map((r) => r.what);
+  const said = (place) =>
+    leadHistoryOf({ vm: { found: [], worked }, place, emails: [], tz: TZ, nowMs: NOW }).map((r) => r.what);
   const YOURS = "You wrote to them yourself";
   assert.ok(said(placeOf("next")).includes(YOURS), "their sequence has sent nothing yet: the email is yours");
   const went = said(placeOf("in", { place: 2 }, { sends: [sent(1)] }));
@@ -852,6 +853,7 @@ test("History says an email you wrote yourself, and never takes a sequence's sen
   const rows = leadHistoryOf({
     vm: { found: [], worked: { outcome: "emailed", note: null, at: "2026-10-16T15:00:00Z" } },
     place: null,
+    emails: [],
     tz: TZ,
     nowMs: NOW,
   });
@@ -862,6 +864,7 @@ test("History says an email you wrote yourself, and never takes a sequence's sen
   const noted = leadHistoryOf({
     vm: { found: [], worked: { outcome: "voicemail", note: null, at: "2026-10-16T15:00:00Z" } },
     place: null,
+    emails: [],
     tz: TZ,
     nowMs: NOW,
   });

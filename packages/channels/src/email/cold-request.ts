@@ -4,8 +4,9 @@
  * its address again to answer, so a reply lands in that mailbox and is read back into the Inbox), its signature, the
  * foot the law asks for, and the one-click unsubscribe sealed for this person and this email. Plain text, with no HTML
  * twin and no Auto-Submitted mark: one person's email from their own mailbox. A step after the first answers the email
- * before it: "Re:" and its Message-ID, so the nudge reads as the same thread (D19). Pure over its inputs; the sender
- * (sender.ts) reads them, and so does the sheet's preview (preview.ts), so a preview holds what a send holds.
+ * before it: "Re:" and its Message-ID, so the nudge reads as the same thread (D19). Pure over its inputs; the edge's sender
+ * and the sheet's preview read them, and so does a lead's own email (the dashboard's lead-send.ts), so a preview holds what a
+ * send holds.
  *
  * The slots (Part 4) are filled with their real values: the lead's name and city, the workspace's name, the name the
  * chain signs with, the workspace's booking link, the opening the check wrote for this send, and for a company the
@@ -18,15 +19,10 @@
  * before, as plain text they open or paste.
  */
 import { createHash } from "node:crypto";
-import {
-  buildEmailRequest,
-  connectedIdentity,
-  mailboxSignatureOf,
-  signUnsubscribeToken,
-  unsubscribeUrl,
-  type EmailParent,
-  type EmailRequest,
-} from "../packages/channels.js";
+import { mailboxSignatureOf } from "../mailbox/mailbox-signature";
+import { signUnsubscribeToken, unsubscribeUrl } from "../tokens/unsubscribe-token";
+import { connectedIdentity } from "./identity";
+import { buildEmailRequest, type EmailParent, type EmailRequest } from "./request";
 import {
   coldEmailOf,
   emailTextOf,
@@ -37,9 +33,9 @@ import {
   type ReachOutSignsWith,
   type SlotLead,
   type SlotWorkspace,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 
-export interface RequestInput {
+interface RequestInput {
   tenantId: string;
   /** The email's own id (core sendMessageId): the idempotency key, the tag, and the unsubscribe's seal. */
   messageId: string;
@@ -79,7 +75,7 @@ export interface RequestInput {
  *   - no_preview: the lead's preview failed or has ended, and this send is skipped;
  *   - missing_value: this lead has no value for a slot ({{city}} for a lead with none), and this send alone is skipped.
  */
-export type WordsRefusal =
+type WordsRefusal =
   | "unknown_slot"
   | "no_subject"
   | "no_signed_by"

@@ -30,6 +30,7 @@ import {
   type LeadSearchDto,
   type LeadSearchPlan,
   type LeadSort,
+  type LeadEmailWords,
   type LeadStageInput,
   type LeadSuggestionsDto,
   type LeadsBulkInput,
@@ -554,12 +555,35 @@ export async function draftForLead(
   id: string,
   input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } },
 ) {
-  return leadCall<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", {
+  return leadCall<{
+    to: string;
+    subject: string;
+    body: string;
+    mailto: string;
+    words: string;
+    mail_foot: string;
+    from: string | null;
+    why_not: string | null;
+    foot: string | null;
+  }>("POST leads/[id]/draft", {
     params: { id },
     body: input,
     refresh: false,
     once: true,
   });
+}
+/** Send: the lead's own email, from a mailbox the business connected (decision 0094). */
+export async function sendLeadEmail(id: string, words: LeadEmailWords) {
+  return leadCall<{ message_id: string; from: string }>("POST leads/[id]/send", {
+    params: { id },
+    body: words,
+    refresh: "behind",
+    once: true,
+  });
+}
+/** Its Undo, inside its grace: the reply's own door. */
+export async function callBackLeadEmail(messageId: string) {
+  return api()("POST messages/[id]/cancel-send", { params: { id: messageId } });
 }
 /**
  * Erase (the owner's, from the peek's menu): it answers when the door accepts, and the lead leaves every view this

@@ -197,7 +197,7 @@ test("a lead's test mail says the name the business is called by, in its words a
 /* ---------------------------------------------------- a lead's test is the email the send makes (3 Nov 2026) -- */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { reachOutRequest } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/reach-out/request.ts")).href);
+const { reachOutRequest } = await import("@chanlytics/channels");
 
 const COLD = {
   business: "Harbor Studio",

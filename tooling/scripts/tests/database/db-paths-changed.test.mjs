@@ -106,6 +106,7 @@ test("the workflow reads the answer from stdout and the reason from the log", ()
  */
 const NOT_THE_DATABASE = [
   [/^packages\/contracts\/(src|dist)\//, "contracts: words and shapes; its CHECK sets are on the list"],
+  [/^apps\/dashboard\/src\/link-host\.ts$/, "the cold link host: an origin read, and no database"],
   [/^packages\/channels\/(src|dist)\//, "channels: the providers' wires; core and jobs bundle what they use"],
 ];
 

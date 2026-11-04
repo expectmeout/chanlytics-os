@@ -1,19 +1,18 @@
 /**
- * The email a reach-out send leaves as (apps/edge lib/reach-out/request.ts, Reach out Part 3 C9, C10, D19; from a
+ * The email a reach-out send leaves as (channels email/cold-request.ts, Reach out Part 3 C9, C10, D19; from a
  * mailbox the business connected since decision 0056), run over the real request builder, the real identity and the
  * real unsubscribe seal: a first step's email, a step's that answers the one before, and the two refusals that hold one
  * back.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { verifyUnsubscribeToken } from "@chanlytics/channels";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { reachOutRequest, reachOutDraft, reachOutWords, checkedWordsOf } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/reach-out/request.ts")).href
-);
+import {
+  checkedWordsOf,
+  reachOutDraft,
+  reachOutRequest,
+  reachOutWords,
+  verifyUnsubscribeToken,
+} from "@chanlytics/channels";
 
 const SECRET = "a-secret-only-this-file-holds";
 const T = "22222222-2222-4222-8222-222222222222";

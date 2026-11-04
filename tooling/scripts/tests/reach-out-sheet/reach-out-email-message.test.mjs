@@ -56,7 +56,7 @@ const { SlotName } = await import(`${S}/campaigns/parts/slot.tsx`);
 const { REACH_OUT_SLOT_SET, reachOutRowName, reachOutRules, reachOutEditedWords, wordsIssueWords, renderOwnVersion } =
   contracts;
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { reachOutRequest } = await import(pathToFileURL(path.join(ROOT_DIR, "apps/edge/lib/reach-out/request.ts")).href);
+const { reachOutRequest } = await import("@chanlytics/channels");
 
 const BIZ = "Harbor Moving Co";
 const LINK = "https://example.com/book";
