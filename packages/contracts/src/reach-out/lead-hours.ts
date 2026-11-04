@@ -271,3 +271,13 @@ export function leadFactOf(l: FactListing): WrittenOpening | null {
     };
   return null;
 }
+
+/**
+ * The opening one lead's email goes with, as near as it can be said before it goes (the preview and Send me a test both
+ * say it, 3 Nov 2026: a test said a line still to come where the preview said the one written): the one its check wrote,
+ * where it has written one; else the sentence the listing says (leadFactOf), which the check offers its reader first;
+ * else null, the line still to be written.
+ */
+export function leadOpeningOf(written: string | null | undefined, listing: FactListing | null): string | null {
+  return written?.trim() || (listing ? (leadFactOf(listing)?.opening ?? null) : null);
+}

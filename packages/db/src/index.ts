@@ -275,6 +275,7 @@ export {
 } from "./repositories/campaigns/reach-out-leads";
 export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
 export { decideSendDoor, sendOpeningsOf, undoSendRewrite } from "./repositories/campaigns/reach-out-rewrite";
+export { leadStepOpeningOf } from "./repositories/campaigns/reach-out-rewrite";
 export { sequenceMakes } from "./repositories/campaigns/sequence-makes";
 export type { SequenceMake } from "./repositories/campaigns/sequence-makes";
 export {

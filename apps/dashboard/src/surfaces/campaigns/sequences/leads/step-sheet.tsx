@@ -36,9 +36,9 @@ import { LeadPreview } from "./preview";
 import {
   cardLeadOf,
   exampleCardLead,
-  previewNameOf,
   useLeadRow,
   usePreviewLeads,
+  usePreviewName,
   workspaceOf,
   type PreviewLead,
 } from "./reads";
@@ -186,7 +186,7 @@ function WriteFoot(p: { lc: LeadChain; place: number; onDone: () => void; onRemo
 /** The foot while previewing: the step as this lead gets it, and Send me a test, to your own inbox. */
 function TestFoot(p: { rec: SequenceRecordDto; lc: LeadChain; place: number; lead: PreviewLead | null; flash: Flash }) {
   const [busy, setBusy] = useState(false);
-  const name = previewNameOf(p.lead);
+  const name = usePreviewName(p.lead);
   const test = async () => {
     setBusy(true);
     // What is typed goes first, so the test is the words as they stand.
