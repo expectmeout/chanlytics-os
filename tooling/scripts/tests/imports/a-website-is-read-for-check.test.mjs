@@ -12,6 +12,7 @@ import { WEBSITE_UNREAD_WORDS } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { squarePng } from "../look/_png.mjs";
+import { until } from "../shared/_until.mjs";
 import { sitePagesLinkedFrom, sitePagesNamed } from "../../../../packages/core/src/site-pages.ts";
 
 const SECRET = "edge-secret-for-this-file";
@@ -260,7 +261,7 @@ test("what is read at an owner's press is the page as it stands now, and its loo
     asked.push({ url, ...o });
     inFlight += 1;
     most = Math.max(most, inFlight);
-    await new Promise((resolve) => setImmediate(resolve));
+    if (url !== `${SITE}/`) await until(() => inFlight === 2, "the pages beside the home page read together");
     inFlight -= 1;
     return pageAt(url);
   });

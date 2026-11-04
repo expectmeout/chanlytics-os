@@ -13,7 +13,7 @@ import { siteMapper, sitePageReader, type SiteLink, type SitePage } from "./pack
 import { env } from "./env.js";
 
 /** One kind of read: how long the page may take, how much of it is held, and what it asks of the reader. */
-export interface PageRead {
+interface PageRead {
   timeoutMs: number;
   /** Held to this many characters, its HTML and its Markdown each. */
   maxChars: number;

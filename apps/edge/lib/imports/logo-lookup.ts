@@ -12,8 +12,9 @@
  * (lib/public-page.ts homePage: Firecrawl's scrape, as the site stands now), the marks it declares are found as the
  * website read finds them (core siteLogoFrom: the mark the reader saw, schema.org's logo, the home-screen icon, the
  * biggest icon; a builder's default refused), and each picture is asked for over the guarded fetch (channels
- * publicFetcher), which refuses any address that is not on the public internet at every hop. A candidate on a port that is not the web's own, an SVG, a favicon file, or a picture
- * too small or too large for the circle is passed over. The dashboard logs the outcome, never the file.
+ * publicFetcher), which refuses any address that is not on the public internet at every hop. A candidate on a port that
+ * is not the web's own, an SVG, a favicon file, or a picture too small or too large for the circle is passed over. The
+ * dashboard logs the outcome, never the file.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -45,7 +46,7 @@ const ours = (host: string): boolean => OURS.some((d) => host === d || host.ends
  * The home page to ask for, from the website as it was typed: its own spelling (www. or not, as the owner gave it; homePage
  * asks the other if that gives none), on the host siteHost judged its own.
  */
-function homeOf(website: string, host: string): string {
+function homeToAsk(website: string, host: string): string {
   const typed = (() => {
     try {
       return new URL(/^https?:\/\//i.test(website) ? website : `https://${website}`).hostname.toLowerCase();
@@ -90,7 +91,7 @@ async function logoLookup(db: Db, tenantId: string): Promise<LogoLookupAnswer> {
     .find((x): x is { w: string; h: string } => !!x.h && !ours(x.h));
   if (!websites.length) return { outcome: "no_website", host: null };
   if (!own) return { outcome: "not_its_own", host: null };
-  const found = await firstPicture(homeOf(own.w, own.h));
+  const found = await firstPicture(homeToAsk(own.w, own.h));
   if (found === "unreachable") return { outcome: "unreachable", host: own.h };
   if (!found) return { outcome: "none", host: own.h };
   return { outcome: "found", host: own.h, image: found };

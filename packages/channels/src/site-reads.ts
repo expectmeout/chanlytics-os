@@ -125,7 +125,7 @@ export interface SiteReadOptions {
 export type SitePageReader = (url: string, o: SiteReadOptions) => Promise<SitePage | null>;
 
 /** A provider's words for a thing, read for what they are: its metadata can repeat a tag, and answers a list for it. */
-function wordsOf(v: unknown): string | null {
+function providerWords(v: unknown): string | null {
   const one: unknown = Array.isArray(v) ? v[0] : v;
   return typeof one === "string" && one.trim() ? one.trim() : null;
 }
@@ -134,9 +134,9 @@ function wordsOf(v: unknown): string | null {
 function brandOf(v: unknown): SiteBrand | null {
   if (!v || typeof v !== "object") return null;
   const b = v as { logo?: unknown; images?: { logo?: unknown } | null; colors?: { primary?: unknown } | null };
-  const said = wordsOf(b.images?.logo) ?? wordsOf(b.logo);
+  const said = providerWords(b.images?.logo) ?? providerWords(b.logo);
   const logo = said && /^https?:\/\//i.test(said) ? said : null;
-  const colour = wordsOf(b.colors?.primary);
+  const colour = providerWords(b.colors?.primary);
   return logo || colour ? { logo, colour } : null;
 }
 
@@ -156,8 +156,8 @@ function sitePageOf(answer: Record<string, unknown> | null, asked: string): Site
     url: typeof d.metadata?.url === "string" && d.metadata.url ? d.metadata.url : asked,
     html: d.rawHtml,
     markdown: typeof d.markdown === "string" ? d.markdown : "",
-    title: wordsOf(d.metadata?.title),
-    description: wordsOf(d.metadata?.description) ?? wordsOf(d.metadata?.ogDescription),
+    title: providerWords(d.metadata?.title),
+    description: providerWords(d.metadata?.description) ?? providerWords(d.metadata?.ogDescription),
     brand: brandOf(d.branding),
   };
 }
@@ -221,8 +221,8 @@ export function firecrawlMapper(key: string, deps: { fetch?: typeof fetch } = {}
     if (!Array.isArray(links)) return [];
     return links.flatMap((l: unknown) => {
       const said = l && typeof l === "object" ? (l as { url?: unknown; title?: unknown }) : {};
-      const at = wordsOf(said.url);
-      return at ? [{ url: at, title: wordsOf(said.title) }] : [];
+      const at = providerWords(said.url);
+      return at ? [{ url: at, title: providerWords(said.title) }] : [];
     });
   };
 }
@@ -249,7 +249,7 @@ export async function firecrawlCredits(key: string, deps: { fetch?: typeof fetch
     kind: "read",
     remaining: d.remainingCredits,
     plan: typeof d.planCredits === "number" ? d.planCredits : null,
-    periodEnd: wordsOf(d.billingPeriodEnd),
+    periodEnd: providerWords(d.billingPeriodEnd),
   };
 }
 

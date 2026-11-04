@@ -6,7 +6,7 @@
  * hands on to its caller's measure. Run with the provider answered by the test; nothing here reaches the network. The
  * suites' own stand-in for the reader (calendar/_stand-in-network.mjs) is set aside for each test and put back.
  */
-import { test, after } from "node:test";
+import { test, after, mock } from "node:test";
 import assert from "node:assert/strict";
 import {
   FIRECRAWL_CREDITS,
@@ -329,13 +329,19 @@ test("a home page is asked for as spelled, then its other spelling, in what is l
     );
 
     asked.length = 0;
+    let now = Date.now();
+    const clock = mock.method(Date, "now", () => now);
     setSitePageReader(async (url, o) => {
       asked.push([url, o.timeoutMs]);
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      now += 60;
       return null;
     });
-    assert.equal(await homePage("https://harbormoving.example/", { timeoutMs: 1_020, maxChars: 100 }), null);
-    assert.equal(asked.length, 1, "with under a second left, the other spelling is not asked");
+    try {
+      assert.equal(await homePage("https://harbormoving.example/", { timeoutMs: 1_020, maxChars: 100 }), null);
+      assert.equal(asked.length, 1, "with under a second left, the other spelling is not asked");
+    } finally {
+      clock.mock.restore();
+    }
   });
 });
 

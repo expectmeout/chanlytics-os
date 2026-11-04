@@ -438,7 +438,7 @@ export async function leadSiteReadsSpent(
 }
 
 /** A lead with a site and no copy of its mark yet (00161), as the leads sweep tries it again. */
-export interface LeadToMark {
+interface LeadToMark {
   id: string;
   tenant_id: string;
   website_host: string;
