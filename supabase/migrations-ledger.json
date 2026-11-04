@@ -52,10 +52,10 @@
     "00518": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
     "00519": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
     "00520": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
-    "00521": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
-    "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
-    "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
-    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it"
+    "00521": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00534 to 00537",
+    "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00534 to 00537",
+    "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00534 to 00537",
+    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00534 to 00537"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -535,6 +535,10 @@
     "00530_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": "714bae015abeccf83e9051d6e1e119050a54bb2c94a24a9bcdcba5e123b7ceba",
     "00531_the_notices_a_call_owes_are_found_by_their_own_index.sql": "4b9ee24206c26f33f2e25d81a8ef5d56803f10c401aba2402aee7c3b4a8e2ff2",
     "00532_a_run_with_nothing_to_send_waits_on_nobody.sql": "b87b90ff2e1415e18858489617fc27f60b616defa3ca4feb475e0d62417c52c9",
-    "00533_a_lead_on_a_list_says_why_no_batch_takes_it.sql": "c36db149b55b028d7910d44121195b599142bcccac349cee7373adc9a9500de5"
+    "00533_a_lead_on_a_list_says_why_no_batch_takes_it.sql": "c36db149b55b028d7910d44121195b599142bcccac349cee7373adc9a9500de5",
+    "00534_a_message_and_the_yes_it_carries_are_kept_together.sql": "89203c8d4d80e8f850108205595ca1836fdb4a81d7c9bc23817ed2c9e2085b5e",
+    "00535_an_address_a_customer_gives_is_kept_where_none_is.sql": "7ff4ac49903d6e8013aa4635ff6cc7d9af81ca8ae31139a75cfc87612d313de4",
+    "00536_a_text_twilio_could_not_hand_us_is_taken_in.sql": "14ff724e7158d0b745d7f21288bb5e62f2ee4d0f8f7b3779df178e35821b9545",
+    "00537_the_wires_are_proved_once_a_day.sql": "785485e1ad9798123c01a280aa7f828274cbe68c2680bef31cb83f3a44a16809"
   }
 }

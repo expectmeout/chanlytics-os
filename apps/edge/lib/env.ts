@@ -57,6 +57,10 @@ export const env = {
   get META_APP_SECRET() {
     return trimmedEnv(process.env.META_APP_SECRET);
   },
+  /** The app secret being retired, while Meta's deliveries may still be signed with it: set for a rotation, then unset. */
+  get META_APP_SECRET_PREVIOUS() {
+    return trimmedEnv(process.env.META_APP_SECRET_PREVIOUS);
+  },
   get META_APP_ID() {
     return trimmedEnv(process.env.META_APP_ID);
   },
@@ -74,10 +78,6 @@ export const env = {
   /** Switch: limits who the environment's own pilot number answers; empty answers everyone. */
   get WHATSAPP_TEST_ALLOWLIST() {
     return trimmedEnv(process.env.WHATSAPP_TEST_ALLOWLIST);
-  },
-  /** Switch: the workspaces whose WhatsApp messages are answered by a job after the webhook's 200; empty, none are. */
-  get WHATSAPP_ANSWERS_AS_JOBS() {
-    return trimmedEnv(process.env.WHATSAPP_ANSWERS_AS_JOBS);
   },
 
   // Instagram (the Instagram API with Instagram Login: decision 0001, step 8)
@@ -138,6 +138,14 @@ export const env = {
   /** Switch: '1' uses the dry line provider (fake SIDs) on a preview or a laptop. */
   get LINES_DRY_RUN() {
     return trimmedEnv(process.env.LINES_DRY_RUN);
+  },
+  /** The daily text canary's sender: a Messaging Service of the master account holding the canary's number (lib/sms/canary.ts). */
+  get CANARY_SMS_SERVICE() {
+    return trimmedEnv(process.env.CANARY_SMS_SERVICE);
+  },
+  /** The line the canary texts: the platform workspace's own, whose receptionist answers it. Both set, or the canary is off. */
+  get CANARY_SMS_TO() {
+    return trimmedEnv(process.env.CANARY_SMS_TO);
   },
   /** Switch: unset reports ended workspaces' numbers; set warns, then releases them after that many days. */
   get LINE_RELEASE_AFTER_DAYS() {

@@ -50,8 +50,8 @@ import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { IngestFailed } from "../whatsapp/persist.js";
-import { alertUnroutable } from "../whatsapp/alerts.js";
+import { IngestFailed } from "../inbound/persist.js";
+import { alertUnroutable } from "../inbound/alerts.js";
 import { env } from "../env.js";
 import { errField, logger } from "../log.js";
 import { instagramCredentials } from "./credentials.js";
@@ -82,7 +82,13 @@ function signedByInstagramApp(request: Request, raw: string): boolean {
     doorLog.error("ig_missing_app_secret");
     return false;
   }
-  return metaSignatureValid(raw, request.headers.get(META_SIGNATURE_HEADER), secrets);
+  // The Meta app's retiring secret beside it while a rotation is under way, never on its own.
+  const previous = env.META_APP_SECRET_PREVIOUS;
+  return metaSignatureValid(
+    raw,
+    request.headers.get(META_SIGNATURE_HEADER),
+    previous ? [...secrets, previous] : secrets,
+  );
 }
 
 /** Kept as it came, before the verdict (decision 0032): Meta names no delivery, so the key is the body's digest. */
@@ -136,7 +142,7 @@ async function takeMessage(
     return 0;
   } catch (err) {
     log.error("ig_inbound_failed", { id: e.mid, error: errField(err) });
-    return err instanceof IngestFailed && !err.kept ? 1 : 0;
+    return err instanceof IngestFailed ? 1 : 0;
   }
 }
 

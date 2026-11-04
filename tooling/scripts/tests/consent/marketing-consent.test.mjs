@@ -242,20 +242,14 @@ test("the database records the two answers apart, and neither writer reaches acr
     /revoke execute on function public\.set_marketing_consent\(uuid, uuid, text, text, text\) from public, anon;/,
   );
 
-  // The hot path is NOT recreated to add a column. ingest_inbound handles every
-  // inbound message in the product; the marketing answer is a second call.
-  assert.ok(!/create or replace function public\.ingest_inbound/.test(m), "REGRESSION: surgery on the hot path");
-  const repo = readCode("packages/db/src/repositories/ingest.ts");
-  assert.match(repo, /rpc\("set_marketing_consent"/);
-  assert.ok(
-    repo.indexOf('rpc("ingest_inbound"') < repo.indexOf('rpc("set_marketing_consent"'),
-    "after the ingest, using the contact it returned",
-  );
+  // The yes rides its message (00534): ingest_inbound keeps it in the transaction that keeps the message, once the stop
+  // this message may carry is read back, and the edge writes it through no second door.
+  const kept = readRaw("supabase/migrations/00534_a_message_and_the_yes_it_carries_are_kept_together.sql");
   assert.match(
-    repo,
-    /marketing_consent_write_failed/,
-    "and a failure is loud rather than fatal: the customer has already been answered",
+    kept,
+    /if p_opt_in_marketing and v_consent is distinct from 'opted_out' and v_dnc is not true then\s+perform public\.set_marketing_consent\(/,
   );
+  // That the repository makes no second call is run: consent-history.test.mjs (one call, the ingest's).
 
   // people_list carries both, or no page can compute an audience.
   const pl = readRaw("supabase/migrations/00096_people_carry_both_answers.sql");
@@ -561,8 +555,8 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   // desk recording a form the customer signed." Only the first existed, so a salon
   // holding thirty signed consent slips had no way to record any of them -- and
   // both controls that looked like they did wrote the conversational column.
-  const ingest = readCode("packages/db/src/repositories/ingest.ts");
-  assert.match(ingest, /rpc\("set_marketing_consent"/, "the customer's own message");
+  const kept = readRaw("supabase/migrations/00534_a_message_and_the_yes_it_carries_are_kept_together.sql");
+  assert.match(kept, /perform public\.set_marketing_consent\(/, "the customer's own message, kept with it (00534)");
   // A person at the desk: the member's one call (00356 record_consent), which hands the offers door the workspace it
   // read the person from (the edge calls that door with no session, so it takes the workspace as a parameter), and
   // writes the history line with the answer. consent-paths.test.mjs runs the route through it.

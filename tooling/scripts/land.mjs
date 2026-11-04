@@ -65,6 +65,7 @@ export function isWritten(file) {
     (/\.generated\.(ts|json)$/.test(file) ||
       file === "docs/api.md" ||
       file === "docs/data-model.md" ||
+      file === "docs/inbound-gates.md" ||
       file === "docs/tree.md" ||
       file === "supabase/migrations-ledger.json")
   );
@@ -139,6 +140,7 @@ export const WRITERS = [
   ["the migration ledger", "node tooling/scripts/checks/migration-ledger.mjs --record"],
   ["the data model", "corepack pnpm gen:data-model"],
   ["the tree", "node tooling/scripts/gen/docs-tree.mjs"],
+  ["the inbound gates", "corepack pnpm gen:inbound-gates"],
 ];
 
 const SUPABASE = process.env.SUPABASE_CLI || "supabase";

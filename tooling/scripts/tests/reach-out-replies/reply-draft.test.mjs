@@ -387,8 +387,8 @@ function edge({
   };
   const db = fakeDb(tables, {}, { runtime_stamp: () => "stamp-1" });
   const asked = [];
-  const brain = async (...args) => {
-    asked.push(args);
+  const brain = async (ask) => {
+    asked.push(ask);
     return (
       edge.answer ?? {
         text: "Thank you for writing.\n\nSam",
@@ -408,7 +408,14 @@ test("the edge's port: the workspace's prompt, the thread, the note, no holding 
     const out = await w.draft(w.tenant, { ...ASK, deadline: Date.now() + 40_000 });
     assert.deepEqual(out, { text: "Thank you for writing.\n\nSam" });
     assert.equal(w.asked.length, 1);
-    const [history, text, system, fallback, note, nowNote] = w.asked[0];
+    const {
+      history,
+      userText: text,
+      systemPrompt: system,
+      fallbackText: fallback,
+      leadNote: note,
+      nowNote,
+    } = w.asked[0];
     assert.deepEqual(history, [{ role: "user", content: "This sounds useful. Can you send me more details?" }]);
     assert.equal(text, ASK.text);
     assert.equal(

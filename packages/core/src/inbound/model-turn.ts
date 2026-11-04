@@ -44,26 +44,24 @@ async function leadNoteFor(at: Answering): Promise<string | undefined> {
   // Never fatal: an unavailable lead lookup costs recognition, and losing
   // the reply entirely to get it would be a far worse trade.
   let leadNote: string | undefined;
-  if (db && tenantId) {
-    try {
-      // A wire with no number (a DM) knows its person by the row ingest found for them, never by a number.
-      const byRow = !n.identity.phoneE164 && ing?.contact_id && ports.leads.readById ? ing.contact_id : null;
-      const e164 = byRow ? null : from.startsWith("+") ? from : `+${from}`;
-      // The message being answered is not their history: it was stored before they were read.
-      const lead =
-        byRow && ports.leads.readById
-          ? await ports.leads.readById(db, tenantId, byRow, 1, ing?.message_id)
-          : await ports.leads.read(db, tenantId, e164 ?? from, 1, ing?.message_id);
-      // The conversation's channel rides along: the prompt says WhatsApp even on a text, and the ask for the yes to offers
-      // is for WhatsApp alone (contracts offers-ask.ts).
-      leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC", channel);
-      // Their appointments, from the same feed the openings come from:
-      // "when is my appointment?" is answered from the calendar, never guessed.
-      const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
-      if (visits) leadNote = `${leadNote}\n${visits}`;
-    } catch (e) {
-      L.warn("lead_context_unavailable", { error: errField(e) });
-    }
+  try {
+    // A wire with no number (a DM) knows its person by the row ingest found for them, never by a number.
+    const byRow = !n.identity.phoneE164 && ports.leads.readById ? ing.contact_id : null;
+    const e164 = byRow ? null : from.startsWith("+") ? from : `+${from}`;
+    // The message being answered is not their history: it was stored before they were read.
+    const lead =
+      byRow && ports.leads.readById
+        ? await ports.leads.readById(db, tenantId, byRow, 1, ing.message_id)
+        : await ports.leads.read(db, tenantId, e164 ?? from, 1, ing.message_id);
+    // The conversation's channel rides along: the prompt says WhatsApp even on a text, and the ask for the yes to offers
+    // is for WhatsApp alone (contracts offers-ask.ts).
+    leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC", channel);
+    // Their appointments, from the same feed the openings come from:
+    // "when is my appointment?" is answered from the calendar, never guessed.
+    const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
+    if (visits) leadNote = `${leadNote}\n${visits}`;
+  } catch (e) {
+    L.warn("lead_context_unavailable", { error: errField(e) });
   }
   return leadNote;
 }
@@ -117,7 +115,7 @@ async function requestOf(
   const { ports, rt, L, ing } = at;
   const requests = ports.calendar.requests;
   if (!rt || !requests || !r.booking?.slot) return turn;
-  const terms = await requests.terms(rt, ing?.contact_id ?? null, now);
+  const terms = await requests.terms(rt, ing.contact_id, now);
   const asked = terms ? requestedBookingOf({ slot: r.booking.slot, service: r.booking.service, ...terms }) : null;
   // A hold of a booking set to Ask me first (policy_ask), or the model's own handoff (human_token), is the request's.
   const ownHold = turn.escalate && turn.escalationReason !== "policy_ask" && turn.escalationReason !== "human_token";
@@ -139,6 +137,19 @@ async function requestOf(
   L.info("booking_request_refused", { why: !asked ? "no_openings" : asked.ok ? "held" : asked.why });
   // Held already (a booking set to Ask me first, or a hold of its own), it stays as it is; else a reply is owed.
   return turn.escalate ? turn : { ...turn, escalate: true, escalationReason: "booking_reply" };
+}
+
+/**
+ * WhatsApp's "typing..." on the customer's message while the model writes, where the answer goes at once (the mode in
+ * force is auto, so nothing waits in a veto window the indicator would outlast): a courtesy, so it is not awaited and its
+ * failure is nobody's. Never on a text or a DM, whose wires have none.
+ */
+export function showTyping(at: Answering): void {
+  const { ports, channel, replyMode, rt, isEnvDefault, n, L } = at;
+  if (!ports.typing || channel !== "whatsapp" || replyMode !== "auto" || !ports.env.modelKey) return;
+  ports.typing(ports.waCfg(rt, isEnvDefault), n.externalId).catch((e: unknown) => {
+    L.warn("wa_typing_failed", { error: errField(e) });
+  });
 }
 
 /** The model composes and layer two checks the words, or, with no model key, the fallback goes. */
@@ -177,9 +188,9 @@ export async function modelTurn(
       // the receptionist is told and the prices it may say from them are the same notes.
       const now = new Date();
       const tBrain = Date.now();
-      const r = await generateReply(
-        thread.history,
-        photo
+      const r = await generateReply({
+        history: thread.history,
+        userText: photo
           ? photoUserText(n.media?.caption, priceAllowance(brainCfg, rt?.timezone, now) ? "written" : "none")
           : bodyText,
         // Composed from the workspace's structured facts when it has them,
@@ -187,26 +198,27 @@ export async function modelTurn(
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens. A text is told it answers texts (compose.ts).
-        resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known),
-        fallbacks!.error,
+        systemPrompt: resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known),
+        fallbackText: fallbacks!.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
-        `${describeNow(rt?.timezone, now, brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
-        photo ?? undefined,
-        undefined,
+        nowNote: `${describeNow(rt?.timezone, now, brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
+        ...(photo ? { image: photo } : {}),
         // Who it is for: the model port writes the call to the usage ledger and stamps the meta with the settings'
         // version the prompt was composed from.
-        {
+        call: {
           tenantId: at.tenantId ?? null,
-          subjectId: at.ing?.conversation_id ?? null,
+          subjectId: at.ing.conversation_id,
           configVersion: rt?.configVersion ?? null,
           // A second model is put the customer's own words in shadow, when it is on (contracts shadowWordsOf).
           shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption }),
           ...(takes ? { bookingRequests: true } : {}),
+          // The turn's end (./context.ts): a model that has not answered by then has not answered.
+          endsAtMs: at.endsAtMs,
         },
-      );
+      });
       usage = r.usage;
       brainMeta = r.meta;
       brainMs = Date.now() - tBrain;

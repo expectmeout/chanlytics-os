@@ -35,6 +35,30 @@ export async function ownLineOf(
 }
 
 /**
+ * Every workspace's lines that can have texts, as ownLineOf reads one (not a number the business kept at its carrier, not
+ * one whose provisioning failed, and one with a number): what the texts sweep reads each line's record of received texts
+ * for (apps/edge/lib/sms/texts-sweep.ts). A read that fails throws.
+ */
+export async function linesThatText(
+  db: SupabaseClient<Database>,
+): Promise<
+  Pick<
+    Database["public"]["Tables"]["lines"]["Row"],
+    "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state"
+  >[]
+> {
+  const { data, error } = await db
+    .from("lines")
+    .select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state")
+    .neq("provider", "carrier")
+    .neq("voice_state", "failed")
+    .not("e164", "is", null)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the lines that text: ${error.message}`);
+  return data ?? [];
+}
+
+/**
  * The business on record, whole: what a carrier filing reads and what the save door compares a save against (the
  * wiring's second audit, X4-3). Null when nothing is on record. A read that fails throws.
  */

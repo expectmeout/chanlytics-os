@@ -8,11 +8,11 @@ import type { IngestResult } from "@chanlytics/db";
 import { effectiveReplyMode } from "./reply-posture";
 import { resolveConsent } from "./consent";
 import { isThreadUnknown } from "./thread";
-import { handledOf, processedAfter, SET_ASIDE } from "./handled";
+import { handledOf, handToAPerson, processedAfter, SET_ASIDE } from "./handled";
 import { GO, type Answering, type InboundContext, type ModeInForce } from "./context";
 
 /** The mode in force for this one message: the workspace's posture, or this person's own setting where one is set. */
-export async function modeInForce(cx: InboundContext, ing: IngestResult | null): Promise<ModeInForce> {
+export async function modeInForce(cx: InboundContext, ing: IngestResult): Promise<ModeInForce> {
   const { db, tenantId, ports, posture, L } = cx;
   // Reassigned once THIS person's own setting is known, just before the
   // policy is consulted below.
@@ -28,20 +28,18 @@ export async function modeInForce(cx: InboundContext, ing: IngestResult | null):
   // just above the policy consult, below the non-text acknowledgement — so a
   // person set to Never who sent a photo got the canned "I can't read
   // attachments" text from the receptionist that was told to stay out.
-  if (db && tenantId && ing?.contact_id) {
-    try {
-      personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
-      replyMode = effectiveReplyMode(posture, personMode);
-    } catch (e) {
-      L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
-    }
+  try {
+    personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
+    replyMode = effectiveReplyMode(posture, personMode);
+  } catch (e) {
+    L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
   }
   return { replyMode, personMode };
 }
 
 /** A thread that could not be read, consent, the carriers' hold and what kind of message arrived, in that order. */
 export async function firstGates(at: Answering): Promise<typeof GO | undefined> {
-  const { thread, L, sink, tell, n, ing, carrier } = at;
+  const { thread, L, sink, n, ing, carrier } = at;
   // The memory could not be read, and there is no second copy to ask. We do
   // not know whether a human has taken this thread over, what was already
   // said, or how many replies have gone out today — so every gate below would
@@ -49,20 +47,12 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // guessing; the customer's message is already persisted above.
   if (isThreadUnknown(thread)) {
     L.error("wa_state_unavailable");
-    const asked = sink.escalate(
-      "state_unavailable",
-      "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
-    );
-    await Promise.all([
-      asked,
-      tell(asked, {
-        said: n.body ?? `[${n.rawType}]`,
-        answered: "(no reply sent — the receptionist could not read the thread state)",
-        why: "state unavailable",
-      }),
-      processedAfter(sink, asked, "none"),
-    ]);
-    return;
+    return handToAPerson(at, {
+      reason: "state_unavailable",
+      details: "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
+      said: n.body ?? `[${n.rawType}]`,
+      answered: "(no reply sent — the receptionist could not read the thread state)",
+    });
   }
 
   // CONSENT GATE — before every branch below that can send, because all of
@@ -82,13 +72,10 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   const consent = resolveConsent({
     optOutNow: n.consent.optOut,
     optInNow: n.consent.optIn,
-    // Absence is not an answer. `consent` and `dnc` are optional on the ingest
-    // result (packages/db ingest.ts) — "readers must treat absence as 'nothing
-    // on record', never as a block" — and a row carrying neither read as
-    // `false`, an affirmative "they are opted in".
-    recorded: ing && (ing.consent !== undefined || ing.dnc !== undefined) ? isOptedOutContact(ing) : null,
-    // A message already held (a text's answer job, a redelivery) said its START when it was first taken in.
-    takenAgain: ing?.is_new === false,
+    // What Postgres says after this message was applied (ingest_inbound), or nothing when there is no record.
+    recorded: isOptedOutContact(ing),
+    // A message already held (its answer job, a redelivery) said its START when it was first taken in.
+    takenAgain: !ing.is_new,
   });
   const optedOut = consent.optedOut;
 
@@ -102,7 +89,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
       this_message: n.consent.optOut,
-      on_record: ing?.consent ?? null,
+      on_record: ing.consent,
       decided_by: consent.source,
     });
     return;
@@ -113,18 +100,13 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // answered until the line is approved. After consent, which outranks it;
   // before every branch that can speak.
   if (carrier?.held) {
-    const asked = sink.escalate(carrier.held.reason, carrier.held.details);
-    await Promise.all([
-      asked,
-      tell(asked, {
-        said: n.body ?? `[${n.rawType}]`,
-        answered: "(no reply sent — the carriers have not approved this line for texting yet)",
-        why: "carriers",
-      }),
-      processedAfter(sink, asked, "none"),
-    ]);
     L.info("sms_held_for_carriers");
-    return;
+    return handToAPerson(at, {
+      reason: carrier.held.reason,
+      details: carrier.held.details,
+      said: n.body ?? `[${n.rawType}]`,
+      answered: "(no reply sent — the carriers have not approved this line for texting yet)",
+    });
   }
 
   // Routing is on the NORMALIZED type, not the raw one. A quick-reply tap or a
@@ -149,16 +131,16 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // something, and normalizeInbound has already written it as a sentence. What
   // would be wrong is the apology: acknowledging it as unreadable tells the
   // customer we did not receive what they plainly sent. So this escalates like
-  // the branch below, without the ack and without muting the receptionist.
-  if (n.kind === "location" || n.kind === "contacts") {
-    const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
-    await Promise.all([
-      asked,
-      tell(asked, { said: n.body ?? `[${n.rawType}]`, answered: "(no reply sent — passed to a human)", why: n.kind }),
-      processedAfter(sink, asked, "none"),
-    ]);
+  // the branch below, without the ack and without muting the receptionist. A post or a reel a person shared in a DM is
+  // the same: its link is in the words, and what to make of it is a person's (decision 0001, step 8).
+  if (n.kind === "location" || n.kind === "contacts" || n.kind === "share") {
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
-    return;
+    return handToAPerson(at, {
+      reason: "non_text",
+      details: `${n.body} — needs a person.`,
+      said: n.body ?? `[${n.rawType}]`,
+      answered: "(no reply sent — passed to a human)",
+    });
   }
   return GO;
 }

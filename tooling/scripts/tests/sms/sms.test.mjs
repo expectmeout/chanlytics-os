@@ -128,6 +128,16 @@ test("the footer rides the first reply only, never twice, never over the ceiling
   const long = smsBody("x".repeat(2000), false);
   assert.equal(long.length, SMS_MAX_CHARS);
   assert.ok(long.endsWith("…"));
+  // A long FIRST reply: the words are cut and the disclosure is not, since it is the one part the filing promises.
+  const firstLong = smsBody("x".repeat(2000), true);
+  assert.equal(firstLong.length, SMS_MAX_CHARS, "still under Twilio's ceiling");
+  assert.ok(firstLong.endsWith(`…\n${SMS_FOOTER}`), "the footer arrives whole, after the cut words");
+  // A STOP said some other way is not the disclosure: the footer still rides.
+  assert.equal(
+    smsBody("Our STOP-and-go parking is free.", true),
+    `Our STOP-and-go parking is free.\n${SMS_FOOTER}`,
+    "only words that say how to stop stand in for the footer",
+  );
   assert.equal(
     smsInboundUrl("https://chanlytics-messaging.vercel.app/api/retell-fn"),
     "https://chanlytics-messaging.vercel.app/api/inbound-sms",
@@ -365,7 +375,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.equal(
     (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
     (code.match(/ports\.persist\.ingest\(\s*db,\s*tenantId,\s*n[,)]/g) ?? []).length,
-    "every ingest hands over the message, which says its own wire (and the line it came in on, as its fourth argument: run in inbound-executed.test.mjs)",
+    "every ingest hands over the message, which says its own wire (and the line it came in on, as its fourth argument: run in inbound/phases/)",
   );
   assert.ok(
     code.includes(
@@ -383,7 +393,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     ),
     "a held draft is written for its wire",
   );
-  const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
+  const persist = readCode("apps/edge/lib/inbound/persist.ts");
   assert.ok(
     persist.includes('channel: InboundChannel = "whatsapp"') &&
       /to,\s*channel,\s*sender: "ai",\s*purpose,\s*\.\.\.AN_ANSWER,/.test(persist) &&
@@ -445,7 +455,7 @@ test("a handoff names the wire the customer actually wrote on", async () => {
   // redacted notice, so an owner whose customer TEXTED was sent to go and
   // answer a WhatsApp thread that does not exist, on a number that had never
   // used WhatsApp.
-  const { handoffMessage } = await import("../../../../apps/edge/lib/whatsapp/alerts.ts");
+  const { handoffMessage } = await import("../../../../apps/edge/lib/inbound/alerts.ts");
   const of = (channel) =>
     handoffMessage({
       threadId: "13055550100",

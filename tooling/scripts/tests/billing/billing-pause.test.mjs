@@ -85,7 +85,7 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
   assert.ok(
     inbound.includes("workspacePaused: !!rt?.paused,") &&
       inbound.includes('if (held === "paused") {') &&
-      /sink\.escalate\(\s*"paused",/.test(inbound),
+      /handToAPerson\(at, \{\s*reason: "paused",/.test(inbound),
     "kept, held for a person, not answered",
   );
   const inboundRaw = readRaw("packages/core/src/inbound/reply-gates.ts");

@@ -253,7 +253,7 @@ test("members read their workspace's rows and nobody writes them but the doors",
 });
 
 test(
-  "00484 re-creates ingest_inbound and merge_people whole, each its last body but for its one block, and the database runs them",
+  "00484 re-creates ingest_inbound and merge_people whole, each its last body but for its one block, and the database runs them as their newest migration wrote them",
   { skip },
   () => {
     const now = migration("00484");
@@ -265,6 +265,10 @@ test(
       ],
       merge_people: ["00451", "    delete from conversations where id = m_conv.id;"],
     };
+    // The migration whose body the database runs: 00484's, or a newer one's that re-created it since. 00534 keeps
+    // ingest_inbound's yeses with its message, and intake/a-delivery-taken-in-again-changes-no-consent.db.test.mjs holds
+    // its body to 00484's.
+    const runs = { ingest_inbound: "00534", merge_people: "00484" };
     for (const [name, [from, before]] of Object.entries(recreated)) {
       const header = `create or replace function public.${name}(`;
       const source = bodyIn(migration(from), header);
@@ -280,7 +284,11 @@ test(
       const [live] = query(
         `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
       );
-      assert.equal(live.prosrc.replaceAll("\r\n", "\n"), body, `${name}: the database runs 00484's`);
+      assert.equal(
+        live.prosrc.replaceAll("\r\n", "\n"),
+        bodyIn(migration(runs[name]), header),
+        `${name}: the database runs ${runs[name]}'s`,
+      );
     }
   },
 );

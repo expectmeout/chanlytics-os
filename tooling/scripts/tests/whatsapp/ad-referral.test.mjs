@@ -13,7 +13,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { pgIngest, IngestFailed } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/inbound/persist.ts")).href
 );
 
 const FROM = "15550139401";

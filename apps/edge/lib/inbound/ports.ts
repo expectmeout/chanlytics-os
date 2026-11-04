@@ -29,6 +29,7 @@ import { pgThread, pgIngest, pgSink, queueReply, replyTurn, pgAnswered } from ".
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../ops/page-operator.js";
 import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packages/core.js";
+import { sendTypingIndicator } from "../packages/channels.js";
 import { logger } from "../log.js";
 import { env } from "../env.js";
 
@@ -127,6 +128,7 @@ export function realPorts(): InboundPorts {
     alertStaff,
     page: pageOperator,
     sender: whatsappSender,
+    typing: async (cfg, messageId) => (cfg ? sendTypingIndicator(cfg, messageId) : false),
     brain: () => import("../receptionist/brain.js"),
     env: {
       allowlist: env.WHATSAPP_TEST_ALLOWLIST || "",

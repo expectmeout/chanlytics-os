@@ -1,7 +1,7 @@
 /**
  * The message path: one inbound customer message, from the tenant's runtime
  * to a reply, a hold or a handoff. WhatsApp, text and Instagram DMs alike, and the verb the
- * doors' adapters call (apps/edge/lib/whatsapp/inbound.ts).
+ * doors' adapter calls (apps/edge/lib/inbound/arrival.ts: recordInbound at the door, answerInbound in the job).
  *
  * This file is the order, and only the order: each step is a function in a
  * module beside it. The control plane is read first (./context.ts). Then the
@@ -27,7 +27,8 @@
  *
  * The decisions with no side effects live in steps.ts as truth tables; this
  * file is the order they happen in, and the ORDER IS THE PRODUCT
- * (docs/conversation-flow.md §5.1).
+ * (./order.ts says it once, as data: INBOUND_GATES, which docs/inbound-gates.md is written from and the verb is
+ * run against, tests/inbound/the-gates-run-in-their-order.test.mjs).
  */
 // Values first: the header above then rides on an import the declaration build drops, and stays out of index.d.ts.
 import { GO, openInbound } from "./context";
@@ -35,12 +36,13 @@ import { ingestMessage, recordMessage } from "./ingest";
 import { modeInForce, firstGates } from "./gates";
 import { seeingOf, unreadableGate, wordsOf, photoOf } from "./unreadable";
 import { tooLate, confirmedYes, heldForThePerson } from "./reply-gates";
-import { modelTurn } from "./model-turn";
+import { modelTurn, showTyping } from "./model-turn";
 import { planTheHold, heldOrKept, sendNow } from "./dispatch";
 import { claimTheTurn, stillOurs } from "./turn";
 // TYPES ONLY: the one inbound shape is the channels package's, and this verb speaks it. A VALUE from channels would be a
 // provider inside a verb — that is a port, not a widening (hygiene.test.mjs).
 import type { InboundMessage, SendResult } from "@chanlytics/channels";
+import type { EscalationReason } from "@chanlytics/contracts";
 import type { IngestResult, RoutedChannel } from "@chanlytics/db";
 import type { InboundChannel, InboundPorts } from "./ports";
 
@@ -56,7 +58,7 @@ export interface InboundCarrier<C extends CarriedChannel = CarriedChannel> {
   /** The provider's answer, its own code with it: the door tells the carrier's no on the person's behalf (21610) from a failure of ours. */
   send(to: string, body: string): Promise<SendResult>;
   body(text: string, isFirstReply: boolean): string;
-  held: { reason: string; details: string } | null;
+  held: { reason: EscalationReason; details: string } | null;
 }
 
 /** The wires a carrier brings a message in on: every inbound wire but WhatsApp, which rides the tenant's credentials. */
@@ -74,32 +76,37 @@ export type InboundInput = InboundAt &
     | { inbound: InboundMessage & { channel: "instagram" }; carrier: InboundCarrier<"instagram"> }
   );
 
-/** Where a message arrived. */
+/** Where a message arrived, and when its turn must have its answer by. */
 interface InboundAt {
-  tenantId: string | null;
-  routed: RoutedChannel | null;
+  tenantId: string;
+  routed: RoutedChannel;
   isEnvDefault: boolean;
   /**
-   * The job that answers a text after its acknowledgement (recordInbound recorded it in the door): its ingest is a
-   * redelivery, and the message is answered while it is unprocessed and no reply names it yet.
+   * The job's deadline (ms since the epoch), when the ledger gives one: the turn is held to it and to TURN_BUDGET_MS from
+   * its start, whichever comes first (./context.ts), so a slow model ends in the holding reply and a person, never in a
+   * function killed with the customer unanswered.
    */
-  resume?: boolean;
+  endsAtMs?: number;
 }
 
 /**
- * The door's half of a text answered after its acknowledgement (decision 0031, Phase 2): the message set aside or
- * recorded, nothing decided about the answer. The ingest's row when it waits for its answer, which a job gives it
- * (answerInbound with `resume`); null when it was set aside, is a redelivery, or there is nowhere to record it;
- * IngestFailed when the write failed, so the door refuses and the provider sends it again.
+ * The door's half of a message answered after its acknowledgement (decision 0031, on every wire): the message set aside
+ * or recorded, nothing decided about the answer. The ingest's row when it waits for its answer, which its job gives it
+ * (answerInbound); null when it was set aside, is a redelivery, or there is nowhere to record it; IngestFailed when the
+ * write failed, so the door refuses and the provider sends it again.
  */
 export async function recordInbound(input: InboundInput, ports: InboundPorts): Promise<IngestResult | null> {
   const cx = await openInbound(input, ports);
   return (await recordMessage(cx)) ?? null;
 }
 
+/**
+ * The job's half: the message its door recorded, taken up again and answered. Its ingest is a redelivery by
+ * construction, and it goes on while the message is unprocessed and no reply names it (./ingest.ts).
+ */
 export async function answerInbound(input: InboundInput, ports: InboundPorts): Promise<void> {
   const cx = await openInbound(input, ports);
-  const kept = await ingestMessage(cx, input.resume === true);
+  const kept = await ingestMessage(cx);
   if (!kept) return;
   const at = { ...cx, ...kept, ...(await modeInForce(cx, kept.ing)) };
   if ((await firstGates(at)) !== GO) return;
@@ -112,6 +119,7 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   const shown = await photoOf(at, seen);
   if (!shown) return;
   if ((await claimTheTurn(at, shown.photo)) !== GO) return;
+  showTyping(at);
   const turn = await modelTurn(at, bodyText, shown.photo);
   if ((await stillOurs(at, turn, shown.photo)) !== GO) return;
   const hold = await planTheHold(at, turn);

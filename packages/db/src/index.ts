@@ -72,14 +72,14 @@ export {
   releaseQueuedSend,
 } from "./jobs";
 export type { AssembleDecision, JobToRequeue } from "./jobs";
-export { businessOnRecordOf, filedNamesOf, ownLineOf } from "./lines";
+export { businessOnRecordOf, filedNamesOf, linesThatText, ownLineOf } from "./lines";
 export { DB_REQUEST_HEADER, namedFetch, observeDb, touchOfCall } from "./observe";
 export type { DbLog, DbObserver, DbTouch } from "./observe";
 export { migrationHead, platformDay } from "./ops";
 export type { MigrationHead, PlatformDayPromises } from "./ops";
 export { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows, readAllRowsByKey } from "./paged";
 export type { Page } from "./paged";
-export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
+export { keepProviderEvent, providerEventOf, scrubProviderEvents, textsAlreadyHeard } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export { narrowedUpdates, noticesSince, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
 export type { SubscribeOptions, ToldNotice } from "./realtime";
@@ -562,13 +562,15 @@ export type { BusinessReadRow } from "./repositories/imports/business-reads";
 export { importCursorOf, importRowOf, importsOf, noteImport } from "./repositories/imports/ledger";
 export type { ImportLedgerRow, ImportNote, ImportRunRow } from "./repositories/imports/ledger";
 export {
-  AnswerNotKept,
+  answerOfMessage,
   countSentToday,
   ingestInbound,
   keepMessageCost,
+  keepMessageMedia,
   linkSentOnCall,
   markProcessed,
   messageByExternalId,
+  noteEmailTheyGave,
   pauseConversation,
   recordOutbound,
   recordStatusByExternalId,
@@ -577,7 +579,7 @@ export {
   stampHandled,
   wireRowOf,
 } from "./repositories/ingest";
-export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
+export type { EmailNoted, IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
   againIdeas,
   claimIdeas,

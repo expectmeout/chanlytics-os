@@ -12,9 +12,12 @@
  */
 import type { Holds, Within } from "@chanlytics/contracts";
 import type { InboundMessage, NormalizedInbound } from "@chanlytics/channels";
+import type { RoutedChannel } from "@chanlytics/db";
 import type { InboundCarrier, InboundInput } from "./answer";
 
-type At = { tenantId: string; routed: null; isEnvDefault: false };
+type At = { tenantId: string; routed: RoutedChannel; isEnvDefault: false };
+/** A message no line routed: no workspace to keep it for. */
+type Unrouted = { tenantId: string; routed: null; isEnvDefault: false };
 type OnWhatsapp = InboundMessage & { channel: "whatsapp" };
 type OnText = InboundMessage & { channel: "sms" };
 type OnInstagram = InboundMessage & { channel: "instagram" };
@@ -38,6 +41,8 @@ type _Shapes = [
   Holds<Within<At & { inbound: OnText; carrier: InboundCarrier<"instagram"> }, InboundInput>>,
   // @ts-expect-error an email has no road through the verb yet: it joins at step 6, in draft mode
   Holds<Within<At & { inbound: InboundMessage & { channel: "email" }; carrier: null }, InboundInput>>,
+  // @ts-expect-error a message no line routed has no workspace to be kept or answered for (the inbound review, B3)
+  Holds<Within<Unrouted & { inbound: OnWhatsapp; carrier: null }, InboundInput>>,
   // @ts-expect-error WhatsApp's own shape is the WhatsApp adapter's alone: no door hands it to the verb since step 3
   Holds<Within<At & { message: NormalizedInbound; raw: Raw; carrier: null }, InboundInput>>,
 ];

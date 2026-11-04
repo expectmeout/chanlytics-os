@@ -1,6 +1,6 @@
 /**
  * The Instagram door, run (decision 0001, step 8): a delivery posted the way Meta posts one, signed with the app's
- * secret, over a database in memory, with the receptionist's world handed in through lib/whatsapp/ports.ts and every
+ * secret, over a database in memory, with the receptionist's world handed in through lib/inbound/ports.ts and every
  * request that leaves the process captured.
  *
  * The handshake answers Meta's challenge for the verify token and nothing else. A body is proven by Meta's signature
@@ -39,11 +39,11 @@ for (const k of ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
-const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
-const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { setInboundPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
+const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const door = await import(at("apps/edge/api/instagram.ts"));
 const { instagramReceiver } = await import(at("apps/edge/lib/instagram/webhook.ts"));
-const { answerInboundJob } = await import(at("apps/edge/lib/whatsapp/answer-later.ts"));
+const { answerInboundJob } = await import(at("apps/edge/lib/inbound/answer-job.ts"));
 const { dispatchJob } = await import(at("packages/jobs/dist/index.js"));
 
 /* -------------------------------------------------------------- the wire */
@@ -410,7 +410,7 @@ test("a routing read that fails, or a DM the database did not take, is not ackno
   v.open();
   receptionist({
     ingest: () => {
-      throw new IngestFailed("ingest_inbound: connection reset", false);
+      throw new IngestFailed("ingest_inbound: connection reset");
     },
   });
   const failed = await post(

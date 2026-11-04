@@ -339,6 +339,14 @@ for chanlytics"), each as recommended:
 
 How many phases are left: three lanes (0046), with Phase 0's four switches beside them.
 
+**3 November 2026**, the inbound review's lane (`inbound/what-the-review-found`). Phase 3's WhatsApp step is whole:
+every WhatsApp message is recorded at its door and answered by its `inbound_answer` job, as a text and a DM are, and
+the switch that tried it (`WHATSAPP_ANSWERS_AS_JOBS`) and the in-request road are deleted (open question 2 above).
+The three doors share one adapter (`apps/edge/lib/inbound/arrival.ts`: record, then schedule); a turn ends by its job's
+deadline; a message and the yeses it carries are kept in one transaction (00534); every gate that asks a person hands
+the message over one way (core `handToAPerson`); and the order a message is taken through is said once, as data (core
+`INBOUND_GATES`, written out as `docs/inbound-gates.md`).
+
 ## Tests
 
 The invariants' holds, each a baseline under `tooling/scripts/tests/baselines/` that may only fall, in
@@ -360,6 +368,10 @@ writer. Each arrives with the note that builds its mechanism.
 
 1. May the receptionist ever book, behind the Booking class of the Autonomy matrix? 0002's open question 5 says no.
 2. What exactly did Meta's App Review pin: the 200 inside the invocation, or the handshake and the signature?
+   **Answered 3 November 2026** (the owner approved the inbound review's B1): the handshake and the signature, which
+   the door still keeps (the verification GET, `X-Hub-Signature-256` over the raw body, the app's secret or the one
+   before it while it rotates). The 200 is now given once the message is on record, and its answer is the job's, as a
+   text's and a DM's are.
 3. Does the no-vendor policy for error tracking also cover a tracing exporter?
 4. The staging project and the second alarm path are settings; both are needed before phase 1.
 5. How long does a new configuration version run in shadow before it speaks, and what agreement rate lets it through?

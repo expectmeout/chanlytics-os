@@ -1,7 +1,7 @@
 /**
  * The WhatsApp webhook, run: a delivery signed the way Meta signs it, over a
  * database in memory, with the receptionist's world handed in through
- * lib/whatsapp/ports.ts and the mail transport answered by a captured fetch.
+ * lib/inbound/ports.ts and the mail transport answered by a captured fetch.
  * Until 14 Sep 2026 this handler's text was pinned by six reads in five files
  * and no test had ever called its POST.
  *
@@ -50,7 +50,6 @@ for (const k of [
   "ANTHROPIC_API_KEY",
   "WHATSAPP_ACCESS_TOKEN",
   "WHATSAPP_TEST_ALLOWLIST",
-  "WHATSAPP_ANSWERS_AS_JOBS",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
 ])
@@ -59,9 +58,10 @@ for (const k of [
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
-const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
-const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { setInboundPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
+const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const hook = await import(at("apps/edge/api/whatsapp.ts"));
+const later = await import(at("apps/edge/lib/inbound/answer-job.ts"));
 after(() => {
   setPg(null);
   setInboundPorts(null);
@@ -212,6 +212,7 @@ function world() {
     messages: [],
     events: [],
     notifications: [],
+    jobs: [],
   };
   let people = 0;
   let costRefused = false;
@@ -271,7 +272,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: f
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording
- * what crosses it: the shape inbound-executed.test.mjs runs handleInbound
+ * what crosses it: the shape inbound/phases/ runs handleInbound
  * over, whose model throws so no model is ever reached. Its database is the
  * door's own, through pg(), exactly as realPorts() hands it over; its memory
  * -- Postgres, the only one -- is readable, so what the reply posture decides
@@ -308,7 +309,7 @@ function receptionist({ ingest = () => {} } = {}) {
         // Null without a workspace, as pgIngest answers: there is nobody to record it for.
         return tenantId
           ? {
-              message_id: "m-in",
+              message_id: `m-${n.externalId}`,
               conversation_id: "conv-1",
               contact_id: "k-1",
               is_new: true,
@@ -352,6 +353,23 @@ function receptionist({ ingest = () => {} } = {}) {
     env: { allowlist: "", modelKey: undefined },
   });
   return seen;
+}
+
+/**
+ * The tick's half: every answer job the door wrote, taken up as the ledger takes it (lib/inbound/answer-job.ts), in the
+ * order written, once. The door answers nobody: a message is recorded and its job answers it (decision 0031, Phase 3).
+ */
+async function runAnswers(w, db) {
+  for (const job of w.tables.jobs.filter((j) => j.kind === "inbound_answer" && j.state !== "done")) {
+    await later.answerInboundJob(db, {
+      id: job.id,
+      tenant_id: job.tenant_id,
+      kind: job.kind,
+      payload: job.payload,
+      attempts: 1,
+    });
+    job.state = "done";
+  }
 }
 
 /* -------------------------------------------------------------- the door */
@@ -402,7 +420,9 @@ test("the door: no app secret and a wrong signature are each a 401 that reads no
 
     // The same bytes, signed with the secret, open it: the refusals above were the signature's doing.
     assert.deepEqual(await answer(await knock(raw)), [200, { ok: true }]);
-    assert.equal(seen.sent.length, 1);
+    assert.equal(seen.sent.length, 0, "nobody is answered in the door");
+    await runAnswers(w, db);
+    assert.equal(seen.sent.length, 1, "its job answers");
   });
 });
 
@@ -442,6 +462,8 @@ test("a routed number runs its own workspace's receptionist: the channel the dat
       }),
     );
     assert.deepEqual(await answer(res), [200, { ok: true }]);
+    assert.deepEqual(seen.sent, [], "nobody is answered in Meta's request");
+    await runAnswers(w, db);
 
     assert.deepEqual(
       db.seen.filter((q) => q.table === "tenant_channels").map((q) => q.filters),
@@ -453,25 +475,27 @@ test("a routed number runs its own workspace's receptionist: the channel the dat
       ],
       "one read, by the provider's id for this number",
     );
+    const named = {
+      channelId: `ch-${w.i}`,
+      tenantId: w.T,
+      kind: "whatsapp",
+      externalId: w.PHONE_ID,
+      numberE164: w.LINE,
+      credentialsRef: null,
+      config: {},
+    };
     assert.deepEqual(
       seen.runtimes,
-      [
-        {
-          channelId: `ch-${w.i}`,
-          tenantId: w.T,
-          kind: "whatsapp",
-          externalId: w.PHONE_ID,
-          numberE164: w.LINE,
-          credentialsRef: null,
-          config: {},
-        },
-      ],
-      "the runtime is loaded for the channel the database named",
+      [named, named],
+      "the runtime is loaded for the channel the database named, at the door and in its job",
     );
     assert.deepEqual(
       seen.ingested,
-      [{ tenantId: w.T, body: "hi, do you have time tomorrow?" }],
-      "recorded under the workspace the number belongs to",
+      [
+        { tenantId: w.T, body: "hi, do you have time tomorrow?" },
+        { tenantId: w.T, body: "hi, do you have time tomorrow?" },
+      ],
+      "recorded under the workspace the number belongs to, and taken up again by its job",
     );
     assert.deepEqual(
       seen.wires,
@@ -493,7 +517,7 @@ test("a routed number runs its own workspace's receptionist: the channel the dat
 
 test("an image captioned with an address keeps nothing, and the same words typed keep it: a caption is not an answer", async () => {
   const w = world();
-  w.open();
+  const db = w.open();
   const seen = receptionist();
   const from = w.customer();
   const words = "my email is ana@example.com";
@@ -513,6 +537,7 @@ test("an image captioned with an address keeps nothing, and the same words typed
       }),
     );
     assert.deepEqual(await answer(captioned), [200, { ok: true }]);
+    await runAnswers(w, db);
     assert.deepEqual(seen.emails, [], "a caption is not an answer");
 
     const typed = await deliver(
@@ -522,6 +547,7 @@ test("an image captioned with an address keeps nothing, and the same words typed
       }),
     );
     assert.deepEqual(await answer(typed), [200, { ok: true }]);
+    await runAnswers(w, db);
     assert.deepEqual(seen.emails, ["ana@example.com"], "the same words typed are the customer's own");
   });
 });
@@ -655,12 +681,13 @@ test("a number the database could not answer for is not acknowledged: 503 with t
         );
 
         // The redelivery, with the database well. A failed lookup is never
-        // cached, so the same batch routes, and both messages are handled.
-        w.open();
+        // cached, so the same batch routes, and both messages are recorded and answered by their jobs.
+        const well = w.open();
         assert.deepEqual(await answer(await deliver(body)), [200, { ok: true }]);
+        await runAnswers(w, well);
         assert.deepEqual(
           seen.ingested.map((x) => x.tenantId),
-          [w.T, w.T],
+          [w.T, w.T, w.T, w.T],
         );
         assert.equal(seen.sent.length, 2);
         assert.equal(line.mail().length, 1, "and the platform is not told again");
@@ -1564,7 +1591,7 @@ test("a workspace that never chose its hours pauses for the default day, and an 
 
 test("the ack rule: a message the database refused is not acknowledged, 503 with the count, while the rest of the batch is still handled; any other failure is logged and the batch keeps its 200", async () => {
   const w = world();
-  w.open();
+  const db = w.open();
   const seen = receptionist({
     ingest: (n) => {
       if (n.body === "the refused one") throw new IngestFailed("connection reset by peer");
@@ -1582,10 +1609,11 @@ test("the ack rule: a message the database refused is not acknowledged, 503 with
       }),
     );
     assert.deepEqual(await answer(res), [503, { ok: false, unrecorded: 1 }]);
+    await runAnswers(w, db);
     assert.deepEqual(
       seen.ingested.map((x) => x.body),
-      ["the refused one", "the kept one"],
-      "the message after the failure was still handled",
+      ["the refused one", "the kept one", "the kept one"],
+      "the message after the failure was still recorded, and its job took it up",
     );
     assert.deepEqual(
       seen.sent.map((s) => s.to),
@@ -1604,7 +1632,7 @@ test("the ack rule: a message the database refused is not acknowledged, 503 with
   });
 
   const v = world();
-  v.open();
+  const db2 = v.open();
   const seen2 = receptionist({
     ingest: (n) => {
       if (n.body === "the broken one") throw new TypeError("cannot read properties of undefined");
@@ -1626,9 +1654,10 @@ test("the ack rule: a message the database refused is not acknowledged, 503 with
       [200, { ok: true }],
       "a failure that is not the database's refusal is acknowledged",
     );
+    await runAnswers(v, db2);
     assert.deepEqual(
       seen2.ingested.map((x) => x.body),
-      ["the broken one", "the fine one"],
+      ["the broken one", "the fine one", "the fine one"],
     );
     assert.deepEqual(
       seen2.sent.map((s) => s.to),
@@ -1933,10 +1962,9 @@ test("the delivery is kept as it came under the body's digest, with no workspace
 
 /* ------------------------------- answered after the acknowledgement (0031, Phase 3) */
 
-const later = await import(at("apps/edge/lib/whatsapp/answer-later.ts"));
-const { realPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
+const { realPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
 
-test("a workspace the edge names has its WhatsApp message recorded, its answer scheduled as a job and acknowledged: nothing is answered in the door, and the job answers it on the workspace's own wire", async () => {
+test("a WhatsApp message is recorded, its answer scheduled as a job and acknowledged: nothing is answered in the door, and the job answers it on the workspace's own wire", async () => {
   const w = world();
   w.tables.jobs = [];
   const db = w.open();
@@ -1944,16 +1972,14 @@ test("a workspace the edge names has its WhatsApp message recorded, its answer s
   const from = w.customer();
   const m = text(from, `wamid.${w.i}.later`, "do you have Saturday morning?");
   const contacts = [{ wa_id: from, profile: { name: "Dana" } }];
-  await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: `someone-else, ${w.T.toUpperCase()}` }, async () => {
-    assert.deepEqual(await answer(await deliver(w.change({ contacts, messages: [m] }))), [200, { ok: true }]);
-  });
+  assert.deepEqual(await answer(await deliver(w.change({ contacts, messages: [m] }))), [200, { ok: true }]);
   assert.deepEqual(seen.ingested, [{ tenantId: w.T, body: "do you have Saturday morning?" }], "recorded in the door");
   assert.deepEqual(seen.sent, [], "and nothing answered there: Meta has its 200 before the model is asked anything");
   assert.equal(w.tables.jobs.length, 1, "one job, for the one message");
   const [job] = w.tables.jobs;
   assert.deepEqual(
     [job.tenant_id, job.kind, job.dedupe_key],
-    [w.T, "inbound_answer", "inbound_answer:m-in"],
+    [w.T, "inbound_answer", `inbound_answer:m-${m.id}`],
     "the text's kind and key: once per message, in the reply lane",
   );
   // The request the door served rides with it, as with every job scheduled while one is served: the job runs under it,
@@ -1969,8 +1995,10 @@ test("a workspace the edge names has its WhatsApp message recorded, its answer s
         message: m,
         value: { metadata: { display_phone_number: w.LINE.slice(1), phone_number_id: w.PHONE_ID }, contacts },
       },
+      // The wire its job answers on, said (lib/inbound/answer-job.ts jobWireOf).
+      wire: "whatsapp",
       // Named, so an erasure cancels a job still waiting and scrubs one finished.
-      message_id: "m-in",
+      message_id: `m-${m.id}`,
       conversation_id: "conv-1",
       contact_id: "k-1",
     },
@@ -1989,27 +2017,23 @@ test("a workspace the edge names has its WhatsApp message recorded, its answer s
   assert.deepEqual(seen.wires.at(-1), { phoneId: w.PHONE_ID, accessToken: `token-${w.T}` }, "on its own number");
 });
 
-test("the switch names workspaces, and only those: unset, or naming another, a message is answered in the door as before and no job is written; all names every workspace", async () => {
-  for (const named of [undefined, "", "bbbbbbbb-0000-4000-8000-000000000000"]) {
-    const w = world();
-    w.tables.jobs = [];
-    w.open();
-    const seen = receptionist();
-    const from = w.customer();
-    await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: named }, () =>
-      deliver(w.change({ messages: [text(from, `wamid.${w.i}.door`, "hi")] })),
-    );
-    assert.equal(seen.sent.length, 1, `${named}: answered in Meta's request`);
-    assert.deepEqual(w.tables.jobs, [], `${named}: no job`);
-  }
+test("two messages of one thread in one delivery are two jobs, and Meta is answered before either is asked of the model", async () => {
   const w = world();
-  w.tables.jobs = [];
-  w.open();
+  const db = w.open();
   const seen = receptionist();
-  await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: "ALL" }, () =>
-    deliver(w.change({ messages: [text(w.customer(), `wamid.${w.i}.all`, "hi")] })),
+  const from = w.customer();
+  const body = w.change({
+    messages: [text(from, `wamid.${w.i}.one`, "hi"), text(from, `wamid.${w.i}.two`, "are you open today?")],
+  });
+  assert.deepEqual(await answer(await deliver(body)), [200, { ok: true }]);
+  assert.deepEqual(seen.sent, [], "nothing is asked of the model inside Meta's request");
+  assert.deepEqual(
+    w.tables.jobs.map((j) => j.dedupe_key),
+    [`inbound_answer:m-wamid.${w.i}.one`, `inbound_answer:m-wamid.${w.i}.two`],
+    "one job a message: the thread's reply turn lets the newer one answer both (core inbound/turn.ts)",
   );
-  assert.deepEqual([seen.sent.length, w.tables.jobs.length], [0, 1]);
+  await runAnswers(w, db);
+  assert.equal(seen.ingested.length, 4, "each recorded, and each taken up by its job");
 });
 
 test("an answer job says it is about to speak before Meta is called, on its own row; a job whose number is another workspace's now, or that names no message, fails by name and answers nothing", async () => {

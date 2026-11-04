@@ -2,7 +2,7 @@
  * A STOP is news, not a wait (decision 0048; NS-6 of the wiring plan, task 1.8). A customer's typed STOP used to open an
  * `opt_out` hold, and that hold counted like any other: the Inbox's Needs you, Today's queue, People's "waiting on you", the
  * badge and the bell's derived row, with a mail that is always sent and a push, until a member pressed Resolve on something
- * nothing could be sent for. The receptionist opens none now (inbound-executed.test.mjs), and the holds opened before it
+ * nothing could be sent for. The receptionist opens none now (inbound/phases/), and the holds opened before it
  * stopped are still open: they are not written over, the readers ignore a reason that waits on nobody (contracts
  * waitsOnAPerson), through the one rule (standingOf) and the lists that count (the queue, the badge's count).
  *

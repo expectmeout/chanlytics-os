@@ -64,17 +64,11 @@ export interface InboundDb {
  * customer's words to the workspace mailbox, and the edge's persist adapter
  * throws it (apps/edge/lib/whatsapp/persist.ts re-exports it for the two doors
  * that count it into their 503).
- *
- * `kept`: the message IS recorded, and what failed is a yes it carried (db AnswerNotKept: a START's channel, YES OFFERS).
- * The provider is still told to send it again (the redelivery finds the message unhandled and writes the yes), and a job
- * is tried again, but nobody is told the words were lost: they were not.
  */
 export class IngestFailed extends Error {
-  readonly kept: boolean;
-  constructor(message: string, kept = false) {
+  constructor(message: string) {
     super(message);
     this.name = "IngestFailed";
-    this.kept = kept;
   }
 }
 
@@ -178,6 +172,37 @@ export interface BrainCall {
    * picked is written in. Absent on every other turn, which is sent exactly the record.
    */
   bookingRequests?: boolean;
+  /** When the turn must have its answer by (ms since the epoch): the model is asked for no longer than is left, its fallback included. */
+  endsAtMs?: number;
+}
+
+/**
+ * What the receptionist is asked to answer, each part named: it was nine arguments in a row, two of them a literal
+ * `undefined` at most callers (the inbound review of 3 Nov 2026, C6). The prompt is the cached block; every note beside it
+ * is a block of its own, so the business's profile stays byte-identical and keeps its cache.
+ */
+export interface ReplyAsk {
+  /** The thread's memory, oldest first. */
+  history: ThreadTurn[];
+  /** The customer's words, as the model is to read them. */
+  userText: string;
+  /** The workspace's composed prompt. */
+  systemPrompt: string;
+  /** The holding words, when no answer can be read; empty where nothing is to be said instead (a draft). */
+  fallbackText: string;
+  /**
+   * Who the receptionist is talking to, in a line or two: without it, it greeted a customer of two years as a stranger
+   * and could not use a name WhatsApp had told us. Its own block, because it changes per person.
+   */
+  leadNote?: string;
+  /** The present moment in the business's timezone: its own block, because it changes every minute. */
+  nowNote?: string;
+  /** A photo the customer sent, where the workspace lets it look (features.vision): sent before the words. */
+  image?: { mime: string; base64: string };
+  /** The owner's instruction for a rewrite (contracts frameSteer), present only when a held draft is steered. */
+  steer?: string;
+  /** Who it is for: the usage ledger's row, and the settings' version on the record. */
+  call?: BrainCall;
 }
 
 /** A booking the receptionist asks for, as the sink opens it with its hold (decision 0061). */
@@ -345,21 +370,19 @@ export interface InboundPorts {
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
   persist: {
     /** The rows as memory, or an UNKNOWN thread when they cannot be produced. */
-    thread(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null): Promise<ThreadState>;
-    /** Persist first, on the message's own wire. Null when there is nothing to record for; IngestFailed when the write FAILED. */
+    thread(db: InboundDb, tenantId: string, ing: IngestResult): Promise<ThreadState>;
+    /** Persist first, on the message's own wire. IngestFailed when the write FAILED. */
     ingest(
-      db: InboundDb | null,
-      tenantId: string | null,
+      db: InboundDb,
+      tenantId: string,
       n: InboundMessage & { channel: InboundChannel },
       /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
       line?: string | null,
-      /** A job takes this message up next (a door that records it and schedules its answer): a yes that fails here is left owed to that job. */
-      opts?: { jobFollows?: boolean },
-    ): Promise<IngestResult | null>;
+    ): Promise<IngestResult>;
     sink(
-      db: InboundDb | null,
-      tenantId: string | null,
-      ing: IngestResult | null,
+      db: InboundDb,
+      tenantId: string,
+      ing: IngestResult,
       rt?: InboundRuntime | null,
       channel?: InboundChannel,
       wire?: Wire,
@@ -378,12 +401,12 @@ export interface InboundPorts {
      * after a runner died mid-turn, asks before it speaks. Absent in an adapter that keeps no such mark: then nothing is
      * known to have answered it.
      */
-    answered?(db: InboundDb | null, tenantId: string | null, ing: IngestResult): Promise<boolean>;
+    answered?(db: InboundDb, tenantId: string, ing: IngestResult): Promise<boolean>;
     /** The reply written as a DRAFT and scheduled to fire; null when it could not be queued. */
     queueReply(
-      db: InboundDb | null,
-      tenantId: string | null,
-      ing: IngestResult | null,
+      db: InboundDb,
+      tenantId: string,
+      ing: IngestResult,
       toPhone: string,
       body: string,
       delayMs: number,
@@ -404,19 +427,14 @@ export interface InboundPorts {
   ): Promise<"sent" | "suppressed" | "unaddressed" | "failed">;
   /** WhatsApp's wire from a workspace's credentials. */
   sender(cfg: WaConfig | null): Sender | null;
+  /**
+   * WhatsApp's typing indicator on the customer's message, while the model writes (channels sendTypingIndicator): a
+   * courtesy that never fails a turn. Absent in an adapter that has none: nothing is shown.
+   */
+  typing?(cfg: WaConfig | null, messageId: string): Promise<unknown>;
   /** The model, loaded only when there is a key: it is the one import that pulls the SDK. */
   brain(): Promise<{
-    generateReply(
-      history: ThreadTurn[],
-      userText: string,
-      systemPrompt: string,
-      fallbackText: string,
-      leadNote?: string,
-      nowNote?: string,
-      image?: { mime: string; base64: string },
-      steer?: string,
-      call?: BrainCall,
-    ): Promise<InboundBrainReply>;
+    generateReply(ask: ReplyAsk): Promise<InboundBrainReply>;
   }>;
   /**
    * A logger FACTORY, not a logger: the verb binds the tenant once, where it

@@ -71,7 +71,7 @@ test("garbage in the config falls back rather than producing NaN", () => {
 
 // The mode in force (reply-gates.ts) and the hold window (dispatch.ts).
 const edge = ["reply-gates", "dispatch"].map((m) => read(`packages/core/src/inbound/${m}.ts`)).join("\n");
-const sink = read("apps/edge/lib/whatsapp/persist.ts");
+const sink = read("apps/edge/lib/inbound/persist.ts");
 const reply = read("packages/core/src/conversations/reply.ts");
 const takeOver = read("apps/dashboard/src/server/ports/core-ports.ts");
 

@@ -13,8 +13,15 @@ import type { InboundMessage } from "@chanlytics/channels";
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Delivered } from "../deliver";
 import { replyPosture } from "./reply-posture";
-import type { EscalateOutcome, InboundChannel, InboundHandoff, InboundPorts, InboundSink } from "./ports";
-import { MAX_REPLIES_PER_DAY } from "./steps";
+import {
+  IngestFailed,
+  type EscalateOutcome,
+  type InboundChannel,
+  type InboundHandoff,
+  type InboundPorts,
+  type InboundSink,
+} from "./ports";
+import { MAX_REPLIES_PER_DAY, TURN_BUDGET_MS } from "./steps";
 import type { ThreadState } from "./thread";
 import type { InboundInput } from "./answer";
 
@@ -34,16 +41,29 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   const { inbound: n, tenantId, routed, isEnvDefault, carrier } = input;
   const from = replyAddressOf(n);
   const channel: InboundChannel = carrier?.channel ?? "whatsapp";
+  // Persist first has nowhere to persist to without a database: the message is refused, and the provider sends it again.
+  // The doors refuse before this (a 503); this is the verb's own floor, so nothing below asks whether there is one.
   const db = ports.db();
+  if (!db) throw new IngestFailed("no database to keep the message in");
   const t0 = Date.now();
+  // When this turn must have its answer by: the job's deadline, never more than TURN_BUDGET_MS after the turn began.
+  const endsAtMs = Math.min(input.endsAtMs ?? Number.POSITIVE_INFINITY, t0 + TURN_BUDGET_MS);
   // Bound once, here, where the tenant becomes known. Every line below carries
-  // it, which is the only way that stays true as this function changes.
-  const L = ports.log({ tenant_id: tenantId, wamid: n.externalId, from_tail: phoneTail(from), type: n.rawType });
+  // it, which is the only way that stays true as this function changes. The wire too: the lines keep their wa_ names
+  // (the names are the contract alerting greps for), so `channel` is what tells a text's or a DM's from WhatsApp's, and
+  // `wamid` is the provider's id for the message on whichever wire it came.
+  const L = ports.log({
+    tenant_id: tenantId,
+    channel,
+    wamid: n.externalId,
+    from_tail: phoneTail(from),
+    type: n.rawType,
+  });
   // The control plane, through its one door (PRD §03). A tenant with no brain
   // profile never auto-replies, and a control plane that cannot be READ holds
   // the thread for a person: silence over someone else's voice, and no second
   // copy of anyone's profile to answer from.
-  const rt = db && routed ? await ports.runtime(db, routed) : null;
+  const rt = await ports.runtime(db, routed);
   // The posture rules live in ./reply-posture.ts, dependency-free and tested as
   // a truth table — they were four inline booleans, and one of them made
   // `status='disabled'` fail to silence the receptionist.
@@ -80,6 +100,7 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
     channel,
     db,
     t0,
+    endsAtMs,
     L,
     rt,
     posture,
@@ -110,7 +131,7 @@ export interface HoldWords {
 
 /** What the ingest adds for the phases after it: the rows, the memory, the sink, and the three ways out. */
 export interface Ingested {
-  ing: IngestResult | null;
+  ing: IngestResult;
   thread: ThreadState;
   ingestMs: number;
   sink: InboundSink;

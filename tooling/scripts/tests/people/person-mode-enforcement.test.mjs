@@ -11,7 +11,7 @@
  *
  * These pin the gate's reading of Veto, and the reason with its labels, end to
  * end. The order of the WhatsApp handler (the lookup before the first branch
- * that can speak) is run in whatsapp/inbound-executed.test.mjs, and the voice
+ * that can speak) is run in inbound/phases/, and the voice
  * send's use of the person's mode in retell-fn-door.test.mjs.
  */
 import { test } from "node:test";
@@ -31,7 +31,7 @@ const wa = ["unreadable", "reply-gates"].map((m) => readCode(`packages/core/src/
 const steps = readCode("packages/core/src/inbound/steps.ts");
 
 // WhatsApp: the person's mode is looked up once, before the first branch that can speak. It sat below the non-text
-// branch, so a Never person who sent a photo got a canned text: RUN in whatsapp/inbound-executed.test.mjs ("a person
+// branch, so a Never person who sent a photo got a canned text: RUN in inbound/phases/ ("a person
 // set to Never who sends a voice note hears nothing back").
 
 test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
@@ -44,7 +44,7 @@ test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
 test("WhatsApp: a person's hold is its own reason, alerted once per open hold", () => {
   assert.ok(steps.includes('personHold ? "person_hold" : "policy_block"'));
   // Once per hold, a workspace's own hold as well since decision 0043: a hold written is told from its event, and the
-  // handler tells only one it could not write (run in whatsapp/inbound-executed.test.mjs).
+  // handler tells only one it could not write (run in inbound/phases/).
   assert.ok(wa.includes("const alertNeeded = !toldFromItsEvent(outcome);"));
   assert.ok(steps.includes("const personHold = !!x.brainCfg && !!x.personMode;"));
 });

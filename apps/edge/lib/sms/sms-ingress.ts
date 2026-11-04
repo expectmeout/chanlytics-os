@@ -28,14 +28,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { resolveChannelDetailed } from "../packages/db.js";
 import type { RoutedChannel } from "../packages/db.js";
-import {
-  verifyTwilioSignature,
-  smsBody,
-  oneTimeCodeOf,
-  SMS_HELD_REASON,
-  SMS_HELD_DETAILS,
-} from "../packages/channels.js";
+import { verifyTwilioSignature, smsBody, SMS_HELD_REASON, SMS_HELD_DETAILS } from "../packages/channels.js";
 import type { ProviderAccount, SmsInbound } from "../packages/channels.js";
+import { oneTimeCodeOf } from "../packages/contracts.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import type { SmsLine, SmsSender } from "./sms.js";
 import type { InboundCarrier } from "../packages/core.js";

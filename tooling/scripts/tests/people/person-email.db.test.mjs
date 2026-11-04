@@ -236,3 +236,42 @@ test(
     // A member's own write names them and says source 'member': the signed-in case above asserts it.
   },
 );
+
+test(
+  "note_person_email: an address a customer gave is kept only where none is on file, never moved from another person, in one call (00535)",
+  { skip },
+  async () => {
+    const note = async (id, email, tenant = tenantId) => {
+      const { data, error } = await db.rpc("note_person_email", {
+        p_tenant_id: tenant,
+        p_contact_id: id,
+        p_email: email,
+      });
+      assert.equal(error, null, error?.message);
+      return data;
+    };
+    const emailOf = async (id) => (await db.from("contacts").select("email").eq("id", id).single()).data?.email ?? null;
+
+    const { id } = await person({ phone_e164: "+15550100161" });
+    assert.equal(await note(id, "First@Example.com"), "kept");
+    assert.equal(await emailOf(id), "first@example.com", "through set_person_email: trimmed and lower-cased");
+    assert.equal(await note(id, "second@example.com"), "had_one", "an address on file stands");
+    assert.equal(await emailOf(id), "first@example.com");
+
+    const { id: other } = await person({ phone_e164: "+15550100162" });
+    assert.equal(
+      await note(other, "first@example.com"),
+      "taken",
+      "another person here holds it: the owner merges them",
+    );
+    assert.equal(await emailOf(other), null);
+
+    assert.equal(await note(other, "x@example.com", "00000000-0000-4000-8000-000000000000"), "not_found");
+    const { error: shapeless } = await db.rpc("note_person_email", {
+      p_tenant_id: tenantId,
+      p_contact_id: other,
+      p_email: "not an address",
+    });
+    assert.equal(shapeless?.code, "22023", "an address that is not one is refused, as set_person_email refuses it");
+  },
+);

@@ -17,6 +17,7 @@ import {
   holdActOf,
   MIN_MS,
   reasonShort,
+  ESCALATION_REASONS,
   type EscalationReason,
 } from "../packages/contracts.js";
 
@@ -59,13 +60,29 @@ const OWN_WORDS: ReadonlyMap<string, string> = new Map([
   ["no model", "the receptionist has no model to answer with"],
   ["location", "shared a location"],
   ["contacts", "sent a contact card"],
+  ["share", "shared a post"],
   ["message not recorded", "their message could not be recorded"],
   ["opt-in not confirmed", "the confirmation of their yes could not be sent"],
+  [
+    "low confidence, not held",
+    "it was not sure enough to answer, and nothing was sent: its reply could not be held for you",
+  ],
 ]);
+
+/** Whether these words are one of the closed set of hold reasons (contracts ESCALATION_REASONS). */
+const isReason = (r: string): r is EscalationReason => (ESCALATION_REASONS as readonly string[]).includes(r);
+
+/**
+ * The hold reason the handler means: the reason itself, which a gate hands over (core handled.ts handToAPerson), or the
+ * one its phrase names; none for a phrase that is no hold's.
+ */
+function holdReasonOf(said: string): EscalationReason | undefined {
+  return isReason(said) ? said : REASON_OF.get(said);
+}
 
 /** Why a thread needs a person, as the owner reads it: the Inbox's clause for a reason, else the handler's own words, else as it came. */
 function whyOf(reason: string): string {
-  const held = REASON_OF.get(reason);
+  const held = holdReasonOf(reason);
   return held ? reasonShort(held) : (OWN_WORDS.get(reason) ?? reason);
 }
 
@@ -143,7 +160,7 @@ export function handoffMessage({
     ctx.who?.trim() || (onDm ? "Someone on Instagram" : formatPhoneDisplay(`+${threadId}`) || `+${threadId}`);
   const why = whyOf(reason);
   // What to do, by the reason's act (a reply to write, a call to return, nothing that may be sent); the pause rides after it.
-  const act = HOLD_ACT_WORDS[holdActOf(REASON_OF.get(reason))].notice;
+  const act = HOLD_ACT_WORDS[holdActOf(holdReasonOf(reason))].notice;
   // The owner of a workspace with both wires connected opens the thread this
   // names. Saying "WhatsApp" for a text sends them to an app the conversation
   // is not in.

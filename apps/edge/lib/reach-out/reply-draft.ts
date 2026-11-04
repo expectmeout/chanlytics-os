@@ -98,20 +98,18 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
     const at = new Date(now());
     let timer: ReturnType<typeof setTimeout> | undefined;
     const r = await Promise.race([
-      brain(
-        thread.history,
-        ask.text,
+      brain({
+        history: thread.history,
+        userText: ask.text,
         // A draft the owner sends as themselves: never told to say it is an automated assistant (decision 0051).
-        resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, at, rt.policy, rt.known, "draft"),
+        systemPrompt: resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, at, rt.policy, rt.known, "draft"),
         // No holding words: an answer the brain could not give is not drafted, never drafted as the fallback.
-        "",
-        ask.note,
-        describeNow(rt.timezone, at, rt.brain.profile?.closures),
-        undefined,
-        undefined,
+        fallbackText: "",
+        leadNote: ask.note,
+        nowNote: describeNow(rt.timezone, at, rt.brain.profile?.closures),
         // The usage ledger's row: a draft's spend told apart from the receptionist's answers.
-        brainCallOf(tenantId, rt, { subjectId: ask.conversationId, purpose: "reply_draft" }),
-      ),
+        call: brainCallOf(tenantId, rt, { subjectId: ask.conversationId, purpose: "reply_draft" }),
+      }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("reply_draft: the receptionist ran past the job's deadline")), ms);
       }),

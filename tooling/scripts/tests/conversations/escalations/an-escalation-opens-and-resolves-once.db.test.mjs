@@ -1,7 +1,7 @@
 /**
  * An escalation's whole life against the real escalations_guard (00106): open -> resolved, once, and a new concern is
  * a new row. Every move is made by the writer that makes it in production, in production's order -- the receptionist
- * handing a thread to a person through the edge's sink (apps/edge/lib/whatsapp/persist.ts pgSink: pause, escalate),
+ * handing a thread to a person through the edge's sink (apps/edge/lib/inbound/persist.ts pgSink: pause, escalate),
  * a second and a third concern on the same hold, the owner taking the thread over and handing it back (core takeOver
  * and handBack over the dashboard's own threadPorts), a stale tab's resolve, and an explicit resolve (core
  * resolveEscalation over escalationPorts) -- on the owner's own session, so RLS is in the way as it is for them. The
@@ -95,7 +95,7 @@ before(async () => {
     if (SWALLOWS.test(String(args[0]))) swallowed.push(args.map(String).join(" "));
     realError(...args);
   };
-  persist = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+  persist = await import(at("apps/edge/lib/inbound/persist.ts"));
   core = await import(at("packages/core/src/index.ts"));
   ports = await import(at("apps/dashboard/src/server/ports/core-ports.ts"));
   // The dashboard's service-role calls (a thread's hold, withdrawing a job) go to this database.

@@ -46,7 +46,7 @@ import { GO, type Answering } from "./context";
 const sentAtSecondsOf = (iso: string | null): number | undefined =>
   iso === null ? undefined : Date.parse(iso) / SECOND_MS;
 import { unattendedHold } from "./reply-posture";
-import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
+import { escalationOf, handledOf, handToAPerson, processedAfter, SET_ASIDE, type Asked } from "./handled";
 import { toldFromItsEvent } from "../subscribers";
 import { heldByThread } from "../deliver-hold";
 
@@ -56,7 +56,7 @@ import { heldByThread } from "../deliver-hold";
  */
 async function offersNoteFor(at: Answering): Promise<string | null> {
   const { db, tenantId, ing, ports, channel, L } = at;
-  if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
+  if (channel !== "whatsapp") return null;
   try {
     const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
     return answer ? offersAfterStart(answer, channel) : null;
@@ -72,7 +72,7 @@ async function offersNoteFor(at: Answering): Promise<string | null> {
  */
 async function filedCampaignName(at: Answering): Promise<string | null> {
   const { db, tenantId, ports, channel, L } = at;
-  if (channel !== "sms" || !db || !tenantId || !ports.filing) return null;
+  if (channel !== "sms" || !ports.filing) return null;
   try {
     return (await ports.filing.names(db, tenantId)).campaign;
   } catch (e) {
@@ -88,7 +88,7 @@ async function filedCampaignName(at: Answering): Promise<string | null> {
  */
 async function offersTakenBack(at: Answering): Promise<boolean> {
   const { db, tenantId, ing, ports, L } = at;
-  if (ing?.is_new !== false || !db || !tenantId || !ing.contact_id) return false;
+  if (ing.is_new) return false;
   try {
     const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
     return answer?.marketingConsent === "opted_out";
@@ -106,7 +106,7 @@ async function offersTakenBack(at: Answering): Promise<boolean> {
  * attachment is still kept, for the person it is handed to.
  */
 export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
-  const { sink, tell, n, L } = at;
+  const { sink, n, L } = at;
   // Late, but somebody is still waiting.
   //
   // This used to stamp anything over ten minutes old as processed and return —
@@ -123,22 +123,17 @@ export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
   // arrive out of nowhere, so a person picks it up — but a person is told.
   const { ageMs, verdict: age } = ageVerdict(sentAtSecondsOf(n.channelTsIso));
   if (age === "stale") {
-    const asked = sink.escalate(
-      "stale",
-      `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`,
-    );
-    await Promise.all([
-      asked,
-      tell(asked, {
+    L.info("wa_stale_escalated", { age_ms: ageMs });
+    return handToAPerson(
+      at,
+      {
+        reason: "stale",
+        details: `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`,
         said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent — arrived too late to answer automatically)",
-        why: "late message",
-      }),
-      processedAfter(sink, asked, "none"),
-      ...(n.media ? [sink.media(n)] : []),
-    ]);
-    L.info("wa_stale_escalated", { age_ms: ageMs });
-    return;
+      },
+      n.media ? [sink.media(n)] : [],
+    );
   }
   if (age === "late") L.info("wa_late_but_answering", { age_ms: ageMs });
   return GO;
@@ -241,20 +236,13 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
  * own hold (00454).
  */
 async function heldWhileTheirs(at: Answering, bodyText: string): Promise<void> {
-  const { sink, tell } = at;
-  const asked = sink.escalate(
-    "wrote_while_held",
-    "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back.",
-  );
-  await Promise.all([
-    asked,
-    tell(asked, {
-      said: bodyText,
-      answered: "(no reply sent — a person on your team has this thread)",
-      why: "wrote while held",
-    }),
-    processedAfter(sink, asked, "none"),
-  ]);
+  await handToAPerson(at, {
+    reason: "wrote_while_held",
+    details:
+      "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back.",
+    said: bodyText,
+    answered: "(no reply sent — a person on your team has this thread)",
+  });
 }
 
 /**
@@ -315,20 +303,12 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     // CHECK-allowed, LABELLED escalation reason this whole time with no
     // emitter anywhere in the repo. At the shipped default of 20/day this
     // fires on a busy thread, not only when someone lowers the limit.
-    const asked = sink.escalate(
-      "rate_cap",
-      `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
-    );
-    await Promise.all([
-      asked,
-      tell(asked, {
-        said: bodyText,
-        answered: "(no reply sent — daily automatic-reply limit reached)",
-        why: "rate cap",
-      }),
-      processedAfter(sink, asked, "none"),
-    ]);
-    return;
+    return handToAPerson(at, {
+      reason: "rate_cap",
+      details: `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
+      said: bodyText,
+      answered: "(no reply sent — daily automatic-reply limit reached)",
+    });
   }
   // THE PAUSE (tenants.status = 'paused', written by billing for a workspace
   // whose subscription stopped). The customer's message is already kept
@@ -340,20 +320,13 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     // pause above logs, so nothing reading the stream could tell a human
     // taking one conversation over from a workspace-wide billing stop.
     L.info("wa_skip_workspace_paused");
-    const asked = sink.escalate(
-      "paused",
-      "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
-    );
-    await Promise.all([
-      asked,
-      tell(asked, {
-        said: bodyText,
-        answered: "(no reply sent — the workspace is paused until billing resumes)",
-        why: "paused",
-      }),
-      processedAfter(sink, asked, "none"),
-    ]);
-    return;
+    return handToAPerson(at, {
+      reason: "paused",
+      details:
+        "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
+      said: bodyText,
+      answered: "(no reply sent — the workspace is paused until billing resumes)",
+    });
   }
 
   // THE LIVE HOLD (00132), only where the model would be asked: a stop found above keeps its own reason and notice.
@@ -367,20 +340,16 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
   // as it does at the reply cap: a margin is a setting, not an accident, and
   // a customer at the cap is never abandoned to a log line.
   const tokenCap = tokenCapOf(replyLimits);
-  if (held === null && tokenCap > 0 && db && tenantId) {
+  if (held === null && tokenCap > 0) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
-      const asked = sink.escalate(
-        "budget",
-        `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
-      );
-      await Promise.all([
-        asked,
-        tell(asked, { said: bodyText, answered: "(no reply sent — the day's model budget is used up)", why: "budget" }),
-        processedAfter(sink, asked, "none"),
-      ]);
-      return;
+      return handToAPerson(at, {
+        reason: "budget",
+        details: `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
+        said: bodyText,
+        answered: "(no reply sent — the day's model budget is used up)",
+      });
     }
   }
 

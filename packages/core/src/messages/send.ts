@@ -327,8 +327,11 @@ export function raiseSendFailed(
   return ports.escalate(f.conversationId, "send_failed", f.details);
 }
 
-/** Why it did not leave, in words for the owner: a number with no credentials is not "HTTP 503". */
-function causeOf(out: FailedSend["out"], channel: Channel): string {
+/**
+ * Why it did not leave, in words for the owner: a number with no credentials is not "HTTP 503". The one statement of it:
+ * a queued reply's job (here) and the receptionist answering in its own turn (inbound/dispatch.ts) both say it this way.
+ */
+export function causeOf(out: FailedSend["out"], channel: Channel): string {
   const limit = out.limit ?? null;
   // Named for the wire it was going out on: a text with no line is not a
   // WhatsApp number that failed.

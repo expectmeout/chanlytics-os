@@ -58,6 +58,8 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00486 added 'instagram_tokens', the daily refresh of each connected Instagram account's token (decision 0001, step 8).
   // 00497 added 'previews', the hourly end of each lead's preview past its thirty days (decision 0079).
   // 00526 added 'jobs_canary', the ledger's own job every minute, judged by its newest done row (decision 0089).
+  // 00536 added 'texts', the ten-minute read of each line's received texts from Twilio, and 00537 'text_canary', the daily
+  // text to the platform's own line (the inbound review of 3 Nov 2026, B2 and D6).
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -100,6 +102,8 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "registration",
       "snoozes",
       "sweep_voice_sessions",
+      "text_canary",
+      "texts",
     ],
   );
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
@@ -183,6 +187,8 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "registration",
     "snoozes",
     "sweep_voice_sessions",
+    "text_canary",
+    "texts",
   ]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");

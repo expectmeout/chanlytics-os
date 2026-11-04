@@ -8,7 +8,6 @@
  * write itself failed, because that is the one loss the provider can undo.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { pg } from "../pg.js";
 import {
   fetchLinkedMedia,
   fetchMediaBytes,
@@ -18,11 +17,12 @@ import {
   type WaMediaRef,
 } from "../packages/channels.js";
 import {
-  AnswerNotKept,
   claimReplyTurn,
   holdsReplyTurn,
   ingestInbound,
+  keepMessageMedia,
   markProcessed,
+  noteEmailTheyGave,
   stampHandled,
   pauseConversation,
   emitEvent,
@@ -71,7 +71,7 @@ import { logger, errField } from "../log.js";
  * answering a customer mid-conversation from an invented empty history.
  */
 export async function pgThread(
-  db: ReturnType<typeof pg>,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult | null,
 ): Promise<ThreadState> {
@@ -107,14 +107,14 @@ const waCfg = waCfgFor;
 /**
  * Write the receptionist's reply as a DRAFT and schedule it to fire.
  *
- * Returns false when it could not be queued, and the caller then sends
- * immediately. That fallback is deliberate: an un-vetoed reply is a worse
+ * Returns the draft's id, or null when it could not be queued, and the caller
+ * then sends immediately (core inbound/dispatch.ts heldOrKept). That fallback is deliberate: an un-vetoed reply is a worse
  * outcome than a vetoed one, and no reply at all is worse than both. An
  * unreachable database or a scheduling failure must not leave a customer
  * waiting on an answer that was already written.
  */
 export async function queueReply(
-  db: ReturnType<typeof pg>,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult | null,
   /** Where the draft goes: the number on a phone's wire, the person's Instagram-scoped id on a DM's. */
@@ -183,7 +183,7 @@ export const replyTurn = { claim: claimReplyTurn, holds: holdsReplyTurn };
  * answered it.
  */
 export async function pgAnswered(
-  db: ReturnType<typeof pg>,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult,
 ): Promise<boolean> {
@@ -192,21 +192,17 @@ export async function pgAnswered(
 }
 
 /**
- * Persist first. Null when there is no database or no tenant to record for,
- * which is a fact about the deployment and by design. A write that FAILED is
- * IngestFailed: the caller says so to the provider, which retries, rather
- * than acknowledging words that exist only in an email.
+ * Persist first. A write that FAILED is IngestFailed, and so is a deployment with no database to write to: the caller
+ * says so to the provider, which retries, rather than acknowledging words that exist only in an email.
  */
 export async function pgIngest(
-  db: SupabaseClient<Database> | null,
-  tenantId: string | null,
+  db: SupabaseClient<Database>,
+  tenantId: string,
   /** The message in the one inbound shape, on its own wire (decision 0001). */
   n: InboundMessage & { channel: InboundChannel },
   line: string | null = null,
-  /** A job takes this message up next (the door that records it and schedules its answer): see db ingestInbound. */
-  opts: { jobFollows?: boolean } = {},
-): Promise<IngestResult | null> {
-  if (!db || !tenantId) return null;
+): Promise<IngestResult> {
+  if (!db) throw new IngestFailed("no database to keep the message in");
   try {
     return await ingestInbound(db, {
       tenantId,
@@ -229,13 +225,10 @@ export async function pgIngest(
       optOut: n.consent.optOut,
       optIn: n.consent.optIn,
       optInMarketing: n.consent.optInMarketing,
-      ...(opts.jobFollows ? { jobFollows: true } : {}),
     });
   } catch (e) {
     logger().error("ingest_pg_failed", { tenant_id: tenantId, message: n.externalId, error: errField(e) });
-    // A yes the message carried that did not land (AnswerNotKept) is a message that IS kept: the provider is told to send
-    // it again, or the job is tried again, and the words are not said to be lost (core ingestOrSay).
-    throw new IngestFailed(e instanceof Error ? e.message : String(e), e instanceof AnswerNotKept);
+    throw new IngestFailed(e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -346,16 +339,6 @@ function pgFinishing(db: SupabaseClient<Database> | null, tenantId: string | nul
  */
 const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;
 
-/** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
-/**
- * `rt` is threaded in so the media download uses the TENANT's credentials.
- *
- * fetchMediaBytes ran on waCfg() with no argument — the environment pair —
- * while the runtime holding this tenant's own credentials was already in scope
- * at every call site. For tenant #2 that is a download attempted with another
- * business's token against their WABA, which cannot succeed: every voice note
- * and photo their customers send would fail to store.
- */
 /** What the draft queue says of a reply it holds: when it goes, whether the confidence dial held it, its words, whose. */
 type HeldReplyFacts = { atMs: number; unsure: boolean; reply: string; who: string | null };
 
@@ -429,8 +412,16 @@ async function whatsappMediaOf(
   return cfg ? await fetchMediaBytes(cfg, ref.provider_media_id) : null;
 }
 
+/**
+ * All PG bookkeeping for one inbound message; every method no-ops when unconfigured.
+ *
+ * `rt` is threaded in so the media download uses the TENANT's credentials. fetchMediaBytes ran on waCfg() with no
+ * argument, the environment pair, while the runtime holding this tenant's own credentials was already in scope at every
+ * call site: for a second tenant that is a download attempted with another business's token against their WABA, which
+ * cannot succeed, so every voice note and photo their customers send would fail to store.
+ */
 export function pgSink(
-  db: SupabaseClient<Database> | null,
+  db: SupabaseClient<Database>,
   tenantId: string | null,
   ing: IngestResult | null,
   rt?: TenantRuntime | null,
@@ -503,30 +494,16 @@ export function pgSink(
           )
         : Promise.resolve(),
     /**
-     * An address the customer gave in their own words (core's ingest.ts, contracts addressInMessage): kept through the door
-     * set_person_email, which takes the edge's call with no session (00171) and writes the event, only where the person
-     * has none. Another person here holding the address is said in the log, never moved: the owner merges them.
-     * Two invocations whose pre-reads both land before either write could overwrite each other; a batch's messages
-     * run one after another, so the window is one primary-key read, and a redelivery carries the same address. Accepted.
+     * An address the customer gave in their own words (core's ingest.ts, contracts addressInMessage), kept only where the
+     * person has none, in one call under their row's lock (db noteEmailTheyGave, 00535). Another person here holding the
+     * address is said in the log, never moved: the owner merges them.
      */
     noteEmail: (address: string) =>
       on
         ? pgSafe("note_email", async () => {
-            const { data, error: unread } = await db
-              .from("contacts")
-              .select("email")
-              .eq("id", ing.contact_id)
-              .maybeSingle();
-            // The door itself overwrites, so this read is the one thing that keeps an address already on file: a
-            // read that failed keeps everything, rather than writing over an address nobody could see.
-            if (unread) throw new Error(unread.message);
-            if (data?.email) return;
-            const { error } = await db.rpc("set_person_email", { p_contact_id: ing.contact_id, p_email: address });
-            if (error && error.code === "23505") {
+            const noted = await noteEmailTheyGave(db, tenantId, ing.contact_id, address);
+            if (noted === "taken")
               logger().info("inbound_email_taken", { tenant_id: tenantId, contact: ing.contact_id });
-              return;
-            }
-            if (error) throw new Error(error.message);
           })
         : Promise.resolve(),
     replyHeld: (n: HeldReplyFacts) => (on ? tellReplyHeld(db, tenantId, rt, ing, n) : Promise.resolve()),
@@ -600,12 +577,7 @@ export function pgSink(
             // `fetch_state: "pending"` forever: the bytes are in storage, the
             // Inbox shows an attachment that is still downloading, and no
             // reconciliation can tell it from a genuinely in-flight fetch.
-            const { error: rowErr } = await db
-              .from("messages")
-              .update({ media: mediaOut as Json })
-              .eq("id", ing.message_id)
-              .eq("tenant_id", tenantId);
-            if (rowErr) throw new Error(rowErr.message);
+            await keepMessageMedia(db, tenantId, ing.message_id, mediaOut as Json);
             return got;
           })
         : Promise.resolve(null),

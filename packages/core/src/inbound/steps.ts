@@ -13,10 +13,26 @@ import {
   heldLine,
   policyAskClass,
   resolveFacts,
+  POLICY_MODE_WORDS,
+  SECOND_MS,
 } from "@chanlytics/contracts";
-import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits } from "@chanlytics/contracts";
+import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits, PolicyMode } from "@chanlytics/contracts";
+
+/**
+ * A reply mode as an owner reads it, the Autonomy pane's own head for it ("Asks you", "Stays quiet"): what a hold's
+ * details and its notice say, never the stored token ('ask', 'never'). A token nobody named is said as it is.
+ */
+export function modeSaid(mode: string): string {
+  return Object.hasOwn(POLICY_MODE_WORDS, mode) ? POLICY_MODE_WORDS[mode as PolicyMode].head : mode;
+}
 
 export const MAX_REPLIES_PER_DAY = 20; // per thread
+/**
+ * The longest a reply turn may take from its start to the model's answer: the job's function stops at sixty seconds
+ * (apps/edge/vercel.json, api/jobs/tick.ts), and the send, the hold and the stamp come after the answer. The ledger's own
+ * deadline is usually sooner (jobs ledger.ts YIELD_AT_MS from the tick's start), and the turn is held to whichever is first.
+ */
+export const TURN_BUDGET_MS = 40 * SECOND_MS;
 export const STALE_MS = 10 * 60 * 1000; // "late" — worth noting in the log
 export const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers, not the bot
 
@@ -187,8 +203,8 @@ export function holdCopy(x: {
   const personHold = !!x.brainCfg && !!x.personMode;
   const details = x.brainCfg
     ? personHold
-      ? `You set the receptionist to '${x.replyMode}' for this person — it stays out of the thread; answer them yourself.`
-      : `Reply mode is '${x.replyMode}' — the receptionist holds everything for a human.`
+      ? `You set the receptionist to ${modeSaid(x.replyMode)} for this person — it stays out of the thread; answer them yourself.`
+      : `Replies are set to ${modeSaid(x.replyMode)} — the receptionist holds every message for a person.`
     : x.configBroken
       ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
       : x.loadFailed
@@ -197,8 +213,8 @@ export function holdCopy(x: {
   const botText = personHold ? "(held — you handle this person yourself)" : "(held — no auto-reply for this workspace)";
   const why = x.brainCfg
     ? personHold
-      ? `this person is set to ${x.replyMode}`
-      : `reply mode ${x.replyMode}`
+      ? `this person is set to ${modeSaid(x.replyMode)}`
+      : `replies are set to ${modeSaid(x.replyMode)}`
     : x.configBroken
       ? "settings could not be read"
       : x.loadFailed

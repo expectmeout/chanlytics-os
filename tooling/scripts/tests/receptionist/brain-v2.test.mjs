@@ -238,7 +238,12 @@ test("the brain asks for the record, reads it through the parse, and keeps the o
   const ask = async (...replies) => {
     const api = scripted(...replies);
     setModelFetch(api.fetch);
-    const r = await generateReply([], "when do you open?", "System.", "Hold on, a person will follow up.");
+    const r = await generateReply({
+      history: [],
+      userText: "when do you open?",
+      systemPrompt: "System.",
+      fallbackText: "Hold on, a person will follow up.",
+    });
     return { r, api };
   };
 
@@ -289,7 +294,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
     "the draft row remembers",
   );
   assert.ok(
-    readCode("apps/edge/lib/whatsapp/persist.ts").includes("meta: { ...meta, reply_to: ing.message_id },"),
+    readCode("apps/edge/lib/inbound/persist.ts").includes("meta: { ...meta, reply_to: ing.message_id },"),
     "so does the sent row, through the door, naming the message it answers",
   );
   assert.ok(
@@ -363,4 +368,29 @@ test("the dial reaches the policy row through the pane and the bridge", async ()
     }
   }
   // Conversations draws the one thread, this button included (one-thread.test.mjs).
+});
+
+test("a turn's end bounds the model: a model that never answers is given up at the turn's end, with no fallback asked past it", async () => {
+  const { hang } = await import("../ai/_model-world.mjs");
+  const api = scripted(hang(), hang());
+  setModelFetch(api.fetch);
+  const began = Date.now();
+  // The job's deadline is 60 ms away: the first try gets what is left, and too little is left for the fallback's.
+  await assert.rejects(
+    generateReply({
+      history: [],
+      userText: "when do you open?",
+      systemPrompt: "System.",
+      fallbackText: "Hold on.",
+      call: {
+        tenantId: null,
+        endsAtMs: began + 60,
+      },
+    }),
+  );
+  assert.ok(
+    Date.now() - began < 1_500,
+    `given up at the turn's end, not the route's twenty seconds (${Date.now() - began} ms)`,
+  );
+  assert.equal(api.calls.length, 1, "and no fallback is asked with no time left for it");
 });
