@@ -471,11 +471,6 @@ const GLYPHS: Record<string, Drawing> = {
       <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
     </svg>
   ),
-  dashring: (p) => (
-    <svg {...p}>
-      <path d="M8 2a6 6 0 013.2 1M14 6.2a6 6 0 010 3.6M11.2 13A6 6 0 018 14M4.8 13A6 6 0 012 9.8M2 6.2A6 6 0 014.8 3" />
-    </svg>
-  ),
   copy: (p) => (
     <svg {...p}>
       <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />

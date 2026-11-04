@@ -4137,7 +4137,6 @@ const LEAD_FACTS = {
   bound: null,
   prior: { places: 1_200, matched: 700, with_email: 406 },
   priorOf: "trainers",
-  cannotSee: null,
   renewsOn: "Oct 1",
   nearby: [],
 };

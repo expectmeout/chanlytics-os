@@ -296,7 +296,6 @@ test("the card carries the facts under the sentence: what a search would skip, w
     bound: "allowance",
     prior: { places: 1200, matched: 700, with_email: 406 },
     priorOf: "personal_trainer",
-    cannotSee: null,
     renewsOn: "Oct 1",
     nearby: [],
   });

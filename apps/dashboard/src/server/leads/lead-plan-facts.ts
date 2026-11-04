@@ -40,7 +40,7 @@ export async function nichePrior(
 export async function planFacts(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  opts: { categoryKey?: string | null; nearby?: LeadArea[]; cannotSee?: LeadPlanFacts["cannotSee"]; now?: Date } = {},
+  opts: { categoryKey?: string | null; nearby?: LeadArea[]; now?: Date } = {},
 ): Promise<LeadPlanFacts> {
   // The month, and the day it renews, are the BUSINESS's (lead_month): a turn
   // that carries its own moment hands it in rather than reading the server's.
@@ -78,7 +78,6 @@ export async function planFacts(
     bound,
     prior,
     priorOf: prior ? (opts.categoryKey ?? null) : null,
-    cannotSee: opts.cannotSee ?? null,
     renewsOn: renewsOnOf(timezone, now),
     nearby: opts.nearby ?? [],
   };
