@@ -2044,10 +2044,7 @@ test("the plan card's facts are the month's own numbers and what past searches m
   const rpcs = doors();
   const ctx = ctxOf(world({ role: "owner" }), {}, rpcs);
   const bare = await planFacts(ctx, A);
-  assert.deepEqual(
-    [bare.dupes, bare.leadsLeft, bare.prior, bare.priorOf, bare.cannotSee, bare.nearby],
-    [322, 486, null, null, null, []],
-  );
+  assert.deepEqual([bare.dupes, bare.leadsLeft, bare.prior, bare.priorOf, bare.nearby], [322, 486, null, null, []]);
   assert.equal(bare.renewsOn, "Oct 1", "the month the leads come back");
   // The two caps are sized to run out together (500 leads for $25), so which
   // binds is which one this workspace is nearer: $1.50 spent on 14 leads is

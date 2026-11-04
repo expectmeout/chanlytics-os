@@ -84,9 +84,8 @@ const monthOf = (v: unknown): PeopleMonth | null => {
 
 /**
  * A search's card as the Line draws it, or null for any other card. The press asks for what the month has room for
- * (leadPlanAsk, peoplePlanAsk) and the rows' first hold says why when that is fewer than the plan's count; a criterion
- * the listing cannot show holds the press until it is said another way, in Ask. The plan's version is never touched: a
- * new search starts at its first (lead_search_create).
+ * (leadPlanAsk, peoplePlanAsk) and the rows' hold says why when that is fewer than the plan's count. The plan's version
+ * is never touched: a new search starts at its first (lead_search_create).
  */
 export function searchCardView(p: AskProposal): SearchCardView | null {
   const pl = rec(p.payload);
@@ -94,21 +93,11 @@ export function searchCardView(p: AskProposal): SearchCardView | null {
     const plan = pl.plan as LeadSearchPlan;
     const facts = isPlanFacts(pl.facts) ? pl.facts : null;
     const ask = leadPlanAsk(plan, facts);
-    const cannot =
-      facts?.cannotSee && plan.criteria.some((c) => c.key === facts.cannotSee?.key && c.standard === "seen");
-    const holds = [
-      ...(ask.covers ? [ask.covers] : []),
-      ...(cannot && facts?.cannotSee
-        ? [
-            `A listing doesn't show “${facts.cannotSee.text}”, so it can't be confirmed. Say “${facts.cannotSee.likely}” instead, or take it out.`,
-          ]
-        : []),
-    ];
     return {
-      sheet: { holds, rows: leadPlanRows(plan) },
+      sheet: { holds: ask.covers ? [ask.covers] : [], rows: leadPlanRows(plan) },
       foot: leadPlanFactLine(plan, facts),
       source: null,
-      press: { label: ask.label, disabled: ask.count < 1 || !!cannot },
+      press: { label: ask.label, disabled: ask.count < 1 },
       commit: { ...p, payload: { ...pl, plan: { ...plan, count: ask.count } } },
     };
   }

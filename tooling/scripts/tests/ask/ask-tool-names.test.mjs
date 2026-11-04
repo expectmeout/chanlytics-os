@@ -1130,16 +1130,16 @@ function withCampaignWord(frozen) {
  * 11 Oct 2026 (Leads on a phone, and the ideas for a new search, 00398): a plan's sentence marks where its criteria
  * begin and end (contracts planWords: "in Austin, TX: a; b; reached by …"), where these bytes ran them on after the area,
  * and a plan Ask proposes names its kind (`category_key`, the key an idea and the platform's counts read it by), beside
- * its name. The one frozen plan is the plumbers'; the fixture stays as it was made.
+ * its name. 4 Nov 2026: its facts lost a key nothing set. The one frozen plan is the plumbers', kept as it was made.
  */
-function withThePlansWords(frozen) {
-  return frozen
+const withThePlansWords = (frozen) =>
+  frozen
     .replaceAll(
       "in Austin, TX has a website (confirmed) family-owned, reached by",
       "in Austin, TX: has a website (confirmed); family-owned; reached by",
     )
-    .replace('"name":"plumbers","asked"', '"name":"plumbers","category_key":"plumber","asked"');
-}
+    .replace('"name":"plumbers","asked"', '"name":"plumbers","category_key":"plumber","asked"')
+    .replace('"cannotSee":null,', "");
 
 /**
  * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
