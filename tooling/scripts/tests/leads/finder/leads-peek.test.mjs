@@ -20,6 +20,7 @@ import { roleGate } from "../../../../../packages/contracts/src/shell/refusal.ts
 import { stateOf } from "../../../../../packages/contracts/src/shell/tone.ts";
 import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { LEAD_DOCK_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet-dock.ts";
+import { LEAD_ASKED_NOT_WRITTEN } from "../../../../../packages/contracts/src/leads/lead-words.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
@@ -577,15 +578,16 @@ test("the add door owes an answer until it gives one or cannot, and asking again
   assert.equal(aimNow().checking(other), false, "no answer is coming: the sheet does not wait on one for ever");
 });
 
-test("a lead that needs nothing has no foot, in a pile too: its line waits in the body, and the foot comes back to say it", async () => {
+test("a lead with nothing left to press has no foot, in a pile too: its line waits in the body, and the foot comes back to say it", async () => {
   reset();
   const IN = "5e000000-0000-4000-8000-000000000555";
   const ROOT = "5e000000-0000-4000-8000-0000000000bb";
   recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
   await sequenceVerbs.record(ROOT);
+  // They unsubscribed: no Put back, no sequence of theirs runs, and nothing of yours is offered, so nothing is left to press.
   placed[IN] = {
     sequence: { id: ROOT, name: "Trainers", state: "on" },
-    place: { group: "in", place: 2, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    place: { group: "left", place: 2, at: NOW.toISOString(), why: "unsubscribed", send_id: null, batch_id: null },
     sends: [],
     reads_replies: true,
     owner_sends: false,
@@ -604,13 +606,187 @@ test("a lead that needs nothing has no foot, in a pile too: its line waits in th
   await until(() => !saysReading(inPile(null)), "their place and its record landing");
   const foot = (tree) => all(tree, (n) => n.props?.className === "lw-foot");
   const desk = inPile(null);
-  assert.equal(foot(desk).length, 0, "nothing needs you: no foot");
+  assert.equal(foot(desk).length, 0, "nothing left to press: no foot");
   assert.ok(byTestId(desk, "lead-pile-said"), "the live region is there before it speaks");
   assert.ok(byTestId(inPile("Added Pearl Nail Bar"), "lead-pile-said"));
   assert.equal(foot(inPile("Added Pearl Nail Bar")).length, 1, "and the foot comes back to say what a press did");
   const phone = inPile(null, { phone: true });
   assert.equal(phone.props.foot, null, "on a phone a foot is a capsule, words or none: so none");
   assert.ok(byTestId(phone, "lead-pile-said"));
+});
+
+/** The test ids drawn under a node, once each, in their order: a kit component and the element it renders share one. */
+const idsUnder = (node, pattern) => [
+  ...new Set(all(node, (n) => pattern.test(n.props?.["data-testid"] ?? "")).map((n) => n.props["data-testid"])),
+];
+
+test("their sequence runs and nothing needs you: Take out asks, Never write under it, and Write to them is the draft", async () => {
+  reset();
+  const IN = "5e000000-0000-4000-8000-000000000666";
+  const ROOT = "5e000000-0000-4000-8000-0000000000cc";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[IN] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: { group: "next", place: 1, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const courier = courierOf();
+  const P = page({ vm: vmOf({ id: IN }), courier });
+  await until(() => !saysReading(P.draw().tree), "their place and its record landing");
+  const tree = P.draw().tree;
+  assert.deepEqual(
+    idsUnder(byTestId(tree, "lead-sheet-dock"), /^lead-sheet-(leave|call|write)$/),
+    ["lead-sheet-leave", "lead-sheet-call", "lead-sheet-write"],
+    "the quiet ways on: Take out, your call, your email",
+  );
+  assert.deepEqual(
+    idsUnder(byTestId(tree, "lead-sheet-quick"), /^lead-sheet-call$/),
+    [],
+    "a door never repeats the dock",
+  );
+  assert.equal(await menuItem(P, "Never write"), null, "Take out asks it while their sequence runs");
+  await press(byTestId(tree, "lead-sheet-leave"));
+  const asked = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
+  assert.match(textOf(asked), /Take Travis Heights Coaching Co\. out of Trainers\?/);
+  await press(byTestId(asked, "lead-sheet-leave-never"));
+  assert.ok(
+    byTestId(P.draw().tree, "lead-sheet-stop-confirm"),
+    "Never write to them again: the stop door's own question",
+  );
+  await press(byTestId(P.draw().tree, "lead-sheet-stop-no"));
+
+  await press(byTestId(P.draw().tree, "lead-sheet-write"));
+  await until(() => P.st.draft && !P.st.draft.busy, "the draft written");
+  const writing = P.draw().tree;
+  assert.equal(P.st.mode, "draft");
+  assert.equal(textOf(byTestId(writing, "peek-draft-subject")), "Missed calls at Travis Heights");
+  const app = byTestId(writing, "peek-open-mail");
+  assert.match(app.props.href, /^mailto:hello%40travisheightscoaching\.example\?subject=Missed%20calls%20at/);
+  await press(app);
+  assert.equal(P.st.armed.kind, "sent", "opening their mail app asks Did you send it? once they are back");
+  P.st.armed = { ...P.st.armed, asked: true };
+  await press(byTestId(P.draw().tree, "peek-sent-yes"));
+  assert.deepEqual(courier.seen.at(-1), ["stage", IN, { kind: "emailed" }]);
+  assert.equal(P.st.mode, "info", "sent: back to the card");
+  const after = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
+  assert.match(textOf(after), /You wrote to them yourself/, "and Take out is asked, said for why");
+  assert.equal(byTestId(after, "lead-sheet-leave-never"), null);
+});
+
+test("a call that reached them asks nothing: the send door writes to them no more, and the sheet offers nothing it cannot do", async () => {
+  reset();
+  const CALLED = "5e000000-0000-4000-8000-000000000888";
+  const ROOT = "5e000000-0000-4000-8000-0000000000ee";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[CALLED] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: { group: "next", place: 1, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const armed = { kind: "call", leadId: CALLED, asked: true, outcome: "not_interested", note: "" };
+  const courier = courierOf();
+  const P = page({ vm: vmOf({ id: CALLED }), courier, armed });
+  await until(() => !saysReading(P.draw().tree), "their place and its record landing");
+  await press(byTestId(P.draw().tree, "peek-call-save"));
+  assert.deepEqual(courier.seen.at(-1), ["stage", CALLED, { kind: "outcome", outcome: "not_interested" }]);
+  assert.equal(byTestId(P.draw().tree, "lead-sheet-leave-confirm"), null, "no question: nothing more would go");
+  // The lead, as the door answered: said no. Its place has not caught up, and the sheet does not take its word.
+  P.p.vm = vmOf({ id: CALLED, stage: "archived", closed_reason: "said_no" });
+  const said = P.draw().tree;
+  assert.doesNotMatch(textOf(byTestId(said, "lead-sheet-verdict")), /tomorrow|Nothing needs you/);
+  assert.deepEqual(
+    idsUnder(byTestId(said, "lead-sheet-dock"), /^lead-sheet-/),
+    ["lead-sheet-dock", "lead-sheet-ready"],
+    "no Take out and no Write to them: its one fix",
+  );
+});
+
+test("an email waiting for your OK keeps Never write in More: its dock's Take out leaves only that email out", async () => {
+  reset();
+  const WAITS = "5e000000-0000-4000-8000-000000000777";
+  const ROOT = "5e000000-0000-4000-8000-0000000000dd";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[WAITS] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: {
+      group: "waiting",
+      place: 1,
+      at: NOW.toISOString(),
+      why: null,
+      send_id: "s-1",
+      batch_id: "b-1",
+      checked: true,
+    },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const P = page({ vm: vmOf({ id: WAITS }) });
+  await until(() => !saysReading(P.draw().tree), "their place and its record landing");
+  const dock = byTestId(P.draw().tree, "lead-sheet-dock");
+  assert.deepEqual(idsUnder(dock, /^lead-sheet-(take_out|leave|approve)$/), [
+    "lead-sheet-take_out",
+    "lead-sheet-approve",
+  ]);
+  assert.ok(await menuItem(P, "Never write"), "the one place it is asked while that email waits");
+});
+
+test("Write to them refused outright: why and the way back alone, no empty email and no mail app to press", () => {
+  reset();
+  const P = page({
+    mode: "draft",
+    draft: { busy: false, tone: "first", subject: "", body: "", mailto: null, refusal: LEAD_ASKED_NOT_WRITTEN },
+  });
+  const tree = P.draw().tree;
+  assert.equal(textOf(byTestId(tree, "peek-draft-error")), LEAD_ASKED_NOT_WRITTEN);
+  assert.ok(byTestId(tree, "lead-sheet-step-back"), "the way back");
+  for (const id of ["peek-draft-body", "peek-tone-shorter", "peek-open-mail", "lead-sheet-dock"])
+    assert.equal(byTestId(tree, id), null, `no ${id}: nothing was written`);
+});
+
+test("Write to them, a long email or a shut clipboard: the words are said to be copied, and a refused copy says so", async () => {
+  reset();
+  const long = `Hi,\n\n${"We answer the calls that ring out. ".repeat(130)}`;
+  const P = page({
+    mode: "draft",
+    draft: {
+      busy: false,
+      tone: "first",
+      to: "hello@travisheightscoaching.example",
+      subject: "Calls",
+      body: long,
+      mailto: null,
+    },
+  });
+  const tree = P.draw().tree;
+  assert.ok(byTestId(tree, "lead-sheet-write-paste"), "a link too long for the words: they are copied as it opens");
+  assert.doesNotMatch(
+    byTestId(tree, "peek-open-mail").props.href,
+    /body=/,
+    "the link carries the address and subject alone",
+  );
+  const was = globalThis.window.navigator.clipboard.writeText;
+  globalThis.window.navigator.clipboard.writeText = async () => {
+    throw new Error("Write permission denied.");
+  };
+  const said = (msg) => () => flashes.at(-1)?.msg === msg;
+  try {
+    await press(kitItem(tree, "lead-sheet-write-more", "Copy"));
+    await until(said(LEAD_WORDS.copyRefused), "the refused copy said");
+  } finally {
+    globalThis.window.navigator.clipboard.writeText = was;
+  }
+  assert.equal(P.st.armed, null, "nothing copied: Did you send it? is not armed");
+  await press(kitItem(P.draw().tree, "lead-sheet-write-more", "Copy"));
+  await until(said(LEAD_WORDS.copiedDraft), "the copy said");
+  assert.equal(P.st.armed.kind, "sent");
 });
 
 /* =================================================== the one scroll ==== */

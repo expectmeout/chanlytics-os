@@ -116,7 +116,8 @@ export interface PeekActs {
   onTone: (tone: "shorter" | "warmer") => Promise<void>;
   onOpenMail: () => void;
   onCopyDraft: () => Promise<void>;
-  onSaidSent: () => Promise<void>;
+  /** "Did you send it?" answered yes; true once the door kept it (the lead sheet then asks whether their sequence goes on). */
+  onSaidSent: () => Promise<boolean>;
   onNotYet: () => void;
   reachOut: ReactNode;
 }

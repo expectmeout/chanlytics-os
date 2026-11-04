@@ -99,6 +99,14 @@ export const LEAD_SHEET_WORDS = {
     newLine: "Name it now; write its emails when you're done here",
     newLineMany: (n: number) => `Name it; the ${n} wait in it as a draft`,
     pick: "the pick for this search",
+    /** One email instead of a sequence: the draft for their own inbox (the 4 Nov 2026 review: no way to it was left). */
+    write: "Write one email instead",
+    writeLine: "From your own mail app, no sequence",
+  },
+  /** Write to them: one email, written here and sent from the owner's own mail app (POST leads/:id/draft). */
+  write: {
+    title: (name: string) => `Write to ${name}`,
+    sub: "Written for them. You send it from your own mail app.",
   },
   /** Many at once, from the selection bar: the same picker and New, named by how many. */
   bulk: {
@@ -274,6 +282,8 @@ export type LeadSheetAct =
   | "approve"
   | "decide"
   | "take_out"
+  | "leave"
+  | "write"
   | "return"
   | "they_wrote"
   | "thread"

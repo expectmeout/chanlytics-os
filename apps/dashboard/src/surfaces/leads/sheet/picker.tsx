@@ -25,8 +25,8 @@ const pressKeys = (go: () => void) => (e: KeyboardEvent) => {
   go();
 };
 
-/** ‹ Back to the card, and the step's title. */
-const stepHead = (title: string, onBack: () => void, sub?: string | null) => (
+/** ‹ Back to the card, and the step's title: the picker's, New's and Write to them's (write.tsx). */
+export const stepHead = (title: string, onBack: () => void, sub?: string | null) => (
   <div className="lw-step-h">
     <Button variant="quiet" size="sm" onClick={onBack} data-testid="lead-sheet-step-back">
       <Icon name="chevron" size={11} className="lw-back-glyph" />
@@ -48,10 +48,12 @@ interface PickerProps {
   busy: boolean;
   onPick: (row: LeadPickerRowVM) => void;
   onNew: () => void;
+  /** One email of your own instead of a sequence; null where none can be written to them here. */
+  onWrite: (() => void) | null;
   onBack: () => void;
 }
 
-/** The picker: each sequence to leads, the pick marked, and New sequence. */
+/** The picker: each sequence to leads, the pick marked, New sequence, and one email instead. */
 export function SheetPicker(p: PickerProps) {
   const title = "name" in p.who ? W.picker.title(p.who.name) : W.picker.titleMany(p.who.count);
   return (
@@ -110,6 +112,24 @@ export function SheetPicker(p: PickerProps) {
         data-testid="lead-sheet-new"
         {...gate("approve", "start a sequence")}
       />
+      {p.onWrite ? (
+        <ListRow
+          bare
+          role="button"
+          tabIndex={0}
+          className="lw-pick-row is-new"
+          name={
+            <>
+              <Icon name="mail" size={14} /> {W.picker.write}
+            </>
+          }
+          said={W.picker.writeLine}
+          onClick={p.onWrite}
+          onKeyDown={pressKeys(p.onWrite)}
+          data-testid="lead-sheet-write-one"
+          {...gate("approve", "write to this lead")}
+        />
+      ) : null}
     </div>
   );
 }

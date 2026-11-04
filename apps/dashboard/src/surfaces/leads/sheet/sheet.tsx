@@ -4,7 +4,8 @@
  * to OK, why one was held, what they said); and five folded lines that answer before they open, the same five on every
  * lead (Fit, Contact, Company or About, Sequence, History), nothing behind a tab. On a desk a panel beside the rows; on a
  * phone the kit's sheet with two rests, the lines under the card at half, so half is never empty, and opening one raises
- * it. The dock at its foot holds only what to press, and where nothing needs you there is no foot at all. It draws once:
+ * it. The dock at its foot holds only what to press: what needs you, else the quiet ways on (Take out, asked first; your
+ * call; Write to them, a step of the card sent from your own mail app), and no foot where nothing is left. It draws once:
  * who they are at the press, and all the rest together when the reads that decide it are in (facts.ts
  * sheetStillReading).
  *
@@ -20,6 +21,7 @@ import {
   LEAD_SHEET_WORDS as W,
   dockSlotsOf,
   leadPickerRowsOf,
+  placeStands,
   type LeadLineId,
   type LeadPeekVM,
   type LeadPickerRowVM,
@@ -36,12 +38,9 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { Menu } from "../../kit/menu/menu";
 import { Sheet } from "../../kit/sheet/sheet";
 import { refusalToast, touchSwipe } from "../../legacy-verbs";
-import { MenuInPlace, menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { LeadCallAsk, LeadPeekAsk, LeadSentAsk } from "../peek/asks";
-import { LeadDraftPane } from "../peek/draft-pane";
 import type { Armed, Deck, DraftState, Flash, PeekActs, PeekMode } from "../peek/types";
 import { PileBulk, type PileBulkFacts } from "../pile/bulk";
 import { keepPileForTheWayBack, type LeadPile } from "../pile/use-pile";
@@ -49,15 +48,16 @@ import { stopWritingTo } from "../reach-out/lines";
 import { undoRewrite, type RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
 import { useSheetUi } from "./sheet-ui";
 import { SheetDock } from "./dock";
-import { SheetApproveAsk, SheetRewrite, SheetSaidAsk, SheetToSend } from "./dock-asks";
+import { SheetApproveAsk, SheetLeaveAsk, SheetRewrite, SheetSaidAsk, SheetToSend, wroteActsOf } from "./dock-asks";
 import { railSequenceOf, sheetFactsOf, waitingOf, type SheetFacts, type SheetPileFacts } from "./facts";
 import { holdSheetKeys } from "./keys";
 import { closeLeadOver } from "./lead-over";
 import { SheetLines } from "./panes";
-import { SheetDoors, SheetEnd, SheetNow, SheetProgress, SheetWho } from "./parts";
+import { SheetDoors, SheetEnd, SheetMore, SheetNow, SheetProgress, SheetWho } from "./parts";
 import { SheetNew, SheetPicker, type NewStart } from "./picker";
 import { openRecordFor, runSheetAct, takeOut, type SheetRun } from "./run";
 import type { LeadAim } from "./use-aim";
+import { SheetWrite, SheetWriteDock } from "./write";
 
 /** The pile, as the sheet draws it: its acts, its own facts, its line, its name, Add them all, and its end. */
 export interface SheetPileView {
@@ -110,68 +110,32 @@ interface SheetDraw {
 
 /* ---------------------------------------------------------------------------------------------------- the head -- */
 
-/** What is known of them, as text to paste elsewhere: the name, where, the phone, the email and the site. */
-const allOf = (vm: LeadPeekVM) =>
-  [
-    vm.name,
-    vm.sub,
-    vm.where ? vm.where.line : null,
-    vm.reach.phone ? vm.reach.phone.value : null,
-    vm.reach.email.address,
-    vm.links.website ? vm.links.website.href : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+/** The place that stands for them, where one does: Take out asks there, and Never write to them again under it. */
+const standing = (facts: SheetFacts | null) =>
+  facts && facts.place && placeStands(facts.place.place.group) ? facts.place : null;
+
+/** The dock asks Take out itself (a sequence that runs and needs nothing of you), with Never write to them again under it. */
+const dockLeaves = (facts: SheetFacts | null) =>
+  !!facts && !!facts.dock && dockSlotsOf(facts.dock).some((s) => s.act === "leave");
 
 /**
- * The lead's More, its rare acts behind one labelled caret (Ruben, 20 Oct 2026: no three dots): They wrote back… (an email
- * sent by hand, where no mailbox is read), Copy details, Never write to them again (every sequence), and what contracts'
- * leadPeekMenu offers this member (Erase, the owner's).
+ * The lead's More (parts.tsx): Never write to them again where a sequence has them and the dock's Take out does not
+ * already ask it (an email waiting for your OK, held, or yours to send, whose Take out leaves that email alone).
  */
 function sheetMoreOf(d: SheetDraw) {
   const { vm, p, facts, sheet } = d;
   if (!vm || !p.on) return null;
-  const on = p.on;
   const place = facts ? facts.place : null;
-  const told = !!place && !place.reads_replies && place.sends.some((s) => s.sent_at);
-  const items: PeopleMenuItem[] = [
-    ...(told ? [{ label: W.menu.theyWrote, icon: "chat", onClick: () => sheet.put({ ask: "said" }) }] : []),
-    {
-      label: W.menu.copy,
-      icon: "copy",
-      onClick: () => {
-        void navigator.clipboard?.writeText(allOf(vm)).then(() => p.flash({ tone: "ok", msg: W.menu.copied }));
-      },
-    },
-    ...(place
-      ? [{ label: W.menu.never, title: W.menu.neverHint, icon: "stop", onClick: () => sheet.put({ ask: "stop" }) }]
-      : []),
-    ...(on.menu ?? []).map((m) => ({
-      label: m.id === "erase" ? W.menu.erase : m.label,
-      icon: "x",
-      danger: m.danger,
-      onClick: m.id === "erase" ? on.onEraseAsk : undefined,
-    })),
-  ];
   return (
-    <MenuInPlace>
-      <Menu
-        label={W.moreOf}
-        trigger={
-          <Button
-            variant="secondary"
-            size="sm"
-            className="lw-door lw-door-more"
-            aria-label={W.moreOf}
-            data-testid="peek-more"
-          >
-            {W.more}
-            <Icon name="chevron-down" size={11} />
-          </Button>
-        }
-        groups={menuGroups(items)}
-      />
-    </MenuInPlace>
+    <SheetMore
+      vm={vm}
+      on={p.on}
+      told={!!place && !place.reads_replies && place.sends.some((s) => s.sent_at)}
+      never={!!place && !dockLeaves(facts)}
+      flash={p.flash}
+      onSaid={() => sheet.put({ ask: "said" })}
+      onNever={() => sheet.put({ ask: "stop" })}
+    />
   );
 }
 
@@ -248,7 +212,7 @@ const sheetHeldBy = (f: SheetFacts, retry: () => void) =>
 function topOf(d: SheetDraw, desk: boolean) {
   const { facts, vm, p, sheet } = d;
   if (!facts || !vm) return null;
-  const dockCalls = !!facts.dock && !!facts.dock.primary && facts.dock.primary.act === "call";
+  const dockCalls = !!facts.dock && dockSlotsOf(facts.dock).some((s) => s.act === "call");
   return (
     <article key={vm.id} className="lw-card-w lw-turn" aria-label={vm.name} data-testid="lead-pile-lead">
       {sheetWhoOf(d, desk)}
@@ -281,7 +245,7 @@ function sheetLines(d: SheetDraw) {
       onOpen={d.line.turn}
       seq={{
         onOpenRecord: (id) => openSequence(d, id),
-        onTakeOut: facts.place && run ? () => void takeOutNow(d) : null,
+        onTakeOut: facts.place && run ? run.askLeave : null,
         onOpenStep: (place) => sheet.put({ openStep: sheet.ui.openStep === place ? null : place }),
         openStep: sheet.ui.openStep,
         busy: d.busy.on,
@@ -396,9 +360,15 @@ const suggestOf = (search: string | null, rows: readonly LeadPickerRowVM[] | nul
   return (rows ?? []).some((r) => r.name.trim().toLowerCase() === name.toLowerCase()) ? null : name;
 };
 
+/** One email instead of a sequence: the picker gives way to the draft, a step of the card. */
+function writeFromPicker(d: SheetDraw, run: SheetRun) {
+  d.sheet.put({ step: "card" });
+  void runSheetAct({ act: "write" }, run);
+}
+
 /** The step open: the picker, New, or the card. */
 function sheetStepOf(d: SheetDraw) {
-  const { vm, sheet, pickRows } = d;
+  const { vm, sheet, pickRows, run } = d;
   if (!vm) return null;
   if (sheet.ui.step === "picker")
     return (
@@ -409,6 +379,7 @@ function sheetStepOf(d: SheetDraw) {
         busy={d.busy.on}
         onPick={(row) => void pickAndAdd(d, row)}
         onNew={() => sheet.put({ step: "new" })}
+        onWrite={d.facts && d.facts.canWrite && run ? () => writeFromPicker(d, run) : null}
         onBack={() => sheet.put({ step: "card" })}
       />
     );
@@ -430,18 +401,22 @@ function sheetStepOf(d: SheetDraw) {
 
 /* --------------------------------------------------------------------------------------------- the asks and dock -- */
 
-/** What the sheet asks over the card: whether to erase, how the call went, whether the draft was sent. */
+/**
+ * What the sheet asks over the card: whether to erase, how the call went, whether the draft was sent. An email sent then
+ * asks Take out where a sequence would write on (wroteActsOf).
+ */
 function asksOf(d: SheetDraw) {
-  const { p, vm } = d;
+  const { p, vm, facts, sheet } = d;
   if (!vm || !p.on) return null;
   const a = p.armed;
+  const on = wroteActsOf(p.on, { stands: !!standing(facts), ask: () => sheet.put({ ask: "leave", wrote: true }) });
   const ask =
     p.mode === "erase" || p.mode === "erasing" ? (
-      <LeadPeekAsk vm={vm} mode={p.mode} busy={p.busy} on={p.on} />
+      <LeadPeekAsk vm={vm} mode={p.mode} busy={p.busy} on={on} />
     ) : a && a.asked && a.leadId === vm.id && a.kind === "call" ? (
-      <LeadCallAsk armed={a} busy={p.busy} on={p.on} deck={p.deck} />
+      <LeadCallAsk armed={a} busy={p.busy} on={on} deck={p.deck} />
     ) : a && a.asked && a.leadId === vm.id && a.kind === "sent" ? (
-      <LeadSentAsk busy={p.busy} on={p.on} />
+      <LeadSentAsk busy={p.busy} on={on} />
     ) : null;
   return ask ? (
     <div className="lw-ask" ref={askInView}>
@@ -457,12 +432,32 @@ const askInView = (el: HTMLDivElement | null) => {
   if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 };
 
-/** The dock, or what it asks in its place: They wrote back…, Never write to them again, what should change. */
+/**
+ * The dock, or what it asks in its place: They wrote back…, Take out, Never write to them again, what should change;
+ * while an email of your own is written, its mail app.
+ */
 function dockOf(d: SheetDraw, desk: boolean) {
   const { p, vm, facts, sheet } = d;
   const pile = p.pile ? p.pile.pile : null;
   const busy = p.busy || d.busy.on || !!(pile && pile.busy);
   if (!vm || !facts || sheet.ui.step !== "card") return null;
+  if (p.mode === "draft" && p.on) return <SheetWriteDock vm={vm} draft={p.draft} busy={busy} on={p.on} />;
+  const stands = standing(facts);
+  if (sheet.ui.ask === "leave" && stands)
+    return (
+      <SheetLeaveAsk
+        vm={vm}
+        place={stands}
+        wrote={sheet.ui.wrote}
+        busy={busy}
+        onYes={() => {
+          sheet.put({ ask: null, wrote: false });
+          takeOutNow(d);
+        }}
+        onNever={() => sheet.put({ ask: "stop", wrote: false })}
+        onNo={() => sheet.put({ ask: null, wrote: false })}
+      />
+    );
   if (sheet.ui.ask === "said")
     return (
       <SheetSaidAsk vm={vm} flash={p.flash} moved={d.moved} busy={d.busy} onBack={() => sheet.put({ ask: null })} />
@@ -588,7 +583,7 @@ function sheetBodyOf(d: SheetDraw, desk: boolean) {
   if (!vm) return p.pile ? pileEndDrawnOf(d) : null;
   const step = sheetStepOf(d);
   if (step) return step;
-  if (p.mode === "draft" && p.on) return <LeadDraftPane vm={vm} draft={p.draft} busy={p.busy} on={p.on} />;
+  if (p.mode === "draft" && p.on) return <SheetWrite vm={vm} draft={p.draft} busy={p.busy} on={p.on} />;
   return (
     <>
       {topOf(d, desk)}
@@ -647,8 +642,8 @@ function phoneOf(d: SheetDraw) {
     : pileRow && p.pile
       ? touchSwipe({ onLeft: () => p.pile && p.pile.pile.skip(pileRow), onRight: null, onDown: null })
       : {};
-  // A line opened raises the sheet; let down to half, what was open shuts.
-  const raised = !!vm && (sheet.ui.full || sheet.ui.step !== "card" || d.line.open !== null);
+  // A line opened raises the sheet, as a step does and an email being written; let down to half, what was open shuts.
+  const raised = !!vm && (sheet.ui.full || sheet.ui.step !== "card" || p.mode === "draft" || d.line.open !== null);
   const foot = footOf(d, false);
   const onRest = (at: "half" | "full") => {
     sheet.put({ full: at === "full" });
@@ -725,6 +720,8 @@ export function LeadSheet(p: LeadSheetProps) {
           railReading: !!railId && rec.state === "reading",
           waiting: waitingOf(railRecord, place.place ? place.place.place.batch_id : null),
           pile: p.pile ? p.pile.facts : null,
+          // Over a record the lead has no draft of its own: Write stays on Leads.
+          writes: !p.over && !!p.on,
         },
         Date.now(),
       )
@@ -745,6 +742,7 @@ export function LeadSheet(p: LeadSheetProps) {
         openPicker: () => sheet.put({ step: "picker", full: true }),
         askSaid: () => sheet.put({ ask: "said" }),
         askRewrite: () => sheet.put({ ask: "rewrite" }),
+        askLeave: () => sheet.put({ ask: "leave", wrote: false }),
         // A batch of more than this one email asks before it goes; a batch of one goes on the press, its email above it.
         askApprove: facts && facts.waiting && facts.waiting.ready > 1 ? () => sheet.put({ ask: "approve" }) : null,
         moved,
@@ -758,7 +756,7 @@ export function LeadSheet(p: LeadSheetProps) {
   useEffect(() => {
     const dock = facts ? facts.dock : null;
     holdSheetKeys(
-      p.pile && dock && run && sheet.ui.step === "card" && !sheet.ui.ask
+      p.pile && dock && run && sheet.ui.step === "card" && !sheet.ui.ask && p.mode !== "draft"
         ? (key) => {
             if (key === "A") return sheet.put({ step: "picker", full: true });
             if (key === "n" && dock.x) return void runSheetAct({ act: "not_a_fit" }, run);

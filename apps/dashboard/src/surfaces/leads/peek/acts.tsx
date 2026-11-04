@@ -132,8 +132,14 @@ const leadDraftActs = (
     onCopyDraft: async () => {
       const d: DraftState = p.draft || {};
       if (!d.body) return;
-      if (window.navigator && window.navigator.clipboard)
-        await window.navigator.clipboard.writeText(`${d.subject}\n\n${d.body}`);
+      // A clipboard the browser keeps shut copies nothing: said so, and nothing is asked about a send that cannot follow.
+      try {
+        if (window.navigator && window.navigator.clipboard)
+          await window.navigator.clipboard.writeText(`${d.subject}\n\n${d.body}`);
+      } catch {
+        p.flash({ tone: "warn", msg: W.copyRefused });
+        return;
+      }
       armFor("sent");
       p.flash({ msg: W.copiedDraft });
     },
@@ -228,7 +234,7 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     ...leadDraftActs(p, api, armFor),
     onSaidSent: async () => {
       p.setArmed(null);
-      await post({ kind: "emailed" }, "Not marked");
+      return (await post({ kind: "emailed" }, "Not marked")) !== null;
     },
     onNotYet: () => p.setArmed(null),
     // A reach-out's story with this lead and its doors (Reach out Part 6, H9), drawn in the body under the fit.

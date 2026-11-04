@@ -178,6 +178,16 @@ export const sequenceWordsSpec: ProposalSpec = {
 };
 
 /**
+ * Leads, said as leads: a sequence to leads takes businesses, not people. The lead sheet's Take out says so (`leads`), since
+ * it names their place by its enrollment; lead ids alone say so too.
+ */
+const saidAsLeads = (pl: Record<string, unknown>): boolean =>
+  pl.leads === true ||
+  (Array.isArray(pl.lead_ids) &&
+    pl.lead_ids.length > 0 &&
+    !(Array.isArray(pl.enrollment_ids) && pl.enrollment_ids.length > 0));
+
+/**
  * People taken out of a sequence: a send of theirs not yet gone is skipped with them. The undo puts them back with their
  * next step (00450 sequence_return), where still out for its reason; the sends it skipped stay skipped, and it says so.
  */
@@ -199,11 +209,7 @@ export const sequenceLeaveSpec: ProposalSpec = {
   },
   receipt: ({ payload: pl }, data) => {
     const n = Number(rec(data).left) || 0;
-    // Leads, said as leads: a sequence to leads takes businesses, not people (the lead sheet's Take out).
-    const leads =
-      Array.isArray(pl.lead_ids) &&
-      pl.lead_ids.length > 0 &&
-      !(Array.isArray(pl.enrollment_ids) && pl.enrollment_ids.length > 0);
+    const leads = saidAsLeads(pl);
     return n === 0
       ? "Nobody was still in it"
       : `${plural(n, leads ? "lead" : "person", leads ? "leads" : "people")} taken out`;
@@ -211,20 +217,22 @@ export const sequenceLeaveSpec: ProposalSpec = {
   undo: {
     label: () => "Put them back",
     window: "ten_minutes",
-    record: (_p, data) => {
+    record: ({ payload: pl }, data) => {
       const id = asText(rec(data).sequence_id);
       const decision = decisionOf(data);
-      return id && decision && (Number(rec(data).left) || 0) > 0 ? { sequence_id: id, decision_id: decision } : null;
+      return id && decision && (Number(rec(data).left) || 0) > 0
+        ? { sequence_id: id, decision_id: decision, ...(saidAsLeads(pl) ? { leads: true } : {}) }
+        : null;
     },
     call: (u) => {
       const id = asText(u.sequence_id);
       return id ? { route: "POST sequences/[id]/return", params: { id } } : refuseWith(PROPOSAL_WORDS.noUndo);
     },
-    receipt: (data) => {
+    receipt: (data, u) => {
       const back = Number(rec(data).back) || 0;
       const out = Number(rec(data).sends_out) || 0;
       if (back === 0) return "Nobody could be put back: they left or came back in since";
-      const said = `${plural(back, "person", "people")} put back`;
+      const said = `${u.leads === true ? plural(back, "lead", "leads") : plural(back, "person", "people")} put back`;
       return out > 0
         ? `${said} · ${plural(out, "email", "emails")} left out ${out === 1 ? "stays" : "stay"} out`
         : said;
