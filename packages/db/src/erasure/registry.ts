@@ -271,7 +271,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   jobs: {
     // A thrown error can quote the recipient a provider refused.
     ...all(scrubbedBy("jobs_scrub", "erase_contact"), "payload", "last_error"),
-    // Ids only (jobs dedupeKeyOf).
+    // Ids only (job_dedupe_key_of, 00526: the parts each kind names in job_kinds).
     dedupe_key: NOT_PERSONAL,
   },
   lead_counters: { period: NOT_PERSONAL },
@@ -488,6 +488,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
   segments: all(NOT_PERSONAL, "name", "rule"),
+  // What the first run chose (decision 0091): the business's own number and how its calls reach the receptionist, the
+  // workspace's record; the steps it marked done, from a closed list.
+  setup_choices: { phone: WITH_WORKSPACE, marks: NOT_PERSONAL },
   // A sequence (decision 0060): its name, and a one-off kept as a draft (00465: who it goes to by list or everyone, when,
   // its channels and its message as the owner wrote it), the business's.
   sequences: all(NOT_PERSONAL, "name", "once"),

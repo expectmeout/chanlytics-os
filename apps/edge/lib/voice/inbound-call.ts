@@ -4,11 +4,11 @@
  * variables business_facts, caller_context, greeting and, when the workspace has a line to dial, handoff_number).
  * Auth: voiceDoorAuth("inbound"): Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL until Ruben sets
  * RETELL_DOORS_SIGNED=1; a knock with neither is a 401 that reads nothing and sends nothing, and what each knock that
- * came in carried is logged (voice_door_auth; lib/voice/voice-door-auth.ts says which doors read the secret, what is
- * built and what waits).
+ * came in carried is logged (voice_door_auth) and kept as a `webhook.auth` row naming the door
+ * (lib/voice/voice-door-auth.ts says which doors read the secret, what is built and what waits).
  *
  * The door is api/retell-inbound.ts: `door(receiveInboundCall)`, which names the request the platform's way (log.ts).
- * Everything a delivery does is here, in the order the door had it: the knock is checked (voiceDoorAuth), the call
+ * Everything a delivery does is here, in the order the door had it: the knock is checked (voiceDoorAuth, then keepKnock), the call
  * routed on the agent it arrived on, and the answer planned by planCallStart; past the key the answer is always 200.
  *
  * FINISHED as a door. It routes on the agent the call arrived on, hands the agent the business's facts and the
@@ -51,7 +51,7 @@ import { planCallStartWithin } from "./call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../packages/db.js";
 import { alertUnroutable } from "../inbound/alerts.js";
 import { logger } from "../log.js";
-import { keptUrl, voiceDoorAuth } from "./voice-door-auth.js";
+import { keptUrl, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
@@ -70,7 +70,9 @@ async function alertWithin(agentId: string | undefined): Promise<void> {
 export async function receiveInboundCall(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the ?key= while this door still reads one (voice-door-auth.ts says which doors do, and why).
-  if (!voiceDoorAuth("inbound", request, raw).ok) {
+  const knock = voiceDoorAuth("inbound", request, raw);
+  await keepKnock("inbound", knock);
+  if (!knock.ok) {
     return json(401, { ok: false });
   }
   let body: {

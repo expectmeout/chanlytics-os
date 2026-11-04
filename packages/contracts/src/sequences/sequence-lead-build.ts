@@ -514,9 +514,9 @@ export function leadPreviewEmailOf(p: {
 }
 
 /**
- * The email with its opening said, where the listing's own fields say one (contracts leadFactOf, decision 0078): the
- * check writes the same sentence when the batch is planned, so the preview reads as the send will. The email as it was
- * where it has no opening, or there is none to say.
+ * The email with its opening said, the one it goes with (contracts leadOpeningOf: the one its check wrote, else the
+ * sentence the listing says, decision 0078), so the preview reads as the send will. The email as it was where it has no
+ * opening, or there is none to say yet.
  */
 export function withOpeningSaid(email: LeadCardEmailVM, opening: string | null): LeadCardEmailVM {
   if (!opening) return email;

@@ -2,7 +2,7 @@
  * The real sink keeps an address a customer wrote, or leaves one alone.
  * pgSink.noteEmail (apps/edge/lib/inbound/persist.ts) is the one place the
  * inbound path writes contacts.email, and it does it in one call: the door
- * note_person_email (00522) keeps the address only where none is on file,
+ * note_person_email (00535) keeps the address only where none is on file,
  * under the person's row lock, so two messages cannot both write. Every outcome
  * here resolves -- the sink never throws into the handling path -- and what it
  * did is read back from the double's `seen`: the one call, and the row. The SQL
@@ -31,7 +31,7 @@ const ADDRESS = "ana@example.com";
 const people = (email, taken = null) => ({
   contacts: [{ id: "k1", tenant_id: "t1", email }, ...(taken ? [{ id: "k2", tenant_id: "t1", email: taken }] : [])],
 });
-/** The door as 00522 answers it, over the rows the world holds: kept where none is on file, never moved, never over one. */
+/** The door as 00535 answers it, over the rows the world holds: kept where none is on file, never moved, never over one. */
 const door = (tables) => (a) => {
   const row = tables.contacts.find((c) => c.id === a.p_contact_id && c.tenant_id === a.p_tenant_id);
   if (!row) return "not_found";

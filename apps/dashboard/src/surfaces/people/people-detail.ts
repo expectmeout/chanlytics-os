@@ -283,7 +283,33 @@ export async function notAPerson(id: string, scope: "address" | "domain"): Promi
   return r;
 }
 
-/** The people this tab deleted (deletePerson, notAPerson). */
+/** What a press of Delete… answered: who went, who did not and why, who was not this workspace's, who is left. */
+export interface DeletedMany {
+  ok: boolean;
+  erased: string[];
+  failed: { id: string; message: string }[];
+  skipped: string[];
+  left: string[];
+  message?: string;
+}
+
+/**
+ * Many people deleted at one press (People's Delete…), fifty at most, each as deletePerson deletes one; with
+ * `notAPersonToo`, each one's address said automated first, as notAPerson says it. Owner-only on the server, on a fresh
+ * session, and never undone. A refused press deleted nobody, and every one asked is left.
+ */
+export async function deletePeopleMany(ids: string[], notAPersonToo: boolean): Promise<DeletedMany> {
+  const take = [...new Set(ids)].slice(0, 50);
+  const r = await api()("POST contacts/erase", { body: { ids: take, not_a_person: notAPersonToo } });
+  if (!r.ok) return { ok: false, erased: [], failed: [], skipped: [], left: take, message: r.message };
+  for (const id of r.data.erased) {
+    people().forget(id);
+    deletedHere.add(id);
+  }
+  return { ok: true, ...r.data };
+}
+
+/** The people this tab deleted (deletePerson, notAPerson, deletePeopleMany). */
 const deletedHere = new Set<string>();
 
 /**

@@ -432,7 +432,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     rating: "5.0 · 16",
     reviewsTitle: "",
     stage: "ready",
-    stageLabel: "Ready",
+    stageLabel: "Not contacted",
     contactId: null,
     foundLabel: "6m",
     foundLine: "Found 6m ago",
@@ -506,7 +506,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
   );
   assert.deepEqual(
     [excluded.excludedBy, excluded.fitLabel, excluded.fitTitle],
-    ["Chain", "Chain", "Left out: Chain"],
+    ["Chain", "Chain", "Filtered out: Chain"],
     "Excluded wears the criterion that left it out",
   );
   // A phone's row says when it was found in words, as People's says when they last wrote: a date once it is a week old.
@@ -572,7 +572,7 @@ test("the rail and the standing line count what the lists hold, and say who need
     rail.lists.map((l) => [l.label, l.count]),
     [
       ["All leads", 322],
-      ["Ready", 272],
+      ["Not contacted", 272],
       ["Contacted", 31],
       ["Talking", 9],
       ["Said no", 6],
@@ -592,17 +592,17 @@ test("the rail and the standing line count what the lists hold, and say who need
   );
   assert.deepEqual(leadsStanding(COUNTS, [SEARCH_WAITING, SEARCH_DONE]), {
     total: "322 leads",
-    parts: ["272 ready", "2 searches"],
+    parts: ["272 not contacted", "2 searches"],
     needsYou: { count: 1, searchId: SEARCH_WAITING.id },
   });
   assert.deepEqual(
     leadRail({ ...COUNTS, said_no: 0 }, []).lists.map((l) => l.label),
-    ["All leads", "Ready", "Contacted", "Talking", "Not a fit"],
+    ["All leads", "Not contacted", "Contacted", "Talking", "Not a fit"],
     "Said no only when there are any",
   );
   assert.deepEqual(
     leadsStanding(COUNTS, [SEARCH_DONE]),
-    { total: "322 leads", parts: ["272 ready", "1 search"], needsYou: null },
+    { total: "322 leads", parts: ["272 not contacted", "1 search"], needsYou: null },
     "one search is a search",
   );
   assert.deepEqual(
@@ -1042,7 +1042,7 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
   ]);
   assert.deepEqual(st({ member: { ...row().member, class: "excluded", fit: null, excluded_by: "chain" } }), [
     "out",
-    "Left out",
+    "Filtered out",
     null,
   ]);
 });
@@ -1201,7 +1201,7 @@ test("D5: the band is the search's whole shape, and the fit split is worth drawi
   assert.deepEqual(band.classes, [
     { id: "qualified", label: "19 Qualified", count: 19 },
     { id: "review", label: "2 Needs review", count: 2 },
-    { id: "excluded", label: "7 Left out", count: 7 },
+    { id: "excluded", label: "7 Filtered out", count: 7 },
   ]);
   // A tab says the pill's words (LEAD_CLASS_WORDS) with the count in front, and wears the pill's tone.
   for (const c of band.classes) assert.equal(c.label, `${c.count} ${stateLabel("lead_class", c.id)}`, c.id);

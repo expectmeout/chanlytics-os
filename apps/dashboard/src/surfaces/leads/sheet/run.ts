@@ -10,6 +10,7 @@
 import {
   addressOf,
   routeOfPath,
+  runRoute,
   sequenceRoute,
   sequenceRouteBack,
   type HoldDoor,
@@ -50,6 +51,11 @@ export interface SheetRun {
   askSaid: () => void;
   /** The dock's own ask: what should change in the opening, before it is written again (00505). */
   askRewrite: () => void;
+  /**
+   * The dock's own ask before Approve sends a batch of more than their one email: how many, from where, over how long; null
+   * where the batch is theirs alone, which goes on the press.
+   */
+  askApprove: (() => void) | null;
   /** Said once their place moved: read it again. */
   moved: () => void;
   /** The sheet is over another page (a record): its record is that page, and its adds have no pile. */
@@ -66,13 +72,23 @@ export function openRecordFor(
   sequenceId: string,
   tab: SequenceTab = "people",
 ): void {
+  tripFrom(r, sequenceRoute(sequenceId, tab));
+}
+
+/** Into Sequences at a route, the names held for the way back, and the way back to this Leads address on it. */
+function tripFrom(r: Pick<SheetRun, "leadId" | "name" | "row">, route: string): void {
   holdTrip({
     leadId: r.leadId,
     leadName: r.name,
     listId: r.row ? r.row.searchId : null,
     listName: r.row ? r.row.searchName || null : null,
   });
-  navigate(sequenceRouteBack(sequenceRoute(sequenceId, tab), routeOfPath(window.location.pathname)));
+  navigate(sequenceRouteBack(route, routeOfPath(window.location.pathname)));
+}
+
+/** Their batch's own screen, every email of it (Approve's Read all), with the way back to this lead, as a record's trip. */
+export function openRunFor(r: Pick<SheetRun, "leadId" | "name" | "row">, sequenceId: string, runId: string): void {
+  tripFrom(r, runRoute(runId, sequenceId));
 }
 
 /** Take out of the sequence their place stands in: the leave verb (by their place, or off its list), Put back its undo. */
@@ -201,7 +217,7 @@ async function decide(act: "later" | "add" | "keep" | "exclude", r: SheetRun) {
 }
 
 /** Approve the batch their step waits in, in place: the run's own verb, as the record's dock presses it. */
-async function approveOne(r: SheetRun) {
+export async function approveOne(r: Pick<SheetRun, "place" | "flash" | "moved">): Promise<void> {
   const place = r.place;
   if (!place || !place.place.batch_id) return;
   await pressed(
@@ -266,7 +282,7 @@ export async function runSheetAct(s: Pick<LeadSheetSlotVM, "act" | "door">, r: S
     case "thread":
       return openAct(act, r);
     case "approve":
-      return approveOne(r);
+      return r.askApprove ? r.askApprove() : approveOne(r);
     case "decide":
       // Rewrite the opening asks what should change first, in the dock's place; every other answer is pressed as it is.
       if (s.door === "rewrite") return r.askRewrite();

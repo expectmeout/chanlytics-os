@@ -18,12 +18,26 @@
  * either way. That condition, not `certain`, is what makes this safe to run on
  * a job whose outcome is unknown.
  */
-import { isCampaignEmail } from "@chanlytics/contracts";
+import {
+  IMPORT_SOURCES,
+  IMPORT_STOPPED_WORDS,
+  PER_MAILBOX_SOURCES,
+  isCampaignEmail,
+  type ImportSource,
+  type JobKind,
+} from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
-import { emitEvent, failQueuedSend } from "@chanlytics/db";
+import {
+  emitEvent,
+  failOpenDelivery,
+  failQueuedSend,
+  holdNoticeIfUnkept,
+  noteImport,
+  previewBuilt,
+} from "@chanlytics/db";
 import { carriedBy, nextBatch } from "./broadcast-send";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
-import { MAX_RESUMES, type Db } from "./ledger";
+import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
 
 export interface TerminalJob {
@@ -36,7 +50,7 @@ export interface TerminalJob {
 /** One thing a job was in the middle of, and what became of it. */
 export interface Settled {
   /** The kind of row, in the words the product uses for it. */
-  what: "message" | "broadcast" | "email";
+  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
   /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
@@ -192,161 +206,281 @@ async function failBroadcast(
   return [{ what: "broadcast", changed: true, notResumed: why, ...far }];
 }
 
+/** A reply's send: the message still claiming to be on its way is marked failed, and its thread flagged for a person. */
+async function settleSend(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
+  const reason = certain ? "never_delivered" : "run_interrupted";
+  const messageId = idFrom(job.payload, "message_id");
+  if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
+  // Conditional on 'queued': if the handler did record the send before dying,
+  // that row already says 'sent', and saying otherwise would be a lie about a
+  // message that reached a real person. Only a row still claiming to be on
+  // its way is touched.
+  // A run that died mid-send may have sent: its outcome is unknown, which is what lets an email's receipt still
+  // settle it (00177's messages_guard) and what counts it toward its mailbox's day (mailbox_capacity).
+  const { row, error } = await failQueuedSend(db, {
+    tenantId: job.tenant_id,
+    messageId,
+    error: { reason, note: noteOf(certain, why), ...(certain ? {} : { outcome: "unknown" }) },
+  });
+  // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
+  // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5). A campaign's
+  // email is not a reply to anyone waiting: it is recorded on its row and flags nothing (Reach out D4).
+  const campaign = row?.channel === "email" && isCampaignEmail(row.meta?.email?.request);
+  const flagged =
+    !error && row?.conversation_id && !campaign
+      ? await upsertEscalation(
+          db,
+          job.tenant_id,
+          row.conversation_id,
+          "send_failed",
+          `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, why)}.`,
+        )
+      : null;
+  return [
+    {
+      what: "message",
+      changed: !!row,
+      ...(flagged ? { flagged } : {}),
+      ...(error ? { error } : {}),
+    },
+  ];
+}
+
+/** An email's intake: the mailbox marked, and the thread flagged for a person when the email got as far as being kept. */
+async function settleIntake(db: Db, job: TerminalJob): Promise<Settled[]> {
+  // The intake owns this email's ending, so it owns the failure too.
+  //
+  // The deadman sweep used to cover this by accident, and wrongly: it claimed
+  // the row, called it a receptionist that never answered, and marked it
+  // handled. It no longer touches email (edge unfinished.ts), which would
+  // have left a dead intake with nothing but a job alert -- the customer's
+  // words sitting in a thread with no hold on it and nobody looking.
+  //
+  // What can be flagged is a thread, and there is one only if the intake got
+  // as far as storing the email. Dying before that leaves nothing to find,
+  // and the job's own alert is then the true and only signal.
+  const receivedId = idFrom(job.payload, "received_id");
+  if (!receivedId) return [{ what: "email", changed: false, error: "no received_id on the job" }];
+  // The mailbox is told either way, and FIRST: it is the one thing that is
+  // there whether or not the email got as far as being stored, so an intake
+  // that died before it could make a thread still leaves a mark the owner
+  // sees. It is cleared by the next email that is taken in, so a workspace
+  // whose mail is flowing does not carry an old failure.
+  const mailbox = await noteMailboxTrouble(db, job.tenant_id, idFrom(job.payload, "mailbox_id"));
+  const { data, error } = await db
+    .from("messages")
+    .select("conversation_id")
+    .eq("tenant_id", job.tenant_id)
+    .eq("channel", "email")
+    .eq("external_id", receivedId)
+    .maybeSingle();
+  if (error) return [{ what: "email", changed: false, ...mailbox, error: error.message }];
+  const conversationId = (data as { conversation_id?: string | null } | null)?.conversation_id ?? null;
+  if (!conversationId) return [{ what: "email", changed: false, ...mailbox }];
+  // The same hold the intake would have raised, in words that say what
+  // actually happened rather than blaming the receptionist for not answering.
+  const flagged = await upsertEscalation(db, job.tenant_id, conversationId, "email_review", EMAIL_UNFINISHED);
+  return [{ what: "email", changed: true, flagged, ...mailbox }];
+}
+
+/** A run's batch: handed to a fresh run unless one is coming, or failed with why. */
+async function settleBroadcast(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const broadcastId = idFrom(job.payload, "broadcast_id");
+  if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
+  // broadcastSend schedules its own next batch, so one lost link used to
+  // strand the whole run: the broadcast sat 'failed' with half its people
+  // reached and the rest queued for ever. The rest are HANDED TO A FRESH RUN
+  // instead. A resumed batch reads the message row a dying run left
+  // (core/messages/broadcast.ts alreadySent) rather than sending to that
+  // person again, which is what makes a second run safe where a second
+  // outbound_send is not. Conditional on the broadcast still claiming to be in
+  // flight, so one that finished between the read and here is left exactly as
+  // it finished; when no fresh run can be written, or too many already have
+  // been, it falls back to the honest failure with the reason.
+  const { data: row, error: readErr } = await db
+    .from("sequence_batches")
+    .select("id, state")
+    .eq("id", broadcastId)
+    .eq("tenant_id", job.tenant_id)
+    .maybeSingle();
+  if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
+  // 'scheduled' as well as 'sending': a run killed before it could move the
+  // row off 'scheduled' sent nobody, and leaving it there stranded the whole
+  // broadcast where nothing would ever pick it up again — not sending, not
+  // failed, and not said.
+  if (!row || (row.state !== "sending" && row.state !== "scheduled")) return [{ what: "broadcast", changed: false }];
+
+  const far = await howFar(db, job.tenant_id, broadcastId);
+  if (far.error) return [{ what: "broadcast", changed: false, error: far.error }];
+  const { reached, remaining } = far;
+
+  // Is a run already coming? The dying run may have scheduled its own next
+  // batch and then failed to report back, and that chain has been working the
+  // queue for the ninety seconds it took this row's lease to expire. A second
+  // chain alongside it reads the same queued rows, finds no message written
+  // for them yet, and delivers to all of them AGAIN — the one thing a
+  // broadcast must never do. A read that cannot say is treated as "yes",
+  // because the cost of guessing wrong that way is only a broadcast that
+  // shows as sending.
+  const live = await db
+    .from("jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", job.tenant_id)
+    .eq("kind", "broadcast_send")
+    .eq("payload->>broadcast_id", broadcastId)
+    .in("state", ["scheduled", "fired"])
+    .neq("id", job.id);
+  if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
+  if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
+
+  const resumes = resumesOf(job.payload);
+  if (resumes >= MAX_RESUMES)
+    return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, {
+      reached,
+      remaining,
+    });
+  try {
+    // The count rides the payload, and so do the waits and stalls the run had (a resumed run still looks at the
+    // day's sending hours): nothing else survives the death of the run. broadcastSend's own scheduleNext writes a
+    // payload without the count, so a run that got as far as its next batch resets it.
+    await scheduleJob(db, {
+      tenantId: job.tenant_id,
+      kind: "broadcast_send",
+      dueAt: new Date(),
+      payload: { ...nextBatch(broadcastId, carriedBy(job.payload)), resumes: resumes + 1 },
+    });
+    return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
+  } catch (e) {
+    return failBroadcast(db, job, broadcastId, e instanceof Error ? e.message : String(e), { reached, remaining });
+  }
+}
+
 /**
- * Settle what this job was in the middle of. Never throws: a settlement that
- * cannot be written is reported in its own row, because the caller's job is to
- * tell an owner the truth and "we could not check" is part of the truth.
+ * A lead's preview that will not be built (00497): marked failed, so a send waiting on it is skipped with why instead of
+ * waiting for ever. A preview built, or failed already, is left as it is (preview_built answers false).
+ */
+async function settlePreview(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const id = idFrom(job.payload, "preview_id");
+  if (!id) return [{ what: "preview", changed: false, error: "no preview_id on the job" }];
+  return [{ what: "preview", changed: await previewBuilt(db, id, false, "build_failed") }];
+}
+
+/**
+ * A part of a connection's history that will not come in (00478): the source's row says it stopped, with Try again, so a
+ * stop is never only a failed job and Connections never says it is still bringing it in. A write of a run the row is no
+ * longer held by changes nothing (import_ledger_note).
+ */
+async function settleImport(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const source = idFrom(job.payload, "source");
+  if (!source || !IMPORT_SOURCES.some((s) => s === source))
+    return [{ what: "import", changed: false, error: "no source on the job" }];
+  const [run] = (idFrom(job.payload, "seq") ?? "1:1").split(":");
+  const connection = idFrom(job.payload, "connection_id");
+  await noteImport(db, {
+    tenantId: job.tenant_id,
+    source,
+    connectionId: PER_MAILBOX_SOURCES.includes(source as ImportSource) ? connection : null,
+    run: run || "1",
+    state: "failed",
+    error: IMPORT_STOPPED_WORDS.failed,
+    add: true,
+  });
+  return [{ what: "import", changed: true }];
+}
+
+/**
+ * A booking tool's notice that will not be read (00345): held for a person, unless the ledger already keeps one for it,
+ * so it is in Settings › Business with Read again and never only a failed job. Its last try holds it itself; this is the
+ * run that died on it.
+ */
+async function settleNotice(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const receivedId = idFrom(job.payload, "received_id");
+  const tool = idFrom(job.payload, "tool");
+  if (!receivedId || !tool) return [{ what: "notice", changed: false, error: "no received_id or tool on the job" }];
+  const held = await holdNoticeIfUnkept(db, {
+    tenant_id: job.tenant_id,
+    notice_id: receivedId,
+    tool,
+    from_address: null,
+    subject: null,
+    received_at: new Date().toISOString(),
+    outcome: "held",
+    hold_reason: "unreadable",
+    appointment_id: null,
+  });
+  return [{ what: "notice", changed: held }];
+}
+
+/**
+ * One event's delivery that will not finish (00334): settled failed unless its subscriber's verdict is already on the
+ * row, so Deliver again reaches it. A run that died before the verdict left the delivery scheduled, which nothing takes.
+ */
+async function settleDelivery(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
+  const eventId = idFrom(job.payload, "event_id");
+  const subscriber = idFrom(job.payload, "subscriber");
+  if (!eventId || !subscriber)
+    return [{ what: "delivery", changed: false, error: "no event or subscriber on the job" }];
+  const moved = await failOpenDelivery(db, {
+    tenantId: job.tenant_id,
+    eventId,
+    subscriber,
+    error: certain ? (why ?? "it never ran") : RUN_INTERRUPTED,
+  });
+  return [{ what: "delivery", changed: moved }];
+}
+
+type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
+
+/**
+ * Who makes each kind's leavings final, whichever way its job ended: its last try threw, a run died and the ledger gave
+ * up, or nothing knew the kind (tick.ts conclude reaches this for all three). Null for a kind that leaves nothing saying
+ * it is still going. jobs/job-kinds.test.mjs holds it to kinds.ts `settles`.
+ */
+export const SETTLERS: Record<JobKind, Settler | null> = {
+  outbound_send: settleSend,
+  broadcast_send: settleBroadcast,
+  email_ingest: settleIntake,
+  booking_read: settleNotice,
+  event_deliver: settleDelivery,
+  history_import: settleImport,
+  preview_build: settlePreview,
+  line_provision: null,
+  lead_round_start: null,
+  lead_collect: null,
+  lead_check: null,
+  push_send: null,
+  push_receipts: null,
+  reply_read: null,
+  inbound_answer: null,
+  website_read: null,
+  erasure_finish: null,
+  canary: null,
+};
+
+/** The kind of row a kind's settlement is about, for a settlement that threw before it could say. */
+const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
+  outbound_send: "message",
+  broadcast_send: "broadcast",
+  email_ingest: "email",
+  preview_build: "preview",
+  history_import: "import",
+  booking_read: "notice",
+  event_deliver: "delivery",
+};
+
+/**
+ * Settle what this job was in the middle of. Never throws: a settlement that cannot be written is reported in its own
+ * row, because the caller's job is to tell an owner the truth and "we could not check" is part of the truth.
  */
 export async function settleJob(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
-  const reason = certain ? "never_delivered" : "run_interrupted";
-
-  if (job.kind === "outbound_send") {
-    const messageId = idFrom(job.payload, "message_id");
-    if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
-    // Conditional on 'queued': if the handler did record the send before dying,
-    // that row already says 'sent', and saying otherwise would be a lie about a
-    // message that reached a real person. Only a row still claiming to be on
-    // its way is touched.
-    // A run that died mid-send may have sent: its outcome is unknown, which is what lets an email's receipt still
-    // settle it (00177's messages_guard) and what counts it toward its mailbox's day (mailbox_capacity).
-    const { row, error } = await failQueuedSend(db, {
-      tenantId: job.tenant_id,
-      messageId,
-      error: { reason, note: noteOf(certain, why), ...(certain ? {} : { outcome: "unknown" }) },
-    });
-    // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
-    // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5). A campaign's
-    // email is not a reply to anyone waiting: it is recorded on its row and flags nothing (Reach out D4).
-    const campaign = row?.channel === "email" && isCampaignEmail(row.meta?.email?.request);
-    const flagged =
-      !error && row?.conversation_id && !campaign
-        ? await upsertEscalation(
-            db,
-            job.tenant_id,
-            row.conversation_id,
-            "send_failed",
-            `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, why)}.`,
-          )
-        : null;
-    return [
-      {
-        what: "message",
-        changed: !!row,
-        ...(flagged ? { flagged } : {}),
-        ...(error ? { error } : {}),
-      },
-    ];
+  const settler = (SETTLERS as Record<string, Settler | null | undefined>)[job.kind];
+  if (!settler) return [];
+  try {
+    return await settler(db, job, certain, why);
+  } catch (e) {
+    const what = (WHAT_OF as Record<string, Settled["what"] | undefined>)[job.kind] ?? "delivery";
+    return [{ what, changed: false, error: e instanceof Error ? e.message : String(e) }];
   }
-
-  if (job.kind === "email_ingest") {
-    // The intake owns this email's ending, so it owns the failure too.
-    //
-    // The deadman sweep used to cover this by accident, and wrongly: it claimed
-    // the row, called it a receptionist that never answered, and marked it
-    // handled. It no longer touches email (edge unfinished.ts), which would
-    // have left a dead intake with nothing but a job alert -- the customer's
-    // words sitting in a thread with no hold on it and nobody looking.
-    //
-    // What can be flagged is a thread, and there is one only if the intake got
-    // as far as storing the email. Dying before that leaves nothing to find,
-    // and the job's own alert is then the true and only signal.
-    const receivedId = idFrom(job.payload, "received_id");
-    if (!receivedId) return [{ what: "email", changed: false, error: "no received_id on the job" }];
-    // The mailbox is told either way, and FIRST: it is the one thing that is
-    // there whether or not the email got as far as being stored, so an intake
-    // that died before it could make a thread still leaves a mark the owner
-    // sees. It is cleared by the next email that is taken in, so a workspace
-    // whose mail is flowing does not carry an old failure.
-    const mailbox = await noteMailboxTrouble(db, job.tenant_id, idFrom(job.payload, "mailbox_id"));
-    const { data, error } = await db
-      .from("messages")
-      .select("conversation_id")
-      .eq("tenant_id", job.tenant_id)
-      .eq("channel", "email")
-      .eq("external_id", receivedId)
-      .maybeSingle();
-    if (error) return [{ what: "email", changed: false, ...mailbox, error: error.message }];
-    const conversationId = (data as { conversation_id?: string | null } | null)?.conversation_id ?? null;
-    if (!conversationId) return [{ what: "email", changed: false, ...mailbox }];
-    // The same hold the intake would have raised, in words that say what
-    // actually happened rather than blaming the receptionist for not answering.
-    const flagged = await upsertEscalation(db, job.tenant_id, conversationId, "email_review", EMAIL_UNFINISHED);
-    return [{ what: "email", changed: true, flagged, ...mailbox }];
-  }
-
-  if (job.kind === "broadcast_send") {
-    const broadcastId = idFrom(job.payload, "broadcast_id");
-    if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
-    // broadcastSend schedules its own next batch, so one lost link used to
-    // strand the whole run: the broadcast sat 'failed' with half its people
-    // reached and the rest queued for ever. The rest are HANDED TO A FRESH RUN
-    // instead. A resumed batch reads the message row a dying run left
-    // (core/messages/broadcast.ts alreadySent) rather than sending to that
-    // person again, which is what makes a second run safe where a second
-    // outbound_send is not. Conditional on the broadcast still claiming to be in
-    // flight, so one that finished between the read and here is left exactly as
-    // it finished; when no fresh run can be written, or too many already have
-    // been, it falls back to the honest failure with the reason.
-    const { data: row, error: readErr } = await db
-      .from("sequence_batches")
-      .select("id, state")
-      .eq("id", broadcastId)
-      .eq("tenant_id", job.tenant_id)
-      .maybeSingle();
-    if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
-    // 'scheduled' as well as 'sending': a run killed before it could move the
-    // row off 'scheduled' sent nobody, and leaving it there stranded the whole
-    // broadcast where nothing would ever pick it up again — not sending, not
-    // failed, and not said.
-    if (!row || (row.state !== "sending" && row.state !== "scheduled")) return [{ what: "broadcast", changed: false }];
-
-    const far = await howFar(db, job.tenant_id, broadcastId);
-    if (far.error) return [{ what: "broadcast", changed: false, error: far.error }];
-    const { reached, remaining } = far;
-
-    // Is a run already coming? The dying run may have scheduled its own next
-    // batch and then failed to report back, and that chain has been working the
-    // queue for the ninety seconds it took this row's lease to expire. A second
-    // chain alongside it reads the same queued rows, finds no message written
-    // for them yet, and delivers to all of them AGAIN — the one thing a
-    // broadcast must never do. A read that cannot say is treated as "yes",
-    // because the cost of guessing wrong that way is only a broadcast that
-    // shows as sending.
-    const live = await db
-      .from("jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", job.tenant_id)
-      .eq("kind", "broadcast_send")
-      .eq("payload->>broadcast_id", broadcastId)
-      .in("state", ["scheduled", "fired"])
-      .neq("id", job.id);
-    if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
-    if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
-
-    const resumes = resumesOf(job.payload);
-    if (resumes >= MAX_RESUMES)
-      return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, {
-        reached,
-        remaining,
-      });
-    try {
-      // The count rides the payload, and so do the waits and stalls the run had (a resumed run still looks at the
-      // day's sending hours): nothing else survives the death of the run. broadcastSend's own scheduleNext writes a
-      // payload without the count, so a run that got as far as its next batch resets it.
-      await scheduleJob(db, {
-        tenantId: job.tenant_id,
-        kind: "broadcast_send",
-        dueAt: new Date(),
-        payload: { ...nextBatch(broadcastId, carriedBy(job.payload)), resumes: resumes + 1 },
-      });
-      return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
-    } catch (e) {
-      return failBroadcast(db, job, broadcastId, e instanceof Error ? e.message : String(e), { reached, remaining });
-    }
-  }
-
-  // Every other kind leaves nothing behind that says it is still going.
-  return [];
 }
 
 /**
@@ -363,8 +497,16 @@ export function saySettled(results: Settled[]): string | null {
           ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.`
           : r.what === "email"
             ? `The email it was taking in could not be flagged for a person (${r.error}), so look for it in the Inbox.`
-            : `The broadcast could not be updated (${r.error}), so it may still show as sending.`,
+            : r.what === "broadcast"
+              ? `The broadcast could not be updated (${r.error}), so it may still show as sending.`
+              : `What it was doing could not be marked as stopped (${r.error}), so it may still show as in progress.`,
       );
+    } else if (r.changed && r.what === "import") {
+      lines.push("Its source says it stopped, with Try again.");
+    } else if (r.changed && r.what === "notice") {
+      lines.push("The booking email is held for a person in Settings › Business, with Read again.");
+    } else if (r.what === "preview" || r.what === "delivery") {
+      // A preview marked not made, a delivery marked failed: the platform's leavings, said nowhere an owner reads.
     } else if (r.resumed) {
       // Whether this settlement handed it on or found a run already coming, the
       // owner's picture is the same: it is still going. What it does NOT say is

@@ -469,6 +469,14 @@ export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => 
  */
 export const SEND_GRACE_MS = 15_000;
 
+/**
+ * How late a member's own reply may still leave after its grace (decision 0089, D3): words a person wrote for the moment
+ * should not reach the customer hours later, after an outage held the ledger. Past it the send door refuses it as too
+ * late, its words stay on the thread, and the thread is held for the person to send it again or answer anew (core
+ * send.ts). The receptionist's draft has its own horizon, measured from the message it answers (inbound steps.ts).
+ */
+export const MEMBER_REPLY_STALE_MS = 30 * MIN_MS;
+
 /* ----------------------------- live calls -------------------------------- */
 
 /**
@@ -482,13 +490,15 @@ export const SEND_GRACE_MS = 15_000;
  * progress that hung up days ago. A status flag is a claim; this is the
  * evidence.
  *
- * Ten minutes, not ninety seconds, and the difference is a deployment fact
- * rather than a preference: with only `call_started` and `call_ended`
- * configured on the Retell webhook, nothing touches the row between them, so a
- * tight bound would declare every ordinary call dead a minute into it. Enabling
- * the `transcript_updated` event — which fires on every turn — makes the
- * heartbeat continuous and this bound effectively tight, at which point it can
- * come down.
+ * Ten minutes, and it stays ten now that `transcript_updated` is on every line
+ * (decision 0092). A turn refreshes the row, but a call can go quiet with
+ * nobody gone: a caller on hold, a warm transfer bridged to the owner's phone,
+ * a long silence the agent waits out. What clears a quiet call is the calls
+ * sweep, which asks the provider once a call has been quiet for five minutes
+ * and runs every five (calls-sweep.ts SETTLE_MS): a call still up is
+ * re-ingested and heard from again, one that ended is closed. So a call quiet
+ * for up to ten minutes may still be live, and a bound below the sweep's
+ * cadence would drop real calls from Live while they run.
  *
  * This is a DISPLAY guard, not the fix. It bounds how long a phantom can be
  * shown; only reconciling against the provider makes the row itself honest.

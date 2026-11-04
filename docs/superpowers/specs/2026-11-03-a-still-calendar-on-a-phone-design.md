@@ -91,3 +91,34 @@ On `phone/a-still-calendar` behind the local rig (the e2e workspace), 3 Nov 2026
   and the line moving on the minute).
 - **The heads**: Day 43px and Week 52px on a phone, 43px on a desk, holding today or not, in both engines.
 - **A desk** still moves its views by the deck (the token 56px, `cal-in`, the 120 ms dim), in both engines.
+
+## The bar in the frame's top (amended 3 November 2026)
+
+**His recording at 2:04 PM, on production with the still Calendar (#2071):** "almost perfect except the date today < >
+kind of moves when scrolling up and down the calendar." Measured frame by frame (the glyphs' centres, 774 frames):
+
+| What | How it stood | Step a frame while the window scrolled |
+| --- | --- | --- |
+| The strip of views | fixed, in the frame's top | 0.00 (0.03 at most) |
+| A week's day heads | sticky, under the bar | 0.07 (0.32 at most) |
+| The bar (the range, ‹ Today ›) | sticky, under the top | 0.78 (3.77 at most) |
+
+So stickiness alone is not it: the heads stick and hold still. The bar laid its own copy of the page's ground (two
+pseudo-elements reaching up under the top) and was the one sticky box doing so; which of its parts an iPhone moves is
+not seen here. What is seen is that the frame's top holds still, so the bar is put in it.
+
+- **The bar is the frame's on a phone**, as it is on a desk: a place under the row of views in the frame's top
+  (kit/head/standing.ts `under`, drawn by kit/head/frame-head.tsx into the frame's `#pg-under`), Settings beside the
+  views as before, and the page draws no bar of its own (the cold frame neither). The frame's top grows by the bar, so
+  the days start under it and a week's heads stick under the top.
+- **Gone with the sticky bar:** its two painters of the ground, its band, `--cal-bar-h` and the measure that kept it
+  (kit/motion/page-scroll.ts `keepHeightOn`), and the rule that hid the top's own band over the Calendar, whose band now
+  fades under the bar as on every page.
+- **Where the page stands after a change** is under what stands over it, the document's scroll padding (the top, the bar
+  in it), as the deck's own rule reads it.
+- **It stands where it stood:** the range at 152, the steps at 146 and 36 tall, the first pane at 196, the heads at 253
+  (393 wide, Chromium, against main); the bar's rules name its new place as heavily as they named the page's (`:is()`
+  weighs as its heaviest argument), at the boards' 12px from the screen's edges.
+- **Measured after:** the bar moves 0 px through every frame of a scroll down and back in all four views, Chromium and a
+  plain WebKit window (WebKit's iPhone emulation tucks the whole fixed top 10 px on a scroll, the strip with it, which his
+  phone does not); the twenty changes of the still Calendar hold still in both engines.

@@ -1239,6 +1239,35 @@ page_spots(7, 50000);` for the elements.
 5. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
+## When calls fail
+
+The phone receptionist's troubles, each with where it shows and what to do (decision 0092; `docs/voice.md` is the whole
+picture).
+
+- **The canary failed** (an issue "Voice canary failed", and a page). The verdict names what did not hold: `call_placed`
+  (the provider would not ring: its balance, the canary's number, the caller agent), `composed` (the inbound plan did not
+  compose the facts in time: `retell_inbound` with `facts`, `plan_ms`), `analysed`, `thread_line`, `notice_claimed` and
+  `notice_told` (the webhook: `retell_event`, `ingest_call_failed`, `call_notice_owed`), `recording_stored`
+  (`calls_sweep_done`'s recordings), `hold_released`, `inbound_signed` and `webhook_signed` (the signature:
+  `/api/diag`'s `retellAuth.doors`).
+- **Calls end our way** (a page "Calls are ending on our side"): `credit_exhausted` or `no_valid_payment` is the
+  provider's account (turn on auto-recharge); `concurrency_limit_reached` is its limit on calls at once (raise it);
+  `error_inbound_webhook` is our `/api/retell-inbound` (its log at the call's time); any other `error_*` is the provider's
+  (its log and status page).
+- **Near the limit on calls at once** (a page "The voice provider is on N of its M calls"): raise the account's limit
+  before callers hear a busy line.
+- **Drift** (a page "N phone lines have drifted from the product's shell"): run
+  `EDGE_CALL_SECRET=… node --import tsx tooling/scripts/ops/voice/voice-converge.mjs` (a dry run), then `--apply --publish`.
+  A line whose number follows the latest version rather than the published one (provisioning could not publish):
+  `--agent agent_… --pin +1… --apply`, which the door refuses while that agent's latest version is a draft.
+- **An owner says no email came for a call**: `call_notice_owed` in the edge log; the calls sweep finishes an owed notice
+  for two days (`calls_sweep_done`'s notices). Past that the mail provider was down: Health's mail line.
+- **A missed call has no line in the thread**: the sweep writes it fifteen minutes after the call (`calls_sweep_done`'s
+  notes).
+- **Closing the shared secret**: read `/api/diag`'s `retellAuth.doors`; once `inbound`, `fn` and `availability` each show
+  signed knocks, set `RETELL_DOORS_SIGNED=1` on the edge and converge every agent (`--apply --publish`), which takes the
+  header off the tools.
+
 ## A page is not updating
 
 A page hears what changed from its workspace's topic on Realtime (`workspace:<id>:changes`, decision 0019): the database
@@ -1362,7 +1391,7 @@ up again through the whole order ([inbound-gates.md](inbound-gates.md)) and answ
 (`TURN_BUDGET_MS`, forty seconds of a sixty-second function). Two messages from one person in one delivery are two jobs,
 and the newer one answers both (the reply turn, 00284). A message the door could not record is a 503: Meta sends it again for up to seven days; Twilio retries nothing, so the
 texts sweep reads each line's own record from Twilio every ten minutes and knocks on the door again for every text the
-database never heard (`texts-sweep`, 00523, `apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
+database never heard (`texts-sweep`, 00536, `apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
 is the deadman sweep's.
 
 ## Turn on the daily text canary
@@ -1370,7 +1399,7 @@ is the deadman sweep's.
 Once a day, at 14:00 UTC, the edge texts the platform's own line from a number of the platform's own, and at 14:15 it
 checks that the door took the text in and the receptionist's reply left; any gap pages the platform under its own key
 (`text_canary_not_taken_in`, `text_canary_no_reply`, `text_canary_reply_failed`, `text_canary_send_failed`), and a pass is one
-`text_canary_ok` line (`apps/edge/lib/sms/canary.ts`, the clock `text_canary`, 00524). It costs two texts a day.
+`text_canary_ok` line (`apps/edge/lib/sms/canary.ts`, the clock `text_canary`, 00537). It costs two texts a day.
 
 It is off until both of the edge's settings are set (`text_canary_off` says so):
 
@@ -1444,9 +1473,40 @@ Every version of a workspace's settings is kept while it is in force and 400 day
 ## Read the jobs ledger
 
 Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's
-intake, the lead finder, a phone told. pg_cron asks every ten seconds whether one is due and calls `api/jobs/tick`,
-which runs up to three at once (`CLAIM_SLOTS`; `1` is the old one at a time). The claim takes a reply first, then someone
-waiting who is not a customer, then bulk, each workspace taking its turn at bulk (decision 0018).
+intake, the lead finder, a phone told. pg_cron asks every two seconds whether one is due and calls `api/jobs/tick` at once
+for a row that just came due, and every ten seconds for the rest of the ledger; a tick runs up to three at once
+(`CLAIM_SLOTS`). The claim takes a reply first, then someone waiting who is not a customer, then bulk, each workspace
+taking its turn in each lane (decision 0018). Each kind's lane and once-only rule is its row in `job_kinds` (00526); a
+job that threw waits `scheduled` for its next try, so `fired` always means running (decision 0089).
+
+### When the ledger pages
+
+Each page names its condition (`operator_pages.key`); our own workspaces' work never pages (Health shows it under Ours).
+
+- **`/api/health` names `jobs_canary`.** The ledger's own check has not finished for three minutes: pg_cron, pg_net, the
+  edge, the claim or a handler stopped. `select * from sweep_health() where sweep in ('jobs', 'jobs_canary');` says which:
+  `jobs` unhealthy is the clock or the edge's answer (its note or status code); `jobs` healthy and `jobs_canary` not is the
+  claim or the run (read the edge's `jobs_tick` and `jobs_tick_failed` lines). The canary runs in our first workspace.
+- **`jobs_backlog`.** Work the claim could take and has not for two minutes, a lease that ran out counted too: `select
+kind, state, count(*), min(due_at) from jobs where (state = 'scheduled' and due_at < now() - interval '2 minutes') or
+(state = 'fired' and lease_until < now() - interval '2 minutes') group by 1, 2;`. A paused kind is never counted.
+- **`jobs_replies_late`.** A customer's reply waited a minute for its claim: see "Is a reply waiting?" below.
+- **`jobs_mass_failure`.** Ten or more customers' jobs failed in one heartbeat: the page holds the query; the same
+  `last_error` across workspaces is a shared cause (a provider's key, the database, a deploy).
+- **`jobs_paused:<kind>`.** A kind is paused, on purpose, and nothing of it runs until it is resumed: the Console's
+  Health, Background work, The ledger now, Resume. Paged once per window while it holds.
+- **`job_payload_refused:<kind>`.** A job was written without an id its handler needs (packages/jobs kinds.ts `ids`): it
+  failed as never run. The writer is ours; the page names the job.
+- **`event_deliver_failed:<subscriber>`, a lead search's collect.** The platform's to mend: Deliver again (Health) once it
+  is, never Run again; a search says it stopped by itself.
+
+**The incident lever.** A provider answering garbage, a run that should not go on, a handler a deploy broke: pause its
+kind on Health (it asks why; the Admin log keeps it). Its rows wait where they are, due or not, and Resume makes what
+waited due at once, oldest first. A send already claimed finishes; nothing new of the kind is claimed.
+
+**After an outage.** Run every failed job of a kind again since a moment (Health, The ledger now, Run every failed one
+again: `POST /api/v1/platform/jobs/requeue-kind`), at most 200 a press, each once (a copy names the job it copies,
+`requeue_of`). Sends, and jobs that spoke, are never run again: send them again from the thread or the broadcast.
 
 - **Is a reply waiting?** Each `jobs_tick` line in the edge's logs carries `late_ms_<kind>`, the worst first-claim wait of
   each kind in that heartbeat, and `reply_late_ms`, the reply lane's. A reply claimed more than a minute late pages the

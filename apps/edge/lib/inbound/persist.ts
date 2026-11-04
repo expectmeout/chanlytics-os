@@ -495,7 +495,7 @@ export function pgSink(
         : Promise.resolve(),
     /**
      * An address the customer gave in their own words (core's ingest.ts, contracts addressInMessage), kept only where the
-     * person has none, in one call under their row's lock (db noteEmailTheyGave, 00522). Another person here holding the
+     * person has none, in one call under their row's lock (db noteEmailTheyGave, 00535). Another person here holding the
      * address is said in the log, never moved: the owner merges them.
      */
     noteEmail: (address: string) =>

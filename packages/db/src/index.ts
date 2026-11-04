@@ -48,6 +48,8 @@ export {
   deliveryOf,
   emitEvent,
   eventOfDelivery,
+  failOpenDelivery,
+  finishBroadcast,
   recordActivation,
   recordEvent,
   relayEvents,
@@ -61,8 +63,11 @@ export {
   approveBroadcast,
   assembleBroadcast,
   claimQueuedSend,
+  failedJobsOfKind,
   failQueuedSend,
-  hasNewerCopy,
+  hasRequeuedCopy,
+  pausedJobKinds,
+  queueSend,
   readJobToRequeue,
   releaseQueuedSend,
 } from "./jobs";
@@ -136,6 +141,7 @@ export {
   dismissAppointmentNotice,
   heldNoticeKeys,
   heldNoticesOf,
+  holdNoticeIfUnkept,
   keepAppointmentNotice,
   memberHasAddress,
 } from "./repositories/calendar/notices";
@@ -144,17 +150,25 @@ export {
   callerNameOf,
   callersOf,
   callForReview,
+  callSecondsSince,
   callsOwedAnAnalysis,
+  callsOwedANotice,
+  canaryCallFacts,
+  canaryLineOf,
   claimCallActivity,
   claimCallNotification,
+  claimGuardCorrection,
   ingestCall,
   isWorkspaceCall,
   linkCallMessage,
+  markCallNoticeTold,
   recordCallNote,
+  retellCallIdsOf,
   setCallRecording,
   stampCallConfigVersion,
+  voiceDoorKnocks,
 } from "./repositories/calls";
-export type { IngestCallResult, NormalizedCallInput } from "./repositories/calls";
+export type { CanaryCallFacts, IngestCallResult, NormalizedCallInput, VoiceDoorKnocks } from "./repositories/calls";
 export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
@@ -261,6 +275,7 @@ export {
 } from "./repositories/campaigns/reach-out-leads";
 export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
 export { decideSendDoor, sendOpeningsOf, undoSendRewrite } from "./repositories/campaigns/reach-out-rewrite";
+export { leadStepOpeningOf } from "./repositories/campaigns/reach-out-rewrite";
 export { sequenceMakes } from "./repositories/campaigns/sequence-makes";
 export type { SequenceMake } from "./repositories/campaigns/sequence-makes";
 export {
@@ -356,12 +371,15 @@ export {
   healthClientErrors,
   healthClocks,
   healthFailedJobs,
+  healthLedgerNow,
   healthPages,
   healthParts,
   healthSweeps,
   healthWorkspaces,
   keepClientError,
+  pauseJobKind,
   redriveDeliveries,
+  resumeJobKind,
   workspaceIsOurs,
 } from "./repositories/console/health";
 export type { ClientErrorInsert } from "./repositories/console/health";
@@ -421,7 +439,9 @@ export type {
   WithdrawReason,
 } from "./repositories/control";
 export {
+  activateCapabilityFn,
   createWorkspaceFn,
+  deactivateCapabilityFn,
   getTenantConfig,
   getTenantConfigAsMember,
   lineForwardingSet,
@@ -437,14 +457,19 @@ export {
   replyTokensSince,
   setPersonReplyMode,
   setPolicyMode,
+  setSetupChoices,
+  setupChoicesOf,
   setWorkspaceLogo,
   startPlaybook,
+  trialingWorkspaceIds,
+  trialUseOf,
   updatePlaybook,
   workspaceAnswersOnItsOwn,
   workspaceIdsOf,
   workspaceNamed,
   workspaceOpenToCustomers,
   workspacePublicSlug,
+  workspacesWithANumberChosen,
   workspaceZoneOf,
   writePlaybookChange,
 } from "./repositories/control-plane";
@@ -457,6 +482,8 @@ export type {
   PolicyRecord,
   PublicWorkspaceRead,
   PutTenantConfigResult,
+  SetupChoiceSetArgs,
+  SetupChoicesRow,
   TenantConfigRow,
 } from "./repositories/control-plane";
 export { dealOnFile, openDealsOf, recordDeal, yesesSince } from "./repositories/deals";
@@ -495,6 +522,7 @@ export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/
 export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
 export { suggestPersonNote } from "./repositories/facts/person-note-suggestions";
 export {
+  activeVoiceAgents,
   callReviewOf,
   configAtVersion,
   endRehearsal,
@@ -539,6 +567,7 @@ export {
   ingestInbound,
   keepMessageCost,
   keepMessageMedia,
+  linkSentOnCall,
   markProcessed,
   messageByExternalId,
   noteEmailTheyGave,
@@ -561,6 +590,7 @@ export {
   keepIdeas,
   keepLeadPrices,
   leadAddresseeChoose,
+  leadAllowanceOf,
   leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,

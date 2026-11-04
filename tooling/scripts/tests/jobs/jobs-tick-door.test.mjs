@@ -650,10 +650,11 @@ test("a workspace whose vault did not answer is not a workspace that holds none:
     [["outbound_send", "scheduled"]],
     "one fresh job, for a heartbeat that can read the vault",
   );
+  const { body: _words, ...ids } = waiting.job.payload;
   assert.deepEqual(
     withoutRequestId(fresh[0].payload),
-    { ...waiting.job.payload, resumes: 1 },
-    "the same send, counting its fresh jobs",
+    { ...ids, resumes: 1 },
+    "the same send, counting its fresh jobs; its words stay on its message (decision 0089)",
   );
   assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
@@ -786,7 +787,8 @@ test("a texting line the vault did not answer for is not a workspace with no lin
     fresh.map((j) => [j.kind, j.state ?? "scheduled"]),
     [["outbound_send", "scheduled"]],
   );
-  assert.deepEqual(withoutRequestId(fresh[0].payload), { ...waiting.job.payload, resumes: 1 });
+  const { body: _words, ...ids } = waiting.job.payload;
+  assert.deepEqual(withoutRequestId(fresh[0].payload), { ...ids, resumes: 1 }, "its words stay on its message");
   assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
 
@@ -854,20 +856,20 @@ test("an email intake that throws is claimed again five minutes later, then thir
         [200, { ok: true, claimed: 1, done: 0, failed: 0, gaveUp: 0, deferred: 1 }],
         `try ${attempt}`,
       );
-      const wait = Date.parse(intake.lease_until) - t0;
+      const wait = Date.parse(intake.due_at) - t0;
       assert.ok(
         wait >= minutes * 60_000 && wait < minutes * 1.2 * 60_000 + 5_000,
         `try ${attempt}: claimed again in ${minutes} minutes, drawn up to a fifth longer, not ${wait} ms`,
       );
       assert.deepEqual(
-        [intake.state, intake.attempts, intake.last_error],
-        ["fired", attempt, "email_ingest: this runtime holds no email provider"],
-        "kept, with why on the row",
+        [intake.state, intake.lease_until, intake.attempts, intake.last_error],
+        ["scheduled", null, attempt, "email_ingest: this runtime holds no email provider"],
+        "it waits scheduled (decision 0089: a cancel or an erasure reaches it), with why on the row",
       );
-      assert.deepEqual(await answer(await knock()), NOTHING, "and not claimed again before its lease ends");
+      assert.deepEqual(await answer(await knock()), NOTHING, "and not claimed again before its wait ends");
       assert.equal(mailbox.last_error, null, "the mailbox is not marked while the email is still being tried");
       assert.deepEqual(L.left().mail, [], "and nobody is told");
-      intake.lease_until = iso(Date.now() - 1_000);
+      intake.due_at = iso(Date.now() - 1_000);
     }
     assert.deepEqual(
       await answer(await knock()),

@@ -124,7 +124,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   and the references.
 - **Either deploy order works.** The two apps deploy independently; a shape both must agree on
   is compatible whichever deploys first.
-- **A job kind arrives with its handler, its caller, the `jobs.kind` CHECK and its lane**, in one change.
+- **A job kind arrives with its handler, its caller, its `job_kinds` row and its `KIND_POLICY`**, in one change
+  (decision 0089; `tooling/scripts/tests/jobs/job-kinds.test.mjs` holds the two sides equal).
 - **Migrations are forward-only.** Named for the schema change, re-runnable statements, never
   edited or renamed once applied. Two files on one number fail the build.
 - **Tests execute the code they prove.** A source-text assertion is the last resort, and the
@@ -276,7 +277,7 @@ listed there with its date and the program it waits on.
   kit** above says what is counted).
 - A literal colour, type size, radius, shadow or blur in a stylesheet: the values are in `tokens.css`, and a chart's
   colour is the validated palette in `charts.css`.
-- A migration that edits history, or a job kind without its handler and CHECK.
+- A migration that edits history, or a job kind without its handler, its policy and its `job_kinds` row.
 - Counts in prose that go stale; measure and say when.
 
 ## Before you open a pull request

@@ -37,7 +37,7 @@ export interface IngestInboundParams {
   optIn?: boolean;
   /**
    * The customer texted the OFFERS keyword specifically: a second, separate answer (contracts consent.ts), kept by
-   * ingest_inbound with the message, in its transaction (00521), and never under a stop that stands after it.
+   * ingest_inbound with the message, in its transaction (00534), and never under a stop that stands after it.
    */
   optInMarketing?: boolean;
 }
@@ -86,7 +86,7 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   } as never);
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data as unknown as IngestResult;
-  // The yes a message carries is kept with it (00521), and a yes to offers under a stop is not: said, once, by the visit
+  // The yes a message carries is kept with it (00534), and a yes to offers under a stop is not: said, once, by the visit
   // that kept the message, so "I wrote YES OFFERS and nothing happened" has an answer.
   if (p.optInMarketing && out.is_new && stoppedNow(out))
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
@@ -120,12 +120,12 @@ export async function answerOfMessage(db: Db, externalId: string): Promise<{ kep
   return { kept: true, reply: reply?.status ?? null };
 }
 
-/** What became of an address a customer wrote in their own message (note_person_email, 00522). */
+/** What became of an address a customer wrote in their own message (note_person_email, 00535). */
 export type EmailNoted = "kept" | "had_one" | "taken" | "not_found";
 
 /**
  * An address a customer gave in their own words, kept on their row only where none is on file: one call, under the row's
- * lock (00522). Another person here holding it is `taken` and never moved: the owner merges them. A write that fails
+ * lock (00535). Another person here holding it is `taken` and never moved: the owner merges them. A write that fails
  * throws.
  */
 export async function noteEmailTheyGave(
@@ -486,6 +486,28 @@ export async function countSentToday(
     .contains("meta", { source: p.source });
   if (error) throw new Error(`count_sent_today: ${error.message}`);
   return count ?? 0;
+}
+
+/**
+ * Whether the booking link already left on this call to this thread and was not refused at the wire (decision 0092): a
+ * tool call the provider asks again, or a caller who asks twice in a minute, is told it is on its way rather than sent
+ * a second one. A link that failed does not count: asking again is how a caller gets it by text. A read that fails
+ * throws.
+ */
+export async function linkSentOnCall(
+  db: Db,
+  p: { tenantId: string; conversationId: string; source: string; callId: string },
+): Promise<boolean> {
+  const { count, error } = await db
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", p.tenantId)
+    .eq("conversation_id", p.conversationId)
+    .eq("direction", "outbound")
+    .neq("status", "failed")
+    .contains("meta", { source: p.source, call_id: p.callId });
+  if (error) throw new Error(`link_sent_on_call: ${error.message}`);
+  return (count ?? 0) > 0;
 }
 
 /**

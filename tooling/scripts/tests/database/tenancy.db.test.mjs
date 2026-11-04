@@ -261,6 +261,8 @@ before(async () => {
   });
   ctx.segment = await seed("segments", { tenant_id: A, name: "tenancy segment" });
   await seed("segment_members", { tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact }, null);
+  // The workspace's first-run choices (00513): one row a workspace, which setup_choice_set writes.
+  await seed("setup_choices", { tenant_id: A, whatsapp: "same" }, null);
   await seed("deals", { tenant_id: A, contact_id: ctx.contact, stage: "proposed" }, null);
   await seed("person_notes", { tenant_id: A, contact_id: ctx.contact, body: "tenancy note" }, null);
   // The appointments record and the notices ledger (00345): members read; the booking_read job writes.
@@ -479,9 +481,6 @@ before(async () => {
     },
     null,
   );
-  // A capacity row of this suite's own (00335), so "a member reads nothing" is not proved on an empty table.
-  const cap = await db.from("job_capacity").upsert({ scope: "provider", key: "tenancy-suite", max_in_flight: 1 });
-  assert.equal(cap.error, null, `capacity: ${cap.error?.message}`);
   // The spine (00334): an outbox row and a delivery of the workspace's, as the copy and the relay would write them.
   await seed(
     "event_outbox",
@@ -593,7 +592,6 @@ function earning(eventId) {
 }
 
 after(async () => {
-  if (!skip) await db.from("job_capacity").delete().eq("key", "tenancy-suite");
   if (skip) return;
   for (const [table, col, val] of probes) await db.from(table).delete().eq(col, val);
   if (A) await db.from("tenants").delete().eq("id", A);
@@ -772,6 +770,8 @@ const TENANT_TABLES = {
     () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
   ],
   segments: ["member", () => ({ tenant_id: A, name: "stranger segment" })],
+  // What the first run chose for the workspace (00513, decision 0091): its members read it; setup_choice_set writes.
+  setup_choices: ["member", () => ({ tenant_id: A, whatsapp: "later" })],
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],
   person_notes: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, body: "stranger note" })],
@@ -1033,7 +1033,7 @@ const OTHER_TABLES = {
   workspace_notices_pending: "empty",
   sweep_status: "none",
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
-  job_capacity: "none", // how many jobs naming a key may run at once (00335): platform-wide rows, the service role's alone
+  job_kinds: "none", // each job kind's lane, once-only rule and pause (00526): platform-wide rows, the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()

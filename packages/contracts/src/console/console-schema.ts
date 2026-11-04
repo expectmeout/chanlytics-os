@@ -14,6 +14,7 @@ import { WORKSPACE } from "../shell/client-error";
 import { REPORT_KINDS } from "../shell/report-problem";
 import { PARTNER_STANDINGS, PARTNER_STATUSES } from "../workspace/partner";
 import { HEALTH_WINDOWS } from "./health";
+import { JOB_KINDS } from "../shared/enums";
 
 const uuid = (what: string) => z.uuid({ error: `That ${what} does not exist.` });
 
@@ -54,6 +55,24 @@ export const LineActSchema = z
 /** `POST platform/jobs/requeue`. */
 export const JobRequeueSchema = z
   .object({ tenant_id: uuid("workspace"), job_id: uuid("job"), why: ConsoleWhySchema })
+  .strict();
+
+/** `POST platform/jobs/requeue-kind`: every job of one kind that failed since a moment, run again once each. */
+export const JobRequeueKindSchema = z
+  .object({
+    kind: z.enum(JOB_KINDS, { error: "Choose a kind of background work." }),
+    since: z.iso.datetime({ offset: true, error: "Say since when, as a moment." }),
+    why: ConsoleWhySchema,
+  })
+  .strict();
+
+/** `POST platform/jobs/pause`: a kind of background work paused (no claim takes it) or resumed. */
+export const JobKindPauseSchema = z
+  .object({
+    kind: z.enum(JOB_KINDS, { error: "Choose a kind of background work." }),
+    paused: z.boolean(),
+    why: ConsoleWhySchema,
+  })
   .strict();
 
 /** `POST platform/waitlist/invited`. */

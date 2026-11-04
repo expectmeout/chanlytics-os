@@ -78,7 +78,7 @@ export async function provisionLine(
   db: SupabaseClient<Database>,
   choice: LineProviderChoice,
   cfg: { apiKey: string },
-  secrets: { fnSecret: string },
+  secrets: { fnSecret: string | null },
   tenant: { id: string; name: string },
   line: LineRow,
   /**

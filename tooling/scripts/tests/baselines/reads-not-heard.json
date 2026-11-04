@@ -372,6 +372,40 @@
       }
     },
     {
+      "kind": "over-read",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not, reach_out_why_not's one predicate): it asks whether People holds the lead's address or number (a customer is never written to), and Leads draws that only as the why of a lead its batch cannot take. It rides with the places' read, which Leads makes again with the sequences and batches it hears.",
+      "reads": {
+        "leads": [
+          "contacts"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not): the never-again list (lead_suppressions), which the feed does not tell. Leads reads it again with the places, as it hears a sequence's batches; a person's page with their lead, which it hears.",
+      "reads": {
+        "leads": [
+          "lead_suppressions"
+        ],
+        "person": [
+          "lead_suppressions"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "sequence_batches"
+        ],
+        "person": [
+          "leads"
+        ]
+      }
+    },
+    {
       "kind": "unfed",
       "finding": "W-campaign-run-template-reachout-2",
       "why": "The Library's sent counts join a run's per-person rows (broadcast_recipients), which the feed never tells. Settings hears no run and no message, so a count moves only on the settings read's next read: owed with the Library's hearing of the campaign and send kinds on its page (lane R5).",
@@ -521,6 +555,25 @@
       "reads": {
         "setup": [
           "profiles"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "R6",
+      "why": "What the first run chose for the workspace (setup_choices, decision 0091: the number and how calls reach it, where WhatsApp answers, the steps done), read into Setup's DTO (setupChoicesOf). The feed does not tell it: the member who chose has the door's answer (PUT setup/choices publishes Setup from it), and another member's tab reads the choice on its next Setup read. Owed with the silent records joining the feed (lane R6).",
+      "reads": {
+        "setup": [
+          "setup_choices"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "why": "The month's allowance of leads the page counts against is the plan's (00512 lead_allowance: a free trial's 50 until it pays, then the month's), read inside the leads' month (leadAllowanceOf). The plan moves a few times in a workspace's life, at the end of its trial or a change of plan; the page reads it again when it is reached for, and a search's own reserve reads it at the door (lead_reserve).",
+      "reads": {
+        "leads": [
+          "billing_accounts"
         ]
       }
     },

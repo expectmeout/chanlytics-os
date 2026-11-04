@@ -300,9 +300,25 @@ test("calls: the endings that are ours to mend are trouble, with what to do; a c
   const c = callsOf(
     quietParts({
       calls: [
-        { ours: false, status: "ended", reason: "user_hangup", n: 91, last_at: last },
-        { ours: false, status: "error", reason: "credit_exhausted", n: 2, last_at: last },
-        { ours: false, status: "not_connected", reason: "dial_no_answer", n: 4, last_at: last },
+        { ours: false, status: "ended", reason: "user_hangup", n: 91, last_at: last, words: "hung up", mend: null },
+        {
+          ours: false,
+          status: "error",
+          reason: "credit_exhausted",
+          n: 2,
+          last_at: last,
+          words: "the voice provider's credit ran out",
+          mend: "Top up the voice provider's credit: every call fails until it is.",
+        },
+        {
+          ours: false,
+          status: "not_connected",
+          reason: "dial_no_answer",
+          n: 4,
+          last_at: last,
+          words: "nobody answered",
+          mend: null,
+        },
       ],
     }),
     "customers",

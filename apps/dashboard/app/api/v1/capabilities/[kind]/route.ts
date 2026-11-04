@@ -8,8 +8,10 @@ import { ActivateBody, activateCapability, deactivateCapability } from "@/server
  * computed from the workspace's records and refused when they say no, so an
  * activation is never a claim ahead of the facts; evidence stays what the
  * records show. Owners only: it is the owner's decision what the workspace
- * says is live. Activation gates nothing at runtime yet. The first run's Finish (first_run),
- * activating calls for the first time, also emails the owner that the receptionist is answering.
+ * says is live. An activation is the owner's word that a channel is theirs: the receptionist answers a channel from
+ * the moment it connects, and nothing at runtime reads this row (decision 0091). The first run's Finish (first_run),
+ * switching on the workspace's first channel of any kind, also emails the owner that the receptionist is answering.
+ * The row and its event are one write on the member's session (00514).
  *
  * The handles are activateCapability and deactivateCapability in src/server/workspace/capabilities.ts: the route is
  * their declaration (who may, how often), the verbs are what they do.

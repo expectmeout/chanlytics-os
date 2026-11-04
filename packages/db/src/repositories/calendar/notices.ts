@@ -41,6 +41,23 @@ export async function keepAppointmentNotice(db: Db, row: AppointmentNoticeInsert
 }
 
 /**
+ * A notice held for a person unless the ledger already keeps one for it (a read that ended, or a hold its own last try
+ * wrote): what the job ledger leaves when a booking_read run died on its last claim (packages/jobs settle.ts), so the
+ * delivery is never only a failed job. It never overwrites what a read wrote. True when it kept the hold.
+ */
+export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): Promise<boolean> {
+  const { data, error } = await db
+    .from("appointment_notices")
+    .upsert(
+      { ...row, read_at: new Date().toISOString() },
+      { onConflict: "tenant_id,notice_id", ignoreDuplicates: true },
+    )
+    .select("notice_id");
+  if (error) throw new Error(`appointment_notice_hold: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
  * The health line's facts: the latest notice that became a visit (booked, moved or cancelled: its tool and when), and
  * how many are held for a person. A tool's receipt set aside, a notice held and one dismissed are none of them "the
  * last booking email": a workspace whose only mail was those is not working yet.

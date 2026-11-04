@@ -1,4 +1,4 @@
--- 00524 · The wires are proved once a day (the inbound review, D6).
+-- 00537 · The wires are proved once a day (the inbound review, D6).
 --
 -- Nothing showed that a real text gets a real answer while real traffic is near zero: the suite fakes the wires, and
 -- the nightly cannot send one. A canary does, once a day: a text from a number of the platform's own to the platform's
@@ -25,7 +25,7 @@ begin
 end $$;
 revoke execute on function public.trigger_text_canary_sweep() from public, anon, authenticated;
 comment on function public.trigger_text_canary_sweep() is
-  'The daily text canary''s clock (00524): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
+  'The daily text canary''s clock (00537): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
 
 insert into public.sweep_status (sweep, jobname, max_silence, judged_by, requested_at) values
   ('text_canary', 'text-canary', interval '26 hours', 'request', now())

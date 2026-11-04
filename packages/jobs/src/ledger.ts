@@ -2,13 +2,16 @@
  * The jobs ledger: the rules a row moves by, and the writes that move it.
  *
  *   scheduled --claim_due_jobs--> fired --completeJob--> done
- *       |                         |  ^  \-----failJob------> failed
- *       |                         \--/ deferJob: kept, and claimed again later
- *       \--------cancelJob---------> canceled
+ *     ^   |                         |  \-----failJob------> failed
+ *     |   |                         |
+ *     |   |                         \--deferJob: back to wait for its next try, its attempts kept (00526)
+ *     \---|-------------------------/
+ *         \--------cancelJob---------> canceled
  *
  * `claim_due_jobs` (00098) is the only way into 'fired', and it also takes back
- * a 'fired' row whose lease ran out: the run that held it never reported back,
- * or a run that threw put its lease off (`deferJob`) to be tried again then.
+ * a 'fired' row whose lease ran out: the run that held it never reported back.
+ * A run that threw puts its row back to `scheduled`, due when its next try is
+ * (`deferJob`), so 'fired' means running and a waiting retry can be withdrawn.
  * Whether that later claim RUNS the job or GIVES UP on it is `verdictFor`, and
  * it is pure. `jobs_guard` (00098) refuses every other transition inside the
  * database, so no writer here has to remember the machine.
@@ -22,6 +25,7 @@ import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels";
 import { collectPage, collectPageKey } from "./collect-page";
 import { deliveryPage, deliveryPageKey } from "./delivery-page";
+import { KIND_POLICY, kindPolicyOf, kindsWhere } from "./kinds";
 
 export type Db = SupabaseClient<Database>;
 
@@ -140,23 +144,15 @@ export const MAX_RESUMES = 5;
  */
 export const RELAY_LIMIT = 500;
 
-/**
- * Kinds whose second run could reach a real person a second time, whatever the first got to. A kind that speaks only
- * at the end of work that is safe to repeat (a text's answer, after the model's turn) is not here: it says so on its
- * own row the moment before it speaks (markSpoke), and is judged as one of these from then on.
- */
-export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send", "broadcast_send"]);
+/** Kinds whose second run could reach a real person a second time (kinds.ts `speaks`). */
+export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = kindsWhere((p) => p.speaks);
 
 /**
- * Kinds whose failure the ledger's own notice would tell the wrong person, so none is sent to the owner's bell: a text's
- * answer that failed leaves its message to the deadman sweep, which hands it to a person with the customer's words; a
- * change's delivery to a subscriber (00334) is the platform's to mend, nothing an owner can act on, and the operator is
- * paged instead (PAGES_THE_PLATFORM). It used to ring the bell with "A change could not be passed on to what reads
- * it", an internal fault in the customer's words. A lead search's collect is told by its search: the sweep ends a run
- * whose collects keep failing, and the round's own notice says the search stopped (00491); the job's notice was told
- * fourteen times for one search on 29 Oct 2026, each on the owner's phone, as "16 jobs did not finish" on Today.
+ * Kinds whose failure rings no owner's bell (kinds.ts `told`): the platform's to mend, paged instead
+ * (PAGES_THE_PLATFORM), or told by something that tells the right person (the deadman sweep, a search's own notice,
+ * Health). A lead search's collect was told fourteen times for one search on 29 Oct 2026, each on the owner's phone.
  */
-export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer", "event_deliver", "lead_collect"]);
+export const TOLD_ELSEWHERE: ReadonlySet<string> = kindsWhere((p) => p.told !== "owner");
 
 /** A page: the condition it is sent under (the pager sends once per key per window) and its words. */
 type PageOf = (
@@ -210,82 +206,14 @@ export function verdictFor(job: { kind: string; attempts: number; spoke_at?: str
 }
 
 /**
- * Kinds tried again after they THROW, and how long each wait is.
- *
- * A job that throws is failed at once (tick.ts), and failed is final
- * (jobs_guard). email_ingest is written to be run again: its message is
- * recorded under the provider's id and marked handled last, so "the next try
- * finishes it" (core ingestEmail). But nothing tried again, and its own index
- * (00127) refused a second row for the same email, failed or not, so a webhook
- * replay could not bring one back either (00135 lets a failed row go): an
- * intake that threw once lost the email. It
- * happened on email's first day live (18 Sep 2026), to an email that arrived
- * while the deployment's key could send but not read (401 restricted_api_key).
- * The key was replaced sixteen minutes later.
- *
- * The wait is the LEASE. The row stays 'fired' with its lease put off, and
- * claim_due_jobs takes it back when the lease ends, as it takes back a run that
- * died (jobs_guard keeps a row fired, and never lets it go back to scheduled).
- * So every try is a claim, MAX_ATTEMPTS bounds them all, and the last one still
- * fails the row and tells the owner: five minutes, then thirty, covers a
- * provider's bad minute and a key replaced within the half hour.
- *
- * Only internal work that is safe to repeat belongs here. Work that speaks to a
- * person never does.
+ * Kinds tried again after they THROW, and how long each wait is (kinds.ts `retryWaitsMs`): the row goes back to
+ * scheduled, due when its next try is (deferJob), so every try is a claim, MAX_ATTEMPTS bounds them all, and the last one
+ * still fails the row and tells whom the kind tells. Only internal work that is safe to repeat has any. A kind with none
+ * is failed on its first throw.
  */
-export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
-  email_ingest: [5 * MIN_MS, 30 * MIN_MS],
-  // The lead finder's three (00140). Each is written to be run again: a start
-  // claims its run row before it calls the provider, a collect commits a page
-  // by compare-and-set on the offset, a check commits by lead id. A
-  // provider's 429 or 5xx throws and lands here: two minutes covers a bad
-  // minute, ten a short outage; the third claim fails the row and the round
-  // ends "the source failed". Every wait outlasts the lease (jobs-ledger.test.mjs).
-  lead_round_start: [2 * MIN_MS, 10 * MIN_MS],
-  lead_collect: [2 * MIN_MS, 10 * MIN_MS],
-  lead_check: [2 * MIN_MS, 10 * MIN_MS],
-  // A phone told from a kept row (00162): the push service's bad minute, then
-  // its short outage, each wait outlasting the lease like the three above. The
-  // row is read again on each try, and a phone the service answered for is
-  // answered for once.
-  push_send: [2 * MIN_MS, 10 * MIN_MS],
-  // The receipts of a send (00189): Expo keeps them a day, so a bad minute and
-  // then a short outage are affordable waits, each outlasting the lease.
-  push_receipts: [5 * MIN_MS, 30 * MIN_MS],
-  // A reply to a reach-out, read (Reach out Part 5, 00222). Every stage is written to be run again: the reading is kept
-  // once per message and a re-read by compare-and-set, the notice is claimed before it is told and marked only after
-  // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
-  // failed, lands here: two minutes, then ten, each outlasting the lease.
-  reply_read: [2 * MIN_MS, 10 * MIN_MS],
-  // A booking tool's notice, read (00345). Written to be run again: the ledger's row is kept last and a visit is found
-  // by its key, so a try that died after the write restates the row it wrote. A model's bad minute or a failed write
-  // throws and lands here: two minutes, then ten, each outlasting the lease. The third try holds the notice for a
-  // person before it fails (booking-read.ts), so the delivery is never only a failed job.
-  booking_read: [2 * MIN_MS, 10 * MIN_MS],
-  // One event's delivery to one subscriber (00334): the delivery row takes each verdict, and every subscriber may run
-  // twice, so a throw is a provider's or the database's bad minute: two minutes, then ten, each outlasting the lease.
-  event_deliver: [2 * MIN_MS, 10 * MIN_MS],
-  // One part of a connection's history (00478, decision 0073). Written to be run again: every write is once by the
-  // provider's id, and a part that throws notes where it stood first, so the next try reads on from there. A provider's
-  // bad minute throws and lands here: two minutes, then ten, each outlasting the lease (its pace does not: the part
-  // ends and the next waits a rest, edge mail-history.ts). The third try says so on the source's row, with Try again
-  // (edge history-import.ts), so a stop is never only a failed job.
-  history_import: [2 * MIN_MS, 10 * MIN_MS],
-  // A text answered after its acknowledgement (00347): a thrown read or write is the database's bad minute. One more
-  // try, after a wait that outlasts the lease; a second throw fails it, and the deadman sweep then hands the message to
-  // a person (lib/receptionist/unfinished.ts), as it would a turn that died in the door.
-  inbound_answer: [2 * MIN_MS],
-  // A lead's preview built (00497, decision 0079). Written to be run again: a built preview moves no more, and the
-  // receptionist's write is the settings' compare-and-swap. A model's or the database's bad minute throws and lands
-  // here: one more try, after a wait that outlasts the lease; the second try marks the preview failed itself
-  // (edge previews/build.ts), so a send waiting on it is skipped with why, never left waiting.
-  preview_build: [2 * MIN_MS],
-  // An erasure a press left unfinished (00501, decision 0036). Written to be run again: every leg is a delete or an
-  // overwrite keyed on the person, and the block is idempotent. A leg the database refused throws and lands here: five
-  // minutes for its bad minute, then thirty for a short outage, each outlasting the lease; the third try fails the
-  // row, and the person stays blocked, never live, until the owner presses again.
-  erasure_finish: [5 * MIN_MS, 30 * MIN_MS],
-};
+export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = Object.fromEntries(
+  Object.entries(KIND_POLICY).flatMap(([kind, p]) => (p.retryWaitsMs.length ? [[kind, p.retryWaitsMs]] : [])),
+);
 
 /**
  * How long a job that just threw waits before it is tried again; null when it is failed now. The wait is drawn a little
@@ -298,13 +226,13 @@ export function retryWait(
   random: () => number = Math.random,
 ): number | null {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.spoke_at || job.attempts >= MAX_ATTEMPTS) return null;
-  const wait = RETRY_WAITS_MS[job.kind]?.[job.attempts - 1];
+  const wait = kindPolicyOf(job.kind)?.retryWaitsMs[job.attempts - 1];
   return wait === undefined ? null : jittered(wait, random);
 }
 
 /**
  * A kind this runner does not know is kept, not failed: a row written by a newer deploy (a kind that arrived with its
- * handler, its caller and its CHECK) waits for the runner that knows it, so the edge and the database may deploy in
+ * handler, its caller and its job_kinds row) waits for the runner that knows it, so the edge and the database may deploy in
  * either order. It is looked at again after UNKNOWN_KIND_WAIT_MS, and failed as unknown only once it has been due for
  * UNKNOWN_KIND_GIVE_UP_MS: a day is longer than any deploy takes to land, and short enough that a kind nothing will
  * ever know is told to its owner.
@@ -320,17 +248,13 @@ export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow
   return rows[0] ?? null;
 }
 
-/** PostgREST's answer for a column the database does not hold yet (a database 00352 has not reached). */
-const NO_SUCH_COLUMN = "PGRST204";
-
 /**
  * A job about to put words on a wire says so first (jobs.spoke_at, 00352), on its row and on the claim this run was
  * handed: from then on it is judged as a kind that always speaks is (verdictFor, retryWait), so a claim after a lease
  * that ran out gives up and a throw is not retried. The same compare-and-swap as the exits. Throws when this run no
  * longer holds the row (its lease was taken back, and another run has it: this one must not speak) or the write
  * failed, and the caller sends nothing: a missed answer beats a second one. Said once: a job that speaks twice in one
- * run writes it the first time. A database 00352 has not reached keeps no such fact: the job speaks as it did, and
- * this run still knows it spoke.
+ * run writes it the first time.
  */
 export async function markSpoke(
   db: Db,
@@ -341,8 +265,8 @@ export async function markSpoke(
   let write = db.from("jobs").update({ spoke_at: at }).eq("id", job.id).eq("state", "fired");
   if (job.attempts !== undefined) write = write.eq("attempts", job.attempts);
   const { data, error } = await write.select("id");
-  if (error && error.code !== NO_SUCH_COLUMN) throw new Error(`mark_spoke: ${error.message}`);
-  if (!error && (data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
+  if (error) throw new Error(`mark_spoke: ${error.message}`);
+  if ((data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
   job.spoke_at = at;
 }
 
@@ -376,9 +300,10 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
 }
 
 /**
- * Keep a job, to be claimed again once `untilIso` passes: one that threw (retryWait), or one whose kind this runner
- * does not know (UNKNOWN_KIND_WAIT_MS). Its lease is put off and why is kept on the row. The same compare-and-swap as
- * the exits, so false means this run no longer holds it.
+ * Put a job back to wait for its next try, due once `untilIso` passes: one that threw (retryWait), or one whose kind this
+ * runner does not know (UNKNOWN_KIND_WAIT_MS). It goes back to scheduled (00526), so 'fired' means running, and
+ * cancelJobsFor, withdraw_queued and an erasure's cancel take a waiting retry as they take any scheduled row. Why is kept
+ * on the row. The same compare-and-swap as the exits, so false means this run no longer holds it.
  *
  * `giveBackClaim` is for the second: nothing ran, so the claim is given back (attempts less one) and the next claim
  * is still the job's first, which verdictFor judges as one when a runner that knows the kind takes it. A job that
@@ -394,7 +319,9 @@ export async function deferJob(
   const { data, error } = await db
     .from("jobs")
     .update({
-      lease_until: untilIso,
+      state: "scheduled",
+      due_at: untilIso,
+      lease_until: null,
       last_error: reason.slice(0, 500),
       ...(giveBackClaim ? { attempts: Math.max(0, job.attempts - 1) } : {}),
     })

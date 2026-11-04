@@ -880,11 +880,13 @@ export type Database = {
           follow_up: string | null
           from_e164: string | null
           from_raw: string | null
+          guard_corrected_at: string | null
           id: string
           in_voicemail: boolean | null
           latency: Json | null
           message_id: string | null
           note_checked_at: string | null
+          notice_told_at: string | null
           notified_at: string | null
           outcome: string | null
           public_log_url: string | null
@@ -922,11 +924,13 @@ export type Database = {
           follow_up?: string | null
           from_e164?: string | null
           from_raw?: string | null
+          guard_corrected_at?: string | null
           id?: string
           in_voicemail?: boolean | null
           latency?: Json | null
           message_id?: string | null
           note_checked_at?: string | null
+          notice_told_at?: string | null
           notified_at?: string | null
           outcome?: string | null
           public_log_url?: string | null
@@ -964,11 +968,13 @@ export type Database = {
           follow_up?: string | null
           from_e164?: string | null
           from_raw?: string | null
+          guard_corrected_at?: string | null
           id?: string
           in_voicemail?: boolean | null
           latency?: Json | null
           message_id?: string | null
           note_checked_at?: string | null
+          notice_told_at?: string | null
           notified_at?: string | null
           outcome?: string | null
           public_log_url?: string | null
@@ -1962,51 +1968,6 @@ export type Database = {
         }
         Relationships: []
       }
-      events_y2026m10: {
-        Row: {
-          aggregate_version: number | null
-          category: string
-          causation_id: string | null
-          created_at: string
-          data: Json
-          id: string
-          kind: string
-          request_id: string | null
-          subject_id: string | null
-          subject_type: string | null
-          tenant_id: string
-          version: number
-        }
-        Insert: {
-          aggregate_version?: number | null
-          category?: string
-          causation_id?: string | null
-          created_at?: string
-          data?: Json
-          id?: string
-          kind: string
-          request_id?: string | null
-          subject_id?: string | null
-          subject_type?: string | null
-          tenant_id: string
-          version?: number
-        }
-        Update: {
-          aggregate_version?: number | null
-          category?: string
-          causation_id?: string | null
-          created_at?: string
-          data?: Json
-          id?: string
-          kind?: string
-          request_id?: string | null
-          subject_id?: string | null
-          subject_type?: string | null
-          tenant_id?: string
-          version?: number
-        }
-        Relationships: []
-      }
       events_y2026m11: {
         Row: {
           aggregate_version: number | null
@@ -2592,6 +2553,51 @@ export type Database = {
         }
         Relationships: []
       }
+      events_y2027m12: {
+        Row: {
+          aggregate_version: number | null
+          category: string
+          causation_id: string | null
+          created_at: string
+          data: Json
+          id: string
+          kind: string
+          request_id: string | null
+          subject_id: string | null
+          subject_type: string | null
+          tenant_id: string
+          version: number
+        }
+        Insert: {
+          aggregate_version?: number | null
+          category?: string
+          causation_id?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          kind: string
+          request_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id: string
+          version?: number
+        }
+        Update: {
+          aggregate_version?: number | null
+          category?: string
+          causation_id?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          kind?: string
+          request_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       fact_suggestions: {
         Row: {
           body: string | null
@@ -3058,24 +3064,33 @@ export type Database = {
           },
         ]
       }
-      job_capacity: {
+      job_kinds: {
         Row: {
           created_at: string
-          key: string
-          max_in_flight: number
-          scope: string
+          kind: string
+          lane: number
+          once_kept: boolean
+          once_parts: string[] | null
+          paused_at: string | null
+          paused_why: string | null
         }
         Insert: {
           created_at?: string
-          key: string
-          max_in_flight: number
-          scope: string
+          kind: string
+          lane: number
+          once_kept?: boolean
+          once_parts?: string[] | null
+          paused_at?: string | null
+          paused_why?: string | null
         }
         Update: {
           created_at?: string
-          key?: string
-          max_in_flight?: number
-          scope?: string
+          kind?: string
+          lane?: number
+          once_kept?: boolean
+          once_parts?: string[] | null
+          paused_at?: string | null
+          paused_why?: string | null
         }
         Relationships: []
       }
@@ -3083,6 +3098,7 @@ export type Database = {
         Row: {
           attempts: number
           created_at: string
+          dedupe_kept: boolean
           dedupe_key: string | null
           due_at: string
           fired_at: string | null
@@ -3100,6 +3116,7 @@ export type Database = {
         Insert: {
           attempts?: number
           created_at?: string
+          dedupe_kept?: boolean
           dedupe_key?: string | null
           due_at: string
           fired_at?: string | null
@@ -3117,6 +3134,7 @@ export type Database = {
         Update: {
           attempts?: number
           created_at?: string
+          dedupe_kept?: boolean
           dedupe_key?: string | null
           due_at?: string
           fired_at?: string | null
@@ -3132,6 +3150,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "jobs_kind_fkey"
+            columns: ["kind"]
+            isOneToOne: false
+            referencedRelation: "job_kinds"
+            referencedColumns: ["kind"]
+          },
           {
             foreignKeyName: "jobs_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -7021,6 +7046,44 @@ export type Database = {
           },
         ]
       }
+      setup_choices: {
+        Row: {
+          marks: string[]
+          phone: Json | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+          whatsapp: string | null
+        }
+        Insert: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Update: {
+          marks?: string[]
+          phone?: Json | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setup_choices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_reports: {
         Row: {
           created_at: string
@@ -7086,6 +7149,7 @@ export type Database = {
           backlog_ticks: number
           jobname: string | null
           judged_by: string
+          kind: string | null
           max_silence: string | null
           note: string | null
           registered_at: string
@@ -7099,6 +7163,7 @@ export type Database = {
           backlog_ticks?: number
           jobname?: string | null
           judged_by?: string
+          kind?: string | null
           max_silence?: string | null
           note?: string | null
           registered_at?: string
@@ -7112,6 +7177,7 @@ export type Database = {
           backlog_ticks?: number
           jobname?: string | null
           judged_by?: string
+          kind?: string | null
           max_silence?: string | null
           note?: string | null
           registered_at?: string
@@ -7785,6 +7851,14 @@ export type Database = {
         Returns: Json
       }
       campaign_stuck: { Args: { p_tenant_id: string }; Returns: Json }
+      capability_activate: {
+        Args: { p_capability: string; p_note?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      capability_deactivate: {
+        Args: { p_capability: string; p_tenant_id: string }
+        Returns: Json
+      }
       change_playbook: {
         Args: {
           p_decision?: Json
@@ -7820,6 +7894,7 @@ export type Database = {
         Returns: {
           attempts: number
           created_at: string
+          dedupe_kept: boolean
           dedupe_key: string | null
           due_at: string
           fired_at: string | null
@@ -8110,6 +8185,10 @@ export type Database = {
         Args: { p_config_version?: number; p_id: string; p_keep: boolean }
         Returns: Json
       }
+      finish_broadcast: {
+        Args: { p_event: Json; p_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       first_replies: {
         Args: { p_start: string; p_tenant_id: string }
         Returns: {
@@ -8275,7 +8354,14 @@ export type Database = {
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }
+      job_dedupe_key_of: {
+        Args: { p_kind: string; p_payload: Json; p_tenant: string }
+        Returns: string
+      }
+      job_kind_pause: { Args: { p_kind: string; p_why: string }; Returns: Json }
+      job_kind_resume: { Args: { p_kind: string }; Returns: Json }
       jobs_backlog: { Args: { p_wait?: string }; Returns: number }
+      jobs_ledger_now: { Args: never; Returns: Json }
       last_inbound_on_instagram: {
         Args: { "": Database["public"]["Tables"]["conversations"]["Row"] }
         Returns: {
@@ -8304,6 +8390,7 @@ export type Database = {
         Args: { p_addresses: string[]; p_tenant_id: string }
         Returns: string[]
       }
+      lead_allowance: { Args: { p_tenant_id: string }; Returns: number }
       lead_blank: { Args: { p_lead_id: string }; Returns: number }
       lead_bulk: {
         Args: {
@@ -9849,6 +9936,10 @@ export type Database = {
         }
         Returns: string
       }
+      queue_send: {
+        Args: { p_due_at: string; p_message: Json; p_payload: Json }
+        Returns: string
+      }
       reach_out_add: {
         Args: { p_dry?: boolean; p_lead_ids: string[]; p_root_id: string }
         Returns: Json
@@ -10310,6 +10401,7 @@ export type Database = {
         }
         Returns: Json
       }
+      schedule_canary: { Args: never; Returns: undefined }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
@@ -10690,6 +10782,18 @@ export type Database = {
           written_at: string
         }[]
       }
+      sequence_queued_why_not: {
+        Args: {
+          p_lead_ids: string[]
+          p_sequence_ids: string[]
+          p_tenant_id: string
+        }
+        Returns: {
+          lead_id: string
+          sequence_id: string
+          why: string
+        }[]
+      }
       sequence_return: {
         Args: {
           p_decision?: Json
@@ -10913,6 +11017,17 @@ export type Database = {
       set_workspace_logo: {
         Args: { p_logo_path: string; p_tenant_id: string }
         Returns: string
+      }
+      setup_choice_set: {
+        Args: {
+          p_clear_phone?: boolean
+          p_marks?: string[]
+          p_phone?: Json
+          p_tenant_id: string
+          p_version?: number
+          p_whatsapp?: string
+        }
+        Returns: Json
       }
       setup_request: {
         Args: { p_tenant_id: string; p_what: string }
@@ -11140,6 +11255,7 @@ export type Database = {
           version: number
         }[]
       }
+      trial_use: { Args: { p_tenant_id: string }; Returns: Json }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_channel_quality_sweep: { Args: never; Returns: number }

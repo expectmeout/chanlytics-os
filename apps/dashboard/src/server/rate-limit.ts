@@ -58,6 +58,11 @@ export const RATE = {
   thread_state: { limit: 120, windowMs: MIN_MS, noun: "conversation changes" },
   /** Irreversible, and a job per erasure. */
   erase: { limit: 5, windowMs: HOUR_MS, noun: "erasures" },
+  /**
+   * Many people deleted at a press, fifty at most (People's Delete…): an owner clearing what a mailbox brought in before
+   * it judged its senders (3 Nov 2026: 46 on one workspace, nine hours of `erase`'s five) stays well under this.
+   */
+  erase_many: { limit: 10, windowMs: HOUR_MS, noun: "deletions of many people" },
   /** Irreversible too (0028), and refused pairs spend a turn: an owner tidying a list of duplicates stays under this. */
   merge: { limit: 20, windowMs: HOUR_MS, noun: "merges" },
   /** A sentence into a live call. */
@@ -192,6 +197,10 @@ export const RATE = {
    * an outage is fixed, so a support session's ceiling, and still a ceiling: each one is a job run again.
    */
   platform_job_requeue: { limit: 60, windowMs: HOUR_MS, noun: "jobs run again for other workspaces" },
+  /** Every failed job of one kind run again (Health, decision 0089): once an outage is mended, a few presses at most. */
+  platform_job_requeue_kind: { limit: 10, windowMs: HOUR_MS, noun: "kinds of jobs run again" },
+  /** A kind of background work paused or resumed (Health, decision 0089): an incident's lever, rarely pulled. */
+  platform_job_pause: { limit: 20, windowMs: HOUR_MS, noun: "kinds paused or resumed" },
   /** A subscriber's failed deliveries scheduled again (Health, decision 0068): once its cause is mended, rarely more. */
   platform_delivery_redrive: { limit: 20, windowMs: HOUR_MS, noun: "deliveries sent again" },
   /** A partner's authenticator removed after a person checked it is them (0013): rare, and each one is a phone call. */

@@ -183,7 +183,7 @@ test("the view model per status: what the pane says and what an owner may do", (
   assert.equal(trial.headline, "On trial");
   assert.equal(
     trial.detail,
-    "14 days left on the trial, until Sep 21, then Chanlytics OS · $49.00 a month on Visa ending 4242. A phone number, texting and lead searches start with the plan.",
+    "14 days left on the trial, until Sep 21, then Chanlytics OS · $49.00 a month on Visa ending 4242. Your trial includes everything: your number, texting and every channel, up to 150 call minutes, 1,000 replies and 50 leads.",
   );
   assert.deepEqual(
     trial.actions,
@@ -405,9 +405,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
   assert.ok(
     lib.includes(
-      'const trial = row.stripe_subscription_id ? 0 : back === "start" ? FIRST_RUN_TRIAL_DAYS : trialDays();',
+      "const trial = trialDaysFor({ hadSubscription: !!row.stripe_subscription_id, deploymentDays: trialDays() });",
     ),
-    "the trial applies once, and the first run's Go live takes FIRST_RUN_TRIAL_DAYS (decision 0073, D2), as its pane says it",
+    "the trial applies once, and is the same from every door, the first run's Go live included (decision 0090)",
   );
   // Number("") is 0, not NaN, so a variable created in Vercel and left blank —
   // which is exactly what copying .env.example gives you — read as a deliberate
@@ -454,7 +454,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
 
   const get = readCode("apps/dashboard/app/api/v1/billing/route.ts");
-  assert.ok(get.includes("billingFor(ctx.supabase, member.tenantId), billingReadiness()"));
+  assert.match(get, /billingFor\(ctx\.supabase, member\.tenantId\),\s*billingReadiness\(\)/);
   for (const [file, role] of [
     ["checkout", "owner"],
     ["portal", "owner"],

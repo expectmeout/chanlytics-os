@@ -38,6 +38,7 @@ import {
   recordingPathsOf,
   recordSystemDecision,
   removeMediaObjects,
+  retellCallIdsOf,
   scrubAskTurns,
   scrubErasedJobs,
   scrubModelTurns,
@@ -66,6 +67,12 @@ interface ErasureClients {
   service: Db;
   /** The Storage sweep's row on the ledger: the route records it as the member who pressed, the finish as the system. */
   record: (payload: Json) => Promise<unknown>;
+  /**
+   * The person's calls taken off the voice provider, by their provider ids (decision 0092): the provider key lives on the
+   * edge alone, so the route asks the edge's door and the finish job is handed the edge's own function. Absent (a test,
+   * a runtime with no provider), the leg says so and the provider keeps the calls for its retention.
+   */
+  providerCalls?: (callIds: string[]) => Promise<{ asked: number; deleted: number; refused: number }>;
 }
 
 interface ErasureOptions {
@@ -102,6 +109,7 @@ async function erasePerson(clients: ErasureClients, contact: ErasurePerson, opti
   const finishWaits = options.finishLater && (await scheduleFinish(clients.service, contact));
   await scrubCopiesFirst(clients, contact, keys, finishWaits);
   const storage = await removeStoredObjects(clients.service, contact, keys.paths, finishWaits);
+  await forgetAtProvider(clients, contact);
   const out = await eraseRows(clients.session, contact, storage);
   await forgetAfterRows(clients, contact, keys);
   const sweep = await sweepLateObjects(clients, contact, out, keys.paths);
@@ -342,6 +350,28 @@ async function removeStoredObjects(
 }
 
 /* ---- 4. the rows, in one transaction, carrying the legs into the ledger ---- */
+/**
+ * The provider's copies of the person's calls (decision 0092): their audio, transcripts and logs at the voice provider,
+ * asked to be deleted by the provider ids read off the call rows, before the rows go (after them nothing names the
+ * calls). Best effort, as a leg the erasure cannot undo is: a read or a provider that fails is logged and the erasure
+ * goes on, and what the provider kept goes with its retention (a week: channels CALL_LIMITS).
+ */
+async function forgetAtProvider(clients: ErasureClients, contact: ErasurePerson): Promise<void> {
+  const L = logger();
+  if (!clients.providerCalls) {
+    L.warn("erase_provider_calls_skipped", { tenant_id: contact.tenant_id, contact: contact.id });
+    return;
+  }
+  try {
+    const ids = await retellCallIdsOf(clients.service, contact.tenant_id, contact.id);
+    if (!ids.length) return;
+    const erased = await clients.providerCalls(ids);
+    L.info("erase_provider_calls", { tenant_id: contact.tenant_id, contact: contact.id, ...erased });
+  } catch (e) {
+    L.error("erase_provider_calls_failed", { tenant_id: contact.tenant_id, contact: contact.id, error: errText(e) });
+  }
+}
+
 function eraseRows(db: Db, contact: ErasurePerson, storage: StorageLeg): Promise<ErasedRows> {
   return eraseContactRows(db, contact.id, {
     storage: { requested: storage.requested, removed: storage.removed.length },
@@ -539,6 +569,7 @@ export async function erasureFinish(ctx: JobContext, job: ClaimedJob): Promise<v
   const clients: ErasureClients = {
     session: ctx.db,
     service: ctx.db,
+    ...(ctx.eraseProviderCalls ? { providerCalls: ctx.eraseProviderCalls } : {}),
     record: (payload) =>
       recordSystemDecision(ctx.db, {
         tenantId: contact.tenant_id,

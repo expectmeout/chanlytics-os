@@ -1,6 +1,6 @@
 /**
  * What a selection can become: people on a list, a yes on record, a note, a receptionist mode, a file (moved from
- * legacy/pages/people.jsx PeopleBulkBar, decision 0015). Adding to a list and recording a yes are owner-or-operator on
+ * legacy/pages/people.jsx PeopleBulkBar, decision 0015), or gone (Delete…, delete-many.tsx). Adding to a list and recording a yes are owner-or-operator on
  * the server; the bar shows what the role allows and says why when it does not. Each act is a closure over the bar's
  * context, made once per draw, as they were.
  */
@@ -16,6 +16,7 @@ import { downloadCsv } from "../../kit/download";
 // Through the door the frame holds (sheets/doors.tsx): the press waits for the sheet to listen, however early it comes.
 import { askStepSheet } from "../sheets/doors";
 import type { BulkCtx, BulkProps, BulkState } from "./bulk-state";
+import { deleteManyActs } from "./delete-many";
 import type { SavedList } from "../types";
 
 /** What the bar works out of its props each draw: who is picked and shown, the fifty a press takes, and the yes sources. */
@@ -269,6 +270,6 @@ function personActs(b: BulkCtx) {
 /** The bar's acts, over one draw's context. */
 export function bulkActs(b: BulkCtx) {
   const run = bulkRun(b);
-  return { ...listActs(b, run), ...yesActs(b, run), ...personActs(b) };
+  return { ...listActs(b, run), ...yesActs(b, run), ...personActs(b), ...deleteManyActs(b) };
 }
 export type BulkActs = ReturnType<typeof bulkActs>;

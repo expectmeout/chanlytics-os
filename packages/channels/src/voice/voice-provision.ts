@@ -20,6 +20,7 @@
 import {
   desiredVoiceShell,
   availabilityUrl,
+  CALL_LIMITS,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
@@ -28,7 +29,7 @@ import {
   CALL_FEEL,
   CALL_HANDBOOK,
 } from "./voice-shell";
-import { E164, HOUR_MS, PHONE_VOICE_DEFAULT, RETELL_MODELS } from "@chanlytics/contracts";
+import { E164, PHONE_VOICE_DEFAULT, RETELL_MODELS } from "@chanlytics/contracts";
 
 /** The model behind the shell, in Retell's name for it (contracts RETELL_MODELS). Temperature 0: the facts are read, not improvised. */
 export const VOICE_LLM_DEFAULTS = {
@@ -45,13 +46,14 @@ export const VOICE_LLM_DEFAULTS = {
  * workspace should sound like the line customers already hear. The converger
  * never touches an existing agent's voice, so this only reaches agents
  * provisioned from now on; a workspace's own choice is sent with each call
- * (contracts PHONE_VOICES, the inbound webhook's agent_override). Retention is the product's 90 days; the pipeline
- * copies audio into private storage within seconds.
+ * (contracts PHONE_VOICES, the inbound webhook's agent_override). The call's limits are the shell's (CALL_LIMITS:
+ * twenty minutes a call, thirty seconds of silence, a week at the provider), since the pipeline copies the audio
+ * into private storage within seconds and keeps its own record.
  */
 export const VOICE_AGENT_DEFAULTS = {
   voice_id: PHONE_VOICE_DEFAULT,
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
-  end_call_after_silence_ms: 30000,
+  end_call_after_silence_ms: CALL_LIMITS.end_call_after_silence_ms,
   // A silent caller is reminded after four seconds, twice (voice-shell.ts SILENCE_REMINDER_MS): the converger holds
   // every live agent to the same. The ten locales stay until a line is converged to its workspace's (retellLocalesOf).
   reminder_trigger_ms: SILENCE_REMINDER_MS,
@@ -60,9 +62,9 @@ export const VOICE_AGENT_DEFAULTS = {
   // converged to, so the converger plans nothing against what this creates.
   ...CALL_FEEL,
   handbook_config: CALL_HANDBOOK,
-  max_call_duration_ms: HOUR_MS,
+  max_call_duration_ms: CALL_LIMITS.max_call_duration_ms,
   data_storage_setting: "everything",
-  data_storage_retention_days: 90,
+  data_storage_retention_days: CALL_LIMITS.data_storage_retention_days,
   post_call_analysis_model: RETELL_MODELS.analysis,
   allow_user_dtmf: true,
 } as const;
@@ -96,11 +98,16 @@ export function voiceEndpoints(fnUrl: string): {
  * logs, and anyone holding it could forge a call_analyzed.
  */
 export interface ProvisionSecrets {
-  fnSecret: string;
+  /**
+   * The shared secret, or null once the edge opens the voice doors for Retell's signature alone (RETELL_DOORS_SIGNED):
+   * then nothing is provisioned with it, neither the tools' header nor the inbound URL's `?key=` (decision 0092).
+   */
+  fnSecret: string | null;
 }
 
-export function withKey(url: string, secret: string): string {
-  return `${url}?key=${encodeURIComponent(secret)}`;
+/** The URL with the shared secret as `?key=`, or the URL bare when there is no secret to carry (the signature alone). */
+export function withKey(url: string, secret: string | null): string {
+  return secret ? `${url}?key=${encodeURIComponent(secret)}` : url;
 }
 
 /** The URL without its query string — the only form a response or a log may carry. */
@@ -108,9 +115,9 @@ export function stripKey(url: string | null | undefined): string | null {
   return typeof url === "string" ? (url.split("?")[0] ?? url) : null;
 }
 
-/** POST /create-retell-llm: the shell, with the secret on its tools. */
+/** POST /create-retell-llm: the shell, with the secret on its tools while the doors still read one. */
 export function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl: string): Record<string, unknown> {
-  return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, { "x-fn-secret": s.fnSecret }) };
+  return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, s.fnSecret ? { "x-fn-secret": s.fnSecret } : null) };
 }
 
 /** POST /create-agent: the voice, the webhook and its events, the analysis fields, retention. */

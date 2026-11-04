@@ -3,6 +3,7 @@
  * waiting with nothing back, the receipts, and the calls worth an ear. The queue that draws them in one grammar is
  * today-queue.ts.
  */
+import { CALL_ENDINGS_NEEDING_AN_EAR } from "../voice/call-endings";
 import { addressOf } from "../activity/record-address";
 import { standingOfThread } from "../conversations/standing";
 import { abandonedCall, endedHowOf, neverConnected, reachedVoicemail, type CallDto } from "../conversations/call-dto";
@@ -171,7 +172,8 @@ export function todayReceipts(f: TodayFacts): NonNullable<TodayVM["recap"]>["rec
 /* ---- calls worth an ear: rows ONLY for the ones that need one.
    A call that went fine is a line in the aggregate, not a row demanding
    attention — the whole point of the region is that it stays short. ---- */
-const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
+/** The endings that leave a call worth an ear (voice/call-endings.ts): somebody rang and was not served. */
+const NEEDS_EAR: readonly string[] = CALL_ENDINGS_NEEDING_AN_EAR;
 
 /** What a call worth an ear says under its name: the first of these that is true. */
 function callNote(c: CallDto, live: boolean | undefined, analysisDue: boolean): string {

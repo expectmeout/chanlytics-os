@@ -110,6 +110,22 @@ export const env = {
   get RETELL_DOORS_SIGNED() {
     return trimmedEnv(process.env.RETELL_DOORS_SIGNED);
   },
+  /** The knock on /api/voice-canary (x-canary-key): the daily canary call's alone; unset, the door opens for nobody. */
+  get VOICE_CANARY_KEY() {
+    return trimmedEnv(process.env.VOICE_CANARY_KEY);
+  },
+  /** The workspace of ours the canary calls (tenants.ours): its receptionist answers the canary's call. */
+  get VOICE_CANARY_TENANT() {
+    return trimmedEnv(process.env.VOICE_CANARY_TENANT);
+  },
+  /** The number of the platform's the canary calls from (E.164, held at the voice provider). */
+  get VOICE_CANARY_FROM() {
+    return trimmedEnv(process.env.VOICE_CANARY_FROM);
+  },
+  /** The provider's agent that plays the caller: a script, with no webhook of its own. */
+  get VOICE_CANARY_CALLER_AGENT() {
+    return trimmedEnv(process.env.VOICE_CANARY_CALLER_AGENT);
+  },
   get TWILIO_ACCOUNT_SID() {
     return trimmedEnv(process.env.TWILIO_ACCOUNT_SID);
   },

@@ -208,6 +208,8 @@ export interface Delivery {
    * runs out of it settles as `failed` with an unknown outcome (the provider may have taken it), as any timeout does.
    */
   sendBy?: number;
+  /** Epoch ms past which the send is too late to leave by itself (the job's `stale_after`, 0089): refused `too_late`. */
+  staleAfter?: number;
 }
 
 /** The policy a send goes under: as declared, or as the door always derived it from who wrote the words. */
@@ -516,6 +518,7 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
 
 /** Asked last (deliver): how late a draft would be, the message it answers read only then (db replyAnswersAt). */
 async function draftTooLate(db: Db, d: Delivery, nowMs: number): Promise<DeliveryRefusal | null> {
+  if (d.staleAfter !== undefined && Number.isFinite(d.staleAfter) && nowMs > d.staleAfter) return "too_late";
   return kindOf(d) === "draft" ? lateDraft(d, await replyAnswersAt(db, d), nowMs, kindOf(d)) : null;
 }
 

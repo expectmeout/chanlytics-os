@@ -29,7 +29,7 @@ export const CLOCKS = {
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
   text_canary: {
     kind: "judge",
-    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00524)",
+    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00537)",
   },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
   deadman: {
@@ -45,6 +45,10 @@ export const CLOCKS = {
   jobs: {
     kind: "reconcile",
     why: "the ledger's backstop: a written job wakes the runner (00333), and the tick claims what a wake missed",
+  },
+  jobs_canary: {
+    kind: "judge",
+    why: "puts the ledger's own job on it every minute, and is judged by the newest one done: the whole loop proved from outside (00526, decision 0089)",
   },
   leads: { kind: "reconcile", why: "takes up lead runs whose start or lease was lost" },
   lines: {
@@ -119,6 +123,6 @@ export const CLOCKS = {
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
   texts: {
     kind: "reconcile",
-    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00523)",
+    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00536)",
   },
 };

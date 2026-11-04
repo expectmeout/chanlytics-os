@@ -14,6 +14,7 @@ export type { PoolCalendar, PoolOptions } from "./audience-pool";
 export {
   ConsentAnswerBody,
   ConsentManyBody,
+  EraseManyBody,
   NotesAppendManyBody,
   NoteWriteBody,
   PersonAddBody,

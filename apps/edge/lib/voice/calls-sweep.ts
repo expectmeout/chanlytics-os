@@ -44,7 +44,10 @@
  *      with its analysis is settled the same way (leg 2).
  *   5. A call that ended, or errored, with no analysis still gets its line in the customer's thread (recordCallNote,
  *      once per call, linked back by linkCallMessage) after NOTE_GRACE_MS, which is the webhook's time to write it
- *      with the summary.
+ *      with the summary; so does a missed call whose line the webhook did not write (MISSED_CALL_LINE, 00530).
+ *   6. A call whose owner's notice was claimed and not told in full (a mail that failed after the provider stopped
+ *      redelivering) is asked of the provider and settled again from NOTICE_GRACE_MS after its claim for
+ *      NOTICE_FOR_MS: notifyOnce finds the notice kept and sends only the mail it still owes (decision 0092).
  *
  * Called by pg_cron every five minutes ('call-reconcile', 00020) through trigger_call_reconcile, which since 00149
  * (and 00434, for leg 4) wakes the edge only when the calls table owes one of those things, through request_sweep with the Vault sweep
@@ -70,13 +73,14 @@ import {
 } from "../packages/channels.js";
 import {
   callsOwedAnAnalysis,
+  callsOwedANotice,
   ingestCall,
   recordCallNote,
   linkCallMessage,
   resolveChannelDetailed,
   setCallRecording,
 } from "../packages/db.js";
-import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS } from "../packages/contracts.js";
+import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "../packages/contracts.js";
 import { settleCall } from "./call-webhook.js";
 import {
   copyRecording,
@@ -102,6 +106,13 @@ const OVERLONG_MS = 30 * 60 * 1000;
 const NOTE_GRACE_MS = 15 * 60 * 1000;
 
 const MAX_NOTES_PER_TICK = 10;
+
+/** A notice claimed this long ago and not told is the sweep's to finish: the webhook's own retries are done by then. */
+const NOTICE_GRACE_MS = 10 * MIN_MS;
+/** And for this long after its claim: a mail that cannot go for two days is the mail provider's outage, paged elsewhere. */
+const NOTICE_FOR_MS = 48 * HOUR_MS;
+/** Notices finished per tick: each is one provider read and the webhook's whole second half. */
+const MAX_NOTICES_PER_TICK = 5;
 
 /**
  * A call is asked for its analysis from contracts ANALYSIS_GRACE_MS after it ended, the time the provider takes to
@@ -302,6 +313,110 @@ async function settleUnanalysed(leg: ProviderLeg) {
 }
 
 /**
+ * Leg 6: the calls whose owner's notice was claimed and not told in full (see the header), oldest first, each asked of
+ * the provider and settled again: a missed call as it ended, any other as analysed. notifyOnce finds the notice kept
+ * under the call's name and sends only the mail still owed; told, the call says so (notice_told_at).
+ */
+async function finishOwedNotices(leg: ProviderLeg) {
+  const { db, apiKey, provider, L } = leg;
+  const counts = { candidates: 0, told: 0, owed: 0, notYet: 0, unroutable: 0, deferred: 0 };
+  let owed;
+  try {
+    owed = await callsOwedANotice(db, {
+      nowMs: Date.now(),
+      fromMs: NOTICE_GRACE_MS,
+      toMs: NOTICE_FOR_MS,
+      limit: MAX_NOTICES_PER_TICK,
+    });
+  } catch (e) {
+    L.error("calls_sweep_notice_query_failed", { error: errField(e) });
+    return counts;
+  }
+  for (const row of owed) {
+    counts.candidates++;
+    if (provider.hold) {
+      counts.deferred++;
+      continue;
+    }
+    try {
+      const read = await getCall({ apiKey }, row.retell_call_id);
+      if (read.kind === "unavailable" || read.kind === "auth") {
+        noteProvider(provider, read);
+        counts.deferred++;
+        continue;
+      }
+      if (read.kind === "not_found") {
+        counts.notYet++;
+        continue;
+      }
+      const routing = read.call.agent_id ? await resolveChannelDetailed(db, "voice", read.call.agent_id) : null;
+      if (!routing?.channel) {
+        counts.unroutable++;
+        continue;
+      }
+      const settled = await settleCall(db, routing.channel, {
+        event: row.status === "not_connected" ? "call_ended" : "call_analyzed",
+        call: read.call,
+        bodyKeys: [],
+        callKeys: Object.keys(read.call),
+      });
+      if (settled.kind === "notice_owed") counts.owed++;
+      else counts.told++;
+    } catch (e) {
+      L.error("calls_sweep_row_failed", { call: row.retell_call_id, error: errField(e) });
+    }
+  }
+  return counts;
+}
+
+/**
+ * Leg 5: the calls that ended without an analysis, and the missed calls whose line the webhook did not write, each
+ * given its line in the customer's thread once NOTE_GRACE_MS has passed (the webhook writes it with the summary).
+ */
+async function writeMissingNotes(db: ProviderLeg["db"], L: Logger) {
+  const notes = { candidates: 0, written: 0 };
+  const grace = new Date(Date.now() - NOTE_GRACE_MS).toISOString();
+  const { data: unnoted, error: noteErr } = await db
+    .from("calls")
+    .select(
+      "id, tenant_id, retell_call_id, conversation_id, contact_id, direction, status, duration_ms, in_voicemail, summary, started_at",
+    )
+    .in("status", ["ended", "error", "not_connected"])
+    .is("message_id", null)
+    .not("conversation_id", "is", null)
+    // A missed call may carry no end: it is judged by when it was made.
+    .or(`ended_at.lt.${grace},and(ended_at.is.null,created_at.lt.${grace})`)
+    .order("ended_at", { ascending: true, nullsFirst: true })
+    .limit(MAX_NOTES_PER_TICK);
+  if (noteErr) L.error("calls_sweep_notes_query_failed", { error: noteErr.message });
+  for (const row of unnoted ?? []) {
+    if (!row.conversation_id) continue;
+    notes.candidates++;
+    const line = callSummaryLine({
+      direction: row.direction === "outbound" ? "outbound" : "inbound",
+      status: row.status as NormalizedCall["status"],
+      durationMs: row.duration_ms,
+      summary: row.summary,
+      inVoicemail: row.in_voicemail,
+      analysis: null,
+    });
+    const msgId = await recordCallNote(db, {
+      tenantId: row.tenant_id,
+      conversationId: row.conversation_id,
+      contactId: row.contact_id,
+      body: line,
+      externalId: `call:${row.retell_call_id}`,
+      channelTsIso: row.started_at,
+    });
+    if (msgId) {
+      await linkCallMessage(db, row.tenant_id, row.id, msgId);
+      notes.written++;
+    }
+  }
+  return notes;
+}
+
+/**
  * The recordings that did not finish copying inside the webhook's budget.
  * Same settle rule: the row's own updated_at moved on the last attempt, so
  * waiting five minutes IS the back-off. After RECORDING_MAX_ATTEMPTS the
@@ -443,43 +558,12 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
   const recordings = await retryRecordings(leg);
   const settles = await settleUnanalysed(leg);
 
-  // ---- calls that ended without an analysis still get a line in the thread ----
+  // ---- calls that ended without an analysis, and missed calls, still get a line in the thread ----
   // The webhook writes the customer-thread note when the summary exists;
   // a call the provider never analyses would otherwise leave no trace there.
-  const notes = { candidates: 0, written: 0 };
-  const { data: unnoted, error: noteErr } = await db
-    .from("calls")
-    .select(
-      "id, tenant_id, retell_call_id, conversation_id, contact_id, direction, duration_ms, in_voicemail, summary, started_at",
-    )
-    .in("status", ["ended", "error"])
-    .is("message_id", null)
-    .not("conversation_id", "is", null)
-    .lt("ended_at", new Date(Date.now() - NOTE_GRACE_MS).toISOString())
-    .order("ended_at", { ascending: true })
-    .limit(MAX_NOTES_PER_TICK);
-  if (noteErr) L.error("calls_sweep_notes_query_failed", { error: noteErr.message });
-  for (const row of unnoted ?? []) {
-    notes.candidates++;
-    const line = callSummaryLine({
-      direction: row.direction === "outbound" ? "outbound" : "inbound",
-      durationMs: row.duration_ms,
-      summary: row.summary,
-      inVoicemail: row.in_voicemail,
-    } as NormalizedCall);
-    const msgId = await recordCallNote(db, {
-      tenantId: row.tenant_id,
-      conversationId: row.conversation_id,
-      contactId: row.contact_id,
-      body: line,
-      externalId: `call:${row.retell_call_id}`,
-      channelTsIso: row.started_at,
-    });
-    if (msgId) {
-      await linkCallMessage(db, row.tenant_id, row.id, msgId);
-      notes.written++;
-    }
-  }
+  const notes = await writeMissingNotes(db, L);
+  // ---- a notice claimed and not told in full is finished ----
+  const notices = await finishOwedNotices(leg);
 
   // The provider's own state, once a tick, never once a row: the rows it could
   // not answer for are in the counts, and why the tick stopped asking is here.
@@ -488,12 +572,12 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
       status: provider.unavailableStatus,
       retry_after_ms: provider.retryAfterMs,
       hold: provider.hold,
-      deferred: deferred + recordings.deferred + settles.deferred,
+      deferred: deferred + recordings.deferred + settles.deferred + notices.deferred,
     });
   if (provider.keyRefused !== null)
     L.error("calls_sweep_provider_refused_key", {
       status: provider.keyRefused,
-      deferred: deferred + recordings.deferred + settles.deferred,
+      deferred: deferred + recordings.deferred + settles.deferred + notices.deferred,
     });
   L.info("calls_sweep_done", {
     candidates: stale?.length ?? 0,
@@ -504,9 +588,20 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     recordings: JSON.stringify(recordings),
     settles: JSON.stringify(settles),
     notes: JSON.stringify(notes),
+    notices: JSON.stringify(notices),
     purge: JSON.stringify(purge),
   });
-  const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, deferred, recordings, settles, notes };
+  const counts = {
+    candidates: stale?.length ?? 0,
+    closed,
+    stillLive,
+    unknown,
+    deferred,
+    recordings,
+    settles,
+    notes,
+    notices,
+  };
   // A purge that failed is the privacy page's ninety days not being kept, so
   // once the other legs have had their turn the answer says so: pg_net records
   // it and sweep_health() judges it (00149). The purge goes first, inside the

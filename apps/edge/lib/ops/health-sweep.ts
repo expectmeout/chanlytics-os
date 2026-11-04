@@ -36,6 +36,8 @@ import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
+import { pausedJobKinds } from "../packages/db.js";
+import { watchVoice } from "../voice/watch/voice-watch.js";
 import { env } from "../env.js";
 import type { SweepTick } from "./sweep-door.js";
 
@@ -114,6 +116,20 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     );
   }
 
+  // A kind an operator paused (decision 0089): its work waits, which is meant, and nobody should forget that it does.
+  // One page per kind per window while it holds; a read that fails is logged.
+  const paused = await pausedJobKinds(db).catch((e: unknown) => {
+    L.error("sweep_health_paused_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    return [];
+  });
+  for (const k of paused)
+    await pageOperator(
+      { db },
+      `jobs_paused:${k.kind}`,
+      `${k.kind} is paused: its work waits`,
+      `Paused since ${k.paused_at}${k.paused_why ? ` (${k.paused_why})` : ""}. Nothing of it is claimed until it is resumed on the Console's Health, Background work.`,
+    );
+
   // WhatsApp messages that never heard back, in a workspace where nothing
   // else has been receipted since either: the webhook, not a phone. The page
   // names workspaces and times, never a customer, and comes once per window
@@ -150,6 +166,9 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const pinsGone = await watchLeadPins(db, leadSourceClient());
   // And once a day their prices, against the last read: the cards and the SQL ceiling are priced by hand (00506).
   const pricesPaged = await watchLeadPrices(db, leadSourceClient(), Date.now());
+  // The voice provider: its account's calls at once against its limit, and once a day every live agent against the
+  // product's shell and settings (decision 0092).
+  const voice = await watchVoice(db);
 
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
@@ -163,6 +182,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     ai_usage_purged: models.purged,
     lead_pins_gone: pinsGone,
     lead_prices_paged: pricesPaged,
+    voice_concurrency: voice.concurrency,
+    voice_drifted: voice.drifted,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

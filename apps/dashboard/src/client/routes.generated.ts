@@ -181,6 +181,7 @@ export const ROUTES = {
   "POST contacts/[id]/notes/remove": { method: "POST", path: "/api/v1/contacts/[id]/notes/remove" },
   "POST contacts/[id]/notes/seen": { method: "POST", path: "/api/v1/contacts/[id]/notes/seen" },
   "POST contacts/[id]/signup-confirm": { method: "POST", path: "/api/v1/contacts/[id]/signup-confirm" },
+  "POST contacts/erase": { method: "POST", path: "/api/v1/contacts/erase" },
   "POST contacts/import": { method: "POST", path: "/api/v1/contacts/import" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
@@ -253,7 +254,9 @@ export const ROUTES = {
   "POST people/[id]/say": { method: "POST", path: "/api/v1/people/[id]/say" },
   "POST platform/claims": { method: "POST", path: "/api/v1/platform/claims" },
   "POST platform/deliveries/redrive": { method: "POST", path: "/api/v1/platform/deliveries/redrive" },
+  "POST platform/jobs/pause": { method: "POST", path: "/api/v1/platform/jobs/pause" },
   "POST platform/jobs/requeue": { method: "POST", path: "/api/v1/platform/jobs/requeue" },
+  "POST platform/jobs/requeue-kind": { method: "POST", path: "/api/v1/platform/jobs/requeue-kind" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
   "POST platform/lines/replace": { method: "POST", path: "/api/v1/platform/lines/replace" },
@@ -345,6 +348,7 @@ export const ROUTES = {
   "PUT sequences/[id]/chain": { method: "PUT", path: "/api/v1/sequences/[id]/chain" },
   "PUT sequences/[id]/steps/[step]": { method: "PUT", path: "/api/v1/sequences/[id]/steps/[step]" },
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
+  "PUT setup/choices": { method: "PUT", path: "/api/v1/setup/choices" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
   "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
   "PUT workspaces/accent": { method: "PUT", path: "/api/v1/workspaces/accent" },
@@ -532,6 +536,7 @@ export type Routes = {
   "POST contacts/[id]/notes/remove": typeof import("../../app/api/v1/contacts/[id]/notes/remove/route").POST;
   "POST contacts/[id]/notes/seen": typeof import("../../app/api/v1/contacts/[id]/notes/seen/route").POST;
   "POST contacts/[id]/signup-confirm": typeof import("../../app/api/v1/contacts/[id]/signup-confirm/route").POST;
+  "POST contacts/erase": typeof import("../../app/api/v1/contacts/erase/route").POST;
   "POST contacts/import": typeof import("../../app/api/v1/contacts/import/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;
@@ -604,7 +609,9 @@ export type Routes = {
   "POST people/[id]/say": typeof import("../../app/api/v1/people/[id]/say/route").POST;
   "POST platform/claims": typeof import("../../app/api/v1/platform/claims/route").POST;
   "POST platform/deliveries/redrive": typeof import("../../app/api/v1/platform/deliveries/redrive/route").POST;
+  "POST platform/jobs/pause": typeof import("../../app/api/v1/platform/jobs/pause/route").POST;
   "POST platform/jobs/requeue": typeof import("../../app/api/v1/platform/jobs/requeue/route").POST;
+  "POST platform/jobs/requeue-kind": typeof import("../../app/api/v1/platform/jobs/requeue-kind/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;
   "POST platform/lines/replace": typeof import("../../app/api/v1/platform/lines/replace/route").POST;
@@ -696,6 +703,7 @@ export type Routes = {
   "PUT sequences/[id]/chain": typeof import("../../app/api/v1/sequences/[id]/chain/route").PUT;
   "PUT sequences/[id]/steps/[step]": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/route").PUT;
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
+  "PUT setup/choices": typeof import("../../app/api/v1/setup/choices/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
   "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;
   "PUT workspaces/accent": typeof import("../../app/api/v1/workspaces/accent/route").PUT;

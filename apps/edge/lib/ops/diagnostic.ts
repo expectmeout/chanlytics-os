@@ -24,6 +24,9 @@ import {
   type RetellLlmConfig,
 } from "../packages/channels.js";
 import { metaAppId } from "../whatsapp/meta-graph.js";
+import { DAY_MS } from "../packages/contracts.js";
+import { voiceDoorKnocks } from "../packages/db.js";
+import { signatureOnly } from "../voice/voice-door-auth.js";
 import { env } from "../env.js";
 import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../dashboard-origin.js";
 
@@ -264,13 +267,24 @@ function voiceAgentEntry(
         live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
         // Which text model the line runs — provisioning parity, in one word.
         model: llm?.model ?? null,
-        shell: llm ? voiceShellDrift(llm, edgeFnUrl()) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
+        shell: llm
+          ? voiceShellDrift(llm, edgeFnUrl(), signatureOnly())
+          : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
         // The agent-level settings the pipeline needs: the live
         // transcript event, a webhook budget the recording copy fits
         // in, signed recording links.
         agent: agentSettingsDrift(a),
       }
     : { agent_id: r.external_id, channel_status: r.status, error: "unreadable" };
+}
+
+/** Each voice door's knocks of the last seven days (webhook.auth rows, packages/db voiceDoorKnocks), or why not. */
+async function doorEvidence(db: NonNullable<ReturnType<typeof pg>>): Promise<Section> {
+  try {
+    return await voiceDoorKnocks(db, new Date(Date.now() - 7 * DAY_MS).toISOString());
+  } catch (e) {
+    return { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
+  }
 }
 
 /**
@@ -282,6 +296,9 @@ function voiceAgentEntry(
 async function retellAuthEvidence(db: ReturnType<typeof pg>, retellKey: string): Promise<Section> {
   return {
     key_fingerprint: createHash("sha256").update(retellKey).digest("hex").slice(0, 12),
+    // Each voice door's knocks of the last seven days, signed or not (decision 0092): the evidence RETELL_DOORS_SIGNED
+    // is set on, kept as rows since the log keeps a day. The call webhook's rows name no door: "webhook".
+    doors: db ? await doorEvidence(db) : null,
     recent: db
       ? ((
           await db

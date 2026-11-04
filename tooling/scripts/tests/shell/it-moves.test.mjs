@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 
 let reduced = false;
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", ...over });
@@ -141,19 +142,29 @@ test("a pull down says how far it took the sheet under its rest, which a phone's
 });
 
 test("a page that asks first keeps its sheet: it leaves, the page asks, and it settles back to show the question", async () => {
+  // How long the leave takes is the finger's speed as it lifted (carryOn), read off the clock between the touches: a
+  // millisecond ticking between two of them made it 120 ms where it was 180, and a fixed wait of 200 found the sheet
+  // already back (CI, 3 Nov 2026). So the test waits for what it asserts.
   const el = element();
   let asked = 0;
-  const h = touchSwipe({ onDown: () => (asked += 1) });
+  const seen = {};
+  const h = touchSwipe({
+    onDown: () => {
+      asked += 1;
+      seen.asked = el.style.transform;
+      setImmediate(() => (seen.after = el.style.transform));
+    },
+  });
   drag(h, el, [100, 100], [100, 300], [100, 400]);
-  await wait(200);
+  await until(() => "after" in seen, "the page asked, and a turn went by");
   assert.equal(asked, 1);
+  assert.equal(seen.asked, "translate3d(0, 100%, 0)", "asked once it has left");
   assert.equal(
-    el.style.transform,
+    seen.after,
     "translate3d(0, 100%, 0)",
     "judged only once React has had its commit: no frame back in view",
   );
-  await wait(80);
-  assert.equal(el.style.transform, "translate3d(0, 0, 0)", "still on screen after the close: back");
+  await until(() => el.style.transform === "translate3d(0, 0, 0)", "still on screen after the close: back");
 });
 
 test("a sheet still on the page as it plays its leaving (the kit's Sheet, which Base UI lets go after) stays where the pull took it", async () => {

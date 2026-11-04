@@ -428,6 +428,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   website_read: { stopped: "Your website could not be read", to: "admin/receptionist" },
   preview_build: { stopped: "A lead's preview could not be made", to: "clients/leads" },
   erasure_finish: { stopped: "Erasing a person stopped partway: delete them again", to: "clients" },
+  canary: { stopped: "The background work's own check did not finish", to: "today" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */

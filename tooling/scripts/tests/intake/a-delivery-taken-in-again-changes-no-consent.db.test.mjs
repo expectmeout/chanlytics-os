@@ -4,7 +4,7 @@
  * again: START, STOP, then the START's job run late (a text is taken in twice by design, its door and then the job that
  * answers it) opted the person back in and lifted do-not-contact, and an old STOP taken in again after a START held
  * them out. Now only the call that kept the message writes its answer, and a held one is told the consent that stands.
- * The yeses a message carries (a START's channel, a yes to offers) are written by the same call since 00521, in the
+ * The yeses a message carries (a START's channel, a yes to offers) are written by the same call since 00534, in the
  * transaction that keeps the message, so a message taken in again writes neither.
  *
  * Runs against the database `supabase start` builds on this machine, never production.
@@ -241,9 +241,9 @@ test("a YES OFFERS under a stop that stands is not kept, and the message is", { 
   assert.deepEqual(await offersLedger(stop.contact_id), []);
 });
 
-test("00521 re-creates ingest_inbound whole: 00484's body with the lock taken for the yeses and the yeses written, and nothing else", () => {
+test("00534 re-creates ingest_inbound whole: 00484's body with the lock taken for the yeses and the yeses written, and nothing else", () => {
   const header = "create or replace function public.ingest_inbound(";
-  const now = bodyIn(migration("00521"), header);
+  const now = bodyIn(migration("00534"), header);
   const lockWas =
     "  -- A STOP or a START is written below, once the message is known to be new (00361). The person's row is locked\n" +
     "  -- here, where that write used to be, so the person, the thread and the message are still locked in that order.\n" +

@@ -1,12 +1,15 @@
 /**
  * Background work (decision 0068): every clock in plain words beside pg_cron's own record of its runs (platform_clocks,
- * 00469) and the health check's judgement of it, the jobs that failed for good with Run again, what paged us with how
+ * 00469) and the health check's judgement of it, the ledger now by lane and kind with Pause and Run every failed one
+ * again (decision 0089), the jobs that failed for good with Run again, what paged us with how
  * often and when it was last mailed, and each subscriber's deliveries with Deliver again. The overview draws the first
  * clocks and the pager's recent conditions; this tab draws them all. Every word is contracts'.
  */
 import type { MouseEvent } from "react";
 import {
   DAY_MS,
+  HEALTH_WORDS,
+  LEDGER_LANE_WORDS,
   agoWords,
   clocksOf,
   deliveriesOf,
@@ -288,6 +291,112 @@ function FailedJobs({
   );
 }
 
+/**
+ * The ledger now (decision 0089): each lane's work running, due, waiting for a retry and run past its lease, with the
+ * oldest due; when the ledger's own check last finished; and each kind with work or a pause, its day's done and failed,
+ * Pause or Resume, and Run every failed one again over the window. A kind paused is said first: its work waits.
+ */
+function LedgerNow({
+  h,
+  nowMs,
+  me,
+  flash,
+  again,
+}: {
+  h: ConsoleHealth;
+  nowMs: number;
+  me: ConsoleMe;
+  flash: Flash;
+  again: () => void;
+}) {
+  const l = h.ledger ?? null;
+  const canary = l?.canary_done_at ? Date.parse(l.canary_done_at) : null;
+  const sinceIso = new Date(nowMs - h.days * DAY_MS).toISOString();
+  const kinds = (l?.kinds ?? [])
+    .filter((k) => k.paused_at || k.failed_day > 0 || k.done_day > 0)
+    .sort((a, b) => Number(!!b.paused_at) - Number(!!a.paused_at) || b.failed_day - a.failed_day);
+  return (
+    <ScreenSection
+      title={HEALTH_WORDS.ledgerTitle}
+      sub={[
+        HEALTH_WORDS.ledgerSub,
+        l ? (canary ? HEALTH_WORDS.canaryWords(timeWords(canary, nowMs)) : HEALTH_WORDS.canaryNever) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      testid="console-health-ledger"
+    >
+      {l === null ? (
+        <NoneRow words={HEALTH_WORDS.ledgerUnread} />
+      ) : (
+        <>
+          <HealthRows
+            head={[
+              "Lane",
+              "Running",
+              "Due",
+              { label: "Waiting", desk: true },
+              { label: "Past lease", desk: true },
+              "Oldest due",
+            ]}
+            label={HEALTH_WORDS.ledgerTitle}
+          >
+            {l.lanes.map((lane) => (
+              <HealthRow
+                key={lane.lane}
+                title={LEDGER_LANE_WORDS[lane.lane] ?? String(lane.lane)}
+                cells={[
+                  { v: n(lane.running) },
+                  { v: n(lane.due) },
+                  { v: n(lane.waiting), desk: true },
+                  { v: n(lane.expired), desk: true },
+                  { v: lane.oldest_due_s > 0 ? `${lane.oldest_due_s} s` : "—" },
+                ]}
+                testid={`console-health-lane-${lane.lane}`}
+              />
+            ))}
+          </HealthRows>
+          <div className="cl-attn-list">
+            {kinds.map((k) => (
+              <div className="set-row" key={k.kind} data-testid={`console-health-kind-${k.kind}`}>
+                <div className="set-row-info">
+                  <span className="set-row-label">{jobWords(k.kind)}</span>
+                  <span className="set-row-hint cs-h-mono">
+                    {`${k.kind} · ${n(k.done_day)} done · ${n(k.failed_day)} failed in a day`}
+                  </span>
+                  {k.paused_at ? (
+                    <span className="set-row-hint" data-tone="warn">
+                      {`${HEALTH_WORDS.pausedNow}${k.paused_why ? ` ${k.paused_why}` : ""}`}
+                    </span>
+                  ) : null}
+                </div>
+                {k.failed_day > 0 && !k.paused_at ? (
+                  <ActInPlace
+                    run={{ kind: "run_kind_again", jobKind: k.kind, sinceIso }}
+                    me={me}
+                    flash={flash}
+                    again={again}
+                    primary={false}
+                    testid={`console-health-kind-${k.kind}-again`}
+                  />
+                ) : null}
+                <ActInPlace
+                  run={{ kind: "pause_kind", jobKind: k.kind, paused: !k.paused_at }}
+                  me={me}
+                  flash={flash}
+                  again={again}
+                  primary={!!k.paused_at}
+                  testid={`console-health-kind-${k.kind}-pause`}
+                />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </ScreenSection>
+  );
+}
+
 /** Each subscriber's deliveries in the window: done, failed, waiting, and Deliver again where any failed. */
 function Deliveries({
   h,
@@ -370,6 +479,7 @@ export function BackgroundTab({
         </div>
       ) : null}
       <ClockList h={h} nowMs={nowMs} go={go} />
+      <LedgerNow h={h} nowMs={nowMs} me={me} flash={flash} again={again} />
       <FailedJobs h={h} scope={scope} nowMs={nowMs} me={me} flash={flash} again={again} />
       <Deliveries h={h} scope={scope} me={me} flash={flash} again={again} />
       <PagerList h={h} scope={scope} nowMs={nowMs} />

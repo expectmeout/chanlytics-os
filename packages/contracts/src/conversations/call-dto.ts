@@ -4,6 +4,7 @@
  * where its recording stands (`recordingStateOf`) and why it ended, in the owner's words (`endedHowOf`). The call's row
  * is call-vm.ts; Live, Today and a person's page read these too.
  */
+import { CALL_ENDING_OWNER_WORDS } from "../voice/call-endings";
 
 export interface CallDto {
   id: string;
@@ -189,24 +190,8 @@ export const CALL_OUTCOME_WORDS = {
 /** One of the outcomes of the ladder (callOutcomeFor). */
 export type CallOutcome = keyof typeof CALL_OUTCOME_WORDS;
 
-/** Why the call ended, in words a salon owner uses. */
-export const DISCONNECTION_LABELS: Record<string, string> = {
-  user_hangup: "Customer hung up",
-  agent_hangup: "Receptionist ended the call",
-  call_transfer: "Transferred to a person",
-  voicemail_reached: "Reached voicemail",
-  dial_no_answer: "No answer",
-  dial_busy: "Line was busy",
-  dial_failed: "Call couldn't connect",
-  inactivity: "Ended after silence",
-  max_duration_reached: "Hit the call length limit",
-  concurrency_limit_reached: "Line was busy — all agents in use",
-  user_declined: "Customer declined the call",
-  marked_as_spam: "Flagged as spam by the carrier",
-  // The endings the Live page's own controls produce, and the provider's
-  // newer names for a transfer.
-  manual_stopped: "Ended from the dashboard",
-  call_take_over: "A person took over the call",
-  transfer_bridged: "Transferred to a person",
-  transfer_cancelled: "Transfer did not go through",
-};
+/**
+ * Why the call ended, in words a salon owner uses: the one table of the provider's endings (voice/call-endings.ts),
+ * which names the endings Live's own controls make and the provider's newer names for a transfer too.
+ */
+export const DISCONNECTION_LABELS: Record<string, string> = CALL_ENDING_OWNER_WORDS;

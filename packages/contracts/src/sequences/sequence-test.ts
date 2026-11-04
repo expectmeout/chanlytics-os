@@ -48,10 +48,12 @@ export const SEQUENCE_TEST_WORDS = {
   subjectLine: (subject: string) => `Subject: ${subject}`,
   button: (text: string) => `[${text}]`,
   foot: "You got this because you pressed Send me a test.",
-  /** A lead's step: filled for one real lead, the opening as the line written for them when it goes. */
-  leadHead: (business: string, lead: string) =>
-    `A test of what ${business} sends ${lead}, filled in from their record. Nobody else got it.`,
-  opening: (lead: string) => `[A line about ${lead}, written for them when it goes]`,
+  /** A lead's step: one line over the email as that lead gets it, then the email alone. */
+  leadHead: (place: number, lead: string) => `Test of step ${place}, as ${lead} gets it. Only you got this.`,
+  exampleHead: (place: number, lead: string) =>
+    `Test of step ${place}, as an example business, ${lead}, would get it. Only you got this.`,
+  /** Where no opening is written for them yet and their listing says none. */
+  opening: (lead: string) => `[A line about ${lead}, written for them when their email is planned]`,
   holes: (lead: string, labels: string[]) =>
     `${lead} has nothing for ${labels.join(" and ")}, so this email would wait for you.`,
   notWritten: "Write this email first",
@@ -150,10 +152,13 @@ export function stepTestMail(o: {
 
 /**
  * A lead's step as its test mail (the canvas's Preview as a real lead, 18 Oct 2026: "To your own inbox, marked as a test"):
- * the step's words filled for one lead by the send's own fill (reachOutCardEmailOf), the opening said as the line written
- * for them when it goes, a value they lack left as written and said, and the cold foot every such email carries. A step
- * after the first answers the first in its thread, so its subject is the first's. Refused in words where it cannot be
- * shown: an email with no words yet, a foot with no address.
+ * one line saying whose email it is, then the email as that lead gets it and nothing else (3 Nov 2026: a test that said
+ * its subject again in its words, and a line still to come for an opening already written, read as a broken email). Its
+ * words are filled for the lead by the send's own fill (reachOutCardEmailOf) with the opening it goes with (contracts
+ * leadOpeningOf), a value they lack left as written and said over it, and laid out as the send lays out a plain email:
+ * the words, the ending, the cold foot, a blank line between (channels buildEmailRequest). A step after the first answers
+ * the first in its thread, so its subject is the first's. Refused in words where it cannot be shown: an email with no
+ * words yet, a foot with no address.
  */
 export function leadStepTestMail(o: {
   sequence: string;
@@ -164,6 +169,10 @@ export function leadStepTestMail(o: {
   /** The first email's subject, which a later step answers under. */
   thread: string | null;
   lead: SlotLead;
+  /** The lead is the made-up business a sequence nobody is in previews as (reachOutExampleLead). */
+  example: boolean;
+  /** The opening their email goes with (contracts leadOpeningOf); null: none written yet, said as the line to come. */
+  opening: string | null;
   workspace: SlotWorkspace;
   /** How it ends under the words, as the send ends it (0077, contracts coldEndingOf); none: the words as they are. */
   ending?: ColdEnding;
@@ -178,7 +187,7 @@ export function leadStepTestMail(o: {
       .split(REACH_OUT_VALUE_MARKS[1])
       .join("")
       .split(REACH_OUT_OPENING_MARK)
-      .join(W.opening(name));
+      .join(o.opening?.trim() || W.opening(name));
   const email = reachOutCardEmailOf(o.words, o.lead, o.workspace);
   const thread =
     o.words.subject === null && o.thread
@@ -203,19 +212,16 @@ export function leadStepTestMail(o: {
         email.holes.map((k) => `{{${k}}}`),
       )
     : null;
+  const head = o.example ? W.exampleHead(o.place, name) : W.leadHead(o.place, name);
+  const sent = [plain(coldSignedOff(email.body, o.ending?.signOff ?? null)), o.ending?.signature ?? null, foot]
+    .map((s) => s?.trim())
+    .filter((s): s is string => !!s)
+    .join("\n\n");
   return {
     subject: W.subject(subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
-    text: [
-      W.leadHead(o.business, name),
-      holes,
-      W.subjectLine(subject),
-      plain(coldSignedOff(email.body, o.ending?.signOff ?? null)),
-      o.ending?.signature ?? null,
-      foot,
-      `—\n${W.foot}`,
-    ]
+    text: [head, holes, "—", sent]
       .filter((s): s is string => !!s)
-      .join("\n\n\n")
+      .join("\n\n")
       .slice(0, SEQUENCE_TEST_LIMITS.text),
   };
 }

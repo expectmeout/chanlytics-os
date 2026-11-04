@@ -29,6 +29,7 @@ import {
   type ReceivedEmail,
 } from "@chanlytics/channels";
 import {
+  CertainFailure,
   deliver,
   ingestEmail,
   provisionLine,
@@ -78,6 +79,8 @@ import {
   threadDraftFacts,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
+import { payloadRefusal } from "./schedule";
+import type { DispatchOutcome } from "./tick";
 import { broadcastSend } from "./broadcast-send";
 import { erasureFinish } from "./erasure";
 import { replyRead } from "./reply-read";
@@ -107,6 +110,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         const meta = data.meta as {
           email?: { request?: unknown; own_request?: unknown };
           reach_out?: { lead_id?: unknown };
+          to?: unknown;
         } | null;
         const request = meta?.email?.request;
         // A person's reply to a reach-out, frozen again on the chain's own domain (G15): the door may send it instead.
@@ -121,6 +125,8 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
           email: isEmailRequest(request) ? request : null,
           ownEmail: isEmailRequest(own) ? own : undefined,
           leadId: typeof leadId === "string" && leadId ? leadId : null,
+          // Where it goes, frozen on the row when it was queued (00527 queue_send): the ledger keeps no copy.
+          to: typeof meta?.to === "string" && meta.to ? meta.to : null,
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
@@ -321,7 +327,8 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
   logger().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome, sender_checks: senderChecks });
 }
 
-type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+/** A job's adapter: it does its work, or comes back saying why there was none to do (DispatchOutcome `skipped`). */
+type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void | { skipped: string }>;
 
 /**
  * The lead finder's three, over the pipeline the edge injects (A2). Each is
@@ -562,12 +569,6 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 
 /**
- * Every declared kind, and only those. `Record<JobKind, Handler>` is the
- * compiler's promise that a kind added to JOB_KINDS without a handler does
- * not build, rather than sitting on the ledger until a row of it is claimed
- * and comes back "unknown_kind" in production.
- */
-/**
  * inbound_answer: a customer's message its door recorded and acknowledged (a WhatsApp message, a text, a DM), answered
  * through the receptionist the edge injects (decision 0031), its turn bounded by the job's deadline. payload: what its
  * wire's door kept (`wa`, `ig` or `text`) and { message_id, conversation_id, contact_id }. Run again after a runner
@@ -595,11 +596,26 @@ async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 
 /** preview_build: a lead's own receptionist built (00497, decision 0079), through what the edge injects. payload: { preview_id }. */
-async function previewBuild(ctx: JobContext, job: ClaimedJob): Promise<void> {
+async function previewBuild(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.previews) throw new Error("preview_build: this runtime holds no preview builder");
-  await ctx.previews.build(job, ctx.deadline);
+  return ctx.previews.build(job, ctx.deadline);
 }
 
+/**
+ * canary: the ledger's own proof that it runs (00526, decision 0089). It does nothing: that a row scheduled by pg_cron was
+ * claimed, run and completed is the whole of what it proves, and sweep_status judges it by its newest done row, so
+ * /api/health says so from outside.
+ */
+async function canary(): Promise<void> {
+  // Nothing: that it was claimed, run and completed is the proof.
+}
+
+/**
+ * Every declared kind, and only those. `Record<JobKind, Handler>` is the
+ * compiler's promise that a kind added to JOB_KINDS without a handler does
+ * not build, rather than sitting on the ledger until a row of it is claimed
+ * and comes back "unknown_kind" in production.
+ */
 const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -618,18 +634,33 @@ const HANDLERS: Record<JobKind, Handler> = {
   website_read: websiteRead,
   preview_build: previewBuild,
   erasure_finish: erasureFinish,
+  canary,
 };
 
-export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
-  // The row's kind is text; a kind this build does not declare is unknown,
-  // and the tick fails the job loudly rather than guessing.
+export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<DispatchOutcome> {
+  // The row's kind is text; a kind this build does not declare is unknown, and the tick keeps it for the runner that
+  // knows it (ledger UNKNOWN_KIND_WAIT_MS), failing it as never run only once it has been due a day.
   const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
   // A delivery to a subscriber this build does not know is a row a newer deploy wrote (00334): kept, as a kind is.
   if (job.kind === "event_deliver" && !subscriberNamed(job.payload.subscriber)) return "unknown_kind";
+  // A payload its kind cannot run on (kinds.ts `ids`) is never half-run: it fails as never run, certain, in those words,
+  // and the platform hears of it, since a writer of ours wrote it (schedule.ts refuses one at the write).
+  const refused = payloadRefusal(job.kind, job.payload);
+  if (refused) {
+    await ctx
+      .page?.(
+        `job_payload_refused:${job.kind}`,
+        `${job.kind}: a job could not run`,
+        `Job ${job.id}: ${refused}.`,
+        job.tenant_id,
+      )
+      ?.catch(() => undefined);
+    throw new CertainFailure(`${job.kind}: ${refused}`, `it was never run: ${refused}`);
+  }
   // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
   // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
   // has none and runs as itself, named by its row.
-  await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
-  return "done";
+  const out = await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
+  return out && typeof out === "object" ? out : "done";
 }

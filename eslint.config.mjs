@@ -409,6 +409,7 @@ export const LIMITED_TREES = [
   "packages/core/src/look",
   "packages/core/src/messages",
   "packages/db/src",
+  "packages/jobs/src",
 ];
 
 /**
@@ -418,9 +419,12 @@ export const LIMITED_TREES = [
  * contracts' config on 28 October 2026 (the prompt's composer and resolver, which take the business, its profile, the
  * wire, the zone, the day, the Autonomy rows and who reads it). Ask's two trees joined on 1 November 2026, the day they
  * were held: 17 functions there take five or six (the act tools' card builders, the tools' context, the voice door).
+ * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
+ * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
+  "packages/jobs/src",
   "packages/contracts/src/ai",
   "packages/contracts/src/ask",
   "packages/contracts/src/ask-proposals",

@@ -1,16 +1,26 @@
 /**
  * What the lead sheet's foot draws beyond its presses: their email handed over, the row every To send draws, its acts
  * alone in the dock (its mail apps, Sent or Skip), They wrote back…, what they replied in five words, which stops
- * their place as a read reply does, in the dock's place, and Rewrite the opening's what should change. Every word is
- * contracts'.
+ * their place as a read reply does, in the dock's place, Rewrite the opening's what should change, and what Approve asks
+ * before a batch goes. Every word is contracts'.
  */
-import { toSendRowOf, type LeadPeekVM, type SequencePlaceDto, type ToSendRowVM } from "@chanlytics/contracts";
+import {
+  leadApproveAskOf,
+  toSendRowOf,
+  type LeadPeekVM,
+  type SequencePlaceDto,
+  type ToSendRowVM,
+} from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { RoSaidAsk } from "../../campaigns/reach-out/said-ask";
 import { RoToSendRows } from "../../campaigns/reach-out/to-send";
 import { RewriteAsk } from "../../campaigns/reach-out/rewrite-ask";
+import { Confirm } from "../../kit/confirm/confirm";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../peek/types";
+import type { SheetWaiting } from "./facts";
+import { approveOne, openRunFor, type SheetRun } from "./run";
 import type { SheetUiState } from "./sheet-ui";
 
 interface DockAskProps {
@@ -109,6 +119,56 @@ export function SheetRewrite(p: {
       onWriting={(on) => p.put({ writing: on })}
       onLanded={(kept) => p.put({ undo: kept ? { sendId, kept } : null })}
       testid="lead-sheet-rewrite"
+    />
+  );
+}
+
+/**
+ * What Approve asks before their batch goes, in the dock's place: how many, from where and over how long, the held emails
+ * that stay with you, and the way to read every email of it (the run's own screen, and back to this lead).
+ */
+export function SheetApproveAsk(p: {
+  run: SheetRun;
+  waiting: SheetWaiting | null;
+  at: { sequenceId: string; runId: string };
+  busy: { on: boolean; set: (on: boolean) => void };
+  onClose: () => void;
+}) {
+  const w = p.waiting;
+  const ask = leadApproveAskOf({
+    n: w ? w.ready : 1,
+    held: w ? w.held : 0,
+    from: w ? w.from : null,
+    pace: w ? w.pace : null,
+  });
+  return (
+    <Confirm
+      question={ask.question}
+      detail={
+        <>
+          {ask.detail}
+          {ask.read ? (
+            <span className="lw-approve-read">
+              <LinkButton
+                onClick={() => openRunFor(p.run, p.at.sequenceId, p.at.runId)}
+                data-testid="lead-sheet-approve-read"
+              >
+                {ask.read}
+              </LinkButton>
+            </span>
+          ) : null}
+        </>
+      }
+      yes={ask.yes}
+      no={ask.no}
+      busy={p.busy.on}
+      onYes={() => {
+        p.onClose();
+        p.busy.set(true);
+        void approveOne(p.run).finally(() => p.busy.set(false));
+      }}
+      onNo={p.onClose}
+      testid="lead-sheet-approve"
     />
   );
 }

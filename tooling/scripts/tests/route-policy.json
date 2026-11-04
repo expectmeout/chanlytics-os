@@ -619,6 +619,14 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/erase": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "erase_many",
+      "spend": false
+    },
     "PUT contacts/receptionist": {
       "kind": "write",
       "scope": "workspace",
@@ -1522,6 +1530,14 @@
       "rate": null,
       "spend": false
     },
+    "POST platform/jobs/pause": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_job_pause",
+      "spend": false,
+      "act": "job_kind_pause"
+    },
     "POST platform/jobs/requeue": {
       "kind": "write",
       "scope": "platform",
@@ -1529,6 +1545,14 @@
       "rate": "platform_job_requeue",
       "spend": false,
       "act": "job_requeue"
+    },
+    "POST platform/jobs/requeue-kind": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_job_requeue_kind",
+      "spend": false,
+      "act": "job_requeue_kind"
     },
     "POST platform/lines/refile": {
       "kind": "write",
@@ -2232,6 +2256,13 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "PUT setup/choices": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
       "spend": false
     },
     "POST support/report": {

@@ -301,9 +301,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/cancel-send": thread,
   // People.
   "DELETE contacts/[id]": erased,
-  // Not a person (00483): their address or domain said to be automated, which moves nothing on screen (their next email stays
-  // in the mailbox), then the person deleted as Delete person deletes them.
+  // Not a person (00483) and Delete… for many: an address said automated moves nothing, then each person as above.
   "POST contacts/[id]/not-a-person": erased,
+  "POST contacts/erase": erased,
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
   // now name the kept one (their address moves; the feed is told of a line's arrival, not of its change).
@@ -756,6 +756,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST receptionist/agent":
     "the rehearsal's agent made ahead of the first call (decision 0073), in the background; no page shows it",
   "PUT views/[page]": "the member's saved view, which the page already shows",
+  "PUT setup/choices": "the workspace's setup choices, which the Setup surface publishes from the door's answer",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
   "POST support/report": "a report of a problem, kept and mailed to the support inbox; the sheet says its number",
@@ -774,6 +775,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST platform/jobs/requeue":
     "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",
   "POST platform/deliveries/redrive": "Health's deliveries, read again by its screen after the act",
+  "POST platform/jobs/requeue-kind": "Health's failed jobs, read again by its screen after the act",
+  "POST platform/jobs/pause": "Health's ledger, read again by its screen after the act",
   "POST platform/lines/refile": "the back office's lines, read again by its pane",
   "POST platform/lines/release": "the back office's lines, read again by its pane",
   "POST platform/lines/replace": "the back office's lines, read again by its pane",

@@ -242,7 +242,7 @@ test("the database records the two answers apart, and neither writer reaches acr
     /revoke execute on function public\.set_marketing_consent\(uuid, uuid, text, text, text\) from public, anon;/,
   );
 
-  // The yes rides its message (00521): ingest_inbound keeps it in the transaction that keeps the message, once the stop
+  // The yes rides its message (00534): ingest_inbound keeps it in the transaction that keeps the message, once the stop
   // this message may carry is read back, and the edge writes it through no second door.
   const kept = readRaw("supabase/migrations/00521_a_message_and_the_yes_it_carries_are_kept_together.sql");
   assert.match(
@@ -556,7 +556,7 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   // holding thirty signed consent slips had no way to record any of them -- and
   // both controls that looked like they did wrote the conversational column.
   const kept = readRaw("supabase/migrations/00521_a_message_and_the_yes_it_carries_are_kept_together.sql");
-  assert.match(kept, /perform public\.set_marketing_consent\(/, "the customer's own message, kept with it (00521)");
+  assert.match(kept, /perform public\.set_marketing_consent\(/, "the customer's own message, kept with it (00534)");
   // A person at the desk: the member's one call (00356 record_consent), which hands the offers door the workspace it
   // read the person from (the edge calls that door with no session, so it takes the workspace as a parameter), and
   // writes the history line with the answer. consent-paths.test.mjs runs the route through it.

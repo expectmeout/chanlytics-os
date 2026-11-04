@@ -51,6 +51,7 @@ import { claimLineForResume, type LineDbRow } from "./line-resume.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "../env.js";
+import { secretToProvision } from "../voice/voice-door-auth.js";
 import {
   UNKNOWN_LINE_OP,
   NO_LINE_PROVIDER,
@@ -144,8 +145,9 @@ async function writingCall(
   person: string | null,
 ): Promise<{ ok: true; value: LineCall } | Refused> {
   const apiKey = env.RETELL_API_KEY;
-  const fnSecret = env.RETELL_FN_SECRET;
-  if (!apiKey || !fnSecret) return stop(refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret"));
+  // None once the doors open for the signature alone (secretToProvision): a line made then carries no secret.
+  const fnSecret = secretToProvision();
+  if (!apiKey || fnSecret === undefined) return stop(refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret"));
   const ws = workspaceOf(body.tenant_id);
   if (!ws.ok) return ws;
   let read;

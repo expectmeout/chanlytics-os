@@ -672,8 +672,9 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
       steered_from: w.M,
       escalate: false,
       reply_to: asked,
+      to: CUSTOMER,
     },
-    "the row remembers the answer, the instruction, what it replaced, and the message it answers: a second steer reads it",
+    "the row remembers the answer, the instruction, what it replaced, the message it answers, and where it goes (00527): a second steer reads it",
   );
   const old = tables.messages.find((m) => m.id === w.M);
   assert.deepEqual([old.status, old.error], ["canceled", { reason: "steered", replaced_by: draft.id }]);
@@ -687,12 +688,17 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
     message_id: draft.id,
     conversation_id: w.C,
     to_phone: CUSTOMER,
-    body: ANSWER.text,
   });
+  assert.equal(
+    draft.body,
+    ANSWER.text,
+    "its words are on the row it sends, never copied onto the ledger (decision 0089)",
+  );
   const due = Date.parse(send.due_at) - Date.now();
   assert.ok(due > 40_000 && due <= 45_000, `due in ${due}ms: the old draft's own delay`);
   // The order is the safety: queued first, retired second, so a failure between the two leaves ONE draft standing, never none.
-  const inserted = db.seen.findIndex((s) => s.table === "messages" && s.op === "insert");
+  // Queued with its job in one statement (00527 queue_send), so the draft never stands without its send.
+  const inserted = db.seen.findIndex((s) => s.rpc === "queue_send");
   const retired = db.seen.findIndex((s) => s.rpc === "withdraw_queued" && s.args.p_message_ids.includes(w.M));
   assert.ok(inserted >= 0 && retired > inserted, "the new draft is queued before the old one is retired");
   // Retired through the one door (00387): only while still queued and claimed by no run, and the ids it withdrew are
@@ -768,7 +774,7 @@ test("a steered text is shaped as the draft it replaces was: the first text to a
     "REGRESSION: the rewrite was queued as the model wrote it, and a first text went out without the line the carriers' filing promises",
   );
   const send = first.tables.jobs.find((j) => j.payload?.message_id === draft.id);
-  assert.equal(send.payload.body, draft.body, "the job sends the words the row holds");
+  assert.ok(send && !("body" in send.payload), "the job sends the words the row holds, and carries none of its own");
   assert.equal(body.text, draft.body, "and the dashboard is told the words that wait");
 
   // A text of ours has reached them already: the line went with it, and is not said twice.

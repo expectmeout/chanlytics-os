@@ -109,22 +109,16 @@ test("EVERY path where a human takes control withdraws the draft", () => {
 // conversations/state/a-queued-message-is-withdrawn-by-one-door.db.test.mjs runs it on a real database. These held the
 // four writers it replaced by their text.
 
-test("a veto draft that could not be scheduled is retired, not left pending", () => {
-  // The row is written before the job is published. A scheduling failure used
-  // to leave it `queued` while the caller sent the same words immediately: the
-  // Inbox showed a held draft with Edit and Hold controls for a reply the
-  // customer already had, and a publish that in fact succeeded before timing
-  // out would later fire and send it twice.
-  // The writer moved to lib/draft-queue.ts (one writer for the handler and
-  // the steer); the handler's queueReply is a thin wrapper over it.
+test("a veto draft and its job are written in one statement, so neither is ever left without the other", () => {
+  // The row used to be written before the job. A scheduling failure left it `queued` while the caller sent the same
+  // words immediately, and a run killed between the two left a reply nothing would send, found only by the deadman ten
+  // minutes later. queue_send (00527) writes both or neither (jobs/a-send-is-queued-with-its-job.db.test.mjs runs it);
+  // the writer is lib/draft-queue.ts, one for the handler and the steer.
   const queue = readCode("apps/edge/lib/receptionist/draft-queue.ts");
   const fn = queue.slice(queue.indexOf("export async function queueDraft"));
   const body = fn.slice(0, fn.indexOf("\n}\n", 1) + 3);
-  // The rollback lives in the catch, so slice from there rather than measuring
-  // a character distance a future comment would break.
-  const rollback = body.slice(body.indexOf("} catch"));
-  assert.ok(rollback.includes("withdrawQueued("), "a draft that could not be scheduled is withdrawn, by the one door");
-  assert.ok(rollback.includes("scheduling_failed"), "and the row must say why");
+  assert.ok(body.includes("queueSend("), "the draft and its job through the one statement");
+  assert.ok(!body.includes("recordOutbound(") && !body.includes("scheduleJob("), "never the row, then the job");
 });
 
 test("a delayed bot reply is not recorded as a human's", () => {

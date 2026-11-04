@@ -1263,8 +1263,9 @@ CREATE FUNCTION public.billing_may_spend(p_tenant_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- contracts maySpend: a workspace invoiced by hand may; on Stripe only an active plan; no billing row, never.
-  select coalesce((select b.mode <> 'stripe' or b.status = 'active'
+  -- contracts maySpend for the finder's kind (SPEND_STATUSES.leads): a workspace invoiced by hand may; on Stripe a trial
+  -- or a plan; no billing row, never.
+  select coalesce((select b.mode <> 'stripe' or b.status in ('trialing', 'active')
                      from public.billing_accounts b
                     where b.tenant_id = p_tenant_id), false)
 $$;
@@ -1274,7 +1275,7 @@ $$;
 -- Name: FUNCTION billing_may_spend(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may incur a cost on the platform''s account: contracts'' maySpend, restated once in SQL (00364). mode direct may; mode stripe only with status active; no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
+COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may spend on the finder: contracts'' maySpend(mode, status, "leads"), restated once in SQL (00364, 00512). mode direct may; mode stripe with status trialing or active (decision 0090: the trial covers everything); no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
 
 
 --
@@ -2433,6 +2434,91 @@ COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Camp
 
 
 --
+-- Name: capability_activate(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user  uuid := auth.uid();
+  v_first boolean;
+  v_at    timestamptz := now();
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'disconnect') then
+    raise exception 'Only an owner can switch a channel on.' using errcode = '42501';
+  end if;
+  if p_capability is null or p_capability not in ('voice', 'whatsapp', 'sms') then
+    raise exception 'No such capability.' using errcode = '22023';
+  end if;
+  -- The first of any channel, ever: the moment the first run's Finish tells the owner they are live.
+  v_first := not exists (select 1 from public.capability_activations where tenant_id = p_tenant_id);
+  insert into public.capability_activations (tenant_id, capability, activated_at, activated_by, deactivated_at, note)
+  values (p_tenant_id, p_capability, v_at, v_user, null, left(p_note, 200))
+  on conflict (tenant_id, capability) do update
+     set activated_at = excluded.activated_at,
+         activated_by = excluded.activated_by,
+         deactivated_at = null,
+         note = excluded.note;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'capability.activated', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('capability', p_capability, 'by', v_user));
+  return jsonb_build_object('capability', p_capability, 'activated_at', v_at, 'first', v_first);
+end $$;
+
+
+--
+-- Name: FUNCTION capability_activate(p_tenant_id uuid, p_capability text, p_note text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) IS 'An owner (or the partner who brought it) switches a channel on (00108, 00514): the activation row and capability.activated in one transaction, on the member''s session. Returns {capability, activated_at, first}: first is true for the workspace''s first activation of any channel, when the first run''s Finish says it is live.';
+
+
+--
+-- Name: capability_deactivate(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_at   timestamptz := now();
+  v_n    integer;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'disconnect') then
+    raise exception 'Only an owner can switch a channel off.' using errcode = '42501';
+  end if;
+  update public.capability_activations
+     set deactivated_at = v_at
+   where tenant_id = p_tenant_id and capability = p_capability and deactivated_at is null;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then
+    return jsonb_build_object('error', 'not_activated');
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'capability.deactivated', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('capability', p_capability, 'by', v_user));
+  return jsonb_build_object('capability', p_capability, 'deactivated_at', v_at);
+end $$;
+
+
+--
+-- Name: FUNCTION capability_deactivate(p_tenant_id uuid, p_capability text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) IS 'An owner (or the partner who brought it) takes a channel''s activation back (00108, 00514): the row''s deactivated_at and capability.deactivated in one transaction. {error: not_activated} when none stood. The row stays; the history does.';
+
+
+--
 -- Name: change_playbook(uuid, uuid, jsonb, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2775,21 +2861,9 @@ CREATE TABLE public.jobs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     lease_until timestamp with time zone,
     dedupe_key text,
-    lane smallint GENERATED ALWAYS AS (
-CASE
-    WHEN (kind = 'inbound_answer'::text) THEN 0
-    WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
-    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text, 'preview_build'::text, 'erasure_finish'::text])) THEN 1
-    WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text, 'history_import'::text])) THEN 2
-    WHEN (kind = 'event_deliver'::text) THEN
-    CASE
-        WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer
-        ELSE 2
-    END
-    ELSE NULL::integer
-END) STORED,
+    lane smallint,
     spoke_at timestamp with time zone,
-    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text, 'history_import'::text, 'website_read'::text, 'preview_build'::text, 'erasure_finish'::text]))),
+    dedupe_kept boolean DEFAULT false NOT NULL,
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
 
@@ -2812,7 +2886,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00497, an erasure finished, 00501), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): the kind''s lane (job_kinds.lane), written by jobs_take_their_kind at insert; a lane-0 kind whose payload says purpose outreach is bulk, and an event_deliver runs in its subscription''s lane (payload.lane, 00334).';
 
 
 --
@@ -2820,6 +2894,13 @@ COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 
 --
 
 COMMENT ON COLUMN public.jobs.spoke_at IS 'When this job put words on a wire (00352): written the moment before the provider is called. A job that spoke is never run again, whatever its kind: a second claim gives up and a throw is not retried, because a second run could reach the person a second time. Null for a job that has not, and for a kind that speaks on every run (outbound_send, broadcast_send), which the ledger never runs twice anyway.';
+
+
+--
+-- Name: COLUMN jobs.dedupe_kept; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.jobs.dedupe_kept IS 'Whether this row''s once-only key holds while it is kept (job_kinds.once_kept, jobs_dedupe_kept) rather than only while it is live. Written by jobs_take_their_kind.';
 
 
 --
@@ -2831,48 +2912,30 @@ CREATE FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) 
     SET search_path TO 'public'
     AS $$
   with
-  -- What is running: fired under a live lease, with the capacity keys each spends. Read once, not per row.
+  -- What is running: fired under a live lease. Read once, not per row.
   running as (
-    select r.tenant_id, r.lane, k.key
+    select r.tenant_id, r.lane
       from public.jobs r
-      left join lateral jsonb_array_elements_text(
-        case when jsonb_typeof(r.payload -> 'capacity') = 'array' then r.payload -> 'capacity' else '[]'::jsonb end
-      ) as k(key) on true
      where r.state = 'fired'
        and r.fired_at > now() - make_interval(secs => p_lease_seconds)
        and r.lease_until >= now()
   ),
-  -- The keys that are full: as many running as the row allows.
-  full_keys as (
-    select c.scope || ':' || c.key as key
-      from public.job_capacity c
-      join (select key, count(*) as n from running where key is not null group by key) u
-        on u.key = c.scope || ':' || c.key
-     where u.n >= c.max_in_flight
-  ),
   -- The workspaces with work of each lane running: they wait their turn behind those with none.
   busy as (
     select distinct tenant_id, lane from running where lane is not null
+  ),
+  -- The kinds an operator paused (job_kind_pause): their rows wait where they are.
+  paused as (
+    select k.kind from public.job_kinds k where k.paused_at is not null
   ),
   due as (
     select c.id
       from public.jobs c
      where ((c.state = 'scheduled' and c.due_at <= now())
          or (c.state = 'fired' and c.lease_until < now()))
-       -- A row naming a full key waits. Judged cheaply: no key is full (read once), or the row names none, before its
-       -- keys are unpacked.
-       and (not exists (select 1 from full_keys)
-            or not (c.payload ? 'capacity')
-            or not exists (
-              select 1
-                from jsonb_array_elements_text(
-                  case when jsonb_typeof(c.payload -> 'capacity') = 'array' then c.payload -> 'capacity' else '[]'::jsonb end
-                ) as k(key)
-               where k.key in (select f.key from full_keys f)
-            ))
+       and c.kind not in (select p.kind from paused p)
      order by c.lane nulls last,
-              -- false before true: within the lane, a workspace with nothing of that lane running goes first. Read
-              -- once and hashed, not per row (00281's clause, for every lane).
+              -- false before true: within the lane, a workspace with nothing of that lane running goes first (00335).
               (c.tenant_id, c.lane) in (select b.tenant_id, b.lane from busy b),
               c.due_at
      limit p_limit
@@ -2893,7 +2956,7 @@ $$;
 -- Name: FUNCTION claim_due_jobs(p_limit integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018: a reply, then someone waiting, then bulk); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a row naming a capacity key that is full is left for a later tick (job_capacity). Takes back a fired row whose lease ran out with attempts + 1.';
+COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take different rows (skip locked). Takes the lowest lane first (decision 0018); within a lane a workspace with nothing of that lane running goes first (00335), then the earliest due; a paused kind is left where it is (00526). Takes back a fired row whose lease ran out with attempts + 1.';
 
 
 --
@@ -5795,6 +5858,39 @@ COMMENT ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_c
 
 
 --
+-- Name: finish_broadcast(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.sequence_batches
+     set state = 'sent', finished_at = now()
+   where id = p_id and tenant_id = p_tenant_id and state = 'sending';
+  -- Another chain of the same run finished it first (jobs settle.ts names the case): its event is the run's.
+  if not found then
+    return false;
+  end if;
+  -- The kind is this door's own; the row's other fields are packages/db's (rowOf), as for every event it builds.
+  insert into public.events (tenant_id, kind, category, version, subject_type, subject_id, data, request_id)
+  values (p_tenant_id, 'broadcast.sent', coalesce(nullif(p_event ->> 'category', ''), 'message'),
+          coalesce((p_event ->> 'version')::smallint, 1), p_event ->> 'subject_type',
+          nullif(p_event ->> 'subject_id', '')::uuid, coalesce(p_event -> 'data', '{}'::jsonb),
+          coalesce(nullif(p_event ->> 'request_id', ''), public.request_id_of_caller()));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) IS 'A run that sent its last batch: marked sent, with its event (broadcast.sent and its tally, as packages/db builds every event row), in one transaction (00527). False when it was not sending (another chain finished it, or it was stopped), and then nothing is written. The service role''s alone.';
+
+
+--
 -- Name: first_replies(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6824,8 +6920,11 @@ begin
     contact_id           = coalesce(calls.contact_id, excluded.contact_id),
     conversation_id      = coalesce(calls.conversation_id, excluded.conversation_id),
     -- the audit copy keeps the analysis: a retried call_ended landing after
-    -- call_analyzed ranks equal and must not replace the richer payload
+    -- call_analyzed ranks equal and must not replace the richer payload; and
+    -- a delivery that carries none (a live transcript turn, 00530) keeps what
+    -- the row has rather than rewriting it on every turn
     raw                  = case
+                             when excluded.raw = '{}'::jsonb then calls.raw
                              when (calls.raw ? 'call_analysis') and not (excluded.raw ? 'call_analysis') then calls.raw
                              else excluded.raw
                            end
@@ -6908,7 +7007,7 @@ begin
   v_contact_id := (v_person->>'contact_id')::uuid;
 
   -- A STOP or a START is written below, once the message is known to be new (00361), and so are the yeses a message
-  -- carries (00521). The person's row is locked here, where that write used to be, so the person, the thread and the
+  -- carries (00534). The person's row is locked here, where that write used to be, so the person, the thread and the
   -- message are still locked in that order. A START's channel is noted under note_yes_on_channel's own lock, taken
   -- here at its full strength so it is never raised later in the transaction.
   if p_opt_in then
@@ -6984,7 +7083,7 @@ begin
   -- already reflected in what the caller is told.
   select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;
 
-  -- The yeses this message carries, kept with it (00521): written here or not at all, and a repeat of the message,
+  -- The yeses this message carries, kept with it (00534): written here or not at all, and a repeat of the message,
   -- returned above, writes neither (its answer was written when it was kept).
   --
   -- A START is a yes on the channel it came on (contracts consent-channels.ts). The event above is written only when
@@ -7118,6 +7217,124 @@ COMMENT ON FUNCTION public.is_workspace_owner(p_tenant uuid) IS 'True when the c
 
 
 --
+-- Name: job_dedupe_key_of(text, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) RETURNS text
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_parts   text[];
+  v_found   boolean;
+  v_part    text;
+  v_name    text;
+  v_value   text;
+  v_key     text;
+begin
+  select k.once_parts, true into v_parts, v_found from public.job_kinds k where k.kind = p_kind;
+  if v_parts is null then
+    -- A failed job run again from the Console names the job it is a copy of: once per failed job, for a kind with no
+    -- subject of its own to be held once by.
+    if coalesce(v_found, false) and jsonb_typeof(p_payload -> 'requeue_of') = 'string' then
+      return 'requeue:' || (p_payload ->> 'requeue_of');
+    end if;
+    return null;
+  end if;
+  v_key := p_kind;
+  foreach v_part in array v_parts loop
+    if v_part = '@tenant' then
+      v_key := v_key || ':' || p_tenant::text;
+    elsif right(v_part, 1) = '?' then
+      v_name := left(v_part, -1);
+      v_value := case when jsonb_typeof(p_payload -> v_name) = 'string' then nullif(p_payload ->> v_name, '') end;
+      if v_value is not null then
+        v_key := v_key || ':' || v_value;
+      end if;
+    else
+      v_name := split_part(v_part, '=', 1);
+      v_value := case when jsonb_typeof(p_payload -> v_name) = 'string' then nullif(p_payload ->> v_name, '') end;
+      v_value := coalesce(v_value, nullif(split_part(v_part, '=', 2), ''));
+      -- A subject the payload does not name is held by nothing, as packages/jobs said it before.
+      if v_value is null then
+        return null;
+      end if;
+      v_key := v_key || ':' || v_value;
+    end if;
+  end loop;
+  return v_key;
+end $$;
+
+
+--
+-- Name: FUNCTION job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) IS 'The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. The one spelling of the rule.';
+
+
+--
+-- Name: job_kind_pause(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.job_kind_pause(p_kind text, p_why text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_at timestamptz;
+begin
+  if nullif(btrim(coalesce(p_why, '')), '') is null then
+    return jsonb_build_object('error', 'no_reason');
+  end if;
+  update public.job_kinds
+     set paused_at = coalesce(paused_at, now()), paused_why = left(btrim(p_why), 500)
+   where kind = p_kind
+  returning paused_at into v_at;
+  if v_at is null then
+    return jsonb_build_object('error', 'unknown_kind');
+  end if;
+  return jsonb_build_object('kind', p_kind, 'paused_at', v_at);
+end $$;
+
+
+--
+-- Name: FUNCTION job_kind_pause(p_kind text, p_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.job_kind_pause(p_kind text, p_why text) IS 'Pauses a job kind (00526): no claim takes its rows until it is resumed, and they wait where they are. The reason is the operator''s, said on Health. Answers {kind, paused_at} or {error: no_reason | unknown_kind}. The Console''s act, on the service role.';
+
+
+--
+-- Name: job_kind_resume(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.job_kind_resume(p_kind text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_found boolean;
+begin
+  update public.job_kinds set paused_at = null, paused_why = null where kind = p_kind
+  returning true into v_found;
+  if not coalesce(v_found, false) then
+    return jsonb_build_object('error', 'unknown_kind');
+  end if;
+  -- What waited is due: the tick is asked now rather than on the next poll.
+  perform public.ask_for_tick();
+  return jsonb_build_object('kind', p_kind, 'resumed', true);
+end $$;
+
+
+--
+-- Name: FUNCTION job_kind_resume(p_kind text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.job_kind_resume(p_kind text) IS 'Resumes a paused job kind (00526) and asks the tick for what waited. Answers {kind, resumed} or {error: unknown_kind}. The Console''s act, on the service role.';
+
+
+--
 -- Name: jobs_backlog(interval); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7125,8 +7342,11 @@ CREATE FUNCTION public.jobs_backlog(p_wait interval DEFAULT '00:02:00'::interval
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select count(*)::int from public.jobs
-   where state = 'scheduled' and due_at < now() - p_wait;
+  select count(*)::int
+    from public.jobs j
+   where ((j.state = 'scheduled' and j.due_at < now() - p_wait)
+       or (j.state = 'fired' and j.lease_until < now() - p_wait))
+     and not exists (select 1 from public.job_kinds k where k.kind = j.kind and k.paused_at is not null);
 $$;
 
 
@@ -7134,7 +7354,7 @@ $$;
 -- Name: FUNCTION jobs_backlog(p_wait interval); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_backlog(p_wait interval) IS 'How many scheduled jobs have been due for longer than p_wait (default two minutes) and not been claimed. Zero when the heartbeat is draining.';
+COMMENT ON FUNCTION public.jobs_backlog(p_wait interval) IS 'How many jobs the claim could take and has not for longer than p_wait (default two minutes): scheduled rows past their due time and fired rows past their lease (00526), a paused kind''s left out (Health names those). Zero when the heartbeat is draining.';
 
 
 --
@@ -7153,8 +7373,13 @@ begin
     if OLD.state = 'scheduled' and NEW.state not in ('fired', 'canceled') then
       raise exception 'a scheduled job may only be fired or canceled (% refused)', NEW.state;
     end if;
-    if OLD.state = 'fired' and NEW.state not in ('done', 'failed') then
-      raise exception 'a fired job may only finish or fail (% refused)', NEW.state;
+    -- A run that threw puts its job back to wait for its next try (00526), with its claims counted as they were, or one
+    -- fewer for a run that never started (a kind this runner did not know): the next claim counts on from there.
+    if OLD.state = 'fired' and NEW.state = 'scheduled' and NEW.attempts > OLD.attempts then
+      raise exception 'a job put back to wait keeps its attempts (% -> % refused)', OLD.attempts, NEW.attempts;
+    end if;
+    if OLD.state = 'fired' and NEW.state not in ('done', 'failed', 'scheduled') then
+      raise exception 'a fired job may only finish, fail or wait for its next try (% refused)', NEW.state;
     end if;
   end if;
   return NEW;
@@ -7165,7 +7390,84 @@ end $$;
 -- Name: FUNCTION jobs_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed; done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00526); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+
+
+--
+-- Name: jobs_ledger_now(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.jobs_ledger_now() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select jsonb_build_object(
+    'lanes', coalesce((
+      select jsonb_agg(l order by l.lane)
+        from (
+          select coalesce(j.lane, -1) as lane,
+                 count(*) filter (where j.state = 'fired' and j.lease_until >= now())                   as running,
+                 count(*) filter (where j.state = 'scheduled' and j.due_at <= now())                    as due,
+                 count(*) filter (where j.state = 'scheduled' and j.due_at > now() and j.attempts > 0)  as waiting,
+                 count(*) filter (where j.state = 'fired' and j.lease_until < now())                    as expired,
+                 coalesce(max(extract(epoch from (now() - j.due_at))) filter (
+                   where j.state = 'scheduled' and j.due_at <= now()), 0)::int                          as oldest_due_s
+            from public.jobs j
+           where j.state in ('scheduled', 'fired')
+           group by coalesce(j.lane, -1)
+        ) l
+    ), '[]'::jsonb),
+    'kinds', coalesce((
+      select jsonb_agg(k order by k.kind)
+        from (
+          select jk.kind, jk.lane, jk.paused_at, jk.paused_why,
+                 (select count(*) from public.jobs f
+                   where f.kind = jk.kind and f.state = 'failed' and f.updated_at > now() - interval '1 day') as failed_day,
+                 (select count(*) from public.jobs d
+                   where d.kind = jk.kind and d.state = 'done' and d.updated_at > now() - interval '1 day')   as done_day
+            from public.job_kinds jk
+        ) k
+    ), '[]'::jsonb),
+    'canary_done_at', (select max(c.updated_at) from public.jobs c where c.kind = 'canary' and c.state = 'done'),
+    'read_at', now()
+  );
+$$;
+
+
+--
+-- Name: FUNCTION jobs_ledger_now(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.jobs_ledger_now() IS 'What the Console''s Health draws of the ledger now (00526): by lane, how many run, are due, wait for a retry and ran past their lease, and the oldest due in seconds; by kind, its lane, its pause and its last day''s failed and done; when the canary last finished. The service role''s alone.';
+
+
+--
+-- Name: jobs_take_their_kind(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.jobs_take_their_kind() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_kind public.job_kinds;
+begin
+  select * into v_kind from public.job_kinds k where k.kind = NEW.kind;
+  -- A kind with no row is refused by the foreign key, in its own words.
+  if not found then
+    return NEW;
+  end if;
+  NEW.lane := case
+    when NEW.kind = 'event_deliver' and NEW.payload ->> 'lane' ~ '^[0-2]$' then (NEW.payload ->> 'lane')::smallint
+    when v_kind.lane = 0 and coalesce(NEW.payload ->> 'purpose', '') = 'outreach' then 2
+    else v_kind.lane
+  end;
+  if NEW.dedupe_key is null then
+    NEW.dedupe_key := public.job_dedupe_key_of(NEW.kind, NEW.tenant_id, NEW.payload);
+  end if;
+  NEW.dedupe_kept := v_kind.once_kept and NEW.dedupe_key is not null and NEW.dedupe_key not like 'requeue:%';
+  return NEW;
+end $_$;
 
 
 --
@@ -7509,6 +7811,34 @@ COMMENT ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_address
 
 
 --
+-- Name: lead_allowance(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_allowance(p_tenant_id uuid) RETURNS numeric
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- A member reads their own workspace's; the service role (no session: lead_reserve asked by the edge) any.
+  if auth.uid() is not null and not public.may_read_workspace(p_tenant_id) then
+    raise exception 'Not a member of this workspace.' using errcode = '42501';
+  end if;
+  -- contracts leadAllowanceFor: the trial's leads while the workspace is on a trial, else the month's.
+  return case when exists (select 1 from public.billing_accounts b
+                            where b.tenant_id = p_tenant_id and b.mode = 'stripe' and b.status = 'trialing')
+              then public.lead_cap('trial_leads') else public.lead_cap('month_leads') end;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lead_allowance(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_allowance(p_tenant_id uuid) IS 'The leads a workspace may count this month (00512, decision 0090): lead_cap(''trial_leads'') while its billing says trialing, else lead_cap(''month_leads''). contracts'' leadAllowanceFor; lead_reserve asks it, and the Leads page reads the same number. A member reads their own workspace''s alone (may_read_workspace); it says a cap, never a row.';
+
+
+--
 -- Name: lead_blank(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7727,6 +8057,7 @@ declare
 begin
   v := case p_name
     when 'month_leads'      then 500   -- Qualified leads a workspace finds in its month (LEAD_MONTHLY_ALLOWANCE)
+    when 'trial_leads'      then 50    -- ... while its billing says trialing (LEAD_TRIAL_ALLOWANCE, decision 0090)
     when 'month_usd'        then 25    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
     when 'day_usd'          then 10    -- ... in its day (LEAD_DAY_CAP_USD)
     when 'platform_day_usd' then 50    -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
@@ -7971,8 +8302,9 @@ begin
     if v_round.state = 'ended' then
       v_month   := public.lead_month(v_round.tenant_id, now());
       v_counter := public.lead_counter_take(v_round.tenant_id, 'allowance', v_month);
-      -- The month is full: the member stays Needs review with its address now known good, for Keep to count later.
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      -- The allowance is full (lead_allowance: a trial's own while on a trial, 00525): the member stays Needs review
+      -- with its address now known good, for Keep to count later.
+      if v_counter.used + v_counter.reserved + 1 > public.lead_allowance(v_round.tenant_id) then
         continue;
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
@@ -8969,6 +9301,7 @@ declare
   l         public.leads;
   v_month   text;
   v_counter public.lead_counters;
+  v_cap     numeric;
   v_before  jsonb;
   v_after   jsonb;
   v_op      uuid;
@@ -9023,13 +9356,17 @@ begin
     elsif not (m.class = 'review' or (m.class = 'qualified' and not m.counted)) then
       return jsonb_build_object('error', 'state', 'class', m.class);
     end if;
-    -- Keep and Put back count, through the month's allowance (§0.2).
+    -- Keep and Put back count, through the month's allowance (§0.2): a trial's own while on a trial (lead_allowance,
+    -- 00525), refused in lead_reserve's words for it.
     if not m.counted then
       v_month := public.lead_month(s.tenant_id, now());
       v_counter := public.lead_counter_take(s.tenant_id, 'allowance', v_month);
-      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
+      v_cap := public.lead_allowance(s.tenant_id);
+      if v_counter.used + v_counter.reserved + 1 > v_cap then
         return jsonb_build_object('error', 'month_leads_used', 'left', 0,
-          'sentence', 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.');
+          'sentence', case when v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads')
+            then 'Your free trial includes ' || v_cap || ' leads, and they are found. Start your plan from Billing to find more.'
+            else 'You have found this month''s ' || v_cap || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.' end);
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
       v_counts := true;
@@ -9618,13 +9955,20 @@ declare
   v_day       public.lead_counters;
   v_platform  public.lead_counters;
   v_left      numeric;
+  v_cap       numeric := public.lead_allowance(p_tenant_id);
+  v_trial     boolean := v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads');
 begin
   v_allowance := public.lead_counter_take(p_tenant_id, 'allowance', p_month);
-  if v_allowance.used + v_allowance.reserved + p_leads > public.lead_cap('month_leads') then
-    v_left := greatest(public.lead_cap('month_leads') - v_allowance.used - v_allowance.reserved, 0);
+  if v_allowance.used + v_allowance.reserved + p_leads > v_cap then
+    v_left := greatest(v_cap - v_allowance.used - v_allowance.reserved, 0);
     return jsonb_build_object('error', 'month_leads_used', 'left', v_left::integer,
-      'sentence', case when v_left <= 0
-        then 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+      'sentence', case
+        when v_trial and v_left <= 0
+          then 'Your free trial includes ' || v_cap || ' leads, and they are found. Start your plan from Billing to find more.'
+        when v_trial
+          then 'Your free trial has ' || v_left::integer || ' leads left. Find ' || v_left::integer || ' now, or start your plan from Billing to find all ' || p_leads || '?'
+        when v_left <= 0
+          then 'You have found this month''s ' || v_cap || ' leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
         else 'You have ' || v_left::integer || ' leads left this month. Find ' || v_left::integer || ' now, or all ' || p_leads || ' when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '?' end);
   end if;
   v_budget := public.lead_counter_take(p_tenant_id, 'budget', p_month);
@@ -9653,7 +9997,7 @@ end $$;
 -- Name: FUNCTION lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the month''s allowance and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
+COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the workspace''s allowance (lead_allowance: the trial''s while on a trial, else the month''s; 00512) and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3). The trial''s cap is held here, where a search''s money leaves, and where a lead counts without a reservation (00525): a Keep or a Put back (lead_member_move) and a check''s commit after its round ended (lead_check_commit).';
 
 
 --
@@ -10657,6 +11001,8 @@ declare
   v_pday     text;
   v_err      jsonb;
   v_left     integer;
+  v_cap      numeric;
+  v_trial    boolean;
   v_plan     jsonb;
   v_search   uuid;
   v_round    uuid;
@@ -10769,9 +11115,18 @@ begin
     if v_err is not null then
       if v_err->>'error' = 'month_leads_used' then
         v_left := coalesce((v_err->>'left')::integer, 0);
+        -- The allowance lead_reserve counted against (00525): a trial's own is said in the trial's words, as lead_reserve says it.
+        v_cap := public.lead_allowance(p_tenant_id);
+        v_trial := v_cap = public.lead_cap('trial_leads') and v_cap <> public.lead_cap('month_leads');
         return jsonb_build_object('error', 'month_leads_used', 'left', v_left,
-          'sentence', case when v_left <= 0
-            then 'This month''s ' || public.lead_cap('month_leads') || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+          'sentence', case
+            when v_trial and v_left <= 0
+              then 'Your free trial includes ' || v_cap || ' leads, and they are used: a list counts each address that checks out. Start your plan from Billing to import more.'
+            when v_trial
+              then 'This list has ' || v_n || ' addresses to check and your free trial has ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
+                || ' left; a list counts each address that checks out. Import at most ' || v_left || ' now, or start your plan from Billing to import them all.'
+            when v_left <= 0
+              then 'This month''s ' || v_cap || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
             else 'This list has ' || v_n || ' addresses to check and you have ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
               || ' left this month; a list counts each address that checks out. Import at most ' || v_left || ' now, or the rest when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.' end);
       end if;
@@ -11380,8 +11735,7 @@ begin
   -- whyCannotSpend(mode, status, SPEND_LEADS), word for word; requireSpend's own words for no row.
   return jsonb_build_object('error', 'payment_required', 'sentence', case
     when b.tenant_id is null then 'This workspace has no billing record. Open Billing to set one up.'
-    when b.status = 'none' then 'Start your plan from Billing before finding leads.'
-    when b.status = 'trialing' then 'Your free trial doesn''t cover finding leads. Start your plan from Billing, then find leads.'
+    when b.status = 'none' then 'Start your free trial from Billing before finding leads.'
     when b.status = 'incomplete' then 'Your card is not confirmed yet. Finish checkout in Billing, then try again.'
     when b.status = 'past_due' then 'Your last payment did not go through. Update the card in Billing, then try again.'
     when b.status in ('paused', 'canceled', 'incomplete_expired') then 'This workspace is not subscribed. Start it again from Billing before finding leads.'
@@ -11393,7 +11747,7 @@ end $$;
 -- Name: FUNCTION lead_spend_refusal(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364, 00512). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
 
 
 --
@@ -14715,7 +15069,7 @@ end $$;
 -- Name: FUNCTION note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00522): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
+COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00535): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
 
 
 --
@@ -14794,7 +15148,7 @@ end $$;
 -- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00521; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
+COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00534; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
 
 
 --
@@ -21125,6 +21479,45 @@ COMMENT ON FUNCTION public.put_mailbox_credentials(p_connection_id uuid, p_secre
 
 
 --
+-- Name: queue_send(jsonb, timestamp with time zone, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id     uuid := coalesce(nullif(p_message ->> 'id', '')::uuid, gen_random_uuid());
+  v_tenant uuid := (p_message ->> 'tenant_id')::uuid;
+  v_conv   uuid := (p_message ->> 'conversation_id')::uuid;
+begin
+  if v_tenant is null or v_conv is null then
+    raise exception 'queue_send: a queued send names its workspace and its thread';
+  end if;
+  insert into public.messages (id, tenant_id, conversation_id, contact_id, channel, direction, sender, type, body,
+                               status, meta)
+  values (v_id, v_tenant, v_conv, nullif(p_message ->> 'contact_id', '')::uuid,
+          coalesce(nullif(p_message ->> 'channel', ''), 'whatsapp'), 'outbound',
+          coalesce(nullif(p_message ->> 'sender', ''), 'ai'), coalesce(nullif(p_message ->> 'type', ''), 'text'),
+          p_message ->> 'body', 'queued', coalesce(p_message -> 'meta', '{}'::jsonb));
+  -- The thread is stamped as a written outbound row stamps it (packages/db recordOutbound); a queued draft has not gone
+  -- out, so it writes no message.sent: deliver() writes that when it leaves.
+  update public.conversations set last_message_at = now() where id = v_conv and tenant_id = v_tenant;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (v_tenant, 'outbound_send', p_due_at,
+          coalesce(p_payload, '{}'::jsonb) || jsonb_build_object('message_id', v_id, 'conversation_id', v_conv));
+  return v_id;
+end $$;
+
+
+--
+-- Name: FUNCTION queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) IS 'A queued reply and its outbound_send job, written together or not at all (00527): the message (id, tenant_id, conversation_id, contact_id, channel, sender, type, body, meta) queued, its thread stamped, its job due at p_due_at with p_payload and the message''s id. Answers the message''s id. The service role''s alone.';
+
+
+--
 -- Name: reach_out_add(uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -26579,6 +26972,33 @@ COMMENT ON FUNCTION public.save_template_version(p_tenant_id uuid, p_name text, 
 
 
 --
+-- Name: schedule_canary(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.schedule_canary() RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  -- One canary at a time (its key is the kind and the workspace), in our own workspace: the nightly suite's and the smoke's, whose
+  -- jobs page nobody and ring no bell. A database with none of ours schedules nothing, and the canary is not judged.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select t.id, 'canary', now(), '{}'::jsonb
+    from public.tenants t
+   where t.ours
+   order by t.created_at
+   limit 1
+  on conflict do nothing;
+$$;
+
+
+--
+-- Name: FUNCTION schedule_canary(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.schedule_canary() IS 'Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00526). pg_cron calls it every minute (jobs-canary).';
+
+
+--
 -- Name: scrub_ask_for_contact(uuid, uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -26730,7 +27150,13 @@ CREATE FUNCTION public.scrub_call_raw(p_raw jsonb) RETURNS jsonb
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$
-  select coalesce(p_raw, '{}'::jsonb) - 'recording_url' - 'recording_multi_channel_url' - 'public_log_url'
+  select coalesce((
+    select jsonb_object_agg(e.k, e.v)
+      from jsonb_each(case when jsonb_typeof(p_raw) = 'object' then p_raw else '{}'::jsonb end) as e(k, v)
+     where e.k in ('agent_id', 'agent_name', 'agent_version', 'call_id', 'call_type', 'call_status', 'direction',
+                   'disconnection_reason', 'start_timestamp', 'end_timestamp', 'duration_ms', 'call_cost', 'latency',
+                   'llm_token_usage', 'call_analysis', 'metadata', 'data_storage_setting', 'opt_in_signed_url')
+  ), '{}'::jsonb)
 $$;
 
 
@@ -28756,6 +29182,32 @@ COMMENT ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_id
 
 
 --
+-- Name: sequence_queued_why_not(uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) RETURNS TABLE(lead_id uuid, sequence_id uuid, why text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select x.lead_id, x.sequence_id, w.why
+    from unnest(coalesce(p_lead_ids, '{}'::uuid[]), coalesce(p_sequence_ids, '{}'::uuid[])) as x(lead_id, sequence_id)
+    join public.sequence_steps st
+      on st.tenant_id = p_tenant_id and st.sequence_id = x.sequence_id and st.place = 1
+    cross join lateral public.reach_out_why_not(p_tenant_id, array[x.lead_id], st.include_unconfirmed) as w(wl, why)
+   where x.lead_id is not null
+     and exists (select 1 from public.memberships m
+                  where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id)
+$$;
+
+
+--
+-- Name: FUNCTION sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) IS 'Why each lead on a sequence''s list would not be planned by its next batch (00533): reach_out_why_not at the list''s own setting (its first step''s include_unconfirmed), or null where it would be. For a member of the workspace alone, and a sequence of it; the places'' reads ask it so a lead no batch can take says why instead of "In its next batch".';
+
+
+--
 -- Name: sequence_return(uuid, uuid, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -28875,6 +29327,46 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A leave undone (0060, 00450): of the places a leave_sequence decision (p_undo_of) ended, each still out for its reason, by its member, with nobody of theirs back in since, is put back with its next step. A send the leave skipped stays skipped (a skipped send is final). The return_to_sequence decision rides in the same transaction. Answers how many came back and how many sends stayed out.';
+
+
+--
+-- Name: sequence_sends_end_emptied_runs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_sends_end_emptied_runs() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- The runs of the sends whose state moved (a transition table takes no column list, so the statement is any update),
+  -- each ended with the system's decision beside it, as the sweep's skip of a late run is recorded (core cancel.ts:
+  -- cancel_broadcast, its name, what it was, and why), so the Activity page and the run's sheet say why it ended.
+  with ended as (
+    update public.sequence_batches b
+       set state = 'canceled'
+     where b.state = 'pending_approval'
+       and b.id in (select distinct c.batch_id
+                      from changed_sends c
+                      join sends_were w on w.id = c.id
+                     where c.batch_id is not null and c.state is distinct from w.state)
+       and not exists (select 1 from public.sequence_sends s
+                        where s.batch_id = b.id
+                          and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted'))
+    returning b.id, b.tenant_id, b.name
+  )
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  select e.tenant_id, 'broadcast', e.id, 'cancel_broadcast', 'system', null,
+         jsonb_build_object('name', e.name, 'was', 'pending_approval', 'reason', 'nothing_to_send')
+    from ended e;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_sends_end_emptied_runs(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_sends_end_emptied_runs() IS 'A run waiting for an OK with no send left to go is canceled (00532): once a statement, over the sends whose state it changed, each waiting run of theirs with nothing planned, held, claimed, queued or drafted ends through the runs'' own moves, so its notice closes and a customer''s run gives back its places, with the system''s decision beside it (cancel_broadcast, reason nothing_to_send), as the sweep''s skip of a late run is recorded. One with an email still planned keeps waiting.';
 
 
 --
@@ -30588,6 +31080,54 @@ COMMENT ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text
 
 
 --
+-- Name: setup_choice_set(uuid, jsonb, text, text[], boolean, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb DEFAULT NULL::jsonb, p_whatsapp text DEFAULT NULL::text, p_marks text[] DEFAULT NULL::text[], p_clear_phone boolean DEFAULT false, p_version integer DEFAULT NULL::integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_row  public.setup_choices;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'settings') then
+    raise exception 'Only an owner can set the workspace up.' using errcode = '42501';
+  end if;
+  insert into public.setup_choices (tenant_id) values (p_tenant_id) on conflict (tenant_id) do nothing;
+  select * into v_row from public.setup_choices where tenant_id = p_tenant_id for update;
+  if p_version is not null and v_row.version <> p_version then
+    return jsonb_build_object('error', 'stale', 'version', v_row.version);
+  end if;
+  update public.setup_choices
+     set phone      = case when p_clear_phone then null else coalesce(p_phone, phone) end,
+         whatsapp   = coalesce(p_whatsapp, whatsapp),
+         marks      = (select coalesce(array_agg(distinct x order by x), '{}')
+                         from unnest(marks || coalesce(p_marks, '{}')) as x),
+         version    = version + 1,
+         updated_by = v_user,
+         updated_at = now()
+   where tenant_id = p_tenant_id
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('fields', jsonb_build_array('setup_choices'), 'by', v_user, 'version', v_row.version));
+  return jsonb_build_object('phone', v_row.phone, 'whatsapp', v_row.whatsapp, 'marks', to_jsonb(v_row.marks),
+                            'version', v_row.version);
+end $$;
+
+
+--
+-- Name: FUNCTION setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) IS 'A member with the settings permission (an owner, or the partner who brought it) keeps what the first run chose for the workspace (00513, decision 0091): the number''s choice (or p_clear_phone to take it away), where WhatsApp answers, and marks added. p_version, when given, must be the row''s, else {error: stale, version}. Writes settings.changed (fields setup_choices). Returns the row as it now stands.';
+
+
+--
 -- Name: setup_request(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -30961,7 +31501,7 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
   ),
   observed as (
     select e.sweep, e.jobname, e.max_silence, e.judged_by, e.registered_at,
-           e.request_id, e.requested_at, e.note, e.alerted_at,
+           e.request_id, e.requested_at, e.note, e.alerted_at, e.kind as job_kind,
            j.jobid is not null                    as job_exists,
            coalesce(j.active, false)              as job_active,
            j.schedule                             as job_schedule,
@@ -30985,7 +31525,15 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
                                                   as older_response_seen,
            ok.at                                  as last_ok,
            lt.status                              as last_status,
-           lt.message                             as last_message
+           lt.message                             as last_message,
+           -- Judged by job (00526): when the newest row of its kind was done, and whether any workspace of ours is
+           -- there for the clock to schedule it in.
+           case when e.judged_by = 'job' then
+             (select max(d.updated_at) from public.jobs d where d.kind = e.kind and d.state = 'done')
+           end                                    as job_done_at,
+           case when e.judged_by = 'job' then
+             exists (select 1 from public.tenants t where t.ours)
+           end                                    as job_watched
       from public.sweep_status e
       left join lateral (
         select jobid, active, schedule from cron.job
@@ -31004,6 +31552,23 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
           'no cron job named ' || o.jobname || ' is scheduled'
         when not o.job_active then
           'the cron job ' || o.jobname || ' is disabled'
+
+        -- Judged by the work it puts on the ledger: its newest done row (00526).
+        when o.judged_by = 'job' and not coalesce(o.job_watched, false) then
+          null
+        when o.judged_by = 'job' and o.max_silence is null then
+          null
+        when o.judged_by = 'job' and o.job_done_at is null and o.registered_at > now() - o.max_silence then
+          null
+        when o.judged_by = 'job' and o.job_done_at is null then
+          'no ' || coalesce(o.job_kind, '(no kind)') || ' job has finished since this clock was registered; ' ||
+          o.jobname || ' is scheduled ' || coalesce(o.job_schedule, '(unknown)')
+        when o.judged_by = 'job' and o.job_done_at < now() - o.max_silence then
+          'the newest ' || coalesce(o.job_kind, '(no kind)') || ' job finished at ' ||
+          to_char(o.job_done_at at time zone 'utc', 'YYYY-MM-DD HH24:MI') ||
+          ' UTC: the ledger is not running its work (pg_cron, pg_net, the edge, the claim or the handler)'
+        when o.judged_by = 'job' then
+          null
 
         -- Judged on its runs: the jobs that never leave the database.
         when o.judged_by = 'run' and o.last_status = 'failed' then
@@ -31050,7 +31615,7 @@ CREATE FUNCTION public.sweep_health() RETURNS TABLE(sweep text, healthy boolean,
   select j.sweep,
          j.detail is null,
          j.detail,
-         case when j.judged_by = 'run' then j.last_ok else j.requested_at end,
+         case when j.judged_by = 'run' then j.last_ok when j.judged_by = 'job' then j.job_done_at else j.requested_at end,
          j.status_code,
          j.job_exists and j.job_active,
          j.alerted_at
@@ -31872,6 +32437,31 @@ COMMENT ON FUNCTION public.tenants_zone_guard() IS 'A workspace''s zone, written
 
 
 --
+-- Name: trial_use(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trial_use(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select jsonb_build_object(
+    'call_seconds', coalesce((select sum(greatest(c.duration_ms, 0)) / 1000
+                                from public.calls c
+                                join public.tenants t on t.id = c.tenant_id
+                               where c.tenant_id = p_tenant_id and c.created_at >= t.created_at), 0)::bigint,
+    'replies', (select count(*) from public.messages m
+                 where m.tenant_id = p_tenant_id and m.direction = 'outbound' and m.sender = 'ai'))
+$$;
+
+
+--
+-- Name: FUNCTION trial_use(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trial_use(p_tenant_id uuid) IS 'What a workspace has used of what a trial includes (00512, decision 0090): {call_seconds, replies}, the calls'' spoken seconds and the receptionist''s own outbound messages since the workspace was made. The edge''s trial sweep reads it for the workspaces on a trial and starts the plan when contracts'' trialSpentOf says spent. The service role''s.';
+
+
+--
 -- Name: trigger_calendar_sweep(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31908,11 +32498,17 @@ begin
           and updated_at < now() - interval '5 minutes'
           and recording->>'fetch_state' = 'pending'
           and coalesce((recording->>'attempts')::int, 0) < 3)
-      -- a call that ended without an analysis still owes the thread a line
-      or (status in ('ended', 'error')
+      -- a call that ended without an analysis still owes the thread a line, and so does a missed call (00530)
+      or (status in ('ended', 'error', 'not_connected')
           and message_id is null
           and conversation_id is not null
-          and ended_at < now() - interval '15 minutes')
+          and coalesce(ended_at, started_at, created_at) < now() - interval '15 minutes')
+      -- a notice claimed and not told in full (a mail that failed, deliveries the provider stopped retrying): finished
+      -- by the sweep for two days after it was claimed (00530)
+      or (notified_at is not null
+          and notice_told_at is null
+          and notified_at < now() - interval '10 minutes'
+          and notified_at > now() - interval '2 days')
       -- a call whose owner was never told, its analysis not here or asking for a call back: asked of the provider for
       -- two hours after it ended (00434, the sweep's settle leg)
       or (status in ('ended', 'error')
@@ -31944,7 +32540,7 @@ end $$;
 -- Name: FUNCTION trigger_call_reconcile(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/calls) to sweep when the calls table owes it work: a call still marked ongoing, a recording copy still pending, a thread still owed its call line, a call whose owner was never told (for two hours after it ended), or audio past its retention. Asks through request_sweep(), which records the request so sweep_health() judges the answer, and waits 65 s, past the sweep''s own 60. With nothing owed, clears the note and records nothing else.';
+COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/calls) to sweep when the calls table owes it work: a call still marked ongoing, a recording copy still pending, a thread still owed its call line (a missed call''s too), a call whose owner was never told (for two hours after it ended), a notice claimed and not told in full (for two days after its claim), or audio past its retention. Asks through request_sweep(), which records the request so sweep_health() judges the answer, and waits 65 s, past the sweep''s own 60. With nothing owed, clears the note and records nothing else.';
 
 
 --
@@ -32065,19 +32661,41 @@ CREATE FUNCTION public.trigger_jobs_tick() RETURNS bigint
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'extensions'
     AS $$
+declare
+  v_woken timestamptz;
 begin
+  -- A row that came due in the last three seconds asks at once (a reply's veto window, a member's grace), at most once a
+  -- second whoever asks (ask_for_tick): it leaves on time, not on the next ten-second poll. The tick it asks for claims
+  -- everything due, so the poll below has nothing to add; its answer is the request ask_for_tick made, if it made one.
   if exists (
-    select 1 from public.jobs
-     where (state = 'scheduled' and due_at <= now())
-        or (state = 'fired' and lease_until < now())
-  ) or exists (select 1 from public.event_outbox) then
+    select 1 from public.jobs j
+     where j.state = 'scheduled'
+       and j.due_at <= now() and j.due_at > now() - interval '3 seconds'
+       and j.kind not in (select k.kind from public.job_kinds k where k.paused_at is not null)
+  ) then
+    if public.ask_for_tick() then
+      return (select s.request_id from public.sweep_status s where s.sweep = 'jobs');
+    end if;
+    return null;
+  end if;
+  -- The rest of the ledger is asked for every ten seconds, as it always was: the pace the tick's overlapping runs are
+  -- sized for.
+  select s.woken_at into v_woken from public.sweep_status s where s.sweep = 'jobs';
+  if (v_woken is null or v_woken < now() - interval '10 seconds')
+     and (exists (
+            select 1 from public.jobs j
+             where ((j.state = 'scheduled' and j.due_at <= now()) or (j.state = 'fired' and j.lease_until < now()))
+               and j.kind not in (select k.kind from public.job_kinds k where k.paused_at is not null)
+          )
+          or exists (select 1 from public.event_outbox)) then
+    update public.sweep_status set woken_at = now() where sweep = 'jobs';
     return public.request_sweep('jobs', '/api/jobs/tick');
   end if;
-  -- Nothing due: the look itself is the evidence. requested_at moves;
-  -- request_id and note stay as the last real call left them, so a failed
-  -- answer or a missing Vault secret stays visible until a call succeeds.
+  -- Nothing to ask for: the look itself is the evidence, stamped every ten seconds. request_id and note stay as the last
+  -- real call left them, so a failed answer or a missing Vault secret stays visible until a call succeeds.
   insert into public.sweep_status (sweep, requested_at) values ('jobs', now())
-  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  on conflict (sweep) do update set requested_at = excluded.requested_at
+   where public.sweep_status.requested_at is null or public.sweep_status.requested_at < now() - interval '10 seconds';
   return null;
 end $$;
 
@@ -32477,7 +33095,7 @@ end $$;
 -- Name: FUNCTION trigger_text_canary_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_text_canary_sweep() IS 'The daily text canary''s clock (00524): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
+COMMENT ON FUNCTION public.trigger_text_canary_sweep() IS 'The daily text canary''s clock (00537): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
 
 
 --
@@ -32505,7 +33123,7 @@ end $$;
 -- Name: FUNCTION trigger_texts_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_texts_sweep() IS 'The texts sweep''s clock (00523): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
+COMMENT ON FUNCTION public.trigger_texts_sweep() IS 'The texts sweep''s clock (00536): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
 
 
 --
@@ -33525,6 +34143,8 @@ CREATE TABLE public.calls (
     note_checked_at timestamp with time zone,
     activity_started_at timestamp with time zone,
     config_version integer,
+    guard_corrected_at timestamp with time zone,
+    notice_told_at timestamp with time zone,
     CONSTRAINT calls_config_version_check CHECK (((config_version IS NULL) OR (config_version >= 1))),
     CONSTRAINT calls_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text]))),
     CONSTRAINT calls_outcome_check CHECK (((outcome IS NULL) OR (outcome = ANY (ARRAY['answered'::text, 'booking_link_sent'::text, 'callback_needed'::text, 'voicemail'::text, 'no_request'::text, 'other'::text])))),
@@ -33586,6 +34206,20 @@ COMMENT ON COLUMN public.calls.activity_started_at IS 'When the call''s Live Act
 --
 
 COMMENT ON COLUMN public.calls.config_version IS 'The settings version the call was composed from (tenant_config_versions), as the inbound webhook answered it in the call''s metadata (decision 0069): what a review judges the call against. Null for calls before 00476, and for one whose start could not be planned.';
+
+
+--
+-- Name: COLUMN calls.guard_corrected_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.calls.guard_corrected_at IS 'When a price the receptionist said aloud was corrected on the live call. Set once by an UPDATE ... WHERE guard_corrected_at IS NULL, so a call whose turns reach two instances is corrected once (00530).';
+
+
+--
+-- Name: COLUMN calls.notice_told_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.calls.notice_told_at IS 'When the owner''s notice of the call went out in full: the bell, the phones and the mail (notified_at is the claim that it is owed). Null with notified_at set is a notice the calls sweep still owes (00530).';
 
 
 --
@@ -34338,24 +34972,41 @@ CREATE TABLE public.invitations (
 
 
 --
--- Name: job_capacity; Type: TABLE; Schema: public; Owner: -
+-- Name: job_kinds; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.job_capacity (
-    scope text NOT NULL,
-    key text NOT NULL,
-    max_in_flight integer NOT NULL,
+CREATE TABLE public.job_kinds (
+    kind text NOT NULL,
+    lane smallint NOT NULL,
+    once_parts text[],
+    once_kept boolean DEFAULT false NOT NULL,
+    paused_at timestamp with time zone,
+    paused_why text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT job_capacity_max_in_flight_check CHECK ((max_in_flight > 0)),
-    CONSTRAINT job_capacity_scope_check CHECK ((scope = ANY (ARRAY['workspace'::text, 'provider'::text, 'domain'::text])))
+    CONSTRAINT job_kinds_lane_check CHECK (((lane >= 0) AND (lane <= 2))),
+    CONSTRAINT job_kinds_paused_why_check CHECK (((paused_why IS NULL) OR ((char_length(paused_why) >= 1) AND (char_length(paused_why) <= 500))))
 );
 
 
 --
--- Name: TABLE job_capacity; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE job_kinds; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.job_capacity IS 'How many jobs naming a capacity key (scope:key in payload.capacity) may be fired under a live lease at once (00335, decision 0033): counted in claim_due_jobs, nowhere else. A key with no row is no limit. The service role''s alone.';
+COMMENT ON TABLE public.job_kinds IS 'One row a job kind (00526, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role''s alone.';
+
+
+--
+-- Name: COLUMN job_kinds.once_parts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.job_kinds.once_parts IS 'The parts of the once-only key after the kind, in order: a payload field; @tenant for the workspace; field=default for a field that defaults; field? for one added only when present. A required field the payload does not name gives no key. Null: the kind has no rule ({} is a rule: the kind alone, held once).';
+
+
+--
+-- Name: COLUMN job_kinds.once_kept; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.job_kinds.once_kept IS 'True: the key holds while the row is kept and not failed (jobs_dedupe_kept), so a replay after done finds it. False: only while scheduled or fired (jobs_dedupe_live).';
 
 
 --
@@ -37164,6 +37815,31 @@ COMMENT ON COLUMN public.sequences.once IS 'A message sent once, kept as a draft
 
 
 --
+-- Name: setup_choices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.setup_choices (
+    tenant_id uuid NOT NULL,
+    phone jsonb,
+    whatsapp text,
+    marks text[] DEFAULT '{}'::text[] NOT NULL,
+    version integer DEFAULT 0 NOT NULL,
+    updated_by uuid,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT setup_choices_marks CHECK ((marks <@ ARRAY['receptionist-met'::text, 'rehearse-skipped'::text, 'channels-seen'::text])),
+    CONSTRAINT setup_choices_phone_shape CHECK (((phone IS NULL) OR ((jsonb_typeof(phone) = 'object'::text) AND (phone ? 'way'::text)))),
+    CONSTRAINT setup_choices_whatsapp CHECK (((whatsapp IS NULL) OR (whatsapp = ANY (ARRAY['same'::text, 'own'::text, 'later'::text]))))
+);
+
+
+--
+-- Name: TABLE setup_choices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.setup_choices IS 'What the first run chose for the workspace (00513, decision 0091): the number and how calls reach it (phone, contracts SetupPhoneWant), where WhatsApp answers, and the marks that say a step was done (marks: receptionist-met, rehearse-skipped, channels-seen). One row a workspace; members read it, setup_choice_set writes it, and the edge reads it to buy the number once the plan starts.';
+
+
+--
 -- Name: support_reports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -37237,7 +37913,8 @@ CREATE TABLE public.sweep_status (
     judged_by text DEFAULT 'request'::text NOT NULL,
     registered_at timestamp with time zone DEFAULT now() NOT NULL,
     woken_at timestamp with time zone,
-    CONSTRAINT sweep_status_judged_by_check CHECK ((judged_by = ANY (ARRAY['request'::text, 'run'::text])))
+    kind text,
+    CONSTRAINT sweep_status_judged_by_check CHECK ((judged_by = ANY (ARRAY['request'::text, 'run'::text, 'job'::text])))
 );
 
 
@@ -37302,6 +37979,13 @@ COMMENT ON COLUMN public.sweep_status.registered_at IS 'A run-judged clock that 
 --
 
 COMMENT ON COLUMN public.sweep_status.woken_at IS 'When a row written to the ledger last asked for this sweep itself (jobs_wake, 00333): one ask a second, whatever the writers do.';
+
+
+--
+-- Name: COLUMN sweep_status.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sweep_status.kind IS 'For a clock judged by job (00526): the job kind whose newest done row says whether the ledger is running its work.';
 
 
 --
@@ -38134,11 +38818,11 @@ ALTER TABLE ONLY public.invitations
 
 
 --
--- Name: job_capacity job_capacity_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: job_kinds job_kinds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.job_capacity
-    ADD CONSTRAINT job_capacity_pkey PRIMARY KEY (scope, key);
+ALTER TABLE ONLY public.job_kinds
+    ADD CONSTRAINT job_kinds_pkey PRIMARY KEY (kind);
 
 
 --
@@ -38846,6 +39530,14 @@ ALTER TABLE ONLY public.sequences
 
 
 --
+-- Name: setup_choices setup_choices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_pkey PRIMARY KEY (tenant_id);
+
+
+--
 -- Name: support_reports support_reports_number_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -39199,6 +39891,13 @@ CREATE INDEX calls_note_unchecked ON public.calls USING btree (ended_at) WHERE (
 
 
 --
+-- Name: calls_notice_owed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calls_notice_owed ON public.calls USING btree (notified_at) WHERE ((notice_told_at IS NULL) AND (notified_at IS NOT NULL));
+
+
+--
 -- Name: calls_tenant_started; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -39549,6 +40248,20 @@ CREATE UNIQUE INDEX invitations_open_unique ON public.invitations USING btree (t
 
 
 --
+-- Name: jobs_dedupe_kept; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX jobs_dedupe_kept ON public.jobs USING btree (dedupe_key) WHERE (dedupe_kept AND (dedupe_key IS NOT NULL) AND (state <> 'failed'::text));
+
+
+--
+-- Name: INDEX jobs_dedupe_kept; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.jobs_dedupe_kept IS 'A subject held once while its row is kept and not failed (job_kinds.once_kept, 00526, 00528): a webhook replayed after the work was done finds it, and a failed row never blocks a replay.';
+
+
+--
 -- Name: jobs_dedupe_live; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -39567,20 +40280,6 @@ COMMENT ON INDEX public.jobs_dedupe_live IS 'One live row per dedupe key (00333)
 --
 
 CREATE INDEX jobs_due_scheduled ON public.jobs USING btree (due_at) WHERE (state = 'scheduled'::text);
-
-
---
--- Name: jobs_email_ingest_uq; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX jobs_email_ingest_uq ON public.jobs USING btree (((payload ->> 'mailbox_id'::text)), ((payload ->> 'received_id'::text))) WHERE ((kind = 'email_ingest'::text) AND (state <> 'failed'::text));
-
-
---
--- Name: INDEX jobs_email_ingest_uq; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.jobs_email_ingest_uq IS 'One live intake per received email per mailbox: a replayed webhook schedules nothing while one is scheduled, running or done. A failed intake does not count (00135), so replaying its webhook takes the email in again.';
 
 
 --
@@ -39609,20 +40308,6 @@ COMMENT ON INDEX public.jobs_lead_collect_once IS 'One live collect per page of 
 --
 
 CREATE INDEX jobs_lease_due ON public.jobs USING btree (lease_until) WHERE (state = 'fired'::text);
-
-
---
--- Name: jobs_reply_read_once; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX jobs_reply_read_once ON public.jobs USING btree (((payload ->> 'message_id'::text)), COALESCE((payload ->> 'stage'::text), 'read'::text)) WHERE ((kind = 'reply_read'::text) AND (state <> 'failed'::text));
-
-
---
--- Name: INDEX jobs_reply_read_once; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.jobs_reply_read_once IS 'One live reply_read per message and stage (Reach out Part 5, G1): a first read (no stage, or read), and each re-read (reread-1..3). A failed one does not count.';
 
 
 --
@@ -41089,6 +41774,13 @@ CREATE TRIGGER jobs_set_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXE
 
 
 --
+-- Name: jobs jobs_take_their_kind; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER jobs_take_their_kind BEFORE INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION public.jobs_take_their_kind();
+
+
+--
 -- Name: jobs jobs_wake; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -41457,6 +42149,13 @@ CREATE TRIGGER sequence_batches_set_updated_at BEFORE UPDATE ON public.sequence_
 --
 
 CREATE TRIGGER sequence_enrollments_set_moved_at BEFORE UPDATE ON public.sequence_enrollments FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('moved_at');
+
+
+--
+-- Name: sequence_sends sequence_sends_end_emptied_runs; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequence_sends_end_emptied_runs AFTER UPDATE ON public.sequence_sends REFERENCING OLD TABLE AS sends_were NEW TABLE AS changed_sends FOR EACH STATEMENT EXECUTE FUNCTION public.sequence_sends_end_emptied_runs();
 
 
 --
@@ -43038,6 +43737,14 @@ ALTER TABLE ONLY public.invitations
 
 
 --
+-- Name: jobs jobs_kind_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.jobs
+    ADD CONSTRAINT jobs_kind_fkey FOREIGN KEY (kind) REFERENCES public.job_kinds(kind);
+
+
+--
 -- Name: jobs jobs_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -44174,6 +44881,14 @@ ALTER TABLE ONLY public.sequences
 
 
 --
+-- Name: setup_choices setup_choices_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.setup_choices
+    ADD CONSTRAINT setup_choices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: support_reports support_reports_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -44903,10 +45618,10 @@ CREATE POLICY invitations_member_read ON public.invitations FOR SELECT TO authen
 
 
 --
--- Name: job_capacity; Type: ROW SECURITY; Schema: public; Owner: -
+-- Name: job_kinds; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
-ALTER TABLE public.job_capacity ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.job_kinds ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: jobs; Type: ROW SECURITY; Schema: public; Owner: -
@@ -45802,6 +46517,21 @@ CREATE POLICY sequences_member_select ON public.sequences FOR SELECT TO authenti
 
 
 --
+-- Name: setup_choices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.setup_choices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: setup_choices setup_choices_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY setup_choices_member_select ON public.setup_choices FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: support_reports; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -46290,6 +47020,24 @@ GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p
 REVOKE ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION capability_activate(p_tenant_id uuid, p_capability text, p_note text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) TO authenticated;
+GRANT ALL ON FUNCTION public.capability_activate(p_tenant_id uuid, p_capability text, p_note text) TO service_role;
+
+
+--
+-- Name: FUNCTION capability_deactivate(p_tenant_id uuid, p_capability text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) TO authenticated;
+GRANT ALL ON FUNCTION public.capability_deactivate(p_tenant_id uuid, p_capability text) TO service_role;
 
 
 --
@@ -46894,6 +47642,14 @@ GRANT ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p
 
 
 --
+-- Name: FUNCTION finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION first_replies(p_tenant_id uuid, p_start timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47106,6 +47862,30 @@ GRANT ALL ON FUNCTION public.is_workspace_owner(p_tenant uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.job_dedupe_key_of(p_kind text, p_tenant uuid, p_payload jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION job_kind_pause(p_kind text, p_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.job_kind_pause(p_kind text, p_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.job_kind_pause(p_kind text, p_why text) TO service_role;
+
+
+--
+-- Name: FUNCTION job_kind_resume(p_kind text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.job_kind_resume(p_kind text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.job_kind_resume(p_kind text) TO service_role;
+
+
+--
 -- Name: FUNCTION jobs_backlog(p_wait interval); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47120,6 +47900,22 @@ GRANT ALL ON FUNCTION public.jobs_backlog(p_wait interval) TO service_role;
 REVOKE ALL ON FUNCTION public.jobs_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.jobs_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.jobs_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION jobs_ledger_now(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.jobs_ledger_now() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.jobs_ledger_now() TO service_role;
+
+
+--
+-- Name: FUNCTION jobs_take_their_kind(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.jobs_take_their_kind() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.jobs_take_their_kind() TO service_role;
 
 
 --
@@ -47222,6 +48018,15 @@ GRANT ALL ON FUNCTION public.lead_addressee_choose(p_lead_id uuid, p_person inte
 
 REVOKE ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_allowance(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_allowance(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -49422,6 +50227,14 @@ GRANT ALL ON FUNCTION public.put_mailbox_credentials(p_connection_id uuid, p_sec
 
 
 --
+-- Name: FUNCTION queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.queue_send(p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION reach_out_add(p_root_id uuid, p_lead_ids uuid[], p_dry boolean); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50055,6 +50868,14 @@ GRANT ALL ON FUNCTION public.save_template_version(p_tenant_id uuid, p_name text
 
 
 --
+-- Name: FUNCTION schedule_canary(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.schedule_canary() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.schedule_canary() TO service_role;
+
+
+--
 -- Name: FUNCTION scrub_ask_for_contact(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50414,12 +51235,29 @@ GRANT ALL ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_
 
 
 --
+-- Name: FUNCTION sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_sends_end_emptied_runs(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_sends_end_emptied_runs() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_sends_end_emptied_runs() TO service_role;
 
 
 --
@@ -50700,6 +51538,15 @@ GRANT ALL ON FUNCTION public.set_workspace_accent(p_tenant_id uuid, p_accent tex
 REVOKE ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) TO authenticated;
 GRANT ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) TO service_role;
+
+
+--
+-- Name: FUNCTION setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) TO authenticated;
+GRANT ALL ON FUNCTION public.setup_choice_set(p_tenant_id uuid, p_phone jsonb, p_whatsapp text, p_marks text[], p_clear_phone boolean, p_version integer) TO service_role;
 
 
 --
@@ -50988,6 +51835,14 @@ GRANT ALL ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config json
 
 REVOKE ALL ON FUNCTION public.tenants_zone_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.tenants_zone_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION trial_use(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trial_use(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trial_use(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -51890,10 +52745,10 @@ GRANT ALL ON TABLE public.invitations TO service_role;
 
 
 --
--- Name: TABLE job_capacity; Type: ACL; Schema: public; Owner: -
+-- Name: TABLE job_kinds; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.job_capacity TO service_role;
+GRANT ALL ON TABLE public.job_kinds TO service_role;
 
 
 --
@@ -52769,6 +53624,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequences TO service_role;
 --
 
 GRANT UPDATE(mode) ON TABLE public.sequences TO authenticated;
+
+
+--
+-- Name: TABLE setup_choices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.setup_choices TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.setup_choices TO service_role;
 
 
 --

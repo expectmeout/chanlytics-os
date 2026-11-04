@@ -61,6 +61,11 @@ export interface JobContext {
    * one; a job of this kind in a runtime without it fails loudly rather than
    * guessing.
    */
+  /**
+   * A person's calls taken off the voice provider as their erasure finishes (decision 0092). INJECTED like the saga
+   * below: the provider key lives on the edge. Optional: an erasure_finish without it says the leg was skipped.
+   */
+  eraseProviderCalls?: (callIds: string[]) => Promise<{ asked: number; deleted: number; refused: number }>;
   provisionLine?: (
     lineId: string,
     by: "owner" | "support" | "sweep",
@@ -243,8 +248,12 @@ export interface JobContext {
    * live there. INJECTED like the website reader; a preview_build job in a runtime without it fails loudly.
    */
   previews?: {
-    /** The preview's receptionist written and its website worn; answers the preview built or failed. Throws to be tried again. */
-    build: (job: ClaimedJob, deadline: number) => Promise<void>;
+    /**
+     * The preview's receptionist written and its website worn; answers the preview built or failed, or why there was
+     * nothing to build (the switch off, a preview no longer building). Throws to be tried again; the ledger marks the
+     * preview failed when it will not be (settle.ts).
+     */
+    build: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };
   /**
    * Schedule a job of this tenant — how a broadcast continues itself, one
