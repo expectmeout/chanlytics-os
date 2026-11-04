@@ -1396,7 +1396,7 @@ test("REGRESSION: Ask found over People's real rows -- a yes to offers with no n
     !/has said yes to offers/.test(textOf(reach)),
     `REGRESSION: Ana said yes to offers, and the row said nobody had: ${textOf(reach)}`,
   );
-  assert.equal(textOf(actOf(reach)).trim(), "Open People", "REGRESSION: a door asking Ana for the yes she gave");
+  assert.equal(textOf(actOf(reach)).trim(), "See them", "REGRESSION: a door asking Ana for the yes she gave");
   press(actOf(reach));
   assert.equal(went.at(-1), "clients/seg:opted_in", "the number is People's list, and the door opens it");
 });

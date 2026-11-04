@@ -48,17 +48,8 @@ interface IxWhoProps {
   children?: ReactNode;
 }
 
-export const IxWho = ({
-  to = null,
-  go = null,
-  who,
-  avatar,
-  photo = null,
-  priority = null,
-  hued = false,
-  badge = null,
-  children,
-}: IxWhoProps) => {
+/** The face, with the wire's badge on its edge where it has one. Called, not drawn. */
+function whoFace({ who, avatar, photo = null, priority = null, hued = false, badge = null }: IxWhoProps): ReactElement {
   const drawn = (
     <Face
       person={{ name: who, initials: avatar }}
@@ -69,7 +60,7 @@ export const IxWho = ({
     />
   );
   // A badge stands on the face's edge, outside the circle that clips its picture: the two in a box of their own.
-  const face = badge ? (
+  return badge ? (
     <span className="ix-th-pic">
       {drawn}
       {badge}
@@ -77,6 +68,25 @@ export const IxWho = ({
   ) : (
     drawn
   );
+}
+
+/**
+ * The same block as a menu's control on a phone (the phone pass, 3 Nov 2026): the name opens the thread's sheet, whose
+ * head is their page a press away, where a ⋯ beside it took the name's room. A plain box the menu makes its button
+ * (kit Menu `nativeTrigger`), named for what it opens. Called, not drawn.
+ */
+export function ixWhoPress(p: IxWhoProps & { label: string }): ReactElement {
+  return (
+    <div className="ix-th-who" aria-label={p.label} data-testid="ix-th-who-sheet">
+      {whoFace(p)}
+      <div className="ix-th-id">{p.children}</div>
+    </div>
+  );
+}
+
+export const IxWho = (p: IxWhoProps) => {
+  const { to = null, go = null, who, children } = p;
+  const face = whoFace(p);
   if (!to || !hasRouteDoor())
     return (
       <div className="ix-th-who">

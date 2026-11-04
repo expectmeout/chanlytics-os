@@ -641,6 +641,14 @@ export function personNextFor(
   });
 }
 
+/**
+ * The business's stage among the figures, without "changed on Leads" (its sheet says where it changes); none for a lead's
+ * stand-in, whose head already says how they met and whose pill is its one state (the phone pass, 3 Nov 2026: "New"
+ * beside "Lead: Contacted").
+ */
+const leadFigureOf = (business: BusinessRecordVM | null, head: PersonHeadVM) =>
+  business && !head.standIn ? { stage: business.stage.word, since: "" } : null;
+
 /** The person page's own parts (decision 0052, canvas A), over the page's view model and what was read for it. */
 function personPageOf(
   p: Omit<PersonVM, PersonPageKeys>,
@@ -682,7 +690,7 @@ function personPageOf(
   const figures = personFiguresOf({
     thin,
     last: p.lastContact.ts !== null ? { value: clockDate(p.lastContact.ts, tz, nowMs), sub: p.lastContact.by } : null,
-    lead: business ? { stage: business.stage.word, since: business.stage.note } : null,
+    lead: leadFigureOf(business, head),
     deals: { count: p.openDeals.length, recorded: recordedOf(p.openDeals) },
     step: p.nextStep ? { day: p.nextStep.day.near, words: p.nextStep.words } : null,
     calls: { count: p.calls, minutes: callLength(p.callSeconds) },

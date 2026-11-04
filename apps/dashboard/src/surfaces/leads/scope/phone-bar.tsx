@@ -137,6 +137,9 @@ export const LeadsPhoneBar = ({
       onQ={onQ}
       searchRef={searchRef}
       searchLabel="Search leads"
+      // The search rests in a glyph on the list's row while it holds no words, as People's and the Pipeline's do (the
+      // phone pass, 3 Nov 2026: five rows of the page's own over the first lead).
+      foldSearch
       testid="leads"
       title={title}
       trailing={

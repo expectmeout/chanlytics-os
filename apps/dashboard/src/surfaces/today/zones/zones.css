@@ -82,6 +82,18 @@
     color: var(--ink);
   }
 }
+/* A thumb's 44 round the door's 28px line, drawn nothing larger (the phone pass, 3 Nov 2026), as the queue's doors take
+   theirs (legacy.css, the touch floor). */
+@media (pointer: coarse) {
+  .tpd-door {
+    position: relative;
+  }
+  .tpd-door::after {
+    content: "";
+    position: absolute;
+    inset: -8px -6px;
+  }
+}
 
 /* ---- Need you: its pane, its head with how many were done today by the door, its foot. ---- */
 .dash-a-v2 .tz-need {
@@ -416,6 +428,12 @@
   text-align: left;
   white-space: normal;
 }
+/* The sentence stands on its tag's edge, as the words of a row do, never the button's 11px in; and breaks so no word is
+   left alone on its last line (the phone pass, 3 Nov 2026: tags at 32, sentences at 44, "days." alone under them). */
+.tz-idea > .tz-idea-s {
+  padding-inline: 0;
+  text-wrap: pretty;
+}
 /* Opened: why beside Ask why and Not today, and under them who a rule names (found.tsx). */
 .tz-idea-why {
   grid-column: 1 / -1;
@@ -570,6 +588,15 @@
 }
 .today-queue[data-phone] .ny-group-head {
   padding: 0 2px 6px;
+}
+/* A group's name on a phone is a group label (the phone pass, 3 Nov 2026): the caption step at 500, sentence case, muted;
+   no mono and no capitals, which are the dateline's alone. A card's own name is its title (.tpd-title). */
+.today-queue[data-phone] .ny-group-title {
+  font-family: inherit;
+  font-size: var(--text-label);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-muted);
 }
 .dash-a-v2 .today-queue[data-phone] .ny-pane {
   padding: 2px 14px;

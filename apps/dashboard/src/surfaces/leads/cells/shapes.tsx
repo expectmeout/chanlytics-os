@@ -43,18 +43,6 @@ const LD_SLOT_SHAPES: Record<SlotState, ReactNode> = {
   checking: <circle cx="8" cy="8" r="5.5" strokeDasharray="17 17" />,
 };
 
-/** The shape alone, for the peek's reach rows: the same five, the same colours. */
-export const LeadSlotShape = ({ state }: { state: SlotState }) => {
-  const p = svgProps(14);
-  return (
-    <span className={`ld-slot ld-slot-${state}`}>
-      <span className={`ld-slot-shape${state === "checking" ? " spin" : ""}`}>
-        <svg {...p}>{LD_SLOT_SHAPES[state]}</svg>
-      </span>
-    </span>
-  );
-};
-
 export const LeadSlot = ({
   id,
   kind,

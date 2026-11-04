@@ -27,7 +27,8 @@ function leftWords(seconds: number): string {
  */
 export const NOT_A_PERSON_WORDS = {
   act: "Not a person…",
-  actHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People",
+  /** One line under the act on a phone's sheet: what it does, in eight words (the phone pass, 3 Nov 2026: two lines). */
+  actHint: "Moves them out of People. Their mail stays.",
 } as const;
 
 /**

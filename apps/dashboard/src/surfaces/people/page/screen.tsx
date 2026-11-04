@@ -416,6 +416,9 @@ function phoneBar(s: PeopleState) {
       onQ={setQ}
       searchRef={searchRef}
       searchLabel={PL_SEARCH_LABEL}
+      // The search rests in a glyph on the list's row while it holds no words, as the Pipeline's does: the rows start a
+      // row higher (the phone pass, 3 Nov 2026: the first person stood at 262 under five rows of the page's own).
+      foldSearch
       testid="people"
       trailing={phoneBarActs(s)}
     />

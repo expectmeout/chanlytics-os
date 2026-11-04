@@ -32,7 +32,9 @@ export function lastWordsOf(timeline: readonly PersonTimelineItemVM[]): LastWord
       mine: t.kind !== "customer",
       // Theirs is "They": the page's head names them right above, and a team's whole name broke the line in two.
       who: t.kind === "customer" ? "They" : t.who,
-      when: [t.day, t.time].filter(Boolean).join(" · "),
+      // The day once, then its time: "Yesterday, 10:06 AM" (the phone pass, 3 Nov 2026: "Yesterday · Nov 3 · 10:06 AM" said
+      // the day twice, and broke the receptionist's line in two). A day beyond the week is its date alone ("Oct 28").
+      when: [t.day.split(" · ")[0], t.time].filter(Boolean).join(", "),
       text: t.text.length > BUBBLE ? `${t.text.slice(0, BUBBLE - 1).trimEnd()}…` : t.text,
     }));
 }

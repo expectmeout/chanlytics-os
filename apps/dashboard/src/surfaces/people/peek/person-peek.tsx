@@ -21,7 +21,8 @@ import type { FlashFn } from "../person-verbs";
 import type { PersonWalk } from "../walk";
 import { BusinessTile } from "../person/business";
 import { dealPersonOf } from "../person/ctx";
-import { PersonWalkNav, openWith, threadCtaOf } from "../person/hero";
+import { PersonWalkNav } from "../person/frame";
+import { openWith, threadCtaOf } from "../person/hero";
 import { PersonNotes } from "../person/notes";
 import { LastWords, UpNext } from "../person/overview";
 

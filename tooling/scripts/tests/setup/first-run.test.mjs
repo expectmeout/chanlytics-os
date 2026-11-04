@@ -604,6 +604,8 @@ test("after the first run, with the calendar in, Today's card carries one door t
     // No word for the appointment: New sequence, which it opens, says the workspace's own (a meeting where deals are on).
     id: REMIND_SKIPPED,
     name: "The day-before reminder",
+    // A phone's row says the short name beside its one pill (the phone pass, 3 Nov 2026).
+    nameShort: "Reminders",
     stateWords: "Not started",
     words: "Your calendar is in. Remind each customer the day before.",
     label: "Turn on",

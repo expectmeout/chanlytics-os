@@ -115,15 +115,19 @@ export const LEAD_BUILD_WORDS = {
   bookingLink: "Your booking link",
   bookingSave: "Save to Settings",
   bookingSaved: "Booking link saved",
-  /** Preview as a real lead. */
-  previewSub: (place: number) => `Step ${place}, as each lead gets it`,
+  /**
+   * Preview as a real lead: the step named once, in the head (the phone pass, 3 Nov 2026: "Step 1" stood in the head's
+   * line, the way back, the pager and the foot), the way back to its words, and the lead walked.
+   */
+  previewTitle: (place: number) => `Preview · Step ${place}`,
+  previewBack: "Edit",
   previewOf: (name: string, at: number, of: number) => `${name} · ${at} of ${of}`,
   yourInbox: "your inbox",
   prev: "Previous lead",
   next: "Next lead",
   example: "An example business: nobody is in it yet",
-  testLine: (place: number, name: string) => `Step ${place}, as ${name} gets it`,
-  testFact: "To your own inbox, marked as a test",
+  /** Beside Send me a test, on its line: where the test goes (the button says the rest). */
+  testFact: "To your inbox",
   heldLine: (n: number) => `${plural(n, "email", "emails")} held for you`,
   /** What holds the email previewed: a value they lack, or one of yours not set. */
   theyLack: (labels: string[]) => `They have no ${labels.join(" or ")}, so this email would wait for you.`,

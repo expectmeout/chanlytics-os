@@ -697,8 +697,11 @@ function agendaRowsOf(d: CalendarFrame, p: AgendaProps) {
 /** Whether a day of the agenda is read and open, with nothing in the way of saying what it holds. */
 const agendaReadable = (d: CalendarFrame): boolean => !d.loading && !d.unread && !d.closed.yes;
 
-/** A day's head: Today or Tomorrow in words, the day and its date, a closure, and a quiet day's one line. */
-function agendaHead(d: CalendarFrame, p: AgendaProps, quiet: boolean) {
+/**
+ * A day's head: Today or Tomorrow in words, the day and its date, a closure, and a quiet day's one line: on a phone, a
+ * day with nothing on it says its open times there (`open`).
+ */
+function agendaHead(d: CalendarFrame, p: AgendaProps, quiet: boolean, open: ReactNode = null) {
   const rel = crWhen(d, p.todayKey);
   return (
     <div className="cal-agenda-head">
@@ -706,7 +709,13 @@ function agendaHead(d: CalendarFrame, p: AgendaProps, quiet: boolean) {
       <span className="cal-dow">{d.dow}</span>
       <span className="cal-date tabular">{d.date}</span>
       {d.closed.yes && <span className="cal-closed">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
-      {quiet ? <span className="ag-none">nothing on the calendar</span> : null}
+      {open ? (
+        <span className="ag-none" data-testid="cal-agenda-open-line">
+          · open {open}
+        </span>
+      ) : quiet ? (
+        <span className="ag-none">nothing on the calendar</span>
+      ) : null}
     </div>
   );
 }
@@ -734,9 +743,21 @@ function agendaFoot(d: CalendarFrame, p: AgendaProps, empty: boolean) {
 /** One day of the agenda: its heading (Today and Tomorrow said), its rows and campaigns, and what it says under them. */
 function agendaDay(d: CalendarFrame, p: AgendaProps) {
   const rows = agendaRowsOf(d, p);
+  // On a phone a day ahead with nothing on it says its open times on its head's line, one line a day (the phone pass, 3
+  // Nov 2026: each was a card of 140px, "Nothing on the calendar." over its open times, two weeks of nothing 2,000px
+  // long). A service picked keeps its line, which names it; a day the receptionist offers nothing on keeps its words.
+  const windows = d.windows.filter(p.fit);
+  const open =
+    crPhone() && !rows.length && agendaReadable(d) && !d.today && p.openOn && p.feedOk && !d.past
+      ? !p.service && !d.beyondOffer && windows.length
+        ? agendaOpenTimes({ d, windows, service: null, offer: p.offer })
+        : null
+      : null;
   // A day with nothing on it, no open time drawn and nothing to say, is one slim line (CAL-26). Today too, where no
   // calendar is read: its foot says "Nothing on the calendar." only over a feed, and it said nothing at all without one.
-  const quiet = !rows.length && agendaReadable(d) && !(d.today && p.feedOk) && !(p.openOn && p.feedOk && !d.past);
+  const quiet =
+    open !== null ||
+    (!rows.length && agendaReadable(d) && !(d.today && p.feedOk) && !(p.openOn && p.feedOk && !d.past));
   return (
     <div
       key={d.key}
@@ -744,7 +765,7 @@ function agendaDay(d: CalendarFrame, p: AgendaProps) {
       data-quiet={quiet || undefined}
       data-testid="cal-agenda-day"
     >
-      {agendaHead(d, p, quiet)}
+      {agendaHead(d, p, quiet, open)}
       {rows.length > 0 && <AgendaItems>{rows}</AgendaItems>}
       {quiet ? null : agendaFoot(d, p, rows.length === 0)}
     </div>

@@ -4502,6 +4502,16 @@ a.cl-prof-biz-person:focus-visible {
   text-transform: uppercase;
   color: var(--ink-dim);
 }
+/* On a phone who said it and when is a caption, as every phone's meta is (the phone pass, 3 Nov 2026): the caption's
+   step in sentence case, never 10px mono capitals, which the dateline alone wears. */
+@media (max-width: 900px) {
+  .cl-prof-word-meta {
+    font-family: inherit;
+    font-size: var(--text-label);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+}
 .cl-prof-word-text {
   padding: 10px 14px;
   border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) var(--radius-sm);
@@ -4536,14 +4546,51 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
   box-shadow: var(--focus-ring);
 }
 @media (max-width: 900px) {
-  /* On a phone the figures are the kit's tiles two by two on the page itself, no pane round them (canvas A, P1). */
+  /* On a phone the figures are the kit's tiles on the page itself, no pane round them (canvas A, P1): one row, each an
+     equal share, three at most, the most telling first (contracts personFiguresOf). Two by two left a third alone on its
+     line and one tile half a row (the phone pass, 3 Nov 2026). */
   .main-scroll .cl-prof-work > .cl-prof-figures {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 8px;
     padding: 0;
     border-radius: 0;
     background: none;
     box-shadow: none;
+  }
+  .main-scroll .cl-prof-work > .cl-prof-figures > :nth-child(n + 4) {
+    display: none;
+  }
+  /* The head's acts on a phone (hero.tsx): the thread and its caret in one pill, as the Pipeline's foot draws its act and
+     caret, the caret holding Call, Note and the rest (the phone pass, 3 Nov 2026). */
+  /* A box stands 12 from the screen where words stand at 16 (the phone pass's edges, A3): the pill on the tiles' edge
+     under the name's. */
+  .cl-prof-lead {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-inline: -4px;
+  }
+  .cl-prof-lead > .cl-prof-lead-act {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+  }
+  .cl-prof-lead > .cl-prof-lead-act:not(:only-child) {
+    border-radius: var(--radius-full) 0 0 var(--radius-full);
+  }
+  .cl-prof-lead > .cl-prof-lead-more {
+    flex: none;
+    width: 46px;
+    min-width: 46px;
+    border-left: 1px solid var(--line-strong);
+    border-radius: 0 var(--radius-full) var(--radius-full) 0;
+  }
+  /* A name that takes two lines takes them evenly, its pencil with its last word, never one word alone under it ("The
+     Google Workspace / Team ✎"; the phone pass, 3 Nov 2026). */
+  .cl-prof-name {
+    text-wrap: balance;
   }
   .main-scroll .cl-prof-work > .cl-prof-figures::after {
     content: none;

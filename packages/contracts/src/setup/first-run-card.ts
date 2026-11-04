@@ -81,6 +81,8 @@ export interface SetupCardVM {
   remind: {
     id: string;
     name: string;
+    /** Its name on a phone, beside its one pill (SetupCardRowVM.short). */
+    nameShort: string;
     stateWords: string;
     words: string;
     label: string;
@@ -108,7 +110,39 @@ export interface SetupCardPutOff {
  */
 export interface SetupCardRowVM extends SetupRowVM {
   put: SetupCardPutOff | null;
+  /**
+   * The row as a phone says it, its name and its act's word beside one pill on one line (the phone pass, 3 Nov 2026:
+   * the name, a button and Skip shared 307px, and "The number you already have" ran five lines beside them).
+   */
+  short: { name: string; verb: string | null };
 }
+
+/** A row's name on a phone, where its title is longer than the row's room; every other row keeps its title. */
+const CARD_SHORT_NAMES: Record<string, string> = {
+  team: "Team",
+  handoff: "Hand-off",
+  keep: "Your number",
+  google: "Google listing",
+  yes: "First yes",
+};
+
+/** An act's word on a phone, where its first word alone would not say it ("Set", "Get", "Turn"). */
+const CARD_SHORT_VERBS: Record<string, string> = {
+  "Bring your clients": "Import",
+  "Set up forwarding": "Forward",
+  "Set alerts": "Alerts",
+  "Get their yes": "Ask",
+  "Turn on": "Turn on",
+};
+
+/** An act's word on a phone: its own short word, else its first. */
+const shortVerbOf = (label: string): string => CARD_SHORT_VERBS[label] ?? label.split(" ")[0] ?? label;
+
+/** A row of Setup's as a phone's card says it: its name, and its act's word (null where it has no act). */
+const cardShortOf = (r: SetupRowVM): SetupCardRowVM["short"] => ({
+  name: CARD_SHORT_NAMES[r.id] ?? r.title,
+  verb: r.verb ? shortVerbOf(r.verb.label) : null,
+});
 
 /**
  * What putting a row off says on the card: for a week, or off the list for good, with where it is set up from then
@@ -170,6 +204,7 @@ const cardPutOffOf = (id: CardRowId, r: SetupRowVM): SetupCardPutOff =>
 const CARD_REMIND = {
   id: REMIND_SKIPPED,
   name: "The day-before reminder",
+  nameShort: "Reminders",
   stateWords: SETUP_STATE_WORDS.not_started,
   words: "Your calendar is in. Remind each customer the day before.",
   home: "Turn it on any time in Sequences.",
@@ -269,7 +304,7 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
       ...CARD_BILLING,
       start: null,
       kept: [],
-      rows: [{ ...billing, put: null }],
+      rows: [{ ...billing, put: null, short: cardShortOf(billing) }],
       done: [],
       hide: null,
       skip: CARD_SKIP,
@@ -305,7 +340,9 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
   if (!fr.complete) {
     const rows = GOING_LIVE_ROWS.flatMap((id): SetupCardRowVM[] => {
       const r = cardRowOf(vm, id);
-      return r && r.state !== "ready" && r.state !== "waiting_them" && r.verb ? [{ ...r, put: null }] : [];
+      return r && r.state !== "ready" && r.state !== "waiting_them" && r.verb
+        ? [{ ...r, put: null, short: cardShortOf(r) }]
+        : [];
     });
     const line = vm.tryIt?.voiceLabel ?? null;
     return {
@@ -335,7 +372,7 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
   const rows = SETUP_CARD_ORDER.flatMap((id): SetupCardRowVM[] => {
     const r = cardRowOf(vm, id);
     return r && r.state !== "ready" && r.state !== "waiting_them" && !r.later && r.verb
-      ? [{ ...r, put: cardPutOffOf(id, r) }]
+      ? [{ ...r, put: cardPutOffOf(id, r), short: cardShortOf(r) }]
       : [];
   });
   if (!rows.length) return null;
@@ -348,6 +385,7 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
       ? {
           id: CARD_REMIND.id,
           name: CARD_REMIND.name,
+          nameShort: CARD_REMIND.nameShort,
           stateWords: CARD_REMIND.stateWords,
           words: CARD_REMIND.words,
           label: CARD_REMIND.label,
