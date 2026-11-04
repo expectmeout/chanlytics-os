@@ -3518,14 +3518,8 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
       "one cell beside the face's box, as a person's row",
     );
     const card = cardOf("l1");
-    // The row is the kit's list row, the one People's is: its face, name, what trails the name, what was said, the facts.
-    // A ready lead trails nothing (below), so what trails the name is read on one that waits.
-    const partOf = (c, part) =>
-      find(c, (n) =>
-        String(n.props?.className || "")
-          .split(/\s+/)
-          .includes(part),
-      );
+    // The kit's list row, People's: face, name, what trails it (on one that waits: Ready trails nothing), said, facts.
+    const partOf = (c, part) => find(c, (n) => ` ${n.props?.className || ""} `.includes(` ${part} `));
     for (const part of ["list-row-face", "list-row-name", "list-row-said", "list-row-facts"])
       assert.ok(partOf(card, part), `a person's row, part for part: ${part}`);
     assert.ok(partOf(cardOf("l3"), "list-row-end"), "a person's row, part for part: list-row-end");
@@ -3622,14 +3616,10 @@ test("on a phone the list and search are one top under the frame's strip; Find l
   );
   door.props.onClick({ type: "click" });
   assert.deepEqual(opened, ["find"], "Find leads opens Ask");
-  // The old coral square is gone: the bar's find glyph is the search's, which rests folded in it while it holds no words
-  // (the phone pass, 3 Nov 2026: five rows of the page's own stood over the first lead).
+  // The old coral square is gone: the bar's find glyph is the search's, folded while it holds no words (3 Nov 2026).
   const glyph = byTestId(t, "leads-phone-find");
   assert.equal(glyph.props["aria-label"], "Search leads", "the glyph opens the search, not Ask");
-  assert.ok(
-    find(glyph, (n) => n.type === Icon && n.props?.name === "search"),
-    "the search's glyph",
-  );
+  assert.equal(find(glyph, (n) => n.type === Icon).props.name, "search", "the search's glyph");
   // The gate reads the role, as every gate does (frame-globals gate): an operator meets it at the door.
   await fresh({ role: "operator" });
   const gatedDoor = byTestId(bar({ canFind: false }), "leads-bar-find");

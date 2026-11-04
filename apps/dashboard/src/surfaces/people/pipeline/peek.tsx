@@ -30,7 +30,7 @@ import { useNewConversation } from "../../inbox/new-conversation/store";
 import { touchSwipe } from "../../legacy-verbs";
 import { CallSheet, usePersonCall, type CallCtx } from "../person/call";
 import { dealPersonOf } from "../person/ctx";
-import { PersonWalkNav } from "../person/frame";
+import { PersonWalkNav } from "../person/hero";
 import type { PersonWalk } from "../walk";
 import { dealFoot } from "./peek-foot";
 import { dealBody, type Compose, type DealSheetCtx } from "./peek-parts";

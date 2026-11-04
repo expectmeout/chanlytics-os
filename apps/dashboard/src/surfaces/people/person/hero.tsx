@@ -53,6 +53,11 @@ import { combineAsk } from "./sheets/combine";
 import type { PageCtx } from "./ctx";
 import type { PersonActVM, PersonDoubtVM, PersonRowVM } from "@chanlytics/contracts";
 
+// The walk's arrows live with the frame; the page and both peeks take them from here, with the head, as before the frame
+// held them. A peek that took them from the frame alone left the head's modules out of its chunk group, and the build
+// regrouped the chunks the route shares with Settings: Settings +10 KB gzipped on the bundle check (4 Nov 2026).
+export { PersonWalkNav } from "./frame";
+
 /** Each of More's acts by its glyph: one for every act contracts names, so a new act cannot arrive without one. */
 const ACT_ICON: Record<PersonActVM["id"], string> = {
   call: "phone",
