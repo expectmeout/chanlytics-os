@@ -55,6 +55,9 @@ export const LEAD_NOW_WORDS = {
   stopped: "The sequence stopped.",
   noNeed: "Nothing needs you.",
   sentNothing: "Nothing was sent to them.",
+  /** A person now, where a sequence's place still stands: a call went well, and the send door writes no more. */
+  inPeople: "In People",
+  noMoreFrom: (name: string) => `Nothing more goes to them from ${name}.`,
 } as const;
 
 const NW = LEAD_NOW_WORDS;
@@ -279,11 +282,16 @@ function placeCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
     case "left":
       return leftCard(f, place);
     default:
+      // Said no, set aside, or a person now: the send door writes no more, so the card promises no next step.
+      if (f.state === "closed") return closedCard(f);
+      if (f.state === "replied") return card({ word: NW.inPeople, say: NW.noMoreFrom(place.sequence.name) });
+      // Up next, its day set: the email that goes then, folded, so what they will get is read where it is said.
       return card({
         word: NW.inIt(place.sequence.name),
         tone: placeToneOf(place.place.group),
         end: placeStep(place, f),
         say: `${said.line}. ${NW.noNeed}`,
+        mail: place.place.group === "next" ? "step" : null,
       });
   }
 }

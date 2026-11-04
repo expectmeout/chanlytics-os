@@ -1,11 +1,12 @@
 /**
  * What the lead sheet's foot draws beyond its presses: their email handed over, the row every To send draws, its acts
  * alone in the dock (its mail apps, Sent or Skip), They wrote back…, what they replied in five words, which stops
- * their place as a read reply does, in the dock's place, Rewrite the opening's what should change, and what Approve asks
- * before a batch goes. Every word is contracts'.
+ * their place as a read reply does, in the dock's place, Rewrite the opening's what should change, what Approve asks
+ * before a batch goes, and what Take out asks. Every word is contracts'.
  */
 import {
   leadApproveAskOf,
+  leadLeaveAskOf,
   toSendRowOf,
   type LeadPeekVM,
   type SequencePlaceDto,
@@ -18,7 +19,7 @@ import { RewriteAsk } from "../../campaigns/reach-out/rewrite-ask";
 import { Confirm } from "../../kit/confirm/confirm";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { refusalToast } from "../../legacy-verbs";
-import type { Flash } from "../peek/types";
+import type { Flash, PeekActs } from "../peek/types";
 import type { SheetWaiting } from "./facts";
 import { approveOne, openRunFor, type SheetRun } from "./run";
 import type { SheetUiState } from "./sheet-ui";
@@ -119,6 +120,65 @@ export function SheetRewrite(p: {
       onWriting={(on) => p.put({ writing: on })}
       onLanded={(kept) => p.put({ undo: kept ? { sendId, kept } : null })}
       testid="lead-sheet-rewrite"
+    />
+  );
+}
+
+/**
+ * The acts the sheet's questions press, where "Did you send it?" answered yes brings the card back from the draft and,
+ * while a sequence they stand in would write on, asks Take out next. A call asks nothing: one that reached them moves the
+ * lead past what the send door writes to (contracts outreachRefusalOf), and the rest leave its sequence running.
+ */
+export function wroteActsOf(on: PeekActs, p: { stands: boolean; ask: () => void }): PeekActs {
+  return {
+    ...on,
+    onSaidSent: () =>
+      on.onSaidSent().then((kept) => {
+        if (kept) {
+          on.onBack();
+          if (p.stands) p.ask();
+        }
+        return kept;
+      }),
+  };
+}
+
+/**
+ * Take out, asked in the dock's place (the review of 4 Nov 2026: two ways to stop, each hidden, now one with two answers):
+ * out of the sequence that runs for them and what follows, and Never write to them again under it, the stop door's own
+ * question. Once you said you sent an email of your own, the same question, said for why.
+ */
+export function SheetLeaveAsk(p: {
+  vm: LeadPeekVM;
+  place: SequencePlaceDto;
+  wrote: boolean;
+  busy: boolean;
+  onYes: () => void;
+  onNever: () => void;
+  onNo: () => void;
+}) {
+  const ask = leadLeaveAskOf({ name: p.vm.name, place: p.place, wrote: p.wrote });
+  return (
+    <Confirm
+      question={ask.question}
+      detail={
+        <>
+          {ask.detail}
+          {ask.never ? (
+            <span className="lw-leave-never">
+              <LinkButton className="lw-link" onClick={p.onNever} data-testid="lead-sheet-leave-never">
+                {ask.never}
+              </LinkButton>
+            </span>
+          ) : null}
+        </>
+      }
+      yes={ask.yes}
+      no={ask.no}
+      busy={p.busy}
+      onYes={p.onYes}
+      onNo={p.onNo}
+      testid="lead-sheet-leave"
     />
   );
 }

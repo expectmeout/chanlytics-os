@@ -38,6 +38,7 @@ function useLeadRow(leadId: string): { row: LeadRowDto | null; failed: boolean }
 function overActs(vm: LeadPeekVM, flash: Flash): PeekActs {
   const none = () => undefined;
   const nothing = () => Promise.resolve(undefined);
+  const notKept = () => Promise.resolve(false);
   return {
     onClose: closeLeadOver,
     onExpand: none,
@@ -74,7 +75,7 @@ function overActs(vm: LeadPeekVM, flash: Flash): PeekActs {
     onTone: nothing,
     onOpenMail: none,
     onCopyDraft: nothing,
-    onSaidSent: nothing,
+    onSaidSent: notKept,
     onNotYet: none,
     reachOut: null,
   };
