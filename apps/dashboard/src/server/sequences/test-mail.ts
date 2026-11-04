@@ -2,7 +2,6 @@ import "server-only";
 import {
   AppError,
   SEQUENCE_TEST_WORDS as W,
-  coldEndingOf,
   chainFirstSender,
   leadOpeningOf,
   leadStepTestMail,
@@ -56,15 +55,9 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
     example: !lead,
     opening: opened ? leadOpeningOf(opened.written, opened.listing) : null,
     workspace: { businessName: business.name, yourName: chain.signed_by, bookingLink: business.bookingLink },
-    // How it ends, as the send ends it (0077): from the first mailbox the sequence writes from.
-    ending: coldEndingOf({
-      signsWith: chain.signs_with ?? "name",
-      signedBy: chain.signed_by,
-      signature: chainFirstSender(chain)?.signature?.words ?? null,
-      first: step.n === 0,
-      body: step.body,
-      address: business.address,
-    }),
+    // How it ends, as the send ends it (0077): the signature of the first mailbox the sequence writes from.
+    signsWith: chain.signs_with ?? "name",
+    signature: chainFirstSender(chain)?.signature?.words ?? null,
   });
   if ("why" in mail) throw new AppError("validation", mail.why, 422);
   return mail;
@@ -93,6 +86,7 @@ async function mailOf(ctx: RouteContext, seq: Sequence, stepId: string) {
     place: step.place,
     business: business.name,
     address: business.address,
+    bookingLink: business.bookingLink,
     channels: step.channels,
     params: parseParamSpecs(step.params),
     policyClass: overview[0]?.first?.policy_class ?? "",

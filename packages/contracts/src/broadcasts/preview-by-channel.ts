@@ -7,7 +7,7 @@
  * as one short clause, and the bar draws it. Pure: every sentence the composers say of this is here.
  */
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
-import { emailFoot } from "../templates/email-foot";
+import { customerEmailFoot } from "../templates/email-foot";
 import {
   OWN_VERSION_CHANNELS,
   noVersionWords,
@@ -94,7 +94,7 @@ export interface PreviewOn {
 
 /**
  * A message as one channel carries it, or the sentence for a channel it has no version on (noVersionWords, messageWhyNot's).
- * An email's foot is the sender's (emailFoot), named for the business, the
+ * An email's foot is the sender's (customerEmailFoot), named for the business, the
  * address where the page has one, and the words the person's row kept (a visit's time, a proposal's link); a text's is
  * its STOP line, in the version's language. WhatsApp's words are the template's own, which the page draws.
  */
@@ -122,17 +122,17 @@ export function previewOn(
   // everyone on it: the preview says so rather than draw a foot the send would never carry.
   if (channel === "email" && o.offer && !o.address?.trim())
     return { channel, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
+  // The send's own choice of foot (templates customerEmailFoot), with a stand-in where their own unsubscribe link goes.
   const foot =
     channel === "sms"
       ? smsStopLine(o.language)
-      : emailFoot(
-          o.business,
-          o.address,
-          o.offer
-            ? { kind: "offer", why: o.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink }
-            : { kind: "visit", facts: o.facts ?? {} },
-          o.language,
-        );
+      : customerEmailFoot({
+          business: o.business,
+          address: o.address,
+          language: o.language,
+          offer: o.offer ? { why: o.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink } : null,
+          facts: o.facts ?? {},
+        }).footer;
   return { channel, label, version, foot, missing: null };
 }
 

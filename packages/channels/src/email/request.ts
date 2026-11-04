@@ -21,7 +21,14 @@
  * became of a send is receipts.ts; the provider's other answers are
  * provider-answers.ts.
  */
-import { escapeHtml, linkifyEscaped, posesAsReply } from "@chanlytics/contracts";
+import {
+  emailTextOf,
+  escapeHtml,
+  firstSubject,
+  linkifyEscaped,
+  posesAsReply,
+  replySubject,
+} from "@chanlytics/contracts";
 import { messageIdHeader, oneLine } from "./header-values";
 
 /** What an email is a reply to, read off the stored parent row. */
@@ -126,15 +133,8 @@ export function mailboxHeader(name: string, address: string): string {
   return clean ? `"${clean}" <${address}>` : address;
 }
 
-const REPLY_PREFIX = /^\s*(?:re|aw|sv|rv|antw)\s*:\s*/i;
-const SUBJECT_MAX = 200;
-
-/** "Re: <their subject>", once, however many prefixes the chain has stacked. A parent without one still gets a subject a person can find. */
-export function replySubject(parentSubject: string | null | undefined): string {
-  let s = oneLine(parentSubject ?? "");
-  while (REPLY_PREFIX.test(s)) s = s.replace(REPLY_PREFIX, "");
-  return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
-}
+/** "Re: <their subject>", once (contracts replySubject: a draft its owner sends and Send me a test answer by it too). */
+export { replySubject };
 
 /**
  * The HTML twin of plain words: paragraphs and line breaks, escaped, nothing
@@ -233,14 +233,14 @@ function htmlOf(i: EmailRequestInput, footerHtml: string | null, text: string): 
 }
 
 export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
-  const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
+  const subject = i.parent ? replySubject(i.parent.subject) : firstSubject(i.subject ?? "");
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
   // A first email a program sends never poses as a reply or a forward (contracts posesAsReply: the sheet asks it too).
   if (!i.parent && (i.campaign || i.actor === "ai") && posesAsReply(subject))
     throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
   if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
   const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
-  const text = [i.body.trim(), i.signature?.trim(), i.campaign?.footer.trim()].filter(Boolean).join("\n\n");
+  const text = emailTextOf({ body: i.body, signature: i.signature, footer: i.campaign?.footer });
   const footerHtml = i.campaign?.footerHtml?.trim() || null;
   if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign!.unsubscribeUrl.trim())}"`))
     throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
