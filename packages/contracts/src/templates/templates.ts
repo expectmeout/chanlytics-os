@@ -446,6 +446,36 @@ export function exampleParamsFor(
   return resolveParams(specs, { firstName, ...exampleFacts(businessName) });
 }
 
+/** The words a person's row keeps for the slots that take them (core wordsKeptOnRow), by the slot facts they fill. */
+const KEPT_ON_ROW = {
+  visit_when: "visitWhen",
+  visit_service: "visitService",
+  proposal_link: "proposalLink",
+  freed_when: "freedWhen",
+} as const;
+
+/**
+ * What Send me a test fills a message for: the example person's words (exampleParams), with the workspace's own booking
+ * link where it has one, and a link only a real person or the listing has said in brackets, since a plain email marks no
+ * value as a stand-in (3 Nov 2026: "their proposal's link" read as a slot left unfilled). `facts` is the row an example
+ * person's send would keep for the slots it names, which says its foot's reason as a real row says it.
+ */
+export function testParamsOf(
+  specs: readonly ParamSpec[],
+  o: { businessName: string; bookingLink: string | null },
+): { who: string; values: string[]; facts: Record<string, string> } {
+  const f = {
+    firstName: "Dani",
+    ...exampleFacts(o.businessName),
+    bookingLink: o.bookingLink?.trim() || "[your booking link]",
+    reviewLink: "[your review link]",
+    proposalLink: "[their proposal's link]",
+  };
+  const facts: Record<string, string> = {};
+  for (const s of specs) if (s.kind in KEPT_ON_ROW) facts[s.kind] = f[KEPT_ON_ROW[s.kind as keyof typeof KEPT_ON_ROW]];
+  return { who: f.firstName, values: resolveParams(specs, f), facts };
+}
+
 /* ------------------------------ what sends it ----------------------------- */
 
 /**

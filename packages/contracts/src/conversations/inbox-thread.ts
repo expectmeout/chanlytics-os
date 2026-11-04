@@ -307,22 +307,28 @@ export const THREAD_PANE_WORDS = {
     `Used: ${[email ? "their email" : "their message", "your facts", ...(signed ? ["your signature"] : [])].join(" · ")}`,
   /** The dock's lead over a hold whose reply the receptionist drafted: what is owed is a look at its words. */
   checkDraft: DRAFTED_TODO,
-  /** More's head: who it is about, how to reach them and when they first wrote, and the way to their page. */
-  personLine: (reach: string | null, first: string | null) =>
-    [reach, first ? `first wrote ${first.toLowerCase()}` : null].filter(Boolean).join(" · "),
+  /**
+   * More's head: who it is about, how to reach them and since when (the person page's own words, people sinceWords:
+   * "Since Aug 26"), and the way to their page. It lowered First contact's whole label, "first wrote aug 26", where every
+   * other date reads "Aug 26" (3 Nov 2026).
+   */
+  personLine: (reach: string | null, since: string) => [reach, since].filter(Boolean).join(" · "),
   profile: "Profile",
-  /** More's acts on the person: their receptionist, and the one that says they are no customer (decision 0080). */
-  receptionistFor: (first: string) => `Receptionist for ${first}`,
+  /**
+   * More's acts on the person, under Contact: their receptionist, and the one that says they are no customer (decision
+   * 0080), whose line says what it does in the words Today's Not a person says it (need-you-words.ts NOT_A_PERSON_WORDS).
+   */
+  receptionist: "Receptionist",
   notACustomerAct: "Not a customer…",
-  notACustomerMeta: "Their mail stays in your mailbox; they leave People",
+  notACustomerMeta: "Moves them out of People. Their mail stays.",
+  /** The group of acts on who the conversation is with: "Contact", never their name again under the head that says it. */
+  groupContact: "Contact",
   groupDealFile: "Deal and file",
   /** The conversation's own acts, as More and a desk's head say them. */
   snooze: "Snooze",
   snoozeMeta: "Until tomorrow, 10:00 AM",
   archive: "Archive",
   archiveMeta: "Closes it. A new message brings it back.",
-  /** Taking a thread before a word is written, from More: what it does, under its words. */
-  takeMeta: "The receptionist pauses, and your team sees you have it",
   /** Over the reply box's words while they are the receptionist's draft, unchanged: whose they are. */
   drafted: "Drafted by the receptionist",
   /** The handle on a phone's reply box, a button that opens it or folds it away, named by where it goes. */

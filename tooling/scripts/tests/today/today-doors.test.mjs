@@ -612,9 +612,10 @@ test("after the first run, with the calendar in, the card's last row is the door
     const row = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind");
     assert.ok(row, "the reminder's row, the last in Setup's list");
     assert.equal(row.props.className, "setup-card-row", "drawn as Setup's rows are");
-    assert.ok(
-      textOf(row).startsWith("The day-before reminderYour calendar is in. Remind each customer the day before."),
-    );
+    // Its name whole and short, both drawn and one shown: the short one beside a phone's pill (the phone pass, 3 Nov 2026).
+    const nameIn = (cls) => textOf(find(row, (n) => n.props?.className === cls));
+    assert.deepEqual([nameIn("setup-card-long"), nameIn("setup-card-short")], ["The day-before reminder", "Reminders"]);
+    assert.ok(textOf(row).includes("Your calendar is in. Remind each customer the day before."));
     const rows = findAll(card, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length;
     assert.equal(
       textOf(find(card, (n) => n.props?.["data-testid"] === "today-setup-left")),

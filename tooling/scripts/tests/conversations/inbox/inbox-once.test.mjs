@@ -450,7 +450,8 @@ test("an email in the thread is drawn as one: its subject said once over the fir
   assert.equal(textOf(find(emailBubble, byTestId("tl-msg-subject"))).trim(), "Quote for Saturday", "said once");
   assert.equal(textOf(pane).split("Quote for Saturday").length - 1, 1, "and only there");
   assert.ok(hasClass("tl-email")(emailBubble), "an email is drawn as one");
-  assert.equal(textOf(find(emailBubble, byTestId("tl-email-from"))), `${vm.who} to you`, "who it is from, at its head");
+  // REGRESSION (the phone pass, 3 Nov 2026): "Maya Chen to you" headed each of her emails, under a head that names her.
+  assert.equal(find(emailBubble, byTestId("tl-email-from")), null, "her own email says no sender, the head says it");
   assert.equal(find(chatBubble, byTestId("tl-msg-subject")), null, "a subject is an email's");
   assert.ok(!hasClass("tl-email")(chatBubble), "a WhatsApp message stays a bubble");
   // A bubble names its wire, in its corner, where it came another way than the thread's own (the reply box's, which is

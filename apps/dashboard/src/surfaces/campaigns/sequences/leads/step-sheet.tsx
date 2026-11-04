@@ -33,15 +33,7 @@ import { WordsField } from "../../templates/slots/words-field";
 import { pressed } from "../verbs";
 import { LeadInsert } from "./insert";
 import { LeadPreview } from "./preview";
-import {
-  cardLeadOf,
-  exampleCardLead,
-  useLeadRow,
-  usePreviewLeads,
-  usePreviewName,
-  workspaceOf,
-  type PreviewLead,
-} from "./reads";
+import { cardLeadOf, exampleCardLead, useLeadRow, usePreviewLeads, workspaceOf, type PreviewLead } from "./reads";
 import { LeadRewrite, useLeadRewrite } from "./rewrite";
 import type { LeadChain } from "./use-chain";
 
@@ -186,7 +178,6 @@ function WriteFoot(p: { lc: LeadChain; place: number; onDone: () => void; onRemo
 /** The foot while previewing: the step as this lead gets it, and Send me a test, to your own inbox. */
 function TestFoot(p: { rec: SequenceRecordDto; lc: LeadChain; place: number; lead: PreviewLead | null; flash: Flash }) {
   const [busy, setBusy] = useState(false);
-  const name = usePreviewName(p.lead);
   const test = async () => {
     setBusy(true);
     // What is typed goes first, so the test is the words as they stand.
@@ -204,7 +195,6 @@ function TestFoot(p: { rec: SequenceRecordDto; lc: LeadChain; place: number; lea
   return (
     <div className="ld-foot">
       <span className="ld-foot-said">
-        <span className="ld-foot-line">{W.testLine(p.place, name)}</span>
         <span className="ld-foot-fact">{W.testFact}</span>
       </span>
       <Button
@@ -254,8 +244,8 @@ export function LeadStepSheet({ open, place, rec, lc, flash, onClose }: LeadStep
     <Sheet
       open={open && !!step && !!place}
       onClose={close}
-      title={previewing ? W.preview : place ? W.stepTitle(place, hand) : ""}
-      sub={previewing && place ? W.previewSub(place) : W.stepSub(day, rec.sequence.in_it)}
+      title={previewing && place ? W.previewTitle(place) : place ? W.stepTitle(place, hand) : ""}
+      sub={previewing ? undefined : W.stepSub(day, rec.sequence.in_it)}
       close={{ label: W.done, glyph: <Icon name="x" size={13} /> }}
       backCloses
       testid="ld-step-sheet"
@@ -273,7 +263,7 @@ export function LeadStepSheet({ open, place, rec, lc, flash, onClose }: LeadStep
             <span className="ld-flip">
               <Icon name="chevron" size={13} />
             </span>{" "}
-            {W.stepTitle(place, hand)}
+            {W.previewBack}
           </Button>
           <LeadPreview
             rec={rec}

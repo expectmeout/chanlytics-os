@@ -887,6 +887,24 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
     --surface-wash: var(--surface-veil);
   }
 }
+/* A phone's type is six steps (the phone pass, 3 Nov 2026): 12 a caption or a time, 13.5 a meta line, 15 the body and
+   a row's name, 17 a card's title, 22 a page's or a person's name, 34 a figure. Read at a thumb's length, steps half a
+   pixel apart read as slips, not as order (Today drew ten sizes), so each step between them is said on the nearest one
+   and nothing new is added. The desk keeps every step; the tab bar's word and its count keep --text-2xs, and the
+   canvases' page title (--text-3xl) and figures keep theirs. */
+@media (max-width: 900px) {
+  :root, [data-theme] {
+    --text-xs: 12px;
+    --text-sm: 12px;
+    --text-aside: 13.5px;
+    --text-title: 13.5px;
+    --text-mail: 15px;
+    --text-md: 15px;
+    --text-lg: 17px;
+    --sheet-phone-xs: 13.5px;
+    --sheet-phone-xl: 17px;
+  }
+}
 /* What stands over a phone's foot keeps clear of the one point Safari looks at (iOS 26). Safari paints a flat band under
    its bottom bar, in place of its glass, while a box fixed to the window (or sticky) covers the middle of the window's
    foot 4px up, and it keeps the band for as long as that box stays drawn, wherever the box has moved to since (WebKit,

@@ -114,7 +114,8 @@ test("on a phone the day's four figures stand in Today so far, each by its short
   const card = draw(PhoneSoFar);
   assert.ok(textOf(card).includes("Today so far"), textOf(card));
   const names = all(card, (n) => classes(n).includes("tc-fig-w")).map(textOf);
-  assert.deepEqual(names, ["booked", "answered", "calls", "new people"]);
+  // A word each, so the row of four is one line: "new people" broke in its 65px (the phone pass, 3 Nov 2026).
+  assert.deepEqual(names, ["booked", "answered", "calls", "new"]);
   phone = false;
   // A desk's four stand in the frame's head beside the greeting (figures.tsx TodayHeadFigures), by the same short names
   // (the 10/10 read, 2 Nov 2026: "answered by the receptionist" made its cell three times another's), the whole name its
@@ -122,7 +123,7 @@ test("on a phone the day's four figures stand in Today so far, each by its short
   const desk = draw(TodayHeadFigures);
   assert.deepEqual(
     all(desk, (n) => classes(n).includes("tc-fig-w")).map(textOf),
-    ["booked", "answered", "calls", "new people"],
+    ["booked", "answered", "calls", "new"],
     "a desk says the short names too",
   );
   assert.ok(

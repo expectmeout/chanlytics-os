@@ -293,6 +293,37 @@ test("the email its owner sends ends with the name, never a mailbox's signature:
   assert.ok(d.text.startsWith("Hi Fixture Movers.\n\nSam\n\nI found your business on Google Maps."), d.text);
 });
 
+test("the email its owner sends is the email the send makes, word for word: its subject, a nudge's under 'Re:' once, its words, its foot (contracts coldEmailOf)", () => {
+  const ws = { ...input().workspace, yourName: "Sam" };
+  const parent = {
+    messageId: "44444444-4444-4444-8444-444444444444",
+    rfcMessageId: "<first@getharbor.example>",
+    references: [],
+    subject: "RE: Re: A quote for Fixture Movers",
+  };
+  for (const [what, words, before] of [
+    [
+      "a first email",
+      { subject: "A quote for {{business}}", body: "Hi {{business}},\n\nMovers in {{city}} ask us." },
+      null,
+    ],
+    ["a nudge", { subject: null, body: "Hi {{business}}, just checking this reached you." }, parent],
+  ]) {
+    const sent = reachOutRequest(input({ words, workspace: ws, signsWith: "name", parent: before }));
+    const d = reachOutDraft({
+      words,
+      lead: input().lead,
+      workspace: ws,
+      opening: null,
+      parent: before ? { subject: before.subject } : null,
+      signsWith: "name",
+    });
+    assert.equal(sent.ok && d.ok, true, what);
+    assert.equal(d.subject, sent.request.subject, `${what}: its subject`);
+    assert.equal(d.text, sent.request.text, `${what}: its words and its foot, as the send writes them`);
+  }
+});
+
 test("their preview (decision 0079): its link filled in; being made holds, gone skips, before the lead's own values", () => {
   const words = { subject: null, body: "Hi {{business}}, I set this up for you in {{city}}: {{their preview}}" };
   const ws = input().workspace;

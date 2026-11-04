@@ -19,6 +19,10 @@ export interface PersonHeadStateFacts {
   stateLabel: string;
   stateDetail: string;
   rightNow: { detail: string };
+  /** The head's line (business.ts personHeadOf): a lead's stand-in's says how they met. */
+  head?: { line: { kind: string } | null };
+  /** The page's notices; one that stands under the name takes the line's row. */
+  notices?: readonly { home: string }[];
 }
 
 /** A detail in a few words as a sentence: its first letter up, a full stop after it. */
@@ -32,9 +36,12 @@ const asSentence = (s: string): string | null => {
 /** The head's state and its sentence (canvas A's head, every board). */
 export function personHeadStateOf(p: PersonHeadStateFacts): PersonHeadStateVM {
   const needs = p.state === "needs_you" || p.state === "waiting_on_you";
+  // A stand-in's head that says how they met ("We wrote first · Oct 30") is not told it again under the pill ("First
+  // contact Oct 30."; the phone pass, 3 Nov 2026): the line is drawn where no notice stands in its row (hero.tsx).
+  const met = p.head?.line?.kind === "origin" && !(p.notices ?? []).some((n) => n.home === "name");
   return {
     state: p.state,
     word: p.stateLabel,
-    sentence: needs ? asSentence(p.rightNow.detail) : asSentence(p.stateDetail),
+    sentence: needs ? asSentence(p.rightNow.detail) : met ? null : asSentence(p.stateDetail),
   };
 }

@@ -728,10 +728,14 @@ export function todayZoneDay(
   const n = frame.items.length + frame.more - frame.missed;
   return {
     title: tomorrow ? P.tomorrow : P.day,
+    // Tomorrow with nothing booked says so once, in its open hour's line ("Nothing booked yet"): its head said "No
+    // meetings" over it (the phone pass, 3 Nov 2026). A day with no open hour either keeps the head's words.
     note: tomorrow
       ? n
         ? `${n} ${n === 1 ? W.one : W.many}`
-        : `No ${W.many}`
+        : lines.some((l) => l.open)
+          ? ""
+          : `No ${W.many}`
       : todayDayNote(frame, day.nextOpening, day.word),
     tomorrow,
     cells,
@@ -748,7 +752,9 @@ const toMarkOn = (frame: DayFrameLike, nowMs: number): number => unmarkedVisitsO
 
 /**
  * The foot of the day once it has turned to tomorrow: how today went, its visits, the ones still to mark, and how many
- * of the customer messages the receptionist answered. "Today: 8 visits, 1 to mark · 31 of 34 answered".
+ * of the customer messages the receptionist answered. "Today: 8 visits, 1 to mark · 31 of 34 answered". A day of none
+ * says nothing of its visits, as the page's head already said it ("Today: 0 booked"; the phone pass, 3 Nov 2026), and a
+ * foot with nothing left to say is none.
  */
 export function todayWentFoot(
   today: TodayDayFrameVM | null,
@@ -759,10 +765,10 @@ export function todayWentFoot(
   const W = appointmentWords(word);
   const visits = today ? today.items.length + today.more - today.missed : 0;
   const parts = [
-    `${visits} ${visits === 1 ? W.one : W.many}${toMark ? `, ${toMark} to mark` : ""}`,
+    visits || toMark ? `${visits} ${visits === 1 ? W.one : W.many}${toMark ? `, ${toMark} to mark` : ""}` : "",
     answered && answered.value !== null && answered.of ? `${answered.value} of ${answered.of} answered` : "",
   ].filter(Boolean);
-  return `Today: ${parts.join(" · ")}`;
+  return parts.length ? `Today: ${parts.join(" · ")}` : "";
 }
 
 /** The day's foot otherwise: what is over, folded, and what the Calendar holds past the lines drawn. */

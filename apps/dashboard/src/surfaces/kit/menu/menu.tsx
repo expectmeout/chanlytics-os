@@ -146,6 +146,11 @@ export type MenuProps = {
   label?: string;
   /** Its name drawn at its top, and on a phone its Close: the sheet's head. */
   head?: MenuHead;
+  /**
+   * The control is not a button of the kit's but a part of the page that opens it (a thread's who on a phone, whose
+   * sheet heads with their page): Base UI gives it a button's role, its keys and its focus.
+   */
+  nativeTrigger?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
@@ -377,12 +382,12 @@ function MenuPopup({
 }
 
 /** A menu, opened by the page's control and drawn on the document's body. */
-export function Menu({ trigger, ...popup }: MenuProps) {
+export function Menu({ trigger, nativeTrigger = true, ...popup }: MenuProps) {
   // Open is Base UI's to decide; it is held here only so a phone's pull can close the menu.
   const [open, setOpen] = useState(false);
   return (
     <BaseMenu.Root open={open} onOpenChange={(next) => setOpen(next)}>
-      <BaseMenu.Trigger render={trigger} />
+      <BaseMenu.Trigger nativeButton={nativeTrigger} render={trigger} />
       <MenuPopup {...popup} onClose={() => setOpen(false)} />
     </BaseMenu.Root>
   );

@@ -157,7 +157,7 @@ const draw = (vm, props = {}) => {
 
 /* --------------------------------- the menu --------------------------------- */
 
-test("the thread's menu: the conversation, then the person by their first name, then the file, each under its heading -- nothing broken onto two lines", () => {
+test("the thread's menu: the conversation, then Contact, then the file, each under its heading -- nothing broken onto two lines", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const menu = find(tree, (n) => n.type === Menu);
   assert.ok(menu, "the thread has its menu");
@@ -174,19 +174,22 @@ test("the thread's menu: the conversation, then the person by their first name, 
     // The reader's own mark on the person (00349): on a real thread it is kept, so the menu offers it again.
     "Mark as unread",
     "|",
-    "[Rosa]",
-    "Receptionist for Rosa",
+    // Theirs already, under the head that names them: their name again was a business's whole name over two lines.
+    "[Contact]",
+    "Receptionist",
     "|",
     "[Deal and file]",
     "Export transcript",
   ]);
   const head = itemsIn(menu)[0];
-  assert.ok(head.hint && textOf(head.hint).includes("Profile"), "their page, named at the row's end");
+  // Their page is the whole row, a chevron at its end: "Profile" there took the name's room (the phone pass, 3 Nov 2026).
+  assert.equal(head.title, "Profile", "the row names their page");
+  assert.equal(textOf(head.hint), "", "a chevron alone at the row's end");
   // On a phone the menu is the kit's sheet, its first row who it is about, their face and their page a press away.
   assert.equal(menu.props.head, undefined, "the row is its head: a title over it said the name twice");
   assert.equal(itemsIn(menu)[0].label, "Rosa Díaz");
   const take = itemsIn(menu).find((it) => it.label === "I'll answer this");
-  assert.equal(take.meta, "The receptionist pauses, and your team sees you have it", "what taking it does");
+  assert.equal(take.meta, undefined, "no second line that says the label again: one has a time or a consequence");
   const taken = [];
   itemsIn(
     find(
@@ -962,8 +965,8 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       "Archive",
       "Mark as unread",
       "|",
-      "[Rosa]",
-      "Receptionist for Rosa",
+      "[Contact]",
+      "Receptionist",
       "|",
       "[Deal and file]",
       "Start a proposal",

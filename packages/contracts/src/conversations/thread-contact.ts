@@ -22,9 +22,19 @@ export function isIdentifierName(name: string): boolean {
   return /^[+\d(]/.test(name) || name.includes("@");
 }
 
-/** A name shortened for a line that says it again: the first name, or an identifier whole. The call row, Live's bar and Conversations' row read it. */
+/**
+ * A name whose first word is no first name: "The" ("The Google Workspace Team") or a possessive ("Rosa's Nail Bar"), a
+ * team's or a business's. Never "A" or "An": An is a given name.
+ */
+const NO_FIRST_NAME = /^(the|\S+['’]s)\s/i;
+
+/**
+ * A name shortened for a line that says it again: the first name, or an identifier or a name with no first name in it
+ * whole (3 Nov 2026: a person page said "THE · OCT 28" for "The Google Workspace Team", and a thread's sheet "Receptionist
+ * for" a business's first word). The call row, Live's bar and Conversations' row read it.
+ */
 export function shortName(name: string): string {
-  return isIdentifierName(name) ? name : name.split(" ")[0] || name;
+  return isIdentifierName(name) || NO_FIRST_NAME.test(name) ? name : name.split(" ")[0] || name;
 }
 
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */

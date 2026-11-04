@@ -887,14 +887,15 @@ a.chip:focus-visible {
   }
 }
 /* A short word at the item's end -- what it will do ("until tomorrow 10:00"), a count: one line, set to the right,
-   as readable as the meta line. */
+   as readable as the meta line. One value a row, so its figures are the face's own: tabular ones only help a column,
+   and their zeros read as struck through on a phone (the phone pass, 3 Nov 2026). */
 .more-item-hint {
   margin-left: auto;
   padding-left: 16px;
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--ink-dim);
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: proportional-nums;
 }
 .more-divider {
   height: 1px;
@@ -918,13 +919,18 @@ a.chip:focus-visible {
 .icon-turned {
   rotate: 180deg;
 }
-/* One thing said of a group's items, under them (Menu's `caption`): why its sends cannot go, in from the glyphs' edge. */
+/* One thing said of a group's items, under them (Menu's `caption`): why its sends cannot go, on the edge its items' words
+   stand on: past the glyphs where they wear them, else at the item's own padding (the phone pass, 3 Nov 2026: the Not now
+   sheet's times stood at 30, its caption at 52 and its glyphs' words at 57). */
 .more-cap {
   margin: 0;
-  padding: 2px 10px 8px 34px;
+  padding: 2px 10px 8px;
   font-size: var(--text-xs);
   line-height: 1.45;
   color: var(--ink-dim);
+}
+.more-item:has(> .icon) ~ .more-cap {
+  padding-left: 37px;
 }
 /* A menu's switches as chips (the Menu's toggles, `chips`: what a board shows): rows on a desk, as any switches are; on a
    phone one compact line of chips, each lit while it is on as a segmented control's choice is, its small tick beside its
@@ -1131,6 +1137,17 @@ a.more-item {
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item .icon {
     width: 18px;
     height: 18px;
+  }
+  /* A time or a count at an item's end, at the sheet's meta step. */
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item > .more-item-hint {
+    font-size: var(--text-base);
+  }
+  /* A caption on the sheet stands where its items' words do: the item's 12, past an 18px glyph and its 14 where they wear one. */
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-cap {
+    padding-left: 12px;
+  }
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item:has(> .icon) ~ .more-cap {
+    padding-left: 44px;
   }
   /* An item whose glyph stands on its square keeps its two lines together beside it (the item's gap is its columns'). */
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item:has(> .more-glyph, > .face) {
