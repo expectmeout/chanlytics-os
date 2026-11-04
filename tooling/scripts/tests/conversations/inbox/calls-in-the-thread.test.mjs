@@ -25,6 +25,7 @@ import {
   RECORDING_RETENTION_DAYS,
 } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again as drawOver } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-21T14:00:00Z");
@@ -894,5 +895,52 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     globalThis.window.dispatchEvent = dispatched;
     peopleAre(undefined);
     globalThis.window.__deal = dealWas;
+  }
+});
+
+test("a thread that opens with a call whose lines the list left out reads them before it draws its conversation, so the call is drawn once and whole (Ruben's recording, 3 Nov 2026: drawn without them, it jumped 230px up the screen as they landed)", async () => {
+  // The calls Conversations read say how many lines the call had, not the lines (GET calls without ids).
+  calls(toCallVM(callDto({ transcript_object: [], turns: 2 }), ZONE, NOW));
+  const asked = [];
+  let answer = null;
+  const fetchWas = globalThis.window.fetch;
+  globalThis.window.fetch = (url) => {
+    asked.push(String(url));
+    return new Promise((resolve) => {
+      answer = () =>
+        resolve(
+          new Response(JSON.stringify({ ok: true, data: { calls: [callDto()] } }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+    });
+  };
+  try {
+    const vm = emily();
+    const first = draw(vm);
+    assert.ok(find(first, byTestId("ix-timeline-reading")), "the conversation waits for the call's lines");
+    assert.equal(cardOf(first), undefined, "no call is drawn without them");
+    await until(() => answer !== null, "the call's lines asked for");
+    assert.deepEqual(
+      asked
+        .filter((u) => u.includes("/api/v1/calls"))
+        .map((u) => new URL(u, "https://app.chanlytics.com").searchParams.get("ids")),
+      ["k7"],
+      "by the call's id, once",
+    );
+    answer();
+    let tree = first;
+    await until(() => {
+      tree = again(vm);
+      return !!cardOf(tree);
+    }, "the call drawn once its lines are in");
+    assert.equal(spoken(cardOf(tree)).length, 2, "drawn with its lines the first time it is drawn");
+    // Drawn once, it stays drawn: a call whose lines are still to be read, met after it opened (the calls read again),
+    // reads them as its card opens, and the conversation on the screen is not taken away meanwhile.
+    calls(toCallVM(callDto({ id: "k8", transcript_object: [], turns: 2 }), ZONE, NOW));
+    assert.equal(find(again(vm), byTestId("ix-timeline-reading")), undefined, "the open conversation stays drawn");
+  } finally {
+    globalThis.window.fetch = fetchWas;
   }
 });

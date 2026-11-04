@@ -840,6 +840,9 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   @supports (-webkit-touch-callout: none) {
     :root {
       --bar-foot: max(4px, calc(env(safe-area-inset-bottom, 0px) - 13px));
+      /* And while its keyboard is up it floats its address over the page above the keys, about 48px of it (Ruben's
+         recording, 3 Nov 2026: "Xv" typed under it): what stands on the keys stands over it (an open thread's foot). */
+      --keys-pill: 50px;
     }
   }
 
@@ -1072,12 +1075,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   html.legacy-on:is([data-thumb-down], [data-page-top]) body {
     overscroll-behavior-y: none;
   }
-  /* An open thread holds its head and its reply box through every pull, at either end, in the browser and on the home
-     screen alike: only the conversation gives (Ruben, 2 Nov 2026: "only thread content can be dragged up and down").
-     The two are stuck to the window, not fixed to the screen, and the screen's band carries whatever is stuck along with
-     the page: a pull down slid the head 250px down the screen, and a pull up lifted the reply box with the page's ground
-     showing under it. So while a thread is open the band is off, and the page draws a pull past either end on the
-     conversation alone (page-give.ts, which `--page-gives` on .ix-th-scroll names, below). A glide stops at an end. */
+  /* An open thread is a screen of its own (below), and the page under it holds still: the window has nothing to scroll,
+     no band to carry the screen on and no pull to refresh, in the browser and on the home screen alike. Only the
+     conversation moves, in its own box (Ruben, 2 Nov 2026: "only thread content can be dragged up and down"). Locked on
+     the root only, as a drawer locks it (above): a locked body becomes a scroller of its own. */
+  html.legacy-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]) {
+    overflow: hidden;
+  }
   html.legacy-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]),
   html.legacy-on:has(.main-scroll.pane > :is(.inbox, .conversations)[data-takeover]) body {
     overscroll-behavior-y: none;
@@ -1144,58 +1148,113 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     max-height: none;
     overflow: clip;
   }
-  /* The pages that held still in a box of their own (the Calendar, an open thread, Live, an open sequence or message)
-     are as tall as what they hold too, and the window scrolls them, as every page above: in a box of their own Safari's
-     toolbar stood on a solid strip under them, where the Inbox's rows passed under its glass (Ruben, 21 Oct 2026). What
-     must stay on the screen stays as it does above. What heads the page sticks under the frame's top, as a person's strip
-     does, with the top's band as long as the gap over it. What stands at the foot (a reply box, a pane's foot, a call's
-     whisper) sticks over the screen's foot where the tab bar rests: sticky, not fixed as a person's dock is, since a
-     thread's pane is a size container (inbox.css), which a fixed child is pinned to instead of the screen. It rests no
-     nearer the foot than the point Safari reads (tokens.css --foot-clear): at the tab bar's 4px in an iPhone's browser
-     a reply box stood on that point's line, and a pixel lower Safari would paint its band under it for as long as the
-     thread stayed open. A capsule the page passes under takes its blur on a layer of its own (a filter on it would hold
-     its menu, kit.css). Where the page draws a pull at its top, only the rows give (page-give.ts). */
+  /* The pages that held still in a box of their own (the Calendar, Live, an open sequence or message) are as tall as
+     what they hold too, and the window scrolls them, as every page above: in a box of their own Safari's toolbar stood
+     on a solid strip under them, where the Inbox's rows passed under its glass (Ruben, 21 Oct 2026). An open thread is
+     the one screen of its own (below). What must stay on the screen stays as it does above. What heads the page sticks
+     under the frame's top, as a person's strip does, with the top's band as long as the gap over it. What stands at the
+     foot (a pane's foot, a call's whisper) sticks over the screen's foot where the tab bar rests: sticky, not fixed as a
+     person's dock is. It rests no nearer the foot than the point Safari reads (tokens.css --foot-clear): at the tab
+     bar's 4px in an iPhone's browser a foot stood on that point's line, and a pixel lower Safari would paint its band
+     under it for as long as the page stayed open. A capsule the page passes under takes its blur on a layer of its own
+     (a filter on it would hold its menu, kit.css). Where the page draws a pull at its top, only the rows give
+     (page-give.ts). */
   :root {
     --held-foot: max(var(--bar-foot), var(--foot-clear, 0px));
   }
 
-  /* An open thread: the conversation as long as what was said, its head at the top of the screen, its foot (what it needs
-     from you, the reply box; thread.tsx .ix-th-foot) over the screen's foot. */
-  .main-scroll.pane > :is(.inbox, .conversations)[data-takeover] {
-    overflow: visible;
-    overflow-x: clip;
-  }
+  /* An open thread is a screen of its own (Ruben's recording, 3 Nov 2026; Claude Video's
+     docs/2026-11-03-thread-phone-shell-review.md): fixed to the window, its head at its top, its conversation the one box
+     that scrolls (inbox.css .ix-th-scroll, as on a desk), and its foot (what the thread needs from you and the reply box;
+     thread.tsx .ix-th-foot) on the screen's bottom edge. Stuck in the window's scroll instead (21 Oct to 3 Nov 2026), the
+     foot floated over the screen's foot at the end of a thread with the page's ground under it, a fold moved the
+     conversation 86px, and the thread's own scroll to its end put back the lift the browser had given a field the keys
+     rose under, so the reply box went under the keyboard as the first key was typed. Safari's toolbar stands full size
+     over a page whose window does not scroll. The screen is the page's own light from edge to edge (tokens.css, one
+     colour at the edges): the pane, its head and its foot have no ground of their own, the paper Safari stands its bar
+     over the clock on runs on under the head, and the conversation fades out under the head and the foot. The pane stops
+     --foot-clear short of the window's foot, so nothing fixed covers the point Safari reads there and its toolbar is its
+     glass over the page's light, as on every page under a list: covering it, the pane was read as the edge and the band
+     under the bar was a flat colour, which stood out where the light glows at the foot. The head and the foot were bars
+     of the raised ground (1 to 4 Nov 2026), and the head stood a step lighter than the paper over the clock (Ruben's
+     iPhone, 4 Nov 2026: "the top header and bottom fully in the new background").
+     The keyboard: the screen stands on what the document says the keys cover (kit/motion/keyboard.ts), as Ask's does
+     (ask.css): from the moment a field is focused the height the last keyboard had (kb-expected, --kb-last), so the field
+     is above the keys before they rise and the browser finds nothing to lift, while what the eye sees is the reply box
+     rising into that room over the keys' beat (kit/motion/keys-rise.ts); once they are up, theirs (--kb); and should
+     the browser lift the view all the same (the first keyboard on a device), the screen follows it down and is as tall as
+     what is left (--vv-top). An iPhone's browser floats its address over the page above the keys (--keys-pill, above),
+     and the home bar is under the keys, where the foot's own room for it goes. What the keys leave under the foot is the
+     page's light, as everywhere. 250ms is the keyboard's own rise. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
-    padding-bottom: var(--held-foot);
-    overflow: visible;
+    --thread-keys: 0px;
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 2;
+    height: calc(100dvh - var(--vv-top, 0px) - var(--foot-clear, 0px));
+    translate: 0 var(--vv-top, 0px);
+    padding-top: calc(var(--frame-top-at) + var(--frame-top, 0px));
+    padding-bottom: var(--thread-keys);
+    transition:
+      padding-bottom 250ms var(--ease-out),
+      translate 250ms var(--ease-out);
   }
+  html.kb-up :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
+    --thread-keys: max(
+      0px,
+      var(--kb, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px) - var(--foot-clear, 0px)
+    );
+  }
+  html.kb-expected :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
+    --thread-keys: max(
+      0px,
+      var(--kb-last, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px) - var(--foot-clear, 0px)
+    );
+    transition: translate 250ms var(--ease-out);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
+      transition: none;
+    }
+  }
+  /* The conversation is its own box, and a pull past either end of it bands that box alone. It fades out at its top and
+     its foot, over its own padding at rest, so what is scrolled away goes under the head and the reply box rather than
+     being cut at a line the eye cannot see. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-scroll {
-    --page-gives: rows;
-    flex: 1 0 auto;
-    overflow: visible;
+    overscroll-behavior-y: contain;
+    mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 16px), transparent);
   }
-  /* The head is a bar of the raised ground at the screen's top (the thread canvas, 1 Nov 2026), under the frame's top with
-     no fade between them: the hairline under the head is the edge. */
+  /* The head stands over the conversation's edge, under the frame's top with no fade between them. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head {
-    position: sticky;
-    top: calc(var(--frame-top-at) + var(--frame-top, 0px));
+    position: relative;
     z-index: 3;
   }
   .main:has(> .main-scroll > :is(.inbox, .conversations)[data-takeover]) > .frame-top {
     --frame-top-fade: 0px;
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot {
-    position: sticky;
-    bottom: var(--held-foot);
+    position: relative;
     z-index: 3;
+    flex: none;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    /* The raised ground across the screen at its foot, a hairline over it (the thread canvas, 1 Nov 2026): the reply box
-       alone, as a chat's foot is. The conversation ends above it, so no word of it prints under the reply. */
-    padding: 10px 12px 16px;
-    border-top: 1px solid var(--line);
-    background: var(--bg-raised);
+    /* The reply box alone, as a chat's foot is, on the page's own light down to the screen's edge, with room for the home
+       bar where there is one; it was the raised ground across the screen with a hairline over it (the thread canvas,
+       1 Nov 2026). */
+    padding: 10px 12px calc(16px - var(--foot-clear, 0px) + env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    background: transparent;
+  }
+  /* On the keys the line stands as near over Safari's address as that stands over the keys, what is owed over it or not. */
+  html:is(.kb-up, .kb-expected) :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot,
+  html:is(.kb-up, .kb-expected)
+    :is(.inbox, .conversations)[data-takeover]
+    > .ix-thread-pane
+    > .ix-th-foot:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
+    padding-bottom: 8px;
   }
   /* Under a thumb as a sheet with two rests is (thread.tsx footDock, kit sheet/dock.ts dockSwipe; Ruben, 3 Nov 2026): the
      sheet's handle at its top, where the foot's own room over what is owed was, a pull on it the foot's own and never
@@ -1213,26 +1272,17 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
       transition: none;
     }
   }
-  /* Down to the screen's own foot: the ground goes on under the room kept clear of the browser's bar. */
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    right: 0;
-    left: 0;
-    height: var(--held-foot);
-    background: var(--bg-raised);
-  }
-  /* Asking something of you (the dock over the reply box), it is the sheet: its top corners round, lifted off the words. */
+  /* Asking something of you (the dock over the reply box): what is owed over the line, on the same light. It was the
+     sheet, its top corners round and lifted off the words, while the foot had a ground of its own. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
     gap: 10px;
-    padding: 14px 14px 16px;
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-    box-shadow: var(--shadow-dock);
+    padding: 14px 14px calc(16px - var(--foot-clear, 0px) + env(safe-area-inset-bottom, 0px));
   }
   /* What the thread needs from you is as tall as what it says, as the rest of the page is. On a desk it may take part of
      the pane and scroll inside it (inbox.css); a state taller than the reply box was cut under its own lower edge with its
-     acts out of reach (Ruben, 22 Oct 2026: "I'll answer this" and "Hand back" cut in half). */
+     acts out of reach (Ruben, 22 Oct 2026: "I'll answer this" and "Hand back" cut in half). It never scrolls here: its
+     Why? reaches a thumb's width past its line (inbox.css .ix-dock .ix-why), which a box that scrolls would cut, and
+     would scroll by. With the keys up the line's words are what give way (inbox.css). */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status {
     max-height: none;
     overflow: visible;
@@ -1345,6 +1395,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
 @media (max-width: 720px) and (display-mode: standalone) {
   :root {
     --frame-top-at: calc(env(safe-area-inset-top, 0px) - 10px);
+    /* No browser here, so no address over the keys. */
+    --keys-pill: 0px;
   }
   /* An app on the home screen has no pull to refresh, so the screen's own band stays on under a thumb and at the page's
      top as well: a pull there bands as everywhere, with what is fixed holding, and the page draws nothing (page-give.ts

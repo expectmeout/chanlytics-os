@@ -35,8 +35,8 @@ const ixDrawnFrom = (thread: Thread, focusMessageId: string | null): number => {
 
 /**
  * The index a thread is drawn from, and the mark that stands before its first drawn entry while earlier ones wait
- * (`moreRef`, drawn only while `from` is over zero). `scrollRef` is the pane's conversation, which scrolls itself on a
- * desk and which the window scrolls on a phone (scroller.ts).
+ * (`moreRef`, drawn only while `from` is over zero). `scrollRef` is the pane's conversation, which scrolls itself, on a
+ * desk and on a phone alike (scroller.ts).
  */
 export function useEarlierAsScrolled(
   thread: Thread | null,

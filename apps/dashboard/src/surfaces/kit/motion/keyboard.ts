@@ -20,7 +20,8 @@ const KEYBOARD_KEY = "chanlytics-os-keyboard";
 const ZOOMED = 1.01;
 const NOT_TYPING = /^(button|checkbox|radio|range|submit|reset|file|color|image|hidden)$/;
 
-const typesIn = (el: EventTarget | null): boolean => {
+/** A field the keyboard rises for: what makes the document expect it (and what a box on the keys rises for, keys-rise.ts). */
+export const typesIn = (el: EventTarget | null): boolean => {
   const n = el as HTMLElement | null;
   return (
     !!n &&

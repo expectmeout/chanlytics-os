@@ -1184,8 +1184,9 @@ test.describe("Phone shell on a real workspace", () => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };
     const places: Record<string, string> = {};
-    // The room under the list is the list's own where the row's page is a thread: the window scrolls an open thread and
-    // opens it at its end (#1781), and room left on the body was that end, the thread scrolled out of sight above it.
+    // The room under the list is the list's own where the row's page is a thread: while the window scrolled an open thread
+    // (#1781, until the thread became a screen of its own on 3 Nov 2026) it opened it at its end, and room left on the
+    // body was that end, the thread scrolled out of sight above it.
     for (const [hash, rowSel, opened, room] of [
       ["conversations", ".cv-row", ".conversations .ix-thread-pane", ".conversations > .cv-list"],
       ["clients", ".pl-table tbody tr.pl-card-row", ".cl-prof-name", "body"],
