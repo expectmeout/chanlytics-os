@@ -317,8 +317,8 @@ test("a fact the reader cannot back goes the writer's way, as an opening with no
 /* ------------------------------------------- what a business's own website says (30 Oct 2026) -- */
 
 const { siteReaderOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
-const { siteWordsOf } = await import(at("apps/edge/lib/public-page.ts"));
-/** The most a website is said in (public-page.ts): a directory's about's 600 characters. */
+const { siteWordsOf } = await import(at("packages/core/src/site-words.ts"));
+/** The most a website is said in (check-one.ts): a directory's about's 600 characters. */
 const WEBSITE_SAYS_MAX = 600;
 
 test("the writer is given what the business's own website says, read once, and only when the writer is asked", async () => {
@@ -357,23 +357,34 @@ test("the writer is given what the business's own website says, read once, and o
   }
 });
 
-test("a home page says what the business says of itself: its title, its description, then its first words", () => {
-  const html = `<html><head><title>Austin Movers | Local &amp; Long-Distance</title>
-    <meta content="Family-run movers in Austin since 2009." name="description">
-    <style>.hero{color:red}</style><script>var tracking = "ignore me";</script></head>
-    <body><h1>Moving made calm</h1><p>We move homes and offices across Texas.</p></body></html>`;
-  const said = siteWordsOf(html);
+test("a home page says what the business says of itself: its title, its description, then its main content's words", () => {
+  const said = siteWordsOf(
+    {
+      title: "Austin Movers | Local & Long-Distance",
+      description: "Family-run movers in Austin since 2009.",
+      markdown:
+        "![Our truck](https://cdn.example/truck.jpg)\n\n# Moving made **calm**\n\n- We move [homes](/homes) and offices\n- Across *Texas*\n\n---\n\n| Crew | Price |\n|---|---|",
+    },
+    WEBSITE_SAYS_MAX,
+  );
   assert.ok(said.startsWith("Austin Movers | Local & Long-Distance · Family-run movers in Austin since 2009."), said);
-  assert.match(said, /moving made calm/i, "a heading as its page says it");
-  assert.match(said, /We move homes and offices across Texas\./);
-  assert.doesNotMatch(said, /color:red|ignore me|[\r\n]/);
-  // An og:description stands in for a missing description, and words said twice are said once.
-  const og = siteWordsOf(`<title>Harbor Repair</title><meta property="og:description" content="Harbor Repair">`);
-  assert.equal(og, "Harbor Repair");
+  assert.match(said, /Moving made calm We move homes and offices Across Texas/, "words, without their marks");
+  assert.doesNotMatch(said, /cdn\.example|truck|\/homes|[#*\r\n]|---/);
+  // Words said twice are said once, a description that repeats the title among them.
+  assert.equal(
+    siteWordsOf({ title: "Harbor Repair", description: "Harbor Repair", markdown: "" }, WEBSITE_SAYS_MAX),
+    "Harbor Repair",
+  );
   // A long page is cut at a word, within the bound; a page that says nothing is nothing.
-  const long = siteWordsOf(`<title>T</title><body><p>${"word ".repeat(400)}</p></body>`);
+  const long = siteWordsOf({ title: "T", description: null, markdown: "word ".repeat(400) }, WEBSITE_SAYS_MAX);
   assert.ok(long.length <= WEBSITE_SAYS_MAX && long.endsWith("word"), long.length);
-  assert.equal(siteWordsOf("<html><body><script>x()</script></body></html>"), null);
+  assert.equal(siteWordsOf({ title: null, description: null, markdown: "![](https://x.example/a.png)" }, 100), null);
+  // A page written to be slow to read is read no slower than any other.
+  for (const hostile of ["[".repeat(200_000), "![".repeat(100_000), "<".repeat(200_000), "\\".repeat(200_000)]) {
+    const t = performance.now();
+    siteWordsOf({ title: null, description: null, markdown: hostile }, 2_000);
+    assert.ok(performance.now() - t < 1_000, `read in ${Math.round(performance.now() - t)} ms`);
+  }
 });
 
 test("a lead's site is asked for at its own host, through the platform's page reader, and none is asked without one", async () => {
@@ -939,8 +950,11 @@ test("a press hears each step as the check takes it, and what their website said
     pages.push(url);
     return {
       url,
-      html: '<title>Kept Movers</title><meta name="description" content="Pianos since 2009">',
+      html: "<html></html>",
       markdown: "",
+      title: "Kept Movers",
+      description: "Pianos since 2009",
+      brand: null,
     };
   });
   try {

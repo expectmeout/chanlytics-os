@@ -1,23 +1,20 @@
 /**
  * The booking link found on a business's website (the first run's Check, 3c-4): what a booking page is (contracts),
- * reading a page for one (core), and the website read's find off the home page it holds (the edge's booking-page.ts;
- * that it is kept on the listing is a-website-is-read-for-check.test.mjs's).
+ * reading a page for one (core), and the website read's find off the home page it holds (that it is kept with the read
+ * is a-website-is-read-for-check.test.mjs's).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   bookingPageOf,
-  bookingPageKept,
   bookingPageOffered,
   BOOKING_PLATFORM_HOSTS,
   BrainConfigSchema,
   LEAD_JUNK_EMAIL_DOMAINS,
-  listingFactsOf,
   onDomain,
   siteHost,
 } from "@chanlytics/contracts";
-import { bookingPageLinkedFrom } from "../../../../packages/core/src/booking-page.ts";
-import { bookingPageFound } from "../../../../apps/edge/lib/google/booking-page.ts";
+import { bookingPageLinkedFrom, bookingPageOfSite } from "../../../../packages/core/src/booking-page.ts";
 
 /* ------------------------------------ what a booking page is ------------------------------------ */
 
@@ -139,36 +136,22 @@ const FOUND = "https://booksy.com/en-us/00000_example-studio";
 /** The home page as the platform's page reader hands it (channels SitePage): where it landed, as a browser drew it. */
 const drawn = (body, url = "https://studio.example.com/") => ({ url, html: page(body), markdown: "" });
 
-test("a website that is itself a booking page is the listing's booking page, whatever its page links to", () => {
+test("a website that is itself a booking page is its booking page, whatever its page links to; and one that lands on one is too", () => {
   assert.equal(
-    bookingPageFound("https://www.vagaro.com/example-studio", drawn(`<a href="${FOUND}">Book now</a>`)),
+    bookingPageOfSite("https://www.vagaro.com/example-studio", drawn(`<a href="${FOUND}">Book now</a>`)),
     "https://www.vagaro.com/example-studio",
   );
+  assert.equal(
+    bookingPageOfSite("https://studio.example.com/", drawn("", "https://www.vagaro.com/example-studio")),
+    "https://www.vagaro.com/example-studio",
+    "a site that redirects there says so by landing there",
+  );
 });
 
-test("a website's home page gives the booking page it names, its links read against where its own redirects landed", () => {
-  assert.equal(bookingPageFound("https://studio.example.com/", drawn(`<a href="${FOUND}">Book now</a>`)), FOUND);
-  const landed = drawn(`<a href="/en-us/00000_example-studio">Book</a>`, "https://booksy.com/en-us/");
-  assert.equal(
-    bookingPageFound("http://studio.example.com/", landed),
-    FOUND,
-    "a relative link is the page's own, on the host it landed on",
-  );
-  assert.equal(bookingPageFound("https://studio.example.com/", drawn(`<a href="/contact">Contact</a>`)), null);
-  assert.equal(bookingPageFound("https://studio.example.com/", drawn("")), null);
-});
-
-test("a later read keeps the booking page found on the website while the website is the one it was found on", () => {
-  const prev = listingFactsOf({ website: "https://studio.example.com/", booking_page: FOUND });
-  assert.equal(prev.booking_page, FOUND, "stored, and read back for what it is");
-  assert.equal(bookingPageKept(prev, "https://studio.example.com/"), FOUND);
-  assert.equal(bookingPageKept(prev, "https://new.example.com/"), null, "a new website: nothing found on it yet");
-  assert.equal(bookingPageKept(null, "https://studio.example.com/"), null);
-  assert.equal(
-    listingFactsOf({ website: "https://studio.example.com/", booking_page: "javascript:alert(1)" }).booking_page,
-    null,
-    "what is stored is read for what it is: the column is jsonb",
-  );
+test("a website's home page gives the booking page it names, and a page that names none gives none", () => {
+  assert.equal(bookingPageOfSite("https://studio.example.com/", drawn(`<a href="${FOUND}">Book now</a>`)), FOUND);
+  assert.equal(bookingPageOfSite("https://studio.example.com/", drawn(`<a href="/contact">Contact</a>`)), null);
+  assert.equal(bookingPageOfSite("https://studio.example.com/", drawn("")), null);
 });
 
 test("the booking page is offered only while the config holds no booking link: the one test, for the read and the page", () => {

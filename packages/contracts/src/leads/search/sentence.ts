@@ -110,7 +110,11 @@ export function planWords(plan: LeadSearchPlan): LeadPlanWord[] {
   plan.criteria.forEach((c, i) => {
     out.push({ text: i === 0 ? ": " : "; ", pick: null });
     out.push({
-      text: c.standard === "seen" ? `${lowerFirst(c.text)} (confirmed)` : lowerFirst(c.text),
+      text: c.on_site
+        ? `${lowerFirst(c.text)} (on its website)`
+        : c.standard === "seen"
+          ? `${lowerFirst(c.text)} (confirmed)`
+          : lowerFirst(c.text),
       pick: "criterion",
       key: c.key,
     });

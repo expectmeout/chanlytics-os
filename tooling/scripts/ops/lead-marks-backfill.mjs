@@ -27,8 +27,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { publicFetcher } from "@chanlytics/channels";
 import { LEAD_MARKS_BUCKET } from "@chanlytics/contracts";
 import { keepLeadMark } from "@chanlytics/db";
-import { JUDGE_MARGIN_MS, MARK_AT_ONCE, markPlaces } from "../../../packages/core/src/leads/index.ts";
-import { imageBytes, leadMarkPath, markPageText, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
+import { MARK_ALLOWANCE_MS, SITES_AT_ONCE, markPlaces, siteReadsOf } from "../../../packages/core/src/leads/index.ts";
+import { imageBytes, leadMarkPath, leadSitePage, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
 
 const COLUMNS = "id, tenant_id, website_host, logo_url, mark_path, blanked_at, erased_at";
 
@@ -46,14 +46,17 @@ export function planMarks(rows) {
  */
 export async function markLeads(plan, ports, now = () => new Date()) {
   const out = [];
-  for (let i = 0; i < plan.length; i += MARK_AT_ONCE) {
-    const places = plan.slice(i, i + MARK_AT_ONCE).map((lead) => ({
+  for (let i = 0; i < plan.length; i += SITES_AT_ONCE) {
+    const places = plan.slice(i, i + SITES_AT_ONCE).map((lead) => ({
       lead,
       place: { website_host: lead.website_host, logo_url: null, mark_path: null },
-      member: { class: "qualified" },
     }));
-    // A deadline far enough off that only the step's own allowance bounds it, as in a collect with time to spare.
-    await markPlaces({ ...ports, now, deadline: now().getTime() + JUDGE_MARGIN_MS + 60_000 }, places);
+    await markPlaces(
+      { ...ports, now },
+      siteReadsOf(ports),
+      places.map((x) => x.place),
+      now().getTime() + MARK_ALLOWANCE_MS,
+    );
     for (const x of places)
       if (x.place.mark_path)
         out.push({
@@ -68,8 +71,8 @@ export async function markLeads(plan, ports, now = () => new Date()) {
 }
 
 /**
- * The apply's write, the sweep's own (db keepLeadMark): the name where the lead still has none, and
- * the address it came from where the lead had no address either. Guarded on the state it was planned in, and counted.
+ * The apply's write, the sweep's own (db keepLeadMark): the name where the lead still has none, and the address it came
+ * from where the lead had no address either. Guarded on the state it was planned in, and counted.
  */
 export async function writeMarks(db, marked) {
   const written = [];
@@ -134,7 +137,7 @@ async function main() {
   if (!plan.length) return;
 
   const wires = {
-    fetchText: markPageText,
+    readSite: leadSitePage,
     fetchBytes: (u, ms, max) => imageBytes(publicFetcher(), u, ms, max),
   };
 

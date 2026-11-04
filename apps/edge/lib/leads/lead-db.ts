@@ -12,6 +12,7 @@ import {
   addressesSuppressed,
   erasureDigests,
   leadCompanyUpsert,
+  leadSiteReadsSpent,
   workspaceMaySpend,
   workspaceZoneOf,
   type Database,
@@ -197,6 +198,7 @@ export function leadDb(db: Db): LeadDb {
         p_last: last,
       }),
     roundEnd: (roundId, ending: LeadRoundEnding) => bool("lead_round_end", { p_round_id: roundId, p_ending: ending }),
+    siteReadsSpent: (tenantId, roundId, reads, usd) => leadSiteReadsSpent(db, tenantId, roundId, reads, usd),
     companyUpsert: (roundId, companies) => leadCompanyUpsert(db, roundId, companies),
     roundRejudge: (roundId, planVersion, places, judgment) =>
       json<RejudgeResult>("lead_round_rejudge", {

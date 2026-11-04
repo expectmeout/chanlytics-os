@@ -416,6 +416,27 @@ export async function leadAllowanceOf(db: Db, tenantId: string): Promise<number>
   return n;
 }
 
+/**
+ * What reading businesses' sites cost (00538 lead_site_reads_spent): `reads` credits, `usd` at the card's price, against
+ * the round while it lives, else the month and the day it was read in; `roundId` null is a read no round asked for. The
+ * service role's.
+ */
+export async function leadSiteReadsSpent(
+  db: Db,
+  tenantId: string,
+  roundId: string | null,
+  reads: number,
+  usd: number,
+): Promise<void> {
+  const { error } = await db.rpc("lead_site_reads_spent", {
+    p_tenant_id: tenantId,
+    ...(roundId ? { p_round_id: roundId } : {}),
+    p_reads: reads,
+    p_usd: usd,
+  });
+  if (error) throw new Error(`lead_site_reads_spent: ${error.message}`);
+}
+
 /** A lead with a site and no copy of its mark yet (00161), as the leads sweep tries it again. */
 export interface LeadToMark {
   id: string;

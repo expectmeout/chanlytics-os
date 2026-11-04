@@ -1690,6 +1690,7 @@ The unit of execution and of money: the probe (seq 1), each top-up and each Find
 | `nearby` | jsonb | no | `'[]'::jsonb` | Where to look next when the round ran dry (00145): the nearest ZIP centres past its area, as the plan's area rows, nearest first; [] when it found what it asked for. |
 | `state_since` | timestamp with time zone | no | `now()` | When the round last moved (00506): set by lead_rounds_guard on every change of state. The lead sweep carries a round quiet since then on (core nextStepOf), and ends one nothing can carry on through lead_round_end_stuck. |
 | `judge_usd` | numeric(10,4) | no | `0` | What judging the round cost (00506): the usage ledger's lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month's budget and both days. |
+| `site_reads` | integer | no | `0` | The businesses' own sites this round read (00538), each one credit with the page's reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd. |
 
 Foreign keys:
 

@@ -35,6 +35,7 @@ import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
+import { watchSiteReader } from "../imports/site-reader-watch.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
 import { pausedJobKinds } from "../packages/db.js";
 import { watchVoice } from "../voice/watch/voice-watch.js";
@@ -166,6 +167,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const pinsGone = await watchLeadPins(db, leadSourceClient());
   // And once a day their prices, against the last read: the cards and the SQL ceiling are priced by hand (00506).
   const pricesPaged = await watchLeadPrices(db, leadSourceClient(), Date.now());
+  // The page reader's credits: with none left every read of a business's website comes back empty, and nothing says why.
+  const siteCredits = await watchSiteReader(db);
   // The voice provider: its account's calls at once against its limit, and once a day every live agent against the
   // product's shell and settings (decision 0092).
   const voice = await watchVoice(db);
@@ -182,6 +185,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     ai_usage_purged: models.purged,
     lead_pins_gone: pinsGone,
     lead_prices_paged: pricesPaged,
+    site_credits: siteCredits,
     voice_concurrency: voice.concurrency,
     voice_drifted: voice.drifted,
   });

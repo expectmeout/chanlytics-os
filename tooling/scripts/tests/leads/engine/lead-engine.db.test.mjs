@@ -240,7 +240,10 @@ function a2World(base) {
     now: () => new Date(),
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,
-    fetchText: async (url) => pages[url] ?? null,
+    readSite: async (host) => {
+      const url = `https://${host}`;
+      return pages[url] ? { url, html: pages[url], markdown: "", title: null, description: null, brand: null } : null;
+    },
     schedule: async (kind, payload, secs) => {
       await scheduleJobOnce(db, { tenantId: A, kind, dueAt: new Date(Date.now() + secs * 1000), payload });
     },

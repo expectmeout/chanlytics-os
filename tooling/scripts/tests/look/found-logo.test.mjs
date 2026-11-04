@@ -59,6 +59,30 @@ test("the first mark the page declares that fits is taken, in the page's own ord
   assert.deepEqual(net.asked, [`${SITE}/apple-touch-icon.png`], "the first that fits, and nothing after it");
 });
 
+test("the mark the page's reader saw goes first, held to the same rules; a builder's stock mark is passed over, whoever saw it", async () => {
+  const html = `<link rel="apple-touch-icon" href="/touch.png">`;
+  const seen = "https://cdn.example/seen.png";
+  const both = images({ [seen]: pngHead(256, 256), [`${SITE}/touch.png`]: pngHead(180, 180) });
+  assert.equal((await siteLogoFrom(both.image, html, SITE, seen)).url, seen);
+  assert.deepEqual(both.asked, [seen]);
+
+  const small = images({ [seen]: pngHead(8, 8), [`${SITE}/touch.png`]: pngHead(180, 180) });
+  assert.equal(
+    (await siteLogoFrom(small.image, html, SITE, seen)).url,
+    `${SITE}/touch.png`,
+    "too small: the page's own",
+  );
+
+  const stock = "https://static.parastorage.com/client/pfavico.ico";
+  const builder = images({ [`${SITE}/touch.png`]: pngHead(180, 180) });
+  assert.equal((await siteLogoFrom(builder.image, html, SITE, stock)).url, `${SITE}/touch.png`);
+  assert.deepEqual(builder.asked, [`${SITE}/touch.png`], "never asked for");
+
+  const same = images({ [`${SITE}/touch.png`]: pngHead(8, 8) });
+  assert.equal(await siteLogoFrom(same.image, html, SITE, `${SITE}/touch.png`), null);
+  assert.equal(same.asked.length, 1, "one address is one try, whoever names it");
+});
+
 test("a page whose marks are too small, too big or unreachable gives none, and no more than three are asked for", async () => {
   const html = `<head>
     <script type="application/ld+json">{"@type":"Organization","logo":"${SITE}/poster.png"}</script>

@@ -14,6 +14,7 @@ import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from 
 import { agoWords } from "../shared/time";
 import { plural } from "../shared/words";
 import { bookingPageOffered, connectionWords, listingLine } from "../google/google";
+import { bookingPageRead } from "../imports/business-reads";
 import {
   dayWords,
   trialWords,
@@ -672,7 +673,7 @@ const checkFactsOf = (i: SetupInputs): SetupVM["check"] => ({
   listed: !!i.google?.listing,
   unsure: i.google?.unsure ?? [],
   type: i.google?.type ?? null,
-  bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink),
+  bookingPage: bookingPageOffered(bookingPageRead(i.reads), i.business.bookingLink),
 });
 
 /**

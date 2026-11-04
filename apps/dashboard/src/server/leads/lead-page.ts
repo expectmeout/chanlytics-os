@@ -213,7 +213,13 @@ function checksOf(r: LeadPageRow): LeadCheck[] {
             key,
             how: "read",
             answer: read.answer,
-            source: company ? LEAD_READ_SOURCES.company : screened ? LEAD_READ_SOURCES.screen : LEAD_READ_SOURCES.judge,
+            source: company
+              ? LEAD_READ_SOURCES.company
+              : screened
+                ? LEAD_READ_SOURCES.screen
+                : read.facts.includes("site")
+                  ? LEAD_READ_SOURCES.site
+                  : LEAD_READ_SOURCES.judge,
             reason: read.reason,
           },
     );

@@ -4,9 +4,9 @@
  * each read by the platform's one page reader (lib/public-page.ts sitePage: Firecrawl's scrape, the page's main content
  * as Markdown), and drawn out by the smallest model into a fixed shape (contracts WEBSITE_READ_SCHEMA), its answer read
  * in code (businessReadFactsOf). Kept whole in business_reads, the newest read standing; one that could not be made
- * says why, which Check says. The booking page the home page names is found here too, and kept on the listing whose
- * website this is (google/booking-page.ts). Nothing reaches a customer: the owner taps what is right into the record, a
- * price with its service.
+ * says why, which Check says. Where the site says its customers book is read off the same home page and kept with the
+ * rest, for Check to offer. Nothing reaches a customer: the owner taps what is right into the record, a price with its
+ * service.
  *
  * Platform-spent, as a booking notice's reading is: a few pages once, at the first run; never a workspace's spend.
  */
@@ -24,14 +24,13 @@ import {
   parseTenantConfig,
 } from "../packages/contracts.js";
 import type { SitePage } from "../packages/channels.js";
-import { sitePagesLinkedFrom } from "../packages/core.js";
+import { bookingPageOfSite, sitePagesLinkedFrom, sitePagesNamed } from "../packages/core.js";
 import { getTenantConfig, keepBusinessRead, listingFactsStored, type Database, type Json } from "../packages/db.js";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
 import { askJson, promptHashOf } from "../model.js";
 import { env } from "../env.js";
-import { sitePage } from "../public-page.js";
+import { homePage, PAGE_READS, sitePage, siteLinks, sitePagesReadable } from "../public-page.js";
 import { wearSiteLook } from "./look.js";
-import { bookingPageFound, keepBookingPageFound } from "../google/booking-page.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
@@ -39,12 +38,19 @@ import { errField, logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
-/** How long a page may take, its scripts run, and how much of it is read: a site's own pages, never a download. */
-const PAGE_READ = { timeoutMs: 10 * SECOND_MS, maxChars: 400_000 };
 /** How much of each page's text the model is shown, in characters: a services page, a price list, a policy. */
 const PAGE_TEXT_MAX = 12_000;
 /** The most the reading may take of the job's time. */
 const READ_CALL_MS = 30 * SECOND_MS;
+/** What the pages beside the home page leave the reading: they are given what is over this, and skipped with less. */
+const READING_ROOM_MS = 12 * SECOND_MS;
+/** The least worth giving a page: the provider refuses a read of under a second, and few answer in so little. */
+const PAGE_LEAST_MS = 2 * SECOND_MS;
+/** A home page that links to none of its own pages leaves its reader's map to ask, for these words, this long. */
+const MAP_SEARCH = "services prices menu about faq";
+const MAP_MS = 3 * SECOND_MS;
+/** The pages read beside the home page. */
+const PAGES_BESIDE = 2;
 
 /** What a read kept: its facts as business_reads holds them, and why it could not be read, or null where it was. */
 export interface WebsiteReadKept {
@@ -52,16 +58,25 @@ export interface WebsiteReadKept {
   error: string | null;
 }
 
+/** The pages to read beside the home page: those it links to, else those the reader's map knows of (a credit, then). */
+async function pagesBeside(home: SitePage): Promise<string[]> {
+  const linked = sitePagesLinkedFrom(home.html, home.url, PAGES_BESIDE);
+  if (linked.length) return linked;
+  const links = await siteLinks(home.url, { search: MAP_SEARCH, limit: 20, timeoutMs: MAP_MS });
+  return sitePagesNamed(links, home.url, PAGES_BESIDE);
+}
+
 /**
- * A workspace's website read and kept (business_reads), its look worn: the job's read, and a lead's preview's build
- * (decision 0079, previews/build.ts), which reads the site of a workspace nobody is a member of yet. No model call
- * starts after `deadline`. Answers what it kept.
+ * A workspace's website read and kept (business_reads), its look worn: the job's read, at an owner's press and so `fresh`
+ * (as the site stands now), and a lead's preview's build (decision 0079, previews/build.ts), which reads the site of a
+ * workspace nobody is a member of yet, where the reader's copy will do. No model call starts after `deadline`. Answers
+ * what it kept.
  */
 export async function readWebsite(
   db: Db,
   tenantId: string,
   raw: string | null,
-  deadline: number,
+  { deadline, fresh = false }: { deadline: number; fresh?: boolean },
 ): Promise<WebsiteReadKept> {
   const L = logger({ tenant_id: tenantId });
   const url = feedUrlOk(raw);
@@ -70,29 +85,41 @@ export async function readWebsite(
     return { facts, error };
   };
   if (!url) return keep({}, WEBSITE_UNREAD_WORDS.address);
-  const home = await sitePage(url, PAGE_READ);
+  // No reader is not a site that did not answer: an edge without its key would tell every owner their site is down.
+  if (!sitePagesReadable()) {
+    L.error("website_read_failed", { step: "no_reader" });
+    return keep({}, WEBSITE_UNREAD_WORDS.failed);
+  }
+  const home = await homePage(url, { ...PAGE_READS.website, fresh });
   if (!home) return keep({}, WEBSITE_UNREAD_WORDS.silent);
   // The business's look, off the home page already in hand (decision 0075): its colour and the mark it declares,
   // worn where the workspace has none of its own and no person set them. Kept with the read, model or no model.
-  const worn = await wearSiteLook(db, { tenantId, html: home.html, origin: new URL(home.url).origin });
+  const worn = await wearSiteLook(db, { tenantId, page: home });
   const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
-  // Where its customers book, off the same home page (3c-4), kept on the listing for Check to offer, model or no model.
-  const bookingFound = bookingPageFound(url, home);
-  if (bookingFound)
-    await keepBookingPageFound(db, tenantId, url, bookingFound).catch((e: unknown) =>
-      L.warn("booking_page_keep_failed", { error: errField(e) }),
-    );
-  if (!env.ANTHROPIC_API_KEY) return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
-  const more = sitePagesLinkedFrom(home.html, home.url, 2);
+  // Where it says its customers book, off the same home page (3c-4), kept for Check to offer, model or no model.
+  const booking_page = bookingPageOfSite(url, home);
+  if (!env.ANTHROPIC_API_KEY) return keep({ look, booking_page }, WEBSITE_UNREAD_WORDS.failed);
   // The booking platform's page, read beside the site's own (the onboarding PRD's P8): where a salon's services,
   // prices and minutes are kept. Read once, and said to the model as the page customers book on.
-  const booking = await bookingPageToRead(db, tenantId, home.url, bookingFound);
-  const pages = [
-    { at: url, page: home, booking: false },
-    ...(await Promise.all(more.map(async (at) => ({ at, page: await sitePage(at, PAGE_READ), booking: false })))),
-    ...(booking ? [{ at: booking, page: await sitePage(booking, PAGE_READ), booking: true }] : []),
-  ].filter((p): p is { at: string; page: SitePage; booking: boolean } => !!p.page);
-  const bookingRead = pages.some((p) => p.booking);
+  const booking = await bookingPageToRead(db, tenantId, home.url, booking_page);
+  // Side by side, and each short of what the reading needs: a page that is slow costs a page, never the whole read.
+  const spare = () => deadline - Date.now() - READING_ROOM_MS;
+  const linked = spare() >= PAGE_LEAST_MS ? await pagesBeside(home) : [];
+  const pageMs = Math.min(PAGE_READS.websitePage.timeoutMs, spare());
+  const reads =
+    pageMs >= PAGE_LEAST_MS
+      ? [...linked.map((at) => ({ at, booking: false })), ...(booking ? [{ at: booking, booking: true }] : [])]
+      : [];
+  const beside = await Promise.all(
+    reads.map(async (r) => ({
+      ...r,
+      page: await sitePage(r.at, { ...PAGE_READS.websitePage, fresh, timeoutMs: pageMs }),
+    })),
+  );
+  const pages = [{ at: url, page: home, booking: false }, ...beside].filter(
+    (p): p is { at: string; page: SitePage; booking: boolean } => !!p.page,
+  );
+  const booking_read = pages.some((p) => p.booking);
   const user = pages
     .map((p) => `Page ${p.at}${p.booking ? " (where customers book)" : ""}\n${p.page.markdown.slice(0, PAGE_TEXT_MAX)}`)
     .join("\n\n---\n\n");
@@ -113,12 +140,12 @@ export async function readWebsite(
     });
     answer = answered?.answer ?? null;
   } catch (e) {
-    L.warn("website_read_failed", { error: errField(e) });
-    return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
+    L.warn("website_read_failed", { step: "reading", error: errField(e) });
+    return keep({ look, booking_page }, WEBSITE_UNREAD_WORDS.failed);
   }
   const facts = businessReadFactsOf(answer);
   const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
-  L.info("website_read", { pages: pages.length, services: facts.services.length, found, booking_page: !!bookingFound });
+  L.info("website_read", { pages: pages.length, services: facts.services.length, found, booking: !!booking_page });
   const kept: Json = {
     services: facts.services,
     closed: facts.closed,
@@ -126,16 +153,16 @@ export async function readWebsite(
     answers: facts.answers,
     description: facts.description,
     look,
-    booking_page: bookingRead ? booking : null,
+    booking_page,
+    booking_read,
   };
   return keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
 }
 
 /**
  * The booking platform's page to read beside the website: the booking link the business keeps, else the one this read
- * found on the home page, else the one an earlier read found for the listing; only a booking platform's page (contracts
- * bookingToolOfLink), and only on another host than the site read, since a site that is its booking page was read as
- * the home page. Null for none, or a read that failed.
+ * found on the home page; only a booking platform's page (contracts bookingToolOfLink), and only on another host than
+ * the site read, since a site that is its booking page was read as the home page. Null for none, or a read that failed.
  */
 async function bookingPageToRead(
   db: Db,
@@ -144,13 +171,9 @@ async function bookingPageToRead(
   found: string | null,
 ): Promise<string | null> {
   try {
-    const [cfgRow, listingRow] = await Promise.all([
-      getTenantConfig(db, tenantId),
-      listingFactsStored(db, tenantId).catch(() => null),
-    ]);
+    const cfgRow = await getTenantConfig(db, tenantId);
     const link = parseTenantConfig(cfgRow?.config ?? null)?.brain?.booking_link ?? null;
-    const named = listingFactsOf(listingRow)?.booking_page ?? null;
-    const page = [link, found, named].find((u) => !!u && !!bookingToolOfLink(u) && !!feedUrlOk(u)) ?? null;
+    const page = [link, found].find((u) => !!u && !!bookingToolOfLink(u) && !!feedUrlOk(u)) ?? null;
     if (!page) return null;
     return new URL(page).hostname === new URL(siteUrl).hostname ? null : page;
   } catch {
@@ -161,7 +184,8 @@ async function bookingPageToRead(
 export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
   return {
     read: async (job: ClaimedJob, deadline: number) => {
-      await readWebsite(db, job.tenant_id, typeof job.payload.url === "string" ? job.payload.url : null, deadline);
+      const url = typeof job.payload.url === "string" ? job.payload.url : null;
+      await readWebsite(db, job.tenant_id, url, { deadline, fresh: true });
     },
   };
 }

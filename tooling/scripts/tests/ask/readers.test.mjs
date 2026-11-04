@@ -5550,7 +5550,6 @@ const setupWorld = () => ({
           website: null,
           service_area_only: true,
           primary_type: "moving_company",
-          booking_page: "https://calendly.com/northside-movers-example/estimate",
           phone_e164: "+13055550100",
         },
       }),

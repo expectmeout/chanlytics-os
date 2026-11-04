@@ -2,7 +2,7 @@
  * The judge as the runner uses it (PRD §7.1, E4): what is shown, and one batch asked of the port the edge binds.
  *
  *   - factsOf / fact: a place's listing facts as the judge sees them, each one line without control characters and at
- *     most FACT_MAX characters, never a page's own words.
+ *     most FACT_MAX characters, and, only where a plan asks what a listing cannot show, what its own website says.
  *   - judgeBatch: one call, asked once and once more when the answer is a refusal, a capped answer or out of its
  *     shape; refused twice, its places are Needs review with the reason JUDGE_REFUSED_REASON. A 429, a 5xx or no answer
  *     is thrown, and the jobs ledger's waits retry the job. The answer comes back by place ref with the judgment to
@@ -65,8 +65,11 @@ export function fact(v: string | null): string | null {
   return s || null;
 }
 
-/** Listing facts only, never a page's words (PRD §7.1). */
-export function factsOf(ref: number, p: CleanPlace): PlaceFacts {
+/**
+ * A place's listing facts (PRD §7.1), and what its own website says where the plan reads sites (`site`: the words, or null
+ * where none could be read; absent otherwise, so a plan that reads none shows the judge what it always did).
+ */
+export function factsOf(ref: number, p: CleanPlace, site?: string | null): PlaceFacts {
   return {
     ref,
     name: fact(p.raw.title) ?? "",
@@ -78,6 +81,7 @@ export function factsOf(ref: number, p: CleanPlace): PlaceFacts {
     reviews: p.raw.reviews,
     emails: p.emails.map((e) => fact(e) ?? "").filter(Boolean),
     phone_matches_site: p.phoneSources === 0 ? null : p.phoneSources === 2,
+    ...(site === undefined ? {} : { site }),
   };
 }
 

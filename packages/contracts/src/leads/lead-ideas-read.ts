@@ -67,6 +67,7 @@ export const LeadIdeasAnswerSchema = z.object({
               text: z.string(),
               standard: z.enum(["likely", "seen"]).catch("likely"),
               required: z.boolean().catch(false),
+              on_site: z.boolean().catch(false),
             }),
           )
           .catch([]),

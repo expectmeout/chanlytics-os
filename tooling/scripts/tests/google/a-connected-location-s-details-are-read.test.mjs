@@ -34,7 +34,6 @@ const READ_MASK = "name,title,phoneNumbers,categories,websiteUri,regularHours,sp
 
 /** The listing as the public read left it: its kind and zone known, its number and hours not. */
 const STORED = {
-  booking_page: "https://www.vagaro.com/harborsalon",
   hours: null,
   phone_display: null,
   phone_e164: null,
@@ -141,9 +140,8 @@ test("a connected location's details: its hours, number, website and kind on the
       phone_display: "(718) 555-0142",
       website: "https://harborsalon.example",
       primary_type_label: "Hair salon",
-      booking_page: null,
     },
-    "what the owner's own listing says, where it says it; the kind's key and the zone as they were; the booking page found on the old website gone with it",
+    "what the owner's own listing says, where it says it; the kind's key and the zone as they were",
   );
   const [read] = w.tables.business_reads;
   assert.deepEqual([read.tenant_id, read.source, read.read_from, read.error], [A, "google_profile", LOCATION, null]);
@@ -174,11 +172,7 @@ test("a location that says little keeps what the listing said; with no listing l
   const w = world();
   const sparse = { name: LOCATION, title: "Harbor Salon" };
   await readProfileDetails(w.db, conn(), new Date(), google(() => ({ status: 200, body: JSON.stringify(sparse) })).net);
-  assert.deepEqual(
-    w.tables.google_listings[0].facts,
-    STORED,
-    "nothing it did not say is overwritten, the booking page kept with the website it was found on",
-  );
+  assert.deepEqual(w.tables.google_listings[0].facts, STORED, "nothing it did not say is overwritten");
   assert.deepEqual(w.tables.business_reads[0].facts.services, []);
   assert.equal(w.tables.jobs.length, 0, "no website named, none read");
 

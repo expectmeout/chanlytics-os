@@ -227,7 +227,7 @@ async function marksAgain(
   try {
     return { ...(await markLeadsAgain(db, wires, deadline)), failed: 0 };
   } catch (e) {
-    L.error("leads_sweep_marks_failed", { error: errField(e) });
+    L.error("leads_sweep_action_failed", { kind: "marks", error: errField(e) });
     return { due: 0, kept: 0, failed: 1 };
   }
 }

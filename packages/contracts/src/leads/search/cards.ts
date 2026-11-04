@@ -11,8 +11,9 @@ import {
   LEAD_ESTIMATE_MARGIN,
   LEAD_MAX_PLACES,
   LEAD_PROBE_PLACES,
+  LEAD_SITE_READ_USD,
 } from "./caps";
-import type { LeadSearchPlan } from "./plan";
+import { planReadsSites, type LeadSearchPlan } from "./plan";
 
 /* ---------------------------------------------------------- the cards -- */
 
@@ -32,6 +33,8 @@ export interface LeadCardBrief {
   startUsd: number;
   /** One search on the source tops out near this many places (§7 step 3). */
   maxPerTerm: number;
+  /** Reading a place's own website, where a plan asks what only that can show (planReadsSites); none for a card that never does. */
+  sitePerPlaceUsd: number;
   /** How many places this card gets through in a minute, discovery, contacts, judging and checks together: the card's "About 8 minutes". */
   placesPerMinute: number;
   examples: string[];
@@ -57,12 +60,13 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
       "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
       "emails and social profiles from the business's own website",
+      "what a business's own home page says it offers, sells or how it books, where a criterion is on_site: each place's site is then read, at a little more a place, and a site that does not say it sends the place to review",
       "a mailbox check on the email found",
     ],
     notFor: [
       "people at home, or anyone who is not a business",
       "online sellers and shops with no local listing",
-      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
+      "what a business stocks inside and does not say on its home page (a listing does not show inventory, and a site's other pages are not read: a seen standard on it cannot be met)",
       "businesses outside the US",
     ],
     settings: [
@@ -75,6 +79,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     contactsPerPlaceUsd: 0.002,
     judgePerPlaceUsd: 0.0023,
     checkPerEmailUsd: 0.00089,
+    sitePerPlaceUsd: LEAD_SITE_READ_USD,
     startUsd: 0.00005,
     maxPerTerm: 120,
     // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
@@ -118,6 +123,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     // reserved for every person asked, since a company is at most one of them.
     judgePerPlaceUsd: 0.0023,
     checkPerEmailUsd: 0.00089,
+    sitePerPlaceUsd: 0,
     startUsd: 0.01,
     maxPerTerm: 500,
     // The provider's own measure: about a thousand people in ten minutes.
@@ -148,8 +154,10 @@ const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 /**
  * What a round is likely to cost, from the card's prices, with room (§13.3):
  * discovery and contacts per place asked, the judge per place, the mailbox
- * check per place under an email standard, and one start per term. The route
- * computes it, the door stores it, the counters reserve it.
+ * check per place under an email standard, reading each place's site where the
+ * plan asks what only that can show, and one start per term. The route computes
+ * it, the door stores it, the counters reserve it. A search that reads no sites
+ * reads one only for a mark, in its spare time: its room covers those.
  */
 export function estimateRoundUsd(plan: LeadSearchPlan, purpose: LeadRoundPurpose, placesToAsk: number): number {
   const c = cardOf(plan);
@@ -158,7 +166,8 @@ export function estimateRoundUsd(plan: LeadSearchPlan, purpose: LeadRoundPurpose
     c.costPerPlaceUsd +
     c.contactsPerPlaceUsd +
     c.judgePerPlaceUsd +
-    (plan.contact === "email" ? c.checkPerEmailUsd : 0);
+    (plan.contact === "email" ? c.checkPerEmailUsd : 0) +
+    (planReadsSites(plan) ? c.sitePerPlaceUsd : 0);
   const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
   return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
 }

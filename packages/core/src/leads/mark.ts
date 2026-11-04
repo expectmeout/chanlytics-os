@@ -70,7 +70,7 @@ const PLATFORM_DEFAULTS = new Set([
 ]);
 
 /** True when the address is the platform's stock mark rather than this company's. */
-function isPlatformDefault(url: string): boolean {
+export function isPlatformDefault(url: string): boolean {
   const bare = url
     .slice(url.indexOf("//") + 2)
     .split(/[?#]/)[0]

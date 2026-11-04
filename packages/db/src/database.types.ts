@@ -3606,6 +3606,7 @@ export type Database = {
           question: Json | null
           search_id: string
           seq: number
+          site_reads: number
           started_at: string | null
           state: string
           state_since: string
@@ -3637,6 +3638,7 @@ export type Database = {
           question?: Json | null
           search_id: string
           seq: number
+          site_reads?: number
           started_at?: string | null
           state?: string
           state_since?: string
@@ -3668,6 +3670,7 @@ export type Database = {
           question?: Json | null
           search_id?: string
           seq?: number
+          site_reads?: number
           started_at?: string | null
           state?: string
           state_since?: string
@@ -8728,6 +8731,15 @@ export type Database = {
         Returns: undefined
       }
       lead_site_key: { Args: { p_host: string }; Returns: string }
+      lead_site_reads_spent: {
+        Args: {
+          p_reads: number
+          p_round_id?: string
+          p_tenant_id: string
+          p_usd: number
+        }
+        Returns: undefined
+      }
       lead_spend_refusal: { Args: { p_tenant_id: string }; Returns: Json }
       lead_spend_room: {
         Args: { p_tenant_id: string; p_usd: number }

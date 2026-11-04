@@ -1,79 +1,104 @@
 /**
  * A business's page, read for the edge's own reading of it: the website read (lib/imports/website-read.ts) and the
- * booking platform's page it names (lib/google/booking-page.ts finds it), a lead's home page for its mark
- * (lib/leads/lead-marks.ts) and for what a cold email's opening may say (lib/reach-out/check-one.ts). The page is
- * the platform's one reader's (channels sitePageReader: Firecrawl's scrape, drawn as a browser draws it, on the
- * provider's network and never ours). The address is judged first (contracts feedUrlOk), so one inside a private
- * network is never asked for; past that the provider follows the site's own redirects.
+ * booking platform's page it names, the Logo row's look (lib/imports/logo-lookup.ts), a lead's home page for its mark and
+ * for what the judge may read (lib/leads/lead-marks.ts), and what a cold email's opening may say
+ * (lib/reach-out/check-one.ts). The page is the platform's one reader's (channels sitePageReader: Firecrawl's scrape,
+ * drawn as a browser draws it, on the provider's network and never ours). The address is judged first (contracts
+ * feedUrlOk), so one inside a private network is never asked for; past that the provider follows the site's own redirects.
  *
- * It answers null rather than throwing: a page that cannot be read says nothing, and nothing is wrong. What a
- * business's home page says of itself, in one line (siteWordsOf), is read here too: a cold email's opening is written
- * and checked against it (lib/reach-out/check-one.ts).
+ * It answers null rather than throwing: a page that cannot be read says nothing, and nothing is wrong.
  */
-import { feedUrlOk } from "./packages/contracts.js";
-import { emailPlainText, sitePageReader, type SitePage } from "./packages/channels.js";
+import { feedUrlOk, SECOND_MS } from "./packages/contracts.js";
+import { siteMapper, sitePageReader, type SiteLink, type SitePage } from "./packages/channels.js";
 import { env } from "./env.js";
 
+/** One kind of read: how long the page may take, how much of it is held, and what it asks of the reader. */
+export interface PageRead {
+  timeoutMs: number;
+  /** Held to this many characters, its HTML and its Markdown each. */
+  maxChars: number;
+  /** The page as it stands now, never the reader's copy of the last two days: what an owner just changed is what is read. */
+  fresh?: boolean;
+  /** The look the reader sees on it too. */
+  brand?: boolean;
+}
+
+/** Every read of a business's page, by what it is read for: what each is given is said here, once. */
+export const PAGE_READS = {
+  /** The business's own home page, for Check and its look. A site's own pages, never a download. */
+  website: { timeoutMs: 10 * SECOND_MS, maxChars: 400_000, brand: true },
+  /** The pages it links to for its services and rules, and the booking platform's page, read beside it. */
+  websitePage: { timeoutMs: 10 * SECOND_MS, maxChars: 400_000 },
+  /** The Logo row's look, at the owner's press: as the site stands now. A head is at the top. */
+  logo: { timeoutMs: 10 * SECOND_MS, maxChars: 96_000, fresh: true, brand: true },
+  /** A cold email's opening: its head and first words, inside a check's own time. */
+  opening: { timeoutMs: 4 * SECOND_MS, maxChars: 200_000 },
+  /** A lead's home page, for its mark and the judge: the head and the first words, in what time its step has left. */
+  lead: { timeoutMs: 10 * SECOND_MS, maxChars: 96_000 },
+} as const satisfies Record<string, PageRead>;
+
+/** Whether a page can be read here at all: a reader stood in, or its key set. Without one every page reads as no page. */
+export const sitePagesReadable = (): boolean => !!sitePageReader(env.FIRECRAWL_API_KEY);
+
 /**
- * A page at an address, held to `maxChars` as the readers read it (its HTML and its Markdown each), in no longer than
- * `timeoutMs`; null with no key set (FIRECRAWL_API_KEY), an address that is not a public one (the one asked, or the one
- * the site's redirects ended at), a page that answered an error or nothing, or no answer in time.
+ * A page at an address, as `read` says; null with no key set (FIRECRAWL_API_KEY), an address that is not a public one
+ * (the one asked, or the one the site's redirects ended at), a page that answered an error or nothing, or no answer in
+ * time.
  */
-export async function sitePage(
-  url: string | null,
-  limits: { timeoutMs: number; maxChars: number },
-): Promise<SitePage | null> {
+export async function sitePage(url: string | null, read: PageRead): Promise<SitePage | null> {
   const at = feedUrlOk(url);
   const reader = sitePageReader(env.FIRECRAWL_API_KEY);
   if (!at || !reader) return null;
-  const page = await reader(at, { timeoutMs: limits.timeoutMs }).catch(() => null);
+  const page = await reader(at, { timeoutMs: read.timeoutMs, fresh: read.fresh, brand: read.brand }).catch(() => null);
   const landed = page ? feedUrlOk(page.url) : null;
   if (!page || !landed) return null;
   return {
+    ...page,
     url: landed,
-    html: page.html.slice(0, limits.maxChars),
-    markdown: page.markdown.slice(0, limits.maxChars),
+    html: page.html.slice(0, read.maxChars),
+    markdown: page.markdown.slice(0, read.maxChars),
   };
 }
 
-/** The most a business's website is said in, in characters: as much as a directory's about (core leads/cards.ts). */
-const WEBSITE_SAYS_MAX = 600;
+/** The least worth asking the other spelling for: the provider refuses a read of under a second. */
+const OTHER_SPELLING_LEAST_MS = SECOND_MS;
 
-const TITLE = /<title[^>]*>([\s\S]*?)<\/title\s*>/i;
-const META = /<meta\b[^>]*>/gi;
-const CONTENT = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
-
-/** A page's description, as its meta tags say it: its own, else the one it gives a link's preview. */
-function descriptionOf(html: string): string {
-  let preview = "";
-  for (const [tag] of html.matchAll(META)) {
-    const said = CONTENT.exec(tag);
-    const content = said?.[1] ?? said?.[2] ?? "";
-    if (!content.trim()) continue;
-    if (/\bname\s*=\s*["']?description\b/i.test(tag)) return content;
-    if (!preview && /\bproperty\s*=\s*["']?og:description\b/i.test(tag)) preview = content;
+/** A site's other spelling, www. or not: a site often answers on one alone. Null for an address that is no address. */
+function otherSpelling(url: string): string | null {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.startsWith("www.") ? u.hostname.slice(4) : `www.${u.hostname}`;
+    return u.toString();
+  } catch {
+    return null;
   }
-  return preview;
 }
 
-/** HTML's words in one line, as an email's are read (channels emailPlainText): entities read, no script, no style. */
-const pageLineOf = (html: string): string => (emailPlainText({ text: null, html }) ?? "").replace(/\s+/g, " ").trim();
+/**
+ * A business's home page at an address that may be spelled either way: as given, and, where that gives no page, its other
+ * spelling (www. or not) in what is left of the read's time, never past it. A lead keeps its website's host without the
+ * www., and a website a person typed is as they typed it.
+ */
+export async function homePage(url: string, read: PageRead): Promise<SitePage | null> {
+  const until = Date.now() + read.timeoutMs;
+  const page = await sitePage(url, read);
+  if (page) return page;
+  const left = until - Date.now();
+  const other = left >= OTHER_SPELLING_LEAST_MS ? otherSpelling(url) : null;
+  return other ? sitePage(other, { ...read, timeoutMs: left }) : null;
+}
 
 /**
- * What a business's own home page says of itself, in one line: its title, its description, then its page's words, each
- * once, cut at a word within WEBSITE_SAYS_MAX; null where it says nothing. Its words, never ours.
+ * The pages of a site its reader's map knows of for a few words, the likeliest first, each a public address: what a home
+ * page that links to none of them leaves to ask. None with no key set, or on anything the map could not say.
  */
-export function siteWordsOf(html: string): string | null {
-  const parts: string[] = [];
-  for (const part of [
-    pageLineOf(`<p>${TITLE.exec(html)?.[1] ?? ""}</p>`),
-    pageLineOf(`<p>${descriptionOf(html)}</p>`),
-    pageLineOf(html),
-  ])
-    if (part && !parts.some((p) => p.includes(part))) parts.push(part);
-  const said = parts.join(" · ");
-  if (!said) return null;
-  if (said.length <= WEBSITE_SAYS_MAX) return said;
-  const cut = said.slice(0, WEBSITE_SAYS_MAX + 1);
-  return cut.slice(0, cut.lastIndexOf(" ")).replace(/[\s·,;:–—-]+$/, "");
+export async function siteLinks(
+  url: string,
+  o: { search: string; limit: number; timeoutMs: number },
+): Promise<SiteLink[]> {
+  const at = feedUrlOk(url);
+  const map = siteMapper(env.FIRECRAWL_API_KEY);
+  if (!at || !map) return [];
+  const links = await map(at, o).catch(() => []);
+  return links.filter((l) => !!feedUrlOk(l.url));
 }

@@ -6,7 +6,13 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_RUN_HELPERS, setupSteps, PROFILE_LIMITS, profileRefusal } from "@chanlytics/contracts";
+import {
+  businessReadFactsOf,
+  FIRST_RUN_HELPERS,
+  setupSteps,
+  PROFILE_LIMITS,
+  profileRefusal,
+} from "@chanlytics/contracts";
 import { again, unmount, settle, all, byTestId, textOf, press } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "../_business-tab-harness.mjs";
@@ -503,9 +509,23 @@ const offerOf = (tree) => {
   return { said: said ? textOf(said) : null, use: use || null };
 };
 
+/** Setup with what the website's read says of where customers book. */
+const setupRead = () => ({
+  ...dto(),
+  reads: [
+    {
+      source: "website",
+      facts: businessReadFactsOf({ booking_page: FOUND }),
+      read_from: "https://harbor.example.com/",
+      read_at: "2026-11-04T00:00:00Z",
+      error: null,
+    },
+  ],
+});
+
 test("a business that books is offered the booking page its website names, in the row's own words, and Use it saves it through the row", () => {
   const sent = saving();
-  let tree = draw({ setup: dto({}, { bookingPage: FOUND }) });
+  let tree = draw({ setup: setupRead() });
   assert.deepEqual(offerOf(tree).said, `Found on your website: ${FOUND}`);
   assert.equal(
     all(byTestId(tree, "rec-row-booking_link"), (n) => n.props && n.props["data-state"] === "disputed").length,
@@ -528,10 +548,7 @@ test("a business that books is offered the booking page its website names, in th
 
 test("nothing is offered over a link the record holds", () => {
   const none = { said: null, use: null };
-  assert.deepEqual(
-    offerOf(draw({ setup: dto({}, { bookingPage: FOUND }), link: "https://book.example.com/harbor" })),
-    none,
-  );
+  assert.deepEqual(offerOf(draw({ setup: setupRead(), link: "https://book.example.com/harbor" })), none);
   assert.deepEqual(offerOf(draw()), none, "nothing found, nothing offered");
 });
 
@@ -540,7 +557,7 @@ test("a role that may not change the business reads what the website names, and 
   const was = W.canDo;
   W.canDo = (a) => a !== "settings";
   try {
-    const offer = offerOf(draw({ setup: dto({}, { bookingPage: FOUND }) }));
+    const offer = offerOf(draw({ setup: setupRead() }));
     assert.equal(offer.said, `Found on your website: ${FOUND}`);
     assert.equal(offer.use, null);
     assert.equal(sent.length, 0);

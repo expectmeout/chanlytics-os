@@ -169,7 +169,14 @@ export const ProposeLeadSearchSchema = z.object({
     .default(null),
   contact: z.enum(["phone", "email"]),
   criteria: z
-    .array(z.object({ text: planChip(120), standard: z.enum(["likely", "seen"]), required: z.boolean() }))
+    .array(
+      z.object({
+        text: planChip(120),
+        standard: z.enum(["likely", "seen"]),
+        required: z.boolean(),
+        on_site: z.boolean().optional(),
+      }),
+    )
     .max(6)
     .default([]),
   leave_out: z
@@ -415,6 +422,7 @@ export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
       text: c.text,
       standard: c.standard,
       required: c.required,
+      ...(c.on_site ? { on_site: true } : {}),
     })),
     exclusions: input.leave_out.map((l, i) => ({
       key: planKey(l.words, `x${i + 1}`, taken),

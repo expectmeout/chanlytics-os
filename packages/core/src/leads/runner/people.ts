@@ -376,5 +376,6 @@ export async function collectPeople(
     runState: page.run_state,
     roundState: res.round_state,
     judgeRefused: judged.refused,
+    siteReads: 0,
   };
 }

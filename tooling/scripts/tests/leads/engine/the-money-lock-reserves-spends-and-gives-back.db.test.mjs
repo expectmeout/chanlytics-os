@@ -111,7 +111,7 @@ function world(base, { refuseStarts = false } = {}) {
     now: () => new Date(),
     webhookBase: "https://edge.example",
     webhookToken,
-    fetchText: async () => null,
+    readSite: async () => null,
     schedule: async (kind, payload, secs) => {
       await scheduleJobOnce(db, { tenantId: A, kind, dueAt: new Date(Date.now() + secs * 1000), payload });
     },

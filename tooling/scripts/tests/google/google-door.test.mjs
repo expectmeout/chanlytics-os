@@ -300,9 +300,8 @@ const LOCATIONS_URL = (account) => `https://mybusinessbusinessinformation.google
 const LOCATION_URL = (name) => `https://mybusinessbusinessinformation.googleapis.com/v1/${name}`;
 const REVIEWS_URL = (account, loc) => `https://mybusiness.googleapis.com/v4/${account}/locations/${loc}/reviews`;
 /** One location's own details (decision 0073, R17): its hours, services and prices, days closed and words, for Check. */
-/** A listing's facts as the one writer keeps them (google-rows.ts keepListing): every key, none known. */
+/** A listing's facts as the one writer keeps them (packages/db patchListing): every key, none known. */
 const NO_FACTS = {
-  booking_page: null,
   hours: null,
   phone_display: null,
   phone_e164: null,
@@ -773,7 +772,7 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
   assert.deepEqual(
     tables.jobs.map((j) => [j.kind, j.payload.url]),
     [["website_read", "https://harbormoving.example/"]],
-    "the website read asked for: Check's facts, and the booking page its home page names (website-read.ts)",
+    "the website read asked for, by a job: what Check offers, and where it says its customers book (website-read.ts)",
   );
   assert.equal(
     tables.google_listings.length,
@@ -804,9 +803,8 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
       primary_type_label: "Moving company",
       service_area_only: true,
       time_zone: "America/New_York",
-      booking_page: null,
     },
-    "F7: what the listing says beyond its name is kept on the row, read at once, for the first run to offer; the booking page comes with the website's read",
+    "F7: what the listing says beyond its name is kept on the row, read at once, for the first run to offer",
   );
   assert.deepEqual(
     tables.google_reviews.map((r) => [r.tenant_id, r.review_id, r.origin, r.author, r.body]),
@@ -867,15 +865,7 @@ test("F7: a relink keeps what the read that proved the new place said, even when
 
 test("refresh on the public listing: the rating, the count and the day are written and a review written since the last read rings the bell and is on the ledger; Google's refusal stays on the row without moving the stamp; no listing is a 404; no key a 503", async () => {
   const tables = world({
-    // What the website's read found, which a later read of the listing keeps without reading the site.
-    google_listings: [
-      listingRow({
-        facts: {
-          website: "https://harbormoving.example",
-          booking_page: "https://calendly.com/harbor-moving-example/estimate",
-        },
-      }),
-    ],
+    google_listings: [listingRow()],
     google_reviews: [
       reviewRow(R1, {
         origin: "places",
@@ -939,11 +929,6 @@ test("refresh on the public listing: the rating, the count and the day are writt
     "a read that succeeds clears the words",
   );
   assert.ok(Date.parse(b2.listing.checked_at) >= t0, "the stamp is the successful read");
-  assert.equal(
-    tables.google_listings[0].facts.booking_page,
-    "https://calendly.com/harbor-moving-example/estimate",
-    "the booking page the website's read found, kept while the website is the same; no site is read",
-  );
   assert.deepEqual(
     tables.google_reviews.map((r) => [r.review_id, r.origin, r.author]).sort(),
     [

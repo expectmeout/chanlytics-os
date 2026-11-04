@@ -64,7 +64,6 @@ export function leadAsListing(l: LeadListingInput): NonNullable<FirstReceptionis
     // A lead with no street is a business the finder found by its area: the record keeps no address for it.
     service_area_only: !l.street?.trim(),
     time_zone: previewZoneOf(l),
-    booking_page: null,
   };
   return {
     name: leadCalledByOf({ business_name: l.business_name, city: l.city }),

@@ -27,7 +27,6 @@ import { DAYS, dayProblems } from "../config/workspace-config/config-rules";
 import { shiftKey } from "../calendar/day-keys";
 import { WEEKDAY_KEYS } from "../calendar/zone-math";
 import { normalizePhone } from "../shared/phone";
-import { bookingPageOf } from "./booking-page";
 
 /** A moment in Google's week: day 0 is Sunday. */
 export type GooglePoint = {
@@ -62,12 +61,6 @@ export type GoogleListingFacts = {
   service_area_only: boolean;
   /** IANA zone, e.g. "America/New_York". */
   time_zone: string | null;
-  /**
-   * Where customers book, as the listing's website says it (booking-page.ts): the website itself when it is a page on
-   * a booking platform, or the one its home page names. Never Google's own answer, so never in Places' parse: the edge's
-   * read of the website finds it, and adds it. Check offers it for the owner to take.
-   */
-  booking_page?: string | null;
 };
 
 /** A moment of Google's week as stored, or null for anything else. */
@@ -108,23 +101,13 @@ export function listingFactsOf(raw: unknown): GoogleListingFacts | null {
     primary_type_label: text(r.primary_type_label),
     service_area_only: r.service_area_only === true,
     time_zone: text(r.time_zone),
-    booking_page: bookingPageOf(text(r.booking_page)),
   };
 }
 
 /**
- * What a later read of a listing keeps of the booking page found on its website: the page, while the listing's website
- * is the one it was found on. Only a read of the website finds one (the edge's website-read.ts, asked when a listing is
- * linked, a profile connected or a website saved), so a new website has none until it is read.
- */
-export function bookingPageKept(prev: GoogleListingFacts | null, website: string | null): string | null {
-  return prev && prev.website === website ? (prev.booking_page ?? null) : null;
-}
-
-/**
- * The booking page the website names, as Check offers it: only while the config holds no booking link. A link the
- * owner has is theirs, whatever the website says. The one test, for the setup read and for the page, whose next save
- * may hold a link the read has not seen yet.
+ * The booking page the website's read found (business_reads, bookingPageRead), as Check offers it: only while the config
+ * holds no booking link. A link the owner has is theirs, whatever the website says. The one test, for the setup read and
+ * for the page, whose next save may hold a link the read has not seen yet.
  */
 export function bookingPageOffered(found: string | null | undefined, holdsLink: boolean): string | null {
   return holdsLink ? null : (found ?? null);
@@ -310,11 +293,6 @@ export interface SetupGoogleFacts {
   unsure?: Day[];
   /** Google's kind of place (the facts' primary_type, e.g. "moving_company"): what Check's service chips suggest by. */
   type?: string | null;
-  /**
-   * Where customers book, as the listing's website says it (the facts' booking_page): Check offers it while the record
-   * holds no booking link (bookingPageOffered). Absent reads as none.
-   */
-  bookingPage?: string | null;
   /**
    * The number on the listing, E.164 (the facts' phone_e164): the first run's phone step offers to keep it, and buys
    * the receptionist's own number in its area code. Absent reads as none.

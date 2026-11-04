@@ -8988,10 +8988,10 @@ CREATE FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_ter
     SET search_path TO 'public'
     AS $$
 declare
-  -- The card's prices a place (contracts LEAD_CARDS, local_businesses): discovery, contacts, the judge and the mailbox
-  -- check, the dearest standard's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN); the actor's floor on
-  -- a run's cap (core MAPS_CAP_FLOOR_USD).
-  v_place  numeric := 0.003 + 0.002 + 0.0023 + 0.00089;
+  -- The card's prices a place (contracts LEAD_CARDS, local_businesses): discovery, contacts, the judge, the mailbox check
+  -- and reading its own site (00538), the dearest plan's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN);
+  -- the actor's floor on a run's cap (core MAPS_CAP_FLOOR_USD).
+  v_place  numeric := 0.003 + 0.002 + 0.0023 + 0.00089 + 0.005;
   v_check  numeric := 0.00089;
   v_start  numeric := 0.00005;
   v_margin numeric := 1.3;
@@ -9027,7 +9027,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474, 00538). search: ceil(((25 + least(1000, 2 x count)) x $0.01319 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
 
 --
@@ -11691,6 +11691,40 @@ CREATE FUNCTION public.lead_site_key(p_host text) RETURNS text
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$ select nullif(regexp_replace(lower(btrim(coalesce(p_host, ''))), '^www\.', ''), '') $$;
+
+
+--
+-- Name: lead_site_reads_spent(uuid, integer, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid DEFAULT NULL::uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  r public.lead_rounds;
+begin
+  if coalesce(p_reads, 0) <= 0 or coalesce(p_usd, 0) <= 0 then return; end if;
+  if p_round_id is not null then
+    select * into r from public.lead_rounds where id = p_round_id and tenant_id = p_tenant_id for update;
+  end if;
+  if r.id is not null and r.state <> 'ended' then
+    perform public.lead_settle_usage(r.tenant_id, r.month, r.day, r.platform_day, p_usd, r.cost_reserved_usd - r.cost_usd);
+    update public.lead_rounds set site_reads = site_reads + p_reads, cost_usd = cost_usd + p_usd where id = r.id;
+    return;
+  end if;
+  -- No round, or one that ended (its trigger refuses a change): this month's budget and today's two days, reserved from
+  -- nothing, as a re-check after its round is settled (lead_collect_commit).
+  perform public.lead_settle_usage(p_tenant_id, public.lead_month(p_tenant_id, now()), public.lead_day(p_tenant_id, now()),
+    to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), p_usd, 0);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) IS 'What reading businesses'' own sites cost, spent when read (00538): p_reads credits at the card''s price p_usd, whatever each read answered. Against a round that still lives: its count, its cost, and the month''s and both days'' counters out of what it has reserved. With no round, or one ended: this month''s and today''s, reserved from nothing, as a re-check after its round is. The service role''s: the collect, the re-judge and the leads sweep''s second try at a mark.';
 
 
 --
@@ -35149,6 +35183,7 @@ CREATE TABLE public.lead_rounds (
     nearby jsonb DEFAULT '[]'::jsonb NOT NULL,
     state_since timestamp with time zone DEFAULT now() NOT NULL,
     judge_usd numeric(10,4) DEFAULT 0 NOT NULL,
+    site_reads integer DEFAULT 0 NOT NULL,
     CONSTRAINT lead_rounds_allowance_reserved_check CHECK ((allowance_reserved >= 0)),
     CONSTRAINT lead_rounds_allowance_used_check CHECK ((allowance_used >= 0)),
     CONSTRAINT lead_rounds_answered_check CHECK ((answered = ANY (ARRAY['keep'::text, 'include'::text, 'stop'::text]))),
@@ -35208,6 +35243,13 @@ COMMENT ON COLUMN public.lead_rounds.state_since IS 'When the round last moved (
 --
 
 COMMENT ON COLUMN public.lead_rounds.judge_usd IS 'What judging the round cost (00506): the usage ledger''s lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month''s budget and both days.';
+
+
+--
+-- Name: COLUMN lead_rounds.site_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.site_reads IS 'The businesses'' own sites this round read (00538), each one credit with the page''s reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd.';
 
 
 --
@@ -48516,6 +48558,14 @@ GRANT ALL ON FUNCTION public.lead_settle_usage(p_tenant_id uuid, p_month text, p
 
 REVOKE ALL ON FUNCTION public.lead_site_key(p_host text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_site_key(p_host text) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) TO service_role;
 
 
 --

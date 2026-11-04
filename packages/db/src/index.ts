@@ -557,6 +557,7 @@ export {
   keepBusinessRead,
   linkedPlaceOf,
   listingFactsStored,
+  patchListing,
 } from "./repositories/imports/business-reads";
 export type { BusinessReadRow } from "./repositories/imports/business-reads";
 export { importCursorOf, importRowOf, importsOf, noteImport } from "./repositories/imports/ledger";
@@ -595,6 +596,7 @@ export {
   leadCountriesOf,
   leadPeopleSearchCreate,
   leadPricesSeen,
+  leadSiteReadsSpent,
   leadsUnmarked,
   leadViewCounts,
   readIdeaHistory,

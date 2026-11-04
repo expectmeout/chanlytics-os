@@ -400,6 +400,8 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
           : { locationQuery: plan.area.query }),
         maxCrawledPlacesPerSearch: places,
         language: "en",
+        // The provider visits the place's own site for its emails and social links: it answers those and no page, so a
+        // read of the site for its mark or the judge (site-reads.ts) is a second visit, and no duplicate (decision 0093).
         scrapeContacts: true,
         scrapeReviewsPersonalData: false,
         maxReviews: 0,

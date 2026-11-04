@@ -31,7 +31,6 @@ import {
   parseReading,
   parseTenantConfig,
   readingSystemPrompt,
-  SECOND_MS,
   readingUserContent,
   reachOutCountryOf,
   wordsNeedOpening,
@@ -45,24 +44,25 @@ import {
 } from "../packages/contracts.js";
 import { workspaceAbout, workspaceNameAndConfig, type Database, type ReachOutRecordRow } from "../packages/db.js";
 import { askJson, type JsonAnswer, type ModelCallFor } from "../model.js";
-import { sitePage, siteWordsOf } from "../public-page.js";
+import { siteWordsOf } from "../packages/core.js";
+import { homePage, PAGE_READS } from "../public-page.js";
 
 type Db = SupabaseClient<Database>;
 
-/** How long a business's home page may take, and how much of it is read: its head and first words, never a download. */
-const SITE_READ = { timeoutMs: 4 * SECOND_MS, maxChars: 200_000 };
+/** The most a business's website is said in, in characters: as much as a directory's about (core leads/cards.ts). */
+const WEBSITE_SAYS_MAX = 600;
 
 /**
- * What a business's own website says of itself (siteWordsOf), its home page read by the platform's one page reader
- * (lib/public-page.ts sitePage), for its opening's record (30 Oct 2026: a lead is not only its listing, and a finder's
+ * What a business's own website says of itself (core siteWordsOf), its home page read by the platform's one page reader
+ * (lib/public-page.ts homePage), for its opening's record (30 Oct 2026: a lead is not only its listing, and a finder's
  * company or an owner's file has none). Undefined where it has no website.
  */
 export function siteReaderOf(host: string | null): (() => Promise<string | null>) | undefined {
   const at = host?.trim();
   if (!at) return undefined;
   return async () => {
-    const page = await sitePage(`https://${at}/`, SITE_READ);
-    return page ? siteWordsOf(page.html) : null;
+    const page = await homePage(`https://${at}/`, PAGE_READS.opening);
+    return page ? siteWordsOf(page, WEBSITE_SAYS_MAX) : null;
   };
 }
 
