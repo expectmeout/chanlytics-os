@@ -383,7 +383,7 @@ function RewriteLine({ c }: { c: ComposerDraw }) {
 // A real thread's reply box (the thread canvas, 1 Nov 2026), in one of two shapes. An email, or a draft the receptionist
 // wrote, is a box of the inset's ground: whose words they are and why, the words, what they are signed with, and under it
 // the box's acts, what stands beside Send at the left and Send at the right. A chat's is one line that grows, in an inset
-// capsule, with Send a coral round at its end.
+// capsule, with Send a coral round at its end. On a phone both are that line, with what an email's box holds over it.
 /**
  * Over the words, while the box holds the receptionist's draft as it wrote it: whose they are, and Why this? (the thread
  * canvas, 1 Nov 2026). The draft sat in the box unlabelled and read as the member's own typing; once it is changed, it is
@@ -502,7 +502,8 @@ function realComposer(c: ComposerDraw) {
       }}
       placeholder={placeholder}
       aria-label={`Reply to ${thread.who}`}
-      rows={boxed ? 4 : 1}
+      // One line that grows with its words (send-words.tsx growWithWords); a desk's box keeps four lines (inbox.css).
+      rows={1}
     />
   );
   if (!boxed)

@@ -2,16 +2,15 @@
  * A box that stands on a phone's keys rises with them in one glide: an open thread's reply box (mobile.css), as Ask's
  * field does (ask/hooks.ts ahSlide). The screen makes the keys' room at once as a field in it is focused (keyboard.ts:
  * kb-expected, --kb-last), so the browser finds the field above where the keys land and lifts nothing. Drawn as it
- * stood, the box went up by the whole room in one frame, and the conversation with it (336px for an iPhone's keyboard
- * on an 812px screen, with the room for Safari's address over that; 3 Nov 2026). What the eye sees is played over the
- * keys' own beat instead: a still copy of the box that React never holds goes from where the box stood to where it
- * stands, the box itself held clear meanwhile (its field keeps the focus and takes what is typed); the copy's own ground
- * reaches down to the screen's foot as it goes, where the room is, which is not drawn meanwhile (the screen's
- * `data-rising`, mobile.css): a room grown on the page's clock fell behind a copy the compositor moves, and the page's
- * ground showed between the two; and the box that scrolls what stands above it reaches down to the copy's top and is
- * given its place back as the copy rises, so the conversation goes up with it (the thread's scroll to its end holds the
- * newest message on its foot). A translate on the box itself would not do: the browser reads where the field is drawn
- * to decide whether to lift the page. Under reduced motion it is simply there.
+ * stood, the box went up by the whole room in one frame, and the conversation with it (336px of an iPhone's keyboard
+ * and 50 of Safari's address over it; 3 Nov 2026). What the eye sees is played over the keys' own beat instead: a still
+ * copy of the box that React never holds goes from where the box stood to where it stands, the box itself held clear
+ * meanwhile (its field keeps the focus and takes what is typed), and the box that scrolls what stands above it reaches
+ * down to the copy's top and is given its place back as the copy rises, so the conversation goes up with it (the
+ * thread's scroll to its end holds the newest message on its foot). The box has no ground of its own (the page's light
+ * is under it, mobile.css), so nothing else need keep step with a copy the compositor moves. A translate on the box
+ * itself would not do: the browser reads where the field is drawn to decide whether to lift the page. Under reduced
+ * motion it is simply there.
  */
 import { typesIn } from "./keyboard";
 import { motionReduced } from "./swipe";
@@ -20,8 +19,6 @@ import { motionReduced } from "./swipe";
 const KEYS_MS = 250;
 /** The copy is let go a beat after it has landed, over the box it covers. */
 const LANDED_MS = 30;
-/** The screen's mark while the box rises: the room under it is the copy's own ground meanwhile (mobile.css). */
-const RISING = "data-rising";
 
 /** A copy nothing reaches: no id or test id, hidden from a screen reader, its fields holding what the box's hold. */
 function stillCopy(box: HTMLElement): HTMLElement {
@@ -40,15 +37,12 @@ function stillCopy(box: HTMLElement): HTMLElement {
 }
 
 /** The box from where it stood to where the room put it, `along` reaching down to it as it goes; nothing where it did not rise. */
-function rise(box: HTMLElement, screen: HTMLElement, from: DOMRect, along: HTMLElement | null) {
-  const now = box.isConnected ? box.getBoundingClientRect() : null;
+function rise(box: HTMLElement, from: DOMRect, along: HTMLElement | null) {
+  const screen = box.parentElement;
+  const now = screen && box.isConnected ? box.getBoundingClientRect() : null;
   const by = now ? now.bottom - from.bottom : 0;
-  if (!now || by > -2) {
-    screen.removeAttribute(RISING);
-    return;
-  }
+  if (!screen || !now || by > -2) return;
   const at = screen.getBoundingClientRect();
-  const foot = parseFloat(getComputedStyle(box).paddingBottom) || 0;
   const copy = stillCopy(box);
   Object.assign(copy.style, {
     position: "absolute",
@@ -56,8 +50,6 @@ function rise(box: HTMLElement, screen: HTMLElement, from: DOMRect, along: HTMLE
     left: `${now.left - at.left}px`,
     width: `${now.width}px`,
     margin: "0",
-    // Its ground on down over the room, as far as it has to rise: landed, it ends on the screen's foot.
-    paddingBottom: `${foot - by}px`,
     pointerEvents: "none",
     transition: "none",
     translate: `0 ${-by}px`,
@@ -83,7 +75,6 @@ function rise(box: HTMLElement, screen: HTMLElement, from: DOMRect, along: HTMLE
     box.removeEventListener("focusout", land);
     copy.remove();
     box.style.removeProperty("opacity");
-    screen.removeAttribute(RISING);
     if (along) {
       along.style.removeProperty("transition");
       along.style.removeProperty("margin-bottom");
@@ -100,10 +91,8 @@ function rise(box: HTMLElement, screen: HTMLElement, from: DOMRect, along: HTMLE
  * Not while the keys are up already: a field the focus moves to then needs no room.
  */
 export function riseWithKeys(target: EventTarget | null, box: HTMLElement | null, along: HTMLElement | null): void {
-  const screen = box ? box.parentElement : null;
-  if (!box || !screen || !typesIn(target) || motionReduced()) return;
+  if (!box || !box.parentElement || !typesIn(target) || motionReduced()) return;
   if (document.documentElement.classList.contains("kb-up") || typeof requestAnimationFrame !== "function") return;
   const from = box.getBoundingClientRect();
-  screen.setAttribute(RISING, "");
-  requestAnimationFrame(() => rise(box, screen, from, along));
+  requestAnimationFrame(() => rise(box, from, along));
 }

@@ -56,7 +56,8 @@ test.describe("An open thread on a phone", () => {
     await expect
       .poll(theWindow, { message: "the window holds still while a thread is open" })
       .toEqual({ scrolls: "hidden", band: ["none", "none"], y: 0 });
-    // The reply box stands on the screen's bottom edge, where Safari reads its colour for the band under its bar.
+    // The reply box stands on the screen's bottom edge: on an iPhone --foot-clear over it, so Safari reads nothing fixed
+    // there and its bar is its glass over the page's light (mobile.css); a desktop engine has no such room.
     const edge = await page.evaluate(() =>
       Math.round(window.innerHeight - document.querySelector(".ix-th-foot")!.getBoundingClientRect().bottom),
     );

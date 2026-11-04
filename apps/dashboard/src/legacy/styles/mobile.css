@@ -1132,9 +1132,14 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      foot floated over the screen's foot at the end of a thread with the page's ground under it, a fold moved the
      conversation 86px, and the thread's own scroll to its end put back the lift the browser had given a field the keys
      rose under, so the reply box went under the keyboard as the first key was typed. Safari's toolbar stands full size
-     over a page whose window does not scroll, and the band under it takes the foot's ground as the band over the screen
-     takes the head's: at the point Safari reads, 4px over the screen's foot (tokens.css --foot-clear), the foot is the
-     one colour (the pane is transparent, nothing in the foot as wide as it is coloured otherwise, no blur over it).
+     over a page whose window does not scroll. The screen is the page's own light from edge to edge (tokens.css, one
+     colour at the edges): the pane, its head and its foot have no ground of their own, the paper Safari stands its bar
+     over the clock on runs on under the head, and the conversation fades out under the head and the foot. The pane stops
+     --foot-clear short of the window's foot, so nothing fixed covers the point Safari reads there and its toolbar is its
+     glass over the page's light, as on every page under a list: covering it, the pane was read as the edge and the band
+     under the bar was a flat colour, which stood out where the light glows at the foot. The head and the foot were bars
+     of the raised ground (1 to 4 Nov 2026), and the head stood a step lighter than the paper over the clock (Ruben's
+     iPhone, 4 Nov 2026: "the top header and bottom fully in the new background").
      The keyboard: the screen stands on what the document says the keys cover (kit/motion/keyboard.ts), as Ask's does
      (ask.css): from the moment a field is focused the height the last keyboard had (kb-expected, --kb-last), so the field
      is above the keys before they rise and the browser finds nothing to lift, while what the eye sees is the reply box
@@ -1142,7 +1147,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      the browser lift the view all the same (the first keyboard on a device), the screen follows it down and is as tall as
      what is left (--vv-top). An iPhone's browser floats its address over the page above the keys (--keys-pill, above),
      and the home bar is under the keys, where the foot's own room for it goes. What the keys leave under the foot is the
-     foot's ground. 250ms is the keyboard's own rise. */
+     page's light, as everywhere. 250ms is the keyboard's own rise. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
     --thread-keys: 0px;
     position: fixed;
@@ -1150,7 +1155,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     right: 0;
     left: 0;
     z-index: 2;
-    height: calc(100dvh - var(--vv-top, 0px));
+    height: calc(100dvh - var(--vv-top, 0px) - var(--foot-clear, 0px));
     translate: 0 var(--vv-top, 0px);
     padding-top: calc(var(--frame-top-at) + var(--frame-top, 0px));
     padding-bottom: var(--thread-keys);
@@ -1159,45 +1164,31 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
       translate 250ms var(--ease-out);
   }
   html.kb-up :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
-    --thread-keys: max(0px, var(--kb, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px));
+    --thread-keys: max(
+      0px,
+      var(--kb, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px) - var(--foot-clear, 0px)
+    );
   }
   html.kb-expected :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
-    --thread-keys: max(0px, var(--kb-last, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px));
+    --thread-keys: max(
+      0px,
+      var(--kb-last, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px) - var(--foot-clear, 0px)
+    );
     transition: translate 250ms var(--ease-out);
   }
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: var(--thread-keys);
-    background: var(--bg-raised);
-    pointer-events: none;
-    transition: height 250ms var(--ease-out);
-  }
-  html.kb-expected :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane::after {
-    transition: none;
-  }
-  /* While the reply box rises into the room over the keys' beat (thread.tsx, kit/motion/keys-rise.ts), its copy's own
-     ground reaches down to the screen's foot and the room is not drawn: drawn at once, it lay over the conversation's
-     foot as the copy set out, and grown with the copy on the page's clock, it fell behind a copy the compositor moves,
-     with the page's ground between the two. */
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane[data-rising]::after {
-    visibility: hidden;
-  }
   @media (prefers-reduced-motion: reduce) {
-    :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane,
-    :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane::after {
+    :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
       transition: none;
     }
   }
-  /* The conversation is its own box, and a pull past either end of it bands that box alone. */
+  /* The conversation is its own box, and a pull past either end of it bands that box alone. It fades out at its top and
+     its foot, over its own padding at rest, so what is scrolled away goes under the head and the reply box rather than
+     being cut at a line the eye cannot see. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-scroll {
     overscroll-behavior-y: contain;
+    mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 16px), transparent);
   }
-  /* The head is a bar of the raised ground at the screen's top (the thread canvas, 1 Nov 2026), under the frame's top with
-     no fade between them: the hairline under the head is the edge. */
+  /* The head stands over the conversation's edge, under the frame's top with no fade between them. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head {
     position: relative;
     z-index: 3;
@@ -1212,11 +1203,20 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     display: flex;
     flex-direction: column;
     gap: 6px;
-    /* The raised ground across the screen at its foot, a hairline over it (the thread canvas, 1 Nov 2026): the reply box
-       alone, as a chat's foot is, down to the screen's edge, with room for the home bar where there is one. */
-    padding: 10px 12px calc(16px + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid var(--line);
-    background: var(--bg-raised);
+    /* The reply box alone, as a chat's foot is, on the page's own light down to the screen's edge, with room for the home
+       bar where there is one; it was the raised ground across the screen with a hairline over it (the thread canvas,
+       1 Nov 2026). */
+    padding: 10px 12px calc(16px - var(--foot-clear, 0px) + env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    background: transparent;
+  }
+  /* On the keys the line stands as near over Safari's address as that stands over the keys, what is owed over it or not. */
+  html:is(.kb-up, .kb-expected) :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot,
+  html:is(.kb-up, .kb-expected)
+    :is(.inbox, .conversations)[data-takeover]
+    > .ix-thread-pane
+    > .ix-th-foot:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
+    padding-bottom: 8px;
   }
   /* Under a thumb as a sheet with two rests is (thread.tsx footDock, kit sheet/dock.ts dockSwipe; Ruben, 3 Nov 2026): the
      sheet's handle at its top, where the foot's own room over what is owed was, a pull on it the foot's own and never
@@ -1234,16 +1234,17 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
       transition: none;
     }
   }
-  /* Asking something of you (the dock over the reply box), it is the sheet: its top corners round, lifted off the words. */
+  /* Asking something of you (the dock over the reply box): what is owed over the line, on the same light. It was the
+     sheet, its top corners round and lifted off the words, while the foot had a ground of its own. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
     gap: 10px;
-    padding: 14px 14px calc(16px + env(safe-area-inset-bottom, 0px));
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-    box-shadow: var(--shadow-dock);
+    padding: 14px 14px calc(16px - var(--foot-clear, 0px) + env(safe-area-inset-bottom, 0px));
   }
   /* What the thread needs from you is as tall as what it says, as the rest of the page is. On a desk it may take part of
      the pane and scroll inside it (inbox.css); a state taller than the reply box was cut under its own lower edge with its
-     acts out of reach (Ruben, 22 Oct 2026: "I'll answer this" and "Hand back" cut in half). */
+     acts out of reach (Ruben, 22 Oct 2026: "I'll answer this" and "Hand back" cut in half). It never scrolls here: its
+     Why? reaches a thumb's width past its line (inbox.css .ix-dock .ix-why), which a box that scrolls would cut, and
+     would scroll by. With the keys up the line's words are what give way (inbox.css). */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status {
     max-height: none;
     overflow: visible;
