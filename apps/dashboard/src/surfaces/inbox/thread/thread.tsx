@@ -61,6 +61,9 @@ import { threadEnd, threadScroller, threadShown } from "./scroller";
 import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
 import { hasVeto, HeldDraft } from "./veto";
+import { tlCallFor } from "./call";
+import { useCallLinesFirst } from "./call-turns";
+import { conversationsData } from "../store";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
@@ -83,6 +86,27 @@ export const ixOpensAt = (thread: Thread | null | undefined, focusMessageId: str
   return thread && thread.real && i >= 0 && at && at.type === "msg" && OPENS_AT_ITS_TOP.has(at.channel) && at.messageId
     ? at.messageId
     : null;
+};
+
+/**
+ * The calls a real thread opens with their lines shown (timeline.tsx: its newest thing said, and the message it was
+ * opened at), whose lines its conversation waits for (call-turns.ts useCallLinesFirst): each one's id where the row came
+ * without them, and "" where the calls Conversations reads are not in yet (`callsRead`) and its call is not known.
+ */
+const callsOpenedWith = (thread: Thread | null, focusMessageId: string | null, callsRead: boolean): string[] => {
+  if (!thread || !thread.real) return [];
+  const tl = thread.timeline;
+  const newest = ixNewestSaid(tl);
+  const focused = focusMessageId ? tl.find((e) => e.type === "msg" && e.messageId === focusMessageId) : undefined;
+  const owed: string[] = [];
+  for (const entry of [newest >= 0 ? tl.at(newest) : undefined, focused]) {
+    if (!entry || entry.type !== "msg" || entry.channel !== "phone") continue;
+    const call = tlCallFor(entry.messageId);
+    if (!call) {
+      if (!callsRead) owed.push("");
+    } else if (call.callId && !call.transcript?.length && (call.turnsToRead ?? 0) > 0) owed.push(call.callId);
+  }
+  return owed;
 };
 
 // The phone's width, where a thread is the screen and Back is its list (mobile.css, 720px).
@@ -211,8 +235,10 @@ interface EndRefs {
  * A real thread opens at its newest message and stays with it as messages arrive, unless you have scrolled up to read.
  * Opened at a message -- a call, from Conversations -- or at the start of a call or an email that is the newest thing
  * said, it opens there instead (ixOpensAt), once the pane has a size to scroll. The thread is read when the effect runs,
- * which is when it first arrives, not when the pane first drew. The conversation `el` scrolls itself on a desk, and the
- * window scrolls it on a phone (scroller.ts). Answers what lets it go.
+ * which is when it first arrives, not when the pane first drew. The conversation `el` scrolls itself, on a desk and on a
+ * phone, where the thread is a screen of its own (mobile.css): from 21 Oct to 3 Nov 2026 the window scrolled it there,
+ * and this scroll to the end, set from a height the keyboard never changes, put back the lift the browser had given a
+ * field the keys rose under. What scrolls it is still asked (scroller.ts). Answers what lets it go.
  */
 function followTheEnd(el: HTMLElement, refs: EndRefs) {
   const box = threadScroller(el);
@@ -258,8 +284,8 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
   heard.addEventListener("scroll", onScroll, { passive: true });
   const moved = ["wheel", "touchstart", "pointerdown", "keydown"];
   for (const kind of moved) heard.addEventListener(kind, letGo, { passive: true });
-  // Shown (a phone opens the pane after it mounts) or grown (a photo lands): back to the end, if you were there. Where the
-  // window scrolls it, the pane grows round it too: its foot, standing over the screen's foot (mobile.css).
+  // Shown (a phone opens the pane after it mounts), grown (a photo lands) or made shorter (the reply box opens, the keys
+  // rise under it): back to the end, if you were there. Where the window scrolls it, the pane grows round it too.
   const seen = typeof ResizeObserver === "function" ? new ResizeObserver(toEnd) : null;
   if (seen) {
     seen.observe(el);
@@ -473,10 +499,10 @@ function heldDraftRow(p: Held, thread: Thread, text: string) {
 function scrollBody(
   p: Held,
   thread: Thread,
-  extra: { scrollRef: RefObject<HTMLDivElement | null>; statusProps: StatusProps; rowsAt: RowsAt },
+  extra: { scrollRef: RefObject<HTMLDivElement | null>; statusProps: StatusProps; rowsAt: RowsAt; waiting: boolean },
 ) {
   const { onVerdict, onDecide, planParam, onPlanParam } = p;
-  const { scrollRef, statusProps, rowsAt } = extra;
+  const { scrollRef, statusProps, rowsAt, waiting } = extra;
   const decided = statusProps.decided;
   return (
     <div className="ix-th-scroll" ref={scrollRef}>
@@ -495,8 +521,9 @@ function scrollBody(
 
       <NarrativeSummary thread={thread} />
 
-      {/* A thread whose own read is still out draws its conversation when it lands (read-apart.ts). */}
-      {thread.real && thread.partial ? (
+      {/* A thread whose own read is still out, or its call's lines, draws its conversation when they land (read-apart.ts,
+          call-turns.ts). */}
+      {waiting ? (
         <div className="ix-timeline" aria-busy="true" data-testid="ix-timeline-reading" />
       ) : (
         <div className="ix-timeline">{timelineRows(p, thread, rowsAt)}</div>
@@ -605,9 +632,18 @@ export const InboxThread = (props: InboxThreadProps) => {
   const focusRef = useRef<string | null>(focusMessageId);
   const threadRef = useRef<Thread | null>(thread);
   threadRef.current = thread;
-  // A real thread whose conversation waits for its own read (read-apart.ts) is drawn without it until it lands, then
-  // opens as a thread does: at its newest, or the message it was opened at, with what it opened with simply there.
-  const waiting = !!(thread && thread.real && thread.partial);
+  // A real thread whose conversation waits for its own read (read-apart.ts), or for the lines of a call it opens with
+  // (call-turns.ts), is drawn without it until they land, then opens as a thread does: at its newest, or the message it
+  // was opened at, with what it opened with simply there.
+  // The calls are read once Conversations' read has come back, whether its calls were in it or not (CALLS_READ).
+  const callsRead = conversationsData().CALLS_READ !== undefined;
+  const partial = !!(thread && thread.real && thread.partial);
+  const linesOwed = useCallLinesFirst(
+    callsOpenedWith(thread, focusMessageId, callsRead),
+    thread ? thread.id : null,
+    partial,
+  );
+  const waiting = partial || (!!(thread && thread.real) && linesOwed);
   const drawn = !!(thread && thread.real) && !waiting;
   const entries = thread && thread.timeline ? thread.timeline.length : 0;
   useEffect(() => {
@@ -679,9 +715,9 @@ export const InboxThread = (props: InboxThreadProps) => {
         </div>
       )}
 
-      {scrollBody(held, thread, { scrollRef, statusProps, rowsAt: { newestSaid, seenAt, ...earlier } })}
-      {/* The foot: what the thread needs from you and the reply box. One box on a phone, standing over the screen's foot
-          as the window scrolls the conversation under it (mobile.css); on a desk no box at all (display: contents). */}
+      {scrollBody(held, thread, { scrollRef, statusProps, rowsAt: { newestSaid, seenAt, ...earlier }, waiting })}
+      {/* The foot: what the thread needs from you and the reply box. One box on a phone, on the screen's bottom edge under
+          the conversation, and on the keys while they are up (mobile.css); on a desk no box at all (display: contents). */}
       <div
         ref={footRef}
         className="ix-th-foot"

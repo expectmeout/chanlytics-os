@@ -281,8 +281,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
                 const all = el.querySelectorAll(".ix-timeline > *");
                 const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
                 if (!scroller || !last) return true;
-                // On a phone the window scrolls the conversation, and what shows of it ends at the screen's foot, over
-                // the thread's foot standing there (mobile.css, "The window scrolls"); on a desk the foot is no box.
+                // What shows of the conversation ends at its own box's foot, over the thread's foot on a phone
+                // (mobile.css, "An open thread is a screen of its own"); on a desk the foot is no box.
                 const foot = el.querySelector(".ix-th-foot")?.getBoundingClientRect();
                 const top = Math.max(scroller.top, 0);
                 const bottom = Math.min(

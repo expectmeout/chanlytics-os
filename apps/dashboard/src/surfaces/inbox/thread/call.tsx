@@ -143,7 +143,7 @@ function keepLineInView(list: HTMLElement | null, followed: RefObject<number>, a
   const before = followed.current >= 0 ? list.children[followed.current] : null;
   followed.current = active;
   if (!conversation || !now) return;
-  // The pane's scroller on a desk, the window on a phone, between the thread's head and its foot (scroller.ts).
+  // The pane's scroller, between the thread's head and its foot (scroller.ts).
   const scroller = threadScroller(conversation);
   const box = threadShown(conversation, scroller);
   const bar = list.parentElement ? list.parentElement.querySelector<HTMLElement>(".tl-listen") : null;
