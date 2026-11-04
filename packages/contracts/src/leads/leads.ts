@@ -59,6 +59,7 @@ export {
   LEAD_SOURCE_WORD,
   LEAD_LOCKED_LINE,
   LEAD_DRAFT_NOTE,
+  LEAD_ASKED_NOT_WRITTEN,
   LEAD_NO_ADDRESS,
   LEAD_CONSENT_REFUSAL,
   LEAD_NOT_A_FIT_WORDS,
@@ -287,12 +288,9 @@ export const LEAD_WORDS = {
   checked: "Checked",
   found: "Found",
   call: "Call",
-  copy: "Copy",
   copyAria: "Copy the email",
   /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
   copyPhoneAria: "Copy the number",
-  draftAria: "Draft an email",
-  draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
   talkingNote: LEAD_TALKING_NOTE,
@@ -314,9 +312,7 @@ export const LEAD_WORDS = {
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
   noteLeft: leadNoteLeft,
-  backTo: "Back to",
-  to: "To",
-  subject: "Subject",
+  /** Write to them (the lead sheet's write step): its rewrites, the line while it is written, and the law's foot. */
   draftRewrite: "Rewrite",
   tones: [
     { id: "shorter", label: "Shorter" },
@@ -324,9 +320,9 @@ export const LEAD_WORDS = {
   ],
   draftWriting: "Writing it…",
   draftNote: LEAD_DRAFT_NOTE,
-  draftOpen: "Open in your email",
-  draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
+  /** The browser kept the clipboard shut: nothing was copied, and the mail app still carries the email. */
+  copyRefused: "Couldn't copy it here. Open it in your mail app instead.",
   firstDay: LEAD_FIRST_DAY,
   about: "About",
   reachHeading: "Reach",

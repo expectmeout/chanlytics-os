@@ -25,10 +25,13 @@ import { EmailParts, emailParagraphs } from "../../campaigns/sequences/place/ema
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { Menu } from "../../kit/menu/menu";
 import { Meter } from "../../kit/meter/meter";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate } from "../../legacy-verbs";
+import { MenuInPlace, menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { LeadTile } from "../cells/tile";
+import type { Flash, PeekActs } from "../peek/types";
 import type { SheetMail } from "./facts";
 
 /* ------------------------------------------------------------------------------------------------------- who -- */
@@ -135,6 +138,75 @@ export function SheetDoors(p: { vm: LeadPeekVM; callDoor: boolean; onCall: () =>
       <span className="lw-doors-sp" />
       {p.more}
     </div>
+  );
+}
+
+/** What is known of them, as text to paste elsewhere: the name, where, the phone, the email and the site. */
+const allOf = (vm: LeadPeekVM) =>
+  [
+    vm.name,
+    vm.sub,
+    vm.where ? vm.where.line : null,
+    vm.reach.phone ? vm.reach.phone.value : null,
+    vm.reach.email.address,
+    vm.links.website ? vm.links.website.href : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+/**
+ * The lead's More, its rare acts behind one labelled caret (Ruben, 20 Oct 2026: no three dots): They wrote back… (an email
+ * sent by hand, where no mailbox is read), Copy details, Never write to them again (every sequence) where the dock's
+ * Take out does not already ask it, and what contracts' leadPeekMenu offers this member (Erase, the owner's).
+ */
+export function SheetMore(p: {
+  vm: LeadPeekVM;
+  on: PeekActs;
+  /** Only you can say a reply came. */
+  told: boolean;
+  /** Never write to them again stands here: a sequence has them, and the dock's Take out does not ask it. */
+  never: boolean;
+  flash: Flash;
+  onSaid: () => void;
+  onNever: () => void;
+}) {
+  const { vm, on } = p;
+  const items: PeopleMenuItem[] = [
+    ...(p.told ? [{ label: W.menu.theyWrote, icon: "chat", onClick: p.onSaid }] : []),
+    {
+      label: W.menu.copy,
+      icon: "copy",
+      onClick: () => {
+        void navigator.clipboard?.writeText(allOf(vm)).then(() => p.flash({ tone: "ok", msg: W.menu.copied }));
+      },
+    },
+    ...(p.never ? [{ label: W.menu.never, title: W.menu.neverHint, icon: "stop", onClick: p.onNever }] : []),
+    ...(on.menu ?? []).map((m) => ({
+      label: m.id === "erase" ? W.menu.erase : m.label,
+      icon: "x",
+      danger: m.danger,
+      onClick: m.id === "erase" ? on.onEraseAsk : undefined,
+    })),
+  ];
+  return (
+    <MenuInPlace>
+      <Menu
+        label={W.moreOf}
+        trigger={
+          <Button
+            variant="secondary"
+            size="sm"
+            className="lw-door lw-door-more"
+            aria-label={W.moreOf}
+            data-testid="peek-more"
+          >
+            {W.more}
+            <Icon name="chevron-down" size={11} />
+          </Button>
+        }
+        groups={menuGroups(items)}
+      />
+    </MenuInPlace>
   );
 }
 

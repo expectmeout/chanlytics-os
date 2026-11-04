@@ -21,6 +21,7 @@ import {
   leadMonth,
   whyCannotSpend,
   leadDraftFooter,
+  LEAD_ASKED_NOT_WRITTEN,
   LEAD_NO_ADDRESS,
   LEAD_PROBE_PLACES,
   SPEND_LEADS,
@@ -978,7 +979,9 @@ test("a viewer is refused every write; an operator may work leads but not erase,
   assert.deepEqual(calls, [], "not one door was reached");
 });
 
-test("a draft needs the business's address, its foot is code's, and the model is asked once with the lead's facts quoted", async () => {
+test("a draft needs the business's address, its foot is code's, and the model is asked once with the lead's facts quoted", async (t) => {
+  setServiceClient(fakeDb({}, {}, { lead_addresses_suppressed: () => [] }));
+  t.after(() => setServiceClient(null));
   await assert.rejects(
     draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator", address: null }), { id: LEAD }, doors())),
     (e) => e.message === LEAD_NO_ADDRESS,
@@ -1012,6 +1015,32 @@ test("a draft needs the business's address, its foot is code's, and the model is
     draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator", emailState: "invalid" }), { id: LEAD }, doors())),
     (e) => e.message === "This lead has no address that reaches them. Call instead.",
   );
+});
+
+test("a draft to an address on the never-again list is refused before the model is asked, and a list that can't be read is no yes", async (t) => {
+  t.after(() => setServiceClient(null));
+  const before = modelCalls.length;
+  const asked = [];
+  setServiceClient(
+    fakeDb(
+      {},
+      {},
+      {
+        lead_addresses_suppressed: (a) => {
+          asked.push(a);
+          return ["hello@travisheightscoaching.example"];
+        },
+      },
+    ),
+  );
+  await assert.rejects(
+    draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors())),
+    (e) => e.message === LEAD_ASKED_NOT_WRITTEN && e.status === 409,
+  );
+  assert.deepEqual(asked, [{ p_tenant_id: A, p_addresses: ["hello@travisheightscoaching.example"] }]);
+  setServiceClient({ rpc: async () => ({ data: null, error: { code: "XX000", message: "no answer" } }) });
+  await assert.rejects(draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors())));
+  assert.equal(modelCalls.length, before, "not one model call, either way");
 });
 
 test("bulk acts on the ids, or on the view for Select all that match; the door gets one or the other", async () => {

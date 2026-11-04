@@ -41,6 +41,8 @@ export const LEAD_LINE_WORDS = {
   wrote: (intent: string | null) => (intent ? `Wrote back · ${intent}` : "Wrote back"),
   left_: (why: string) => capitalize(why),
   lastCall: (word: string, note: string | null) => (note ? `${word}: ${note}` : word),
+  /** "Did you send it?", answered yes: the email of your own, which no send of ours records. */
+  wroteYourself: "You wrote to them yourself",
 } as const;
 
 const LW = LEAD_LINE_WORDS;
@@ -99,7 +101,7 @@ function placeRows(place: SequencePlaceDto, tz: string, nowMs: number): LeadHist
   return rows;
 }
 
-/** History: how we found them, what a sequence did, and your last call with its note, each said once. */
+/** History: how we found them, what a sequence did, and your last word with them (a call and its note, or your email). */
 export function leadHistoryOf(p: {
   vm: Pick<LeadPeekVM, "found" | "worked">;
   place: SequencePlaceDto | null;
@@ -108,7 +110,12 @@ export function leadHistoryOf(p: {
 }): LeadHistoryRowVM[] {
   const found = p.vm.found.map((f) => ({ at: foundDay(f.at), what: f.what }));
   const worked = p.vm.worked;
-  const outcome = worked.outcome ? (LEAD_CALL_OUTCOME_WORDS[worked.outcome as LeadCallOutcome] ?? null) : null;
+  const outcome =
+    worked.outcome === "emailed"
+      ? LW.wroteYourself
+      : worked.outcome
+        ? (LEAD_CALL_OUTCOME_WORDS[worked.outcome as LeadCallOutcome] ?? null)
+        : null;
   const called = leadDayOf(worked.at, p.tz, p.nowMs);
   return [
     ...found,

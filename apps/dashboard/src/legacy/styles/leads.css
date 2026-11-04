@@ -190,9 +190,6 @@
 .pk-x { width: 30px; height: 30px; border-radius: var(--radius-md); border: 0; background: transparent; color: var(--ink-dim); display: grid; place-items: center; cursor: pointer; flex: none; }
 @media (hover: hover) { .pk-x:hover { background: var(--bg-hover); color: var(--ink); } }
 
-.pk-top { display: flex; align-items: center; gap: 8px; padding: 12px 14px 12px 18px; border-bottom: 1px solid var(--line); }
-.pk-top .sp { flex: 1; }
-
 .seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; background: var(--bg-active); border-radius: var(--radius-md); }
 .seg button { height: 26px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .seg button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
@@ -207,11 +204,6 @@
 .pk-decide { display: flex; gap: 6px; margin-top: -12px; }
 .pk-label { font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 4px; }
 
-.pk-rv { min-width: 0; font-size: var(--text-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pk-rv.wrong { text-decoration: line-through; color: var(--ink-muted); }
-
-.pk-rn { font-size: 11.5px; color: var(--ink-dim); margin-top: 1px; }
-
 .pk-ck-mark { flex: none; margin-top: 2px; display: grid; place-items: center; }
 .pk-ck-check { color: var(--ok-ink); }
 .pk-ck-read { color: var(--ink-muted); }
@@ -222,21 +214,7 @@
 .pk-alt summary { cursor: pointer; color: var(--ink-muted); }
 .pk-alt ul { margin: 8px 0 0; padding-left: 16px; }
 .pk-alt-why { margin: 6px 0 0; }
-.pk-foot { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
-.pk-foot .sp { flex: 1; }
 
-/* --------------------------------------------------------------- the draft */
-/* To, Subject and the body are read, not typed: the mailto: is the route's
-   (leads-peek.jsx), so there is no field here to style. */
-.pk-draft { display: flex; flex-direction: column; gap: 10px; }
-.pk-field { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; align-items: center; font-size: var(--text-sm); }
-.pk-field .l { color: var(--ink-dim); }
-.pk-text { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); padding: 10px 12px; font-family: inherit; font-size: 13px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow: auto; max-height: 340px; }
-.pk-tone { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.pk-tone .pk-label { margin: 0; align-self: center; }
-.pk-foot-note { font-size: 11.5px; color: var(--ink-dim); display: flex; gap: 6px; align-items: flex-start; line-height: 1.45; }
-.pk-foot-note > .icon { margin-top: 2px; flex: none; }
-.pk-draft .field-error { margin: 0; }
 
 /* -------------------------------------------- the two questions, and a why */
 .pk-ask { padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-sunken); display: flex; flex-direction: column; gap: 10px; }
@@ -530,9 +508,8 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
   /* A lead opens full screen, not beside the table (.pk is the desktop pane,
      .pl-peek the name PL_OVERLAY knows it by; both are on the one element). */
   .pl-peek { position: fixed; inset: 0; z-index: 40; width: auto; border-left: 0; background: var(--bg); box-shadow: none; }
-  .pl-peek .pk-decide, .pl-peek .pk-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .pl-peek .pk-decide .btn, .pl-peek .pk-foot .btn { min-height: var(--control-h-touch); justify-content: center; border-radius: var(--control-radius); font-size: var(--text-base); }
-  .pl-peek .pk-foot .sp { display: none; }
+  .pl-peek .pk-decide { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pl-peek .pk-decide .btn { min-height: var(--control-h-touch); justify-content: center; border-radius: var(--control-radius); font-size: var(--text-base); }
 
   /* The six outcomes are a 2 x 3 grid of 44px targets (PRD 9.4). Task 18's
      block is the only place this file says anything about .pk-* on a phone;
@@ -1173,21 +1150,13 @@ button.ld-slot-btn { cursor: pointer; }
 }
 
 /* ====================================================================
-   Glass: what the lead sheet still draws of the lead's old panel (the plan's step 5.4, canvas L2): the draft's head and
-   foot on hairlines, and a fold an inset.
+   Glass: what the lead sheet still draws of the lead's old panel (the plan's step 5.4, canvas L2): a fold an inset.
    ==================================================================== */
 @media (width > 900px) {
-  .leads-scope .pk-top {
-    border-bottom-color: transparent;
-  }
   .leads-scope .pk-box {
     border-color: var(--surface-inset-edge);
     border-radius: var(--surface-inset-radius);
     background: var(--surface-inset-fill);
-  }
-  .leads-scope .pk-foot {
-    border-top-color: var(--line);
-    padding: 12px 14px 14px;
   }
 }
 
@@ -1257,10 +1226,6 @@ button.ld-slot-btn { cursor: pointer; }
 
 }
 
-/* A way to reach them: its value at the base step. */
-.leads-scope .pk-rv {
-  font-size: var(--text-base);
-}
 /* How the lead was found: the steps numbered on 14px rounds of the inset's fill, no spine. */
 .leads-scope .pk-steps {
   counter-reset: pk-step;
@@ -1361,9 +1326,10 @@ button.ld-slot-btn { cursor: pointer; }
    passed, the accent the one press. */
 .lw-desk { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 408px; z-index: 10; display: flex; flex-direction: column; border-radius: var(--surface-pane-radius); background: var(--surface-pane-solid); box-shadow: var(--surface-pop-depth); overflow: hidden; animation: pk-in var(--duration-base) var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .lw-desk { animation: none; } }
-.lw-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 14px 0 12px; }
+/* A card arrives from the side (lw-arrive): it never makes the sheet scroll sideways, or a scrollbar flash where they take room. */
+.lw-scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; padding: 14px 0 12px; }
 .lw-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; }
-.lw-body { display: flex; flex-direction: column; }
+.lw-body { display: flex; flex-direction: column; overflow-x: clip; }
 /* On a phone the card meets the sheet's edges as the canvas draws it: its own gutter stands in for the sheet's. */
 .lw-in { display: flex; flex-direction: column; margin: 0 calc(-1 * var(--rec-gutter, 0px)); }
 /* The card's small controls keep the canvas's sizes, under the house's 44px floor for a thumb, which their hit area
@@ -1463,8 +1429,13 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--line-strong); border-top-color: var(--accent); border-radius: var(--radius-circle); animation: lw-spin 0.9s linear infinite; }
 @keyframes lw-spin { to { rotate: 1turn; } }
 @media (prefers-reduced-motion: reduce) { .lw-spin { animation: none; } }
-/* Approve's ask: Read all on a line of its own under what it says, where its touch height leaves the words' lines alone. */
-.lw-approve-read { display: block; }
+/* Approve's ask: Read all on a line of its own under what it says, where its touch height leaves the words' lines alone;
+   Take out's Never write to them again the same. */
+.lw-approve-read, .lw-leave-never { display: block; }
+/* Write to them: the email as it will go, its lines kept where they were broken, and Shorter and Warmer under it. */
+.lw-write-mail { display: flex; flex-direction: column; gap: 4px; }
+.lw-write-body p { white-space: pre-line; }
+.lw-write-tones { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink-muted); }
 /* A held email's choices, in the dock's place: whose email it is, under the question. */
 /* What a held email's check flagged, before its choices. */
 

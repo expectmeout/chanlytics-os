@@ -161,6 +161,7 @@ export type {
   ProposePeopleSearch,
 } from "./lead-plan-schema";
 export {
+  LEAD_ASKED_NOT_WRITTEN,
   LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_OUTCOMES,
@@ -518,8 +519,8 @@ export type {
   LeadSheetEmailLineVM,
   LeadSheetWhyVM,
 } from "./sheet/lead-sheet-card";
-export { dockSlotsOf, LEAD_DOCK_WORDS, leadDockOf } from "./sheet/lead-sheet-dock";
-export type { LeadSheetDockFacts, LeadSheetDockVM } from "./sheet/lead-sheet-dock";
+export { dockSlotsOf, LEAD_DOCK_WORDS, LEAD_LEAVE_WORDS, leadDockOf, leadLeaveAskOf } from "./sheet/lead-sheet-dock";
+export type { LeadLeaveAskVM, LeadSheetDockFacts, LeadSheetDockVM } from "./sheet/lead-sheet-dock";
 export { leadHistoryOf, leadLinesOf } from "./sheet/lead-sheet-lines";
 export type { LeadHistoryRowVM, LeadLineId, LeadLineVM } from "./sheet/lead-sheet-lines";
 export { LEAD_NOW_WORDS, leadApproveAskOf, type LeadApproveAskVM, leadNowOf } from "./sheet/lead-sheet-now";
