@@ -1,4 +1,5 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+export type { ReplyDraftEdge } from "./context";
 export { eraseOrRedrive } from "./erasure";
 export { dispatchJob, incomingEmailOf, upsertEscalation } from "./handlers";
 export type { ClaimedJob, EscalationOutcome, JobContext, PushPort, PushReceipt } from "./handlers";
@@ -28,6 +29,7 @@ export {
   YIELD_AT_MS,
 } from "./ledger";
 export type { Db, LedgerRow, Verdict } from "./ledger";
+export { askReplyDraftOf, replyDraftPortsOf } from "./reply-draft";
 export { cancelJobsFor, payloadRefusal, requeueFailedJob, scheduleJob, scheduleJobOnce } from "./schedule";
 export type { Requeued, ScheduleParams } from "./schedule";
 export { saySettled, settleJob, SETTLERS } from "./settle";

@@ -69,6 +69,8 @@ const TONES: Record<string, Tone> = {
   cancel_broadcast: "warn",
   leave_sequence: "warn",
   return_to_sequence: "ok",
+  reply_anyway: "ok",
+  not_a_customer: "warn",
   revoke_invite: "warn",
   snooze: "warn",
   // info -- it is on its way, or a person took it on

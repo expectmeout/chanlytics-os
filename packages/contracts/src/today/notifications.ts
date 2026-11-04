@@ -414,6 +414,8 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
   reply_read: { stopped: "A reply from a lead could not be read or told", to: "inbox" },
+  // A thread's draft. Not sent (packages/jobs TOLD_ELSEWHERE): its row says it could not be written, on the thread itself.
+  reply_draft: { stopped: "A reply could not be drafted", to: "inbox" },
   // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },

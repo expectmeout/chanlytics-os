@@ -173,8 +173,7 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
     "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
   carriers:
     "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review:
-    "They wrote by email. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
+  email_review: "They wrote by email. Nothing was sent: email is always yours to answer.",
   booking_request:
     "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
   booking_reply:
@@ -340,15 +339,15 @@ export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null;
   confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't.", todo: "Confirm a time" },
 };
 
-/** Where the receptionist drafted the reply a hold asks for: what is owed is a look at its words (the dock says so too). */
-export const DRAFTED_TODO = "Check the draft";
-/** What a row asks where its kept draft found they were not a customer (a sales pitch, a vendor, a newsletter). */
+/** Where Ask's draft of the reply a hold asks for is ready (decision 0093): the row says so, and the dock too. */
+export const DRAFTED_TODO = "Draft ready";
+/** What a row asks where the thread was set aside as not a customer's (a sales pitch, a vendor, a newsletter). */
 export const PITCH_TODO = "Not a customer?";
 
 /**
- * What a hold asks of you, as the Inbox's row says it under what they said (the thread canvas's list, 1 Nov 2026: "Check
- * the draft", "Confirm a time", "Call back"), in the coral: the act's own word, and a look at the draft where the reply box
- * holds one the receptionist wrote. Nothing with no hold to act on.
+ * What a hold asks of you, as the Inbox's row says it under what they said (the thread canvas's list, 1 Nov 2026: "Draft
+ * ready", "Confirm a time", "Call back"), in the coral: the act's own word, and the draft where one is ready for the reply
+ * box. Nothing with no hold to act on.
  */
 export function holdToDoOf(act: HoldAct | null | undefined, drafted: boolean): string | null {
   if (!act) return null;

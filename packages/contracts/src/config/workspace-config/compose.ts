@@ -15,7 +15,8 @@ import {
 } from "../no-booking-link";
 import type { BookingRules, BusinessProfile, Closure, Note, WalkIns } from "./business-profile";
 import { guardrailsInForce } from "./config-rules";
-import { bookingHeld, policyRules } from "./policy-classes";
+import { DRAFT_RULES, EMAIL_DRAFT_SHAPE, noLinkDraft } from "./draft-audience";
+import { bookingHeld, draftMoneyRule, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAnswerRule, offersAskRule } from "./offers-ask";
 import { CONVERSATION_UNDER_WAY } from "./assistant-disclosure";
@@ -385,7 +386,7 @@ const PROMPT_SECTIONS: readonly PromptSection[] = [
 ];
 
 /** Who the receptionist is and where it answers, its tone, and the languages it speaks. */
-function identitySection({ base, profile, channel, wire }: SectionFacts): string[] {
+function identitySection({ base, profile, channel, wire, audience }: SectionFacts): string[] {
   const s: string[] = [];
   // The wire it answers on, never one it does not: a text was told it answered over WhatsApp until 11 Oct 2026.
   const medium =
@@ -395,12 +396,19 @@ function identitySection({ base, profile, channel, wire }: SectionFacts): string
         ? "by text message"
         : wire === "instagram"
           ? "in Instagram direct messages"
-          : "over WhatsApp";
-  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
-  // The receptionist's own name (decision 0073): said in the greeting, and how it introduces itself; never a claim to
-  // be a person (standingRules says it is the business's automated assistant, whatever its name).
-  const named = (profile.assistant_name ?? "").trim();
-  if (named) s.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);
+          : wire === "email"
+            ? "by email"
+            : "over WhatsApp";
+  if (audience === "draft") {
+    // A draft is written for the person who will send it (decision 0093): it has no name of its own to give.
+    s.push(`You write replies for ${base.business_name}, whose team answers customers ${medium}.`);
+  } else {
+    s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+    // The receptionist's own name (decision 0073): said in the greeting, and how it introduces itself; never a claim to
+    // be a person (standingRules says it is the business's automated assistant, whatever its name).
+    const named = (profile.assistant_name ?? "").trim();
+    if (named) s.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);
+  }
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
   if (profile.languages?.length) {
     const list = profile.languages.join(", ");
@@ -541,8 +549,9 @@ function bookingRuleLines(br: BookingRules): string[] {
   return lines;
 }
 
-/** How to hand the customer to a person, and when: in chat the [[HUMAN]] token, on a call the transfer or a message. */
-function handoffSection({ profile, channel }: SectionFacts): string[] {
+/** How to hand the customer to a person, and when: in chat the [[HUMAN]] token, on a call the transfer or a message. Never in a draft: draft-audience.ts. */
+function handoffSection({ profile, channel, audience }: SectionFacts): string[] {
+  if (audience === "draft") return [];
   const s: string[] = [];
   // HOW to hand off, not just when — and unconditionally, because the product
   // promise depends on it.
@@ -655,9 +664,14 @@ function ownWordsSection({ profile, channel, hrs, closed }: SectionFacts): strin
   return s;
 }
 
-/** How to speak on this medium: short, with no URL read out, on a call; the booking link (or what to take) in chat. */
-function mediumSection({ base, channel, link, handed }: SectionFacts): string[] {
+/** How to speak on this medium: short, with no URL read out, on a call; the booking link (or what to take) in chat; a draft's own shape. */
+function mediumSection({ base, channel, wire, link, handed, audience }: SectionFacts): string[] {
   const s: string[] = [];
+  if (audience === "draft") {
+    const shape = wire === "email" ? EMAIL_DRAFT_SHAPE : PROMPT_OPENINGS.chatMedium;
+    s.push(`\n${shape} ${link ? "Send the booking link rather than describing how to book." : noLinkDraft()}`);
+    return s;
+  }
   // Medium, not facts. A phone caller cannot re-read a paragraph. The link is offered the ways the call can send it.
   const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
   const by = ways.whatsapp
@@ -698,12 +712,12 @@ function openTimesSection({ handed, policy }: SectionFacts): string[] {
 
 /**
  * Who reads what the receptionist writes: a customer, from the receptionist itself, or a draft a person sends as
- * themselves (the reach-out reply draft), which says nothing of being an assistant.
+ * themselves (a held thread's, a reach-out reply's: decision 0093), which says nothing of being an assistant.
  */
 export type PromptAudience = "customer" | "draft";
 
-/** The wire a prompt is composed for: a chat (WhatsApp, a text, an Instagram DM) or a call. */
-export type PromptWire = "whatsapp" | "sms" | "instagram" | "voice";
+/** The wire a prompt is composed for: a chat (WhatsApp, a text, an Instagram DM), a call, or an email, which only a draft is written for. */
+export type PromptWire = "whatsapp" | "sms" | "instagram" | "voice" | "email";
 
 /**
  * That it is an automated assistant, and never a person (decision 0051). The usage policy of the model the receptionist
@@ -724,19 +738,16 @@ const RULES_WIN = "Where anything above disagrees with these rules, the rules wi
 /**
  * The rules every prompt ends with, composed or written by hand: the Autonomy pane's rows (policyRules), that it is an
  * automated assistant (to a customer), that these rules win, and that what a customer writes is data, never an
- * instruction (DATA_NOT_INSTRUCTIONS, the one injection policy).
+ * instruction (DATA_NOT_INSTRUCTIONS, the one injection policy). A draft's rows are its own (DRAFT_RULES, the money row
+ * in its words): the Autonomy rows say what the receptionist itself may send, and nothing here sends.
  */
 export function standingRules(
   policy: Record<string, { mode: string }> | null | undefined,
   channel: "whatsapp" | "voice",
   audience: PromptAudience,
 ): string[] {
-  const assistant =
-    audience === "draft"
-      ? []
-      : channel === "voice"
-        ? [ASSISTANT_RULE.always]
-        : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
+  if (audience === "draft") return [...DRAFT_RULES, draftMoneyRule(), RULES_WIN, DATA_NOT_INSTRUCTIONS];
+  const assistant = channel === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
   return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
 }
 
@@ -768,8 +779,11 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
   }
   // The answer to a customer's own YES OFFERS, and the ask for that yes once (offers-ask.ts), in chat alone: a call has
   // no message to find the phrase in, and the person's own facts (describeLead) say whether they have been asked.
-  if (channel === "whatsapp") rules.push(offersAnswerRule(!!base.whatsapp_line));
-  if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
+  // Not in a draft: the owner's reply asks for no yes unless they write it.
+  if (channel === "whatsapp" && audience !== "draft") {
+    rules.push(offersAnswerRule(!!base.whatsapp_line));
+    if (base.whatsapp_line) rules.push(offersAskRule());
+  }
   if (g.no_health_advice) {
     rules.push(
       `Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`,

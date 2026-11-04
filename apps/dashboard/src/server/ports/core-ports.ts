@@ -10,6 +10,8 @@ import crypto from "node:crypto";
 import {
   claimIdempotencyKey,
   handBackThread,
+  notACustomerThread,
+  replyAnywayThread,
   keepIdempotencyReceipt,
   lastInboundEmail,
   lastOutboundEmailSubject,
@@ -72,6 +74,29 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
       if (done.undoDropped)
         log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "take_over", subject: "conversation" });
       return { withdrawn_drafts: done.withdrawnDrafts, decision_id: done.decisionId };
+    },
+    notACustomer: async (tenantId, id, undo) => {
+      const decision = await notACustomerThread(ctx.supabase, {
+        tenantId,
+        conversationId: id,
+        undo,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      }).catch((e: { code?: string | null; message: string }) => {
+        throw dbRefusal(e);
+      });
+      return decision ? { decision_id: decision } : null;
+    },
+    replyAnyway: async (tenantId, id) => {
+      const decision = await replyAnywayThread(ctx.supabase, {
+        tenantId,
+        conversationId: id,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      }).catch((e: { code?: string | null; message: string }) => {
+        throw dbRefusal(e);
+      });
+      return decision ? { decision_id: decision } : null;
     },
     handBack: async (tenantId, id) => {
       const done = await handBackThread(ctx.supabase, {

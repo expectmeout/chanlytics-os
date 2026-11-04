@@ -115,6 +115,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "website_read",
       "preview_build",
       "erasure_finish",
+      "reply_draft",
       "canary",
     ],
   );

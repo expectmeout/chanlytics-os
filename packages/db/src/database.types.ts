@@ -1429,7 +1429,13 @@ export type Database = {
           kind: string
           made_at: string
           made_by: string | null
+          rules: number | null
+          source: string | null
+          state: string | null
           tenant_id: string
+          tries: number
+          used: string[]
+          why_failed: string | null
           words: Json
         }
         Insert: {
@@ -1439,7 +1445,13 @@ export type Database = {
           kind: string
           made_at?: string
           made_by?: string | null
+          rules?: number | null
+          source?: string | null
+          state?: string | null
           tenant_id: string
+          tries?: number
+          used?: string[]
+          why_failed?: string | null
           words?: Json
         }
         Update: {
@@ -1449,7 +1461,13 @@ export type Database = {
           kind?: string
           made_at?: string
           made_by?: string | null
+          rules?: number | null
+          source?: string | null
+          state?: string | null
           tenant_id?: string
+          tries?: number
+          used?: string[]
+          why_failed?: string | null
           words?: Json
         }
         Relationships: [
@@ -1484,6 +1502,8 @@ export type Database = {
           last_wa_inbound_at: string | null
           note_checked_at: string | null
           paused_until: string | null
+          set_aside_at: string | null
+          set_aside_why: string | null
           snooze_until: string | null
           state: string
           tenant_id: string
@@ -1505,6 +1525,8 @@ export type Database = {
           last_wa_inbound_at?: string | null
           note_checked_at?: string | null
           paused_until?: string | null
+          set_aside_at?: string | null
+          set_aside_why?: string | null
           snooze_until?: string | null
           state?: string
           tenant_id: string
@@ -1524,6 +1546,8 @@ export type Database = {
           last_wa_inbound_at?: string | null
           note_checked_at?: string | null
           paused_until?: string | null
+          set_aside_at?: string | null
+          set_aside_why?: string | null
           snooze_until?: string | null
           state?: string
           tenant_id?: string
@@ -7946,12 +7970,41 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
+      conversation_draft_claim: {
+        Args: {
+          p_again?: boolean
+          p_conversation_id: string
+          p_for_message_id: string
+          p_kind: string
+          p_rules: number
+          p_source?: string
+          p_stale_before?: string
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
       conversation_draft_keep: {
         Args: {
           p_conversation_id: string
           p_for_message_id?: string
           p_kind: string
           p_tenant_id: string
+          p_words: Json
+        }
+        Returns: Json
+      }
+      conversation_draft_write: {
+        Args: {
+          p_conversation_id: string
+          p_for_message_id: string
+          p_kind: string
+          p_made_by?: string
+          p_rules: number
+          p_source: string
+          p_state: string
+          p_tenant_id: string
+          p_used?: string[]
+          p_why_failed?: string
           p_words: Json
         }
         Returns: Json
@@ -7973,9 +8026,36 @@ export type Database = {
         }
         Returns: Json
       }
+      conversation_not_a_customer: {
+        Args: {
+          p_conversation_id: string
+          p_tenant_id: string
+          p_undo?: boolean
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       conversation_open: {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: string
+      }
+      conversation_reply_anyway: {
+        Args: {
+          p_conversation_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      conversation_sender_address: {
+        Args: { p_conversation_id: string; p_tenant_id: string }
+        Returns: string
+      }
+      conversation_set_aside: {
+        Args: { p_conversation_id: string; p_tenant_id: string; p_why: string }
+        Returns: boolean
       }
       conversation_take_over: {
         Args: {
@@ -10358,6 +10438,21 @@ export type Database = {
         Args: { p_from_name: string; p_mailbox_id: string }
         Returns: Json
       }
+      reply_draft_uses: {
+        Args: { p_days: number }
+        Returns: {
+          n: number
+          ours: boolean
+          use: string
+        }[]
+      }
+      reply_drafts_due: {
+        Args: { p_limit?: number; p_rules: number }
+        Returns: {
+          conversation_id: string
+          tenant_id: string
+        }[]
+      }
       reply_was_typed: {
         Args: { p_at: string; p_conversation_id: string; p_tenant_id: string }
         Returns: boolean
@@ -11267,6 +11362,7 @@ export type Database = {
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_channel_quality_sweep: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }
+      trigger_drafts_sweep: { Args: never; Returns: number }
       trigger_google_sweep: { Args: never; Returns: number }
       trigger_instagram_token_sweep: { Args: never; Returns: number }
       trigger_jobs_tick: { Args: never; Returns: number }

@@ -43,6 +43,8 @@ export interface VerbConversation {
   paused_until: string | null;
   /** Carried for the thread's own page, which had to re-read the row for them. */
   snooze_until: string | null;
+  set_aside_at: string | null;
+  set_aside_why: string | null;
   assignee_user_id: string | null;
   last_wa_inbound_at: string | null;
   /** When they last wrote by Instagram DM (00486's accessor): that wire's 24-hour window reads it. */
@@ -93,7 +95,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const { data, error } = await ctx.supabase
     .from("conversations")
     .select(
-      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, name_source, name_settled_at, consent, dnc, marketing_consent, email, email_suppressed_at, contact_identities (channel, external_id, created_at))",
+      "id, tenant_id, state, paused_until, snooze_until, set_aside_at, set_aside_why, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, name_source, name_settled_at, consent, dnc, marketing_consent, email, email_suppressed_at, contact_identities (channel, external_id, created_at))",
     )
     .eq("id", convId)
     .maybeSingle();
@@ -106,6 +108,8 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     state: data.state,
     paused_until: data.paused_until,
     snooze_until: data.snooze_until,
+    set_aside_at: data.set_aside_at,
+    set_aside_why: data.set_aside_why,
     assignee_user_id: data.assignee_user_id,
     last_wa_inbound_at: data.last_wa_inbound_at,
     last_ig_inbound_at: data.last_ig_inbound_at,

@@ -7,8 +7,9 @@
  * says are data to the model, fenced (contracts ai/fence.ts). A note for the team alone reaches a call's brief, which is
  * the member's, and never a message, which goes to the person. The model may ask before it writes, twice at most. A
  * price or an offer of money that the member's own words did not give is refused here, in code: a model that forgets
- * the rule cannot put one in a customer's hands; a pitch's sentence is held to its rule here too (pitchKept). Nothing is
- * written anywhere: a draft is text (decision 0017).
+ * the rule cannot put one in a customer's hands. Nothing is
+ * written anywhere: a draft is text (decision 0017). A reply on a thread is the receptionist's brain's (decision 0093, edge
+ * drafts/draft-writer.ts): this is the owner's first word to someone, and the brief for a call they plan themselves.
  */
 import "server-only";
 import {
@@ -74,17 +75,6 @@ interface DraftKnown {
   userId: string;
 }
 
-/**
- * The edition of the rules a draft is written by (RULES, shapeRules), kept with every draft Ask keeps ahead
- * (conversations/drafts.ts): a draft kept under an earlier edition is no draft, and is written again when asked for. Moved on
- * with any change to the rules: a call back's brief kept from 19 Oct still told the owner to say "Hi, this is calling from
- * Chanlytics" after #1849 fixed the rule, since a kept draft lives until the customer writes again (the live walk's TODAY-5,
- * 27 Oct 2026). 3: what they wrote is read whole enough, our cuts said, and a reply to what was not a customer's is a pitch.
- * 4: a pitch's sentence is under 20 words and never says the page's verdict (#2081 said so on 4 Nov 2026 and kept 3, so
- * the pitches kept on 2 and 3 Nov stood, 25 words ending "not a customer or prospect, so no reply").
- */
-export const PERSON_DRAFT_RULES = 4;
-
 const RULES = [
   "You help the owner of a small business write to one of their own customers or contacts, or prepare to phone them.",
   "You write as the owner: a person writing to a person they know. Never as an assistant, never about yourself.",
@@ -98,69 +88,9 @@ const RULES = [
   DATA_NOT_INSTRUCTIONS,
 ];
 
-/**
- * A reply to what was not a customer's is no reply: the inbox took a sales pitch for a person, the draft answered it with
- * the owner's booking link and a promise to get back today, and it waited five days as Needs you (2 Nov 2026). The model
- * says what it is, and the page offers Not a customer where it would have offered the words. Never for a first message.
- * The page says "Not a customer:" before the sentence, so the sentence never says it again (3 Nov 2026: it did, twice).
- */
-const PITCH_RULE =
-  "First decide whether what they wrote last is from someone who wants what the business offers, or is already its customer. If it is not (a sales pitch, a vendor or an agency offering a service, an advertising or partnership offer, a newsletter, recruiting, a survey), write no reply: put one short sentence in `pitch`, under 20 words, saying what it is and who from, and leave every other field empty. The page already says it is not a customer and that no reply is needed, so the sentence says neither. Otherwise leave `pitch` empty.";
-
-/** A pitch's sentence is under this many words, as PITCH_RULE says. */
-const PITCH_WORDS_UNDER = 20;
-
-/** Where a pitch's sentence parts into clauses: a comma, a semicolon or a colon, a spaced dash, a sentence's end. */
-const CLAUSE_EDGE = /(\s*[;,:]\s*|\s+[—–-]\s+|(?<=[.!?])\s+)/;
-
-/** A clause that says what the page already says beside the sentence: not a customer, not someone served, no reply. */
-const SAYS_THE_VERDICT = [
-  /\bnot (?:a |an |one of )?(?:your |their |the business's )?(?:customer|client|prospect)s?\b/i,
-  /\bneither (?:a |an )?(?:customer|client|prospect)\b/i,
-  /\bnot someone (?:you|they|the business) serves?\b/i,
-  /\bno (?:reply|response|answer)\b/i,
-  /\bno need to (?:reply|respond|answer)\b/i,
-];
-
-const tidyEnd = (s: string): string => s.replace(/[\s,;:—–-]+$/, "");
-
-/**
- * The model's pitch, held to PITCH_RULE in code, as a price is (unasked): a clause that says the verdict is left out, and
- * the clauses that fit under the word limit are kept; a first clause too long for it is cut, and says so with an ellipsis.
- * The rule alone did not hold: of the three pitches kept on 2 and 3 Nov 2026, all ran to 20 words or more and two said "not
- * a customer" after the page's own "Not someone you serve?". A sentence that is the verdict alone keeps its words: that
- * it is a pitch is worth more than how it is said.
- */
-function pitchKept(said: string): string {
-  // The split keeps each edge between its clauses (CLAUSE_EDGE captures it), so a clause kept is joined as it was written.
-  let kept = "";
-  let words = 0;
-  let edge = "";
-  for (const [i, piece] of said.trim().split(CLAUSE_EDGE).entries()) {
-    if (i % 2) {
-      edge = piece;
-      continue;
-    }
-    const clause = piece.trim();
-    if (!clause || SAYS_THE_VERDICT.some((r) => r.test(clause))) continue;
-    const n = clause.split(/\s+/).length;
-    if (kept && words + n >= PITCH_WORDS_UNDER) break;
-    kept = kept ? `${kept}${edge}${clause}` : clause;
-    words += n;
-  }
-  const sentence = kept || said.trim();
-  const all = sentence.split(/\s+/);
-  const within =
-    all.length >= PITCH_WORDS_UNDER ? `${tidyEnd(all.slice(0, PITCH_WORDS_UNDER - 1).join(" "))}…` : tidyEnd(sentence);
-  if (!within) return "";
-  const ended = /[.!?…]$/.test(within) ? within : `${within}.`;
-  return ended.charAt(0).toUpperCase() + ended.slice(1);
-}
-
 function shapeRules(input: DraftInput): string[] {
   if (input.how === "call")
     return [
-      "Leave `pitch` empty.",
       "The owner will phone them. Leave `text` and `subject` empty and write the brief:",
       // Who phones is not known when the brief is written (Today's queue drafts it ahead), and a name may not be invented:
       // the opening read "Hi, this is calling from Chanlytics" (27 Oct 2026).
@@ -171,7 +101,6 @@ function shapeRules(input: DraftInput): string[] {
     ];
   const wire = input.wire ?? "whatsapp";
   return [
-    ...(input.answering ? [PITCH_RULE] : ["Leave `pitch` empty."]),
     `It goes by ${writeWireName(wire)}. Write \`text\`: the message itself, ready to send, with no signature.`,
     wire === "email"
       ? "It is an email: write `subject` too, under nine words, saying what it is about. `text` is under 140 words, in short paragraphs."
@@ -246,9 +175,6 @@ function unasked(written: string, given: string): "priced" | "money" | null {
 /** What is kept of the model's answer: questions alone, or the words, or the brief; a note with no price in it. */
 function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInput): PersonDraftDto {
   const lines = known.who.facts.slice(0, FACTS_SHOWN).map((f) => `${f.label}: ${f.value}`);
-  // What they wrote was not a customer's: said, and nothing written. Only a reply's: a first message is the owner's.
-  const pitch = input.answering && input.how === "message" ? pitchKept(answer.pitch) : "";
-  if (pitch) return { asks: [], text: "", subject: "", note: "", brief: null, facts: lines, pitch };
   const wrote = input.how === "call" ? !!answer.opening || answer.points.length > 0 : !!answer.text;
   // A question is asked alone. One the member already answered, beside words that were written, is let go.
   if (answer.asks.length && !(wrote && input.answers?.length)) {
@@ -259,7 +185,6 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInp
       note: "",
       brief: null,
       facts: lines,
-      pitch: "",
     };
   }
   // What the member gave: the plan, their answers, and the draft they hand back to be rewritten, which holds their own
@@ -280,7 +205,6 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInp
         note,
         brief: { opening: answer.opening, points: answer.points, avoid: answer.avoid, ask: answer.ask },
         facts: lines,
-        pitch: "",
       }
     : {
         asks: [],
@@ -289,7 +213,6 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInp
         note,
         brief: null,
         facts: lines,
-        pitch: "",
       };
 }
 
@@ -313,15 +236,8 @@ export async function draftFrom(known: DraftKnown, input: DraftInput): Promise<P
   return draftKept(answer, known, input);
 }
 
-/**
- * What a draft is asked for: the route's input (a first message goes by a wire a yes covers), or a thread's reply, which
- * goes where they last wrote, an Instagram DM among them (drafts.ts draftForThread).
- */
-type DraftInput = Omit<PersonDraftInput, "wire"> & {
-  wire?: WrittenChannel;
-  /** A thread's reply to what they wrote (drafts.ts), which may find it was a pitch; never a first message. */
-  answering?: boolean;
-};
+/** What a draft is asked for: the route's input (a first message goes by a wire a yes covers). */
+type DraftInput = Omit<PersonDraftInput, "wire"> & { wire?: WrittenChannel };
 
 /** The route's handle: the person as their page reads them, the business as its settings say it, then the draft. */
 export async function draftForPerson(rc: ReaderContext, id: string, input: DraftInput): Promise<PersonDraftDto> {

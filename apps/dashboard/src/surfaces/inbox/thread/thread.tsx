@@ -50,11 +50,9 @@ import { glideHeight } from "../../kit/motion/use-height-glide";
 import { riseWithKeys } from "../../kit/motion/keys-rise";
 import { dockSwipe } from "../../kit/sheet/dock";
 import { SheetHandle, type SheetRestControl } from "../../kit/sheet/handle";
-import { repliesDoor } from "./shell-thread";
 import type { Approval, RealThread, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
 import { Composer } from "./composer";
-import { keptPitchNow } from "./kept-draft";
 import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
 import { composerAside, ThreadStatus, type Stale, type StatusProps } from "./status";
@@ -341,7 +339,9 @@ function openOnTap(foot: RefObject<HTMLDivElement | null>, setFolded: (v: boolea
       if (!at || Math.hypot(e.clientX - at.x, e.clientY - at.y) >= GRAB_AT) return;
       drawnNow(() => setFolded(false));
       const field = foot.current?.querySelector<HTMLTextAreaElement>("textarea.ix-composer-text");
-      if (!field || field === document.activeElement || !(e.target as Element).closest?.(".ix-composer-glance")) return;
+      // A glance that offers a draft puts it in (composer.tsx foldedGlance), and the keys stay down: it may be sent as it is.
+      if (!field || field === document.activeElement) return;
+      if (!(e.target as Element).closest?.(".ix-composer-glance:not([data-offers])")) return;
       field.focus({ preventScroll: true });
       field.setSelectionRange(0, 0);
     },
@@ -555,8 +555,8 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
   const clientId = thread.clientId;
   const row = personOnThread(thread.conversationId, clientId)?.row ?? null;
   if (!clientId || !row || demoSession() || thread.archived || thread.primaryChannel !== "email") return null;
-  // The dock asks it, where the receptionist's draft found it was not a customer's (status.tsx notACustomerAct).
-  if (keptPitchNow(thread)) return null;
+  // The dock asks it, where the thread was set aside as not a customer's (status.tsx setAsideBar).
+  if (thread.setAside) return null;
   if (!mayAtLeast("owner") || row.threads > 1 || row.deal || row.nextVisitLine || row.lastVisitLine) return null;
   return (
     <div className="ix-first-email" data-testid="ix-first-email">
@@ -602,7 +602,6 @@ function approvalBox(p: Held, thread: Thread, decided: boolean) {
 /** The thread's own reply box, and what it draws beside its Send (status.tsx composerAside: Hand back). */
 function replyBox(p: Held, thread: Thread, decided: boolean, aside: ReactNode) {
   const { onSend, onVetoAct } = p;
-  const replies = repliesDoor();
   return (
     (!thread.approval || decided) &&
     (thread.real || thread.state !== "done") && (
@@ -610,7 +609,8 @@ function replyBox(p: Held, thread: Thread, decided: boolean, aside: ReactNode) {
         thread={thread}
         // A real draft counting down stands once, as the next bubble with its countdown (heldDraftRow): the box holds the
         // member's own words, and Edit puts the draft's in it (thread-verbs.tsx).
-        reply={thread.veto ? (thread.real ? "" : thread.veto.draft) : replies ? replies.draftOf(thread.id) : ""}
+        // A reach-out's reply has its draft in the thread's one store since decision 0093: Use draft, as every thread has.
+        reply={thread.veto && !thread.real ? thread.veto.draft : ""}
         onType={thread.veto ? () => onVetoAct(thread.id, "type") : null}
         onSend={onSend}
         aside={aside}

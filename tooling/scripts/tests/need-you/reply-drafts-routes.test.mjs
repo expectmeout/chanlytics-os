@@ -1,9 +1,9 @@
 /**
- * Ask's drafts written ahead for Today's Need you (decision 0071, 00475), run through route(): the real route modules,
- * their `run` called with a database in memory. What is proved here is who may and what is turned away at the door, what
- * a read answers, and that a draft kept for their newest message is answered as kept, with no model asked. What the
- * person draft writes is proved over a fake model (new-conversation/person-draft.test.mjs), and the door that keeps a
- * draft on a real database (reply-drafts.db.test.mjs).
+ * A thread's drafts (decision 0093, 00538), run through route(): the real route modules, their `run` called with a database
+ * in memory. What is proved here is who may and what is turned away at the door, what a read answers, and that a page never
+ * writes a first draft: a change goes through the edge's door, which a preview does not call. What the writer writes is proved
+ * over a fake brain (reach-out-replies/reply-draft.test.mjs), and the doors that keep a draft on a real database
+ * (reply-drafts.db.test.mjs).
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -21,8 +21,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
 const draft = await import(at("apps/dashboard/app/api/v1/conversations/[id]/draft/route.ts"));
 const drafts = await import(at("apps/dashboard/app/api/v1/conversations/drafts/route.ts"));
-const { REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX } = await import("@chanlytics/contracts");
-const { PERSON_DRAFT_RULES } = await import(at("apps/dashboard/src/server/new-conversation/person-draft.ts"));
+const { REPLY_DRAFT_RULES, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX } = await import("@chanlytics/contracts");
 
 let asked;
 beforeEach(() => {
@@ -75,7 +74,12 @@ const kept = (conv, forMessage, text, tenant = A) => ({
   conversation_id: conv,
   kind: "reply",
   for_message_id: forMessage,
-  words: { rules: PERSON_DRAFT_RULES, text, subject: "", brief: null, asks: [] },
+  words: { text, subject: "", brief: null, asks: [] },
+  rules: REPLY_DRAFT_RULES,
+  state: text ? "ready" : "pitch",
+  source: "hold",
+  used: ["their message"],
+  why_failed: null,
   made_by: USER,
   made_at: "2026-10-23T12:00:00.000Z",
 });
@@ -107,7 +111,7 @@ test("who may ask for a draft and read the kept ones, and how often", () => {
     rate: "person_draft",
     spend: false,
   });
-  assert.equal(draft.maxDuration, 60, "a model call that reads the person first");
+  assert.equal(draft.maxDuration, 60, "a model call at the edge, with the member waiting");
   assert.deepEqual(drafts.GET.policy, { kind: "read", scope: "workspace", role: null, rate: null, spend: false });
 });
 
@@ -152,10 +156,10 @@ test("a draft kept for their newest message is answered as kept: no model, no wr
   assert.equal(writes(ctx), 0);
 });
 
-test("a draft kept under an earlier edition of the rules is no draft: the read leaves it out, and asked for, it is written again (the live walk's TODAY-5, 27 Oct 2026)", async () => {
+test("a draft kept under an earlier edition of the rules is no draft: the read leaves it out, and it is never handed back (the live walk's TODAY-5, 27 Oct 2026)", async () => {
   const before = {
     ...kept(C1, M1, "Hi, this is calling from Chanlytics."),
-    words: { text: "Hi, this is calling from Chanlytics.", subject: "", brief: null, asks: [] },
+    rules: REPLY_DRAFT_RULES - 1,
   };
   const tables = () => ({
     memberships: [membership("owner")],
@@ -166,10 +170,9 @@ test("a draft kept under an earlier edition of the rules is no draft: the read l
   });
   const read = await dataOf(await drafts.GET.run(get(`ids=${C1}`), ctxFor(tables())));
   assert.deepEqual(read.drafts, [], "not answered as kept");
-  // Asked for, it is not answered as kept: the door goes on to write it afresh, reading the person first (a read this world
-  // does not hold, so it stops there; the person draft's own tests prove what it writes).
+  // Asked for, it is not answered as kept: a preview calls no edge, so it has nothing to answer with.
   const again = await draft.POST.run(post({ kind: "reply" }), ctxFor(tables(), { id: C1 })).then(dataOf, (e) => e);
-  assert.ok(again instanceof Error && /people_list/.test(again.message), "past the kept draft, to the person");
+  assert.ok(again instanceof Error, "not the old words");
 });
 
 test("the kept drafts of the threads asked for, this workspace's only, current or not: the page judges", async () => {
@@ -297,6 +300,7 @@ test("the read takes thread ids only, and no more than a card draws", async () =
 test("a kept draft that found they were not a customer is read back with what it found, and no words (2 Nov 2026)", async () => {
   const pitch = "A vendor offering a booking app.";
   const row = { ...kept(C1, M1, ""), words: { ...kept(C1, M1, "").words, pitch } };
+  // And says where it stands.
   const tables = () => ({
     memberships: [membership("owner")],
     conversations: [conversation(C1)],

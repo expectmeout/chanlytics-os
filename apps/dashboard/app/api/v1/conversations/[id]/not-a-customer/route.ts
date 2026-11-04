@@ -1,0 +1,17 @@
+import { notACustomer } from "@chanlytics/core";
+import { z } from "zod";
+import { write } from "@/server/route";
+import { conversationScope } from "@/server/verbs";
+import { threadPorts } from "@/server/ports/core-ports";
+
+/**
+ * Not a customer, on a thread set aside (decision 0093): off the list, still archived, its sender's address automated, and
+ * with `undo` all of it back. A member who acts, as a hand-back is.
+ */
+export const POST = write({
+  scope: conversationScope,
+  role: "operator",
+  rate: "thread_state",
+  input: z.object({ undo: z.boolean().default(false) }),
+  handle: ({ ctx, row: conv, input }) => notACustomer(threadPorts(ctx), { conv, undo: input.undo }),
+});

@@ -74,6 +74,22 @@ function senderFactsOf(e: MailboxEmail, from: string): SenderFacts {
  * own words about what it does, are read once, at the first stranger.
  */
 export function senderReaderFor(db: Db, tenantId: string, log: Logger): SenderReader {
+  const read = senderFactsReaderFor(db, tenantId, log);
+  return async (e, until) => {
+    const from = normalizeEmail(e.from?.address);
+    return from ? read(senderFactsOf(e, from), until) : null;
+  };
+}
+
+/**
+ * The same reader over the facts alone, where no mailbox's email is to hand: an email already taken in, whose headers were
+ * not kept, read by what is (decision 0093: the hosted address, and a thread's draft).
+ */
+export function senderFactsReaderFor(
+  db: Db,
+  tenantId: string,
+  log: Logger,
+): (facts: SenderFacts, until: number) => Promise<SenderReading | null> {
   let may: Promise<{ name: string | null; about: string | null } | null> | null = null;
   const mayRead = () =>
     (may ??= (async () => {
@@ -85,8 +101,8 @@ export function senderReaderFor(db: Db, tenantId: string, log: Logger): SenderRe
       log.warn("mailbox_sender_unread", { stage: "may_read", error: errField(err) });
       return null;
     }));
-  return async (e, until) => {
-    const from = normalizeEmail(e.from?.address);
+  return async (facts, until) => {
+    const from = normalizeEmail(facts.from.address);
     const ms = Math.min(READ_MS, until - Date.now() - LINE_MARGIN_MS);
     if (!from || ms <= 0) return null;
     const ready = await mayRead();
@@ -96,7 +112,7 @@ export function senderReaderFor(db: Db, tenantId: string, log: Logger): SenderRe
       const answered = await askJson({
         purpose: "sender_read",
         system,
-        user: senderReadingAsk(senderFactsOf(e, from)),
+        user: senderReadingAsk(facts),
         schema: SENDER_READING_SCHEMA,
         maxTokens: SENDER_READ_MAX_TOKENS,
         plainJsonHint: "Answer with only a JSON object in the shape asked.",

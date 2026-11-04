@@ -72,6 +72,11 @@ export async function healthParts(db: Db, days: number) {
   return db.rpc("platform_health_parts", { p_days: days });
 }
 
+/** What the replies sent over the last `days` did with the thread's draft (00539 reply_draft_uses). */
+export async function healthDraftUses(db: Db, days: number) {
+  return db.rpc("reply_draft_uses", { p_days: days });
+}
+
 /** Every workspace's name and address, and whether it is ours: Health names a row's workspace and splits by it. */
 export async function healthWorkspaces(db: Db, limit: number) {
   return db.from("tenants").select("id, slug, name, status, ours").order("created_at").limit(limit);

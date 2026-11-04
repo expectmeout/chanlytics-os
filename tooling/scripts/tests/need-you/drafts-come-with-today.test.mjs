@@ -50,11 +50,18 @@ function draft(conversation, forMessage, text) {
     made_at: "2026-10-27T12:00:00.000Z",
   };
 }
-const want = (conversationId, forMessageId) => ({ conversationId, kind: "reply", forMessageId });
+const want = (conversationId, forMessageId, over = {}) => ({
+  conversationId,
+  kind: "reply",
+  forMessageId,
+  expected: true,
+  askedAtMs: Date.now(),
+  ...over,
+});
 /** A row's draft as it draws, now: the hook over the stub React. */
-const drawn = (w, may = true) => {
+const drawn = (w) => {
   fresh();
-  return useDraft(w, may);
+  return useDraft(w);
 };
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
@@ -70,53 +77,51 @@ test("a row whose draft came with Today's reads draws with its words from its fi
   assert.equal(first.draft.words.text, "Friday works.");
   assert.equal(drawn(want("c-1", "m-1")), first, "the same state each draw, as a store's snapshot must be");
   assert.deepEqual(
-    useDraftCounts([want("c-1", "m-1")], true),
+    useDraftCounts([want("c-1", "m-1")]),
     { replies: 1, briefs: 0, writing: 0 },
     "the line over the rows stands with them",
   );
-  await wantDrafts([want("c-1", "m-1")], true);
-  assert.deepEqual(asked, [], "no read of its thread, no draft written");
+  await wantDrafts([want("c-1", "m-1")]);
+  assert.deepEqual(asked, [], "no read of its thread");
 });
 
-test("where the newest came whole, a row with none is Ask writing from its first frame for a member who acts, and none for a viewer; only the writing is asked for", async () => {
+test("where the newest came whole, a row with none says a draft is on its way where one is owed, and nothing writes it from here (decision 0093)", async () => {
   asked.length = 0;
   setSurfaceValue("reply_drafts", {
     drafts: [draft("c-1", "m-1", "Friday works."), draft("c-7", "m-1", "Monday, then.")],
     complete: true,
     fetchedAt: Date.now(),
   });
-  assert.equal(drawn(want("c-2", "m-2"), true)?.state, "writing");
-  assert.equal(drawn(want("c-3", "m-3"), false)?.state, "none");
-  // A draft kept for an older message is none of this one's: they have said more.
-  assert.equal(drawn(want("c-7", "m-9"), true)?.state, "writing");
-  // And one the tab holds for an older message is none of it either: the row never draws words that answer less than it shows.
-  assert.equal(drawn(want("c-1", "m-9"), true)?.state, "writing");
-  await wantDrafts([want("c-2", "m-2")], true);
-  await settle();
-  assert.deepEqual(
-    asked,
-    ["POST /api/v1/conversations/c-2/draft"],
-    "the missing draft is written; nothing is read for it",
+  assert.equal(drawn(want("c-2", "m-2"))?.state, "writing");
+  assert.equal(drawn(want("c-3", "m-3", { expected: false }))?.state, "none", "none owed");
+  assert.equal(
+    drawn(want("c-3", "m-3", { askedAtMs: Date.now() - 3_600_000 }))?.state,
+    "none",
+    "and none said to come for ever",
   );
-  assert.equal(drawn(want("c-2", "m-2"))?.state, "ready", "and it is drawn once written");
-  asked.length = 0;
-  await wantDrafts([want("c-3", "m-3")], false);
-  assert.deepEqual(asked, [], "a viewer asks for nothing");
+  // A draft kept for an older message is none of this one's: they have said more.
+  assert.equal(drawn(want("c-7", "m-9"))?.state, "writing");
+  await wantDrafts([want("c-2", "m-2")]);
+  await settle();
+  assert.deepEqual(asked, [], "REGRESSION: a page wrote the draft it drew");
 });
 
-test("past the newest the workspace keeps, a row's draft is read by its thread, as before", async () => {
+test("past the newest the workspace keeps, a row's draft is read by its thread, once", async () => {
   asked.length = 0;
   keptOnServer.set("c-4", draft("c-4", "m-4", "Tuesday is open."));
   setSurfaceValue("reply_drafts", { drafts: [], complete: false, fetchedAt: Date.now() });
-  assert.equal(drawn(want("c-4", "m-4")), null, "not known yet: its thread's read is still to come");
-  await wantDrafts([want("c-4", "m-4"), want("c-5", "m-5")], true);
+  assert.equal(drawn(want("c-4", "m-4"))?.state, "writing", "owed, and not read yet");
+  await wantDrafts([want("c-4", "m-4"), want("c-5", "m-5")]);
   await settle();
-  assert.deepEqual(asked, ["GET /api/v1/conversations/drafts?ids=c-4,c-5", "POST /api/v1/conversations/c-5/draft"]);
+  assert.deepEqual(asked, ["GET /api/v1/conversations/drafts?ids=c-4,c-5"]);
   assert.equal(
     drawn(want("c-4", "m-4")).draft.words.text,
     "Tuesday is open.",
     "the thread's kept draft, read by its thread",
   );
+  asked.length = 0;
+  await wantDrafts([want("c-5", "m-5")]);
+  assert.deepEqual(asked, [], "asked once a message");
 });
 
 test("a row draws again as the drafts Today read come in: the store hears the surface move", () => {

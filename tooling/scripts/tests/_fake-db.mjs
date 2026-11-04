@@ -935,6 +935,7 @@ export const FAKE_JOB_KINDS = {
   canary: [0, ["@tenant"], false],
   line_provision: [1, null, false],
   reply_read: [1, ["message_id", "stage=read"], true],
+  reply_draft: [0, ["conversation_id", "draft_kind", "message_id?", "rules"], false],
   booking_read: [1, ["@tenant", "received_id"], false],
   website_read: [1, ["@tenant"], false],
   preview_build: [1, ["preview_id"], false],

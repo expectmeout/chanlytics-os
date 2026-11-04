@@ -101,6 +101,8 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   make_sequence: "campaigns",
   discard_sequence: "campaigns",
   answer_booking_request: "calendar",
+  not_a_customer: "conversations",
+  reply_anyway: "conversations",
 };
 
 /** The word an event kind is filed under: `message` of `message.sent`. */

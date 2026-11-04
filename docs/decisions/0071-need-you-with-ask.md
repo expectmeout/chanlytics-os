@@ -19,7 +19,7 @@ alone. A send's grace (fifteen seconds on the server) was offered for the four s
    waiting are rows after the people (two at most, with the reviews to answer), and Ask for you is gone. Over the rows,
    one line of Ask's says what it prepared and the one thing that cannot wait (`needYouSay`); it never prints the
    morning's answer. The morning question makes no card that only answers or rings someone already waiting.
-2. **Drafts ahead (E2).** Each row a reply is written for (a handoff, a closing window, a reach-out's reply) opens with
+2. **Drafts ahead (E2; amended by [0093](0093-a-reply-is-drafted-once-by-the-receptionist-when-it-is-owed.md): written when a hold owes one, never when a row is drawn).** Each row a reply is written for (a handoff, a closing window, a reach-out's reply) opens with
    Ask's draft in it, and a call back with Ask's brief for the call: written once by the person draft (its rules, its
    refusal of a price), kept on the thread (`conversation_drafts`, through `conversation_draft_keep`) until the customer
    writes again, so every tab and teammate reads one model call's words. Only a member who acts has drafts written; a

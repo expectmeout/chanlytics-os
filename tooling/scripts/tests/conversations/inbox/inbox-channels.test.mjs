@@ -199,8 +199,8 @@ test("an email thread: email is the channel, its words carry their subject line,
   );
   assert.equal(
     vm.summary,
-    // Decision 0073, R15: nothing goes by email on its own; the reply waits drafted in Need you (decision 0071).
-    "They wrote by email. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
+    // Decision 0073, R15: nothing goes by email on its own. It promises no draft (decision 0093): the draft says itself.
+    "They wrote by email. Nothing was sent: email is always yours to answer.",
   );
   assert.equal(
     contactMeta(conv({ contact: { ...person, display_name: "Ana Reyes" } }), "Email"),

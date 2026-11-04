@@ -156,7 +156,11 @@ const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
       ),
     };
   if (thread.state !== "done" || thread.resolution) return null;
-  if (thread.archived) return { pill: <StatePill kind="thread" value="archived" label="Archived" lit /> };
+  // Set aside is archived underneath (00539), and is not what the member reads it as: the list it stands in says so.
+  if (thread.archived)
+    return {
+      pill: <StatePill kind="thread" value="archived" label={thread.setAside ? "Set aside" : "Archived"} lit />,
+    };
   if (thread.veto) return null;
   // A reply that didn't send, or what they wrote held and closed with nothing sent (contracts unansweredOf), wears the
   // row's own pill and, beside it, how long they have waited. Every other thread nothing waits on is handled.

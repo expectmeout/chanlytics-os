@@ -43,6 +43,8 @@ export function conversationDtoOf(row: VerbConversation, userId: string): Omit<C
     state: row.state as ConversationDto["state"],
     paused_until: row.paused_until,
     snooze_until: row.snooze_until,
+    set_aside_at: row.set_aside_at,
+    set_aside_why: row.set_aside_why,
     assignee_user_id: row.assignee_user_id,
     assignee_is_me: row.assignee_user_id ? row.assignee_user_id === userId : undefined,
     last_wa_inbound_at: row.last_wa_inbound_at,
