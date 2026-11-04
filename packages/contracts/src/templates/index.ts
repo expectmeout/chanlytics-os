@@ -15,7 +15,7 @@ export {
   whatsappStoppedRunWords,
 } from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
-export { emailFoot, emailFootHtml } from "./email-foot";
+export { customerEmailFoot, emailFoot, emailFootHtml } from "./email-foot";
 export type { EmailFoot, LinkedFoot } from "./email-foot";
 export {
   inboxBlankOf,
@@ -182,6 +182,7 @@ export {
   templateUsage,
   templateUseNote,
   templateUseWords,
+  testParamsOf,
   validateTemplateDraft,
 } from "./templates";
 export type {

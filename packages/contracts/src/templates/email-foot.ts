@@ -141,3 +141,28 @@ export function emailFootHtml(
     `<a href="${escapeHtml(p.url)}">${escapeHtml(w.unsubscribe)}</a></p>`
   );
 }
+
+/**
+ * A customer's email's foot (00440's runs), the one choice the send, its preview and Send me a test make: an offer's where
+ * the email is one (consent isOfferByEmail says so; `offer` is why they may get it and the link that unsubscribes them),
+ * in text and in HTML beside the link the request's headers carry; else a message about their own visit or proposal's,
+ * its reason from what their row kept (`facts`), in text alone. Throws where an offer's foot lacks its address or link
+ * (emailFoot): the send holds the person first.
+ */
+export function customerEmailFoot(o: {
+  business: string;
+  address: string | null | undefined;
+  language: string | null;
+  offer: { why: "customer" | "asked"; unsubscribeUrl: string } | null;
+  facts: Record<string, unknown>;
+}): { footer: string; offer?: { unsubscribeUrl: string; footerHtml: string } } {
+  if (!o.offer) return { footer: emailFoot(o.business, o.address, { kind: "visit", facts: o.facts }, o.language) };
+  const offer = { kind: "offer" as const, ...o.offer };
+  return {
+    footer: emailFoot(o.business, o.address, offer, o.language),
+    offer: {
+      unsubscribeUrl: o.offer.unsubscribeUrl,
+      footerHtml: emailFootHtml(o.business, o.address, offer, o.language),
+    },
+  };
+}

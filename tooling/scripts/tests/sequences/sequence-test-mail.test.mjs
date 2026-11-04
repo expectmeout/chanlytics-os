@@ -11,17 +11,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { buildEmailRequest } from "@chanlytics/channels";
 import { leadStepOpeningOf } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
 import {
   OFFERS_BY_EMAIL_WORDS,
   SEQUENCE_TEST_LIMITS,
-  coldEndingOf,
+  customerEmailFoot,
   leadFactOf,
   leadOpeningOf,
   leadStepTestMail,
   noVersionWords,
   reachOutExampleLead,
+  renderOwnVersion,
   smsStopLine,
   stepTestMail,
 } from "@chanlytics/contracts";
@@ -45,6 +47,7 @@ const step = (over = {}) => ({
   place: 2,
   business: "Harbor Dental",
   address: null,
+  bookingLink: null,
   channels: ["whatsapp", "email", "sms"],
   params: PARAMS,
   policyClass: "booking",
@@ -52,12 +55,12 @@ const step = (over = {}) => ({
   ...over,
 });
 
-test("a step by WhatsApp, email and text: each in its own words, filled for Dani, the email's subject its subject", () => {
+test("a step by WhatsApp, email and text: one line, then each channel under its label in its own words, filled for Dani, the email's subject the test's", () => {
   const mail = stepTestMail(step());
   assert.ok(!("missing" in mail), JSON.stringify(mail));
   assert.equal(mail.subject, "Test: A note, Dani");
   const t = mail.text;
-  assert.ok(t.startsWith("A test of what Harbor Dental sends, filled in for an example person, Dani."), t);
+  assert.ok(t.startsWith("Test of step 2, as an example person, Dani, would get it. Only you got this.\n\n—\n\n"), t);
   // WhatsApp's heading, words, the line under them and its button, in that order.
   const wa = t.indexOf("On WhatsApp");
   assert.ok(wa > 0, t);
@@ -68,12 +71,70 @@ test("a step by WhatsApp, email and text: each in its own words, filled for Dani
     "[Book now]",
   ].entries())
     assert.ok(t.indexOf(said, wa) > wa, `${i}: ${said}`);
-  assert.ok(t.includes("Subject: A note, Dani"), t);
   assert.ok(t.includes("Hi Dani, we'll see you tomorrow at 2:00 PM at Harbor Dental."), t);
   assert.ok(t.includes(`Hi Dani, see you tomorrow at 2:00 PM.`) && t.includes(smsStopLine("en_US")), t);
-  // In the page's channel order: WhatsApp, text, email.
+  // In the page's channel order: WhatsApp, text, email, each its own block.
   assert.ok(t.indexOf("On WhatsApp") < t.indexOf("By text") && t.indexOf("By text") < t.indexOf("By email"), t);
-  assert.ok(t.trimEnd().endsWith("You got this because you pressed Send me a test."), t);
+  assert.equal(t.split("\n\n—\n\n").length, 4, "the line, then three messages");
+  // Its subject is the test's own: never said again in its words, and no line of the test's own under the message.
+  assert.ok(!t.includes("Subject:"), t);
+  assert.ok(!t.includes("You got this"), t);
+});
+
+test("a step by email alone is the line over the email the send makes for that person: its words, the foot their row's facts say, as the wire lays it out", () => {
+  const proposal = {
+    params: [{ kind: "first_name" }, { kind: "proposal_link" }, { kind: "booking_link" }],
+    channels: ["email"],
+    policyClass: "follow_up",
+    address: "1 Dock St, Harbor, ME 04000",
+    bookingLink: "https://book.example.com/harbor",
+    message: {
+      whatsapp: null,
+      versions: {
+        email: { subject: "The link from our call", body: "Hi {{1}},\n\nHere it is: {{2}}\n\nOr book a time: {{3}}" },
+      },
+      language: "en_US",
+      category: "utility",
+    },
+  };
+  const mail = stepTestMail(step(proposal));
+  assert.ok(!("missing" in mail), JSON.stringify(mail));
+  assert.equal(mail.subject, "Test: The link from our call");
+  // What the send writes for a person whose row kept their proposal's link: the one fill, the foot the send chooses.
+  const values = ["Dani", "[their proposal's link]", "https://book.example.com/harbor"];
+  const said = renderOwnVersion("email", proposal.message.versions.email, values, "en_US");
+  const foot = customerEmailFoot({
+    business: "Harbor Dental",
+    address: proposal.address,
+    language: "en_US",
+    offer: null,
+    facts: { proposal_link: "[their proposal's link]" },
+  });
+  const sent = buildEmailRequest({
+    identity: { fromName: "Harbor Dental", fromAddress: "harbor@mail.example.com", replyTo: "r+tok@mail.example.com" },
+    to: "dani@example.com",
+    parent: null,
+    subject: said.subject,
+    body: said.body,
+    // A message about their own visit or proposal carries its foot where a signature goes (jobs emailRequestPort).
+    signature: foot.footer,
+    actor: "ai",
+    messageId: "11111111-1111-4111-8111-111111111111",
+    tenantId: "22222222-2222-4222-8222-222222222222",
+  });
+  assert.equal(
+    mail.text,
+    `Test of step 2, as an example person, Dani, would get it. Only you got this.\n\n—\n\n${sent.text}`,
+    "one line, then the email as it leaves",
+  );
+  assert.equal(`Test: ${sent.subject}`, mail.subject);
+  assert.match(
+    sent.text,
+    /You're getting this about your proposal from Harbor Dental\./,
+    "the foot says why, as theirs",
+  );
+  assert.match(sent.text, /Here it is: \[their proposal's link\]/, "a link only a real person has, said as a stand-in");
+  assert.match(sent.text, /Or book a time: https:\/\/book\.example\.com\/harbor/, "the workspace's own link, as set");
 });
 
 test("an email about the person's own visit carries a visit's foot; the business's news carries an offer's, and owes its address", () => {
@@ -118,6 +179,8 @@ test("a lead's test mail says the name the business is called by, in its words a
     example: false,
     opening: null,
     workspace: { businessName: "Harbor Studio" },
+    signsWith: "name",
+    signature: null,
   });
   assert.ok("text" in mail, mail.why);
   assert.match(mail.subject, /For R&T Mechanical/);
@@ -152,14 +215,6 @@ const COLD = {
 };
 
 test("a lead's test mail is the email the send makes for them, word for word: the opening it goes with, its subject once, its ending and its foot", () => {
-  const ending = coldEndingOf({
-    signsWith: "name",
-    signedBy: "Sam",
-    signature: null,
-    first: true,
-    body: COLD.words.body,
-    address: COLD.address,
-  });
   const mail = leadStepTestMail({
     sequence: "Local",
     place: 1,
@@ -171,7 +226,8 @@ test("a lead's test mail is the email the send makes for them, word for word: th
     example: false,
     opening: COLD.opening,
     workspace: { businessName: COLD.business, yourName: "Sam", bookingLink: null },
-    ending,
+    signsWith: "name",
+    signature: null,
   });
   assert.ok("text" in mail, mail.why);
   const sent = reachOutRequest({
@@ -200,6 +256,54 @@ test("a lead's test mail is the email the send makes for them, word for word: th
   assert.ok(!mail.text.includes("[A line about"), "an opening written is said, never the line to come");
 });
 
+test("a nudge's test is the nudge the send makes: under 'Re:' the first email's subject once, signed with the mailbox's signature as the send signs it", () => {
+  const words = { subject: null, body: "{{opening}}\n\nJust checking this reached you." };
+  const signature = "Sam Rivera\nHarbor Studio\nhttps://harbor.example";
+  const mail = leadStepTestMail({
+    sequence: "Local",
+    place: 2,
+    business: COLD.business,
+    address: COLD.address,
+    words,
+    thread: "Re: RE: missed calls",
+    lead: COLD.lead,
+    example: false,
+    opening: COLD.opening,
+    workspace: { businessName: COLD.business, yourName: "Sam", bookingLink: null },
+    signsWith: "mailbox",
+    signature,
+  });
+  assert.ok("text" in mail, mail.why);
+  const sent = reachOutRequest({
+    tenantId: "22222222-2222-4222-8222-222222222222",
+    messageId: "11111111-1111-4111-8111-111111111112",
+    contactId: "33333333-3333-4333-8333-333333333333",
+    to: "owner@rt-mechanical.example",
+    words,
+    lead: COLD.lead,
+    workspace: { businessName: COLD.business, yourName: "Sam", bookingLink: null, address: COLD.address },
+    opening: COLD.opening,
+    signsWith: "mailbox",
+    from: { address: "sam@harbor.example", from_name: "Sam", signature },
+    unsubscribe: { secret: "a-secret-only-this-file-holds", origin: "https://app.chanlytics.com" },
+    parent: {
+      messageId: "44444444-4444-4444-8444-444444444444",
+      rfcMessageId: "<first@harbor.example>",
+      references: [],
+      subject: "Re: RE: missed calls",
+    },
+  });
+  assert.equal(sent.ok, true, JSON.stringify(sent));
+  assert.equal(sent.request.subject, "Re: missed calls");
+  assert.equal(mail.subject, `Test: ${sent.request.subject}`, "'Re:' once, as the wire says it");
+  assert.equal(
+    mail.text,
+    `Test of step 2, as R&T Mechanical gets it. Only you got this.\n\n—\n\n${sent.request.text}`,
+    "the nudge as it leaves, its signature and all",
+  );
+  assert.match(sent.request.text, /\n\nSam Rivera\nHarbor Studio\n/, "signed with the mailbox's signature");
+});
+
 test("the example business's test says it is one, and its opening is the line still to come", () => {
   const mail = leadStepTestMail({
     sequence: "Local",
@@ -212,6 +316,8 @@ test("the example business's test says it is one, and its opening is the line st
     example: true,
     opening: null,
     workspace: { businessName: COLD.business },
+    signsWith: "name",
+    signature: null,
   });
   assert.ok("text" in mail, mail.why);
   const name = reachOutExampleLead().business_name;

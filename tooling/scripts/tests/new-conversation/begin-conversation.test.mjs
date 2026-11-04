@@ -5,13 +5,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady } from "@chanlytics/contracts";
+import { channelsReady, MEMBER_REPLY_STALE_MS } from "@chanlytics/contracts";
 
 const { beginConversation, mayBegin } = await import("../../../../packages/core/src/conversations/begin.ts");
+const { SEND_GRACE_MS } = await import("../../../../packages/core/src/conversations/reply.ts");
 
 const NOW = Date.parse("2026-10-07T15:00:00Z");
 const HOUR = 3_600_000;
 const iso = (ms) => new Date(ms).toISOString();
+/** When a first text queued at NOW is too late to leave by itself (decision 0089): its grace, then half an hour. */
+const STALE_AFTER = iso(NOW + SEND_GRACE_MS + MEMBER_REPLY_STALE_MS);
 const READY = channelsReady({
   whatsapp: { canSend: true, refusal: null },
   textLine: { sms_state: "active", reg_mock: false },
@@ -158,6 +161,7 @@ test("a first text: the thread is opened, the words carry the way to stop, the j
     to_phone: "+12125550143",
     body: FIRST,
     starts: true,
+    stale_after: STALE_AFTER,
   });
   assert.equal(w.call("record")[5].starts, true);
   assert.equal(w.call("claimKey"), undefined, "no key was handed in, so none is claimed");
