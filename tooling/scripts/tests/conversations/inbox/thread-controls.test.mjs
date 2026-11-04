@@ -461,6 +461,27 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
   assert.equal(textOf(trigger).trim(), "", "no word beside it");
 });
 
+test("REGRESSION: on a phone too, More opens the thread's sheet and who it is opens their page -- the name opened the sheet, a chevron beside it, and their page was a press further away (Ruben, 4 Nov 2026)", () => {
+  const win = globalThis.window ?? globalThis;
+  const was = win.matchMedia;
+  win.matchMedia = (q) => ({ matches: q.includes("max-width"), addEventListener() {}, removeEventListener() {} });
+  try {
+    const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
+    const more = find(tree, (n) => n.type === Menu);
+    assert.equal(more.props.trigger.props.className, "ix-th-more", "the ⋯ on its round, at the head's right");
+    const link = find(tree, byTestId("ix-th-person"));
+    assert.ok(link && link.type === "a", "who it is, one link to their page");
+    assert.equal(link.props.href, "#/clients/k1");
+    assert.equal(
+      find(link, (n) => n.type === Menu),
+      undefined,
+      "no menu rides the name",
+    );
+  } finally {
+    win.matchMedia = was;
+  }
+});
+
 /* ------------------------------ what it needs from you ------------------------------ */
 
 test("Needs you: the pill its row wears and how long they have waited, under the name; the reason's one line, its why a press away, and Hand back by the reply box whose Send is the answer -- no white slab", () => {
