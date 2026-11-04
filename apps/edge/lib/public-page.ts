@@ -1,6 +1,6 @@
 /**
- * A business's page, read for the edge's own reading of it: the website read (lib/imports/website-read.ts), the booking
- * page a listing's website names (lib/google/booking-page.ts), a lead's home page for its mark
+ * A business's page, read for the edge's own reading of it: the website read (lib/imports/website-read.ts) and the
+ * booking platform's page it names (lib/google/booking-page.ts finds it), a lead's home page for its mark
  * (lib/leads/lead-marks.ts) and for what a cold email's opening may say (lib/reach-out/check-one.ts). The page is
  * the platform's one reader's (channels sitePageReader: Firecrawl's scrape, drawn as a browser draws it, on the
  * provider's network and never ours). The address is judged first (contracts feedUrlOk), so one inside a private

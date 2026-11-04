@@ -4,8 +4,9 @@
  * each read by the platform's one page reader (lib/public-page.ts sitePage: Firecrawl's scrape, the page's main content
  * as Markdown), and drawn out by the smallest model into a fixed shape (contracts WEBSITE_READ_SCHEMA), its answer read
  * in code (businessReadFactsOf). Kept whole in business_reads, the newest read standing; one that could not be made
- * says why, which Check says. Nothing reaches a customer: the owner taps what is right into the record, a price with
- * its service.
+ * says why, which Check says. The booking page the home page names is found here too, and kept on the listing whose
+ * website this is (google/booking-page.ts). Nothing reaches a customer: the owner taps what is right into the record, a
+ * price with its service.
  *
  * Platform-spent, as a booking notice's reading is: a few pages once, at the first run; never a workspace's spend.
  */
@@ -30,6 +31,7 @@ import { askJson, promptHashOf } from "../model.js";
 import { env } from "../env.js";
 import { sitePage } from "../public-page.js";
 import { wearSiteLook } from "./look.js";
+import { bookingPageFound, keepBookingPageFound } from "../google/booking-page.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
@@ -74,11 +76,17 @@ export async function readWebsite(
   // worn where the workspace has none of its own and no person set them. Kept with the read, model or no model.
   const worn = await wearSiteLook(db, { tenantId, html: home.html, origin: new URL(home.url).origin });
   const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
+  // Where its customers book, off the same home page (3c-4), kept on the listing for Check to offer, model or no model.
+  const bookingFound = bookingPageFound(url, home);
+  if (bookingFound)
+    await keepBookingPageFound(db, tenantId, url, bookingFound).catch((e: unknown) =>
+      L.warn("booking_page_keep_failed", { error: errField(e) }),
+    );
   if (!env.ANTHROPIC_API_KEY) return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
   const more = sitePagesLinkedFrom(home.html, home.url, 2);
   // The booking platform's page, read beside the site's own (the onboarding PRD's P8): where a salon's services,
   // prices and minutes are kept. Read once, and said to the model as the page customers book on.
-  const booking = await bookingPageToRead(db, tenantId, home.url);
+  const booking = await bookingPageToRead(db, tenantId, home.url, bookingFound);
   const pages = [
     { at: url, page: home, booking: false },
     ...(await Promise.all(more.map(async (at) => ({ at, page: await sitePage(at, PAGE_READ), booking: false })))),
@@ -110,7 +118,7 @@ export async function readWebsite(
   }
   const facts = businessReadFactsOf(answer);
   const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
-  L.info("website_read", { pages: pages.length, services: facts.services.length, found });
+  L.info("website_read", { pages: pages.length, services: facts.services.length, found, booking_page: !!bookingFound });
   const kept: Json = {
     services: facts.services,
     closed: facts.closed,
@@ -124,11 +132,17 @@ export async function readWebsite(
 }
 
 /**
- * The booking platform's page to read beside the website: the booking link the business keeps, else the one its
- * listing's website names; only a booking platform's page (contracts bookingToolOfLink), and only on another host than
- * the site read, since a site that is its booking page was read as the home page. Null for none, or a read that failed.
+ * The booking platform's page to read beside the website: the booking link the business keeps, else the one this read
+ * found on the home page, else the one an earlier read found for the listing; only a booking platform's page (contracts
+ * bookingToolOfLink), and only on another host than the site read, since a site that is its booking page was read as
+ * the home page. Null for none, or a read that failed.
  */
-async function bookingPageToRead(db: Db, tenantId: string, siteUrl: string): Promise<string | null> {
+async function bookingPageToRead(
+  db: Db,
+  tenantId: string,
+  siteUrl: string,
+  found: string | null,
+): Promise<string | null> {
   try {
     const [cfgRow, listingRow] = await Promise.all([
       getTenantConfig(db, tenantId),
@@ -136,7 +150,7 @@ async function bookingPageToRead(db: Db, tenantId: string, siteUrl: string): Pro
     ]);
     const link = parseTenantConfig(cfgRow?.config ?? null)?.brain?.booking_link ?? null;
     const named = listingFactsOf(listingRow)?.booking_page ?? null;
-    const page = [link, named].find((u) => !!u && !!bookingToolOfLink(u) && !!feedUrlOk(u)) ?? null;
+    const page = [link, found, named].find((u) => !!u && !!bookingToolOfLink(u) && !!feedUrlOk(u)) ?? null;
     if (!page) return null;
     return new URL(page).hostname === new URL(siteUrl).hostname ? null : page;
   } catch {

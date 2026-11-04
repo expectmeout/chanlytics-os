@@ -586,6 +586,7 @@ export {
   ideasBasis,
   ideasClockAndLanguage,
   keepIdeas,
+  keepLeadMark,
   keepLeadPrices,
   leadAddresseeChoose,
   leadAllowanceOf,
@@ -594,12 +595,20 @@ export {
   leadCountriesOf,
   leadPeopleSearchCreate,
   leadPricesSeen,
+  leadsUnmarked,
   leadViewCounts,
   readIdeaHistory,
   readLeadOne,
   saveIdeasLine,
 } from "./repositories/leads";
-export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./repositories/leads";
+export type {
+  IdeaCustomerRows,
+  IdeasKept,
+  LeadOneLead,
+  LeadOneMember,
+  LeadPricesSeen,
+  LeadToMark,
+} from "./repositories/leads";
 export {
   addToList,
   archiveList,

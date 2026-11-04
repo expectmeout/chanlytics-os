@@ -4,10 +4,9 @@
  * `connectionsDue` are what the sweep (api/cron/google.ts) reads each tick.
  * A connected profile's own read is profile-sync.ts.
  */
-import { emitEvent, type Database } from "../packages/db.js";
+import { emitEvent } from "../packages/db.js";
 import { planListingCheck, type PlaceDetails } from "../packages/channels.js";
-import { bookingPageKept, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
-import { siteBookingPage } from "./booking-page.js";
+import { bookingPageKept, bookingPageOf, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 import { keepAndPush } from "../ops/notify.js";
 import { logger } from "../log.js";
@@ -17,6 +16,7 @@ import { readPlace } from "./places.js";
 import {
   aboutReview,
   connectionOf,
+  keepListing,
   reviewRowIds,
   type ConnectionRow,
   type Db,
@@ -27,10 +27,10 @@ export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
 
 /**
- * Whether a read of a listing reads its website for the booking page it names (lib/google/booking-page.ts). Only the
- * link does, inside its own request and at the owner's press. Every other read keeps what the link found, while the
- * website is the one it was found on: the sweep reads its listings one after another inside its function's time
- * (vercel.json), with no room for a site each.
+ * Whether a read of a listing asks for its website to be read (imports/website-read.ts: for Check, and for the booking
+ * page it names, which that read keeps on the listing, booking-page.ts). Only the link does, at the owner's press, and
+ * no read waits for the site: a page drawn as a browser draws it takes longer than a request can hold. Every other
+ * read keeps what was found, while the website is the one it was found on.
  */
 type SiteRead = "read" | "keep";
 
@@ -42,19 +42,6 @@ type SiteRead = "read" | "keep";
  * rating, the count and the day. Never throws for Google's sake — only for
  * the database's.
  */
-/**
- * The workspace's listing row written with what a read of it says: the public listing's read here (its rating, its
- * count, its facts), and the owner's own profile's details where they are connected (profile-details.ts). One writer.
- */
-export async function keepListing(
-  db: Db,
-  tenantId: string,
-  patch: Database["public"]["Tables"]["google_listings"]["Update"],
-): Promise<void> {
-  const { error } = await db.from("google_listings").update(patch).eq("tenant_id", tenantId);
-  if (error) throw new Error(error.message);
-}
-
 export async function checkListing(
   db: Db,
   row: ListingRow,
@@ -91,12 +78,13 @@ export async function checkListing(
     return { ok: false, error };
   }
 
+  // A website that is itself a page on a booking platform is the booking page, read off its address; any other is
+  // found by the website's read, and kept while the website is the one it was found on.
   const booking_page =
-    site === "read"
-      ? await siteBookingPage(details.facts.website)
-      : bookingPageKept(listingFactsOf(row.facts), details.facts.website);
+    bookingPageOf(details.facts.website) ?? bookingPageKept(listingFactsOf(row.facts), details.facts.website);
   details = { ...details, facts: { ...details.facts, booking_page } };
-  // A listing just linked has its website read for Check too (decision 0073, R10): its services, prices and rules.
+  // A listing just linked has its website read (decision 0073, R10): its services, prices and rules for Check, and the
+  // booking page its home page names.
   if (site === "read") await scheduleWebsiteRead(db, row.tenant_id, details.facts.website);
 
   const conn = await connectionOf(db, row.tenant_id);

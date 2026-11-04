@@ -156,6 +156,59 @@ test("a website read: its home page and the pages it links to for services and q
   );
 });
 
+const BOOK = "https://calendly.com/harbor-moving-example/estimate";
+const BOOKING_HOME = `<html><body><h1>Harbor Moving</h1><nav><a href="${BOOK}">Book an estimate</a></nav></body></html>`;
+const BOOKING_PAGE = "<html><body><h2>Estimate visit</h2><p>Thirty minutes, free.</p></body></html>";
+
+test("the booking page the home page names: kept on the listing whose website was read, where Check offers it, and read beside the site for the model", async () => {
+  const w = world({ website: null, listingWebsite: SITE });
+  const net = web({ [`${SITE}/`]: BOOKING_HOME, [BOOK]: BOOKING_PAGE }, READ);
+  try {
+    await read(w);
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(
+    w.tables.google_listings[0].facts,
+    { website: SITE, booking_page: BOOK },
+    "the listing keeps it beside the facts it had: the link reads no site of its own",
+  );
+  const model = net.calls.find((c) => c.url.includes("anthropic"));
+  assert.ok(
+    model.body.messages[0].content.includes(`Page ${BOOK} (where customers book)
+`),
+    "the page customers book on, said to the model as that",
+  );
+  assert.equal(w.tables.business_reads[0].facts.booking_page, BOOK);
+
+  const held = world({ website: null, listingWebsite: SITE });
+  held.tables.google_listings[0].facts.booking_page = BOOK;
+  const again = web({ [`${SITE}/`]: BOOKING_HOME, [BOOK]: BOOKING_PAGE }, READ);
+  try {
+    await read(held);
+  } finally {
+    again.restore();
+  }
+  assert.deepEqual(
+    held.db.seen.filter((x) => x.table === "google_listings" && x.op === "update"),
+    [],
+    "a listing that holds the page already is not written again",
+  );
+
+  const other = world({ website: SITE, listingWebsite: "https://another.example" });
+  const elsewhere = web({ [`${SITE}/`]: BOOKING_HOME, [BOOK]: BOOKING_PAGE }, READ);
+  try {
+    await read(other);
+  } finally {
+    elsewhere.restore();
+  }
+  assert.deepEqual(
+    other.tables.google_listings[0].facts,
+    { website: "https://another.example" },
+    "a listing on another website keeps nothing found on this one",
+  );
+});
+
 test("a read that could not be made keeps why, as Check says it: not a public address, no page, a reading that failed, or nothing found", async () => {
   const w = world();
   await read(w, "http://10.0.0.7/");

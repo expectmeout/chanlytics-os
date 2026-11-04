@@ -9,17 +9,16 @@
 import { readLocationDetails, type GbpLocationDetails, type PlacesHttp } from "../packages/channels.js";
 import { bookingPageKept, listingFactsOf, normalizePhone } from "../packages/contracts.js";
 import { keepBusinessRead, listingFactsStored, type Json } from "../packages/db.js";
-import { keepListing } from "./listing-check.js";
 import { errField, logger } from "../log.js";
 import { http } from "./places.js";
 import { tokenFor } from "./profile-credentials.js";
-import type { ConnectionRow, Db } from "./google-rows.js";
+import { keepListing, type ConnectionRow, type Db } from "./google-rows.js";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 
 /**
  * The listing's facts with what the owner's own listing says, where it says it; everything else as it was. The booking
- * page the link found stays while the website is the one it was found on (contracts bookingPageKept), as a later read of
- * the public listing keeps it.
+ * page the website's read found stays while the website is the one it was found on (contracts bookingPageKept), as a
+ * later read of the public listing keeps it.
  */
 function factsWith(stored: unknown, d: GbpLocationDetails): Json {
   const was = listingFactsOf(stored);

@@ -1,7 +1,8 @@
 /**
  * The booking page a business's website names (the first run's Check, 3c-4). This file is the reading, and nothing
  * else: given the text of a page and the address it came from, it answers the booking page the page links to as the
- * way to book, or none. It makes no request -- the edge reads the page when a listing is linked (apps/edge/lib/google).
+ * way to book, or none. It makes no request -- the edge's read of the website hands it the home page
+ * (apps/edge/lib/google/booking-page.ts).
  */
 import { bookingPageOf } from "@chanlytics/contracts";
 import { attrsOf, decodeEntities } from "./html";

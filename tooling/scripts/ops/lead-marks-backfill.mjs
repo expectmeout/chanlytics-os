@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { publicFetcher } from "@chanlytics/channels";
 import { LEAD_MARKS_BUCKET } from "@chanlytics/contracts";
+import { keepLeadMark } from "@chanlytics/db";
 import { JUDGE_MARGIN_MS, MARK_AT_ONCE, markPlaces } from "../../../packages/core/src/leads/index.ts";
 import { imageBytes, leadMarkPath, markPageText, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
 
@@ -67,26 +68,20 @@ export async function markLeads(plan, ports, now = () => new Date()) {
 }
 
 /**
- * The apply's write: the name where the lead still has none, and the address it came from where the lead had no
- * address either. Guarded on the state it was planned in, and counted.
+ * The apply's write, the sweep's own (db keepLeadMark): the name where the lead still has none, and
+ * the address it came from where the lead had no address either. Guarded on the state it was planned in, and counted.
  */
 export async function writeMarks(db, marked) {
   const written = [];
   const skipped = [];
   for (const m of marked) {
-    const patch = m.had ? { mark_path: m.mark_path } : { mark_path: m.mark_path, logo_url: m.logo_url };
-    const { data, error } = await db
-      .from("leads")
-      .update(patch)
-      .eq("id", m.id)
-      .eq("tenant_id", m.tenant_id)
-      .is("mark_path", null)
-      .is("blanked_at", null)
-      .is("erased_at", null)
-      .select("id");
-    if (error) skipped.push({ id: m.id, why: `write: ${error.message}` });
-    else if (!data?.length) skipped.push({ id: m.id, why: "write matched no row: marked, blanked or erased since" });
-    else written.push(m);
+    const mark = { id: m.id, tenantId: m.tenant_id, had: m.had, logoUrl: m.logo_url, markPath: m.mark_path };
+    try {
+      if (await keepLeadMark(db, mark)) written.push(m);
+      else skipped.push({ id: m.id, why: "write matched no row: marked, blanked or erased since" });
+    } catch (e) {
+      skipped.push({ id: m.id, why: `write: ${e instanceof Error ? e.message : e}` });
+    }
   }
   return { written, skipped };
 }

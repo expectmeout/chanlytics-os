@@ -1,8 +1,8 @@
 /**
  * The two rows a workspace keeps for Google, its listing and its profile's
- * connection: their types, the connection read, and what of each the
- * dashboard may see. The other modules in this folder take these types, and
- * `Db`, from here.
+ * connection: their types, the connection read, the listing's one writer,
+ * and what of each the dashboard may see. The other modules in this folder
+ * take these types, and `Db`, from here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lensRoute, reviewRoute } from "../packages/contracts.js";
@@ -11,6 +11,20 @@ import { reviewRowsByGoogleId, type Database } from "../packages/db.js";
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
 type Db = SupabaseClient<Database>;
+
+/**
+ * The workspace's listing row written with what a read of it says: the public listing's read (listing-check.ts: its
+ * rating, its count, its facts), the owner's own profile's details where they are connected (profile-details.ts), and
+ * the booking page the website read found (booking-page.ts). One writer.
+ */
+export async function keepListing(
+  db: Db,
+  tenantId: string,
+  patch: Database["public"]["Tables"]["google_listings"]["Update"],
+): Promise<void> {
+  const { error } = await db.from("google_listings").update(patch).eq("tenant_id", tenantId);
+  if (error) throw new Error(error.message);
+}
 
 /** The listing as the dashboard may see it. Nothing here is secret; the shape is the contract's. */
 export function listingForClient(r: ListingRow) {

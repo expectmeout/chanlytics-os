@@ -64,8 +64,8 @@ export type GoogleListingFacts = {
   time_zone: string | null;
   /**
    * Where customers book, as the listing's website says it (booking-page.ts): the website itself when it is a page on
-   * a booking platform, or the one its home page names. Never Google's own answer, so never in Places' parse: the edge
-   * reads the website when a listing is linked, and adds it. Check offers it for the owner to take.
+   * a booking platform, or the one its home page names. Never Google's own answer, so never in Places' parse: the edge's
+   * read of the website finds it, and adds it. Check offers it for the owner to take.
    */
   booking_page?: string | null;
 };
@@ -113,9 +113,9 @@ export function listingFactsOf(raw: unknown): GoogleListingFacts | null {
 }
 
 /**
- * What a later read of a listing keeps of the booking page the link found: the page, while the listing's website is
- * the one it was found on. Only the link reads the website (the edge's checkListing), so a new website has none until
- * the listing is linked again.
+ * What a later read of a listing keeps of the booking page found on its website: the page, while the listing's website
+ * is the one it was found on. Only a read of the website finds one (the edge's website-read.ts, asked when a listing is
+ * linked, a profile connected or a website saved), so a new website has none until it is read.
  */
 export function bookingPageKept(prev: GoogleListingFacts | null, website: string | null): string | null {
   return prev && prev.website === website ? (prev.booking_page ?? null) : null;

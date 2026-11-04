@@ -1,14 +1,23 @@
 /**
  * The edge's wires for a lead's mark (apps/edge/lib/leads/lead-marks.ts): its home page by the platform's page reader,
  * one capped GET of an image, and the copy stored under its own hash in 00161's bucket. Each answers null rather than
- * throwing, so a site that misbehaves costs its lead a mark and nothing else.
+ * throwing, so a site that misbehaves costs its lead a mark and nothing else. And the leads sweep's second try over
+ * them (markLeadsAgain), for the leads a collect committed with no time left to mark.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { setSitePageReader } from "@chanlytics/channels";
-import { imageBytes, leadMarkPath, markPageText, storeLeadMark } from "../../../../apps/edge/lib/leads/lead-marks.ts";
+import {
+  imageBytes,
+  leadMarkPath,
+  markLeadsAgain,
+  markPageText,
+  storeLeadMark,
+} from "../../../../apps/edge/lib/leads/lead-marks.ts";
+import { markPlaces } from "../../../../packages/core/src/leads/index.ts";
 import { LEAD_MARK_PATH, LEAD_MARKS_BUCKET } from "../../../../packages/contracts/src/leads/leads.ts";
+import { fakeDb } from "../_fake-db.mjs";
 import { png } from "./_mark-images.mjs";
 
 const PNG = { kind: "png", contentType: "image/png", width: 180, height: 180 };
@@ -156,4 +165,118 @@ test("a copy storage refuses, throws on, or never answers is no copy", async () 
   assert.equal(await storeLeadMark(refusing, bytes, PNG), null);
   assert.equal(await storeLeadMark(throwing, bytes, PNG), null);
   assert.equal(await storeLeadMark(silent, bytes, PNG, 20), null);
+});
+
+/* ------------------------------------ the sweep's second try ------------------------------------ */
+
+const T1 = "11111111-1111-4111-8111-111111111111";
+const NOW = Date.parse("2026-11-04T12:00:00Z");
+const MINUTE = 60_000;
+const OLD_NAME = `${"f".repeat(64)}.png`;
+const lead = (id, over = {}) => ({
+  id,
+  tenant_id: T1,
+  website_host: `${id}.example`,
+  logo_url: null,
+  mark_path: null,
+  stage: "ready",
+  contact_id: null,
+  contacted_at: null,
+  exported_at: null,
+  blanked_at: null,
+  erased_at: null,
+  found_at: new Date(NOW - 7 * MINUTE).toISOString(),
+  ...over,
+});
+const icon = (href) => `<head><link rel="apple-touch-icon" href="${href}"></head>`;
+
+test("the sweep tries again the leads found five to ten minutes ago with a site and no copy, and keeps each copy it finds; no other lead is read", async () => {
+  const tables = {
+    leads: [
+      lead("a"),
+      lead("b", { logo_url: "https://b.example/said.png" }),
+      lead("c"),
+      lead("fresh", { found_at: new Date(NOW - 2 * MINUTE).toISOString() }),
+      lead("old", { found_at: new Date(NOW - 20 * MINUTE).toISOString() }),
+      lead("marked", { mark_path: OLD_NAME }),
+      lead("nosite", { website_host: null }),
+      lead("reached", { contacted_at: "2026-11-04T11:56:00Z" }),
+      lead("blanked", { blanked_at: "2026-11-04T11:00:00Z" }),
+      lead("erased", { erased_at: "2026-11-04T11:00:00Z" }),
+    ],
+  };
+  const db = fakeDb(tables);
+  db.storage = { from: () => ({ upload: async () => ({ error: null }) }) };
+  const pages = {
+    "https://a.example": icon("/a.png"),
+    "https://b.example": icon("/b.png"),
+    "https://c.example": "<head></head>",
+  };
+  const asked = [];
+  const out = await markLeadsAgain(
+    db,
+    {
+      fetchText: async (url) => {
+        asked.push(url);
+        return pages[url] ?? null;
+      },
+      fetchBytes: async () => png(180, 180),
+    },
+    NOW + 50_000,
+    () => new Date(NOW),
+  );
+  assert.deepEqual(out, { due: 3, kept: 2 });
+  assert.deepEqual(asked.sort(), ["https://a.example", "https://b.example", "https://c.example"]);
+  const row = (id) => tables.leads.find((l) => l.id === id);
+  assert.match(row("a").mark_path, LEAD_MARK_PATH);
+  assert.equal(row("a").logo_url, "https://a.example/a.png", "a lead with no address gains the one its copy came from");
+  assert.match(row("b").mark_path, LEAD_MARK_PATH);
+  assert.equal(row("b").logo_url, "https://b.example/said.png", "and one with an address keeps it");
+  assert.deepEqual([row("c").mark_path, row("c").logo_url], [null, null], "a page that declares no mark leaves none");
+  assert.equal(row("marked").mark_path, OLD_NAME);
+});
+
+test("the sweep's second try keeps nothing on a lead blanked since it was read, and says so in its count", async () => {
+  const tables = { leads: [lead("a")] };
+  const db = fakeDb(tables);
+  db.storage = { from: () => ({ upload: async () => ({ error: null }) }) };
+  const out = await markLeadsAgain(
+    db,
+    {
+      fetchText: async () => icon("/a.png"),
+      fetchBytes: async () => {
+        tables.leads[0].blanked_at = "2026-11-04T11:59:00Z";
+        return png(180, 180);
+      },
+    },
+    NOW + 50_000,
+    () => new Date(NOW),
+  );
+  assert.deepEqual(out, { due: 1, kept: 0 });
+  assert.equal(tables.leads[0].mark_path, null);
+});
+
+test("the step's time is its caller's: a page that takes nine seconds spends a collect's allowance, and not the sweep's", async () => {
+  const NAME = `${"a".repeat(64)}.png`;
+  const run = async (allowance) => {
+    let t = NOW;
+    const x = { place: { website_host: "a.example", logo_url: null, mark_path: null }, member: { class: "qualified" } };
+    const kept = await markPlaces(
+      {
+        now: () => new Date(t),
+        deadline: NOW + 120_000,
+        fetchText: async () => {
+          t += 9_000;
+          return icon("/a.png");
+        },
+        fetchBytes: async () => png(180, 180),
+        storeMark: async () => NAME,
+      },
+      [x],
+      allowance,
+    );
+    return [kept, x.place.mark_path];
+  };
+  assert.deepEqual(await run(undefined), [0, null], "the collect's own allowance has run out when the page answers");
+  assert.deepEqual(await run(20_000), [1, NAME], "the sweep's has not");
 });

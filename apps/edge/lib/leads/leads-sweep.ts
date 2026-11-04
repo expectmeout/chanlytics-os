@@ -14,7 +14,8 @@
  */
 import { json, refuse } from "../http.js";
 import { errField } from "../log.js";
-import { leadWires } from "./lead-wires.js";
+import { leadWires, type LeadWires } from "./lead-wires.js";
+import { markLeadsAgain } from "./lead-marks.js";
 import {
   planLeadSweep,
   type CarryAction,
@@ -187,6 +188,50 @@ async function carryOn(db: SweepTick["db"], a: CarryAction): Promise<void> {
   await scheduleJobOnce(db, { tenantId: a.tenantId, dueAt: new Date(), ...job });
 }
 
+/** The lead runner's ports for a reconciliation inside this tick: a job it asks for goes to the run's own workspace. */
+function sweepPorts(
+  db: SweepTick["db"],
+  wires: LeadWires,
+  ledger: LeadPorts["db"],
+  runs: SweepRunRow[],
+  deadline: number,
+): LeadPorts {
+  return {
+    db: ledger,
+    apify: wires.apify,
+    judge: wires.judge,
+    now: () => new Date(),
+    webhookBase: wires.webhookBase,
+    webhookToken: wires.webhookToken,
+    schedule: async (kind, payload, runAfterSeconds) => {
+      const row = runs.find((r) => r.id === (payload as { run_id?: string }).run_id);
+      if (row)
+        await scheduleJobOnce(db, {
+          tenantId: row.tenant_id,
+          kind,
+          dueAt: new Date(Date.now() + runAfterSeconds * 1000),
+          payload: payload as unknown as Json,
+        });
+    },
+    deadline,
+  };
+}
+
+/** Last, in what is left of the tick: the marks the collects of the last few minutes had no time to read. */
+async function marksAgain(
+  { db, L }: Pick<SweepTick, "db" | "L">,
+  wires: LeadWires | undefined,
+  deadline: number,
+): Promise<{ due: number; kept: number; failed: number }> {
+  if (!wires) return { due: 0, kept: 0, failed: 0 };
+  try {
+    return { ...(await markLeadsAgain(db, wires, deadline)), failed: 0 };
+  } catch (e) {
+    L.error("leads_sweep_marks_failed", { error: errField(e) });
+    return { due: 0, kept: 0, failed: 1 };
+  }
+}
+
 export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
   const now = Date.now();
   let runs: SweepRunRow[];
@@ -211,31 +256,13 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
     rounds_ended: 0,
     carried_on: 0,
     given_up: 0,
+    marks_due: 0,
+    marks_kept: 0,
     failed: 0,
     source: wires ? "on" : "off",
   };
   const ledger = leadDb(db);
-  const ports: LeadPorts | null = wires
-    ? {
-        db: ledger,
-        apify: wires.apify,
-        judge: wires.judge,
-        now: () => new Date(),
-        webhookBase: wires.webhookBase,
-        webhookToken: wires.webhookToken,
-        schedule: async (kind, payload, runAfterSeconds) => {
-          const row = runs.find((r) => r.id === (payload as { run_id?: string }).run_id);
-          if (row)
-            await scheduleJobOnce(db, {
-              tenantId: row.tenant_id,
-              kind,
-              dueAt: new Date(Date.now() + runAfterSeconds * 1000),
-              payload: payload as unknown as Json,
-            });
-        },
-        deadline: now + SWEEP_DEADLINE_MS,
-      }
-    : null;
+  const ports = wires ? sweepPorts(db, wires, ledger, runs, now + SWEEP_DEADLINE_MS) : null;
   const unknown: LeadRunRow[] = [];
 
   for (const a of actions) {
@@ -334,6 +361,10 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
       L.error("leads_sweep_reconcile_failed", { error: errField(e) });
     }
   }
+  const marks = await marksAgain({ db, L }, wires, now + SWEEP_DEADLINE_MS);
+  counts.marks_due = marks.due;
+  counts.marks_kept = marks.kept;
+  counts.failed += marks.failed;
   L.info("leads_sweep_done", { ...counts, actions: actions.length });
   return json(200, { ok: true, ...counts });
 }

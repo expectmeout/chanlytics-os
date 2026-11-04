@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import type { LeadViewCountsDto } from "@chanlytics/contracts";
 import { readAllRows } from "../paged";
+import { platformWide, tenantDb } from "../tenant-db";
 
 type Db = SupabaseClient<Database>;
 
@@ -413,4 +414,60 @@ export async function leadAllowanceOf(db: Db, tenantId: string): Promise<number>
   const n = typeof data === "number" ? data : Number(data);
   if (!Number.isFinite(n)) throw new Error("lead_allowance answered no number");
   return n;
+}
+
+/** A lead with a site and no copy of its mark yet (00161), as the leads sweep tries it again. */
+export interface LeadToMark {
+  id: string;
+  tenant_id: string;
+  website_host: string;
+  logo_url: string | null;
+}
+
+/**
+ * The leads found in [`from`, `until`) with a site and no copy of their mark, still untouched, the oldest first and at
+ * most `limit`: what a collect's mark step, the first thing it gives up, left for the leads sweep to try again. Every
+ * workspace's, on purpose: the sweep's, each tick, so its filters are those of the partial index on `found_at`
+ * (leads_untouched_purge). A lead someone has already acted on waits for the next round that finds its place.
+ */
+export async function leadsUnmarked(db: Db, from: Date, until: Date, limit: number): Promise<LeadToMark[]> {
+  const { data, error } = await platformWide(db)
+    .from("leads")
+    .select("id, tenant_id, website_host, logo_url")
+    .eq("stage", "ready")
+    .is("contact_id", null)
+    .is("contacted_at", null)
+    .is("exported_at", null)
+    .is("blanked_at", null)
+    .is("erased_at", null)
+    .not("website_host", "is", null)
+    .is("mark_path", null)
+    .gte("found_at", from.toISOString())
+    .lt("found_at", until.toISOString())
+    .order("found_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`leads: ${error.message}`);
+  return (data ?? []).flatMap((r) => (r.website_host ? [{ ...r, website_host: r.website_host }] : []));
+}
+
+/**
+ * A lead's mark kept (00161): the copy's name where the lead still has none, and the address it was read from where the
+ * lead had no address either (`had`), never on a lead blanked or erased since it was read. Answers whether a row took
+ * it: an update that matched none (marked, blanked or erased since) is not a mark kept.
+ */
+export async function keepLeadMark(
+  db: Db,
+  m: { id: string; tenantId: string; had: string | null; logoUrl: string | null; markPath: string },
+): Promise<boolean> {
+  const patch = m.had ? { mark_path: m.markPath } : { mark_path: m.markPath, logo_url: m.logoUrl };
+  const { data, error } = await tenantDb(db, m.tenantId)
+    .from("leads")
+    .update(patch)
+    .eq("id", m.id)
+    .is("mark_path", null)
+    .is("blanked_at", null)
+    .is("erased_at", null)
+    .select("id");
+  if (error) throw new Error(`leads: ${error.message}`);
+  return (data ?? []).length > 0;
 }

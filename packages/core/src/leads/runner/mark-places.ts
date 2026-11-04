@@ -1,13 +1,24 @@
 /**
  * The business's own mark, for the places a page is about to commit. What a home page declares is read by mark.ts
  * and the bytes worth keeping are told by mark-image.ts, one folder up; the collect (collect.ts) and the re-judging
- * (rejudge.ts) call it.
+ * (rejudge.ts) call it, and the leads sweep calls it again for the leads a collect had no time to mark (the edge's
+ * lead-marks.ts).
  */
 
+import type { LeadMemberClass } from "@chanlytics/contracts";
 import { leadMarksFrom } from "../mark";
 import { markImageFrom, MARK_MAX_BYTES } from "../mark-image";
-import type { CollectPlace, LeadPorts } from "../ports";
+import type { LeadColumns, LeadPorts } from "../ports";
 import { JUDGE_MARGIN_MS } from "./rules";
+
+/** What the step reads of a place and writes on it: whether it was left out, its site, and the mark it is given. */
+export interface MarkTarget {
+  place: Pick<LeadColumns, "website_host" | "logo_url" | "mark_path">;
+  member: { class: LeadMemberClass };
+}
+
+/** What the step runs on: the page and image reads, the store for the copy, the clock and the caller's deadline. */
+type MarkPorts = Pick<LeadPorts, "fetchText" | "fetchBytes" | "storeMark" | "now" | "deadline">;
 
 /**
  * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
@@ -15,7 +26,7 @@ import { JUDGE_MARGIN_MS } from "./rules";
  * (mark-image.ts), stored as our own copy (00161) -- the site's address never draws past the dashboard's content
  * policy, and our copy does. It is the last thing the collect does and the first thing it gives up: a page that does
  * not answer inside the allowance, or a collect already short of time, simply commits leads with no mark, and the
- * next round's copy of that place fills it where it was empty.
+ * next round's copy of that place fills it where it was empty, or the leads sweep's try a few minutes on.
  *
  * A left-out place is never marked, as it stores none of the rest (§0.4), and a place with no site has nothing to read.
  * Answers how many places were given a kept copy.
@@ -28,15 +39,19 @@ export const MARK_AT_ONCE = 6;
  */
 export const MARK_TRIES = 2;
 const SAYS_SVG = /\.svg(?:[?#]|$)/i;
-export async function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<number> {
+export async function markPlaces(
+  p: MarkPorts,
+  places: MarkTarget[],
+  allowanceMs: number = MARK_ALLOWANCE_MS,
+): Promise<number> {
   const { fetchText, fetchBytes, storeMark } = p;
   if (!fetchText) return 0;
   const want = places.filter((x) => x.member.class !== "excluded" && !!x.place.website_host);
-  const until = Math.min(p.deadline - JUDGE_MARGIN_MS, p.now().getTime() + MARK_ALLOWANCE_MS);
+  const until = Math.min(p.deadline - JUDGE_MARGIN_MS, p.now().getTime() + allowanceMs);
   const left = () => until - p.now().getTime();
   let kept = 0;
 
-  const markOne = async (x: CollectPlace): Promise<void> => {
+  const markOne = async (x: MarkTarget): Promise<void> => {
     const origin = `https://${x.place.website_host}`;
     const html = await fetchText(origin, left()).catch(() => null);
     if (!html) return;

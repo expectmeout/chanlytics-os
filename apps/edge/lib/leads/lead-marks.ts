@@ -1,7 +1,7 @@
 /**
  * The wires the collect's mark step runs on (D6): reading a business's home page, and (00161) the copy we keep. The
- * collect's own wires (lead-wires.ts) and the backfill for leads found before 00161 (tooling/scripts/ops) read through
- * these, so a mark is found one way.
+ * collect's own wires (lead-wires.ts), the leads sweep's second try (markLeadsAgain, below) and the backfill for leads
+ * found before 00161 (tooling/scripts/ops) read through these, so a mark is found one way.
  *
  * The home page is read by the platform's one page reader (`markPageText`: lib/public-page.ts sitePage, Firecrawl's
  * scrape). A mark drawn straight off a business's site never shows, because the dashboard's content policy lets images
@@ -14,9 +14,10 @@
  */
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import type { MarkImage } from "../packages/core.js";
-import { LEAD_MARKS_BUCKET } from "../packages/contracts.js";
+import { keepLeadMark, leadsUnmarked, type Database, type LeadToMark } from "../packages/db.js";
+import { markPlaces, type MarkImage, type MarkTarget } from "../packages/core.js";
+import { LEAD_MARKS_BUCKET, MIN_MS, SECOND_MS } from "../packages/contracts.js";
+import type { LeadWires } from "./lead-wires.js";
 import { logger } from "../log.js";
 import { sitePage } from "../public-page.js";
 
@@ -72,4 +73,55 @@ export async function storeLeadMark(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Which leads the sweep tries again: those found between ten and five minutes before its tick. The sweep's clock is
+ * five minutes (00140's `leads`), so each lead a collect committed without a mark is tried once more, a few minutes
+ * on, by one tick; a later round that finds the place again still fills it where it is empty.
+ */
+const MARK_AGAIN_FROM_MS = 10 * MIN_MS;
+const MARK_AGAIN_UNTIL_MS = 5 * MIN_MS;
+/** The most leads one tick reads to try: the step stops at its allowance, and those it did not reach are not tried. */
+const MARK_AGAIN_MOST = 60;
+/** The step's own time, inside the sweep's deadline: a page drawn as a browser draws it takes seconds. */
+const MARK_AGAIN_ALLOWANCE_MS = 20 * SECOND_MS;
+
+/**
+ * The leads sweep's second try at the marks a collect had no time for: the leads found in the window above with a site
+ * and no copy, read by the collect's own step (core markPlaces) with time of their own, and each copy kept where the
+ * lead still has none and is still whole (db keepLeadMark). Answers how many were due and how many it kept: a tick with
+ * no time left reads none of those due.
+ */
+export async function markLeadsAgain(
+  db: SupabaseClient<Database>,
+  reads: Pick<LeadWires, "fetchText" | "fetchBytes">,
+  deadline: number,
+  now: () => Date = () => new Date(),
+): Promise<{ due: number; kept: number }> {
+  const at = now().getTime();
+  const leads = await leadsUnmarked(
+    db,
+    new Date(at - MARK_AGAIN_FROM_MS),
+    new Date(at - MARK_AGAIN_UNTIL_MS),
+    MARK_AGAIN_MOST,
+  );
+  // A lead row is a place that was kept: a left-out place stores no site (PRD §0.4), so none here is excluded.
+  const targets: (MarkTarget & { lead: LeadToMark })[] = leads.map((lead) => ({
+    lead,
+    place: { website_host: lead.website_host, logo_url: null, mark_path: null },
+    member: { class: "qualified" },
+  }));
+  await markPlaces(
+    { ...reads, storeMark: (bytes, image) => storeLeadMark(db, bytes, image), now, deadline },
+    targets,
+    MARK_AGAIN_ALLOWANCE_MS,
+  );
+  let kept = 0;
+  for (const t of targets) {
+    if (!t.place.mark_path) continue;
+    const m = { id: t.lead.id, tenantId: t.lead.tenant_id, had: t.lead.logo_url, logoUrl: t.place.logo_url };
+    if (await keepLeadMark(db, { ...m, markPath: t.place.mark_path })) kept += 1;
+  }
+  return { due: targets.length, kept };
 }
