@@ -7,7 +7,8 @@
 import { LEAD_OWN_EMAIL_WORDS as OW, LEAD_WORDS as W, leadPeekMenu } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { actingRole, refusalToast } from "../../legacy-verbs";
-import { callBackLeadEmail, draftForLead, eraseLead, sendLeadEmail, setLeadStage, undoLeadOperation } from "../surface";
+import { draftForLead, eraseLead, setLeadStage, undoLeadOperation } from "../surface";
+import { callBackLeadEmail, sendLeadEmail } from "./verbs";
 import type { Armed, DraftData, DraftState, LeadCourier, PeekActs, PeekPage, StageData } from "./types";
 
 /** The acts the peek sends out, through the surface's own doors (../surface.ts); a test hands its stand-in as `courier`. */
@@ -64,7 +65,7 @@ const leadEraseActs = (p: PeekPage, api: LeadCourier, vm: LeadPeekVM, refuse: Re
 };
 
 /** The draft as the route answered it, in the page's hands. */
-const draftOf = (d: DraftData, tone: string): DraftState => ({
+const draftStateOf = (d: DraftData, tone: string): DraftState => ({
   busy: false,
   tone,
   to: d.to,
@@ -117,7 +118,7 @@ const leadDraftActs = (
         });
         return;
       }
-      p.setDraft(draftOf(r.data, "first"));
+      p.setDraft(draftStateOf(r.data, "first"));
     },
     onTone: async (tone) => {
       const d: DraftState = p.draft || {};
@@ -127,7 +128,7 @@ const leadDraftActs = (
         p.setDraft({ ...d, busy: false, tone, refusal: r.message });
         return;
       }
-      p.setDraft(draftOf(r.data, tone));
+      p.setDraft(draftStateOf(r.data, tone));
     },
     onWords: (patch) => {
       const d: DraftState = p.draft || {};

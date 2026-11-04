@@ -40,7 +40,7 @@ export const LEAD_OWN_EMAIL_WORDS = {
   },
 } as const;
 
-const W = LEAD_OWN_EMAIL_WORDS;
+const OWN = LEAD_OWN_EMAIL_WORDS;
 
 /** Why an email of your own goes from your mail app, not a mailbox. */
 export type LeadEmailWhy = keyof typeof LEAD_OWN_EMAIL_WORDS.whyNot;
@@ -88,7 +88,7 @@ export function leadEmailFromOf<M extends LeadEmailMailbox>(p: {
  * A lead gone, closed or someone's in People is one no longer written to.
  */
 export function leadEmailRefusalOf(reason: string): string {
-  if (reason === "no_address") return W.noAddress;
+  if (reason === "no_address") return OWN.noAddress;
   return PURPOSE_REFUSALS[reason] ?? PURPOSE_REFUSALS.outreach_lead_closed;
 }
 
@@ -110,7 +110,7 @@ const TAKEN_BACK = "canceled";
 /** How one reads in History; null for one taken back with Undo. */
 export function leadEmailLineOf(e: LeadEmailDto): string | null {
   if (e.reason === TAKEN_BACK) return null;
-  if (e.state === "sent") return e.from ? W.row.from(e.from) : W.row.yourself;
-  if (e.state === "queued") return W.sending(e.from ?? "");
-  return W.row.notSent(e.state === "failed" ? "" : sequenceLeftWords(e.reason));
+  if (e.state === "sent") return e.from ? OWN.row.from(e.from) : OWN.row.yourself;
+  if (e.state === "queued") return OWN.sending(e.from ?? "");
+  return OWN.row.notSent(e.state === "failed" ? "" : sequenceLeftWords(e.reason));
 }

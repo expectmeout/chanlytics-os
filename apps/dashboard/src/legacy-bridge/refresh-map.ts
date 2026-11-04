@@ -348,13 +348,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST segments": () => [peopleOverride, ...audiences()],
   "PUT segments/[id]": () => [peopleOverride, ...audiences()],
   "DELETE segments/[id]": () => [peopleOverride, ...audiences()],
-  // Leads. Every one of these PATCHES: the surface re-reads the view and keeps
-  // the pages, the selection and the cursor the owner already has (leads.ts).
-  // `POST leads/[id]/stage` names People too: an Interested call makes a
-  // person, and People would otherwise not know until it was read again;
-  // a lead converted is a person added, so the book the People lens counts moves.
-  // A draft is not here on purpose -- it changes no row a surface shows; the
-  // lead moves when the owner answers "Did you send it?", which is a stage.
+  // Leads. Every one of these PATCHES: the surface re-reads the view and keeps the pages, the selection and the cursor
+  // the owner already has (leads.ts). `POST leads/[id]/stage` names People too: an Interested call makes a person, and
+  // People would otherwise not know until it was read again; a lead converted is a person added, so the book the People
+  // lens counts moves. A draft is not here on purpose -- it changes no row a surface shows; the lead moves when the
+  // owner answers "Did you send it?", which is a stage.
   "POST lead-searches": leads,
   // A list of your own (00242) is a search: the rail and the leads read again.
   "POST lead-searches/import": leads,

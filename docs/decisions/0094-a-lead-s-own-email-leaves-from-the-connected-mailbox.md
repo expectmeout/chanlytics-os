@@ -132,13 +132,13 @@ Each ships in either deploy order, because no row with a null sequence exists un
 
 ## Tests
 
-- **Database (CI only, no stack on this PC):** `tooling/scripts/tests/reach-out/a-lead-s-own-email.db.test.mjs`: a row with no
+- **Database (CI only, no stack on this PC):** `tooling/scripts/tests/lead-workbench/a-lead-s-own-email.db.test.mjs`: a row with no
   sequence is counted by `mailbox_capacity`, found by `reach_out_reply_of` by its Message-ID, ignored by `written` and
   `lead_chain_of`, makes no place, a second `queued` one for the lead is refused, and a customer's send must still name its
   batch.
-- **The door:** `tooling/scripts/tests/leads/lead-send-door.test.mjs`, over `_fake-db`: what is written, each refusal, the
+- **The door:** `tooling/scripts/tests/lead-workbench/lead-send-door.test.mjs`, over `_fake-db`: what is written, each refusal, the
   mailbox it leaves from, a second press, and "Did you send it?" keeping its row.
-- **The clock:** `tooling/scripts/tests/reach-out/reach-out-clock-own-email.test.mjs`: sent moves the lead to nurture; a wait
+- **The clock:** `tooling/scripts/tests/lead-workbench/reach-out-clock-own-email.test.mjs`: sent moves the lead to nurture; a wait
   refusal or a provider's no ends the row, never planned again; proved to fail without the branch.
 - **The rules and the sheet:** `tooling/scripts/tests/lead-workbench/lead-email.test.mjs`, and five walks in
   `tooling/scripts/tests/leads/finder/leads-peek.test.mjs`: Send, Undo, a refusal, no mailbox.

@@ -45,6 +45,7 @@ import {
   writtenEmails,
   type Database,
   type LeadSendRow,
+  type ReachOutSendRow,
 } from "../packages/db.js";
 import { sendMessageId } from "../packages/core.js";
 import { draftRefusalOf, isWaitRefusal } from "../packages/contracts.js";
@@ -88,6 +89,12 @@ function neverLeft(error: { reason?: string; http_status?: number } | null): boo
 
 const move = (db: Db, s: LeadSendRow, patch: Partial<LeadSendRow>): Promise<boolean> =>
   moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
+
+/**
+ * Whether a send the door turned back, or the provider never took, is planned again. A lead's own email (00540) never
+ * is: a member pressed Send now, and nothing leaves by surprise tomorrow. Its row says why it did not go.
+ */
+const goesAgain = (s: LeadSendRow, turnedBack: boolean): s is ReachOutSendRow => turnedBack && ofASequence(s);
 
 /**
  * The close step: a canceled or failed run's open sends. A queued send's email still queued is withdrawn, and the next
@@ -228,7 +235,7 @@ export async function reachOutClock(
       // Its receipt settles it (00177's guard lets exactly this row move on). A day with none: it may have gone.
       if (!q.written_at || now.getTime() - Date.parse(q.written_at) < UNKNOWN_OUTCOME_MS) continue;
       if (await move(db, s, { state: "failed", reason: "outcome_unknown" })) out.failed += 1;
-    } else if (q.status === "failed" && neverLeft(error) && ofASequence(s)) {
+    } else if (q.status === "failed" && goesAgain(s, neverLeft(error))) {
       again.push({ send: s, wrote: true });
       continue; // counted where it is planned again
     } else if (q.status === "failed") {
@@ -236,9 +243,7 @@ export async function reachOutClock(
       if (await move(db, s, { state: "failed", reason })) out.failed += 1;
     } else if (q.status === "canceled") {
       const reason = String(error?.reason ?? "canceled").slice(0, 60);
-      // A lead's own email (00540) is never planned again: a member pressed Send now, and nothing leaves by surprise
-      // tomorrow. Its row says why it did not go.
-      if (isWaitRefusal(reason) && ofASequence(s)) {
+      if (goesAgain(s, isWaitRefusal(reason))) {
         again.push({ send: s, wrote: true });
         continue;
       }

@@ -45,7 +45,7 @@ const linksOf = (vm: LeadPeekVM, d: DraftState) =>
 const refusedOutright = (d: DraftState) => !!d.refusal && !d.body;
 
 /** What goes under the words, as the road it takes lays it. */
-const footOf = (d: DraftState) => (d.from ? d.foot : d.mailFoot?.trim()) || null;
+const footWordsOf = (d: DraftState) => (d.from ? d.foot : d.mailFoot?.trim()) || null;
 
 /**
  * The email, as it will go: to whom, its subject and its words to change, and what is added under them; "Writing it…"
@@ -68,7 +68,7 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
     );
   const writing = !!d.busy;
   const links = linksOf(vm, d);
-  const foot = footOf(d);
+  const foot = footWordsOf(d);
   return (
     <div className="lw-step" data-testid="lead-sheet-write">
       {stepHead(W.write.title(vm.short), on.onBack, d.from ? OW.sub : W.write.sub)}

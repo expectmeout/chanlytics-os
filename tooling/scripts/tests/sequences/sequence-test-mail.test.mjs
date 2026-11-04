@@ -9,8 +9,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildEmailRequest } from "@chanlytics/channels";
 import { leadStepOpeningOf } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
@@ -196,7 +194,6 @@ test("a lead's test mail says the name the business is called by, in its words a
 
 /* ---------------------------------------------------- a lead's test is the email the send makes (3 Nov 2026) -- */
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { reachOutRequest } = await import("@chanlytics/channels");
 
 const COLD = {

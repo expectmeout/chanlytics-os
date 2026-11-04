@@ -542,6 +542,6 @@
     "00531_the_notices_a_call_owes_are_found_by_their_own_index.sql": "4b9ee24206c26f33f2e25d81a8ef5d56803f10c401aba2402aee7c3b4a8e2ff2",
     "00532_a_run_with_nothing_to_send_waits_on_nobody.sql": "b87b90ff2e1415e18858489617fc27f60b616defa3ca4feb475e0d62417c52c9",
     "00533_a_lead_on_a_list_says_why_no_batch_takes_it.sql": "c36db149b55b028d7910d44121195b599142bcccac349cee7373adc9a9500de5",
-    "00540_a_lead_s_own_email_is_a_send_with_no_sequence.sql": "27894a3f16fd7b94cd4a5b1c412bd5c793d1cb11ca1f5cee6f65898f9f849eff"
+    "00540_a_lead_s_own_email_is_a_send_with_no_sequence.sql": "fe88d924b17f0ca1fd13626e3ffb82ef0acdb20347caa97d008635016958ae02"
   }
 }

@@ -14,8 +14,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   EMAIL_BODY_MAX,
   EMAIL_SUBJECT_MAX,
@@ -41,7 +39,6 @@ import {
 } from "@chanlytics/contracts";
 import { emailWordsFrom } from "@chanlytics/db";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { reachOutRequest } = await import("@chanlytics/channels");
 
 const problems = (issues) => issues.map((i) => `${i.field}:${i.problem}${i.slot ? `:${i.slot}` : ""}`);

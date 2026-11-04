@@ -30,7 +30,6 @@ import {
   type LeadSearchDto,
   type LeadSearchPlan,
   type LeadSort,
-  type LeadEmailWords,
   type LeadStageInput,
   type LeadSuggestionsDto,
   type LeadsBulkInput,
@@ -45,6 +44,7 @@ import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export type { LeadsSurface } from "./surface-types";
 import type { LeadSearchesAnswer, LeadsExportView, LeadsPageAnswer, LeadsView } from "./surface-types";
+import type { DraftData } from "./peek/types";
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
@@ -75,7 +75,7 @@ interface LeadCallOptions {
  * on a 401, forgets the reads a write invalidated, and takes what a write
  * leaves stale from `refresh-map.ts` rather than from the caller.
  */
-function leadCall<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
+export function leadCall<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
   return api()(key as RouteKey, opts as never) as unknown as Promise<ApiResult<O>>;
 }
 
@@ -555,35 +555,12 @@ export async function draftForLead(
   id: string,
   input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } },
 ) {
-  return leadCall<{
-    to: string;
-    subject: string;
-    body: string;
-    mailto: string;
-    words: string;
-    mail_foot: string;
-    from: string | null;
-    why_not: string | null;
-    foot: string | null;
-  }>("POST leads/[id]/draft", {
+  return leadCall<DraftData>("POST leads/[id]/draft", {
     params: { id },
     body: input,
     refresh: false,
     once: true,
   });
-}
-/** Send: the lead's own email, from a mailbox the business connected (decision 0094). */
-export async function sendLeadEmail(id: string, words: LeadEmailWords) {
-  return leadCall<{ message_id: string; from: string }>("POST leads/[id]/send", {
-    params: { id },
-    body: words,
-    refresh: "behind",
-    once: true,
-  });
-}
-/** Its Undo, inside its grace: the reply's own door. */
-export async function callBackLeadEmail(messageId: string) {
-  return api()("POST messages/[id]/cancel-send", { params: { id: messageId } });
 }
 /**
  * Erase (the owner's, from the peek's menu): it answers when the door accepts, and the lead leaves every view this

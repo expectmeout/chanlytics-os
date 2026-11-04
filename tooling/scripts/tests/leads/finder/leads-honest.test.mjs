@@ -766,9 +766,8 @@ const serveRead = (path, query) => {
     return reply(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
   if (path === "/api/v1/reach-outs/reach")
     return reply(200, { ok: true, data: { ready: 0, with_unconfirmed: 0, phone_only: 0, of: 0, chain: null } });
-  // The sequences Add can go to, read as the lead sheet first opens (sheet/use-aim.ts): none takes leads by hand here.
+  // The sequences Add can go to, and those to leads the pick and the picker offer (sheet/use-aim.ts, 00459): none here.
   if (path === "/api/v1/reach-outs") return reply(200, { ok: true, data: { chains: [] } });
-  // The sequences to leads the pick and the picker offer (sheet/use-aim.ts, 00459): none in this world.
   if (path === "/api/v1/sequences") return reply(200, { ok: true, data: { sequences: [] } });
   // A lead's place in a sequence (00459 sequence_place, the lead sheet's one reader): none of these leads is in one.
   if (/^\/api\/v1\/leads\/[^/]+\/place$/.test(path)) return reply(200, { ok: true, data: null });

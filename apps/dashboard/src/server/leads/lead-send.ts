@@ -133,7 +133,7 @@ export async function leadEmailOfferOf(
   }
 }
 
-const refuse = (words: string) => new AppError("conflict", words, 409);
+const wontSend = (words: string) => new AppError("conflict", words, 409);
 
 /** The email, written and on its way: its id for Undo, the mailbox it leaves from, and how long Undo holds it. */
 interface LeadSendAnswer {
@@ -152,24 +152,24 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
   const db = serviceDb();
   const tenantId = lead.tenant_id;
   const refused = draftRefusalOf(await draftFactsOf(db, tenantId, lead.id));
-  if (refused) throw refuse(leadEmailRefusalOf(refused));
+  if (refused) throw wontSend(leadEmailRefusalOf(refused));
   const now = Date.now();
   const road = await roadOf(ctx, lead, now);
-  if (!road.from) throw refuse(W.whyNot[road.why]);
+  if (!road.from) throw wontSend(W.whyNot[road.why]);
   const held = await workspaceRefusal(tenantId, now);
-  if (held) throw refuse(held);
+  if (held) throw wontSend(held);
   const secret = env.UNSUBSCRIBE_SECRET ?? "";
   const workspace = await workspaceOffer(ctx, tenantId);
   if (!workspace.address) throw new AppError("validation", LEAD_NO_ADDRESS, 422);
-  if (await leadEmailOnItsWay(db, tenantId, lead.id)) throw refuse(W.onItsWay);
+  if (await leadEmailOnItsWay(db, tenantId, lead.id)) throw wontSend(W.onItsWay);
 
   const [person, slots] = await Promise.all([
     reachOutPerson(db, tenantId, lead.id),
     leadSlotsOf(db, tenantId, lead.id),
   ]);
-  if (!person.ok) throw refuse(leadEmailRefusalOf(person.refused));
+  if (!person.ok) throw wontSend(leadEmailRefusalOf(person.refused));
   const to = await contactEmailOf(db, tenantId, person.contactId);
-  if (!to || !slots) throw refuse(W.noAddress);
+  if (!to || !slots) throw wontSend(W.noAddress);
 
   const sendId = randomUUID();
   const messageId = await sendMessageId(sendId, 0);
@@ -193,7 +193,7 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
     unsubscribe: { secret, origin: unsubscribeOrigin() },
     parent: null,
   });
-  if (!r.ok) throw refuse(W.unsendable);
+  if (!r.ok) throw wontSend(W.unsendable);
 
   const kept = await keepLeadEmail(db, {
     message: {
@@ -225,7 +225,7 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
       said_by: ctx.userId,
     },
   });
-  if (kept === "on_its_way") throw refuse(W.onItsWay);
+  if (kept === "on_its_way") throw wontSend(W.onItsWay);
 
   const dueAt = new Date(now + SEND_GRACE_MS);
   try {
