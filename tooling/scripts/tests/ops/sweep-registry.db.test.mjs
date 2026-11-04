@@ -334,7 +334,7 @@ test(
     // healthy sweep that ran its minute was judged "the request timed out before the edge answered" (00363).
     const seen = rolledBack(`
     declare
-      t uuid; c uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid;
+      t uuid; c uuid; v uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid;
       tag text := substr(md5(random()::text), 1, 8);
       r record;
       cmd text;
@@ -363,6 +363,10 @@ test(
       -- notes: a conversation quiet for seven hours.
       insert into public.contacts (tenant_id) values (t) returning id into c;
       insert into public.conversations (tenant_id, contact_id, last_inbound_at) values (t, c, now() - interval '7 hours');
+      -- drafts: a thread held for a person, on a person of its own (a contact has one thread).
+      insert into public.contacts (tenant_id) values (t) returning id into c;
+      insert into public.conversations (tenant_id, contact_id) values (t, c) returning id into v;
+      insert into public.escalations (tenant_id, conversation_id, reason) values (t, v, 'manual');
       -- leads: a round that has not ended.
       insert into public.lead_searches (tenant_id, via, card, name, asked, plan)
            values (t, 'people', 'every clock', 'Every clock', 'every clock', '{}') returning id into s;

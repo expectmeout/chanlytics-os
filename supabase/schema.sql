@@ -3448,7 +3448,7 @@ COMMENT ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversa
 CREATE FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_actor uuid := auth.uid();
   v_row   public.conversation_drafts%rowtype;
@@ -3509,7 +3509,7 @@ begin
     'words', v_row.words,
     'made_at', v_row.made_at
   );
-end $$;
+end $_$;
 
 
 --
