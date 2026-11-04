@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
-import { givenOf, motionSettled, pullHeld, sheetFloat } from "../signals";
+import { givenOf, motionSettled, pullHeld, sheetFloat, sheetFoot } from "../signals";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -435,8 +435,8 @@ test.describe("Phone shell on a real workspace", () => {
       return Math.round(b.y + b.height);
     };
     // At rest it floats clear of the foot (#1789); on the keys it stands on them, the keys the higher of the two.
-    const float = await sheetFloat(page);
-    await expect.poll(foot, { message: "at rest, floating just clear of the bottom" }).toBe(tall - float);
+    const rest = await sheetFoot(page);
+    await expect.poll(foot, { message: "at rest, floating just clear of the bottom" }).toBe(tall - rest);
     const keys = 300;
     await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
     await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
@@ -444,7 +444,7 @@ test.describe("Phone shell on a real workspace", () => {
     const save = (await page.getByTestId("rec-sheet-save-people-add").boundingBox())!;
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
-    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall - float);
+    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall - rest);
   });
   /**
    * A thumb pulls a sheet down to close it (the kit's Sheet, through kit/motion/swipe.ts touchSwipe, 5 Oct 2026): from its handle,
@@ -980,9 +980,10 @@ test.describe("Phone shell on a real workspace", () => {
     };
     // Floating just clear of the screen's sides and foot, as every phone sheet does (#1789).
     const float = await sheetFloat(page);
+    const rest = await sheetFoot(page);
     await expect
       .poll(edges, { message: "side to side and on the bottom, clear by the float" })
-      .toEqual([float, size.width - float, size.height - float]);
+      .toEqual([float, size.width - float, size.height - rest]);
     await expect(pop.locator(".tbn-handle")).toBeVisible();
     const y = Math.round((await pop.boundingBox())!.y) + 20;
     const cdp = await page.context().newCDPSession(page);

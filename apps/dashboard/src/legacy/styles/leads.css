@@ -883,8 +883,8 @@ button.ld-slot-btn { cursor: pointer; }
   /* With no photo it is what is about the place: a sheet from the bottom as tall as that, the tile a band of its initials
      and the line that says so, where the whole screen held them over nothing (the fitted sheets, 14 Oct 2026). It floats
      clear of the sides and the foot, cut at its rest's line as it rises, as every phone sheet is (tokens.css
-     --sheet-float, kit.css --sheet-down). */
-  [data-photo="none"] { inset: auto var(--sheet-float) var(--sheet-float); max-height: 88dvh; padding-top: 0; border: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pane-radius); clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax); }
+     --sheet-float and --sheet-foot, kit.css --sheet-down). */
+  [data-photo="none"] { inset: auto var(--sheet-float) var(--sheet-foot); max-height: 88dvh; padding-top: 0; border: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pane-radius); clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax); }
   .ld-lb-body:has(.ld-lb-nophoto) { grid-template-rows: 120px auto; }
   .ld-lb-body:has(.ld-lb-nophoto) .ld-lb-nophoto { bottom: 10px; }
 
