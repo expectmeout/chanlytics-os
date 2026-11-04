@@ -1088,7 +1088,7 @@ a.more-item {
 @media (max-width: 900px) {
   .pop-place:has(> .more-menu) {
     position: fixed !important;
-    inset: auto var(--sheet-float) var(--sheet-float) !important;
+    inset: auto var(--sheet-float) var(--sheet-foot) !important;
     transform: none !important;
   }
   /* The house's MoreMenu (Settings' filters and rows) is the same sheet (10 Oct 2026: a phone's menu is a bottom action
@@ -1098,7 +1098,7 @@ a.more-item {
      time's or a copy's list opened behind the Hours sheet that held its trigger, and only its veil showed. */
   .more-menu[data-sheet] {
     position: fixed;
-    inset: auto var(--sheet-float) var(--sheet-float);
+    inset: auto var(--sheet-float) var(--sheet-foot);
     z-index: 420;
     min-width: 0;
     transform-origin: bottom center;
@@ -1107,13 +1107,13 @@ a.more-item {
     z-index: 419;
     background: var(--surface-veil);
   }
-  /* Floating clear of the foot (tokens.css --sheet-float), it keeps of the home bar's room only what the float has not
+  /* Floating clear of the foot (tokens.css --sheet-foot), it keeps of the home bar's room only what the float has not
      already given it. */
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
-    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-float)));
+    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-foot)));
     border-radius: var(--radius-sheet);
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
@@ -1265,7 +1265,7 @@ a.more-item {
 @media (max-width: 900px) {
   .pop-place:has(> .rec-combo-pop[data-sheet]) {
     position: fixed !important;
-    inset: auto var(--sheet-float) max(var(--kb, 0px), var(--sheet-float)) !important;
+    inset: auto var(--sheet-float) max(var(--kb, 0px), var(--sheet-foot)) !important;
     transform: none !important;
   }
   .pop-place > .rec-combo-pop[data-sheet] {
@@ -1274,7 +1274,7 @@ a.more-item {
     min-width: 0;
     max-width: none;
     max-height: calc(72dvh - var(--kb, 0px));
-    padding-bottom: max(0px, env(safe-area-inset-bottom) - var(--sheet-float));
+    padding-bottom: max(0px, env(safe-area-inset-bottom) - var(--sheet-foot));
     border-radius: var(--radius-sheet);
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
@@ -1910,7 +1910,7 @@ a.more-item {
    from its foot say it beside their translate, and a pull says it inline (motion/swipe.ts). A sheet with two rests says
    how far down its half rest holds it, or a pull between the two (sheet/rests.ts). The sheet is cut that far up from
    its foot (the sheet's glass, below), so nothing of it ever stands lower than its rest, where Safari would read it and
-   keep its bar's band (tokens.css, --sheet-float). Registered, so each moves as what it follows moves. */
+   keep its bar's band (tokens.css, --sheet-foot). Registered, so each moves as what it follows moves. */
 @property --sheet-down {
   syntax: "<length-percentage>";
   inherits: false;
@@ -4542,19 +4542,20 @@ a.list-row {
   .rec-sheet-backdrop {
     background: var(--surface-veil);
   }
-  /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float), or stands on the keyboard. */
+  /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float, --sheet-foot), or stands on the
+     keyboard. */
   .sheet {
     top: auto;
     left: var(--sheet-float);
     right: var(--sheet-float);
-    bottom: max(var(--kb, 0px), var(--sheet-float));
+    bottom: max(var(--kb, 0px), var(--sheet-foot));
     width: auto;
     max-height: calc(88vh - var(--kb, 0px));
     max-height: calc(88dvh - var(--kb, 0px));
     min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px)));
     overflow: auto;
     overscroll-behavior-y: none;
-    padding: 0 0 calc(16px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float)));
+    padding: 0 0 calc(16px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot)));
     animation-name: sheet-in;
   }
   .sheet[data-leaving="true"] {
@@ -5694,7 +5695,7 @@ a.list-row {
 }
 .rec-sheet-foot {
   position: relative;
-  margin: 0 14px calc(14px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float, 0px)));
+  margin: 0 14px calc(14px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot, 0px)));
   padding: 6px 6px 6px 16px;
   border-top: 0;
   border-radius: var(--surface-control-radius);

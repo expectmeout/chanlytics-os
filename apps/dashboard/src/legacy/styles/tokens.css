@@ -909,13 +909,17 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
    its bottom bar, in place of its glass, while a box fixed to the window (or sticky) covers the middle of the window's
    foot 4px up, and it keeps the band for as long as that box stays drawn, wherever the box has moved to since (WebKit,
    LocalFrameView::fixedContainerEdges and Page::updateFixedContainerEdges; Ruben, 21 Oct 2026: the drawer brought the
-   strip back). So a phone's sheet floats --sheet-float clear of the screen's sides and foot, as iOS 26's own do, and is
-   cut at that line while it rises, drops or is pulled (kit.css, --sheet-down); and in an iPhone's browser the wash
-   behind a sheet, a menu or the drawer stops --foot-clear short of the foot, fading out over the last 30px, as a
-   sticky foot rests at least that far up (mobile.css). Only an iPhone's browsers say -webkit-touch-callout. */
+   strip back). So a phone's sheet floats --sheet-float clear of the screen's sides and --sheet-foot clear of its foot,
+   as iOS 26's own do, and is cut at that line while it rises, drops or is pulled (kit.css, --sheet-down); and in an
+   iPhone's browser the wash behind a sheet, a menu or the drawer stops --foot-clear short of the foot, fading out over
+   the last 30px, as a sticky foot and the tab bar rest at least that far up (mobile.css). A sheet's foot rests no
+   higher than the tab bar's (mobile.css --bar-foot), so a sheet covers the bar whole: at 8px over the bar's 4 in an
+   iPhone's browser, the bar's foot showed under every sheet (Ruben, 4 Nov 2026), and there both now rest on
+   --foot-clear. Only an iPhone's browsers say -webkit-touch-callout. */
 @media (max-width: 900px) {
   :root {
     --sheet-float: 8px;
+    --sheet-foot: min(var(--sheet-float), var(--bar-foot, var(--sheet-float)));
   }
   @supports (-webkit-touch-callout: none) {
     :root {
