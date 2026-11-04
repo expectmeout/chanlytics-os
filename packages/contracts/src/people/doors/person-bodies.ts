@@ -45,6 +45,15 @@ export const ReceptionistModeBody = z.object({ mode: MODE });
 /** The same for many people (PUT contacts/receptionist). */
 export const ReceptionistManyBody = z.object({ ids: SOME_PEOPLE, mode: MODE });
 
+/**
+ * Many people deleted at one press (POST contacts/erase), each as Delete person deletes one; with `not_a_person`, each
+ * one's address said automated first, so their mail stays in the mailbox from now on.
+ */
+export const EraseManyBody = z.object({
+  ids: SOME_PEOPLE,
+  not_a_person: z.boolean({ message: "Not a person is a yes or a no." }).optional(),
+});
+
 /** One line under many people's notes (PUT contacts/notes), appended and never replacing. */
 export const NotesAppendManyBody = z.object({
   ids: SOME_PEOPLE,
