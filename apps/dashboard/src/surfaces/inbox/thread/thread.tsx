@@ -46,6 +46,7 @@ import { touchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { GRAB_AT } from "../../kit/motion/swipe";
 import { glideHeight } from "../../kit/motion/use-height-glide";
+import { riseWithKeys } from "../../kit/motion/keys-rise";
 import { dockSwipe } from "../../kit/sheet/dock";
 import { SheetHandle, type SheetRestControl } from "../../kit/sheet/handle";
 import { repliesDoor } from "./shell-thread";
@@ -722,8 +723,12 @@ export const InboxThread = (props: InboxThreadProps) => {
         ref={footRef}
         className="ix-th-foot"
         data-folded={folded && thread.real ? "" : undefined}
-        // Tapped or typed into, folded, it opens (foldAsRead, openOnTap): on what is owed, on the words or on an act.
-        onFocus={folded ? () => setFolded(false) : undefined}
+        // Tapped or typed into, folded, it opens (foldAsRead, openOnTap): on what is owed, on the words or on an act. On a
+        // phone a field in it, focused, rises into the keys' room in one glide, the conversation with it (keys-rise.ts).
+        onFocus={(e) => {
+          if (ixPhone() && footRef.current) riseWithKeys(e.target, footRef.current, scrollRef.current);
+          if (folded) setFolded(false);
+        }}
         {...(folded ? openOnTap(() => setFolded(false)) : {})}
         {...dock.props}
       >

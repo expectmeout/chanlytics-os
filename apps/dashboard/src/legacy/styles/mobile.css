@@ -1137,7 +1137,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      one colour (the pane is transparent, nothing in the foot as wide as it is coloured otherwise, no blur over it).
      The keyboard: the screen stands on what the document says the keys cover (kit/motion/keyboard.ts), as Ask's does
      (ask.css): from the moment a field is focused the height the last keyboard had (kb-expected, --kb-last), so the field
-     is above the keys before they rise and the browser finds nothing to lift; once they are up, theirs (--kb); and should
+     is above the keys before they rise and the browser finds nothing to lift, while what the eye sees is the reply box
+     rising into that room over the keys' beat (kit/motion/keys-rise.ts); once they are up, theirs (--kb); and should
      the browser lift the view all the same (the first keyboard on a device), the screen follows it down and is as tall as
      what is left (--vv-top). An iPhone's browser floats its address over the page above the keys (--keys-pill, above),
      and the home bar is under the keys, where the foot's own room for it goes. What the keys leave under the foot is the
@@ -1177,6 +1178,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   html.kb-expected :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane::after {
     transition: none;
+  }
+  /* While the reply box rises into the room over the keys' beat (thread.tsx, kit/motion/keys-rise.ts), its copy's own
+     ground reaches down to the screen's foot and the room is not drawn: drawn at once, it lay over the conversation's
+     foot as the copy set out, and grown with the copy on the page's clock, it fell behind a copy the compositor moves,
+     with the page's ground between the two. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane[data-rising]::after {
+    visibility: hidden;
   }
   @media (prefers-reduced-motion: reduce) {
     :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane,
