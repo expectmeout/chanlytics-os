@@ -6,8 +6,10 @@
 import {
   DEFAULT_TIMEZONE,
   REACH_OUT_REPLY_DAYS,
+  REPLY_DRAFT_RULES,
   isReplyIntent,
   isUnread,
+  replySubject,
   type ReadingPlan,
 } from "@chanlytics/contracts";
 import { readReply, type DraftMark, type DraftState, type KeptReading, type ReplyFacts } from "@chanlytics/core";
@@ -15,6 +17,8 @@ import {
   applyReplyReading,
   archiveConversation,
   claimReplyTell,
+  conversationDraftClaim,
+  conversationDraftWrite,
   markReplyDraft,
   markReplyTold,
   reachOutReplyOf,
@@ -26,7 +30,7 @@ import {
 } from "@chanlytics/db";
 import { logger } from "@chanlytics/channels";
 import type { ClaimedJob, JobContext } from "./context";
-import { FUNCTION_CEILING_MS, LEASE_SECONDS } from "./ledger";
+import { FUNCTION_CEILING_MS, LEASE_SECONDS, type Db } from "./ledger";
 
 /** The plan as the door takes it: every field contracts' readingPlan answers, as JSON. */
 function planJson(plan: ReadingPlan): Json {
@@ -87,6 +91,27 @@ function draftMarkOf(m: DraftMark): { state: DraftMark["state"]; draft: string |
   return { state: m.state, draft: null, why: null };
 }
 
+/**
+ * A reading's draft, kept where every page reads a thread's draft (decision 0093): the row claimed for this message, so an
+ * older one is written over, then its words. Sent or changed like any other.
+ */
+async function keepReachOutDraft(
+  db: Db,
+  tenantId: string,
+  d: { conversationId: string; messageId: string; text: string; subject: string | null; used: readonly string[] },
+): Promise<void> {
+  const row = { tenantId, conversationId: d.conversationId, kind: "reply", forMessageId: d.messageId };
+  const shared = { source: "reach_out", rules: REPLY_DRAFT_RULES };
+  await conversationDraftClaim(db, { ...row, ...shared });
+  await conversationDraftWrite(db, {
+    ...row,
+    ...shared,
+    state: "ready",
+    words: { text: d.text, subject: replySubject(d.subject), brief: null, asks: [] },
+    used: d.used,
+  });
+}
+
 export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const replies = ctx.replies;
   if (!replies) throw new Error("reply_read: this runtime holds no reader");
@@ -127,6 +152,7 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
       tell: (tenantId, notice) => replies.tell(tenantId, notice),
       draft: (tenantId, ask) => replies.draft(tenantId, ask),
       markDraft: (tenantId, id, mark) => markReplyDraft(db, { ...where(tenantId, id), ...draftMarkOf(mark) }),
+      keepDraft: (tenantId, d) => keepReachOutDraft(db, tenantId, d),
       told: (tenantId, id, claim) => markReplyTold(db, { ...where(tenantId, id), claim }),
       scheduleOnce: (at, payload) => ctx.scheduleOnce("reply_read", new Date(at), payload),
       // What the intake opened, the reading closes: the flag by its reason, the thread whole, on the service role (the

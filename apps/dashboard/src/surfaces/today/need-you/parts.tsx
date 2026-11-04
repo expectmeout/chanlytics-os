@@ -79,7 +79,7 @@ function AskMark({ live = false }: { live?: boolean }) {
 
 /**
  * The head over what the row prepared: Ask's mark where the words are Ask's, what they are in the darker ink, whose they
- * are after it ("Reply · drafted by Ask", "Call notes · only you see these"), and the presses at its right. Labels,
+ * are after it ("Reply · Ask's draft", "Call notes · only you see these"), and the presses at its right. Labels,
  * like every state and press on the card, stand at the small step (need-you.css): what a box is never reads smaller
  * than the time beside a name.
  */
@@ -174,7 +174,7 @@ export function Words({
 }: {
   /** What they are: a reply, a rebook, a public reply, a confirmation. */
   what: string;
-  /** Whose they are: drafted by Ask, written by your receptionist, your words. */
+  /** Whose they are: Ask's draft, written by your receptionist, your words. */
   by: string;
   text: string;
   who: string;

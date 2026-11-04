@@ -13,7 +13,6 @@ import {
   draftIsCurrent,
   needYouSay,
   notNowChoices,
-  replyDraftAbout,
   sendCountdown,
 } from "@chanlytics/contracts";
 
@@ -118,13 +117,7 @@ test("the head's sentence after the count: what Ask prepared, then the one thing
   );
 });
 
-test("a thread's draft is written from its hold, asks the owner nothing, and is current only for their newest message", () => {
-  const reply = replyDraftAbout("reply", { reason: "Asked for a person", details: null });
-  assert.match(reply, /Reply to what they wrote last/);
-  assert.match(reply, /because: Asked for a person\./);
-  assert.match(reply, /Do not ask me anything/);
-  const brief = replyDraftAbout("brief", { reason: null, details: "Wants to move Thursday." });
-  assert.match(brief, /^Call them back\. The phone receptionist left this for the call: Wants to move Thursday\./);
+test("a thread's draft is current only for their newest message", () => {
   assert.equal(draftIsCurrent({ for_message_id: "m2" }, "m2"), true);
   assert.equal(draftIsCurrent({ for_message_id: "m1" }, "m2"), false, "they have said more since: written again");
   const words = (text, brief = null) => ({ text, subject: "", brief, asks: [] });

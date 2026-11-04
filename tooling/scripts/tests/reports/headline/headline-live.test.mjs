@@ -93,6 +93,7 @@ test("Today owns the headline it draws: its own page reads it, and no other page
     "ask_morning",
     "people",
     "reach_out_replies",
+    "reply_drafts",
     "reports_headline",
     "setup",
     "today_pins",

@@ -82,6 +82,7 @@ function writesOf(conv: ConversationDto | undefined, f: Pick<TodayFacts, "tz" | 
   const w = wire === "WhatsApp" ? waWindow(conv.last_wa_inbound_at, f.now) : null;
   return {
     for_message_id: last?.id ?? null,
+    for_message_at_ms: last ? Date.parse(last.created_at) : null,
     wire,
     window_open: w ? w.open : null,
     window_closes: w?.open ? tzClock(w.closesAtIso, f.tz, f.now) : null,

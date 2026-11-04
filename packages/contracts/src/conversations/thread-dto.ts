@@ -100,6 +100,10 @@ export interface ConversationDto {
   state: "open" | "needs_human" | "snoozed" | "archived";
   paused_until: string | null;
   snooze_until?: string | null;
+  /** When it was set aside as not a customer's, and still is (00539, decision 0093); absent from a server a deploy behind. */
+  set_aside_at?: string | null;
+  /** What its sender was read as: pitch, or notice. */
+  set_aside_why?: string | null;
   assignee_user_id?: string | null;
   assignee_is_me?: boolean;
   last_wa_inbound_at?: string | null;

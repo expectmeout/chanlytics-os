@@ -31,6 +31,8 @@ export interface HealthPartsDto {
   webhooks: Array<Keyed & { provider: string; door: string; n: number; unverified: number; last_at: string }>;
   billing: Array<{ type: string; state: string; n: number; last_at: string }>;
   model: Array<Keyed & { purpose: string; outcome: string; n: number; usd: number }>;
+  /** What the replies sent did with the thread's draft (00539 reply_draft_uses, decision 0093). */
+  draft_uses?: Array<Keyed & { use: string; n: number }>;
   model_by_workspace: Array<Keyed & { tenant_id: string; purpose: string; n: number; usd: number }>;
   model_failures: Array<
     Keyed & {
@@ -359,6 +361,16 @@ export interface ModelCallsVM {
 function failureReasonOf(f: { error_type: string | null; error_message: string | null }): string | null {
   if (!f.error_type && !f.error_message) return null;
   return [f.error_type, f.error_message].filter(Boolean).join(": ");
+}
+
+/** What the drafts came to, over the window: how many of the replies sent used the thread's draft, and how. */
+export function draftUsesOf(
+  parts: HealthPartsDto | null,
+  scope: HealthScope,
+): { asWritten: number; edited: number; notUsed: number } {
+  const rows = inScopeRows(parts?.draft_uses, scope);
+  const of = (use: string) => rows.filter((r) => r.use === use).reduce((n, r) => n + r.n, 0);
+  return { asWritten: of("as_written"), edited: of("edited"), notUsed: of("not_used") };
 }
 
 export function modelCallsOf(parts: HealthPartsDto | null, scope: HealthScope): ModelCallsVM {

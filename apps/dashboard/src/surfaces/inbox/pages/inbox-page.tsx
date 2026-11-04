@@ -196,7 +196,8 @@ const inboxCounts = (
       threads.filter((t) => ixBucketOf(t) === b.id).length +
       (b.id === "done" ? (INBOX_BASELINE?.doneThisWeek ?? 48) : 0) +
       (b.id === "escalated" ? runs : 0),
-  }));
+    // Set aside stands only where it holds something: it is no list to keep an eye on.
+  })).filter((b) => !b.onlyWithRows || b.count > 0);
   const viewsWithCounts = INBOX_VIEWS.map((v) => ({
     ...v,
     count: IX_VIEW_FILTERS[v.id] ? threads.filter(IX_VIEW_FILTERS[v.id]).length : v.count,

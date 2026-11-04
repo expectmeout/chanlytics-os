@@ -95,7 +95,20 @@ export {
 } from "./repositories/ask/memory";
 export type { AskMemoryDoor, AskRecallRow } from "./repositories/ask/memory";
 export { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "./repositories/ask/mornings";
-export { conversationDraftKeep, conversationDraftsOf, threadDraftFacts } from "./repositories/ask/reply-drafts";
+export {
+  conversationDraftClaim,
+  conversationDraftDrop,
+  conversationDraftFailed,
+  conversationDraftsOf,
+  conversationDraftWrite,
+  conversationOfEscalation,
+  conversationSetAside,
+  conversationsSetAside,
+  replyDraftsDue,
+  replyDraftThreadOf,
+  threadDraftFacts,
+} from "./repositories/ask/reply-drafts";
+export type { ConversationDraftRow, ReplyDraftThread } from "./repositories/ask/reply-drafts";
 export {
   answerBookingRequest,
   appointmentByClientStart,
@@ -370,6 +383,7 @@ export {
   healthBacklog,
   healthClientErrors,
   healthClocks,
+  healthDraftUses,
   healthFailedJobs,
   healthLedgerNow,
   healthPages,
@@ -422,9 +436,11 @@ export {
   holdsReplyTurn,
   memberWithdrawDrafts,
   memberWithdrawMessage,
+  notACustomerThread,
   openEscalation,
   readLiveHold,
   releaseControl,
+  replyAnywayThread,
   sendQueuedNow,
   takeOverThread,
   withdrawAiDrafts,

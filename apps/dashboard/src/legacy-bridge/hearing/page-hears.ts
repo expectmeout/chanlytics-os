@@ -42,13 +42,15 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
     today: true,
     reports_headline: true,
     reach_out_replies: true,
+    reply_drafts: true,
     setup: true,
     today_pins: true,
     // What Ask noticed, and the cards about a batch: a batch or a sequence that moved (decision 0087).
     ask_morning: true,
     people: ["person"],
   },
-  inbox: { inbox: true },
+  // And the thread's draft, heard as it lands, so the row and the box say it without a reload (decision 0093).
+  inbox: { inbox: true, reply_drafts: true },
   conversations: { conversations: true },
   live: { live: true },
   // The Calendar owns the campaign marks it draws over its days (surfaces/calendar/runs-surface.ts): a run made, approved or done,

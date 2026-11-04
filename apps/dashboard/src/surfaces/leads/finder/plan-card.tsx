@@ -31,7 +31,6 @@ const NO_FACTS: LeadPlanFacts = {
   bound: null,
   prior: null,
   priorOf: null,
-  cannotSee: null,
   renewsOn: "",
   nearby: [],
 };
@@ -140,40 +139,6 @@ function planSentenceOf(
   });
 }
 
-/** The listing cannot show a criterion asked for as seen: the two ways on, and nothing spent. */
-const cannotSeeRow = (
-  cannot: NonNullable<LeadPlanFacts["cannotSee"]>,
-  plan: LeadSearchPlan,
-  change: (over: PlanPatch) => void,
-) => (
-  <div className="lf-cannot" role="status" data-testid="plan-cannot-see">
-    <Icon name="dashring" size={13} />
-    <span>A listing doesn't show that, so "{cannot.text}" can't be confirmed. Nothing has been spent.</span>
-    <button
-      type="button"
-      className="btn btn-sm"
-      data-testid="plan-take-likely"
-      onClick={() =>
-        change({
-          criteria: plan.criteria.map((x) =>
-            x.key === cannot.key ? { ...x, standard: "likely", text: cannot.likely } : x,
-          ),
-        })
-      }
-    >
-      {cannot.likely}
-    </button>
-    <button
-      type="button"
-      className="btn btn-ghost btn-sm"
-      data-testid="plan-drop-unseen"
-      onClick={() => change({ criteria: plan.criteria.filter((x) => x.key !== cannot.key) })}
-    >
-      Take it out
-    </button>
-  </div>
-);
-
 /** What the plan leaves out, each a chip that keeps it. */
 const leavingRow = (plan: LeadSearchPlan, change: (over: PlanPatch) => void) => (
   <div className="lf-leaving" data-testid="plan-leaving">
@@ -271,8 +236,6 @@ export const LeadPlanCard = ({
   // An answer spends from the round's own reservation: its count is the one reserved, and the month's clamp is not this
   // round's to apply (nothing new is reserved).
   const ask = answering ? { count: plan.count, label: "Update the search", covers: null } : leadPlanAsk(plan, facts);
-  const cannot =
-    f.cannotSee && plan.criteria.some((c) => c.key === f.cannotSee?.key && c.standard === "seen") ? f.cannotSee : null;
   return (
     <div className="lf-plan" data-testid="lead-plan">
       <p className="lf-sentence" data-testid="plan-sentence">
@@ -283,7 +246,6 @@ export const LeadPlanCard = ({
           changed
         </span>
       ) : null}
-      {cannot ? cannotSeeRow(cannot, plan, change) : null}
       {plan.exclusions.length ? leavingRow(plan, change) : null}
       <div className="lf-likely" data-testid="plan-likely">
         {likely.emailPct === null ? null : (
@@ -323,7 +285,7 @@ export const LeadPlanCard = ({
           type="button"
           className="btn btn-primary btn-lg"
           data-testid="plan-approve"
-          disabled={!!busy || !!cannot || ask.count < 1}
+          disabled={!!busy || ask.count < 1}
           onClick={() => onApprove(ask.count === plan.count ? plan : planVersionOf(plan, { count: ask.count }))}
         >
           {busy ? "Starting…" : ask.label}

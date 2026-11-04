@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-353 handlers in 56 domains.
+355 handlers in 56 domains.
 
 ## activity
 
@@ -821,6 +821,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/hand-back/route.ts`).
 
+### `POST /api/v1/conversations/[id]/not-a-customer`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `undo` | boolean | no |  |
+
 ### `POST /api/v1/conversations/[id]/reply`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `reply` rate; spends nothing. Keeps its own `Idempotency-Key`.
@@ -830,6 +838,12 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `text` | string | no | at most 20000 characters |
 | `email_to` | string | no | at most 320 characters |
 | `template` | object | no |  |
+
+### `POST /api/v1/conversations/[id]/reply-anyway`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/reply-anyway/route.ts`).
 
 ### `POST /api/v1/conversations/[id]/snooze`
 
@@ -1859,7 +1873,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -1879,7 +1893,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 

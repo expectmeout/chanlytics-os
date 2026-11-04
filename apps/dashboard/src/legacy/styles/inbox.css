@@ -2959,8 +2959,8 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   font-size: var(--text-xs);
   color: var(--ink-muted);
 }
-/* An email's, or a draft the receptionist wrote: a box of the inset's ground holding whose words they are and why, the
-   words, what they are signed with and Rewrite; under it Hand back at the left and Send in its words at the right. */
+/* An email's: a box of the inset's ground holding the words, what they are signed with and Rewrite, under the row of the
+   draft and Hand back, with Send in its words under it. */
 .ix-composer.ix-composer-row[data-shape="box"] {
   flex-direction: column;
   align-items: stretch;
@@ -2993,12 +2993,69 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-composer-glance {
   display: none;
 }
+/* The one row over the reply box (decision 0093): the thread's draft at its start, Hand back at its end. */
+.ix-composer-over {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 32px;
+  margin-bottom: 6px;
+}
+.ix-composer[data-shape="box"] > .ix-composer-over {
+  margin-bottom: 0;
+}
+.ix-composer-said {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.ix-composer-said .ix-composer-why {
+  flex: none;
+  padding: 6px 2px;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink);
+}
+/* Being written: the spark breathes, and holds still where motion is asked to. */
+.ix-composer-said[data-state="writing"] .ix-composer-drafted-spark {
+  animation: ix-draft-writing 1.4s ease-in-out infinite;
+}
+@keyframes ix-draft-writing {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ix-composer-said[data-state="writing"] .ix-composer-drafted-spark {
+    animation: none;
+  }
+}
+/* Said once to a screen reader as a draft lands: out of sight for everyone else. */
+.ix-composer-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Use draft's words rising into the field. */
+.ix-composer-text[data-landed] {
+  animation: ix-over-in var(--duration-fast) var(--ease-out);
+}
 .ix-composer-drafted {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+  white-space: nowrap;
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
@@ -3163,13 +3220,21 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   .ix-composer.ix-composer-row[data-shape="box"] > :is(.ix-composer-draft, .ix-composer-acts) {
     display: contents;
   }
-  .ix-composer.ix-composer-row[data-shape="box"] :is(.ix-composer-drafted, .ix-composer-why-said) {
-    order: 1;
+  .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-over {
+    order: 0;
     flex: 1 1 100%;
   }
-  .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-acts > :not(.ix-composer-gap, .ix-composer-send) {
-    order: 2;
-    flex: none;
+  /* The whole row on one line at 375: whose words, Why this?, Rewrite, Undo for its moment, and Hand back. */
+  .ix-composer-over,
+  .ix-composer-drafted {
+    gap: 6px;
+  }
+  .ix-composer-over .ix-composer-handback {
+    padding-inline: 2px;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-why-said {
+    order: 1;
+    flex: 1 1 100%;
   }
   .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-signed {
     order: 3;
@@ -3189,16 +3254,17 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
     display: none;
   }
   /* What stands over the line rises a little into its place as the box opens, or as the words that bring it come. */
-  .ix-composer.ix-composer-row[data-shape="box"] :is(.ix-composer-drafted, .ix-composer-signed),
-  .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-acts > :not(.ix-composer-gap, .ix-composer-send) {
+  .ix-composer-over,
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-signed {
     animation: ix-over-in var(--duration-base) var(--ease-out);
   }
   .ix-th-foot[data-folded]
-    :is(.ix-composer-drafted, .ix-composer-why-said, .ix-composer-signed, .ix-composer-rewrite-line),
-  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-acts {
+    :is(.ix-composer-over, .ix-composer-why-said, .ix-composer-signed, .ix-composer-rewrite-line),
+  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-acts,
+  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-glance] .ix-composer-send {
     display: none;
   }
-  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text {
+  .ix-th-foot[data-folded] .ix-composer.ix-composer-row:is([data-shape="box"], [data-glance]) .ix-composer-text {
     position: absolute;
     width: 1px;
     min-height: 0;
@@ -3238,8 +3304,8 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ix-composer.ix-composer-row[data-shape="box"] :is(.ix-composer-drafted, .ix-composer-signed),
-  .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-acts > :not(.ix-composer-gap, .ix-composer-send) {
+  .ix-composer-over,
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-signed {
     animation: none;
   }
 }

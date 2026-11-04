@@ -178,6 +178,18 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["message_id"],
     never: [],
   },
+  // A thread's draft, written when it is owed (00538, decision 0093): text on a row, so nothing speaks and a run that died
+  // only leaves the row saying it is being written, which the ledger settles. Its two tries of the route's model: 40s.
+  reply_draft: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 40 * SECOND_MS,
+    ids: ["conversation_id", "draft_kind"],
+    never: ["body", "text", "instruction"],
+  },
   // A booking tool's notice, read (00345): the third try holds the notice for a person itself; a run that died on it is
   // held by the ledger, so the delivery is never only a failed job.
   booking_read: {

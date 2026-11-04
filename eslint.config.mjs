@@ -358,6 +358,7 @@ export const LIMITED_TREES = [
   "apps/edge/api/mailbox",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
+  "apps/edge/lib/drafts",
   "apps/edge/lib/email",
   "apps/edge/lib/google",
   "apps/edge/lib/imports",

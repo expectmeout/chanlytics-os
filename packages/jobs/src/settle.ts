@@ -28,6 +28,7 @@ import {
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
 import {
+  conversationDraftFailed,
   emitEvent,
   failOpenDelivery,
   failQueuedSend,
@@ -50,7 +51,7 @@ export interface TerminalJob {
 /** One thing a job was in the middle of, and what became of it. */
 export interface Settled {
   /** The kind of row, in the words the product uses for it. */
-  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery";
+  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery" | "draft";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
   /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
@@ -429,6 +430,24 @@ async function settleDelivery(db: Db, job: TerminalJob, certain: boolean, why?: 
   return [{ what: "delivery", changed: moved }];
 }
 
+/**
+ * A thread's draft that will not be written (00538): the row a run left saying it is being written says it was not, so the
+ * page stops saying Drafting. A row written since, or claimed for a newer message, is left alone.
+ */
+async function settleDraft(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const conversationId = idFrom(job.payload, "conversation_id");
+  const kind = idFrom(job.payload, "draft_kind");
+  if (!conversationId || !kind) return [{ what: "draft", changed: false, error: "no thread or kind on the job" }];
+  const moved = await conversationDraftFailed(db, {
+    tenantId: job.tenant_id,
+    conversationId,
+    kind,
+    forMessageId: idFrom(job.payload, "message_id"),
+    whyFailed: "not_drafted",
+  });
+  return [{ what: "draft", changed: moved }];
+}
+
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
 /**
@@ -444,6 +463,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   event_deliver: settleDelivery,
   history_import: settleImport,
   preview_build: settlePreview,
+  reply_draft: settleDraft,
   line_provision: null,
   lead_round_start: null,
   lead_collect: null,
@@ -466,6 +486,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   history_import: "import",
   booking_read: "notice",
   event_deliver: "delivery",
+  reply_draft: "draft",
 };
 
 /**
@@ -505,7 +526,7 @@ export function saySettled(results: Settled[]): string | null {
       lines.push("Its source says it stopped, with Try again.");
     } else if (r.changed && r.what === "notice") {
       lines.push("The booking email is held for a person in Settings › Business, with Read again.");
-    } else if (r.what === "preview" || r.what === "delivery") {
+    } else if (r.what === "preview" || r.what === "delivery" || r.what === "draft") {
       // A preview marked not made, a delivery marked failed: the platform's leavings, said nowhere an owner reads.
     } else if (r.resumed) {
       // Whether this settlement handed it on or found a run already coming, the

@@ -124,7 +124,7 @@ export {
 export type { ClockState, ClockVM, HealthClockDto, OperatorPageDto, PageVM } from "./health-clocks";
 export { errorGroupReport, errorGroupsOf } from "./health-errors";
 export type { ErrorGroupsVM, ErrorGroupVM } from "./health-errors";
-export { callsOf, connectionsOf, deliveriesOf, modelCallsOf, sendsOf, webhooksOf } from "./health-parts";
+export { callsOf, connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf, sendsOf, webhooksOf } from "./health-parts";
 export type {
   CallsVM,
   ConnectionVM,

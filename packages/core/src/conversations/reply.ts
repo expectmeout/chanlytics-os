@@ -276,6 +276,8 @@ export interface ReplyPorts extends Pick<
   hash(s: string): string;
 }
 export interface ReplyCommand {
+  /** What these words did with the thread's draft (contracts draftUseOf), kept on the row: Health's number (decision 0093). */
+  draftUse?: Json;
   conv: ReplyThread;
   userId: string;
   body: ReplyBody;
@@ -668,6 +670,8 @@ async function queueReply(
     template_vars: template?.vars ?? null,
     content_hash: ports.hash(messageBody),
     ...(email ?? {}),
+    // What the words did with the thread's draft, as the route read it: never read by the send.
+    ...(cmd.draftUse ? { meta: { ...(email?.meta as Record<string, Json> | undefined), draft: cmd.draftUse } } : {}),
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
   const receipt: ReplyReceipt = {

@@ -20,7 +20,7 @@ interface RealThread {
 }
 
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
-type VerbResult = ApiResult<unknown>;
+export type VerbResult = ApiResult<unknown>;
 
 /** A refusal the courier makes before asking: nothing was sent, and it reads as any other refusal does. */
 const local = (message: string): VerbResult => ({
@@ -240,23 +240,14 @@ export async function steerDraft(messageId: string, text: string): Promise<VerbR
   return api()("POST messages/[id]/steer", { params: { id: messageId }, body: { text }, once: true });
 }
 
-/**
- * The receptionist's draft for a thread's box written again as the member asks (the thread canvas's Rewrite, 1 Nov 2026):
- * the one call Need you's drafts make (POST conversations/[id]/draft), with the member's words. Nothing is sent by it; the
- * new words come back for the box, and the drafts read with Today's are read again behind it.
- */
-export async function rewriteReplyDraft(
-  conversationId: string,
-  instruction: string,
-): Promise<{ ok: true; words: string } | { ok: false; message: string }> {
-  const r = await api()("POST conversations/[id]/draft", {
-    params: { id: conversationId },
-    body: { kind: "reply", instruction },
-    refresh: "behind",
-    keepsReads: true,
-  }).catch(() => null);
-  if (r && r.ok) return { ok: true, words: r.data.words.text };
-  return { ok: false, message: (r && !r.ok && r.message) || "It could not be written again." };
+/** Not a customer, on a thread set aside (decision 0093); `undo` puts it all back. */
+export async function notACustomerVerb(conversationId: string, undo = false): Promise<VerbResult> {
+  return api()("POST conversations/[id]/not-a-customer", { params: { id: conversationId }, body: { undo } });
+}
+
+/** Reply anyway, on a thread set aside: back with its hold, and a draft owed (decision 0093). */
+export async function replyAnywayVerb(conversationId: string): Promise<VerbResult> {
+  return api()("POST conversations/[id]/reply-anyway", { params: { id: conversationId } });
 }
 
 /** A held reply let go now (Send now): its send job brought to the ledger's next tick. */

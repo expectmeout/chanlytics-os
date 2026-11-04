@@ -1,121 +1,85 @@
 /**
- * Ask's drafts on Today's rows (decision 0071, E2): what each waiting thread's row offers to send, read from what Ask kept
- * (GET conversations/drafts) and asked for where none answers their newest message (POST conversations/[id]/draft), a few
- * at a time. Held in the tab by the thread and the kind, with the message it answers, so a row drawn again reads it at
- * once, a draft a teammate's tab wrote is read and never written twice, and a new message from them asks for a new one.
- * The workspace's newest kept drafts come with Today's own first reads (drafts-surface.ts), so a row draws with its words
- * from its first frame; only one whose draft is not among them is read by its thread.
+ * A thread's draft as every page reads it (decision 0093): written when its hold owes one, on the server, with nobody on a
+ * page, and read here. The workspace's newest kept drafts come with a page's own first reads and are heard as they land
+ * (drafts-surface.ts), so a row draws with its words from its first frame; a thread whose draft is not among them is read by
+ * itself. Today's rows, the Inbox's rows and its reply box read one answer of one row (contracts draftViewOf).
  *
- * A member who acts asks for the drafts that are missing; anyone else reads what was kept, and a row with none says so.
+ * Nothing here writes a first draft. A member's change (Rewrite, Change it with Ask) and their Try again go through the
+ * edge's door, and what it answers stands until the feed brings the same row back.
  */
 import { useSyncExternalStore } from "react";
 import {
   NEED_YOU_WORDS,
   REPLY_DRAFTS_IDS_MAX,
-  draftHasWords,
-  draftIsCurrent,
-  draftPitchOf,
+  draftViewOf,
   type ReplyDraftDto,
   type ReplyDraftKind,
+  type ReplyDraftView,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { onSurfaceMoved } from "@/legacy-bridge/surface-status";
 import { surfaceValue } from "../../surface-values";
-import type { ReplyDraftsSurface } from "./drafts-surface";
 
-/** A thread's draft as a row draws it. */
-type DraftState =
-  | { state: "writing" }
-  | { state: "ready"; draft: ReplyDraftDto }
-  | { state: "asks"; question: string }
-  | { state: "pitch"; what: string }
-  | { state: "none" }
-  | { state: "failed"; why: string };
-
-/** A draft a row wants: its thread, its kind, and their newest message, which the draft must answer. */
+/**
+ * A draft a row wants: its thread, its kind, their newest message, which the draft must answer, whether one is owed here,
+ * and when they wrote it, so a draft that never came stops being said to be on its way.
+ */
 export interface DraftWant {
   conversationId: string;
   kind: ReplyDraftKind;
   forMessageId: string | null;
+  expected: boolean;
+  askedAtMs: number | null;
 }
-
-/** How many drafts are written at once: each is a model call, and the rows wait their turn. */
-const WRITING_AT_ONCE = 2;
 
 const draftKeyOf = (w: Pick<DraftWant, "conversationId" | "kind">) => `${w.conversationId}:${w.kind}`;
 
-/** Each draft as it stands, with the message it was asked for, so a newer one asks again. */
-const draftsHeld = new Map<string, { s: DraftState; forMessageId: string | null }>();
+/** Rows this tab holds apart from the newest: read by their thread, or answered by the edge's door. */
+const heldRows = new Map<string, ReplyDraftDto>();
+/** Threads whose own read was asked, for their message: once, whatever it found. */
+const askedRows = new Set<string>();
+/** Drafts a member is having written again, this moment: every row that reads one says so. */
+const rewriting = new Set<string>();
 const draftHearers = new Set<() => void>();
 const tellDrafts = () => draftHearers.forEach((l) => l());
 
-/** The drafts waiting their turn to be written, and how many are being written now. */
-const draftQueue: DraftWant[] = [];
-let writing = 0;
-
-function set(w: DraftWant, s: DraftState) {
-  draftsHeld.set(draftKeyOf(w), { s, forMessageId: w.forMessageId });
-  tellDrafts();
-}
-
-/**
- * A kept draft as the row draws it: its words, what they wrote where it was not a customer's (no words were written for
- * a pitch), or the question Ask could not answer from the facts.
- */
-function draftStateOf(d: ReplyDraftDto): DraftState {
-  if (draftHasWords(d)) return { state: "ready", draft: d };
-  const pitch = draftPitchOf(d);
-  if (pitch) return { state: "pitch", what: pitch };
-  const q = d.words.asks[0];
-  return q ? { state: "asks", question: q } : { state: "failed", why: NEED_YOU_WORDS.couldNot };
-}
-
-/** Ask writing a draft, and a row with none and nobody to write it: one object each, as a store's snapshot must be. */
-const WRITING: DraftState = { state: "writing" };
-const NO_DRAFT: DraftState = { state: "none" };
-
-/** The kept draft that still answers this row, among the workspace's newest that came with Today's first reads. */
-function keptDraftOf(held: ReplyDraftsSurface | undefined, w: DraftWant): ReplyDraftDto | undefined {
-  return held?.drafts.find(
-    (d) => d.conversation_id === w.conversationId && d.kind === w.kind && draftIsCurrent(d, w.forMessageId),
+/** The kept row for a want: the newest of what the page read with its own and what this tab was answered. */
+function keptOf(w: Pick<DraftWant, "conversationId" | "kind">): ReplyDraftDto | undefined {
+  const newest = surfaceValue("reply_drafts")?.drafts.find(
+    (d) => d.conversation_id === w.conversationId && d.kind === w.kind,
   );
+  const held = heldRows.get(draftKeyOf(w));
+  if (!newest || !held) return newest ?? held;
+  return Date.parse(held.made_at) > Date.parse(newest.made_at) ? held : newest;
 }
 
-/** A kept draft's state, one object per draft, so a row reading it twice reads the same one (useDraft's snapshot). */
-const keptStates = new WeakMap<ReplyDraftDto, DraftState>();
-function keptStateOf(d: ReplyDraftDto): DraftState {
-  let s = keptStates.get(d);
-  if (!s) keptStates.set(d, (s = draftStateOf(d)));
-  return s;
-}
+/** One answer an answer, so a store's snapshot reads the same object until it says something else. */
+const views = new Map<string, { said: string; view: ReplyDraftView }>();
 
-/**
- * A row's draft before the tab has asked for it: the kept one that answers it, else, where the newest came whole (all
- * the workspace keeps), Ask writing it for a member who acts and none for anyone else, as wantDrafts will say a moment
- * later; else not known yet (its thread's read is still to come).
- */
-function beforeAsked(w: DraftWant, may: boolean): DraftState | null {
-  const held = surfaceValue("reply_drafts");
-  const kept = keptDraftOf(held, w);
-  if (kept) return keptStateOf(kept);
-  if (!held?.complete) return null;
-  return may ? WRITING : NO_DRAFT;
-}
-
-/** A missing draft: written by a member who acts, in turn; none for anyone else. */
-function missing(w: DraftWant, mayWrite: boolean) {
-  if (!mayWrite) return set(w, NO_DRAFT);
-  set(w, WRITING);
-  draftQueue.push(w);
+/** A thread's draft now: what every row draws, and what a row with no hook of its own asks. */
+export function draftViewNow(w: DraftWant): ReplyDraftView {
+  const key = draftKeyOf(w);
+  const kept = keptOf(w);
+  const view: ReplyDraftView = rewriting.has(key)
+    ? { state: "writing" }
+    : draftViewOf(kept, {
+        forMessageId: w.forMessageId,
+        expected: w.expected,
+        askedAtMs: w.askedAtMs,
+        nowMs: Date.now(),
+      });
+  const said = `${view.state}:${kept?.made_at ?? ""}:${kept?.for_message_id ?? ""}:${w.forMessageId ?? ""}`;
+  const had = views.get(key);
+  if (had && had.said === said) return had.view;
+  views.set(key, { said, view });
+  return view;
 }
 
 /**
- * Ask's draft for a thread, written, or written again as the member asks (`instruction`): the one call the drafts make
- * (POST conversations/[id]/draft). The drafts Today read with its own are read again behind it (refresh-map.ts), so a
- * reload draws these words at once; and nothing else a page reads moves with a draft, so the reads shared in flight are
- * kept.
+ * The call the drafts make (POST conversations/[id]/draft): a member's change, or their Try again, kept by the edge on the
+ * row every page hears. The reads shared in flight are kept: nothing else a page reads moves with a draft.
  */
-const postReplyDraft = (w: DraftWant, instruction?: string) =>
+const postDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction?: string) =>
   api()("POST conversations/[id]/draft", {
     params: { id: w.conversationId },
     body: { kind: w.kind, ...(instruction ? { instruction } : {}) },
@@ -123,88 +87,50 @@ const postReplyDraft = (w: DraftWant, instruction?: string) =>
     keepsReads: true,
   });
 
-/** Write the next draft waiting, while fewer than WRITING_AT_ONCE are being written. */
-function writeNext() {
-  while (writing < WRITING_AT_ONCE && draftQueue.length) {
-    const w = draftQueue.shift();
-    if (!w) return;
-    writing += 1;
-    void postReplyDraft(w)
-      .then((r) => set(w, r.ok ? draftStateOf(r.data) : { state: "failed", why: r.message || NEED_YOU_WORDS.couldNot }))
-      .catch(() => set(w, { state: "failed", why: NEED_YOU_WORDS.couldNot }))
-      .finally(() => {
-        writing -= 1;
-        writeNext();
-      });
-  }
-}
-
 /**
- * Ask's draft written again as the member asks (Change it with Ask on Ask's own draft, the phone canvas, 28 Oct 2026): Ask
- * is writing it at once, then the new words stand in the old one's place in every row that reads it. Refused, the old
- * words come back and the refusal is answered for the row to say.
+ * The edge asked, with the row saying it is being written while it answers. Refused, the row says what it said before, and
+ * the refusal is answered for the page to say.
  */
-export async function rewriteDraft(
-  w: DraftWant,
-  instruction: string,
-): Promise<{ ok: true } | { ok: false; why: string }> {
-  const was = heldDraftOf(w) ?? beforeAsked(w, true);
-  set(w, WRITING);
-  const r = await postReplyDraft(w, instruction).catch(() => null);
-  if (r && r.ok) {
-    set(w, draftStateOf(r.data));
-    return { ok: true };
-  }
-  if (was) set(w, was);
+async function askAgain(
+  w: Pick<DraftWant, "conversationId" | "kind">,
+  instruction?: string,
+): Promise<{ ok: true; words: string } | { ok: false; why: string }> {
+  const key = draftKeyOf(w);
+  rewriting.add(key);
+  tellDrafts();
+  const r = await postDraft(w, instruction).catch(() => null);
+  rewriting.delete(key);
+  if (r && r.ok) heldRows.set(key, r.data);
+  tellDrafts();
+  if (r && r.ok) return { ok: true, words: r.data.words.text };
   return { ok: false, why: (r && !r.ok && r.message) || NEED_YOU_WORDS.couldNot };
 }
 
-/**
- * What the tab holds of this draft, where it was asked for the message the row names: one for an older message answers
- * less than the row shows, and the row drew its words until the new one came.
- */
-function heldDraftOf(w: DraftWant): DraftState | undefined {
-  const h = draftsHeld.get(draftKeyOf(w));
-  return h && h.forMessageId === w.forMessageId ? h.s : undefined;
-}
+/** A member's change to the draft (Rewrite, Change it with Ask): the new words stand in every row that reads it. */
+export const rewriteDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction: string) =>
+  askAgain(w, instruction);
 
-/** Whether the tab already holds this draft, for the message the row names. */
-function holds(w: DraftWant): boolean {
-  return heldDraftOf(w) !== undefined;
-}
+/** A draft that could not be written, asked for again. */
+export const tryDraftAgain = (w: Pick<DraftWant, "conversationId" | "kind">) => askAgain(w);
 
 /**
- * The drafts these rows want: the kept ones that came with Today's first reads (drafts-surface.ts) are taken as they are;
- * where those were all the workspace keeps, the rest are missing; else what was kept on the rest is read in one request.
- * What is missing, or answers an older message, is written (`mayWrite`: a member who acts) or said to be none. Drafts the
- * tab holds for the same message are left alone.
+ * The drafts these rows want, read where the workspace's newest did not hold them and were not all it keeps: one request,
+ * once a thread. A thread with none reads none, and the feed tells of it when one lands.
  */
-export async function wantDrafts(wants: readonly DraftWant[], mayWrite: boolean): Promise<void> {
-  const fresh = wants.filter((w) => !holds(w)).slice(0, REPLY_DRAFTS_IDS_MAX);
-  if (!fresh.length) return;
-  const held = surfaceValue("reply_drafts");
-  const unread: DraftWant[] = [];
-  for (const w of fresh) {
-    const d = keptDraftOf(held, w);
-    if (d) set(w, keptStateOf(d));
-    else if (held?.complete) missing(w, mayWrite);
-    else unread.push(w);
-  }
-  if (unread.length) {
-    for (const w of unread) set(w, WRITING);
-    const ids = [...new Set(unread.map((w) => w.conversationId))];
-    const read = await api()("GET conversations/drafts", { query: { ids: ids.join(",") } }).catch(() => null);
-    const kept = read && read.ok ? read.data.drafts : [];
-    for (const w of unread) {
-      const d = kept.find((k) => k.conversation_id === w.conversationId && k.kind === w.kind);
-      if (d && draftIsCurrent(d, w.forMessageId)) set(w, draftStateOf(d));
-      else missing(w, mayWrite);
-    }
-  }
-  writeNext();
+export async function wantDrafts(wants: readonly DraftWant[]): Promise<void> {
+  if (surfaceValue("reply_drafts")?.complete) return;
+  const askedKey = (w: DraftWant) => `${draftKeyOf(w)}:${w.forMessageId ?? ""}`;
+  const unread = wants.filter((w) => !keptOf(w) && !askedRows.has(askedKey(w))).slice(0, REPLY_DRAFTS_IDS_MAX);
+  if (!unread.length) return;
+  for (const w of unread) askedRows.add(askedKey(w));
+  const ids = [...new Set(unread.map((w) => w.conversationId))];
+  const read = await api()("GET conversations/drafts", { query: { ids: ids.join(",") } }).catch(() => null);
+  if (!read || !read.ok || !Array.isArray(read.data.drafts)) return;
+  for (const d of read.data.drafts) heldRows.set(draftKeyOf({ conversationId: d.conversation_id, kind: d.kind }), d);
+  tellDrafts();
 }
 
-/** Heard as a draft changes in the tab, and as the kept ones Today read come in or are read again. */
+/** Heard as a draft changes in the tab, and as the kept ones a page read come in or are read again. */
 const hearDrafts = (on: () => void) => {
   draftHearers.add(on);
   const unhear = onSurfaceMoved(["reply_drafts"], on);
@@ -214,30 +140,38 @@ const hearDrafts = (on: () => void) => {
   };
 };
 
-/**
- * A row's draft as it stands, drawn again as it changes; nothing while the row wants none. Before the tab has asked for
- * it, the kept one or what asking will say (beforeAsked), so a row draws with its words, or with Ask writing them, from its
- * first frame: `may`, whether this member acts (the row's own), decides between writing and none.
- */
-export function useDraft(w: DraftWant | null, may: boolean): DraftState | null {
+/** A row's draft as it stands, drawn again as it changes; nothing while the row wants none. */
+export function useDraft(w: DraftWant | null): ReplyDraftView | null {
   return useSyncExternalStore(
     hearDrafts,
-    () => (w ? (heldDraftOf(w) ?? beforeAsked(w, may)) : null),
+    () => (w ? draftViewNow(w) : null),
     () => null,
   );
 }
 
+/** Drawn again as any draft lands, for a list whose rows read theirs without a hook each (draftViewNow). */
+let moved = 0;
+const countMoved = (on: () => void) =>
+  hearDrafts(() => {
+    moved += 1;
+    on();
+  });
+export function useDraftsMoved(): number {
+  return useSyncExternalStore(
+    countMoved,
+    () => moved,
+    () => 0,
+  );
+}
+
 /**
- * What the section's one line counts: the drafts ready and being written, of the rows it draws, as the rows draw them
- * from their first frame (useDraft), so the line stands with the rows rather than a moment after.
+ * What the section's one line counts: the drafts ready and being written, of the rows it draws, as the rows draw them from
+ * their first frame (useDraft), so the line stands with the rows rather than a moment after.
  */
-export function useDraftCounts(
-  wants: readonly DraftWant[],
-  may: boolean,
-): { replies: number; briefs: number; writing: number } {
+export function useDraftCounts(wants: readonly DraftWant[]): { replies: number; briefs: number; writing: number } {
   const snapshot = useSyncExternalStore(
     hearDrafts,
-    () => wants.map((w) => (heldDraftOf(w) ?? beforeAsked(w, may))?.state ?? "").join(","),
+    () => wants.map((w) => draftViewNow(w).state).join(","),
     () => "",
   );
   const states = snapshot.split(",");

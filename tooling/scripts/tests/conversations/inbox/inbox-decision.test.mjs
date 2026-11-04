@@ -342,19 +342,33 @@ test("the countdown's tip says what stops a real draft -- Edit, Hold, or startin
   );
 });
 
-test("a row whose kept draft found they were not a customer asks that, where it would have said Check the draft (2 Nov 2026)", async () => {
+test("a row's last line reads the thread's one draft: Draft ready where one is, the hold's act until then; set aside, it asks whether they are a customer at all (decision 0093)", async () => {
   const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
   const thread = toInboxThreadVM(conv(), asked(), ZONE, NOW);
-  const kept = (words) => ({
-    drafts: [{ conversation_id: "c1", kind: "reply", for_message_id: "m1", words, made_at: ago(30) }],
+  const kept = (over) => ({
+    drafts: [
+      {
+        conversation_id: "c1",
+        kind: "reply",
+        for_message_id: "m1",
+        words: { text: "Friday works.", asks: [] },
+        made_at: ago(1),
+        ...over,
+      },
+    ],
     complete: true,
     fetchedAt: Date.now(),
   });
+  const todo = (t) => textOf(find(rowOf(listOf([t]), "Rosa Díaz"), byTestId("thread-todo")));
   try {
-    setSurfaceValue("reply_drafts", kept({ text: "", subject: "", brief: null, asks: [], pitch: "A vendor's pitch." }));
-    assert.equal(textOf(find(rowOf(listOf([thread]), "Rosa Díaz"), byTestId("thread-todo"))), "Not a customer?");
-    setSurfaceValue("reply_drafts", kept({ text: "Friday works.", subject: "", brief: null, asks: [] }));
-    assert.equal(textOf(find(rowOf(listOf([thread]), "Rosa Díaz"), byTestId("thread-todo"))), "Check the draft");
+    setSurfaceValue("reply_drafts", kept({}));
+    assert.equal(todo(thread), "Draft ready");
+    setSurfaceValue(
+      "reply_drafts",
+      kept({ state: "failed", why_failed: "not_drafted", words: { text: "", asks: [] } }),
+    );
+    assert.equal(todo(thread), "Reply", "not written: the hold's own word");
+    assert.equal(todo({ ...thread, setAside: true }), "Not a customer?");
   } finally {
     setSurfaceValue("reply_drafts", undefined);
   }

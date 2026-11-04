@@ -20,6 +20,8 @@ export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as cons
  */
 export const ACTIVITY_NOISE_KINDS = [
   "escalation.changed",
+  // They wrote again on a thread already held (00538): it asks for a new draft, and the message is what the owner reads.
+  "escalation.refreshed",
   "lead.set_aside",
   // Later, in a pass of the pile (00426): a soft word for this sitting, not a decision the owner reads back.
   "lead.later",

@@ -58,6 +58,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00486 added 'instagram_tokens', the daily refresh of each connected Instagram account's token (decision 0001, step 8).
   // 00497 added 'previews', the hourly end of each lead's preview past its thirty days (decision 0079).
   // 00526 added 'jobs_canary', the ledger's own job every minute, judged by its newest done row (decision 0089).
+  // 00538 added 'drafts', the five-minute sweep of the replies a hold is owed and has no draft of (decision 0093).
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -65,6 +66,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "calls",
       "channel_quality",
       "deadman",
+      "drafts",
       "google",
       "health",
       "instagram_tokens",
@@ -148,6 +150,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "calls",
     "channel_quality",
     "deadman",
+    "drafts",
     "google",
     "health",
     "instagram_tokens",

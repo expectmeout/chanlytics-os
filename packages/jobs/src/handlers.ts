@@ -63,6 +63,7 @@ import {
   membersPushedFor,
   pushNamesFor,
   reachOutBookedFrom,
+  conversationOfEscalation,
   holdFactsOf,
   holdTold,
   personFactsOf,
@@ -83,6 +84,7 @@ import { payloadRefusal } from "./schedule";
 import type { DispatchOutcome } from "./tick";
 import { broadcastSend } from "./broadcast-send";
 import { erasureFinish } from "./erasure";
+import { askReplyDraftOf, replyDraft, senderLeftAt } from "./reply-draft";
 import { replyRead } from "./reply-read";
 import { bookingRead } from "./booking-read";
 import { deliveryPage, deliveryPageKey } from "./delivery-page";
@@ -135,7 +137,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) =>
         upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
-      // The thread's open hold, read as the dashboard's draft for a person reads it (db threadDraftFacts).
+      // The thread's open hold (db threadDraftFacts).
       openHold: async (conversationId) => (await threadDraftFacts(ctx.db, job.tenant_id, conversationId)).reason,
       alert: ctx.alert,
       ...(ctx.page ? { page: ctx.page } : {}),
@@ -320,6 +322,8 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       // What the workspace said of the sender (00483), as a connected mailbox's sorting reads it: "Not a person" holds
       // on this road too.
       senderSaid: async (tenantId, address) => senderVerdictOf(await mailboxSenderVerdicts(db, tenantId), address),
+      // And what they were read to be (decision 0093, one judge), where this runtime holds the reader.
+      ...(ctx.drafts ? { senderLeft: senderLeftAt(db, ctx.drafts, ctx.deadline) } : {}),
       now: Date.now,
     },
     { payload: job.payload },
@@ -556,6 +560,14 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
       if (!ctx.freedTimes) throw new Error("freed_time_offer: this runtime holds no offer of a freed time");
       return ctx.freedTimes.offer(tenantId, freed);
     },
+    // A thread's draft asked for: the row claimed and the job scheduled here, so a runtime with no writer can still ask.
+    askReplyDraft: async (tenantId, ref) => {
+      const conversationId =
+        "conversationId" in ref
+          ? ref.conversationId
+          : await conversationOfEscalation(ctx.db, tenantId, ref.escalationId);
+      if (conversationId) await askReplyDraftOf(ctx.db, tenantId, conversationId);
+    },
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
     tell: (news) => ctx.alert(news),
   };
@@ -626,6 +638,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   push_send: pushSend,
   push_receipts: pushReceipts,
   reply_read: replyRead,
+  reply_draft: replyDraft,
   event_deliver: eventDeliver,
   booking_read: bookingRead,
   inbound_answer: inboundAnswer,
