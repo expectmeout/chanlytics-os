@@ -835,11 +835,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   /* In a browser's tab on an iPhone (iOS 26) the browser draws its own glass capsule under the page, and keeps a margin
      of its own over it: at 14 over that the bar stood 27pt over Safari's address, far from the thumb (Ruben, 17 Oct
-     2026). There it rests 4px over what the browser leaves the page; an app on the home screen has no browser bar
-     under it, and keeps the home bar's rest above. Only an iPhone's browsers say -webkit-touch-callout. */
+     2026). There it rests --foot-clear (6px) over what the browser leaves the page, the line every sheet rests on there
+     too (tokens.css --sheet-foot): at 4px its foot showed under every sheet, which keeps clear of the point Safari reads
+     (Ruben, 4 Nov 2026). An app on the home screen has no browser bar under it, and keeps the home bar's rest above.
+     Only an iPhone's browsers say -webkit-touch-callout. */
   @supports (-webkit-touch-callout: none) {
     :root {
-      --bar-foot: max(4px, calc(env(safe-area-inset-bottom, 0px) - 13px));
+      --bar-foot: max(var(--foot-clear, 4px), calc(env(safe-area-inset-bottom, 0px) - 13px));
       /* And while its keyboard is up it floats its address over the page above the keys, about 48px of it (Ruben's
          recording, 3 Nov 2026: "Xv" typed under it): what stands on the keys stands over it (an open thread's foot). */
       --keys-pill: 50px;
@@ -1154,9 +1156,9 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      the one screen of its own (below). What must stay on the screen stays as it does above. What heads the page sticks
      under the frame's top, as a person's strip does, with the top's band as long as the gap over it. What stands at the
      foot (a pane's foot, a call's whisper) sticks over the screen's foot where the tab bar rests: sticky, not fixed as a
-     person's dock is. It rests no nearer the foot than the point Safari reads (tokens.css --foot-clear): at the tab
-     bar's 4px in an iPhone's browser a foot stood on that point's line, and a pixel lower Safari would paint its band
-     under it for as long as the page stayed open. A capsule the page passes under takes its blur on a layer of its own
+     person's dock is. It rests no nearer the foot than the point Safari reads (tokens.css --foot-clear), as the tab bar
+     itself does since 4 Nov 2026: at the bar's 4px in an iPhone's browser a foot stood on that point's line, and a
+     pixel lower Safari would paint its band under it for as long as the page stayed open. A capsule the page passes under takes its blur on a layer of its own
      (a filter on it would hold its menu, kit.css). Where the page draws a pull at its top, only the rows give
      (page-give.ts). */
   :root {

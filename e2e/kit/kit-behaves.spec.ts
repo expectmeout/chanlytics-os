@@ -1084,10 +1084,15 @@ async function heldByNothing(page: Page, pop: (typeof POPS)[number]): Promise<st
         const b = document.querySelector(control)!.getBoundingClientRect();
         const gap = Math.min(Math.abs(a.top - b.bottom), Math.abs(b.top - a.bottom));
         // A phone's menu is the action sheet, floating just clear of the window's sides and foot (tokens.css
-        // --sheet-float): it stands by its thumb, not its control.
+        // --sheet-float and --sheet-foot, a min() a fixed probe resolves): it stands by its thumb, not its control.
         const float = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sheet-float")) || 0;
+        const probe = document.createElement("div");
+        probe.style.cssText = "position: fixed; bottom: var(--sheet-foot, 0px)";
+        document.body.append(probe);
+        const foot = parseFloat(getComputedStyle(probe).bottom) || 0;
+        probe.remove();
         const sheet =
-          Math.abs(a.bottom - (window.innerHeight - float)) < 2 && a.width >= window.innerWidth - 2 * float - 2;
+          Math.abs(a.bottom - (window.innerHeight - foot)) < 2 && a.width >= window.innerWidth - 2 * float - 2;
         return { gap, reach: b.height * 1.5 + 12, sheet };
       },
       { root: pop.root, control: pop.control },

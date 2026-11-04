@@ -295,6 +295,21 @@ export async function sheetFloat(page: Page): Promise<number> {
 }
 
 /**
+ * How far a phone's sheet rests clear of the screen's foot (tokens.css --sheet-foot, 4 Nov 2026: never higher than the
+ * tab bar's, so a sheet covers the bar). The token is a min() of two others, so a fixed probe resolves it to pixels.
+ */
+export async function sheetFoot(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position: fixed; bottom: var(--sheet-foot, 0px)";
+    document.body.append(probe);
+    const foot = parseFloat(getComputedStyle(probe).bottom) || 0;
+    probe.remove();
+    return foot;
+  });
+}
+
+/**
  * Every motion that ends has ended: a page pushed over a list slides in with its presses off until it lands (kit
  * motion), so what a thumb would press, or where a row stands, is read once the page has come to rest.
  */
