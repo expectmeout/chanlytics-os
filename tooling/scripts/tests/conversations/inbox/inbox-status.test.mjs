@@ -13,7 +13,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
-import { installLegacyReact, fresh, again, settle } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, settle, quiet, redrawWanted } from "../../_legacy-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
@@ -514,8 +514,12 @@ test("what an email is signed with is asked as the caret comes into the box, so 
   const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
   const realFetch = globalThis.fetch;
   const asked = [];
+  // The read answers when the test lets it: between the caret coming in and the first key.
+  let answer = () => {};
+  const answered = new Promise((r) => (answer = r));
   globalThis.fetch = async (url) => {
     asked.push(new URL(String(url), "https://app.example").pathname);
+    await answered;
     const data = { drafts: [], complete: true, signed: { c1: "Sam Reyes\nHarbor Moving" } };
     return new Response(JSON.stringify({ ok: true, data }), {
       status: 200,
@@ -528,11 +532,14 @@ test("what an email is signed with is asked as the caret comes into the box, so 
     const thread = vmOf(dto);
     const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
     const field = () => find(draw(), (n) => n.type === "textarea");
-    await settle();
+    field();
     assert.deepEqual(asked, [], "an empty box nobody writes in asks nothing");
     field().props.onFocus();
     await until(() => (draw(), asked.length === 1), "asked as the caret comes in");
-    await settle();
+    // What it is signed with lands before the first key (the box's one change of its own while nothing is typed).
+    quiet();
+    answer();
+    await until(redrawWanted, "the signature landed");
     field().props.onChange({ target: { value: "F" } });
     const first = draw();
     assert.equal(textOf(find(first, byTestId("ix-composer-signed-words"))), "Signed Sam Reyes · Harbor Moving");
