@@ -1,7 +1,7 @@
--- 00538 · What a search reads of a business's own site it pays for where it reads it (4 Nov 2026).
+-- 00541 · What a search reads of a business's own site it pays for where it reads it (4 Nov 2026).
 --
 -- A business's home page is read by the page reader (decision 0054), one credit a read whatever it answers. A search's
--- mark step has read one for each lead since 31 Oct, and now a plan may ask what only a website shows (decision 0093), which
+-- mark step has read one for each lead since 31 Oct, and now a plan may ask what only a website shows (decision 0095), which
 -- reads one for each place its judge asks about. Nothing counted either: a budget "bounds scraping, judging, checks and
 -- retries" (PRD §16.32), and this was none of those.
 --
@@ -16,7 +16,7 @@ set local lock_timeout = '3s';
 
 alter table public.lead_rounds add column if not exists site_reads integer default 0 not null;
 comment on column public.lead_rounds.site_reads is
-  'The businesses'' own sites this round read (00538), each one credit with the page''s reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd.';
+  'The businesses'' own sites this round read (00541), each one credit with the page''s reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd.';
 
 create or replace function public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid default null)
 returns void language plpgsql security definer set search_path = public as $$
@@ -40,7 +40,7 @@ end $$;
 revoke all on function public.lead_site_reads_spent(uuid, integer, numeric, uuid) from public, anon, authenticated;
 grant execute on function public.lead_site_reads_spent(uuid, integer, numeric, uuid) to service_role;
 comment on function public.lead_site_reads_spent(uuid, integer, numeric, uuid) is
-  'What reading businesses'' own sites cost, spent when read (00538): p_reads credits at the card''s price p_usd, whatever each read answered. Against a round that still lives: its count, its cost, and the month''s and both days'' counters out of what it has reserved. With no round, or one ended: this month''s and today''s, reserved from nothing, as a re-check after its round is. The service role''s: the collect, the re-judge and the leads sweep''s second try at a mark.';
+  'What reading businesses'' own sites cost, spent when read (00541): p_reads credits at the card''s price p_usd, whatever each read answered. Against a round that still lives: its count, its cost, and the month''s and both days'' counters out of what it has reserved. With no round, or one ended: this month''s and today''s, reserved from nothing, as a re-check after its round is. The service role''s: the collect, the re-judge and the leads sweep''s second try at a mark.';
 
 create or replace function public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer default 5)
 returns numeric
@@ -50,7 +50,7 @@ set search_path = public
 as $$
 declare
   -- The card's prices a place (contracts LEAD_CARDS, local_businesses): discovery, contacts, the judge, the mailbox check
-  -- and reading its own site (00538), the dearest plan's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN);
+  -- and reading its own site (00541), the dearest plan's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN);
   -- the actor's floor on a run's cap (core MAPS_CAP_FLOOR_USD).
   v_place  numeric := 0.003 + 0.002 + 0.0023 + 0.00089 + 0.005;
   v_check  numeric := 0.00089;
@@ -85,4 +85,4 @@ end $$;
 revoke all on function public.lead_estimate_ceiling(text, integer, integer) from public, anon, authenticated;
 grant execute on function public.lead_estimate_ceiling(text, integer, integer) to service_role;
 comment on function public.lead_estimate_ceiling(text, integer, integer) is
-  'The most a finder door takes as its estimate (00364, 00430, 00474, 00538). search: ceil(((25 + least(1000, 2 x count)) x $0.01319 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+  'The most a finder door takes as its estimate (00364, 00430, 00474, 00541). search: ceil(((25 + least(1000, 2 x count)) x $0.01319 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';

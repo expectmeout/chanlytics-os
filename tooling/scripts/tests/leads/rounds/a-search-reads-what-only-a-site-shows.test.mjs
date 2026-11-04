@@ -1,5 +1,5 @@
 /**
- * What only a business's own website can show (decision 0093): a plan with a criterion on_site reads each place's home
+ * What only a business's own website can show (decision 0095): a plan with a criterion on_site reads each place's home
  * page before its judge asks, once a host, and the judge cites what it says as one more quoted fact. The real runner and
  * the real database adapter over the world in memory, the provider, the judge and the page reader faked. A place the time
  * could not read for waits for the next job, whole, rather than being judged blind; and what was read is paid for.

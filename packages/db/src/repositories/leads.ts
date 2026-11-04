@@ -417,7 +417,7 @@ export async function leadAllowanceOf(db: Db, tenantId: string): Promise<number>
 }
 
 /**
- * What reading businesses' sites cost (00538 lead_site_reads_spent): `reads` credits, `usd` at the card's price, against
+ * What reading businesses' sites cost (00541 lead_site_reads_spent): `reads` credits, `usd` at the card's price, against
  * the round while it lives, else the month and the day it was read in; `roundId` null is a read no round asked for. The
  * service role's.
  */

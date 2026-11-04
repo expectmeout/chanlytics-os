@@ -3,7 +3,7 @@
 **Status:** Built 28 October 2026 on the lane `email/a-business-s-look-is-read-from-its-site` (#1906); its migration
 is 00490. Decided by Ruben the same day, in the conversation that followed the emails-and-forms review (the owner
 alerts' layout first, then this). Written against main's `cfbbabb21` (#1900). Amended 4 November 2026: the page's reader is
-asked for the look first, and what is written below stands behind it (decision 0093, item 11).
+asked for the look first, and what is written below stands behind it (decision 0095, item 11).
 
 ## Context
 

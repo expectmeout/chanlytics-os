@@ -299,7 +299,7 @@ test(
         const top = await ceiling("search", count, n);
         for (const contact of ["phone", "email"]) {
           const listed = plan(count, TERMS.slice(0, n), contact);
-          // A plan that reads each place's own site reserves the most a plan may (00538).
+          // A plan that reads each place's own site reserves the most a plan may (00541).
           const reading = {
             ...listed,
             criteria: [{ key: "boxing", text: "offers boxing", standard: "seen", required: true, on_site: true }],

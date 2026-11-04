@@ -1,7 +1,7 @@
-# 0093 · A search reads what only a site shows, and a site is read once
+# 0095 · A search reads what only a site shows, and a site is read once
 
 **Status:** Built on the lane `cm-site-reads` (`edge/website-reads-get-their-time`), 4 November 2026, on Ruben's word
-("build tiers 1-3 end to end"), from the review `Claude Video/docs/2026-11-04-website-reads-review.md`. Migration 00538.
+("build tiers 1-3 end to end"), from the review `Claude Video/docs/2026-11-04-website-reads-review.md`. Migration 00541.
 Written against main's `d56b2e620`. No real search has run through it yet: `lead_collect`'s `siteReads`, `lead_rounds.site_reads`
 and the sweep's `marks_due` and `marks_kept` are what say it works. Firecrawl's `branding` and `map` were written to its
 documentation, not a live call: the look keeps its own reading behind `branding`, and `website_look` logs which answered
@@ -44,7 +44,7 @@ bound behind the page's last batch, where no judge follows, and an edge without 
 5. **A site is read once.** `siteReadsOf` holds one run of the collect's reads by host: the mark step finds the judge's page in
    hand, and two listings of one site are one read. Apify's contact step still visits the site too; it finds the emails and
    social links, returns no page, and costs less than a read, so it is not a duplicate to remove.
-6. **A read is paid where it is read.** `lead_site_reads_spent` (00538), as the collect lets go of its run: `LEAD_SITE_READ_USD`
+6. **A read is paid where it is read.** `lead_site_reads_spent` (00541), as the collect lets go of its run: `LEAD_SITE_READ_USD`
    a read, against the round while it lives (`site_reads`, `cost_usd`, the counters out of its reservation), else this month and
    today, as a re-check is. A plan that reads sites reserves for them (`estimateRoundUsd`, `lead_estimate_ceiling`); one that does
    not reads only for a mark, in its spare time, and its room covers that. A failed write is logged and costs the record, never

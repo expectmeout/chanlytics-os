@@ -38,7 +38,7 @@ export const LEAD_SITE_FACT_MAX = 2_000;
 /**
  * What reading one business's home page costs: one credit with the page's reader, whatever it answers, at the dearest plan
  * we would be on (Firecrawl's Hobby: $16 for 3,000). What a card reserves for a search that reads sites, and what every
- * read of a search is settled at (00538 lead_site_reads_spent).
+ * read of a search is settled at (00541 lead_site_reads_spent).
  */
 export const LEAD_SITE_READ_USD = 0.005;
 /**

@@ -85,7 +85,7 @@ const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "s
  * optional (a people ask names none of them; the places schema still refuses a places ask without them), it takes how
  * senior, the industries and the sizes, and looking_for names the people card. Less those, its fields are the 3.1 tool's.
  * 23 Oct 2026: and the words the companies' own sites use (keywords), so a people search changed in Ask keeps them.
- * 4 Nov 2026 (decision 0093): and that a criterion is what only a business's own website can show (on_site).
+ * 4 Nov 2026 (decision 0095): and that a criterion is what only a business's own website can show (on_site).
  */
 const asPlacesThen = (schema) => {
   const out = structuredClone(schema);

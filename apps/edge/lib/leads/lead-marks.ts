@@ -87,7 +87,7 @@ const MARK_AGAIN_MOST = 60;
 /** The step's own time, inside the sweep's deadline: a page drawn as a browser draws it takes seconds. */
 const MARK_AGAIN_ALLOWANCE_MS = 20 * SECOND_MS;
 
-/** What this tick read, paid for by each workspace whose lead it read for: no round asked, so its month and today (00538). */
+/** What this tick read, paid for by each workspace whose lead it read for: no round asked, so its month and today (00541). */
 async function settleMarkReads(
   db: SupabaseClient<Database>,
   sites: SiteReads,

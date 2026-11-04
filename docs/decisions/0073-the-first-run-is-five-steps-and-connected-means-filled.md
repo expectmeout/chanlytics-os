@@ -9,7 +9,7 @@ and the code disagree, the code wins. The status was read again at `e9d6325f0` (
 Amended 3 November 2026: item 12's trial is decision 0090's (one trial from every door, covering everything), and
 items 1 and 2 are decision 0091's (the choices are the workspace's, the server starts the number once the plan does,
 Not by phone). Amended 4 November 2026: the booking page Check offers (3c-4) is the website read's, kept with it, and the
-link reads no site of its own (decision 0093).
+link reads no site of its own (decision 0095).
 
 ## Context
 
