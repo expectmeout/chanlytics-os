@@ -178,6 +178,8 @@ interface ComposerDraw extends ComposerProps {
   rewrite: [boolean, (v: boolean) => void];
   /** A new draft put in the box by a rewrite: the box says it is the receptionist's again. */
   setDrafted: (w: string | null) => void;
+  /** The field took the caret: what the email will be signed with is asked now, before the first key (Composer). */
+  writing: () => void;
 }
 
 // Checked BEFORE the window branch: an opt-out is stronger than a closed
@@ -502,6 +504,7 @@ function realComposer(c: ComposerDraw) {
       }}
       placeholder={placeholder}
       aria-label={`Reply to ${thread.who}`}
+      onFocus={c.writing}
       // One line that grows with its words (send-words.tsx growWithWords); a desk's box keeps four lines (inbox.css).
       rows={1}
     />
@@ -685,7 +688,11 @@ export const Composer = ({
   const [drafted, setDrafted] = useState<string | null>(() => (thread.real ? keptReplyNow(thread) || null : null));
   // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread: the box is filled as it opens, never again under the member
   useEffect(() => putKeptDraft(thread, setText, setSigned, setDrafted), [thread.id]);
-  const signedWanted = signed === undefined && !!text.trim();
+  // Asked as the caret comes into the box, so what stands over its line comes with the first key, whole: asked at the
+  // first key, Rewrite came alone and the signature half a second after it, the line moving again under the thumb
+  // (Ruben's recording, 4 Nov 2026). An empty box nobody writes in still asks nothing.
+  const [writing, setWriting] = useState(false);
+  const signedWanted = signed === undefined && (writing || !!text.trim());
   // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread, when the box first has words and nothing said it
   useEffect(() => putSigned(thread, signedWanted, setSigned), [thread.id, signedWanted]);
 
@@ -741,6 +748,7 @@ export const Composer = ({
     why,
     rewrite,
     setDrafted,
+    writing: () => setWriting(true),
     aside,
   };
   if (thread.real) return realComposer(c);

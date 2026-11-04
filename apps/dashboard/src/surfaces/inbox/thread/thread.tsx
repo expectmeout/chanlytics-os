@@ -19,6 +19,7 @@ import {
   useRef,
   useState,
   type HTMLAttributes,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   type RefObject,
@@ -34,7 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { mayAtLeast } from "../../legacy-verbs";
+import { drawnNow, mayAtLeast } from "../../legacy-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
 import { carryNotAPerson } from "../carried-reply";
 import { demoSession } from "../shell";
@@ -325,16 +326,24 @@ const pressedAt = new WeakMap<Element, { x: number; y: number }>();
 /**
  * Opens the folded reply box on a tap, never at a touch (Ruben, 2 Nov 2026: a drag on the reply box moved it): a thumb
  * that lands on it on its way up or down the conversation travels past GRAB_AT, or is taken by the browser for a scroll
- * (pointercancel), and leaves it folded. Pointer events, not a click: the foot is a box of the page's parts, no control.
+ * (pointercancel), and leaves it folded. It opens at the tap's click, once the press has gone to what was under the
+ * finger: opened as the finger lifted, the box grew under it first, and the click landed on Hand back or on nothing. A tap
+ * on its line puts the caret in the field, at the words' start, in that same press, so the keys rise for one tap (Ruben's
+ * recording, 4 Nov 2026: it took a second to type).
  */
-function openOnTap(open: () => void) {
+function openOnTap(foot: RefObject<HTMLDivElement | null>, setFolded: (v: boolean) => void) {
   return {
     onPointerDown: (e: PointerEvent<HTMLElement>) => pressedAt.set(e.currentTarget, { x: e.clientX, y: e.clientY }),
     onPointerCancel: (e: PointerEvent<HTMLElement>) => pressedAt.delete(e.currentTarget),
-    onPointerUp: (e: PointerEvent<HTMLElement>) => {
+    onClick: (e: MouseEvent<HTMLElement>) => {
       const at = pressedAt.get(e.currentTarget);
       pressedAt.delete(e.currentTarget);
-      if (at && Math.hypot(e.clientX - at.x, e.clientY - at.y) < GRAB_AT) open();
+      if (!at || Math.hypot(e.clientX - at.x, e.clientY - at.y) >= GRAB_AT) return;
+      drawnNow(() => setFolded(false));
+      const field = foot.current?.querySelector<HTMLTextAreaElement>("textarea.ix-composer-text");
+      if (!field || field === document.activeElement || !(e.target as Element).closest?.(".ix-composer-glance")) return;
+      field.focus({ preventScroll: true });
+      field.setSelectionRange(0, 0);
     },
   };
 }
@@ -729,7 +738,7 @@ export const InboxThread = (props: InboxThreadProps) => {
           if (ixPhone() && footRef.current) riseWithKeys(e.target, footRef.current, scrollRef.current);
           if (folded) setFolded(false);
         }}
-        {...(folded ? openOnTap(() => setFolded(false)) : {})}
+        {...(folded ? openOnTap(footRef, setFolded) : {})}
         {...dock.props}
       >
         {dock.handle}

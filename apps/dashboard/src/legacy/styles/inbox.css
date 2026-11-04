@@ -3091,7 +3091,11 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
    its words on it whatever lines they were written on, with the receptionist's spark before them while they are its
    draft (Ruben, 3 Nov 2026: two lines stood a greeting over an empty one): what stands over it, Send and the field put
    away until it is tapped, typed into or pulled up (kit sheet/dock.ts dockSwipe). The field stays for a keyboard and a
-   screen reader, out of sight. The template box (template-box.tsx) keeps its own shape. */
+   screen reader, out of sight. The template box (template-box.tsx) keeps its own shape.
+   It wears Ask's colours (ask.css, the field at the foot; kit.css .line-send): the inset's fill and its specular edge,
+   no ring as the caret comes in, and Send the ink's circle, faint until there are words. It was the raised ground in the
+   paper's hairline, ringed and glowing in the coral as it was typed in, with Send a coral round (Ruben's iPhone, 4 Nov
+   2026: "should follow the colors of the ask chat"). */
 @media (max-width: 720px) {
   .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-text,
   .ix-th-foot[data-folded] .ix-composer-glance {
@@ -3100,15 +3104,16 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
     min-height: 48px;
     max-height: 160px;
     padding: 13px 52px 13px 16px;
-    border: 1px solid var(--line);
+    border: 1px solid transparent;
     border-radius: var(--radius-sheet);
-    background: var(--bg-raised);
+    background: var(--surface-inset-fill);
+    box-shadow: var(--surface-inset-depth);
     font-size: var(--text-read);
     line-height: 1.4;
   }
-  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text:focus {
-    border-color: var(--accent);
-    box-shadow: var(--focus-field);
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-text:is(:focus, :focus-visible) {
+    border-color: transparent;
+    box-shadow: var(--surface-inset-depth);
   }
   /* With the keys up, four lines, then its words scroll in it: a long draft under what is owed and Hand back would take
      the conversation's whole room and then stand the line under the keys (Ruben's iPhone, 4 Nov 2026: Send under
@@ -3117,17 +3122,32 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
     max-height: calc(1.4em * 4 + 28px);
   }
   /* Send, a round at the line's end and inside it, where the thumb that typed finds it; an email's says its words to a
-     screen reader alone here. */
+     screen reader alone here. Its arrow stands in its middle: an email's Send is a button of words, which starts them at
+     its left, so with the words gone the arrow stood 10px left of its round (Ruben's iPhone, 4 Nov 2026). */
   .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-send {
     position: absolute;
     right: 4px;
     bottom: 4px;
+    justify-content: center;
     width: 40px;
     min-width: 40px;
     height: 40px;
     min-height: 40px;
     padding: 0;
+    border-color: transparent;
     border-radius: var(--radius-circle);
+    background: var(--ink);
+    box-shadow: none;
+    color: var(--bg);
+  }
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-send:is(:disabled, [data-gated]) {
+    background: var(--bg-active);
+    color: var(--ink-faint);
+  }
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-send > svg {
+    width: 16px;
+    height: 16px;
+    color: currentColor;
   }
   .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-send {
     gap: 0;

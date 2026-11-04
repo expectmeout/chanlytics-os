@@ -1216,8 +1216,19 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     );
     transition: translate 250ms var(--ease-out);
   }
+  /* The keys going, the field let go (kit/motion/keyboard.ts kb-leaving): their room goes down with them, eased in and out
+     over the beat Safari's address takes to come down after them, so the box rides down over it and never under. Room
+     given back only once the browser said they had gone, half a second after they had, the reply box stood that long over
+     an empty screen and then dropped (Ruben's recording, 4 Nov 2026). */
+  html.kb-leaving :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
+    --thread-keys: 0px;
+    transition:
+      padding-bottom 350ms var(--ease-in-out),
+      translate 250ms var(--ease-out);
+  }
   @media (prefers-reduced-motion: reduce) {
-    :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
+    :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane,
+    html.kb-leaving :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
       transition: none;
     }
   }
@@ -1236,12 +1247,17 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .main:has(> .main-scroll > :is(.inbox, .conversations)[data-takeover]) > .frame-top {
     --frame-top-fade: 0px;
   }
+  /* What it holds stands on its foot: as its height glides (thread.tsx glideHeight: it opens, folds, or grows a line or a
+     row over the line), what comes or goes is over the line and the line holds still. Stood from its top, the line went
+     under the screen's foot for the glide's first frames and came back up, and a tap that opened it landed on what had
+     taken its place (Ruben's recording, 4 Nov 2026). */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot {
     position: relative;
     z-index: 3;
     flex: none;
     display: flex;
     flex-direction: column;
+    justify-content: flex-end;
     gap: 6px;
     /* The reply box alone, as a chat's foot is, on the page's own light down to the screen's edge; it was the raised
        ground across the screen with a hairline over it (the thread canvas, 1 Nov 2026). Its foot rests on the line the
@@ -1252,9 +1268,10 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     border-top: 0;
     background: transparent;
   }
-  /* On the keys the line stands as near over Safari's address as that stands over the keys, what is owed over it or not. */
-  html:is(.kb-up, .kb-expected) :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot,
-  html:is(.kb-up, .kb-expected)
+  /* On the keys the line stands as near over Safari's address as that stands over the keys, what is owed over it or not;
+     with them going, it is on its way to its rest. */
+  html:is(.kb-up, .kb-expected):not(.kb-leaving) :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot,
+  html:is(.kb-up, .kb-expected):not(.kb-leaving)
     :is(.inbox, .conversations)[data-takeover]
     > .ix-thread-pane
     > .ix-th-foot:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
@@ -1271,8 +1288,24 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     touch-action: none;
     transition: transform var(--duration-base) var(--ease-out);
   }
+  /* With the keys going, the line's own room over Safari's address goes to its rest on their beat, as their room does
+     (above): at once, the line stepped 6 to 8px before it glided. */
+  html.kb-leaving :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot,
+  html.kb-leaving
+    :is(.inbox, .conversations)[data-takeover]
+    > .ix-thread-pane
+    > .ix-th-foot[data-dock]:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
+    transition:
+      transform var(--duration-base) var(--ease-out),
+      padding-bottom 350ms var(--ease-in-out);
+  }
   @media (prefers-reduced-motion: reduce) {
-    .ix-th-foot[data-dock] {
+    .ix-th-foot[data-dock],
+    html.kb-leaving :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot,
+    html.kb-leaving
+      :is(.inbox, .conversations)[data-takeover]
+      > .ix-thread-pane
+      > .ix-th-foot[data-dock]:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
       transition: none;
     }
   }
