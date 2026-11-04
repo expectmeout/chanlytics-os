@@ -10,7 +10,7 @@
  *             whom), frozen as the request the mailbox sends (the adapter's emailRequest port) and written as the queued
  *             row the door demands before anything leaves (written once the person is claimed). A message about their visit
  *             or their proposal carries no unsubscribe: its foot says a reply of STOP stops them. An OFFER leaves from
- *             the mailbox on the campaigns domain, and its foot owes more (contracts emailFoot): why they get it, the
+ *             the mailbox on the campaigns domain, and its foot owes more (contracts customerEmailFoot): why they get it, the
  *             business's name and postal address, and the Unsubscribe link, which the one-click headers carry too. A
  *             business with no postal address on file sends none: the person is held (`no_business_address`). An offer is
  *             what contracts isOfferByEmail says: a marketing message, and (decision D2) the business's own news, a
@@ -25,8 +25,7 @@ import {
   type FeedNames,
   RECIPIENT_REASON_HEARD,
   allowanceRoom,
-  emailFoot,
-  emailFootHtml,
+  customerEmailFoot,
   enrolPurpose,
   heldByAllowance,
   isOfferByEmail,
@@ -267,19 +266,22 @@ async function emailDelivery(
     const unsubscribeUrl = await w.ports.unsubscribeUrl({ messageId, contactId: i.c.id });
     if (!unsubscribeUrl?.trim()) return { held: "no_channel" };
     // Someone who asked for offers by email says so; anyone else who may get one has dealt with the business.
-    const offer = {
-      kind: "offer" as const,
-      why: i.c.email_marketing === "opted_in" ? ("asked" as const) : ("customer" as const),
-      unsubscribeUrl,
-    };
-    foot = {
-      footer: emailFoot(businessName, address, offer, w.b.template_language),
-      offer: { unsubscribeUrl, footerHtml: emailFootHtml(businessName, address, offer, w.b.template_language) },
-    };
+    const why = i.c.email_marketing === "opted_in" ? ("asked" as const) : ("customer" as const);
+    foot = customerEmailFoot({
+      business: businessName,
+      address,
+      language: w.b.template_language,
+      offer: { why, unsubscribeUrl },
+      facts: {},
+    });
   } else
-    foot = {
-      footer: emailFoot(businessName, address, { kind: "visit", facts: rowFacts(i.r) }, w.b.template_language),
-    };
+    foot = customerEmailFoot({
+      business: businessName,
+      address,
+      language: w.b.template_language,
+      offer: null,
+      facts: rowFacts(i.r),
+    });
   const request = await w.ports.emailRequest({ messageId, to: i.to, subject: said.subject, body: said.body, ...foot });
   if (!request) return { held: "no_channel" };
   return {
