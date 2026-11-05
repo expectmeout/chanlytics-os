@@ -72,8 +72,10 @@ globalThis.fetch = (...a) => globalThis.window.fetch(...a);
 
 const { peopleGoing, peopleOverride, peopleSearch } =
   await import("../../../../../apps/dashboard/src/surfaces/people/surface.ts");
-/** Past the twelve seconds a stream of notices is waited out (DEAR_READ_LONGEST_WAIT_MS), or a long press says it early. */
-const GONE_QUIET_MS = 15_000;
+const { ERASURES_LONGEST_WAIT_MS } =
+  await import("../../../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+/** Past the half minute a stream of erasures is waited out (ERASURES_LONGEST_WAIT_MS), or a long press says it early. */
+const GONE_QUIET_MS = 35_000;
 /** Each time the surface said the reads had stopped behind a press (peopleGoing's `gone`). */
 const gone = [];
 const shown = () => globalThis.window.__PEOPLE.rows.map((r) => r.id);
@@ -109,11 +111,12 @@ test("REGRESSION: their going is said once, when People's reads have stopped beh
   try {
     gone.length = 0;
     peopleGoing(["p2"], () => gone.push("gone"));
+    // As far apart as a stream of erasures has People's reads (a press of 5,000 runs for 25 minutes).
     for (let reads = 0; reads < 5; reads++) {
-      mock.timers.tick(GONE_QUIET_MS - 1);
+      mock.timers.tick(ERASURES_LONGEST_WAIT_MS);
       await peopleOverride.apply();
     }
-    assert.deepEqual(gone, [], "the ledger still at work: each erasure has People read again");
+    assert.deepEqual(gone, [], "the ledger still at work: its stream has People read every half a minute");
     mock.timers.tick(GONE_QUIET_MS);
     assert.deepEqual(gone, ["gone"], "the reads have stopped: said once");
     await peopleOverride.apply();

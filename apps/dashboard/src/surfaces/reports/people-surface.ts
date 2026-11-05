@@ -40,7 +40,7 @@ export interface PeopleSurface {
 
 /**
  * How long a burst of changes is waited out before the lens is read again. Asked for as five seconds; the runner never waits
- * more than three after the first change (surface-runner.ts REFRESH_MAX_WAIT_MS, so a steady stream is still read), and the
+ * more than three after the first change (surface-realtime.ts REFRESH_MAX_WAIT_MS, so a steady stream is still read), and the
  * three are what is waited: one read for a burst, not one for each pause longer than 800 ms (people-surface.test.mjs runs it).
  */
 const LIVE_WAIT_MS = 5_000;
