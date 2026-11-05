@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { contrastOnWhite } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
-const { siteAccentOf } = await importSrc("packages/core/src/look/accent.ts");
+const { accentOfColour, siteAccentOf } = await importSrc("packages/core/src/look/accent.ts");
 
 test("the page's own theme colour comes first, when it is a colour a brand would pick", () => {
   assert.equal(
@@ -24,6 +24,15 @@ test("the page's own theme colour comes first, when it is a colour a brand would
     "#c4452e",
     "a white theme colour is paper, not a brand",
   );
+});
+
+test("a colour said to be the brand's is held to the theme colour's rules: paper, ink, a grey and no colour are none; one too light is darkened until white words read", () => {
+  assert.equal(accentOfColour("#2a6f97"), "#2a6f97");
+  assert.equal(accentOfColour("#2A6F97"), "#2a6f97");
+  for (const none of ["#ffffff", "#000000", "#808080", "not a colour", "", null, undefined])
+    assert.equal(accentOfColour(none), null, String(none));
+  const light = accentOfColour("#ffd400");
+  assert.ok(light && light !== "#ffd400", "a yellow white words cannot be read on is darkened");
 });
 
 test("else the buttons' colour, named or by their class, the most used winning; a light one darkened to read", () => {

@@ -937,7 +937,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
   assert.ok(lib.includes("planListingCheck("), "the plan decides, the edge writes and rings");
   assert.ok(
-    lib.includes(".update({ check_error: error })"),
+    lib.includes("patchListing(db, row.tenant_id, { check_error: error })"),
     "a failed read leaves its words and the last good numbers",
   );
   // And does NOT move the stamp: checked_at / last_synced_at are the last

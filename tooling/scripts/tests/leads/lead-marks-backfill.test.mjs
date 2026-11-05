@@ -51,7 +51,10 @@ test("the collect's own step marks the planned leads, and says where each copy c
   const marked = await markLeads(
     planMarks([lead("a"), lead("b", { logo_url: "https://b.example/old.png" }), lead("c")]),
     {
-      fetchText: async (url) => pages[url] ?? null,
+      readSite: async (host) => {
+        const url = `https://${host}`;
+        return pages[url] ? { url, html: pages[url], markdown: "", title: null, description: null, brand: null } : null;
+      },
       fetchBytes: async (url) => images[url] ?? null,
       storeMark: async (bytes, image) => {
         stored.push(image.kind);

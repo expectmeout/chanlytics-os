@@ -409,13 +409,24 @@ export {
 } from "./public-fetch";
 export type { PublicFetchDeps, Resolve, Resolved } from "./public-fetch";
 export {
+  FIRECRAWL_CREDITS,
+  FIRECRAWL_MAP,
   FIRECRAWL_SCRAPE,
+  firecrawlCredits,
+  firecrawlMapper,
   firecrawlReader,
   imageBytes,
+  setSiteMapper,
   setSitePageReader,
+  type SiteBrand,
+  type SiteLink,
+  type SiteMapper,
+  siteMapper,
   type SitePage,
   type SitePageReader,
   sitePageReader,
+  type SiteReaderCredits,
+  type SiteReadOptions,
 } from "./site-reads";
 export { CONFIRM_PATH, confirmUrl, signConfirmToken, verifyConfirmToken } from "./tokens/confirm-token";
 export type { ConfirmClaims } from "./tokens/confirm-token";

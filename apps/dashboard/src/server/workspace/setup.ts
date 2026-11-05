@@ -659,7 +659,6 @@ function googleSection(
         )
       : [],
     type: listingFacts?.facts?.primary_type ?? null,
-    bookingPage: listingFacts?.facts?.booking_page ?? null,
     phone: listingFacts?.facts?.phone_e164 ?? null,
   };
 }

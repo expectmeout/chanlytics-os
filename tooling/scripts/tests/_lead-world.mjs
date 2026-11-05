@@ -34,6 +34,24 @@ export const webhookToken = async (runRowId) =>
   crypto.createHmac("sha256", "a-test-secret-for-lead-webhooks").update(`lead-webhook:${runRowId}`).digest("base64url");
 export const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
+/** The page reader over home pages by origin, as it hands them: `pages` the HTML a mark is read from, `words` what a judge reads. */
+export const siteReaderOver =
+  (pages, words = {}) =>
+  async (host) => {
+    const at = `https://${host}`;
+    const html = pages[at];
+    return html === undefined && words[at] === undefined
+      ? null
+      : {
+          url: at,
+          html: html ?? "<html></html>",
+          markdown: words[at] ?? "",
+          title: null,
+          description: null,
+          brand: null,
+        };
+  };
+
 export function leadWorld({
   plan = PLAN,
   searchesOn = true,
@@ -647,6 +665,11 @@ export function leadWorld({
         );
       return { ok: true, qualified: newly, counted: counted + later, ended };
     },
+    // The read's cost is the database's own suite's to prove (lead-spend.db): here, how many, and for whom.
+    lead_site_reads_spent: ({ p_tenant_id, p_round_id, p_reads, p_usd }) => {
+      w.siteSpends.push({ tenant_id: p_tenant_id, round_id: p_round_id ?? null, reads: p_reads, usd: p_usd });
+      return null;
+    },
     lead_round_end: ({ p_round_id, p_ending }) => {
       const round = roundOf(p_round_id);
       return !!round && end(round, p_ending);
@@ -674,6 +697,7 @@ export function leadWorld({
     },
   };
   w.rpcs = rpcs;
+  w.siteSpends = [];
   w.db = fakeDb(T, {}, rpcs);
   // 00140's index on lead_collect's (run_id, seq): a second insert is 23505, as the door meets it; a row inserted without a state has Postgres's default.
   const realFrom = w.db.from;
@@ -745,13 +769,16 @@ export function leadWorld({
   };
   w.judge = fakeJudge();
   /** The wires the edge would bind (lead-wires.ts), over the fakes. */
-  // The home pages this world serves, by origin (D6): what markPlaces reads a lead's own mark from.
+  // The home pages this world serves, by origin (D6): what markPlaces reads a lead's own mark from, and, under `w.sites`,
+  // what a plan that reads sites shows its judge.
+  w.sites = {};
+  const readSite = (host) => siteReaderOver(w.pages, w.sites)(host);
   w.wires = {
     apify,
     judge: w.judge,
     webhookBase: "https://edge.example",
     webhookToken,
-    fetchText: async (url) => w.pages[url] ?? null,
+    readSite,
   };
   w.ports = (owner, over = {}) => ({
     db: over.db,
@@ -760,7 +787,7 @@ export function leadWorld({
     now: clock.now,
     webhookBase: "https://edge.example",
     webhookToken,
-    fetchText: async (url) => w.pages[url] ?? null,
+    readSite,
     schedule: (kind, payload, secs) => w.scheduleOnce(kind, clock.ms + secs * 1000, payload).then(() => undefined),
     deadline: clock.ms + 45_000,
     owner,

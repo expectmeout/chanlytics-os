@@ -26,8 +26,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { publicFetcher } from "@chanlytics/channels";
 import { LEAD_MARKS_BUCKET } from "@chanlytics/contracts";
-import { JUDGE_MARGIN_MS, MARK_AT_ONCE, markPlaces } from "../../../packages/core/src/leads/index.ts";
-import { imageBytes, leadMarkPath, markPageText, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
+import { keepLeadMark } from "@chanlytics/db";
+import { MARK_ALLOWANCE_MS, SITES_AT_ONCE, markPlaces, siteReadsOf } from "../../../packages/core/src/leads/index.ts";
+import { imageBytes, leadMarkPath, leadSitePage, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
 
 const COLUMNS = "id, tenant_id, website_host, logo_url, mark_path, blanked_at, erased_at";
 
@@ -45,14 +46,17 @@ export function planMarks(rows) {
  */
 export async function markLeads(plan, ports, now = () => new Date()) {
   const out = [];
-  for (let i = 0; i < plan.length; i += MARK_AT_ONCE) {
-    const places = plan.slice(i, i + MARK_AT_ONCE).map((lead) => ({
+  for (let i = 0; i < plan.length; i += SITES_AT_ONCE) {
+    const places = plan.slice(i, i + SITES_AT_ONCE).map((lead) => ({
       lead,
       place: { website_host: lead.website_host, logo_url: null, mark_path: null },
-      member: { class: "qualified" },
     }));
-    // A deadline far enough off that only the step's own allowance bounds it, as in a collect with time to spare.
-    await markPlaces({ ...ports, now, deadline: now().getTime() + JUDGE_MARGIN_MS + 60_000 }, places);
+    await markPlaces(
+      { ...ports, now },
+      siteReadsOf(ports),
+      places.map((x) => x.place),
+      now().getTime() + MARK_ALLOWANCE_MS,
+    );
     for (const x of places)
       if (x.place.mark_path)
         out.push({
@@ -67,26 +71,20 @@ export async function markLeads(plan, ports, now = () => new Date()) {
 }
 
 /**
- * The apply's write: the name where the lead still has none, and the address it came from where the lead had no
- * address either. Guarded on the state it was planned in, and counted.
+ * The apply's write, the sweep's own (db keepLeadMark): the name where the lead still has none, and the address it came
+ * from where the lead had no address either. Guarded on the state it was planned in, and counted.
  */
 export async function writeMarks(db, marked) {
   const written = [];
   const skipped = [];
   for (const m of marked) {
-    const patch = m.had ? { mark_path: m.mark_path } : { mark_path: m.mark_path, logo_url: m.logo_url };
-    const { data, error } = await db
-      .from("leads")
-      .update(patch)
-      .eq("id", m.id)
-      .eq("tenant_id", m.tenant_id)
-      .is("mark_path", null)
-      .is("blanked_at", null)
-      .is("erased_at", null)
-      .select("id");
-    if (error) skipped.push({ id: m.id, why: `write: ${error.message}` });
-    else if (!data?.length) skipped.push({ id: m.id, why: "write matched no row: marked, blanked or erased since" });
-    else written.push(m);
+    const mark = { id: m.id, tenantId: m.tenant_id, had: m.had, logoUrl: m.logo_url, markPath: m.mark_path };
+    try {
+      if (await keepLeadMark(db, mark)) written.push(m);
+      else skipped.push({ id: m.id, why: "write matched no row: marked, blanked or erased since" });
+    } catch (e) {
+      skipped.push({ id: m.id, why: `write: ${e instanceof Error ? e.message : e}` });
+    }
   }
   return { written, skipped };
 }
@@ -139,7 +137,7 @@ async function main() {
   if (!plan.length) return;
 
   const wires = {
-    fetchText: markPageText,
+    readSite: leadSitePage,
     fetchBytes: (u, ms, max) => imageBytes(publicFetcher(), u, ms, max),
   };
 

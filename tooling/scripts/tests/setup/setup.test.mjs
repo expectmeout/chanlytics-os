@@ -19,6 +19,7 @@ import {
   GET_YES_ROUTE,
   NO_NUMBER_REACH,
   newReceptionistDefaults,
+  businessReadFactsOf,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
@@ -313,8 +314,16 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           connected: false,
           unsure: ["fri"],
           type: "moving_company",
-          bookingPage: "https://calendly.com/northside-movers-example/estimate",
         },
+        reads: [
+          {
+            source: "website",
+            facts: businessReadFactsOf({ booking_page: "https://calendly.com/northside-movers-example/estimate" }),
+            read_from: "https://northside.example.com/",
+            read_at: new Date(NOW).toISOString(),
+            error: null,
+          },
+        ],
       }),
       NOW,
     ).check,
@@ -349,9 +358,19 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           website: null,
           service_area_only: true,
           primary_type: "moving_company",
-          booking_page: "https://calendly.com/northside-movers-example/estimate",
           phone_e164: "+13055550100",
         },
+      },
+    ],
+    // Where the website's read says its customers book, with no listing needed for it.
+    business_reads: [
+      {
+        tenant_id: T,
+        source: "website",
+        facts: { booking_page: "https://calendly.com/northside-movers-example/estimate" },
+        read_from: "https://northside.example.com/",
+        read_at: new Date(NOW).toISOString(),
+        error: null,
       },
     ],
     tenant_config: [
@@ -378,7 +397,6 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
     "by the one test (receptionistOf)",
   );
   assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
-  assert.equal(dto.google.bookingPage, "https://calendly.com/northside-movers-example/estimate");
   assert.equal(dto.google.phone, "+13055550100", "the listing's number, which the phone step offers to keep");
   assert.equal(
     setupSteps(dto, NOW).check.bookingPage,
@@ -395,7 +413,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
   assert.equal(none.google.type, null, "no listing, no kind");
-  assert.equal(none.google.bookingPage, null, "no listing, no website read");
+  assert.equal(setupSteps(none, NOW).check.bookingPage, null, "no website read, nothing to offer");
   assert.equal(none.google.phone, null, "no listing, no number to keep");
   const bare = tables();
   bare.google_listings[0].facts = {};
