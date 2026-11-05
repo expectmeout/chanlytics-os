@@ -245,6 +245,8 @@ export const RATE = {
   google_draft: { limit: 30, windowMs: HOUR_MS, noun: "review drafts" },
   /** A workspace's logo saved or taken away (00407): a picture stored, and the one before it removed, each time. */
   workspace_logo: { limit: 20, windowMs: HOUR_MS, noun: "logo changes" },
+  /** A member's photo added to Files (decision 0099): an address signed, then the bytes proven. Two calls a photo, and twenty photos a press. */
+  file_upload: { limit: 600, windowMs: HOUR_MS, noun: "photos added" },
   /** A look for the logo on the business's own website: a page and up to two images asked of another server, each time. */
   workspace_logo_lookup: { limit: 6, windowMs: HOUR_MS, noun: "looks for your logo" },
   /** A Checkout or portal session, a resume, a sync: each a call to Stripe for an owner that changes something. */

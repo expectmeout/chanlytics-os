@@ -26,6 +26,7 @@ import { emailBoundFor, emailIntake } from "../email/email.js";
 import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
 import { historyImports } from "../imports/history-import.js";
 import { websiteReader } from "../imports/website-read.js";
+import { fileJobs } from "../files.js";
 import { previewBuilder } from "../previews/build.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
 import { pageOperator } from "./page-operator.js";
@@ -125,6 +126,8 @@ async function customersOf(db: SweepTick["db"], tenantIds: readonly string[]): P
 const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   imports: historyImports(db),
   website: websiteReader(db),
+  // A business's files looked at, brought in and let go (decision 0099).
+  files: fileJobs(db),
   // A lead's own receptionist built (decision 0079), its website read the same way.
   previews: previewBuilder(db),
 });

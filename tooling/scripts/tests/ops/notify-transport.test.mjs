@@ -664,6 +664,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "booking",
       "booking_notice",
       "calendar_people",
+      // Photos an import found, waiting in Files (00551): a line on the bell.
+      "files_waiting",
       "leads_ready",
       "member_joined",
       "member_left",

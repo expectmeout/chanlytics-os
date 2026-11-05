@@ -161,6 +161,7 @@ test("the real set is exactly the converted surfaces", () => {
     "admin/activity",
     "admin/autonomy",
     "admin/billing",
+    "admin/files",
     "admin/hours",
     "admin/integrations",
     "admin/memory",
@@ -467,6 +468,7 @@ test("a pane that names its draws is asked before its page too: each pane of Set
   // And a pane drawn from none of it stands on who is looking, with its own read beside it.
   assert.deepEqual(registry.routeSurfaces("admin", "billing"), ["workspace", "partner", "billing"]);
   assert.deepEqual(registry.routeSurfaces("admin", "memory"), ["workspace", "partner", "ask_memory"]);
+  assert.deepEqual(registry.routeSurfaces("admin", "files"), ["workspace", "partner", "files"]);
 });
 
 test("the flipped pages still resolve exactly as before", () => {

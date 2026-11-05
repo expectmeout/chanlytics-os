@@ -41,6 +41,7 @@ export {
 export type { EmailCampaign, EmailIdentity, EmailParent, EmailRequest, EmailRequestInput } from "./email/request";
 export { resendWebhookSignature, verifyResendWebhook, WEBHOOK_TOLERANCE_S } from "./email/webhook-signature";
 export type { SvixHeaders } from "./email/webhook-signature";
+export { fileFingerprintOf, FINGERPRINT_BYTES } from "./file-fingerprint";
 export {
   authorizeUrl,
   b64url,
@@ -66,6 +67,7 @@ export {
   parsePlaceDetails,
   parsePlacesSearch,
   PLACE_ID,
+  placePhotoUri,
   PLACES_BASE,
   PLACES_DETAILS_MASK,
   PLACES_SEARCH_LIMIT,
@@ -78,7 +80,14 @@ export {
   reviewIdOf,
   searchPlaces,
 } from "./google/google-places";
-export type { PlaceCandidate, PlaceDetails, PlaceReview, PlacesHttp, PlacesRequest } from "./google/google-places";
+export type {
+  PlaceCandidate,
+  PlaceDetails,
+  PlacePhoto,
+  PlaceReview,
+  PlacesHttp,
+  PlacesRequest,
+} from "./google/google-places";
 export {
   accountsRequest,
   cleanReply,
@@ -93,6 +102,7 @@ export {
   GBP_V4_BASE,
   listAccounts,
   listLocations,
+  listMedia,
   listReviews,
   locationsRequest,
   parseAccounts,
@@ -111,6 +121,7 @@ export type {
   GbpLocation,
   GbpLocationDetails,
   GbpPeriod,
+  GbpPhoto,
   GbpReview,
   GbpReviewsPage,
 } from "./google/google-profile";
@@ -396,12 +407,15 @@ export type {
   ModelReply,
   ModelStreamReply,
 } from "./models/anthropic";
+export { deleteClaudeFile, uploadClaudeFile } from "./models/anthropic-files";
+export type { ClaudeFileUploaded } from "./models/anthropic-files";
 export { createUserProfile, deleteUserProfile, listUserProfiles } from "./models/anthropic-profiles";
 export type { AnthropicProfile, ProfileCreated, ProfilesPage } from "./models/anthropic-profiles";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
 export { answerObject, breakerOf, breakerStates, providerFetch, resetBreakers } from "./provider-fetch";
 export type { Provider, ProviderCall, ProviderReply, SendOutcome } from "./provider-fetch";
+export { RESPONSE_MAX_BYTES } from "./public-fetch";
 export {
   isPublicAddress,
   NotPublicError,

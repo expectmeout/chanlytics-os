@@ -71,6 +71,8 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   // a thread's draft claimed, written or let go, by the job, the sweep or a member's change: Today's rows, the Inbox's rows and
   // its reply box repaint (00538, decision 0093)
   { table: "conversation_drafts", events: EVERY },
+  // a file added, looked at, changed or removed: Settings › Files repaints (00551)
+  { table: "files", events: INSERTS_AND_UPDATES },
   // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00440)
   { table: "sequence_replies", events: EVERY },
   // a batch made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
@@ -127,6 +129,9 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
  * whatever a write named.
  */
 const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
+  // What a page of photos draws (00551): not the copy Anthropic holds, the bytes or when it was last tried, which an import
+  // writes 200 times over.
+  files: ["status", "name", "shows", "who_in_it", "look_status", "look", "removed_at"],
   // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
   notifications: ["closed_at"],
   // The identity, the answers, the merge and the erasure of a person, and where they work and where their name came from

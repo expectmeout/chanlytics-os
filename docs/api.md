@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-358 handlers in 56 domains.
+365 handlers in 57 domains.
 
 ## activity
 
@@ -909,6 +909,63 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `keep` | boolean | yes |  |
 
+## files
+
+### `GET /api/v1/files`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/route.ts`).
+
+### `PATCH /api/v1/files/[id]`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string | no | at most 120 characters |
+| `shows` | one of `"storefront"`, `"interior"`, `"work"`, `"team"`, `"product"`, `"menu"`, `"logo"`, `"graphic"`, `"other"` | no |  |
+| `who_in_it` | one of `"no_one"`, `"agreed"` | no |  |
+| `status` | one of `"filed"`, `"set_aside"` | no |  |
+
+### `DELETE /api/v1/files/[id]`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/files/[id]/route.ts`).
+
+### `POST /api/v1/files/[id]/done`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string | yes | at most 255 characters |
+| `mime` | one of `"image/jpeg"`, `"image/png"`, `"image/webp"`, `"image/heic"`, `"image/heif"` | yes |  |
+
+### `GET /api/v1/files/[id]/view`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/view/route.ts`).
+
+### `POST /api/v1/files/keep`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `ids` | array of string (uuid) | yes | at least 1; at most 1000 |
+
+### `POST /api/v1/files/start`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `mime` | one of `"image/jpeg"`, `"image/png"`, `"image/webp"`, `"image/heic"`, `"image/heif"` | yes |  |
+| `bytes` | integer | yes | ≤ 25000000 |
+
 ## google
 
 ### `GET /api/v1/google`
@@ -1013,7 +1070,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `source` | one of `"google_reviews"`, `"calendar"`, `"clients_file"`, `"mailbox"`, `"contacts"`, `"whatsapp_contacts"`, `"whatsapp_history"` | yes |  |
+| `source` | one of `"google_reviews"`, `"calendar"`, `"clients_file"`, `"mailbox"`, `"contacts"`, `"whatsapp_contacts"`, `"whatsapp_history"`, `"google_photos"` | yes |  |
 
 ## lead-operations
 
@@ -1885,7 +1942,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -1905,7 +1962,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 

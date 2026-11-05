@@ -14,6 +14,7 @@ export * from "./console";
 export * from "./conversations";
 export * from "./deals";
 export * from "./email";
+export * from "./files";
 export * from "./google";
 export * from "./imports";
 export * from "./journey";

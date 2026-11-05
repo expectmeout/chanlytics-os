@@ -60,6 +60,8 @@ const PAGES = [
   "#/admin/workspace",
   // What Ask remembers, which Settings › Memory alone draws (decision 0070).
   "#/admin/memory",
+  // A business's files, which Settings › Files alone draws (decision 0099).
+  "#/admin/files",
 ];
 
 test("every write re-reads its surfaces or says why it re-reads none, and never both", () => {

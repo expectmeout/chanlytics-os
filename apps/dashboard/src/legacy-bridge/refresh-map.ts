@@ -39,6 +39,7 @@ import { channelsOverride } from "@/surfaces/channels/surface";
 import { todayOverride } from "@/surfaces/today/override";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
+import { filesOverride } from "@/surfaces/settings/files/surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
@@ -91,6 +92,8 @@ const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? dr
 // What Ask remembers (settings/memory/surface.ts; decision 0070), where Settings › Memory is on screen: a line kept, changed or
 // forgotten there, or by a card's Undo in the Line. Elsewhere the pane reads it as it comes on screen, once it has aged.
 const memoryIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMemoryOverride]) : []);
+// A business's files (settings/files/surface.ts; decision 0099), where the pane is drawn: nothing else a page draws reads them.
+const filesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([filesOverride]) : []);
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
 const morningIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMorningOverride]) : []);
@@ -522,6 +525,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST conversations/[id]/draft": draftsIfDrawn,
   "PATCH ask/memory/[id]": memoryIfDrawn,
   "DELETE ask/memory/[id]": memoryIfDrawn,
+  // A photo added, changed or deleted (decision 0099): the Files pane's own read, where it is drawn.
+  "POST files/[id]/done": filesIfDrawn,
+  "POST files/keep": filesIfDrawn,
+  "PATCH files/[id]": filesIfDrawn,
+  "DELETE files/[id]": filesIfDrawn,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
@@ -658,6 +666,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  "POST files/start": "an upload under way is no file yet: the page reads again when it arrives",
   "POST contacts/erase": "handed to the ledger, none erased yet: People drops them, the rest is read once gone",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.

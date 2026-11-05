@@ -151,6 +151,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   ],
   "admin/billing": ["partner", "billing"],
   "admin/memory": ["partner", "ask/memory"],
+  "admin/files": ["partner", "files"],
   "admin/activity": ["partner", "activity"],
   start: ["setup", "views"],
 };

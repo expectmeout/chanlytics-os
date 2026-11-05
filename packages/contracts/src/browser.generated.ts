@@ -196,6 +196,8 @@ export { customerDomainWords, DMARC_RECOMMENDED, MAILBOX_CARD_WORDS, MAILBOX_CON
 export { MAILBOX_LEFT_WHY_WORDS, MAILBOX_SENDERS_WORDS, mailboxLeftLine, senderDomainOffered, senderSortRefusal, senderVerdictOf } from "./email/mailbox-senders";
 export { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_DAILY_CAP_MAX, MAILBOX_HOLDS, MAILBOX_RAMP, mailboxDailyCap, mailboxHoldFixWords, mailboxHoldWords, mailboxRampShare } from "./email/mailbox-standing";
 export { SENDER_KINDS, SENDER_READ_MAX_TOKENS, SENDER_READING_SCHEMA, senderLeftWhy, senderReadingAsk, senderReadingOf, senderReadingSystem } from "./email/sender-reading";
+export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELVES, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, FILE_WORDS, fileFolderOf, fileNameOf, filePathOf, FILES_BUCKET, FILES_MAX, fileSaidOf, filesSayOf, fileViewOf, inboxCleanOf, isFileMime, shelfOf, whoStandsOf } from "./files/files";
+export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, FILE_QUALITIES, fileLookAsked, fileLookOf } from "./files/look";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";
 export { bookingPageOffered, checkedWords, connectionWords, gainedOver, GOOGLE_SHOWN_REVIEWS, hoursFromGoogle, listingFactsOf, listingLine, NEW_REVIEW_NEWS, placesQueryOf, ratingWords, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, reviewIsNew, reviewNoticeIsAbout, reviewSnippet, reviewsWords, starsOf, toGoogleReviewVM, toGoogleVM } from "./google/google";

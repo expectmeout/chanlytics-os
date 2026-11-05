@@ -121,6 +121,7 @@ packages/contracts/src/
   conversations/
   deals/
   email/
+  files/
   google/
   imports/
   journey/

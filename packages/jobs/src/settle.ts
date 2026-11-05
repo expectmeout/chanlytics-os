@@ -25,6 +25,7 @@ import {
   isCampaignEmail,
   type ImportSource,
   type JobKind,
+  FILE_LOOK_EDITION,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
 import {
@@ -32,6 +33,7 @@ import {
   emitEvent,
   failOpenDelivery,
   failQueuedSend,
+  fileLookKeep,
   holdNoticeIfUnkept,
   noteImport,
   previewBuilt,
@@ -51,7 +53,7 @@ export interface TerminalJob {
 /** One thing a job was in the middle of, and what became of it. */
 export interface Settled {
   /** The kind of row, in the words the product uses for it. */
-  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery" | "draft";
+  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery" | "file" | "draft";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
   /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
@@ -448,6 +450,27 @@ async function settleDraft(db: Db, job: TerminalJob): Promise<Settled[]> {
   return [{ what: "draft", changed: moved }];
 }
 
+/**
+ * A file's look that will not finish (00551): the row stops saying Looking and the file stays usable under its own name, by
+ * the one door every look's end goes through, so a good look a retry failed on stays as it was and the sweep leaves it for a
+ * day. The edition is the job's, so a raised one still reads it again.
+ */
+async function settleFileLook(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const fileId = idFrom(job.payload, "file_id");
+  if (!fileId) return [{ what: "file", changed: false, error: "no file on the job" }];
+  const edition = Number(idFrom(job.payload, "edition") ?? FILE_LOOK_EDITION);
+  await fileLookKeep(db, {
+    tenantId: job.tenant_id,
+    id: fileId,
+    status: "failed",
+    edition: Number.isInteger(edition) ? edition : FILE_LOOK_EDITION,
+    look: null,
+    name: null,
+    shows: null,
+  });
+  return [{ what: "file", changed: true }];
+}
+
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
 /**
@@ -464,6 +487,9 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   history_import: settleImport,
   preview_build: settlePreview,
   reply_draft: settleDraft,
+  file_look: settleFileLook,
+  file_fetch: null,
+  file_purge: null,
   line_provision: null,
   lead_round_start: null,
   lead_collect: null,
@@ -487,6 +513,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   booking_read: "notice",
   event_deliver: "delivery",
   reply_draft: "draft",
+  file_look: "file",
 };
 
 /**
@@ -526,7 +553,7 @@ export function saySettled(results: Settled[]): string | null {
       lines.push("Its source says it stopped, with Try again.");
     } else if (r.changed && r.what === "notice") {
       lines.push("The booking email is held for a person in Settings › Business, with Read again.");
-    } else if (r.what === "preview" || r.what === "delivery" || r.what === "draft") {
+    } else if (r.what === "preview" || r.what === "delivery" || r.what === "draft" || r.what === "file") {
       // A preview marked not made, a delivery marked failed: the platform's leavings, said nowhere an owner reads.
     } else if (r.resumed) {
       // Whether this settlement handed it on or found a run already coming, the

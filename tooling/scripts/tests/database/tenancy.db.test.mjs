@@ -221,6 +221,9 @@ before(async () => {
   // What Ask remembers (00470, decision 0070): a line every member reads, a day of the journal its owners read, and the
   // viewer's own morning.
   await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
+  await seed("files", fileRow("seeded"));
+  // What a person removed, by fingerprint, read by no member (00551).
+  await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // Keyed by their workspace and day, so no id to pick.
   await seed("ask_journal_days", { tenant_id: A, day: "2026-10-20", state: "written", text: "A quiet day." }, null);
   await seed("ask_mornings", { tenant_id: A, user_id: ctx.viewerId, day: "2026-10-21" }, null);
@@ -607,6 +610,20 @@ after(async () => {
   for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
+/** A file of the workspace: what the table takes no default for. */
+function fileRow(name) {
+  return {
+    id: crypto.randomUUID(),
+    tenant_id: A,
+    status: "filed",
+    source: "upload",
+    name,
+    mime: "image/jpeg",
+    bytes: 1000,
+    fingerprint: `fp-${name}`,
+  };
+}
+
 /**
  * What a member may read of each tenant table:
  *   member  the workspace's rows
@@ -709,6 +726,8 @@ const TENANT_TABLES = {
   ask_threads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
   // What Ask remembers (00470): the memory is the workspace's, its journal its owners', a morning the member's own.
   ask_memory_lines: ["member", () => ({ tenant_id: A, text: "A stranger's line", source: "pane" })],
+  files: ["member", () => fileRow("a-strangers")],
+  files_let_go: ["none", () => ({ tenant_id: A, fingerprint: "a-strangers" })],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
   ask_messages: [
@@ -1057,8 +1076,14 @@ const OTHER_TABLES = {
   erasure_keying: "none", // whether the erasure digests are keyed (00263): one row, read only by the definer functions
 };
 
+/** A member's grant on files is by column (00551: never the copy's id or the fingerprint), so `*` is refused them. */
+const COLUMNS_OF = { files: "id, tenant_id" };
+
 const seen = async (client, table, filter) => {
-  let q = client.from(table).select("*").limit(5);
+  let q = client
+    .from(table)
+    .select(COLUMNS_OF[table] ?? "*")
+    .limit(5);
   for (const [col, val] of filter) q = q.eq(col, val);
   const r = await q;
   return r.error ? `error: ${r.error.message}` : r.data.length;

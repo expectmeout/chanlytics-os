@@ -64,7 +64,8 @@ export type RecordRef =
   | { kind: "rules" }
   | { kind: "channel" }
   | { kind: "team" }
-  | { kind: "billing" };
+  | { kind: "billing" }
+  | { kind: "file" };
 
 /**
  * The kinds of record that open nowhere, and why: the other half of RECORD_KINDS, so a kind added there says where it opens
@@ -83,7 +84,12 @@ export const RECORDS_WITHOUT_AN_ADDRESS = {
 } as const satisfies Partial<Record<RecordKind, string>>;
 
 /** Settings' panes a record kind is the whole of: the route is Settings' (`admin`), and the pane is the word after it. */
-const PANE = { channel: "admin/integrations", team: "admin/team", billing: "admin/billing" } as const;
+const PANE = {
+  channel: "admin/integrations",
+  team: "admin/team",
+  billing: "admin/billing",
+  file: "admin/files",
+} as const;
 
 /**
  * Where a record opens, as a route without its slash (the shell's own word: `clients/<id>`, which `workspacePath` turns into
@@ -133,6 +139,8 @@ export function addressOf(ref: RecordRef): string {
       return PANE.team;
     case "billing":
       return PANE.billing;
+    case "file":
+      return PANE.file;
   }
 }
 

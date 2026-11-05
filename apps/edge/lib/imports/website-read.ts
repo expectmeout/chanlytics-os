@@ -32,6 +32,7 @@ import { askJson, promptHashOf } from "../model.js";
 import { env } from "../env.js";
 import { homePage, PAGE_READS, sitePage, siteLinks, sitePagesReadable } from "../public-page.js";
 import { wearSiteLook } from "./look.js";
+import { askForFoundFiles, sitePhotosOf } from "../files.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
@@ -70,14 +71,15 @@ async function pagesBeside(home: SitePage): Promise<string[]> {
 /**
  * A workspace's website read and kept (business_reads), its look worn: the job's read, at an owner's press and so `fresh`
  * (as the site stands now), and a lead's preview's build (decision 0079, previews/build.ts), which reads the site of a
- * workspace nobody is a member of yet, where the reader's copy will do. No model call starts after `deadline`. Answers
- * what it kept.
+ * workspace nobody is a member of yet, where the reader's copy will do. Only the job asks for its photos (`photos`): a
+ * preview's workspace is a stranger's, and what it kept would outlive it with no row to find it. No model call starts after
+ * `deadline`. Answers what it kept.
  */
 export async function readWebsite(
   db: Db,
   tenantId: string,
   raw: string | null,
-  { deadline, fresh = false }: { deadline: number; fresh?: boolean },
+  { deadline, fresh = false, photos = false }: { deadline: number; fresh?: boolean; photos?: boolean },
 ): Promise<WebsiteReadKept> {
   const L = logger({ tenant_id: tenantId });
   const url = feedUrlOk(raw);
@@ -121,6 +123,14 @@ export async function readWebsite(
     (p): p is { at: string; page: SitePage; booking: boolean } => !!p.page,
   );
   const booking_read = pages.some((p) => p.booking);
+  // The photographs these pages show, for the Inbox of Files (decision 0099): the owner says which are theirs.
+  if (photos) {
+    // A booking platform's pictures are its own, not the business's.
+    const own = pages.filter((p) => !p.booking).map((p) => p.page);
+    await askForFoundFiles(db, tenantId, "website", sitePhotosOf(own)).catch((e: unknown) =>
+      L.warn("file_fetch_failed", { source: "website", error: errField(e) }),
+    );
+  }
   // A page is someone else's words, and its address too, which a link on the site can make say anything: both in its
   // fence, and only the read's own word for it outside.
   const user = pages
@@ -191,7 +201,7 @@ export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
   return {
     read: async (job: ClaimedJob, deadline: number) => {
       const url = typeof job.payload.url === "string" ? job.payload.url : null;
-      await readWebsite(db, job.tenant_id, url, { deadline, fresh: true });
+      await readWebsite(db, job.tenant_id, url, { deadline, fresh: true, photos: true });
     },
   };
 }

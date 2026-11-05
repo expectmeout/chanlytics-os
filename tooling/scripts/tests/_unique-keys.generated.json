@@ -861,6 +861,71 @@
       "where": null
     },
     {
+      "table": "files",
+      "name": "files_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "files",
+      "name": "files_one_name",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "name"
+        }
+      ],
+      "where": {
+        "isNull": {
+          "column": "removed_at"
+        }
+      }
+    },
+    {
+      "table": "files",
+      "name": "files_one_copy",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "fingerprint"
+        }
+      ],
+      "where": {
+        "isNull": {
+          "column": "removed_at"
+        }
+      }
+    },
+    {
+      "table": "files_let_go",
+      "name": "files_let_go_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "fingerprint"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "google_connections",
       "name": "google_connections_pkey",
       "primary": true,

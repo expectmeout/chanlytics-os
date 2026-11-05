@@ -143,6 +143,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   "admin/notifications": ["partner", "alerts"],
   // Settings' Memory pane draws what Ask remembers and its journal (decision 0070), read only where it is drawn.
   "admin/memory": ["partner", "ask_memory"],
+  // Settings' Files pane draws what the workspace keeps (decision 0099), read where it is drawn.
+  "admin/files": ["partner", "files"],
 };
 
 /**

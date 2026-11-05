@@ -192,6 +192,10 @@ test("a run that stopped says why, offers Try again -- except what Meta offers o
     "Stopped part way · 130 emails kept",
     "stopped part way: said with what it kept, never the run's sentence in place of it",
   );
+  assert.equal(
+    importLineOf(row("google_photos", "failed", { photos: 40 }, { last_error: IMPORT_STOPPED_WORDS.failed })).says,
+    "Stopped part way · 40 photos kept",
+  );
   assert.equal(importLineOf(row("calendar", "failed")).says, "Stopped part way", "no words of its own, nothing kept");
   assert.equal(
     importLineOf(row("contacts", "failed", { people: 12 }, { last_error: IMPORT_STOPPED_WORDS.failed })).says,

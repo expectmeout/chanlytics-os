@@ -73,6 +73,8 @@ const ASKED_BY_A_PERSON: ReadonlySet<ModelPurpose> = new Set<ModelPurpose>([
   // A rehearsal's review and the fix router (decision 0069): the owner's press, spent as Try it's is.
   "receptionist_review",
   "fix_route",
+  // A file's look (decision 0099): a paused, ended or unbilled workspace's files are kept, and not read.
+  "file_look",
 ]);
 
 let deps: ModelDeps = {};
@@ -218,6 +220,17 @@ type ModelHeld = { outcome: "held"; why: "unpaid" | "paused" | "unread" };
 /** What a caller asks: all of the port's request but whom it is for, which is decided here and nowhere else. */
 type ModelRequest = Omit<ModelAsk, "attribution">;
 
+/**
+ * Whether a call for this purpose and person would go now: the two holds callModel asks, asked first by a caller with paid
+ * work to save before the call (a copy to make, a picture to read). No key, it would not.
+ */
+export async function modelMayGo(purpose: ModelPurpose, forWhom: ModelCallFor): Promise<boolean> {
+  const key = env.ANTHROPIC_API_KEY;
+  if (!key) return false;
+  if (!(await mayUseModelFor(purpose, forWhom.tenantId))) return false;
+  return !("held" in (await attributionFor(purpose, forWhom, key, deps)));
+}
+
 /** One model call through the port, written to the ledger; null with no key, `held` when it may not go. */
 export async function callModel(ask: ModelRequest, forWhom: ModelCallFor): Promise<ModelReply | ModelHeld | null> {
   const key = env.ANTHROPIC_API_KEY;
@@ -264,16 +277,18 @@ export function firstJson(text: string): unknown {
   }
 }
 
-/** What one call answered, with what it cost. */
+/** What one call answered, with what it cost. `refused` tells a refusal from an answer that could not be read. */
 export interface JsonAnswer {
   answer: unknown;
   tokens: { input: number; output: number };
+  refused?: true;
 }
 
 interface JsonAsk {
   purpose: ModelPurpose;
   system: string;
-  user: string;
+  /** The words, or the content blocks where a picture goes with them. */
+  user: string | readonly Record<string, unknown>[];
   schema: object;
   maxTokens: number;
   /** Added to the system prompt when the API refuses the schema and the answer is asked for as plain JSON. */
@@ -327,5 +342,9 @@ export async function askJson(a: JsonAsk): Promise<JsonAnswer | null> {
   if (r.outcome !== "ok") throw new ModelUnavailable(r);
   const stop = r.message.stop_reason;
   const answer = stop === "refusal" || stop === "max_tokens" ? null : firstJson(r.text);
-  return { answer, tokens: { input: r.usage.input, output: r.usage.output } };
+  return {
+    answer,
+    tokens: { input: r.usage.input, output: r.usage.output },
+    ...(stop === "refusal" ? { refused: true as const } : {}),
+  };
 }

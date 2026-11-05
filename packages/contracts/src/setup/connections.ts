@@ -744,7 +744,7 @@ const ROW_BUILDERS: readonly ConnectionRowBuilder[] = [
  * WhatsApp's contacts and chats on WhatsApp.
  */
 const BROUGHT_BY: Readonly<Partial<Record<ConnectionKind, readonly ImportSource[]>>> = {
-  google_profile: ["google_reviews"],
+  google_profile: ["google_reviews", "google_photos"],
   calendar: ["calendar", "clients_file"],
   mailbox: ["mailbox", "contacts"],
   whatsapp: ["whatsapp_contacts", "whatsapp_history"],

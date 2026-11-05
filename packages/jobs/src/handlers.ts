@@ -600,6 +600,24 @@ async function historyImport(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.imports.part(job, ctx.deadline);
 }
 
+/** file_look: one file read by the small model (00551, decision 0099), through what the edge injects. payload: { file_id, edition } */
+async function fileLook(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.files) throw new Error("file_look: this runtime holds no file reader");
+  await ctx.files.look(job, ctx.deadline);
+}
+
+/** file_fetch: pictures an import found, fetched and kept once each (00551). payload: { source, batch, items } */
+async function fileFetch(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.files) throw new Error("file_fetch: this runtime holds no file reader");
+  await ctx.files.fetch(job, ctx.deadline);
+}
+
+/** file_purge: a removed file's bytes and Anthropic's copy of it let go (00551). payload: { file_id } */
+async function filePurge(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.files) throw new Error("file_purge: this runtime holds no file reader");
+  await ctx.files.purge(job);
+}
+
 /** website_read: the business's website read for Check (00479, decision 0073), through what the edge injects. payload: { url }. */
 async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.website) throw new Error("website_read: this runtime holds no website reader");
@@ -646,6 +664,9 @@ const HANDLERS: Record<JobKind, Handler> = {
   website_read: websiteRead,
   preview_build: previewBuild,
   erasure_finish: erasureFinish,
+  file_look: fileLook,
+  file_fetch: fileFetch,
+  file_purge: filePurge,
   canary,
 };
 

@@ -26,9 +26,9 @@ interface PageRead {
 /** Every read of a business's page, by what it is read for: what each is given is said here, once. */
 export const PAGE_READS = {
   /** The business's own home page, for Check and its look. A site's own pages, never a download. */
-  website: { timeoutMs: 10 * SECOND_MS, maxChars: 400_000, brand: true },
+  website: { timeoutMs: 10 * SECOND_MS, maxChars: 1_000_000, brand: true },
   /** The pages it links to for its services and rules, and the booking platform's page, read beside it. */
-  websitePage: { timeoutMs: 10 * SECOND_MS, maxChars: 400_000 },
+  websitePage: { timeoutMs: 10 * SECOND_MS, maxChars: 1_000_000 },
   /** The Logo row's look, at the owner's press: as the site stands now. A head is at the top. */
   logo: { timeoutMs: 10 * SECOND_MS, maxChars: 96_000, fresh: true, brand: true },
   /** A cold email's opening: its head and first words, inside a check's own time. */

@@ -6249,6 +6249,367 @@ COMMENT ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_c
 
 
 --
+-- Name: file_change(uuid, uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text DEFAULT NULL::text, p_shows text DEFAULT NULL::text, p_who_in_it text DEFAULT NULL::text, p_status text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_row   public.files;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  select * into v_row from public.files f
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null
+   for update;
+  if not found then
+    raise exception 'That file is gone.' using errcode = 'P0002';
+  end if;
+  if p_status is not null and p_status not in ('filed', 'set_aside') then
+    raise exception 'A file is filed or set aside.' using errcode = '22023';
+  end if;
+  -- not_asked is where a file starts, never something a person says.
+  if p_who_in_it is not null and p_who_in_it not in ('no_one', 'agreed') then
+    raise exception 'Say no one is in it, or that they agreed.' using errcode = '22023';
+  end if;
+  if p_name is not null and p_name <> v_row.name and public.file_free_name(p_tenant_id, p_name, p_id) <> p_name then
+    raise exception 'Another file has that name.' using errcode = '22023';
+  end if;
+  update public.files f
+     set name = coalesce(p_name, f.name),
+         owner_named = f.owner_named or p_name is not null,
+         shows = coalesce(p_shows, f.shows),
+         owner_shelved = f.owner_shelved or p_shows is not null,
+         who_in_it = coalesce(p_who_in_it, f.who_in_it),
+         status = coalesce(p_status, f.status),
+         updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id;
+  -- What was said, and by whom: "they agreed" is a word someone gave, on a day.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.changed', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'by', v_actor, 'said',
+                             jsonb_strip_nulls(jsonb_build_object('name', p_name, 'shows', p_shows,
+                                                                  'who_in_it', p_who_in_it, 'status', p_status))));
+end $$;
+
+
+--
+-- Name: FUNCTION file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) IS 'What a person says of a file (00551): its name, its shelf, who is in it, filed or set aside. A field left null stays, and the event keeps what was said.';
+
+
+--
+-- Name: file_found(uuid, uuid, text, text, text, text, text, bigint, text, integer, integer, text, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_twin    public.files;
+  v_name    text;
+  v_waiting integer;
+  v_due     timestamptz := now();
+begin
+  -- One at a time: photos come side by side, and can share a name or be one picture at two addresses.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer, never its own twin.
+  if exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_id) then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+  end if;
+  select * into v_twin from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found then
+    -- An upload is the owner's word for whatever it twins. Their profile's word files what only waited, and is the better
+    -- road for what a listing offered.
+    update public.files f
+       set status = case when p_source = 'upload' or (p_status = 'filed' and f.status = 'inbox') then 'filed' else f.status end,
+           source = case when p_source = 'google_profile' and f.source = 'google_listing' then p_source else f.source end,
+           source_ref = case when p_source = 'google_profile' and f.source = 'google_listing' then p_source_ref else f.source_ref end,
+           updated_at = now()
+     where f.id = v_twin.id and (f.status <> 'filed' or (p_source = 'google_profile' and f.source = 'google_listing'));
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin.id);
+  end if;
+  -- What a person removed is not brought back by the next read of the same place. A person may add it again.
+  if p_source <> 'upload' and exists (
+    select 1 from public.files_let_go g where g.tenant_id = p_tenant_id and g.fingerprint = p_fingerprint
+  ) then
+    return jsonb_build_object('fate', 'here', 'file_id', null);
+  end if;
+  -- contracts FILES_MAX.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  -- An upload's look starts now, as someone is watching. An import's are paced, so 200 photos are not 200 due rows.
+  if p_source <> 'upload' then
+    select count(*) into v_waiting from public.files f
+     where f.tenant_id = p_tenant_id and f.look_status = 'waiting' and f.removed_at is null;
+    v_due := now() + v_waiting * interval '2 seconds';
+  end if;
+  v_name := public.file_free_name(p_tenant_id, p_name);
+  insert into public.files (id, tenant_id, status, source, source_ref, name, mime, bytes, fingerprint,
+                            width, height, shows, created_by)
+  values (p_id, p_tenant_id, p_status, p_source, p_source_ref, v_name, p_mime, p_bytes, p_fingerprint,
+          p_width, p_height, p_shows, p_actor);
+  -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_look', v_due, jsonb_build_object('file_id', p_id, 'edition', p_edition::text));
+  -- A person's act is on the record. An import's is on its own line, not 200 of these.
+  if p_source = 'upload' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('file_id', p_id, 'source', p_source, 'by', p_actor));
+  end if;
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) IS 'The one door every road keeps a file by, after the server proved its bytes (00551). Answers {fate: kept, here or full, file_id}. No session reaches it: what the bytes are is never the browser''s word.';
+
+
+--
+-- Name: file_free_name(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid DEFAULT NULL::uuid) RETURNS text
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_base text := left(coalesce(nullif(p_base, ''), 'file'), 60);
+  v_name text := v_base;
+  v_n    integer := 1;
+begin
+  while exists (
+    select 1 from public.files f
+     where f.tenant_id = p_tenant_id and f.name = v_name and f.removed_at is null and f.id is distinct from p_self
+  ) loop
+    v_n := v_n + 1;
+    v_name := regexp_replace(left(v_base, 55), '-+$', '') || '-' || v_n;
+  end loop;
+  return v_name;
+end $$;
+
+
+--
+-- Name: FUNCTION file_free_name(p_tenant_id uuid, p_base text, p_self uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid) IS 'The name itself where it is free in this workspace, else with -2, -3 (00551).';
+
+
+--
+-- Name: file_keep_many(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_kept  integer;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.files f
+     set status = 'filed', updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = any (p_ids) and f.status = 'inbox' and f.removed_at is null;
+  get diagnostics v_kept = row_count;
+  if v_kept > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.kept', 'setup', 'workspace', p_tenant_id, jsonb_build_object('count', v_kept, 'by', v_actor));
+  end if;
+  return v_kept;
+end $$;
+
+
+--
+-- Name: FUNCTION file_keep_many(p_tenant_id uuid, p_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) IS 'The Inbox''s one press (00551): what waits, among these, is filed. Answers how many moved.';
+
+
+--
+-- Name: file_listing_aside(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_listing_aside(p_tenant_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_moved integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.files f
+     set status = 'set_aside', updated_at = now()
+   where f.tenant_id = p_tenant_id and f.source = 'google_listing' and f.status = 'inbox' and f.removed_at is null
+     and not f.owner_named and not f.owner_shelved;
+  get diagnostics v_moved = row_count;
+  return v_moved;
+end $$;
+
+
+--
+-- Name: FUNCTION file_listing_aside(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_listing_aside(p_tenant_id uuid) IS 'What a public listing offered and nobody kept goes aside (00551): that listing was not this business''s after all, or its own profile has come. What a person kept or touched stays, and a person can put any of it back.';
+
+
+--
+-- Name: file_look_keep(uuid, uuid, text, integer, jsonb, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.files f
+     set look = case when p_status = 'done' then p_look else f.look end,
+         -- A try that came to nothing, on a file with a look, leaves that look standing. A failed one changes nothing but when
+         -- it was tried, so a raised edition still reads it. A refusal counts as read, or the sweep would ask every day.
+         look_status = case when p_status <> 'done' and f.look is not null then f.look_status else p_status end,
+         look_edition = case when p_status = 'failed' and f.look is not null then f.look_edition else p_edition end,
+         looked_at = now(),
+         -- A name is given once, by the first look that can: a later one must not rename what people and Ask call it.
+         name = case when p_name is not null and not f.owner_named and f.look is null
+                     then public.file_free_name(p_tenant_id, p_name, p_id) else f.name end,
+         shows = case when f.owner_shelved or p_status <> 'done' then f.shows else coalesce(p_shows, f.shows) end,
+         -- The model would not read it, for the first time: a person looks.
+         status = case when p_status = 'refused' and f.status = 'filed' and f.look is null then 'inbox' else f.status end,
+         updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null;
+end $$;
+
+
+--
+-- Name: FUNCTION file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) IS 'What the look saw (00551), under the owner''s word: a name they gave and a shelf they chose stay, a first look alone names a file, and a failed try leaves a good look as it was.';
+
+
+--
+-- Name: file_purged(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  delete from public.files f where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is not null;
+$$;
+
+
+--
+-- Name: FUNCTION file_purged(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) IS 'A removed file''s bytes and Anthropic''s copy are gone (00551), so its row goes. Its fingerprint is already in files_let_go.';
+
+
+--
+-- Name: file_remove(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor       uuid := auth.uid();
+  v_fingerprint text;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.files f set removed_at = now(), updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null
+  returning f.fingerprint into v_fingerprint;
+  if not found then
+    raise exception 'That file is gone.' using errcode = 'P0002';
+  end if;
+  -- At the press, not the purge: an import in between must not bring back what was just removed.
+  insert into public.files_let_go (tenant_id, fingerprint) values (p_tenant_id, v_fingerprint)
+  on conflict (tenant_id, fingerprint) do nothing;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_purge', now(), jsonb_build_object('file_id', p_id, 'why', 'remove'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.removed', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'by', v_actor));
+end $$;
+
+
+--
+-- Name: FUNCTION file_remove(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) IS 'A person removed a file (00551): hidden at once and written to files_let_go, so an import does not bring it back; its bytes, Anthropic''s copy and its row go by the file_purge job.';
+
+
+--
+-- Name: file_start(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- contracts FILES_MAX: the fair word before anything travels. file_found holds it for certain.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    raise exception 'This workspace holds as many files as it can. Remove some first.' using errcode = '22023';
+  end if;
+  -- Bytes that never become a file hold nothing but their folder: this empties it a day on, and leaves a file alone.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_purge', now() + interval '1 day', jsonb_build_object('file_id', p_id, 'why', 'start'));
+end $$;
+
+
+--
+-- Name: FUNCTION file_start(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the settings permission, the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
+
+
+--
 -- Name: finish_broadcast(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -34300,7 +34661,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -35526,6 +35887,168 @@ COMMENT ON TABLE public.fact_suggestions IS 'An owner''s correction, looked at o
 
 
 --
+-- Name: files; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.files (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    status text NOT NULL,
+    source text NOT NULL,
+    source_ref text,
+    name text NOT NULL,
+    owner_named boolean DEFAULT false NOT NULL,
+    mime text NOT NULL,
+    bytes bigint NOT NULL,
+    width integer,
+    height integer,
+    fingerprint text NOT NULL,
+    claude_copy jsonb,
+    look jsonb,
+    look_status text DEFAULT 'waiting'::text NOT NULL,
+    look_edition integer,
+    looked_at timestamp with time zone DEFAULT now() NOT NULL,
+    shows text,
+    owner_shelved boolean DEFAULT false NOT NULL,
+    who_in_it text DEFAULT 'not_asked'::text NOT NULL,
+    created_by uuid,
+    removed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
+    CONSTRAINT files_mime_check CHECK ((mime = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text, 'image/heic'::text, 'image/heif'::text]))),
+    CONSTRAINT files_name_shape CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60) AND (name = lower(name)) AND (name !~ '[[:space:][:cntrl:]/\\.<>"''&]'::text) AND (name !~ '^-|-$|--'::text))),
+    CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
+    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text]))),
+    CONSTRAINT files_status_check CHECK ((status = ANY (ARRAY['inbox'::text, 'filed'::text, 'set_aside'::text]))),
+    CONSTRAINT files_who_in_it_check CHECK ((who_in_it = ANY (ARRAY['not_asked'::text, 'no_one'::text, 'agreed'::text])))
+);
+
+
+--
+-- Name: TABLE files; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.files IS 'A business''s files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.';
+
+
+--
+-- Name: COLUMN files.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.status IS 'Where it stands: inbox (waits for a person''s word), filed (what Ask may use), set_aside.';
+
+
+--
+-- Name: COLUMN files.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.source IS 'Which road brought it: a member''s upload, the connected Google profile, the public Google listing, or the business''s website.';
+
+
+--
+-- Name: COLUMN files.source_ref; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.source_ref IS 'Where an import read it: the image''s address, or Google''s name for it, which can expire. Empty for an upload.';
+
+
+--
+-- Name: COLUMN files.name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.name IS 'What it goes by, to Ask and in the page''s words: lower case, hyphens, what it shows first. One per workspace among what is kept.';
+
+
+--
+-- Name: COLUMN files.owner_named; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.owner_named IS 'A person named it, so the look does not rename it.';
+
+
+--
+-- Name: COLUMN files.fingerprint; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.fingerprint IS 'sha256 of its first MiB and its size: the same file twice is one row, and a removed one is not imported again (files_let_go).';
+
+
+--
+-- Name: COLUMN files.claude_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.claude_copy IS 'The copy Anthropic holds for reading it: {id, expires_at, width, height}. Service role only, never shown to the model, a member or a tool.';
+
+
+--
+-- Name: COLUMN files.look; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.look IS 'What the look saw, in contracts FileLook. Written only by file_look_keep.';
+
+
+--
+-- Name: COLUMN files.look_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.look_status IS 'waiting, done, refused (the model would not read it, so a person sees it), or failed (no answer; the file stays usable, and the sweep tries again for a week).';
+
+
+--
+-- Name: COLUMN files.look_edition; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.look_edition IS 'The edition of the look''s rules it was read under (contracts FILE_LOOK_EDITION). A lower one is read again.';
+
+
+--
+-- Name: COLUMN files.looked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.looked_at IS 'When it was last looked at, or tried, or kept: what tells the sweep to leave it alone for a day.';
+
+
+--
+-- Name: COLUMN files.shows; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.shows IS 'Its shelf''s word: from the look, Google''s category, or a person. owner_shelved says a person chose it.';
+
+
+--
+-- Name: COLUMN files.who_in_it; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.who_in_it IS 'A person''s word alone: not_asked, no_one, or agreed. What the look counted is on look.people, and contracts whoStandsOf reads the two.';
+
+
+--
+-- Name: COLUMN files.removed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.removed_at IS 'A person removed it: hidden at once. file_purge lets its bytes go and takes the row.';
+
+
+--
+-- Name: files_let_go; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.files_let_go (
+    tenant_id uuid NOT NULL,
+    fingerprint text NOT NULL,
+    let_go_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE files_let_go; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.files_let_go IS 'What a person removed from a business''s files, by fingerprint alone, written at the press (00551, decision 0099): an import does not bring it back. A person may still add it again. Nothing else of the file stays.';
+
+
+--
 -- Name: google_connections; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -35731,7 +36254,7 @@ CREATE TABLE public.imports (
     CONSTRAINT imports_parts_done_check CHECK ((parts_done >= 0)),
     CONSTRAINT imports_parts_total_check CHECK (((parts_total IS NULL) OR (parts_total >= 1))),
     CONSTRAINT imports_run_check CHECK (((run IS NULL) OR ((char_length(run) >= 1) AND (char_length(run) <= 40)))),
-    CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text]))),
+    CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text, 'google_photos'::text]))),
     CONSTRAINT imports_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'running'::text, 'done'::text, 'failed'::text]))),
     CONSTRAINT imports_via_check CHECK (((via IS NULL) OR ((char_length(via) >= 1) AND (char_length(via) <= 40))))
 );
@@ -37349,7 +37872,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -39599,6 +40122,22 @@ ALTER TABLE ONLY public.fact_suggestions
 
 
 --
+-- Name: files_let_go files_let_go_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files_let_go
+    ADD CONSTRAINT files_let_go_pkey PRIMARY KEY (tenant_id, fingerprint);
+
+
+--
+-- Name: files files_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: google_connections google_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41071,6 +41610,41 @@ CREATE INDEX fact_suggestions_tenant_created ON public.fact_suggestions USING bt
 --
 
 CREATE INDEX fact_suggestions_waiting ON public.fact_suggestions USING btree (tenant_id, created_at DESC) WHERE (state = 'suggested'::text);
+
+
+--
+-- Name: files_look_again; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_look_again ON public.files USING btree (looked_at) WHERE ((removed_at IS NULL) AND (look_status <> 'refused'::text));
+
+
+--
+-- Name: files_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_newest ON public.files USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: files_one_copy; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX files_one_copy ON public.files USING btree (tenant_id, fingerprint) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: files_one_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX files_one_name ON public.files USING btree (tenant_id, name) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: files_removed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_removed ON public.files USING btree (removed_at) WHERE (removed_at IS NOT NULL);
 
 
 --
@@ -43573,6 +44147,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.escalations REFERENC
 
 
 --
+-- Name: files workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.files REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: google_connections workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -43836,6 +44417,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.deals REFERENCING NE
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.escalations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: files workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -44616,6 +45204,30 @@ ALTER TABLE ONLY public.fact_suggestions
 
 ALTER TABLE ONLY public.fact_suggestions
     ADD CONSTRAINT fact_suggestions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: files files_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: files_let_go files_let_go_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files_let_go
+    ADD CONSTRAINT files_let_go_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: files files_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -46494,6 +47106,27 @@ ALTER TABLE public.fact_suggestions ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY fact_suggestions_member_select ON public.fact_suggestions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: files; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: files_let_go; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.files_let_go ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: files files_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY files_member_select ON public.files FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -48704,6 +49337,82 @@ GRANT ALL ON FUNCTION public.fact_suggest(p_id uuid, p_title text, p_body text, 
 REVOKE ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) TO authenticated;
 GRANT ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) TO service_role;
+
+
+--
+-- Name: FUNCTION file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) TO authenticated;
+GRANT ALL ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_free_name(p_tenant_id uuid, p_base text, p_self uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_keep_many(p_tenant_id uuid, p_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION file_listing_aside(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_listing_aside(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_listing_aside(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_purged(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_remove(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_start(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO service_role;
 
 
 --
@@ -53758,6 +54467,139 @@ GRANT ALL ON TABLE public.events_default TO service_role;
 
 GRANT SELECT ON TABLE public.fact_suggestions TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.fact_suggestions TO service_role;
+
+
+--
+-- Name: TABLE files; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.files TO service_role;
+
+
+--
+-- Name: COLUMN files.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(id) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tenant_id) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(status) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.source; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(source) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.source_ref; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(source_ref) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(name) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.mime; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(mime) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.bytes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(bytes) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.width; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(width) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.height; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(height) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.look; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(look) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.look_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(look_status) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.shows; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(shows) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.who_in_it; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(who_in_it) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.removed_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(removed_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(created_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.updated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(updated_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: TABLE files_let_go; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE ON TABLE public.files_let_go TO service_role;
 
 
 --

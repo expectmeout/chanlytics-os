@@ -142,6 +142,7 @@ export const MODEL_PURPOSES = [
   "fix_route",
   "website_read",
   "sender_read",
+  "file_look",
 ] as const;
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
@@ -229,6 +230,8 @@ const REVIEW_TRY_MS = 15_000;
 const JUDGE_TRY_MS = 28_000;
 /** A note's look: a sweep, nobody waiting. */
 const NOTE_TRY_MS = 20_000;
+/** A file's look: a job with one picture, the page saying it is looking. Measured at 2 to 6 seconds (5 Nov 2026). */
+const FILE_LOOK_TRY_MS = 15_000;
 /** A reach-out's opening check and a reply's reading: each inside a tick or a job with its own deadline. */
 const READ_TRY_MS = 8_000;
 /** A rehearsal's review: the owner waits on the page for it, inside the edge's minute (decision 0069). */
@@ -428,6 +431,17 @@ export const MODEL_ROUTES = {
     timeoutMs: READ_TRY_MS,
     retries: 0,
     maxTokens: 200,
+    thinking: "off",
+  },
+  // A business's file, read once for what it shows (decision 0099): a fixed shape, and its answer read in code (contracts
+  // fileLookOf). Nothing waits on it but a word on the page: no answer leaves the file usable, under its own name.
+  file_look: {
+    attributed: "person",
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: FILE_LOOK_TRY_MS,
+    retries: 0,
+    maxTokens: 2000,
     thinking: "off",
   },
 } as const satisfies Record<ModelPurpose, ModelRoute>;

@@ -384,6 +384,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/consent",
   "packages/contracts/src/console",
   "packages/contracts/src/email",
+  "packages/contracts/src/files",
   "packages/contracts/src/google",
   "packages/contracts/src/imports",
   "packages/contracts/src/journey",

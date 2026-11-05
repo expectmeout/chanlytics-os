@@ -43,6 +43,8 @@ export const SET_TABS: readonly SetTab[] = [
   // A partner's account and link (0012). On the account, like Profile.
   { id: "partner", label: "Partner", icon: "users", group: "You", partners: true },
   DETAILS_TAB,
+  // Every photo the business has (decision 0099), for what Ask makes with them.
+  { id: "files", label: "Files", icon: "image", group: "Business" },
   // When people can come, and how they book: what the Calendar's "Hours and rules" shows, kept in one place.
   { id: "hours", label: "Hours & booking", icon: "calendar", group: "Business" },
   // What the receptionist says: its voice, what it knows, what it can do, and what it is told.

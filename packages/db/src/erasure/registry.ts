@@ -425,6 +425,14 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // What the workspace said of a sender (00483): an address or a domain. A person's address goes with them; what was
   // said of a robot is nobody's, and stays.
   mailbox_senders: { sender: scrubbedBy("mailbox_trigger") },
+  // A business's own pictures (00551). A picture can show anyone, and a look or a name can hold what it read off one: an
+  // erasure of a person reaches neither, and the owner deleting that file is the remedy, which blanks all three.
+  files: {
+    ...all(WITH_WORKSPACE, "look", "name", "source_ref"),
+    ...all(NOT_PERSONAL, "mime", "fingerprint", "claude_copy"),
+  },
+  // What a person removed, by a hash of its bytes alone (00551).
+  files_let_go: { fingerprint: NOT_PERSONAL },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.
   mailbox_sender_reads: all(scrubbedBy("mailbox_trigger"), "address", "about"),

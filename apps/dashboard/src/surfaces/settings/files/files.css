@@ -1,0 +1,222 @@
+/* Settings › Files (decision 0099): the grid and the sheet's picture. Every value is a token. */
+
+.files-page {
+  padding-bottom: var(--rec-gutter);
+}
+
+.files-head {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.files-head-act {
+  flex: none;
+  margin-left: auto;
+}
+
+/* More shelves than a phone's width holds: the row keeps its line and slides under a thumb. */
+.files-shelves {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.files-shelves .files-shelves-row {
+  flex: 0 0 max-content;
+  max-width: none;
+  white-space: nowrap;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.files-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.files-pic {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  background: var(--surface-page-fill);
+}
+
+.files-photo:focus-visible .files-pic {
+  box-shadow: var(--focus-ring);
+}
+
+/* An outline, since a box-shadow inside an <img> paints beneath its picture. */
+@media (hover: hover) {
+  .files-photo:hover .files-pic {
+    outline: 1px solid var(--surface-inset-edge);
+    outline-offset: -1px;
+  }
+}
+
+.files-name,
+.files-state {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A fixed height, so the sheet opens at its size and the fields don't move under a thumb when the picture arrives. */
+.files-big {
+  display: block;
+  width: 100%;
+  height: 46vh;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  background: var(--surface-page-fill);
+}
+
+/* A picture that can't be drawn: its ground, and what it goes by. */
+.files-unseen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* On its way: a photo that hasn't arrived isn't one to press. */
+.files-going {
+  cursor: default;
+}
+
+.files-going .files-pic {
+  opacity: 0.55;
+}
+
+.files-going .files-state {
+  color: var(--ink-dim);
+}
+
+.files-failed {
+  cursor: default;
+}
+
+.files-why {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+.files-tries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.files-try-all {
+  grid-column: 1 / -1;
+}
+
+.files-inbox-says {
+  margin-top: 14px;
+}
+
+.files-who {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.files-who-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.files-says {
+  margin: 12px 0 0;
+  font-size: var(--text-base);
+}
+
+.files-issues,
+.files-from {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+.files-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.files-from {
+  margin: 0;
+}
+
+.files-name-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.files-name-box {
+  flex: 1;
+  min-width: 0;
+}
+
+.files-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A phone scans photos in threes, edge to edge, as its own camera roll taught it. What failed still says its name. */
+@media (max-width: 720px) {
+  .files-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .files-pic {
+    border-radius: var(--radius-sm);
+  }
+
+  .files-name {
+    display: none;
+  }
+
+  .files-going .files-state {
+    display: none;
+  }
+
+  /* A row of its own, its picture small: eight that failed should not be eight screens. */
+  .files-failed {
+    display: grid;
+    grid-column: span 3;
+    grid-template-columns: 72px minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 2px;
+    margin: 6px 0;
+  }
+
+  .files-failed .files-pic {
+    grid-row: 1 / span 3;
+  }
+}
