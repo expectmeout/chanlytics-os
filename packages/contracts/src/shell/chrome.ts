@@ -310,6 +310,8 @@ export interface ShellStatus {
   degraded: string[];
   /** The workspace is paused (billing stopped): a call is answered only to take a message and every other message waits in the Inbox (PAUSED_WORDS), until Billing resumes it. */
   paused?: boolean;
+  /** Anthropic has paused this workspace's profile (decision 0097): its receptionist holds every message for a person. */
+  modelPaused?: boolean;
   /** This device has no connection: nothing on screen is kept current, and nothing pressed reaches the workspace. */
   offline?: boolean;
   /** The live feed dropped and did not come back within its grace: the page is current only as of its last read. */
@@ -366,6 +368,17 @@ export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusL
       detail: PAUSED_WORDS,
       action: "billing",
       cta: "Billing",
+      busy: null,
+    };
+  if (s.modelPaused)
+    return {
+      kind: "paused",
+      tone: WORKSPACE_PAUSED.tone,
+      text: "Your receptionist is paused",
+      detail:
+        "It sends a holding reply and hands each new message to you in the Inbox. Write to support and we'll sort it out.",
+      action: null,
+      cta: null,
       busy: null,
     };
   if (s.previewing) {

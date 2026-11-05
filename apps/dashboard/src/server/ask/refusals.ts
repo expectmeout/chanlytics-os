@@ -1,5 +1,5 @@
 import "server-only";
-import { foldWordsMessages, type MembershipRole } from "@chanlytics/contracts";
+import { foldWordsMessages, MODEL_PAUSED_WORDS, type MembershipRole } from "@chanlytics/contracts";
 import { log, type DashboardLogEvent } from "@/server/log";
 import type { GatewayRefusal } from "./gateway";
 import { toApiTools } from "./tools";
@@ -27,6 +27,8 @@ export function refusalSaid(r: GatewayRefusal, es: boolean, at: { tenant_id: str
       return es
         ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
         : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
+    case "model_paused":
+      return es ? MODEL_PAUSED_WORDS.ask.es : MODEL_PAUSED_WORDS.ask.en;
     case "unreachable":
       return es
         ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."

@@ -32,6 +32,11 @@
  * either refuses (a 429 or a 529) is asked once more of the same model at standard speed while the deadline leaves
  * room, so a turn never fails for it, and the answer says it was slowed; the model is then held at standard speed on
  * this instance for FAST_HOLD_MS (fastHeld).
+ *
+ * Every request says whom it is for (`attribution`, decision 0097): the profile it is sent under, or none, and the caller
+ * has to have said which. A request that says nothing never leaves, whichever way it got here (`no_attribution`): without
+ * a profile, one customer's flagged traffic can restrict the whole organization. Every try of a call carries the same one,
+ * the fallback's and the slowed one's too.
  */
 import {
   EFFORT_MESSAGE_BETA,
@@ -104,8 +109,16 @@ export type ModelStreamReply =
   | (Asked & { outcome: "ok"; body: ReadableStream<Uint8Array>; headers: Headers | null })
   | (Asked & { outcome: "rejected" | "unreachable"; error: string; errorType: string; detail: string });
 
+/** Whom a request is for, as Anthropic is told. */
+export interface ModelAttribution {
+  /** The `uprof_` id sent as anthropic-user-profile-id; null sends none, the platform's own by decision (decision 0097). */
+  profileId: string | null;
+}
+
 export interface ModelAsk {
   purpose: ModelPurpose;
+  /** Required, with no default: the edge's model port (lib/model.ts) is the one place it is decided. */
+  attribution: ModelAttribution;
   /**
    * The request without its model: system, messages, tools, output_config, … (max_tokens the route's unless named);
    * `speed: "fast"` asks for fast mode, and its beta is added for a model that runs it.
@@ -135,11 +148,12 @@ export interface ModelDeps {
 /** The least time a fallback is worth asking with: under it, the caller's deadline has already been spent. */
 const FALLBACK_FLOOR_MS = 1_500;
 
-function headersFor(key: string, betas: string[] | undefined): Record<string, string> {
+function headersFor(key: string, betas: string[] | undefined, profileId: string | null): Record<string, string> {
   return {
     "content-type": "application/json",
     "x-api-key": key,
     "anthropic-version": ANTHROPIC_VERSION,
+    ...(profileId ? { "anthropic-user-profile-id": profileId } : {}),
     ...(betas && betas.length ? { "anthropic-beta": betas.join(",") } : {}),
   };
 }
@@ -308,7 +322,7 @@ function tryModel(
     ANTHROPIC_MESSAGES_URL,
     {
       method: "POST",
-      headers: headersFor(key, sent.betas),
+      headers: headersFor(key, sent.betas, ask.attribution.profileId),
       body: JSON.stringify({ max_tokens: p.route.maxTokens, ...sent.body, model, ...(stream ? { stream: true } : {}) }),
       timeoutMs,
       tries: 1 + Math.max(0, ask.retries ?? p.route.retries),
@@ -363,8 +377,27 @@ async function triesOf(key: string, ask: ModelAsk, p: Plan, stream: boolean) {
   return { a, model, base: { asked: p.first, fellBack, status: a.status, speed: sent.speed, slowed } };
 }
 
+/** A request that says nothing of whom it is for: refused here, and nothing leaves. A type error everywhere but a script. */
+function unattributed(ask: ModelAsk, deps: ModelDeps) {
+  const p = planOf(ask, deps);
+  const error = "this request does not say whom it is for";
+  return {
+    asked: p.first,
+    model: p.first,
+    fellBack: false,
+    status: 0,
+    speed: "standard" as const,
+    slowed: false,
+    outcome: "rejected" as const,
+    error,
+    errorType: "no_attribution",
+    detail: error,
+  };
+}
+
 /** One answer from the model the purpose names, or its fallback; never thrown. */
 export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelReply> {
+  if (!ask.attribution) return { ...unattributed(ask, deps), usage: NO_USAGE };
   const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), false);
   if (a.outcome !== "ok") {
     return {
@@ -390,6 +423,7 @@ export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {})
 
 /** The API's event stream for one request, from the model the purpose names or its fallback; never thrown. */
 export async function streamModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelStreamReply> {
+  if (!ask.attribution) return unattributed(ask, deps);
   const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), true);
   if (a.outcome === "ok" && a.body) return { ...base, model, outcome: "ok", body: a.body, headers: a.headers };
   return {

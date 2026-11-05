@@ -26,6 +26,7 @@
  *   HOLDS_INCLUDED_FOR_CHAIN the holds an owner's Include carries to the lead's later sends in the chain (R7); an Include
  *                            past any other covers that one email
  */
+import { defang } from "../ai/fence";
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
 import { languageName } from "../templates/template-languages";
@@ -429,10 +430,11 @@ export interface WrittenOpening {
   facts_used: string[];
 }
 
+/** A field as the writer is shown it (fenceLine): one holding only what a reader cannot see is no fact to lean on. */
 export function factValue(r: OpeningRecord, k: OpeningFactKey): string | null {
   const v = r[k];
   if (v === null || v === undefined) return null;
-  const s = String(v).trim();
+  const s = defang(String(v)).trim();
   return s ? s : null;
 }
 
@@ -455,7 +457,7 @@ function recordNumbers(r: OpeningRecord): Set<string> {
   }
   if (r.reviews !== null) add(r.reviews);
   for (const text of [r.business_name, r.category, r.city, r.hours, r.about, r.why_it_fits, r.website_says])
-    for (const m of (text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
+    for (const m of defang(text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
   return out;
 }
 
@@ -551,15 +553,16 @@ export function isOpeningProblem(p: string | null | undefined): p is OpeningProb
  * words, every fact it names one the record has, every number in it one the record holds, and no guess.
  */
 export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProblem | null {
-  const text = o.opening.trim();
+  // Read as the record is, so a listing's name in a sentence its own fields say matches itself, and no link hides.
+  const text = defang(o.opening).trim();
   if (!text) return "empty";
   if (wordCount(text) > OPENING_WORDS_MAX || text.length > OPENING_CHARS_MAX) return "too_long";
   // The business's own name, as its listing writes it and as it is called by, and its city are theirs, dots and all
   // ("fixit.co Repairs"); anything else shaped like an address, or an email address, is a link (a business's own host
   // is one to a spam filter too).
   let unnamed = text;
-  for (const own of [r.business_name, leadCalledByOf(r), r.city])
-    if (own?.trim()) unnamed = unnamed.split(own.trim()).join(" ");
+  for (const own of [r.business_name, leadCalledByOf(r), r.city].map((name) => defang(name ?? "").trim()))
+    if (own) unnamed = unnamed.split(own).join(" ");
   if (linksIn(unnamed).length > 0 || /@/.test(unnamed)) return "link";
   if (/\{\{|\}\}/.test(text)) return "brace";
   if (shoutingLine(text)) return "shouting";

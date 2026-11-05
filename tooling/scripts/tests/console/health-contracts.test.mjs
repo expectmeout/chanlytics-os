@@ -507,6 +507,58 @@ test("the tiles judge each part by the platform's own targets, and a part that c
   assert.deepEqual([late.state, late.line], ["missed", "3 jobs late"]);
 });
 
+test("an account Anthropic paused needs a look, says why and where, and names no person", () => {
+  const paused = (id, over) => ({
+    id,
+    kind: "workspace",
+    tenant_id: C,
+    user_id: null,
+    status: "restricted",
+    actions: [{ type: "restriction", reason: "fraud_or_abuse", action: "verify" }],
+    at: iso(NOW - 2 * HOUR),
+    ...over,
+  });
+  const h = healthOf({
+    anthropic_profiles: {
+      kept: 12,
+      waiting: 2,
+      leaving: 1,
+      paused: [
+        paused("p1"),
+        paused("p2", { tenant_id: O }),
+        paused("p3", {
+          kind: "person",
+          tenant_id: null,
+          user_id: "11111111-1111-4111-8111-111111111111",
+          status: "banned",
+          actions: [],
+        }),
+      ],
+    },
+  });
+  const rows = (scope) => healthLooksOf(h, scope, NOW).filter((r) => r.key.startsWith("anthropic:"));
+  const [business] = rows("customers");
+  assert.equal(business.severity, "red");
+  assert.equal(business.where, "Bloom Studio");
+  assert.equal(business.why, "Restricted: fraud or abuse. They can clear it with an identity check.");
+  assert.deepEqual(business.act, { kind: "open", tab: "model" });
+  assert.equal(business.tenantId, C);
+  const person = rows("customers").find((r) => r.key === "anthropic:p3");
+  assert.equal(person.where, "One person");
+  assert.ok(!JSON.stringify(person).includes("11111111"), "a person is not named on Health's front");
+  assert.deepEqual(
+    rows("ours").map((r) => r.key),
+    ["anthropic:p2"],
+    "our own apart",
+  );
+
+  for (const none of [undefined, null, { kept: 0, waiting: 0, leaving: 0, paused: [] }])
+    assert.deepEqual(
+      healthLooksOf(healthOf({ anthropic_profiles: none }), "all", NOW).filter((r) => r.key.startsWith("anthropic:")),
+      [],
+    );
+});
+
 test("what needs a look: worst first then newest, each with where and its act; ours only under Ours and All", () => {
   const h = healthOf({
     backlog: 3,

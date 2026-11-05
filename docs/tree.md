@@ -11,6 +11,7 @@ apps/edge/api/
   jobs/
   mailbox/
 apps/edge/lib/
+  anthropic-profiles/
   billing/
   calendar/
   drafts/

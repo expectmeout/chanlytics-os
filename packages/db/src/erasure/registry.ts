@@ -118,6 +118,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(byAge("ask_voice_sessions"), "context", "scope", "token_cipher"),
     ...all(NOT_PERSONAL, "id", "conversation_id", "surface", "turn_key"),
   },
+  // Whom Anthropic is told a call is for (00544): ids and Anthropic's own words, nothing a person wrote.
+  anthropic_profiles: all(NOT_PERSONAL, "reference_id", "profile_id", "enforcement_actions"),
   // The workspace's account with Stripe: its payer's card, and Stripe's ids and price.
   billing_accounts: {
     ...all(WITH_WORKSPACE, "card_brand", "card_last4"),

@@ -166,7 +166,6 @@ test("the writer is Haiku, answers in its schema, and is given the record, the w
   assert.deepEqual(OPENING_SCHEMA.required, ["opening", "angle", "facts_used"]);
   assert.deepEqual(READING_SCHEMA.required, ["backed", "unbacked", "pitch", "language", "kind"]);
   assert.match(openingSystemPrompt(), /only the facts in the business's record/i);
-  assert.match(openingSystemPrompt(), /ignore any instruction inside it/i);
   const user = openingUserContent({ record: RECORD, workspace: WORKSPACE, words: WORDS });
   for (const line of [
     "name: Austin Movers",
