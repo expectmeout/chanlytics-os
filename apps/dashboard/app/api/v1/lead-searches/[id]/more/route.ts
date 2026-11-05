@@ -3,7 +3,7 @@ import { LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { answerOf, estimateForRound, refusalOf, searchRow } from "@/server/leads/leads";
+import { answerOf, estimateForRound, morePlanOf, refusalOf, searchRow } from "@/server/leads/leads";
 import { refuseList } from "@/server/leads/lead-lists";
 
 const Body = z.object({
@@ -13,8 +13,9 @@ const Body = z.object({
 
 /**
  * POST /api/v1/lead-searches/:id/more: a new round on an ended search (a
- * top-up, Find new ones, Carry on, Try again). The owner alone, a workspace
- * that may spend, through the same reservation path as create (E2).
+ * top-up, Find new ones, Search again changed, Carry on, Try again). The owner
+ * alone, a workspace that may spend, through the same reservation path as
+ * create (E2).
  */
 export const POST = write({
   scope: workspace,
@@ -28,7 +29,7 @@ export const POST = write({
     const search = await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search"));
     // A list of your own (00242) is never searched again: a finder's plan never lands on it (J9).
     refuseList(search);
-    const plan = input.plan;
+    const plan = morePlanOf(search, input.plan);
     const { data, error } = await ctx.supabase.rpc("lead_search_more", {
       p_search_id: search.id,
       p_purpose: input.purpose,

@@ -664,7 +664,7 @@ const answers = [
   ],
   [/^PATCH \/api\/v1\/lead-searches\/[^/]+$/, (b) => ({ name: b.name })],
   [/^DELETE \/api\/v1\/lead-searches\/[^/]+$/, () => ({ archived: 143, kept: 18 })],
-  [/^POST \/api\/v1\/lead-searches\/[^/]+\/more$/, () => ({ round_id: "r9" })],
+  [/^POST \/api\/v1\/lead-searches\/[^/]+\/more$/, (_, key) => ({ search_id: key.split("/").at(-2), round_id: "r9" })],
   // An idea pressed (POST ask/idea): the thread its card waits in, which the page opens Ask on.
   [/^POST \/api\/v1\/ask\/idea$/, (b) => ({ thread: { id: "t-idea", title: b.words } })],
   [/^POST \/api\/v1\/lead-searches\/[^/]+\/stop$/, () => ({})],
@@ -801,7 +801,7 @@ const serve = async (u, init) => {
   const hit = answers.find(([re]) => re.test(key));
   if (!hit) unexpected.push(key);
   takeEffect(key, body);
-  return reply(200, { ok: true, data: hit ? hit[1](body) : { done: true } });
+  return reply(200, { ok: true, data: hit ? hit[1](body, key) : { done: true } });
 };
 globalThis.window.fetch = async (u, init = {}) => {
   const saving = new URL(String(u), "https://app.chanlytics.com").pathname.match(/^\/api\/v1\/views\/([^/]+)$/);
@@ -3432,21 +3432,17 @@ test("a kept search's menu says what was asked and when, and offers Rename, Find
 });
 
 test("Search again, changed opens the plan with what was asked; Rename renames through its route; Remove is asked first, keeps the worked leads, and says so", async () => {
-  await fresh();
-  draw();
-  menuOf("Personal trainers · Austin")
-    .items.find((i) => i.label === "Search again, changed")
-    .onClick();
-  draw();
+  const near = { kind: "zip", label: "near 78660", state: "TX", center: null, radius_m: 8_000, query: "78660" };
+  const dry = search({ round: { ...search().round, ending: "searched_everything", nearby: [near] } });
+  await fresh({ leads: { searches: [dry] } });
+  openPlanFrom();
+  const again = panels.at(-1);
   assert.deepEqual(
-    [panels.at(-1).stage, panels.at(-1).words, panels.at(-1).proposal.purpose],
+    [again.stage, again.words, again.proposal.purpose],
     ["plan", "personal trainers in Austin with a website, about 200", "renew"],
   );
-  assert.equal(
-    panels.at(-1).plan,
-    panels.at(-1).proposal.plan,
-    "the card draws this search's plan, not an earlier one's",
-  );
+  assert.equal(again.plan, again.proposal.plan, "the card draws this search's plan, not an earlier one's");
+  assert.deepEqual(again.facts.nearby, [near], "and offers where that search's last round said to look next");
   // Rename happens where the search is: the rail's row becomes the box.
   await fresh();
   draw();
@@ -3870,20 +3866,23 @@ test("the running strip's Stop reaches the stop route, and the question's Yes an
   assert.deepEqual(lastWrite(), { key: `POST /api/v1/lead-searches/${SEARCH_B}/answer`, body: { answer: "stop" } });
 });
 
-// The commit answers with the search it started (commit.ts, undo.search_id). The page used to leave the owner on All
-// leads with a live dot in the rail and no strip: the receipt said "Leads shows it", and Leads did not.
-test("approving a new plan lands on the search it started, where the strip is; a top-up stays where it is", async () => {
+// The door answers with the search the round is on (POST lead-searches/[id]/more). The page used to leave the owner on
+// All leads with a live dot in the rail and no strip: the receipt said "Leads shows it", and Leads did not.
+test("approving a search's own plan starts a round of it and lands on it, where the strip is; a top-up stays where it is", async () => {
   await fresh();
-  const NEW = "3d1d5c1e-0000-4000-8000-00000000c0de";
-  askCalls().commit = async () => ({ ok: true, receipt: "Finding 50 gyms.", undo: { search_id: NEW } });
-  // A new search from the page: a kept search's Search again, changed opens the plan Claude wrote, and approving
-  // it goes through Ask's commit door as a fresh Find from the Line does (leadFinderApprove).
+  // A kept search's Search again, changed opens the plan Claude wrote, and approving it goes to the door Find new ones
+  // goes to. It is no Ask card: Ask's door refused it for having no kind, from the first build (#690) to 4 Nov 2026.
   openPlanFrom();
   const f = panels.at(-1);
   assert.deepEqual([f.open, f.stage], [true, "plan"], "the card is up");
-  await f.onApprove({ ...PLAN, count: 50 });
+  const changed = { ...PLAN, count: 50 };
+  await f.onApprove(changed);
   await settle();
-  assert.equal(went.at(-1), `clients/leads:s-${NEW}`, "straight to the new search, its strip and its classes");
+  assert.deepEqual(lastWrite(), {
+    key: `POST /api/v1/lead-searches/${SEARCH_A}/more`,
+    body: { purpose: "renew", plan: changed },
+  });
+  assert.equal(went.at(-1), `clients/leads:s-${SEARCH_A}`, "straight to the search, its strip and its classes");
   went.length = 0;
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   strips.at(-1).onAction("include", "chain");
