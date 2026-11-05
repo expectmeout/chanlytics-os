@@ -14,10 +14,10 @@ const NAMES_SAID = 5;
 
 /** The question, drawn while asked, on a desk and a phone alike. */
 export function DeleteManySheet({ b, a }: { b: BulkCtx; a: DeleteManyActs }) {
-  const { st, batch, picked } = b;
+  const { st, ids, picked } = b;
   const { busy, del, setDel } = st;
-  const n = batch.length;
-  const names = picked.slice(0, n).map((p) => p.name);
+  const n = ids.length;
+  const names = picked.slice(0, NAMES_SAID).map((p) => p.name);
   const W = DELETE_MANY_WORDS;
   return (
     <Sheet
@@ -25,7 +25,7 @@ export function DeleteManySheet({ b, a }: { b: BulkCtx; a: DeleteManyActs }) {
       open={del.open && n > 0}
       onClose={a.closeDelete}
       title={W.title(n, del.bot)}
-      sub={W.who(names.slice(0, NAMES_SAID), Math.max(0, names.length - NAMES_SAID))}
+      sub={W.who(names, Math.max(0, n - NAMES_SAID))}
       close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
       footCloses
       foot={

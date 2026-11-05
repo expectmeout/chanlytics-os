@@ -89,7 +89,13 @@ an owner's press wrote and for nobody else, and the ledger's row then says the s
 as before, in the body, from `auth.uid()`. The finish is a net under the erasure, never a leg of it: a ledger that would
 not take it (a database before 00501) is logged, and the press goes on.
 
-A press of many hands everyone to that same job (People's Delete…, `POST contacts/erase`; 5 November 2026). It writes
+A press of many takes everyone selected, however many (Ruben, 5 November 2026: "we should not limit them for no
+reason"), in one write: `people_erase_begin` (00547) blocks them, says Not a person's addresses and puts one finish each
+on the ledger in a single transaction, an owner's, on their own session. The finishes come due 300 ms apart, so a press of
+thousands sits ahead of nobody else's work, and `people_page` leaves out whoever is being erased for a day, after which a
+stopped erasure shows again to be pressed again.
+
+Before that, the same day: A press of many hands everyone to that same job (People's Delete…, `POST contacts/erase`; 5 November 2026). It writes
 each person's block and their finish, due now, naming who pressed, and answers in under a second; the ledger erases them
 behind it, three side by side, in the same order and through the same legs as one person's press, and tries again by its
 own waits. That is the shape the press has because of what the first shape did on production on 5 November: erased inside

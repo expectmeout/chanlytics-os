@@ -9538,6 +9538,14 @@ export type Database = {
         Args: { p_counts?: Json; p_reason: string; p_tenant_id: string }
         Returns: boolean
       }
+      people_erase_begin: {
+        Args: {
+          p_contact_ids: string[]
+          p_not_a_person: boolean
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       people_list: {
         Args: {
           p_after_added?: string
