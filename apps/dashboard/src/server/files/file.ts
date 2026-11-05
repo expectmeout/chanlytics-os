@@ -110,9 +110,8 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   const download = url.searchParams.has("download");
   const asked = url.searchParams.get("w");
   const mime = file.mime as FileMime;
-  const opts = download
-    ? { download: `${file.name}.${FILE_TYPES[mime]}` }
-    : asked !== null || FILE_TYPES[mime] === "heic"
+  const opts =
+    !download && (asked !== null || FILE_TYPES[mime] === "heic")
       ? { transform: { width: widthOf(asked), resize: "contain" as const } }
       : {};
   const link = await bucket().createSignedUrl(filePathOf(file.tenant_id, file.id, mime), VIEW_LINK_S, opts);
@@ -122,5 +121,9 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   }
   // A picture's bytes never change, but a download's name does: that redirect is asked for afresh each time.
   const keep = download ? "private, no-store" : `private, max-age=${VIEW_KEEP_S}`;
-  return new Response(null, { status: 302, headers: { location: link.data.signedUrl, "cache-control": keep } });
+  // The name goes on the address here, encoded once: Storage's client encodes it twice, so año would download as a%C3%B1o.
+  const location = download
+    ? `${link.data.signedUrl}&download=${encodeURIComponent(`${file.name}.${FILE_TYPES[mime]}`)}`
+    : link.data.signedUrl;
+  return new Response(null, { status: 302, headers: { location, "cache-control": keep } });
 }

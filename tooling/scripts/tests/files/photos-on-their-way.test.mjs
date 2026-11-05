@@ -187,6 +187,21 @@ test("a twin leaves calmly, said in the end, with no warning in it", async () =>
   assert.equal(stateNow().photos.length, 0);
 });
 
+test("a photo that failed in an earlier press is not counted again by the next one's end", async () => {
+  const held = heldAdds();
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  held[0].resolve({ kept: false, message: "no" });
+  await waitFor(() => toasts.length === 1);
+  S.addPhotos([photo("b.jpg")], flash);
+  await waitFor(() => held.length === 2);
+  held[1].resolve({ kept: true, twin: true });
+  await waitFor(() => toasts.length === 2);
+  assert.equal(toasts[1].msg, "1 was already here.");
+  assert.equal(toasts[1].tone, undefined);
+  assert.equal(stateNow().photos.length, 1, "and it still stands, for its Try again");
+});
+
 test("past what one press takes, the first are taken and the page says so, where 34 of 20 once refused them all", async () => {
   const held = heldAdds();
   const many = Array.from({ length: 105 }, (_, i) => photo(`p${i}.jpg`));

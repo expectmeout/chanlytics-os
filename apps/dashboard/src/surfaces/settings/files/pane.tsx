@@ -53,7 +53,12 @@ function Picture({ src, alt, name, big = false }: { src: string; alt: string; na
   const [broken, setBroken] = useState(false);
   if (broken)
     return (
-      <span className={big ? "files-big files-unseen" : "files-pic files-unseen"} data-testid="fl-unseen">
+      <span
+        className={big ? "files-big files-unseen" : "files-pic files-unseen"}
+        role="img"
+        aria-label={alt}
+        data-testid="fl-unseen"
+      >
         {name}
       </span>
     );

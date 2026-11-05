@@ -84,7 +84,7 @@ function service(answer = { fate: "kept", file_id: F }) {
       },
       createSignedUrl: async (p, s, o) => {
         asked.signed.push({ path: p, s, ...o });
-        return { data: { signedUrl: `${SIGNED}${o?.transform ? "/resize" : ""}/${p}` }, error: null };
+        return { data: { signedUrl: `${SIGNED}${o?.transform ? "/resize" : ""}/${p}?token=t` }, error: null };
       },
     }),
   };
@@ -315,8 +315,10 @@ test("a download is the original under its name, asked for afresh; a HEIC is dra
   let asked = service();
   const res = await viewed("download");
   assert.equal(res.headers.get("cache-control"), "private, no-store");
-  assert.equal(asked.signed[0].download, "año-nuevo.jpg");
   assert.equal(asked.signed[0].transform, undefined);
+  // Encoded once, on the address itself: Storage's client encodes its own option twice, and año downloaded as a%C3%B1o.
+  assert.equal(asked.signed[0].download, undefined);
+  assert.match(res.headers.get("location"), /\?token=t&download=a%C3%B1o-nuevo\.jpg$/);
 
   asked = service();
   await viewed("", row({ mime: "image/heic" }));
