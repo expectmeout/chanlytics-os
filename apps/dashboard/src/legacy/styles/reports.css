@@ -104,15 +104,21 @@
 @media (hover: hover) {
   .rpt-period > .rpt-when-open:hover { background: var(--selected-fill); color: var(--ink); }
 }
-/* 44px on a phone, where the strip beside it is 44 (kit.css), and under a thumb wherever it stands. */
-@media (max-width: 900px), (pointer: coarse) {
+/* The strip's height beside it (kit.css). On a phone under a thumb it holds that over the touch floor, which it outweighs
+   under :root, and is 44 to a finger by a margin no one sees, as the page's act is (components.css). Wider under a thumb
+   the strip is the taller one, and this stands 44 beside it. */
+@media (pointer: coarse) and (max-width: 900px) {
+  :root .rpt-period > .rpt-when-open { position: relative; min-height: var(--control-h-lg); }
+  .rpt-period > .rpt-when-open::after { content: ""; position: absolute; inset: -4px; }
+}
+@media (pointer: coarse) and (width > 900px) {
   .rpt-period > .rpt-when-open { height: 44px; }
 }
 /* Where the row has no room for the word it is the glyph's circle, as the Calendar's options are: the room is the row's
    own (the frame's head says it, components.css `rpt-head`), not a guess from the screen's width. Strips to 44 either
    side of it (a phone 360 wide is 336 across) say their word; a narrower one keeps the strip its room. */
 @container rpt-head (max-width: 319px) {
-  .rpt-period > .rpt-when-open { width: 44px; min-width: 0; padding: 0; justify-content: center; }
+  .rpt-period > .rpt-when-open { width: var(--control-h-lg); min-width: 0; padding: 0; justify-content: center; }
   .rpt-when-word { display: none; }
 }
 .rpt-when-glyph { display: inline-flex; }

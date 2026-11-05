@@ -750,6 +750,32 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * The strip stands as tall as what stands beside it, on its line (Ruben, 4 Nov 2026): it stood 46 under a thumb beside
+   * a coral act of 36, and Reports' period and the Calendar's Settings stood 44 between the two.
+   */
+  test("the strip of views is the height of the act beside it, on its line", async ({ page }) => {
+    const placeOf = (el: Locator) =>
+      el.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        return { top: Math.round(r.top), height: Math.round(r.height) };
+      });
+    for (const [label, hash] of [
+      ["the Inbox", "conversations"],
+      ["People", "clients"],
+      ["the Calendar", "calendar"],
+      ["Reports", "reports"],
+    ] as const) {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      const act = page.locator(".pg-act-slot").locator("button, a").first();
+      await expect(act, `${label} draws an act beside its strip`).toBeVisible();
+      expect(await placeOf(act), `${label}'s act is its strip's height, on its line`).toEqual(
+        await placeOf(page.locator(".pg-slot > nav")),
+      );
+    }
+  });
+
+  /**
    * Every list pulls under a thumb, however short (25 Sep). A list rubber-bands on a touch screen only when it holds
    * more than its box: Needs you with two threads and Live with no calls could not be pulled at all, where
    * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. On a phone the window
@@ -1069,10 +1095,10 @@ test.describe("Phone shell on a real workspace", () => {
    * a pull dragged them, as People's strip did before #1041: now the bar stands over the days (8 Oct 2026: the board
    * takes the room the page leaves, and the pane never pulls), sticking under the frame's top as the window scrolls the
    * days (21 Oct 2026, mobile.css "The window scrolls": in a pane of its own Safari's toolbar stood on a flat band under
-   * it), and a swipe across the days walks to the next or previous days, as the steps do. The views keep their 38px
-   * look, with 44px to press.
+   * it), and a swipe across the days walks to the next or previous days, as the steps do. The views are drawn 28 tall
+   * in a strip of 36 (4 Nov 2026), and pressed across the whole of it.
    */
-  test("the Calendar's bar stays over its days, a swipe walks them, and its views are a thumb tall to press", async ({
+  test("the Calendar's bar stays over its days, a swipe walks them, and its views are pressed across their strip", async ({
     page,
   }) => {
     await page.goto("/#/calendar");
