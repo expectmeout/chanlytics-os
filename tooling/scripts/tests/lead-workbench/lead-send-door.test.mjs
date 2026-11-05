@@ -146,7 +146,7 @@ function service(tables, over = {}) {
       return over.person ?? { contact_id: CONTACT, conversation_id: THREAD, made: true };
     },
   };
-  const db = fakeDb(tables, {}, rpcs);
+  const db = fakeDb(tables, over.faults ?? {}, rpcs);
   return { db, asked };
 }
 
@@ -331,6 +331,54 @@ test("a second press while the first is on its way finds it", async () => {
     },
   ];
   await refusedWith({ sends }, W.onItsWay);
+});
+
+/** A press whose row the database refuses, with `faults` naming how; what it rejected with, and the tables after. */
+async function pressRefusedRow(faults) {
+  const tables = world();
+  setServiceClient(service(tables, { faults }).db);
+  try {
+    const error = await send.POST.run(req(WORDS), ctxOf(tables)).then(
+      () => assert.fail("the press answered"),
+      (e) => e,
+    );
+    return { error, tables };
+  } finally {
+    setServiceClient(null);
+  }
+}
+
+test("a row the database refuses takes its email back: nothing stays queued that no job will send", async () => {
+  const { error, tables } = await pressRefusedRow({
+    "sequence_sends.insert": { code: "23502", message: "null value in column" },
+  });
+  assert.match(error.message, /cannot keep the lead's email/);
+  assert.deepEqual(
+    tables.messages.map((m) => m.status),
+    ["canceled"],
+  );
+  assert.equal(tables.sequence_sends.length, 0);
+  assert.equal(tables.jobs.length, 0);
+});
+
+test("the row's failure is what it says, even where the email can't be taken back", async () => {
+  const { error } = await pressRefusedRow({
+    "sequence_sends.insert": { code: "23502", message: "null value in column" },
+    "messages.update": { message: "the door is down" },
+  });
+  assert.match(error.message, /cannot keep the lead's email/);
+});
+
+test("two presses at once: the key refuses the second, whose email goes back, and it finds the first", async () => {
+  const { error, tables } = await pressRefusedRow({
+    "sequence_sends.insert": { code: "23505", message: "sequence_sends_own_once" },
+  });
+  assert.equal(error.message, W.onItsWay);
+  assert.deepEqual(
+    tables.messages.map((m) => m.status),
+    ["canceled"],
+  );
+  assert.equal(tables.jobs.length, 0);
 });
 
 test("Did you send it? with the words keeps a row of it: no mailbox, said by the member, and its email on the thread", async () => {

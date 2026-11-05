@@ -319,8 +319,12 @@ export async function keepLeadEmail(
   if (p.message) await insertQueuedEmail(db, p.message);
   const { error } = await db.from("sequence_sends").insert(p.send);
   if (!error) return "kept";
+  // Never a queued email no job will send: its job is asked for only once its row is kept. The row's failure is what's said.
+  if (p.message)
+    await withdrawEmail(db, { tenantId: p.send.tenant_id, id: p.message.id ?? "", reason: "send_moved" }).catch(
+      () => false,
+    );
   if (error.code !== "23505") throw new Error(`cannot keep the lead's email: ${error.message}`);
-  if (p.message) await withdrawEmail(db, { tenantId: p.send.tenant_id, id: p.message.id ?? "", reason: "send_moved" });
   return "on_its_way";
 }
 
