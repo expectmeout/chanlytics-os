@@ -11,9 +11,11 @@ An owner says what businesses they want, in words, on the Leads page or anywhere
 card: the kind of business, up to five search terms, an area, a count, the contact preferred (a phone, or an email
 checked) and what to leave out. Nothing is searched or spent before Approve. A search then runs in **rounds**:
 
-1. **The probe.** 25 places across the terms, judged, so the round learns its yield and can ask the owner whether
-   what it is finding is what they meant (the question after 25).
-2. **The main phase.** What the count still needs, over the probe's yield.
+1. **The probe.** 25 places across the terms the reserve holds a run for, judged, so the round learns its yield and
+   can ask the owner whether what it is finding is what they meant (the question after 25). A probe that leaves no
+   run's room goes to the checks on what it found.
+2. **The main phase.** What the count still needs, over the probe's yield: a term not yet asked before one that was,
+   and one asked again past what it read, since the provider answers a term from its top (`mainAsk`).
 3. **The checks.** Every email found goes through the mailbox checker, so an address counts only once it is proved.
 
 A round ends with one of nine endings (`packages/contracts/src/leads/search/endings.ts`). A later round of the same
@@ -109,8 +111,8 @@ found, and since 00506 the bell says so.
 - A trial searches nothing (`maySpend` admits only `active`). A small first search is Ruben's call on spend.
 - Reports has no Leads lens (`packages/contracts/src/reports/lenses.ts`, "Leads in phase C"). It needs a canvas
   first.
-- The main phase asks the provider again for the probe's places and pays for them (`lead_runs.already_yours` counts
-  them since 00506). Measure the share, then size `mainAsk` for it.
+- A term asked again pays again for what it read, since the provider has no offset (`lead_runs.already_yours` counts
+  them since 00506). `mainAsk` goes to a term not yet asked first, so this is what a search pays only once it has none.
 - The membership doors fold into one (`docs/debt.md`'s rows for `lead_search_members`, `leads` and `lead_searches`).
 - The runner's table reads move behind repository functions in `packages/db`, with the binding staying in the edge
   (packages/db does not import core's ports).

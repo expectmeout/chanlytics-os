@@ -227,6 +227,25 @@ test("the collect reads each place's site once, before the judge, shows it what 
   );
 });
 
+test("a site's booking link reaches the judge whatever its main words say: a real salon's header said Book online, and its main words said call", async () => {
+  const { w, p, shown } = await started();
+  w.sites["https://place0001.example"] = "Call us to book your visit.";
+  w.pages["https://place0001.example"] = `<a href="https://www.vagaro.com/rockgym">Book online</a>`;
+  w.sites["https://place0002.example"] = "We teach boxing.";
+  w.pages["https://place0002.example"] = `<a href="https://www.vagaro.com/pro/">Powered by Vagaro</a>`;
+  w.sites["https://place0003.example"] = "y ".repeat(LEAD_SITE_FACT_MAX);
+  w.pages["https://place0003.example"] = `<a href="https://rockgym.zenoti.com/webstoreNew/services">Book</a>`;
+  await collect(p("c1", { readSite: reader(w).readSite }), w.runs()[0].id, "p0", "c1");
+  const said = (host) => shown.find((f) => f.host === host).site;
+  assert.equal(
+    said("place0001.example"),
+    "Booking link on this site: https://www.vagaro.com/rockgym · Call us to book your visit.",
+  );
+  assert.equal(said("place0002.example"), "We teach boxing.", "a platform's badge is no way to book");
+  assert.ok(said("place0003.example").startsWith("Booking link on this site: https://rockgym.zenoti.com/"));
+  assert.ok(said("place0003.example").length <= LEAD_SITE_FACT_MAX, "the link is inside the fact's own size");
+});
+
 test("a plan that reads no sites shows the judge what it always did, and reads a site for a mark alone", async () => {
   const { w, p, shown } = await started(PLAN);
   const r = reader(w);

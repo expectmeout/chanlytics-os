@@ -260,12 +260,22 @@ test("a batch is judged in the round it belongs to: the workspace and the round 
 });
 
 test("sizing: the probe spreads 25 across the terms; the main phase divides the remainder by the yield within 1.2x and 4x; caps carry headroom, fit the reserve, never go under the floor", () => {
-  assert.deepEqual(probeAsk(PLAN), { terms: ["personal trainer", "strength coach"], perTerm: [13, 12] });
+  assert.deepEqual(probeAsk(PLAN, 2), {
+    terms: ["personal trainer", "strength coach"],
+    perTerm: [13, 12],
+    waiting: [],
+  });
+  assert.deepEqual(
+    probeAsk(PLAN, 1),
+    { terms: ["personal trainer"], perTerm: [25], waiting: ["strength coach"] },
+    "the reserve's one run is given the whole probe",
+  );
+  assert.deepEqual(probeAsk(PLAN, 0), { terms: [], perTerm: [], waiting: ["personal trainer", "strength coach"] });
   assert.equal(yieldOf(24, 12), 0.5);
   assert.equal(yieldOf(0, 0), 0.2);
-  const m = mainAsk(PLAN, 60, 0.5, "strength coach");
+  const m = mainAsk(PLAN, 60, 0.5, "strength coach", 2, { read: new Map(), begun: new Set() });
   assert.deepEqual([m.terms, m.perTerm.reduce((a, b) => a + b, 0)], [["personal trainer"], 120]);
-  const wide = mainAsk(PLAN, 60, 0.05, null);
+  const wide = mainAsk(PLAN, 60, 0.05, null, 2, { read: new Map(), begun: new Set() });
   assert.equal(
     wide.perTerm.reduce((a, b) => a + b, 0),
     240,
@@ -307,11 +317,42 @@ test("sizing: the probe spreads 25 across the terms; the main phase divides the 
       }
     }
   }
-  const three = mainAsk({ ...PLAN, terms: ["personal trainer", "strength coach", "kettlebell class"] }, 1, 0.95, null);
+  const three = mainAsk(
+    { ...PLAN, terms: ["personal trainer", "strength coach", "kettlebell class"] },
+    1,
+    0.95,
+    null,
+    3,
+    { read: new Map(), begun: new Set() },
+  );
   assert.deepEqual(
     three.perTerm,
     [1, 1, 0],
     "with almost nothing left a term is asked for nothing at all, and its caller starts no run for it",
+  );
+  const read = new Map([["personal trainer", 25]]);
+  assert.deepEqual(
+    mainAsk(PLAN, 5, 1, null, 1, { read, begun: new Set() }),
+    { terms: ["strength coach"], perTerm: [6], waiting: ["personal trainer"] },
+    "a term not yet asked before one that was",
+  );
+  assert.deepEqual(
+    mainAsk(PLAN, 5, 1, null, 2, { read, begun: new Set() }).perTerm,
+    [3, 28],
+    "and one asked again is asked past what it read",
+  );
+  assert.deepEqual(
+    mainAsk(PLAN, 5, 1, null, 1, { read, begun: new Set(["personal trainer"]) }).terms,
+    ["personal trainer"],
+    "a term this phase began stays: a start tried again starts no other",
+  );
+  assert.deepEqual(
+    mainAsk({ ...PLAN, terms: ["personal trainer"] }, 5, 1, null, 1, {
+      read: new Map([["personal trainer", 120]]),
+      begun: new Set(),
+    }).perTerm,
+    [0],
+    "a term that read all a term may is asked for nothing",
   );
 });
 

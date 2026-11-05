@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 import {
   LEAD_SHEET_WORDS as W,
+  SECOND_MS,
   dockSlotsOf,
   leadPickerRowsOf,
   placeStands,
@@ -40,6 +41,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import { refusalToast, touchSwipe } from "../../legacy-verbs";
+import { useWaitFor } from "../../use-surface";
 import { LeadCallAsk, LeadPeekAsk, LeadSentAsk } from "../peek/asks";
 import type { Armed, Deck, DraftState, Flash, PeekActs, PeekMode } from "../peek/types";
 import { PileBulk, type PileBulkFacts } from "../pile/bulk";
@@ -683,13 +685,17 @@ function useLine(facts: SheetFacts | null) {
   return { open, turn: (id: LeadLineId) => press({ open: open === id ? null : id }) };
 }
 
+/** How often their place is read again while their line is being written: the check's clock runs every minute. */
+const LINE_READ_MS = 15 * SECOND_MS;
+
 /** The sheet: one lead, a desk's panel or a phone's sheet. */
 export function LeadSheet(p: LeadSheetProps) {
   const vm = p.vm;
   const leadId = vm ? vm.id : null;
   const [again, setAgain] = useState(0);
   const moved = () => setAgain((n) => n + 1);
-  const place = useLeadPlace(leadId, again);
+  const [lineRead, setLineRead] = useState(0);
+  const place = useLeadPlace(leadId, again + lineRead);
   const written = useLeadEmails(leadId, again);
   const ownWords = useLeadWords(leadId, again);
   const { emails, say } = useSaidWords(leadId, {
@@ -736,6 +742,11 @@ export function LeadSheet(p: LeadSheetProps) {
         Date.now(),
       )
     : null;
+  // Where a line lands is their place alone, read at the one wait's pace; never under what is being typed.
+  useWaitFor(!!facts && !!facts.mail && facts.mail.writing && !box.typing, {
+    everyMs: LINE_READ_MS,
+    read: () => setLineRead((n) => n + 1),
+  });
   const run: SheetRun | null = vm
     ? {
         row: p.row,

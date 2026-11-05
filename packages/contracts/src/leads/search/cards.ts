@@ -208,6 +208,17 @@ export function placesToAsk(
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 
+/**
+ * What to ask a term for, for `more` places past the `read` it has already read: the provider answers a term from the
+ * top however often it is asked, so an ask of no more than it read finds nothing new, and is paid for. Held to what a
+ * term can return; nothing where that leaves nothing new, or nothing was wanted.
+ */
+export function placesPastRead(plan: LeadSearchPlan, read: number, more: number): number {
+  if (more <= 0) return 0;
+  const ask = Math.min(cardOf(plan).maxPerTerm, read + more);
+  return ask > read ? ask : 0;
+}
+
 /** The counts the card's picker offers, unless the owner asked for a number of their own (§8.3). */
 export const LEAD_COUNT_CHOICES = [50, 100, 200, 500] as const;
 

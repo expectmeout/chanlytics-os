@@ -7,6 +7,7 @@
  */
 import { LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD } from "@chanlytics/contracts";
 import { errField, logger, type SitePage } from "@chanlytics/channels";
+import { bookingPageOfSite } from "../../booking-page";
 import { eachAtOnce } from "../../each-at-once";
 import { siteWordsOf } from "../../site-words";
 import type { LeadPorts } from "../ports";
@@ -33,6 +34,9 @@ const SITES_ALLOWANCE_MS = 20_000;
  * outage: about one site in seven fails by itself, so five together is one batch in tens of thousands).
  */
 const SITES_TO_TELL_THE_READER_DOWN = 5;
+
+/** Between a site's booking link and its words, as siteWordsOf parts its own. */
+const WORDS_AFTER_LINK = " · ";
 
 /** The sites of one run of the collect, each read once. */
 export interface SiteReads {
@@ -86,11 +90,21 @@ export async function readSitesBeforeJudge(
     throw new LeadRetry("the page reader answered none of a batch's sites");
 }
 
-/** What a place's site says, as the judge is shown it (contracts PlaceFacts.site): null with no site, or none read. */
+/**
+ * What a place's site says, as the judge is shown it (contracts PlaceFacts.site): null with no site, or none read. The
+ * booking page it links to as the way to book comes first, read off the whole page: its main words leave out the menus
+ * and footers a Book button sits in, and stop at the fact's size (5 Nov 2026: a salon that books online read as one
+ * that takes calls).
+ */
 export async function siteFactOf(sites: SiteReads, host: string | null): Promise<string | null> {
   if (!host) return null;
   const page = await sites.read(host, SITE_READ_LEAST_MS);
-  return page ? siteWordsOf(page, LEAD_SITE_FACT_MAX) : null;
+  if (!page) return null;
+  const booking = bookingPageOfSite(`https://${host}/`, page);
+  if (!booking) return siteWordsOf(page, LEAD_SITE_FACT_MAX);
+  const link = `Booking link on this site: ${booking}`;
+  const words = siteWordsOf(page, LEAD_SITE_FACT_MAX - link.length - WORDS_AFTER_LINK.length);
+  return words ? `${link}${WORDS_AFTER_LINK}${words}` : link;
 }
 
 /**

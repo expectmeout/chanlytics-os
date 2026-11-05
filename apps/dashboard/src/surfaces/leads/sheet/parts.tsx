@@ -233,7 +233,6 @@ export const SheetNow = (p: {
   onWhole: () => void;
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
-  onWriteNow: (() => void) | null;
   box: EmailBox;
 }) => {
   const { now } = p;
@@ -268,7 +267,6 @@ export const SheetNow = (p: {
           onWhole={p.onWhole}
           onRewrite={p.onRewrite}
           onUndo={p.onUndo}
-          onWriteNow={p.onWriteNow}
           box={p.box}
         />
       ) : null}

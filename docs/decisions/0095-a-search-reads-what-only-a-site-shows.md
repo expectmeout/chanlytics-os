@@ -27,8 +27,9 @@ bound behind the page's last batch, where no judge follows, and an edge without 
    `seen`, where the owner asks for what a business offers, sells or how it books, and only then. `planReadsSites` is the one
    test. A plan without one is shown to the judge word for word what it always was, so its reused answers stand, and is priced
    as it was.
-2. **The judge reads it as one more quoted fact.** `PlaceFacts.site`: the page's title, its description and its main content's
-   first words, in one line, at most `LEAD_SITE_FACT_MAX`, no angle bracket and no format character, inside the same `<places>`
+2. **The judge reads it as one more quoted fact.** `PlaceFacts.site`: the booking page the page links to as the way to book
+   (read off its whole HTML, since main content leaves out the menus a Book button sits in), the page's title, its description
+   and its main content's first words, in one line, at most `LEAD_SITE_FACT_MAX`, no angle bracket and no format character, inside the same `<places>`
    block whose rubric says it is data and never instructions. A pass must cite it, which code holds (`classify`: a pass that cites
    anything else goes to Needs review as only the listing's say, whatever standard the criterion was written with), and code still
    decides the class. Reading the home page alone is the limit: a fact only on another page stays unknown, and the place goes to

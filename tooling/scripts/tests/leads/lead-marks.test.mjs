@@ -102,7 +102,7 @@ test("an image that is not there, or a site that fails, is no bytes", async () =
 test("a home page is read by the platform's page reader as a browser drew it, its head at the top, and null where it could not be", async () => {
   const head = `<html><head><link rel="icon" href="/i.png"></head>`;
   const asked = [];
-  let drawn = `${head}<body>${"x".repeat(200_000)}</body></html>`;
+  let drawn = `${head}<body>${"x".repeat(1_200_000)}</body></html>`;
   // The reader stood in for (channels setSitePageReader; Firecrawl's in production).
   const before = setSitePageReader(async (url) => {
     asked.push(url);
@@ -111,7 +111,11 @@ test("a home page is read by the platform's page reader as a browser drew it, it
   try {
     const page = await leadSitePage("a.example", 4000);
     assert.ok(page.html.startsWith(head), "the head, where a mark is declared");
-    assert.equal(page.html.length, 96_000, "the rest is not ours to hold");
+    assert.equal(
+      page.html.length,
+      1_000_000,
+      "a Wix page's booking link sat 434,649 characters in; past this is not ours to hold",
+    );
     assert.deepEqual(asked, ["https://a.example/"]);
     drawn = null;
     asked.length = 0;
