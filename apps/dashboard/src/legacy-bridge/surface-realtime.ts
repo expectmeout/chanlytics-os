@@ -78,7 +78,7 @@ export const REFRESH_MAX_WAIT_MS = 3_000;
  * pressed hides them at once (surfaces/people/surface.ts peopleGoing); another sees them go half a minute at a time.
  */
 const ERASURES_QUIET_MS = 5_000;
-const ERASURES_LONGEST_WAIT_MS = 30_000;
+export const ERASURES_LONGEST_WAIT_MS = 30_000;
 /** One erasure's notices come within milliseconds and a press of two within a moment: read as any change is. A stream runs on past this. */
 const A_STREAM_RUNS_MS = 1_000;
 
