@@ -108,12 +108,12 @@ export const leadFinderActs = ({
     const answering = !!(finder.more && finder.more.answer);
     const r = await leadFinderApprove(finder.proposal, plan, finderSet);
     if (r && r.ok && answering) plFlash({ msg: <>Carrying on with your change.</> });
-    // A new search lands the owner on it: the strip narrating the run, the classes filling, the address the search's
-    // own. Without this they stayed on All leads with a live dot in the rail and nothing saying what was happening -- the
-    // receipt's "Leads shows it" was a promise the page had not kept. A top-up or an answer is on a search already open,
-    // so it stays.
+    // A round started from All leads lands the owner on its search: the strip narrating the run, the classes filling, the
+    // address the search's own. Without this they stayed on All leads with a live dot in the rail and nothing saying what
+    // was happening -- the receipt's "Leads shows it" was a promise the page had not kept. A top-up or an answer is on a
+    // search already open, so it stays.
     const undo = r && r.ok ? (r.undo as { search_id?: string } | undefined) : undefined;
-    // An idea's search says its id in the door's answer, an Ask card's in its undo.
+    // A search's own plan says its id in the door's answer, an Ask card's in its undo.
     const data = r && r.ok ? (r.data as { search_id?: string } | undefined) : undefined;
     const started = (undo && undo.search_id) || (data && data.search_id);
     if (started && !leadView.searchId) nav(leadsRoute({ searchId: started, list: "all", cls: null }));

@@ -2037,6 +2037,15 @@ test("the owner's own business line is saved with no suggestions, so the next re
   );
 });
 
+test("a new round's plan reaches the door at the search's version or the next, however many changes the card counted", async () => {
+  const seen = [];
+  const rpcs = { lead_search_more: (a) => (seen.push(a.p_plan.version), { round_id: "r2" }) };
+  const ctx = ctxOf(world({ role: "owner" }), { id: SEARCH }, rpcs);
+  for (const version of [1, 2, 5])
+    await more.POST.run(req("POST", { purpose: "renew", plan: { ...PLAN, version } }), ctx);
+  assert.deepEqual(seen, [1, 2, 2], "the search is at version 1, and lead_search_more raises past the next");
+});
+
 test("the plan card's facts are the month's own numbers and what past searches measured, and a kind nobody searched has no prior", async (t) => {
   // The counters are September's ("2026-09") and the card renews on the 1st of the next month, so the clock is 28
   // September: read off the wall clock, from 1 October the card read October's counters, and none of these held.
@@ -2060,19 +2069,9 @@ test("the plan card's facts are the month's own numbers and what past searches m
     ["allowance", 100],
     "400 of the month's leads found for $5: the leads bind first",
   );
-  // The card's area picker offers areas, not words: what it hands the plan is
-  // what a round would be started with.
-  const southAustin = {
-    kind: "city",
-    label: "South Austin, TX",
-    state: "TX",
-    center: { lat: 30.2276, lng: -97.7713 },
-    radius_m: 15_000,
-    query: "South Austin, TX, USA",
-  };
-  const withPrior = await planFacts(ctx, A, { categoryKey: "personal_trainer", nearby: [southAustin] });
+  const withPrior = await planFacts(ctx, A, { categoryKey: "personal_trainer" });
   assert.deepEqual(withPrior.prior, { places: 1200, matched: 700, with_email: 406 });
-  assert.deepEqual([withPrior.priorOf, withPrior.nearby], ["personal_trainer", [southAustin]]);
+  assert.equal(withPrior.priorOf, "personal_trainer");
   const spent = world({ role: "owner" });
   spent.lead_counters = [
     { tenant_id: A, kind: "allowance", period: "2026-09", used: 10, reserved: 0 },

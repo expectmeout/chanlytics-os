@@ -126,6 +126,15 @@ export function answerPlanOf(
   };
 }
 
+/**
+ * The plan a new round carries, as the door takes it (lead_search_more): at the search's version or the next. A card
+ * counts each change made on it (planVersionOf), so one changed twice is past the next, and to the search it is one.
+ */
+export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearchPlan): LeadSearchPlan {
+  const at = (search.plan as LeadSearchPlan | null)?.version;
+  return typeof at === "number" ? { ...plan, version: Math.min(plan.version, at + 1) } : plan;
+}
+
 async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SearchViewRow[]> {
   const { data, error } = await ctx.supabase
     .from("lead_searches_view")
