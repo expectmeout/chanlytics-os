@@ -99,8 +99,8 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
-            "description": "One shelf. Left out: everything kept."
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
             "type": "string",
@@ -807,8 +807,8 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
-            "description": "One shelf. Left out: everything kept."
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
             "type": "string",
@@ -3346,8 +3346,8 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
-            "description": "One shelf. Left out: everything kept."
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
             "type": "string",
@@ -6269,8 +6269,8 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
-            "description": "One shelf. Left out: everything kept."
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
             "type": "string",

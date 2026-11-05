@@ -26,9 +26,6 @@ const LIST_MAX = 40;
 /** The most pictures one read opens: each costs a cent or so the first time, and a person compares no more than this at once. */
 const VIEW_MAX = 4;
 
-/** The shelves a list may ask for. All of what is kept is what it answers with none named. */
-const SHELF_ASKED = FILE_SHELVES.filter((s) => s !== "all");
-
 const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>
   (await load(t.rc, filesForAsk, undefined)).data.files;
 
@@ -80,10 +77,7 @@ export const filesTool = defineActions({
   actions: {
     list: readAction({
       input: z.object({
-        shelf: z
-          .enum(SHELF_ASKED as [(typeof SHELF_ASKED)[number], ...(typeof SHELF_ASKED)[number][]])
-          .optional()
-          .describe("One shelf. Left out: everything kept."),
+        shelf: z.enum(FILE_SHELVES).optional().describe("One shelf. Left out, or all: everything kept."),
         about: z.string().max(80).optional().describe("Words to find in what a file shows or has written on it."),
       }),
       examples: [{ shelf: "work" }, { about: "storefront" }],
@@ -92,9 +86,9 @@ export const filesTool = defineActions({
         "Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw.",
       async run(t, input) {
         const all = await filesOfTurn(t);
-        const onShelf = input.shelf
-          ? all.filter((f) => shelfOf(f) === input.shelf)
-          : all.filter((f) => f.status === "filed");
+        const asked = input.shelf ?? "all";
+        const onShelf =
+          asked === "all" ? all.filter((f) => f.status === "filed") : all.filter((f) => shelfOf(f) === asked);
         const words = input.about?.toLowerCase().split(/\s+/).filter(Boolean) ?? [];
         const matched = words.length
           ? onShelf.filter((f) => {
@@ -148,7 +142,7 @@ export const filesTool = defineActions({
       examples: [{ names: ["storefront-dusk-street", "storefront-day"] }],
       label: "Comparing two photos",
       words: "Action compare opens two pictures side by side, for which is better for something: name exactly two.",
-      run: (t, input) =>
+      run: async (t, input) =>
         input.names.length === 2 ? picturesOpened(t, input.names) : { error: "name exactly two files to compare" },
     }),
   },
