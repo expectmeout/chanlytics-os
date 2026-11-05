@@ -20,7 +20,10 @@
  * registers with `view(owner)`, a callback ref, and says which side it arrives from with `data-slide`. `leave` is the
  * press (the strip's, kit/view-tabs), `drag` and `settle` the finger's (kit/motion/swipe.ts `touchSwipe`, through the strip's
  * pager). How far a page travels is the token `--view-travel`: its own width where the page is one column, a short
- * length on a desk, where the page leaving dims and waits and the two cross-fade. Nothing here knows which page it moves.
+ * length on a desk, where the page leaving dims and waits and the two cross-fade, and `none` for a view that holds still:
+ * its page draws each view in place, so the deck neither moves, fades nor scrolls it (the Calendar's days on a phone,
+ * where every end of a move stepped a pixel on an iPhone: spec 2026-11-03, a still Calendar on a phone). Nothing here
+ * knows which page it moves.
  * Where the window scrolls the page (a phone, motion/page-scroll.ts), the copy is pinned to the screen where it stood,
  * since the window moves under it as the next page arrives.
  * A view kept mounted and hidden in place rather than taken away (React's Activity: People's scopes, 18 Oct 2026) leaves
@@ -72,9 +75,13 @@ export function speedAt(from: number, to: number, speed: number, ms: number): nu
   return (b - PULL * (a + b * ms)) * Math.exp(-PULL * ms);
 }
 
-/** How far a page of this width travels, by the token as written: a share of its width, or pixels. */
+/** The token's word for a view that holds still. */
+const STILL = "none";
+
+/** How far a page of this width travels, by the token as written: a share of its width, or pixels; none at all held still. */
 export function travelOf(token: string, width: number): number {
   const said = token.trim();
+  if (said === STILL) return 0;
   const amount = Number.parseFloat(said);
   if (!Number.isFinite(amount)) return SHORT_TRAVEL;
   return said.endsWith("%") ? (width * amount) / 100 : amount;
@@ -85,7 +92,7 @@ interface DeckEnv {
   /** The document timeline's clock, in milliseconds. */
   now(): number;
   reduced(): boolean;
-  /** `--view-travel` as the view's styles say it. */
+  /** `--view-travel` as the view's styles say it: `none` where the view holds still. */
   travel(el: HTMLElement): string;
   /** How far across an element is drawn from where it rests, in pixels. */
   placeOf(el: HTMLElement): number;
@@ -97,8 +104,7 @@ interface DeckEnv {
   windowOf?(el: HTMLElement): { screen: number } | null;
   /**
    * A view that arrived, where the window scrolls it, put at its top: the window's own for the outermost view (the
-   * frame's page), else the view's top under what stands over the page and its own scroll margin, if the page had gone
-   * past it.
+   * frame's page), else the view's top under what stands over the page, if the page had gone past it.
    */
   toTop?(el: HTMLElement, nested: boolean): void;
 }
@@ -328,6 +334,11 @@ function nestedIn(table: Table, el: HTMLElement): boolean {
   return false;
 }
 
+/** Whether a view holds still: its page draws each view in place, and nothing here moves it. */
+function holdsStill(table: Table, el: HTMLElement): boolean {
+  return table.env.travel(el).trim() === STILL;
+}
+
 /** The view a gesture moves: the innermost one on the page. */
 function liveOf(table: Table): HTMLElement | null {
   const on: HTMLElement[] = [];
@@ -498,6 +509,11 @@ function enter(table: Table, el: HTMLElement, move: Timeline): void {
 
 /** A view has mounted: where it says a side, it arrives by the deck, and what it replaced leaves by it. */
 function arrive(table: Table, el: HTMLElement, prev: HTMLElement | null): void {
+  // One that holds still is there at once, where its page puts it.
+  if (holdsStill(table, el)) {
+    if (prev) stop(table, prev);
+    return;
+  }
   const side = el.dataset.slide;
   const was = prev ? table.held.get(prev) : undefined;
   // A view begins at its top, as one that scrolled in a box of its own did by being a new box; where the window scrolls
@@ -547,7 +563,7 @@ const shareOf = (at: number, width: number) => (width > 0 ? Math.min(1, Math.abs
 
 function drag(table: Table, dx: number): number {
   const el = liveOf(table);
-  if (!el) return 0;
+  if (!el || holdsStill(table, el)) return 0;
   if (!table.finger || table.finger.el !== el) {
     // A page taken mid-arrival is taken from where it is.
     const base = table.held.has(el) ? table.env.placeOf(el) : 0;
@@ -628,7 +644,7 @@ function alone(table: Table): Follow | null {
 
 function leave(table: Table, dir: Side): Move | null {
   const el = liveOf(table);
-  if (!el) return null;
+  if (!el || holdsStill(table, el)) return null;
   const was = table.held.get(el);
   const taken = table.finger && table.finger.el === el ? table.finger : null;
   table.finger = null;
@@ -673,6 +689,8 @@ export function createDeck(env: DeckEnv): Deck {
     walks: () => {
       const el = liveOf(table);
       const width = el ? el.getBoundingClientRect().width : 0;
+      // One that holds still is walked as one that leaves the screen is, with nothing following the finger.
+      if (el && holdsStill(table, el)) return true;
       return !!el && width > 0 && travelOf(env.travel(el), width) >= width * WHOLE_SHARE;
     },
     drag: (dx) => drag(table, dx),
@@ -709,13 +727,8 @@ export const viewDeck: Deck = createDeck({
       if (window.scrollY > 0) window.scrollTo(0, 0);
       return;
     }
-    // Just under what stands over the page (the frame's top on a phone: the document's scroll-padding, mobile.css), and
-    // under what of its own page stands over the view, which it says as its scroll margin, as the browser's own scrolls
-    // read it: the Calendar's bar sticks over its days, and after Day's board had scrolled to now the Month came in with
-    // its row of days' names under the bar (Ruben's recording, 3 Nov 2026).
-    const under =
-      (Number.parseFloat(getComputedStyle(documentScroller()).scrollPaddingTop) || 0) +
-      (Number.parseFloat(getComputedStyle(el).scrollMarginTop) || 0);
+    // Just under what stands over the page (the frame's top on a phone: the document's scroll-padding, mobile.css).
+    const under = Number.parseFloat(getComputedStyle(documentScroller()).scrollPaddingTop) || 0;
     const top = el.getBoundingClientRect().top;
     if (top < under) window.scrollBy(0, top - under);
   },

@@ -52,9 +52,13 @@ export type LeadCallOutcome = (typeof LEAD_CALL_OUTCOMES)[number];
 
 export type LeadNotAFitWhy = (typeof LEAD_NOT_A_FIT_WHYS)[number];
 
-/** Stored values are never shown (§9.1). */
+/**
+ * Stored values are never shown (§9.1). A lead nothing has gone to yet is Not contacted, Contacted's other side: "Ready"
+ * beside "Waits for your OK" read as ready to send (the phone walk of 3 Nov 2026), and "New" is a person's state in People.
+ * A lead in a sequence wears its place there instead (lead-row.ts).
+ */
 export const LEAD_STAGE_WORDS: Record<LeadStage, string> = {
-  ready: "Ready",
+  ready: "Not contacted",
   nurture: "Contacted",
   converted: "Talking",
   archived: "Closed",
@@ -111,7 +115,7 @@ export const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number]
 /** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
 export const LEAD_LIST_WORDS: Record<LeadList, string> = {
   all: "All leads",
-  ready: "Ready",
+  ready: LEAD_STAGE_WORDS.ready,
   nurture: "Contacted",
   converted: "Talking",
   said_no: "Said no",
@@ -124,7 +128,8 @@ export const LEAD_SOURCE_WORD = "Google Maps listing";
 export const LEAD_LOCKED_LINE =
   "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
 
-export const LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
+/** An address on the never-again list: no email is written to it here, as no sequence writes to it. */
+export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no email is written here.";
 
 export const LEAD_NO_ADDRESS =
   "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
@@ -136,12 +141,13 @@ export const LEAD_CONSENT_REFUSAL =
 /* --------------------------------------------- release B, tasks 12-15 ---- */
 
 /**
- * Who read a check that was read, as a lead's checks say it: the judge, Claude, from a place's listing; or Chanlytics
- * AI, which is the screen before the judge (decision 0085), from a place's listing, and a people search's company judge,
- * from the directory.
+ * Who read a check that was read, as a lead's checks say it: the judge, Claude, from a place's listing or its own website;
+ * or Chanlytics AI, which is the screen before the judge (decision 0085), from a place's listing, and a people search's
+ * company judge, from the directory.
  */
 export const LEAD_READ_SOURCES = {
   judge: "Claude · the listing",
+  site: "Claude · their website",
   screen: "Chanlytics AI · the listing",
   company: "Chanlytics AI · the directory",
 } as const;
@@ -173,7 +179,11 @@ export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 
 export const LEAD_REVIEW_WORD = "Needs review";
 
-export const LEAD_LEFT_OUT_WORD = "Left out";
+/**
+ * What the finder's own filter left out of a search. It said "Left out", and a sequence's "Left" sat beside it on the same
+ * page for a business taken out of a sequence: two things in one word (the phone walk of 3 Nov 2026).
+ */
+export const LEAD_LEFT_OUT_WORD = "Filtered out";
 
 /** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
 export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = {
@@ -398,8 +408,8 @@ export function leadAnd(items: readonly string[]): string {
  * it too, and a search the source could not start was drawn as done (29 Oct 2026).
  */
 export function leadEndingFound(ending: LeadRoundEnding, f: Pick<LeadEndingFacts, "counted">): boolean {
-  if (ending === "target_reached" || ending === "few_new_matches") return true;
-  return ending === "searched_everything" && f.counted > 0;
+  if (ending === "target_reached") return true;
+  return (ending === "searched_everything" || ending === "few_new_matches") && f.counted > 0;
 }
 
 /**
@@ -455,9 +465,13 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
     case "few_new_matches":
       return {
         mark,
-        // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
-        title: `Found all ${plural(f.seen, one, f.name)} in ${f.area}`,
-        parts: [yours, ...(f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : [])],
+        // What it found of what was asked, and where. "Found all" said the area had run dry, and this ending means only
+        // that the round stopped short: five of ten salons in a city of hundreds said it (5 Nov 2026).
+        title: `Found ${f.counted} of ${f.target} ${f.name} in ${f.area}`,
+        parts: [
+          ...(f.counted > 0 ? [yours] : []),
+          ...(f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : []),
+        ],
         // One word (Ruben, 25 Sep): the line before it says what was found and where; the parts say where next.
         step: f.nearby.length ? { id: "look_further", label: "Widen" } : null,
       };

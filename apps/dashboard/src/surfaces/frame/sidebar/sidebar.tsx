@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { routeDoor } from "../../frame-doors";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { frameGlyph, isDemoFrame } from "../frame-window";
-import { NAV_INTEL, NAV_PRIMARY, NAV_WORK, type NavItem } from "../places";
+import { NAV_INTEL, NAV_PRIMARY, NAV_WORK, placeLit, type NavItem } from "../places";
 import { NAV_ROUTE } from "../shell-routes";
 import { SbMenu, UserMenu, WorkspaceMenu, useSbMenu } from "./sidebar-menus";
 import { SbWorkspaceFace, sbTeamSub, sbWho, sbWorkspace, sbWorkspaceName, type SbWho } from "./sidebar-who";
@@ -162,19 +162,6 @@ function SidebarRow({
   );
 }
 
-// Route id -> flat nav id (merged surfaces highlight their group). Conversations and Live highlight the Inbox: they are
-// its views, not their own place.
-const GROUP_MAP: Record<string, readonly string[]> = {
-  people: ["clients", "leads", "segments", "pipeline"],
-  inbox: ["inbox", "conversations", "live", "calls", "chats", "email"],
-  campaigns: ["campaigns", "outbound", "content", "broadcasts", "messages"],
-  agents: ["fleet", "store", "studio", "tasks"],
-};
-const groupOf = (active: string) => {
-  for (const [k, kids] of Object.entries(GROUP_MAP)) if (kids.includes(active)) return k;
-  return active;
-};
-
 /** The nav's three groups, the item for the route lit (its group's, for a merged surface). */
 function SidebarNav({
   active,
@@ -187,7 +174,7 @@ function SidebarNav({
   badges: Badges;
   collapsed: boolean;
 }) {
-  const effActive = groupOf(active);
+  const effActive = placeLit(active);
   const expanded: Record<string, boolean> = {};
   const toggle = () => {};
   const renderGroup = (items: readonly NavItem[], label?: string) => (

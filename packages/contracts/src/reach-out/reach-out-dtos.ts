@@ -7,6 +7,7 @@ import type { ReachOutHold } from "./reach-out-words";
 import type { StepHand } from "./reach-out-hand";
 import type { ReachOutFedBy } from "./reach-out-leads";
 import type { ReachOutSignsWith } from "./reach-out-rules";
+import type { RewriteStep } from "../sequences/sequence-held";
 
 /** A step's words and place, as the sheet edits them. */
 export interface ReachOutStepDto {
@@ -18,6 +19,8 @@ export interface ReachOutStepDto {
   body: string;
   template_id: string | null;
   state: "running" | "paused";
+  /** How many leads keep words of their own here (decision 0096): a change to these words reaches them not. */
+  own_words?: number;
   /** A call or a note for the team (Part 5, G20): the chain's last step, with no words to send. Null for an email. */
   hand: StepHand | null;
 }
@@ -189,6 +192,33 @@ export const REACH_OUT_PREVIEW_INDEX_MAX = 199;
 export const REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"] as const;
 export type ReachOutDecision = (typeof REACH_OUT_DECISIONS)[number];
 
+/**
+ * The opening an email stands with (00505), after its check or its Undo: written or still being written, held again or
+ * not, its sequence paused (nothing is written until it runs), and whether Undo can put back the one it replaced.
+ */
+export interface ReachOutOpeningDto {
+  send_id: string;
+  opening: string | null;
+  written: boolean;
+  held: string | null;
+  paused: boolean;
+  undo: boolean;
+}
+
+/** POST reach-out-sends/:id/decide: what was decided. A rewrite's opening is written by POST reach-out-sends/check. */
+export interface ReachOutDecideDto {
+  send_id: string;
+  decision: ReachOutDecision;
+}
+
+/**
+ * POST reach-out-sends/check (00505): the emails a person pressed Rewrite on, checked now, and the openings they stand
+ * with after. Asked for as a stream, each step the check takes comes first as it takes it (`step`), and the answer last
+ * (`done`); a line the browser does not know is passed over.
+ */
+export type ReachOutCheckLine =
+  { t: "step"; send_id: string; step: RewriteStep } | { t: "done"; sends: ReachOutOpeningDto[] };
+
 export interface ReachOutHeldSend {
   send_id: string;
   lead_id: string;
@@ -200,6 +230,8 @@ export interface ReachOutHeldSend {
   angle: string | null;
   /** When it was planned: past fourteen days it is given up, and Include is refused (R10). */
   planned_at: string;
+  /** Its lead has words of their own at its step, holding no line (decision 0096): absent where it has none. */
+  own?: boolean;
 }
 
 /** A reach-out run, as its approval sheet reads it (F13, R20–R22). */
@@ -232,6 +264,8 @@ export interface ReachOutRunDto {
     checked: boolean;
     /** The opening it goes with, read before the batch is approved (30 Oct 2026); absent from a server before it. */
     opening?: string | null;
+    /** Its lead has words of their own at its step, holding no line (decision 0096): absent where it has none. */
+    own?: boolean;
   }>;
   /** Skipped at planning or by the check, by reason (closed_every_day, missing_value, owner_skipped, …). */
   skipped: Record<string, number>;

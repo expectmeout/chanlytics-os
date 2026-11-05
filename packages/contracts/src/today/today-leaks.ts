@@ -204,7 +204,7 @@ function unansweredLeak({ reports, noReply }: LeakFacts): TodayLeakVM | null {
       .map((r) => ({ id: r.conversationId, name: r.who, to: r.to, title: `Open ${r.who}'s thread` })),
     peopleLead: "Waiting now",
     ask: askWhy(text, math),
-    cta: { label: "Open Reports", to: "reports" },
+    cta: { label: "See the report", to: "reports" },
     also: null,
   };
 }
@@ -354,7 +354,7 @@ function unreachableLeak({ people, list }: LeakFacts): TodayLeakVM | null {
     people: [],
     peopleLead: null,
     ask: askWhy(text, math),
-    cta: { label: "Open People", to: `clients/seg:${yes.id}` },
+    cta: { label: "See them", to: `clients/seg:${yes.id}` },
     also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
   };
 }

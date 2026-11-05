@@ -4,6 +4,7 @@
  * and the shortcuts sheet. Pure, so the sidebar, the shell and a test read the
  * same thing.
  */
+import type { ModelStanding } from "../ai/anthropic-enforcement";
 import { WORKSPACE_PAUSED } from "../lines/caller-gets";
 import { PAUSED_WORDS } from "../workspace/billing";
 import { roleSays } from "../config/workspace-config/role-perms";
@@ -201,6 +202,23 @@ export const DEFAULT_SIDEBAR_PREF: SidebarPref = "open";
 const OUTLINE_SIDEBAR_ATTR = "data-sidebar";
 /** The `<html>` attribute that says the outline draws none of the frame: the address is a page drawn full screen. */
 const OUTLINE_BARE_ATTR = "data-outline-bare";
+/** The `<html>` attribute that names the sidebar's place the address lights (OutlineRoutes.lit). */
+const OUTLINE_LIT_ATTR = "data-outline-lit";
+/** The `<html>` attribute that says the address's page searches its list in Ask's line (OutlineRoutes.search). */
+const OUTLINE_SEARCH_ATTR = "data-outline-search";
+
+/**
+ * What the outline knows of an address's route, from the frame's own places (surfaces/frame/places.ts OUTLINE_ROUTES):
+ * the sidebar's place each first word of a route lights, and the routes whose page says its search in Ask's line
+ * (kit/head/page-search.ts), as a pattern over the route as the path writes it. A lit row is drawn heavier and a search's
+ * line says no label, so an outline that knew neither stood a row's words narrower than the frame's and drew Ask's label
+ * where the frame draws none (the nightly of 2 Nov 2026).
+ */
+export interface OutlineRoutes {
+  lit: Readonly<Record<string, string>>;
+  search: string;
+}
+const NO_OUTLINE_ROUTES: OutlineRoutes = { lit: {}, search: "(?!)" };
 
 /**
  * What the document's outline needs before first paint (surfaces/frame/outline.tsx, the cold-load review of 28 Oct
@@ -208,19 +226,24 @@ const OUTLINE_BARE_ATTR = "data-outline-bare";
  * sidebar this device keeps, `open` or `rail`, read from the stored object as the app reads it (isSidebarPref, else
  * the default); the outline's stylesheet stands it as a rail on a small desk whatever it says, as the frame does. And
  * the first run, whose address (`/w/<slug>/start`, or the old `#/start`) the app draws full screen with none of the
- * frame: there the outline draws the page's ground alone. theme-boot.test.mjs runs it against the app's own readings.
+ * frame: there the outline draws the page's ground alone. And from `routes` (OutlineRoutes): the place the route lights,
+ * and whether its page searches in Ask's line. theme-boot.test.mjs runs it against the app's own readings.
  */
-export function outlineBootScript(): string {
+export function outlineBootScript(routes: OutlineRoutes = NO_OUTLINE_ROUTES): string {
   const start = JSON.stringify(FIRST_RUN_ROUTE);
   return [
     "try{",
     `var v=${JSON.stringify(DEFAULT_SIDEBAR_PREF)};`,
     `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");`,
     'if(s&&(s.sidebar==="open"||s.sidebar==="rail"))v=s.sidebar}catch(e){}',
-    `document.documentElement.setAttribute(${JSON.stringify(OUTLINE_SIDEBAR_ATTR)},v);`,
-    'var m=/^\\/w\\/[^\\/?#]+(?:\\/([^\\/?#]*))?/.exec(location.pathname||"");',
-    'var r=m?(m[1]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2).split(/[\\/?]/)[0]:"")):"";',
-    `if(r===${start})document.documentElement.setAttribute(${JSON.stringify(OUTLINE_BARE_ATTR)},"");`,
+    `var d=document.documentElement;d.setAttribute(${JSON.stringify(OUTLINE_SIDEBAR_ATTR)},v);`,
+    'var m=/^\\/w\\/[^\\/?#]+(?:\\/([^?#]*))?/.exec(location.pathname||"");',
+    'var w=m?(m[1]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2).split("?")[0]:"")):null;',
+    'var r=w===null?"":w.replace(/\\/+$/,"").split("/")[0];',
+    `if(r===${start})d.setAttribute(${JSON.stringify(OUTLINE_BARE_ATTR)},"");`,
+    `var L=${JSON.stringify(routes.lit)};`,
+    `if(w!==null&&Object.prototype.hasOwnProperty.call(L,r))d.setAttribute(${JSON.stringify(OUTLINE_LIT_ATTR)},L[r]);`,
+    `if(w!==null&&new RegExp(${JSON.stringify(routes.search)}).test(w.replace(/\\/+$/,"")))d.setAttribute(${JSON.stringify(OUTLINE_SEARCH_ATTR)},"");`,
     "}catch(e){}",
   ].join("");
 }
@@ -288,6 +311,11 @@ export interface ShellStatus {
   degraded: string[];
   /** The workspace is paused (billing stopped): a call is answered only to take a message and every other message waits in the Inbox (PAUSED_WORDS), until Billing resumes it. */
   paused?: boolean;
+  /**
+   * What Anthropic has said of this workspace's profile (decision 0097): "paused", and its receptionist holds every message
+   * for a person; "limited", and it holds those Anthropic refuses.
+   */
+  modelStanding?: ModelStanding | null;
   /** This device has no connection: nothing on screen is kept current, and nothing pressed reaches the workspace. */
   offline?: boolean;
   /** The live feed dropped and did not come back within its grace: the page is current only as of its last read. */
@@ -344,6 +372,28 @@ export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusL
       detail: PAUSED_WORDS,
       action: "billing",
       cta: "Billing",
+      busy: null,
+    };
+  if (s.modelStanding === "paused")
+    return {
+      kind: "paused",
+      tone: WORKSPACE_PAUSED.tone,
+      text: "Your receptionist is paused",
+      detail:
+        "It sends a holding reply and hands each new message to you in the Inbox. Write to support and we'll sort it out.",
+      action: null,
+      cta: null,
+      busy: null,
+    };
+  if (s.modelStanding === "limited")
+    return {
+      kind: "degraded",
+      tone: "warn",
+      text: "Your receptionist is limited",
+      detail:
+        "It may send a holding reply and hand some messages to you in the Inbox. Write to support and we'll sort it out.",
+      action: null,
+      cta: null,
       busy: null,
     };
   if (s.previewing) {

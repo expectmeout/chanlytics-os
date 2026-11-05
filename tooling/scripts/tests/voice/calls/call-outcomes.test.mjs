@@ -29,6 +29,7 @@ import {
   getAgent,
   CALL_FEEL,
   CALL_HANDBOOK,
+  CALL_LIMITS,
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "../../_source.mjs";
 import { toCallDto } from "../../../../../apps/dashboard/src/server/dto.ts";
@@ -257,7 +258,7 @@ test("the agent's analysis fields: each has a type, a name and a description; ea
     webhook_events: [...VOICE_WEBHOOK_EVENTS],
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
-    data_storage_retention_days: null,
+    ...CALL_LIMITS,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,
@@ -293,7 +294,7 @@ test("an agent that has the five fields it had is told it lacks topic and langua
     webhook_events: [...VOICE_WEBHOOK_EVENTS],
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
-    data_storage_retention_days: null,
+    ...CALL_LIMITS,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,

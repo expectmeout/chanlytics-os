@@ -62,9 +62,12 @@ const EVERY_CLOCK = {
   calendar: "calendar-people-sweep",
   calls: "call-reconcile",
   deadman: "deadman-sweep",
+  drafts: "drafts-sweep",
   google: "google-listings-sweep",
   health: "sweep-health",
   jobs: "jobs-tick",
+  // The ledger's own job, every minute (00526): judged by the newest one done, so a clock that ran proves nothing alone.
+  jobs_canary: "jobs-canary",
   lines: "lines-sweep",
   partitions: "events-partition-precreate",
   pauses: "expire-stale-pauses",
@@ -149,6 +152,8 @@ const RUN_JUDGED = [
   "snoozes",
   "sweep_voice_sessions",
 ];
+/** The clocks judged by the job they put on the ledger, the newest one done (00526): the canary. */
+const JOB_JUDGED = ["jobs_canary"];
 
 let db;
 before(() => {
@@ -170,7 +175,11 @@ test("the register names every cron job, and every one of them is scheduled", { 
     "every clock has a kind, and why (clocks/_clocks.mjs; decision 0031, invariant 6)",
   );
   for (const r of data)
-    assert.equal(r.judged_by, RUN_JUDGED.includes(r.sweep) ? "run" : "request", `${r.sweep} is judged the right way`);
+    assert.equal(
+      r.judged_by,
+      JOB_JUDGED.includes(r.sweep) ? "job" : RUN_JUDGED.includes(r.sweep) ? "run" : "request",
+      `${r.sweep} is judged the right way`,
+    );
   const { data: jobs, error: jerr } = await db.rpc("sweep_schedules");
   assert.equal(jerr, null, jerr?.message);
   const byName = new Map(jobs.map((j) => [j.jobname, j]));
@@ -325,7 +334,7 @@ test(
     // healthy sweep that ran its minute was judged "the request timed out before the edge answered" (00363).
     const seen = rolledBack(`
     declare
-      t uuid; c uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid;
+      t uuid; c uuid; v uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid;
       tag text := substr(md5(random()::text), 1, 8);
       r record;
       cmd text;
@@ -347,11 +356,17 @@ test(
       insert into public.mailbox_connections (tenant_id, provider, provider_account, address, host, from_name)
            values (t, 'google', 'every-clock-' || tag, 'hello@every-clock-' || tag || '.example.com',
                    'every-clock-' || tag || '.example.com', 'Every clock');
-      -- jobs: one due.
+      -- jobs: one due, and the ledger's clock not woken in the last ten seconds (00526 paces it): the stack's own cron may
+      -- have knocked a moment ago.
       insert into public.jobs (tenant_id, kind, due_at) values (t, 'push_receipts', now() - interval '1 minute');
+      update public.sweep_status set woken_at = null where sweep = 'jobs';
       -- notes: a conversation quiet for seven hours.
       insert into public.contacts (tenant_id) values (t) returning id into c;
       insert into public.conversations (tenant_id, contact_id, last_inbound_at) values (t, c, now() - interval '7 hours');
+      -- drafts: a thread held for a person, on a person of its own (a contact has one thread).
+      insert into public.contacts (tenant_id) values (t) returning id into c;
+      insert into public.conversations (tenant_id, contact_id) values (t, c) returning id into v;
+      insert into public.escalations (tenant_id, conversation_id, reason) values (t, v, 'manual');
       -- leads: a round that has not ended.
       insert into public.lead_searches (tenant_id, via, card, name, asked, plan)
            values (t, 'people', 'every clock', 'Every clock', 'every clock', '{}') returning id into s;
@@ -394,7 +409,7 @@ test(
     end;
   `);
     const asking = Object.keys(EVERY_CLOCK)
-      .filter((sweep) => !RUN_JUDGED.includes(sweep))
+      .filter((sweep) => !RUN_JUDGED.includes(sweep) && !JOB_JUDGED.includes(sweep))
       .sort();
     assert.deepEqual(Object.keys(seen).sort(), asking, "every clock judged by its request, and only those");
     for (const sweep of asking)

@@ -17,6 +17,7 @@
  */
 import { DAY_NAMES } from "../config/workspace-config/config-rules";
 import { possessive } from "../shared/words";
+import { dateFormat } from "../shared/time";
 import { WALK_IN_WORDS } from "../config/business-tab/choices";
 import { ASSISTANT_NAME_WORDS } from "../config/business-tab/how-it-answers";
 import type { SetupRowVM, SetupVM } from "./setup";
@@ -102,9 +103,11 @@ const STEP_DONE: Record<FirstRunStepKey, (vm: SetupVM) => boolean> = {
   rehearse: (vm) => vm.rehearsal.reviewed > 0 || vm.rehearseSkipped || vm.readiness.answering,
   // A calls choice saved, or a line already on its way or asked of a person; with no number to choose here (no lines
   // provider on this deployment), the member's going on, and Go live's rows say who has the line.
-  channels: (vm) => !!vm.want || vm.lineUnderway || (!vm.numbersHere && vm.channelsSeen),
+  channels: (vm) => !!vm.want || vm.noCalls || vm.lineUnderway || (!vm.numbersHere && vm.channelsSeen),
   // The plan runs and the line answers; a number kept owes no forwarding; and a call came in, or the check was put off.
+  // Not by phone (decision 0091): the plan runs and a channel it chose answers, with no line and no call owed.
   live: (vm) => {
+    if (vm.noCalls) return ready(vm, "billing") && vm.readiness.answering;
     const t = rowOf(vm, "try");
     return (
       ready(vm, "billing") &&
@@ -357,6 +360,46 @@ export const FIRST_RUN_WORDS = {
       `${assistant ?? "Your receptionist"} is answering${business ? ` for ${business}` : ""}`,
   },
 } as const;
+
+/** What a language is asked in, for "Try asking": the owner tries the receptionist in it. */
+const ASK_IN: Readonly<Record<string, string>> = {
+  spanish: "¿Hablan español?",
+  español: "¿Hablan español?",
+  french: "Parlez-vous français ?",
+  portuguese: "Vocês falam português?",
+  italian: "Parlate italiano?",
+  german: "Sprechen Sie Deutsch?",
+};
+
+/**
+ * "Try asking" from the business's own facts (the onboarding PRD's 5.4): what a service with its price costs, whether
+ * it opens on a day it says it is closed, a language it speaks beside English, then the step's fixed questions to fill
+ * four. Pure, and no model: the owner hears its answer about their own business, not a stranger's.
+ */
+export function rehearseAsksOf(
+  profile: {
+    services?: readonly { name?: string | null; price_note?: string | null }[] | null;
+    languages?: readonly string[] | null;
+    closures?: readonly { date?: string | null }[] | null;
+  } | null,
+): string[] {
+  const out: string[] = [];
+  const priced = (profile?.services ?? []).find((x) => x?.name && x.price_note);
+  const named = (profile?.services ?? []).find((x) => x?.name);
+  if (priced?.name) out.push(`How much is ${priced.name.toLowerCase().startsWith("a ") ? "" : "a "}${priced.name}?`);
+  else if (named?.name) out.push(`Do you do ${named.name}?`);
+  const closed = (profile?.closures ?? []).find(
+    (c) => typeof c?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date),
+  );
+  if (closed?.date)
+    out.push(
+      `Are you open on ${dateFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" }).format(Date.parse(`${closed.date}T12:00:00Z`))}?`,
+    );
+  const lang = (profile?.languages ?? []).map((l) => l.trim().toLowerCase()).find((l) => l && l !== "english");
+  if (lang) out.push(ASK_IN[lang] ?? `Do you speak ${lang.charAt(0).toUpperCase()}${lang.slice(1)}?`);
+  for (const q of FIRST_RUN_WORDS.rehearse.asks) if (out.length < 4 && !out.includes(q)) out.push(q);
+  return out.slice(0, 4);
+}
 
 /**
  * The days whose hours Google gives in a way the week cannot hold (hoursFromGoogle's `unsure`: past midnight, around

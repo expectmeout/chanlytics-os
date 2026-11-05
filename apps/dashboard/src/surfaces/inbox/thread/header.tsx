@@ -15,7 +15,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, sinceWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -306,7 +306,6 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
       ? [
           {
             label: HOLD_ACT_WORDS.reply.take,
-            meta: THREAD_PANE_WORDS.takeMeta,
             glyph: ixGlyph("users"),
             square: true,
             onSelect: () => onTakeOver(thread.id),
@@ -332,7 +331,6 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
       ? [
           {
             label: THREAD_PANE_WORDS.archive,
-            meta: THREAD_PANE_WORDS.archiveMeta,
             glyph: ixGlyph("archive"),
             square: true,
             onSelect: onArchive,
@@ -350,14 +348,14 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
       : []),
   ];
   const W = THREAD_PANE_WORDS;
-  const first = shortName(thread.who);
   const row = facts.person;
   const person: MenuItem[] = [
     // Their receptionist, as People says how it stands with them (the person's mode is on their page).
     ...(!demoSession() && thread.clientId
       ? [
           {
-            label: W.receptionistFor(first),
+            // Under Contact, theirs already: "Receptionist for" a business's whole name took two lines (3 Nov 2026).
+            label: W.receptionist,
             ...(row?.receptionist?.label ? { meta: row.receptionist.label } : {}),
             glyph: ixGlyph("shield"),
             square: true,
@@ -388,17 +386,17 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
         ]
       : []),
   ];
-  // Who it is about, at the sheet's head (the thread canvas): their face, how to reach them and when they first wrote,
-  // and their page a press away. A caller with no person has none.
+  // Who it is about, at the sheet's head (the thread canvas): their face, how to reach them and since when, and their page
+  // a press away, the whole row, so a chevron alone: "Profile" took the name's room (3 Nov 2026). A caller has none.
   const who: MenuItem[] = thread.clientId
     ? [
         {
           label: thread.who,
-          meta: W.personLine(row?.email ?? null, row?.firstContact?.label ?? null) || undefined,
+          title: W.profile,
+          meta: W.personLine(row?.email ?? null, row?.firstContact ? sinceWords(row) : "") || undefined,
           glyph: <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" hue={faceHueOf(thread.who)} />,
           hint: (
             <span className="ix-more-profile">
-              {W.profile}
               <Icon name="chevron" size={13} />
             </span>
           ),
@@ -426,7 +424,8 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
   return ixMenu([
     { items: who },
     { header: W.groupConversation, items: conversation },
-    { header: first, items: person },
+    // "Contact", never their name again under the head that says it (the phone pass, 3 Nov 2026: "Rosa's Nail Bar's").
+    { header: W.groupContact, items: person },
     // The deal (0008): its proposal into the box -- the deal's link (above), only where free text can go, never to
     // someone who said stop, only on a real thread; the hint says where the link lives (contracts linkHost) -- and the
     // moves for its stage, each opening the sheet. Every workspace's (0008, amended 18 Oct 2026). The file beside it.
@@ -571,7 +570,11 @@ function ThreadBusinessSheet({ asked, onClose }: { asked: BusinessAsked | null; 
   return asked && Door ? <Door personId={asked.personId} name={asked.name} onClose={onClose} /> : null;
 }
 
-/** The face, the name and what is known of them, one link to their page, and the doors to their visit and business beside it. */
+/**
+ * The face, the name and what is known of them, one link to their page, and the doors to their visit and business beside
+ * it. A phone's too: the name opened the thread's sheet from 3 Nov 2026, and its page was a press further away (Ruben,
+ * 4 Nov 2026: "clicking on the name should lead to its person page"; More is the sheet's again, ThreadHeader).
+ */
 function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: ReactNode) {
   const { thread, channelLabels, onOpenClient = () => {}, onBack = null } = props;
   // Who this is opens their page: the face, the name and the line under it are one link (IxWho), as a messaging app's
@@ -694,7 +697,6 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   // A line under the head's row (a reply's signer offered, a step due): on a phone the bar holds two rows, and is a card.
   const signer = person && person.signer && !demoSession() ? person.signer : null;
   const step = person && person.nextStep && !demoSession() ? person.nextStep : null;
-
   return (
     <header className="ix-th-head" data-stacked={signer || step ? "" : undefined}>
       {headerMain(props, facts, alsoLeads)}
@@ -717,7 +719,8 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
         {/* More, three dots on an inset round a thumb finds: "Actions" and its chevron took a third of the header on a
             phone, beside a name cut short, and the canvas's caret read as a fold beside a reply box that folds (2 Nov
             2026). Its menu says what to do with the conversation, the person, the deal and the file, each under its
-            heading; on a phone it is the kit's sheet, headed by who it is about. */}
+            heading; on a phone it is the kit's sheet, headed by who it is about. A phone's opened from the name from
+            3 Nov 2026, with no ⋯ (Ruben, 4 Nov 2026: "i prefer the 3 dots we had on the right"). */}
         {deskActs(thread, onSnooze, onArchive)}
         <Menu
           trigger={

@@ -1,7 +1,8 @@
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
-import { setPersonReplyMode } from "@chanlytics/db";
+import { beginPeopleErasure, setPersonReplyMode } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
+import { NO_ADDRESS_TO_SORT } from "@/server/connections/mailbox-senders";
 
 /**
  * The same change for many people at once, through the door each would go
@@ -108,4 +109,40 @@ export async function appendNotesMany(
     done += 1;
   }
   return { done, failed, skipped };
+}
+
+/** Who a press handed the ledger, who it could not and why, and who was not ours to delete. */
+interface ErasedMany {
+  going: string[];
+  failed: { id: string; message: string }[];
+  skipped: string[];
+}
+
+/**
+ * Many people deleted at one press (People's Delete…), however many: everyone named goes out of reach and onto the
+ * ledger in one write (db legs.ts beginPeopleErasure), and the ledger erases them as Delete person erases one, paced so
+ * nobody else's work waits behind them. The press does no erasing, so it cannot outrun anyone's wait, a tab closed
+ * behind it loses nothing, and a press pressed again starts nothing beside the first. With `notAPersonToo`, each one's
+ * address is said automated in the same write, the address alone: a selection is many senders, and a domain is many
+ * people's. Someone with no address to say stays, and says why; an erased one, or another workspace's, is skipped. Each
+ * list in the order they were picked.
+ */
+export async function eraseMany(
+  ctx: RouteContext,
+  tenantId: string,
+  ids: string[],
+  notAPersonToo: boolean,
+): Promise<ErasedMany> {
+  const uniq = [...new Set(ids)];
+  const { going, noAddress } = await beginPeopleErasure(ctx.supabase, {
+    tenantId,
+    ids: uniq,
+    notAPerson: notAPersonToo,
+  });
+  const answered = new Set([...going, ...noAddress]);
+  return {
+    going,
+    failed: noAddress.map((id) => ({ id, message: NO_ADDRESS_TO_SORT })),
+    skipped: uniq.filter((id) => !answered.has(id)),
+  };
 }

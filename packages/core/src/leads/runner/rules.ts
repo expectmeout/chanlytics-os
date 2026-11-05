@@ -27,7 +27,7 @@
  * collect.ts, check.ts and sweep.ts.
  */
 
-import { MIN_MS } from "@chanlytics/contracts";
+import { LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS } from "@chanlytics/contracts";
 import { JUDGE_TIMEOUT_MS } from "../judge";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 
@@ -45,6 +45,12 @@ export const DEADLINE_MARGIN_MS = 8_000;
  * committed, and the batch is paid for twice when the job is tried again.
  */
 export const JUDGE_MARGIN_MS = JUDGE_TIMEOUT_MS;
+/**
+ * What the judge's screen (decision 0085) may take before the judge is asked: its bound, and the write of its usage
+ * after it. The screen is asked only with this and the judge's own margin left, so the judge is never started short of
+ * its bound because the screen ran first (3 Nov 2026: the margin was checked before the screen, not after it).
+ */
+export const SCREEN_MARGIN_MS = LEAD_SCREEN_BOUND_MS + SHADOW_WRITE_MS;
 /** An unknown start with no run at the provider after this long is failed. */
 export const UNKNOWN_START_GRACE_MS = 10 * MIN_MS;
 /** The key our runs carry in their input, so the sweep can tell ours from anyone else's. */
@@ -80,6 +86,14 @@ const isRetryable = (e: unknown): e is { name: string; status: number | null } =
   (e as { name?: string } | null)?.name === "ApifyRetryable";
 const minute = (p: LeadPorts) => Math.floor(p.now().getTime() / MIN_MS);
 const outOfTime = (p: LeadPorts, marginMs: number = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
+/** The most a batch's mark step takes, its time permitting: it is the last thing the collect does and the first it gives up. */
+export const MARK_ALLOWANCE_MS = 12_000;
+/**
+ * When a batch's mark step stops: its allowance, or before that what must stay free behind it. A batch another follows in
+ * this invocation leaves the next judge its whole bound; the last leaves only the kill margin its commit runs inside.
+ */
+const markUntil = (p: LeadPorts, last: boolean): number =>
+  Math.min(p.now().getTime() + MARK_ALLOWANCE_MS, p.deadline - (last ? DEADLINE_MARGIN_MS : JUDGE_MARGIN_MS));
 const webhookUrl = (p: LeadPorts, runRowId: string, token: string) =>
   `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
 /** Round 1 runs to the plan's count (its probe asks for 25 of it); a later round to what lead_search_more set as its target. */
@@ -101,4 +115,4 @@ async function heldBack(p: LeadPorts, tenantId: LeadRoundRow["tenant_id"]): Prom
   return null;
 }
 
-export { heldBack, iso, isRefused, isRetryable, minute, outOfTime, webhookUrl, wasJudged };
+export { heldBack, iso, isRefused, isRetryable, markUntil, minute, outOfTime, webhookUrl, wasJudged };

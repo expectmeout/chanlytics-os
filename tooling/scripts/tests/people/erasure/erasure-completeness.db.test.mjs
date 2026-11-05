@@ -495,6 +495,13 @@ async function seed() {
     state: "running",
     signed_by: "Sam",
   });
+  // What a member typed for the lead at this step (00545): it may name them, and goes with their details.
+  ok(
+    await db
+      .from("sequence_lead_words")
+      .insert({ tenant_id: T, step_id: root, lead_id: lead, subject: WORDS.slice(0, 80), body: WORDS }),
+    "sequence_lead_words",
+  );
   const run = await insert("sequence_batches", {
     tenant_id: T,
     name: "Needle reach-out · sent",
@@ -521,6 +528,9 @@ async function seed() {
       opening: WORDS,
       angle: `Ada ${DIGITS}`,
       hold_detail: WORDS,
+      // What its owner asked of a rewrite, with the opening it replaced, and what their website said (00505).
+      rewrite_asked: { change: WORDS, was: { opening: WORDS } },
+      website_says: WORDS,
       // The draft its owner sent it from (00429): the address and the words, as handed to them.
       draft: { to: EMAIL, subject: WORDS, body: WORDS, text: WORDS },
     }),

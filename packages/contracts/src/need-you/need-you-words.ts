@@ -27,23 +27,28 @@ function leftWords(seconds: number): string {
  */
 export const NOT_A_PERSON_WORDS = {
   act: "Not a person…",
-  actHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People",
+  /** One line under the act on a phone's sheet: what it does, in eight words (the phone pass, 3 Nov 2026: two lines). */
+  actHint: "Moves them out of People. Their mail stays.",
 } as const;
 
 /**
  * What the section says, row by row. What Ask prepared is headed by what it is, then whose (the refined canvas, 31 Oct
- * 2026): "Reply · drafted by Ask" over words that go to them, which the member types in where they stand; "Call notes ·
+ * 2026): "Reply · Ask's draft" over words that go to them, which the member types in where they stand; "Call notes ·
  * only you see these" over words that are read and never sent, which is why nothing there is typed in.
  */
 export const NEED_YOU_WORDS = {
   door: "Open Inbox",
   reply: "Reply",
-  drafted: "drafted by Ask",
-  drafting: "Ask is writing…",
-  couldNot: "Ask couldn't write this one.",
+  drafted: "Ask's draft",
+  drafting: "Ask is drafting…",
+  couldNot: "Ask couldn't draft this one.",
   asks: (question: string) => `Ask needs to know: ${question}`,
-  /** What they wrote was not a customer's, so Ask wrote no reply: what it is, in Ask's one sentence. */
-  pitch: (what: string) => `Not a customer, by the look of it: ${what}`,
+  /**
+   * What they wrote was not a customer's, so Ask wrote no reply: what it is, in Ask's one sentence. The verdict is said
+   * here once; the sentence says only what it is (3 Nov 2026: "Not a customer, by the look of it: … not a customer or
+   * prospect, so no reply" said it twice in five lines).
+   */
+  pitch: (what: string) => `Not a customer: ${what}`,
   edit: "Edit",
   editDraft: (who: string) => `Change the reply to ${who}`,
   /** While the member types in the words: what the head says, and the press that leaves them as they are. */
@@ -103,6 +108,10 @@ export const NEED_YOU_WORDS = {
    * what waits for your OK or your answer, your own to-dos, and who has waited past a week, one row at the end.
    */
   group: { next: "Up next", waiting: "Waiting on you", ok: "To decide", todo: "To do", old: "Older" },
+  /** Need you's foot, where threads were set aside as not a customer's (decision 0093): what one was, or how many. */
+  setAside: (n: number, about: string | null) =>
+    n === 1 ? `Set aside · ${about ?? "1 not a customer's"}` : `Set aside · ${n} not customers'`,
+  setAsideOpen: "Look",
   /** How many need you, as the head says it before anything else: the badge's number. */
   count: (n: number) => (n === 1 ? "1 needs you." : `${n} need you.`),
   /** The same count said after a line that is down, which leads. */
@@ -120,12 +129,16 @@ export const NEED_YOU_WORDS = {
     kept: "kept",
     retry: "Try again",
   },
-  /** Whoever has waited past a week, as one row at the end: how many, and who. */
-  older: { row: (n: number) => `${n} over a week` },
-  /** Every row past a week marked done at once, with one Undo: they leave Need you until they write again. */
+  /** Whoever has waited past a week, as one row at the end: how many, and who ("2 over a week" left out what was). */
+  older: { row: (n: number) => `${n} waiting over a week` },
+  /**
+   * Every row past a week marked done at once, with one Undo: they leave Need you until they write again. The words name
+   * no list: "They leave Need you" named a head a phone never draws, and read as the Inbox's "Needs you" misspelt
+   * (3 Nov 2026).
+   */
   oldDone: {
     act: "Mark all done",
-    detail: "They leave Need you. A new message from them brings them back.",
+    detail: "Off your list until they write again.",
     yes: "Mark done",
     done: (n: number) => (n === 1 ? "Marked done" : `${n} marked done`),
     failed: (n: number) => (n === 1 ? "One couldn't be marked done" : `${n} couldn't be marked done`),

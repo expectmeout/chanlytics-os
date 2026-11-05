@@ -2,6 +2,7 @@ export { answerOf, refusalOf, estimateForRound } from "./lead-answers";
 export {
   searchRow,
   answerPlanOf,
+  morePlanOf,
   leadScope,
   leadSearchScope,
   waitingQuestionOf,
@@ -23,6 +24,7 @@ export {
   saidLeadPutBack,
 } from "./lead-work";
 export { draftFor } from "./lead-draft";
+export { sendLeadEmail } from "./lead-send";
 export { lineForMe, newIdeas, suggestionsKept, suggestionsWritten, setBusinessLine } from "./lead-suggestions";
 export { exportLeads } from "./lead-export";
 

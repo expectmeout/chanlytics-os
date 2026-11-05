@@ -15,6 +15,7 @@ import {
   type HoldDoor,
   type ReachOutHold,
 } from "../reach-out/reach-out-words";
+import type { ReachOutDecision } from "../reach-out/reach-out-dtos";
 import { capitalize } from "../shared/words";
 
 /**
@@ -70,6 +71,28 @@ export function waitingAnswersOf(e: { opening: string | null; checking: boolean 
     .filter((a) => a.door !== "include")
     .map((a) => ({ ...a, lead: false }));
   return [...rewrite, ...no];
+}
+
+/** What a row says of an email whose words are its lead's own (decision 0096), where it would quote the opening. */
+export const OWN_WORDS_SAID = {
+  yours: "Your words",
+  held: "You changed its words. Press Send anyway and it goes.",
+} as const;
+
+/**
+ * A held email whose lead has words of their own holding no line: what the check refused of its opening is gone, so its
+ * reason is the member's to answer with Include, and there is nothing to rewrite. A hold about the business stands as it is,
+ * and so does one the check could not run for, which it runs again by itself.
+ */
+export function heldOwnWordsOf<H extends { why: string; answers: readonly HeldAnswer[] }>(h: H): H {
+  const words = h.answers.some((a) => a.door === "rewrite") && h.answers.some((a) => a.door === "include");
+  return {
+    ...h,
+    why: words ? OWN_WORDS_SAID.held : h.why,
+    answers: h.answers
+      .filter((a) => a.door !== "rewrite")
+      .map((a) => (words && a.door === "include" ? { ...a, lead: true } : a)),
+  };
 }
 
 /** A held email's opening as its row draws it: the words before what the check refused, those words, and the rest. */
@@ -130,3 +153,68 @@ export function sequencePersonWhyOf(p: {
   if (p.group === "held" && isReachOutHold(p.why)) return heldWhyOf(p.why, p.hold_detail);
   return p.hold_detail ?? p.why ?? null;
 }
+
+/* ------------------------------------------------------------------------------------------ the opening, again -- */
+
+/**
+ * What the check is doing while it writes an opening again (00505), as it says so: reading the business's own site,
+ * writing, checking what it wrote against the business's record, and writing once more where the check refused it.
+ */
+export const REWRITE_STEPS = ["reading", "writing", "checking", "again"] as const;
+export type RewriteStep = (typeof REWRITE_STEPS)[number];
+
+/** The most emails one press asks to be written now: one from a row or the lead sheet, a batch's held from Rewrite all. */
+export const REWRITE_NOW_MAX = 20;
+
+/** Rewrite the opening's ask, wherever the press is, and what it says while it writes (00505). */
+export const REWRITE_WORDS = {
+  change: "What should change?",
+  changeHint: "Optional. Leave it blank for a different one.",
+  go: "Rewrite",
+  back: "Back",
+  undo: "Undo",
+  steps: {
+    reading: "Reading their website…",
+    writing: "Writing…",
+    checking: "Checking it against their listing…",
+    again: "Writing it again…",
+  } satisfies Record<RewriteStep, string>,
+} as const;
+
+/** A name's possessive, as a receipt says it: "Lamplight Books' opening", "Persida's opening". */
+export const theirsOf = (name: string): string => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
+
+/** What a rewrite came back with, as the check left it: its words, read or not yet, held or not, its sequence paused. */
+export interface RewroteOpening {
+  written: boolean;
+  held: string | null;
+  paused: boolean;
+}
+
+/**
+ * What a rewrite did, said once wherever it was pressed: its new opening written (and held again where the check held
+ * it), written once its paused sequence runs, or still being written, which the page shows as it lands.
+ */
+export function rewroteWords(name: string, o: RewroteOpening | null): string {
+  if (o && o.written) return `${theirsOf(name)} new opening is written${o.held ? ", and the check held it" : ""}`;
+  if (o && o.paused) return `${theirsOf(name)} opening is written again once its sequence runs`;
+  return `${theirsOf(name)} opening is being written again`;
+}
+
+/**
+ * Ask's card for an answer to a held email (the dashboard's ask/tools/act/sequence.ts): its title, and what follows
+ * it. A rewrite is written at once and undone; an email let go may be on its way.
+ */
+export const HELD_DECIDE_CARD: Record<ReachOutDecision, { title: string; after: (change: string) => string }> = {
+  include: {
+    title: "Let it go as it is",
+    after: () => "An email let go may be on its way at once, so nothing undoes it.",
+  },
+  rewrite: {
+    title: "Write its opening again",
+    after: (change) =>
+      `Its opening is written again at once${change ? `, as asked: “${change}”` : ""}; Undo puts the earlier one back.`,
+  },
+  skip: { title: "Leave it out of this batch", after: () => "Nothing undoes it." },
+  not_a_fit: { title: "Set the business aside", after: () => "Nothing undoes it." },
+};

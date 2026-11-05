@@ -1,12 +1,15 @@
 /**
- * lead_collect: one batch of a run's items per commit (clean, identity, judge, classify, distance, commit), a Stop,
- * and a checker run's answers. The places it commits are made in places.ts and marked in mark-places.ts; what
- * follows a run's last item is round-decision.ts. A people run's items are companies (00430): people.ts.
+ * lead_collect: one batch of a run's items per commit (clean, identity, a site's words where the plan reads sites, judge,
+ * classify, distance, mark, commit), a Stop, and a checker run's answers. The places it commits are made in places.ts,
+ * read in site-reads.ts and marked in mark-places.ts; what follows a run's last item is round-decision.ts. A people run's
+ * items are companies (00430): people.ts.
  */
 
 import {
+  LEAD_SITE_READ_USD,
   judgeBatchPlaces,
   peoplePlanOf,
+  planReadsSites,
   type JudgePlaceAnswer,
   type LeadEmailState,
   type LeadRoundState,
@@ -14,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import { CARDS, areaCenter, type LeadCheckerRunner } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
-import { inArea } from "../geo";
+import { inArea, type LatLng } from "../geo";
 import { runIdFor } from "../ids";
 import { foldDuplicates, identityOf, shareKeysOf, sharesWithin } from "../identity";
 import { factsOf, judgeInCalls, opIdFor } from "../judge";
@@ -32,6 +35,7 @@ import type {
 import { checkable, isAgainRun } from "./check";
 import { markPlaces } from "./mark-places";
 import { collectPeople } from "./people";
+import { readSitesBeforeJudge, settleSiteReads, siteFactOf, siteReadsOf, type SiteReads } from "./site-reads";
 import { centerOf, memberOf, takeBatch, type Prepared } from "./places";
 import { roundDecision } from "./round-decision";
 import {
@@ -39,6 +43,7 @@ import {
   DUPLICATE_REASON,
   JUDGE_MARGIN_MS,
   LEASE_SECONDS,
+  SCREEN_MARGIN_MS,
   LeadRetry,
   OUT_OF_AREA_REASON,
   PAGE_ITEMS,
@@ -46,6 +51,7 @@ import {
   type Phase,
   iso,
   isRefused,
+  markUntil,
   minute,
   outOfTime,
 } from "./rules";
@@ -66,6 +72,8 @@ export type CollectOutcome =
       runState: LeadRunState | null;
       roundState: LeadRoundState | null;
       judgeRefused: string | null;
+      /** The businesses' sites it read, each a credit (site-reads.ts). */
+      siteReads: number;
     }
   | { kind: "checked"; results: number; last: boolean }
   | { kind: "stopped" }
@@ -101,21 +109,75 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
     await p.schedule("lead_collect", { run_id: run.id, seq: `${seq}.b` }, 30);
     return { kind: "busy" };
   }
+  const sites = siteReadsOf(p);
   try {
     // A people search's run (00430): its items are people at companies, kept as companies, each read by its judge.
     if (peoplePlanOf(round.plan)) return await collectPeople(p, round, run, owner, gen);
-    return await collectHeld(p, round, run, owner, gen);
+    return await collectHeld(p, round, run, owner, gen, sites);
   } finally {
+    await settleSiteReads(p, round, sites);
     await p.db.runRelease(run.id, owner, gen);
   }
 }
 
+/** A batch's places as the workspace holds them (decision 25): those to commit, those the judge must read, those it holds. */
+async function identified(
+  p: LeadPorts,
+  round: LeadRoundRow,
+  prepared: Prepared[],
+  geo: { center: LatLng | null; radiusM: number },
+): Promise<{ rows: BatchRow[]; toJudge: Prepared[]; yoursAt: number[] }> {
+  const cleans = prepared.map((x) => x.clean);
+  const { folded } = foldDuplicates(cleans);
+  const keys = cleans.map(shareKeysOf);
+  const [held, supp, shares] = await Promise.all([
+    p.db.placeIdsHeld(
+      round.tenant_id,
+      cleans.map((c) => c.raw.placeId),
+    ),
+    // Every address a place carries, free mail included: a share key leaves gmail.com out because it names no
+    // business, but a person at a gmail.com address can still have said stop (00174's unsubscribe).
+    p.db.suppressed(round.tenant_id, {
+      emails: cleans.flatMap((c) => c.emails),
+      placeIds: cleans.map((c) => c.raw.placeId),
+    }),
+    p.db.sharesOf(round.tenant_id, {
+      phones: keys.flatMap((k) => k.phones),
+      emails: keys.flatMap((k) => k.emails),
+      hosts: keys.flatMap((k) => k.hosts),
+    }),
+  ]);
+  const within = sharesWithin(cleans.filter((c) => !folded.has(c.raw.placeId)));
+  const toJudge: Prepared[] = [];
+  const rows: BatchRow[] = [];
+  const yoursAt: number[] = [];
+  for (const prep of prepared) {
+    const idn = identityOf(prep.clean, held, supp.placeIds, shares);
+    if (idn.kind === "already_yours") yoursAt.push(prep.index);
+    if (idn.kind === "already_yours" || idn.kind === "hidden") continue;
+    const dup = folded.get(prep.clean.raw.placeId) ?? null;
+    if (!prep.rule && geo.center && !inArea(geo.center, geo.radiusM, prep.clean.raw.location))
+      prep.rule = { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null };
+    // A suppressed address is not a hidden place, but the email is never offered again.
+    prep.clean.emails = prep.clean.emails.filter((e) => !supp.emails.has(e));
+    rows.push({ prep, shares: [...idn.shares, ...(within.get(prep.clean.raw.placeId) ?? [])], duplicateOf: dup });
+    if (!prep.rule && !dup) toJudge.push(prep);
+  }
+  return { rows, toJudge, yoursAt };
+}
+
+/**
+ * One run's page, under its lease (collect above). A place the workspace already holds was read and paid for and is
+ * skipped: it is counted on the run (`already_yours`, 00506), so what a main phase pays again for its probe's places is
+ * measured before anything is changed for it.
+ */
 async function collectHeld(
   p: LeadPorts,
   round: LeadRoundRow,
   run: LeadRunRow,
   owner: string,
   gen: number,
+  sites: SiteReads,
 ): Promise<CollectOutcome> {
   const plan = round.plan;
   const card = CARDS[plan.card];
@@ -162,86 +224,72 @@ async function collectHeld(
   let judgeRefused: string | null = null;
 
   do {
-    const { end, prepared } = takeBatch(card, items, cursor, judgeBatchPlaces(plan));
-    const isLastOfPage = end >= items.length;
+    const batch = takeBatch(card, items, cursor, judgeBatchPlaces(plan));
     // Identity, by what the workspace already holds: place ids, suppressions, shared details (decision 25).
-    const cleans = prepared.map((x) => x.clean);
-    const { folded } = foldDuplicates(cleans);
-    const keys = cleans.map(shareKeysOf);
-    const [held, supp, shares] = await Promise.all([
-      p.db.placeIdsHeld(
-        round.tenant_id,
-        cleans.map((c) => c.raw.placeId),
-      ),
-      // Every address a place carries, free mail included: a share key leaves gmail.com out because it names no
-      // business, but a person at a gmail.com address can still have said stop (00174's unsubscribe).
-      p.db.suppressed(round.tenant_id, {
-        emails: cleans.flatMap((c) => c.emails),
-        placeIds: cleans.map((c) => c.raw.placeId),
-      }),
-      p.db.sharesOf(round.tenant_id, {
-        phones: keys.flatMap((k) => k.phones),
-        emails: keys.flatMap((k) => k.emails),
-        hosts: keys.flatMap((k) => k.hosts),
-      }),
-    ]);
-    const within = sharesWithin(cleans.filter((c) => !folded.has(c.raw.placeId)));
-    const toJudge: Prepared[] = [];
-    const rows: { prep: Prepared; shares: LeadShare[]; duplicateOf: string | null }[] = [];
-    for (const prep of prepared) {
-      const idn = identityOf(prep.clean, held, supp.placeIds, shares);
-      if (idn.kind === "already_yours" || idn.kind === "hidden") continue;
-      const dup = folded.get(prep.clean.raw.placeId) ?? null;
-      if (!prep.rule && geo.center && !inArea(geo.center, geo.radiusM, prep.clean.raw.location))
-        prep.rule = { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null };
-      // A suppressed address is not a hidden place, but the email is never offered again.
-      prep.clean.emails = prep.clean.emails.filter((e) => !supp.emails.has(e));
-      rows.push({ prep, shares: [...idn.shares, ...(within.get(prep.clean.raw.placeId) ?? [])], duplicateOf: dup });
-      if (!prep.rule && !dup) toJudge.push(prep);
-    }
-    const { said, judgments, refused } = await judgedBatch(p, round, run.id, from, toJudge);
+    const { rows, toJudge, yoursAt } = await identified(p, round, batch.prepared, geo);
+    const { said, judgments, refused, cutAt } = await judgedBatch(p, round, run.id, from, toJudge, sites);
     if (refused) judgeRefused = refused;
-    const places = rows.map((r) => {
-      const { answer, judgment, model } = said.get(r.prep) ?? { answer: null, judgment: null, model: null };
-      const rule =
-        r.duplicateOf && !r.prep.rule
-          ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
-          : r.prep.rule;
-      return memberOf(
-        plan,
-        run.term ?? "",
-        r.prep.clean,
-        answer,
-        judgment?.op_id ?? null,
-        model,
-        rule,
-        geo,
-        r.shares,
-        r.duplicateOf,
-      );
-    });
+    // A plan that reads sites commits only as far as they could be read: the rest is the next job's, whole.
+    const end = cutAt ?? batch.end;
+    const isLastOfPage = end >= items.length;
+    const waiting = end === cursor && !isLastOfPage;
+    const yours = yoursAt.filter((at) => at < end).length;
+    const places = rows
+      .filter((r) => r.prep.index < end)
+      .map((r) => {
+        const { answer, judgment, model } = said.get(r.prep) ?? { answer: null, judgment: null, model: null };
+        const rule =
+          r.duplicateOf && !r.prep.rule
+            ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
+            : r.prep.rule;
+        return memberOf(
+          plan,
+          run.term ?? "",
+          r.prep.clean,
+          answer,
+          judgment?.op_id ?? null,
+          model,
+          rule,
+          geo,
+          r.shares,
+          r.duplicateOf,
+        );
+      });
     // Their own marks, read from their own sites, before the page is committed with everything else about them.
-    await markPlaces(p, places);
+    await markPlaces(
+      p,
+      sites,
+      places.filter((x) => x.member.class !== "excluded").map((x) => x.place),
+      markUntil(p, isLastOfPage || cutAt !== null || outOfTime(p, JUDGE_MARGIN_MS)),
+    );
     newMembers.push(...places);
 
     const to = base + end;
     const runDone = isLastOfPage && pageShort && remoteFinal;
-    const stopHere = !isLastOfPage && outOfTime(p);
-    // The next collect rides the commit when this invocation will not read on: the page ended, or time is short.
+    // No judge is started short of its bound, nor a place read short of its least, so a batch that would be is the next
+    // job's, not a retry of this one.
+    const stopHere = !isLastOfPage && (cutAt !== null || outOfTime(p, JUDGE_MARGIN_MS));
+    // The next collect rides the commit when this invocation will not read on: the page ended, or time is short. One that
+    // moved nothing waits under a name of its own: this job holds the name its offset would give it, and a second row
+    // for a name is no row at all.
     const next: CollectPage["next"] = runDone
       ? null
       : !isLastOfPage && !stopHere
         ? null
-        : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: isLastOfPage && pageShort ? POLL_SECONDS : 0 };
+        : {
+            kind: "lead_collect",
+            seq: waiting ? `p${to}.w${minute(p)}` : `p${to}`,
+            run_after_seconds: waiting || (isLastOfPage && pageShort) ? POLL_SECONDS : 0,
+          };
     const decision = runDone
       ? await roundDecision(
           p,
           round,
           run,
           phase,
-          remoteState,
+          { state: remoteState, items_seen: seen + end },
           [...members, ...memberRows(newMembers, run.term)],
-          seen + end,
+          Math.max(0, usage - run.usage_usd) + sites.count() * LEAD_SITE_READ_USD,
         )
       : null;
     const page: CollectPage = {
@@ -249,6 +297,7 @@ async function collectHeld(
       places,
       usage_usd: usage,
       items_seen: seen + end,
+      already_yours: yours,
       run_state: runDone ? remoteState : null,
       next: decision?.next ?? next,
       round: decision?.round ?? (round.state === "queued" ? { state: "probing", question: null, ending: null } : null),
@@ -271,8 +320,12 @@ async function collectHeld(
     runState: lastRunState,
     roundState: lastRoundState,
     judgeRefused,
+    siteReads: sites.count(),
   };
 }
+
+/** A place of a batch that is committed: what it is, what it shares with those the workspace holds, and whose copy it is. */
+type BatchRow = { prep: Prepared; shares: LeadShare[]; duplicateOf: string | null };
 
 /**
  * What was said of one place: its answer, the judgment it was kept under (null when its call refused, or the screen
@@ -305,9 +358,11 @@ async function screened(p: LeadPorts, round: LeadRoundRow, toJudge: Prepared[]):
 }
 
 /**
- * The judge over one batch: the screen first (decision 0085), then the places it left in, in the calls the judge can
- * answer in time, side by side (core judgeInCalls), each kept by its operation id; a call refused twice is Needs review
- * (§7.1). What each place was told, and under which judgment.
+ * The judge over one batch: the screen first (decision 0085), then, where the plan reads sites, what the places it left
+ * in say of themselves, then those places, in the calls the judge can answer in time, side by side (core judgeInCalls),
+ * each kept by its operation id; a call refused twice is Needs review (§7.1). What each place was told, and under which
+ * judgment; and `cutAt`, the item the batch stops short of where a site could not be asked for in time, since a place
+ * judged without a site for want of time would read as a site that says nothing.
  */
 async function judgedBatch(
   p: LeadPorts,
@@ -315,21 +370,46 @@ async function judgedBatch(
   runId: string,
   from: number,
   toJudge: Prepared[],
-): Promise<{ said: Map<Prepared, Said>; judgments: CollectJudgment[]; refused: string | null }> {
-  const out = { said: new Map<Prepared, Said>(), judgments: [] as CollectJudgment[], refused: null as string | null };
+  sites: SiteReads,
+): Promise<{ said: Map<Prepared, Said>; judgments: CollectJudgment[]; refused: string | null; cutAt: number | null }> {
+  const out = {
+    said: new Map<Prepared, Said>(),
+    judgments: [] as CollectJudgment[],
+    refused: null as string | null,
+    cutAt: null as number | null,
+  };
   if (!toJudge.length) return out;
   if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
-  const left = await screened(p, round, toJudge);
+  // The screen only where the judge keeps its whole bound after it; short of that, the judge reads every place itself.
+  const left = outOfTime(p, JUDGE_MARGIN_MS + SCREEN_MARGIN_MS)
+    ? new Map<Prepared, Said>()
+    : await screened(p, round, toJudge);
   for (const [prep, said] of left) out.said.set(prep, said);
-  const rest = toJudge.filter((prep) => !left.has(prep));
-  if (!rest.length) return out;
+  const unsaid = toJudge.filter((prep) => !left.has(prep));
+  if (!unsaid.length) return out;
+  const reads = planReadsSites(round.plan);
+  if (reads) {
+    await readSitesBeforeJudge(
+      p,
+      sites,
+      unsaid.flatMap((x) => (x.clean.host ? [x.clean.host] : [])),
+      JUDGE_MARGIN_MS,
+    );
+    out.cutAt = unsaid.find((x) => x.clean.host && !sites.asked(x.clean.host))?.index ?? null;
+  }
+  const cutAt = out.cutAt;
+  const rest = cutAt === null ? unsaid : unsaid.filter((x) => x.index < cutAt);
+  const site = new Map<Prepared, string | null>();
+  if (reads) await Promise.all(rest.map(async (x) => site.set(x, await siteFactOf(sites, x.clean.host))));
   const calls = await judgeInCalls(
     p.judge,
     round.plan,
     rest,
-    (prep, ref) => factsOf(ref, prep.clean),
+    (prep, ref) => factsOf(ref, prep.clean, reads ? (site.get(prep) ?? null) : undefined),
     (call) => opIdFor(runId, from, call),
     round,
+    // A refused answer is asked once more only with the judge's whole bound still left: past it, Needs review.
+    () => !outOfTime(p, JUDGE_MARGIN_MS),
   );
   for (const { items: asked, judged } of calls) {
     if (judged.refused && judged.why) out.refused = judged.why;
@@ -381,14 +461,15 @@ async function stopRun(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner
       items_seen: run.items_seen,
       run_state: FINAL_RUN_STATES.has(run.state) ? null : "aborted",
       next: null,
-      round:
-        round.state === "ended" || round.state === "checking"
-          ? null
-          : { state: "checking", question: null, ending: null, ending_pending: "stopped" },
+      round: null,
     };
+    // A round still on its way sends itself to its checks with "stopped" pending, the checks' job in the same commit.
+    if (round.state !== "ended" && round.state !== "checking") {
+      page.round = { state: "checking", question: null, ending: null, ending_pending: "stopped" };
+      page.next = { kind: "lead_check", batch: 0, run_after_seconds: 0 };
+    }
     const res = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset, page);
     if (!res.ok) return { kind: "lost", why: res.why };
-    if (page.round) await p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0);
     return { kind: "stopped" };
   } finally {
     await p.db.runRelease(run.id, owner, gen);

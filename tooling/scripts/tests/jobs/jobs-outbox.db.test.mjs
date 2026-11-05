@@ -207,14 +207,27 @@ test("the database refuses every transition the machine does not have", { skip }
   assert.match(skipped.error?.message ?? "", /only be fired or canceled/);
 
   const running = await insertJob({ state: "fired", lease_until: ahead(80), attempts: 1 });
-  const unclaimed = await db.from("jobs").update({ state: "scheduled" }).eq("id", running);
-  assert.match(unclaimed.error?.message ?? "", /only finish or fail/);
+  const counted = await db.from("jobs").update({ state: "scheduled", attempts: 2 }).eq("id", running);
+  assert.match(
+    counted.error?.message ?? "",
+    /keeps its attempts/,
+    "a run put back to wait counts no claim it never made",
+  );
+  const canceled = await db.from("jobs").update({ state: "canceled" }).eq("id", running);
+  assert.match(
+    canceled.error?.message ?? "",
+    /only finish, fail or wait for its next try/,
+    "nor is it canceled mid-run",
+  );
+  const waits = await db.from("jobs").update({ state: "scheduled", lease_until: null }).eq("id", running).select("id");
+  assert.equal(waits.error, null, waits.error?.message);
+  assert.equal(waits.data.length, 1, "fired -> scheduled: a retry waits for its next try, its attempts kept (00526)");
 });
 
 test("a retired kind can no longer be queued", { skip }, async () => {
   for (const kind of ["snooze_wake", "pause_expire"]) {
     const { error } = await db.from("jobs").insert({ tenant_id: tenantId, kind, due_at: ahead(60), payload: {} });
-    assert.match(error?.message ?? "", /jobs_kind_check/, kind);
+    assert.match(error?.message ?? "", /jobs_kind_fkey/, `${kind}: no job_kinds row (00526)`);
   }
 });
 
@@ -331,16 +344,24 @@ test(
   },
 );
 
-test("the three clocks run every ten seconds, and the sweep that re-published is gone", { skip }, async () => {
-  const { data, error } = await db.rpc("sweep_schedules");
-  assert.equal(error, null, error?.message);
-  const byName = new Map(data.map((j) => [j.jobname, j]));
-  for (const name of ["jobs-tick", "expire-stale-pauses", "wake-stale-snoozes"]) {
-    assert.equal(byName.get(name)?.schedule, "10 seconds", name);
-    assert.equal(byName.get(name)?.active, true, name);
-  }
-  assert.equal(byName.has("stale-jobs-sweep"), false);
-});
+test(
+  "the ledger's clock asks every two seconds (paced to ten for all but a row just due), the other two every ten, and the sweep that re-published is gone",
+  { skip },
+  async () => {
+    const { data, error } = await db.rpc("sweep_schedules");
+    assert.equal(error, null, error?.message);
+    const byName = new Map(data.map((j) => [j.jobname, j]));
+    for (const [name, every] of [
+      ["jobs-tick", "2 seconds"],
+      ["expire-stale-pauses", "10 seconds"],
+      ["wake-stale-snoozes", "10 seconds"],
+    ]) {
+      assert.equal(byName.get(name)?.schedule, every, name);
+      assert.equal(byName.get(name)?.active, true, name);
+    }
+    assert.equal(byName.has("stale-jobs-sweep"), false);
+  },
+);
 
 test("sweep_health() watches the heartbeat, and the lines sweep 00097 left out", { skip }, async () => {
   const { data, error } = await db.rpc("sweep_health");

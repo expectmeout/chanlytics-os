@@ -26,6 +26,7 @@
  *   HOLDS_INCLUDED_FOR_CHAIN the holds an owner's Include carries to the lead's later sends in the chain (R7); an Include
  *                            past any other covers that one email
  */
+import { defang } from "../ai/fence";
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
 import { languageName } from "../templates/template-languages";
@@ -304,6 +305,18 @@ export interface ChainIssue {
 }
 
 /**
+ * A first email to a business that never heard of you carries no link (decision 0056, 7): a link in a first touch from
+ * a mailbox is what spam filters weigh most. The booking link goes in the nudge. Their preview is a link like any other,
+ * said in its own words: it goes in a later step (decision 0079).
+ */
+export function firstEmailLinkProblem(w: { subject: string | null; body: string }): ChainIssue["problem"] | null {
+  if (slotCount(w.body, "their preview") > 0) return "first_has_their_preview";
+  return linksIn(`${w.subject ?? ""}\n${w.body}`).length > 0 || slotCount(w.body, "booking link") > 0
+    ? "first_has_a_link"
+    : null;
+}
+
+/**
  * A chain, whole: each step's words, the first on day one and each after it waiting its days, and what the words ask
  * the workspace to have. {{your name}} needs a name to sign with. {{booking link}} needs the workspace's link: a chain
  * that names one the workspace does not have would hold every email it writes.
@@ -315,17 +328,8 @@ export function validateReachOutChain(c: ReachOutChainInput, has: { bookingLink:
     else
       for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
-    // A first email to a business that never heard of you carries no link (decision 0056, 7): a link in a first touch
-    // from a mailbox is what spam filters weigh most. The booking link goes in the nudge. Their preview is a link like
-    // any other, said in its own words: it goes in a later step (decision 0079).
-    if (i === 0 && !s.hand && slotCount(s.body, "their preview") > 0)
-      out.push({ step: 0, field: "body", problem: "first_has_their_preview" });
-    else if (
-      i === 0 &&
-      !s.hand &&
-      (linksIn(`${s.subject ?? ""}\n${s.body}`).length > 0 || slotCount(s.body, "booking link") > 0)
-    )
-      out.push({ step: 0, field: "body", problem: "first_has_a_link" });
+    const link = i === 0 && !s.hand ? firstEmailLinkProblem(s) : null;
+    if (link) out.push({ step: 0, field: "body", problem: link });
     if (i > 0 && s.after_days === null) out.push({ step: i, field: "after_days", problem: "step_needs_a_delay" });
   });
   // Only the emails' words are sent: a call's or a note's are the team's own, and name no slot.
@@ -429,10 +433,11 @@ export interface WrittenOpening {
   facts_used: string[];
 }
 
+/** A field as the writer is shown it (fenceLine): one holding only what a reader cannot see is no fact to lean on. */
 export function factValue(r: OpeningRecord, k: OpeningFactKey): string | null {
   const v = r[k];
   if (v === null || v === undefined) return null;
-  const s = String(v).trim();
+  const s = defang(String(v)).trim();
   return s ? s : null;
 }
 
@@ -455,7 +460,7 @@ function recordNumbers(r: OpeningRecord): Set<string> {
   }
   if (r.reviews !== null) add(r.reviews);
   for (const text of [r.business_name, r.category, r.city, r.hours, r.about, r.why_it_fits, r.website_says])
-    for (const m of (text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
+    for (const m of defang(text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
   return out;
 }
 
@@ -551,15 +556,16 @@ export function isOpeningProblem(p: string | null | undefined): p is OpeningProb
  * words, every fact it names one the record has, every number in it one the record holds, and no guess.
  */
 export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProblem | null {
-  const text = o.opening.trim();
+  // Read as the record is, so a listing's name in a sentence its own fields say matches itself, and no link hides.
+  const text = defang(o.opening).trim();
   if (!text) return "empty";
   if (wordCount(text) > OPENING_WORDS_MAX || text.length > OPENING_CHARS_MAX) return "too_long";
   // The business's own name, as its listing writes it and as it is called by, and its city are theirs, dots and all
   // ("fixit.co Repairs"); anything else shaped like an address, or an email address, is a link (a business's own host
   // is one to a spam filter too).
   let unnamed = text;
-  for (const own of [r.business_name, leadCalledByOf(r), r.city])
-    if (own?.trim()) unnamed = unnamed.split(own.trim()).join(" ");
+  for (const own of [r.business_name, leadCalledByOf(r), r.city].map((name) => defang(name ?? "").trim()))
+    if (own) unnamed = unnamed.split(own).join(" ");
   if (linksIn(unnamed).length > 0 || /@/.test(unnamed)) return "link";
   if (/\{\{|\}\}/.test(text)) return "brace";
   if (shoutingLine(text)) return "shouting";

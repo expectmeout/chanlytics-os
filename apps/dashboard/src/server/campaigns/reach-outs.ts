@@ -31,9 +31,11 @@ import {
   reachOutStepOf,
   reachOutWritesFrom,
   validateReachOutChain,
+  wordsNeedOpening,
   type ReachOutChainDto,
   type ReachOutChainInput,
   type ReachOutChainReportDto,
+  type ReachOutDecideDto,
   type ReachOutDecision,
   type ReachOutMailboxChoice,
   type ReachOutMailboxFacts,
@@ -46,11 +48,15 @@ import {
   type ReachOutStepDto,
 } from "@chanlytics/contracts";
 import {
+  decideSendDoor,
   draftsWaiting,
   emailWordsByTemplate,
   emailWordsOf,
   emitEvent,
+  leadStepKey,
+  leadWordsOfLeads,
   mailboxConnectionsOf,
+  ownWordsAtSteps,
   reachOutRunSendsOf,
   reachOutStepsOf,
   runsWaitingOf,
@@ -130,7 +136,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
-  const [words, searches, waiting, mailboxes, modes, spend, people] = await Promise.all([
+  const [words, searches, waiting, mailboxes, modes, spend, people, ownWords] = await Promise.all([
     emailWordsByTemplate(sb, tenantId, templateIds),
     searchesByIds(sb, tenantId, searchIds),
     runsWaitingOf(sb, tenantId),
@@ -145,6 +151,12 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
     workspaceMaySpend(sb, tenantId),
     // Who is in each now: a count that fails is a dash on the ledger, never the chains' failure.
     reachOutPeopleCounts(sb, tenantId),
+    // Who keeps words of their own at each step (decision 0096): what a change for everyone leaves out, said beside it.
+    ownWordsAtSteps(
+      sb,
+      tenantId,
+      steps.map((s) => s.id),
+    ).catch(() => new Map<string, number>()),
   ]);
   const nowMs = Date.now();
   // The mailboxes the chain's run writes from, by the run's own rule (contracts reachOutWritesFrom): its named ones, or
@@ -170,6 +182,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
         template_id: s.template_id,
         hand: handOf(s.hand),
         state: s.state === "running" ? "running" : "paused",
+        own_words: ownWords.get(s.id) ?? 0,
       };
     });
     const search = root.lead_search_id ? searches.get(root.lead_search_id) : undefined;
@@ -369,14 +382,19 @@ export async function removeChain(
   return { removed: true, id: root.id, decision_id: decisionId };
 }
 
-/** An owner's answer to one held (or planned) email: include, rewrite, skip, or not a fit, atomic (R18). */
+/**
+ * An owner's answer to one held (or planned) email: include, rewrite, skip, or not a fit, atomic (R18). A rewrite says
+ * what should change where its owner did (00505); its opening is written by POST reach-out-sends/check
+ * (server/sequences/opening.ts).
+ */
 export async function decideSend(
   ctx: RouteContext,
   send: { id: string; tenant_id: string; broadcast_id: string },
-  decision: ReachOutDecision,
-): Promise<{ send_id: string; decision: ReachOutDecision }> {
-  const { error } = await ctx.supabase.rpc("reach_out_send_decide", { p_send_id: send.id, p_decision: decision });
-  if (error) throw reachOutRefusal(error);
+  input: { decision: ReachOutDecision; change?: string },
+): Promise<ReachOutDecideDto> {
+  const { decision } = input;
+  const r = await decideSendDoor(ctx.supabase, { sendId: send.id, decision, change: input.change || null });
+  if (r.error) throw reachOutRefusal(r.error);
   // What a member decided of an email the check held, on the run it belongs to: an email went out, or did not, on
   // their word, and the ledger said neither.
   await emitEvent(serviceDb(), send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
@@ -592,9 +610,19 @@ export async function reachOutRunOf(
   const step = stepN === null ? null : steps[stepN];
   const c = approvalCountsOf(rows, facts.timezone);
   const boxes = await runMailboxRowsOf(ctx, tenantId, rows);
+  // Who has words of their own at this step, holding no line (decision 0096): no opening is quoted of them, and the first
+  // email the screen reads as is one of the step's words.
+  const typed = await leadWordsOfLeads(
+    ctx.supabase,
+    rows.map((s) => s.lead_id),
+  );
+  const ownOf = (s: SendRow): boolean => {
+    const words = step ? typed.get(leadStepKey(step.id, s.lead_id)) : null;
+    return !!words && !wordsNeedOpening(words);
+  };
   const [first, refused] = await Promise.all([
     firstEmailOf(ctx, tenantId, {
-      lead: c.checked[0],
+      lead: c.checked.find((s) => !ownOf(s)),
       step,
       first: stepN === 0,
       signedBy: root.signed_by,
@@ -616,7 +644,9 @@ export async function reachOutRunOf(
     later: c.later,
     first_at: c.checked[0]?.send_at ?? null,
     checking: c.planned.length - c.checked.length,
-    held: rows.filter((s) => s.state === "held" && isReachOutHold(s.reason)).map(heldOf),
+    held: rows
+      .filter((s) => s.state === "held" && isReachOutHold(s.reason))
+      .map((s) => ({ ...heldOf(s), ...(ownOf(s) ? { own: true } : {}) })),
     // A planned send always has its time (00183 reach_out_sends_planned_is_timed); one read without it is not listed
     // with a time it does not have.
     planned: c.planned.flatMap((s) =>
@@ -629,6 +659,7 @@ export async function reachOutRunOf(
               send_at: s.send_at,
               checked: !!s.checked_at,
               opening: s.opening,
+              ...(ownOf(s) ? { own: true } : {}),
             },
           ]
         : [],

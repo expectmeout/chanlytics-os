@@ -8,12 +8,19 @@ import type {
   BookingNoticePorts,
   EmailIngestPorts,
   ReplyAsked,
+  ReplyDraftPorts,
   ReplyNotice,
   ReplyReadPorts,
   Wire,
 } from "@chanlytics/core";
 import type { Database, Json } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** What a thread's draft needs of the edge: the writer, and the reader of what a sender is. */
+export type ReplyDraftEdge = {
+  write: ReplyDraftPorts["write"];
+  readSender: ReplyDraftPorts["sender"]["read"];
+};
 
 export interface PushReceipt {
   to: string;
@@ -39,6 +46,12 @@ export interface PushPort {
 export interface JobContext {
   db: SupabaseClient<Database>;
   /**
+   * A thread's draft (decision 0093), as the edge holds it: the writer is the receptionist's brain over the workspace's whole
+   * runtime, and the reader of a stranger's email the model's. INJECTED like the two below. Optional so a test context need
+   * not supply one; a reply_draft job in a runtime without it fails loudly rather than guessing.
+   */
+  drafts?: ReplyDraftEdge;
+  /**
    * The job's own tenant's wires, bound by the edge where the credentials
    * are: WhatsApp on the tenant's credentials, the texting line when the
    * workspace has one. A null wire is a refusal at the door, never a guess
@@ -61,6 +74,11 @@ export interface JobContext {
    * one; a job of this kind in a runtime without it fails loudly rather than
    * guessing.
    */
+  /**
+   * A person's calls taken off the voice provider as their erasure finishes (decision 0092). INJECTED like the saga
+   * below: the provider key lives on the edge. Optional: an erasure_finish without it says the leg was skipped.
+   */
+  eraseProviderCalls?: (callIds: string[]) => Promise<{ asked: number; deleted: number; refused: number }>;
   provisionLine?: (
     lineId: string,
     by: "owner" | "support" | "sweep",
@@ -240,8 +258,12 @@ export interface JobContext {
    * live there. INJECTED like the website reader; a preview_build job in a runtime without it fails loudly.
    */
   previews?: {
-    /** The preview's receptionist written and its website worn; answers the preview built or failed. Throws to be tried again. */
-    build: (job: ClaimedJob, deadline: number) => Promise<void>;
+    /**
+     * The preview's receptionist written and its website worn; answers the preview built or failed, or why there was
+     * nothing to build (the switch off, a preview no longer building). Throws to be tried again; the ledger marks the
+     * preview failed when it will not be (settle.ts).
+     */
+    build: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };
   /**
    * Schedule a job of this tenant — how a broadcast continues itself, one

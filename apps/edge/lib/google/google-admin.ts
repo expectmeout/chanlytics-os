@@ -176,8 +176,8 @@ async function link(c: GoogleCall): Promise<Response> {
   // A new listing forgets the old one's reviews and days: they were another place's.
   await c.db.from("google_reviews").delete().eq("tenant_id", c.tenantId);
   await c.db.from("google_listing_days").delete().eq("tenant_id", c.tenantId);
-  // The link reads the listing's website too, for the booking page it names: the only read that does.
-  const read = await checkListing(c.db, saved.data, c.tz, "read");
+  // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
+  const read = await checkListing(c.db, saved.data, c.tz, { askWebsite: true });
   await emitEvent(c.db, c.tenantId, "google.linked", "listing", null, {
     place_id: details.place_id,
     name: details.name,
@@ -286,7 +286,7 @@ async function refreshOp(c: GoogleCall, conn: ConnectionRow | null, row: Listing
   }
   if (!row) return respond(NO_LISTING);
   if (!placesKey()) return respond(NO_PLACES_KEY);
-  const read = await checkListing(c.db, row, c.tz, "keep");
+  const read = await checkListing(c.db, row, c.tz);
   return respond(refreshAnswer(read, await listingNow(c), null));
 }
 

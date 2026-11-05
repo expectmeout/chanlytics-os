@@ -30,8 +30,8 @@ export const startsSearch = (p: Pick<AskProposal, "kind" | "payload" | "plan">):
 
 /**
  * A places plan as the rows its card draws: who it finds, the words Google Maps is searched with, where and how far
- * around, how many, what each must have (on its listing, or read from its site; a nice-to-have only ranks it), what it
- * leaves out (and anyone already the owner's), and which contact shows first.
+ * around, how many, what each must have (on its listing, on its website, or Claude's read; a nice-to-have only ranks it),
+ * what it leaves out (and anyone already the owner's), and which contact shows first.
  */
 function leadPlanRows(plan: LeadSearchPlan): Array<{ label: string; value: string }> {
   const km = Math.round(plan.area.radius_m / 1000);
@@ -39,7 +39,7 @@ function leadPlanRows(plan: LeadSearchPlan): Array<{ label: string; value: strin
   const place = plan.area.kind === "zip" && plan.area.zip ? `Near ${plan.area.zip}` : planArea(plan.area);
   const must = plan.criteria.map(
     (c) =>
-      `${cap(lowerFirst(c.text))}${c.standard === "seen" ? " (on its listing)" : ""}${c.required ? "" : ", nice to have"}`,
+      `${cap(lowerFirst(c.text))}${c.on_site ? " (on its website)" : c.standard === "seen" ? " (on its listing)" : ""}${c.required ? "" : ", nice to have"}`,
   );
   return [
     { label: "Finds", value: cap(planWho(plan)) },
@@ -84,9 +84,8 @@ const monthOf = (v: unknown): PeopleMonth | null => {
 
 /**
  * A search's card as the Line draws it, or null for any other card. The press asks for what the month has room for
- * (leadPlanAsk, peoplePlanAsk) and the rows' first hold says why when that is fewer than the plan's count; a criterion
- * the listing cannot show holds the press until it is said another way, in Ask. The plan's version is never touched: a
- * new search starts at its first (lead_search_create).
+ * (leadPlanAsk, peoplePlanAsk) and the rows' hold says why when that is fewer than the plan's count. The plan's version
+ * is never touched: a new search starts at its first (lead_search_create).
  */
 export function searchCardView(p: AskProposal): SearchCardView | null {
   const pl = rec(p.payload);
@@ -94,21 +93,11 @@ export function searchCardView(p: AskProposal): SearchCardView | null {
     const plan = pl.plan as LeadSearchPlan;
     const facts = isPlanFacts(pl.facts) ? pl.facts : null;
     const ask = leadPlanAsk(plan, facts);
-    const cannot =
-      facts?.cannotSee && plan.criteria.some((c) => c.key === facts.cannotSee?.key && c.standard === "seen");
-    const holds = [
-      ...(ask.covers ? [ask.covers] : []),
-      ...(cannot && facts?.cannotSee
-        ? [
-            `A listing doesn't show “${facts.cannotSee.text}”, so it can't be confirmed. Say “${facts.cannotSee.likely}” instead, or take it out.`,
-          ]
-        : []),
-    ];
     return {
-      sheet: { holds, rows: leadPlanRows(plan) },
+      sheet: { holds: ask.covers ? [ask.covers] : [], rows: leadPlanRows(plan) },
       foot: leadPlanFactLine(plan, facts),
       source: null,
-      press: { label: ask.label, disabled: ask.count < 1 || !!cannot },
+      press: { label: ask.label, disabled: ask.count < 1 },
       commit: { ...p, payload: { ...pl, plan: { ...plan, count: ask.count } } },
     };
   }
@@ -212,7 +201,12 @@ function placesAskOf(plan: LeadSearchPlan): Record<string, unknown> {
     terms: plan.terms,
     ...where,
     contact: plan.contact,
-    criteria: plan.criteria.map((c) => ({ text: c.text, standard: c.standard, required: c.required })),
+    criteria: plan.criteria.map((c) => ({
+      text: c.text,
+      standard: c.standard,
+      required: c.required,
+      ...(c.on_site ? { on_site: true } : {}),
+    })),
     leave_out: plan.exclusions.map((e) => ({ words: e.text })),
     asked: plan.asked,
   };

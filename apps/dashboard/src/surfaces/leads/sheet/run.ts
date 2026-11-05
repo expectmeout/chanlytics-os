@@ -5,16 +5,19 @@
  * (use-pile.ts: its Undo, its line, the card turning); out of one the lead's own (peek/acts.tsx, the stage and the call)
  * or the add and Later doors said in a toast. A trip into Sequences carries the way back to this lead (contracts
  * sequenceRouteBack; trip.ts holds the names), and Take out is the sequence's own leave, whose undo is Put back, which a
- * lead who left has on the sheet too, for as long as its place can come back.
+ * lead who left has on the sheet too, for as long as its place can come back. Where nothing else needs you Take out asks
+ * first, and Write to them is the lead's own draft, sent from the owner's mail app (peek/acts.tsx).
  */
 import {
   addressOf,
   routeOfPath,
+  runRoute,
   sequenceRoute,
   sequenceRouteBack,
   type HoldDoor,
   type LeadNotAFitWhy,
   type LeadRowVM,
+  type LeadSheetAct,
   type LeadSheetSlotVM,
   type SequencePlaceDto,
   type SequenceTab,
@@ -48,6 +51,15 @@ export interface SheetRun {
   openPicker: () => void;
   /** The dock's own ask: They wrote back…. */
   askSaid: () => void;
+  /** The dock's own ask: what should change in the opening, before it is written again (00505). */
+  askRewrite: () => void;
+  /** The dock's own ask: Take out of the sequence that runs for them, with Never write to them again under it. */
+  askLeave: () => void;
+  /**
+   * The dock's own ask before Approve sends a batch of more than their one email: how many, from where, over how long; null
+   * where the batch is theirs alone, which goes on the press.
+   */
+  askApprove: (() => void) | null;
   /** Said once their place moved: read it again. */
   moved: () => void;
   /** The sheet is over another page (a record): its record is that page, and its adds have no pile. */
@@ -64,13 +76,23 @@ export function openRecordFor(
   sequenceId: string,
   tab: SequenceTab = "people",
 ): void {
+  tripFrom(r, sequenceRoute(sequenceId, tab));
+}
+
+/** Into Sequences at a route, the names held for the way back, and the way back to this Leads address on it. */
+function tripFrom(r: Pick<SheetRun, "leadId" | "name" | "row">, route: string): void {
   holdTrip({
     leadId: r.leadId,
     leadName: r.name,
     listId: r.row ? r.row.searchId : null,
     listName: r.row ? r.row.searchName || null : null,
   });
-  navigate(sequenceRouteBack(sequenceRoute(sequenceId, tab), routeOfPath(window.location.pathname)));
+  navigate(sequenceRouteBack(route, routeOfPath(window.location.pathname)));
+}
+
+/** Their batch's own screen, every email of it (Approve's Read all), with the way back to this lead, as a record's trip. */
+export function openRunFor(r: Pick<SheetRun, "leadId" | "name" | "row">, sequenceId: string, runId: string): void {
+  tripFrom(r, runRoute(runId, sequenceId));
 }
 
 /** Take out of the sequence their place stands in: the leave verb (by their place, or off its list), Put back its undo. */
@@ -85,6 +107,8 @@ export async function takeOut(r: Pick<SheetRun, "leadId" | "name" | "place" | "f
       enrollment_ids: enrollment ? [enrollment] : [],
       lead_ids: enrollment ? [] : [r.leadId],
       name: r.name,
+      // A lead, said as one in the receipt and its undo's, whichever way its place is named.
+      leads: true,
     },
     r.flash,
     r.moved,
@@ -199,7 +223,7 @@ async function decide(act: "later" | "add" | "keep" | "exclude", r: SheetRun) {
 }
 
 /** Approve the batch their step waits in, in place: the run's own verb, as the record's dock presses it. */
-async function approveOne(r: SheetRun) {
+export async function approveOne(r: Pick<SheetRun, "place" | "flash" | "moved">): Promise<void> {
   const place = r.place;
   if (!place || !place.place.batch_id) return;
   await pressed(
@@ -211,7 +235,7 @@ async function approveOne(r: SheetRun) {
 }
 
 /** An answer to their email: the decide verb a held email's row and the record press, its door named. */
-export async function decideEmail(r: SheetRun, door: HoldDoor): Promise<void> {
+async function decideEmail(r: SheetRun, door: HoldDoor): Promise<void> {
   const row = r.place ? r.place.place : null;
   if (!row || !row.send_id) return;
   await pressed(
@@ -226,7 +250,11 @@ export async function decideEmail(r: SheetRun, door: HoldDoor): Promise<void> {
 async function returnOne(r: SheetRun) {
   const leave = r.place ? r.place.put_back : null;
   if (!leave || !r.place) return;
-  const done = await undoVerb("sequence_leave", { sequence_id: r.place.sequence.id, decision_id: leave.decision_id });
+  const done = await undoVerb("sequence_leave", {
+    sequence_id: r.place.sequence.id,
+    decision_id: leave.decision_id,
+    leads: true,
+  });
   r.flash(done.ok ? { tone: "ok", msg: done.receipt } : refusalToast(done));
   r.moved();
 }
@@ -243,9 +271,25 @@ function openAct(act: "sequence" | "thread", r: SheetRun) {
   if (r.contactId && r.on) r.on.onOpenPerson(r.contactId);
 }
 
+/**
+ * The presses that ask in the sheet, or hand over to the owner's own phone or mail, before any door is asked: the picker,
+ * Take out's question, They wrote back…, Call and Write to them.
+ */
+const SHEET_FIRST = {
+  pick: (r: SheetRun) => r.openPicker(),
+  leave: (r: SheetRun) => r.askLeave(),
+  they_wrote: (r: SheetRun) => r.askSaid(),
+  call: (r: SheetRun) => (r.on ? r.on.onCall(r.leadId) : undefined),
+  write: (r: SheetRun) => (r.on ? r.on.onDraft(r.leadId) : undefined),
+} as const;
+
+/** Whether a press is one of those. */
+const asksFirst = (act: LeadSheetAct): act is keyof typeof SHEET_FIRST => act in SHEET_FIRST;
+
 /** A press of the dock. */
 export async function runSheetAct(s: Pick<LeadSheetSlotVM, "act" | "door">, r: SheetRun): Promise<void> {
   const { act } = s;
+  if (asksFirst(act)) return void (await SHEET_FIRST[act](r));
   switch (act) {
     case "not_a_fit":
       return notFitOne(r);
@@ -254,8 +298,6 @@ export async function runSheetAct(s: Pick<LeadSheetSlotVM, "act" | "door">, r: S
     case "keep":
     case "exclude":
       return void (await decide(act, r));
-    case "pick":
-      return r.openPicker();
     case "move":
       return moveOne(r);
     case "next":
@@ -264,17 +306,15 @@ export async function runSheetAct(s: Pick<LeadSheetSlotVM, "act" | "door">, r: S
     case "thread":
       return openAct(act, r);
     case "approve":
-      return approveOne(r);
+      return r.askApprove ? r.askApprove() : approveOne(r);
     case "decide":
+      // Rewrite the opening asks what should change first, in the dock's place; every other answer is pressed as it is.
+      if (s.door === "rewrite") return r.askRewrite();
       return s.door ? decideEmail(r, s.door) : undefined;
     case "take_out":
       return takeOut(r);
     case "return":
       return returnOne(r);
-    case "they_wrote":
-      return r.askSaid();
-    case "call":
-      return r.on ? r.on.onCall(r.leadId) : undefined;
     case "put_back":
       return void (r.on ? await r.on.onPutBack(r.leadId) : undefined);
     case "ready":

@@ -15,7 +15,7 @@ import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback } from "react";
 import type { AskApi } from "../legacy-bridge/ask";
 import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk } from "./frame-doors";
-import type { StayingPage, SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
+import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 
 /** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
 export interface LegacyFlash {
@@ -53,7 +53,6 @@ declare global {
  * the frame fills as it renders. They are named here too, with the verbs a surface already imports from this file.
  */
 export { askAbout, backFrom, navigate, openAsk };
-export type { StayingPage, SwipeHandlers };
 
 /** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
 export function actingRole(): string {
@@ -103,6 +102,16 @@ export const warmsOnReach = (e: { pointerType?: string } | null | undefined): bo
  */
 export function holdStill(control: Element | null | undefined, change: () => void): void {
   if (window.holdStill) window.holdStill(control, change);
+  else change();
+}
+
+/**
+ * A change drawn at once (React's flushSync, which the shell publishes with its React), so what follows it in the same
+ * press finds the page as it now stands: the folded reply box opened before its field takes the caret. Else just run.
+ */
+export function drawnNow(change: () => void): void {
+  const flush = window.ReactDOM?.flushSync;
+  if (flush) flush(change);
   else change();
 }
 

@@ -2,13 +2,10 @@
  * The header values the rest of email/ reads and writes: one line (oneLine), a Message-ID as a header carries it,
  * and an address apart from its phrase, one or a list. The request is request.ts; what arrives is intake.ts.
  */
+import { oneLine } from "@chanlytics/contracts";
 
-/** A header value is one line: a newline in one is how a second header is smuggled in. */
-export const oneLine = (s: string): string =>
-  s
-    .replace(/\p{Cc}+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+/** A header value is one line: contracts' rule, which an email's subject is cut by too (contracts email-subject.ts). */
+export { oneLine };
 
 /** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */
 export function messageIdHeader(id: string | null | undefined): string | null {

@@ -176,7 +176,7 @@ before(async () => {
     ...(await import(at("apps/edge/lib/reach-out/clock.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/check.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/sender.ts"))),
-    ...(await import(at("apps/edge/lib/reach-out/request.ts"))),
+    ...(await import("@chanlytics/channels")),
     ...(await import(at("apps/edge/lib/email/email.ts"))),
     ...(await import(at("apps/edge/lib/email/email-receipts.ts"))),
     ...(await import(at("apps/edge/lib/email/mailbox/mailbox-sync.ts"))),

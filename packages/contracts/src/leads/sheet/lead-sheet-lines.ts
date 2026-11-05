@@ -16,6 +16,7 @@ import type { LeadPeekVM } from "../lead-peek";
 import { LEAD_CALL_OUTCOME_WORDS, type LeadCallOutcome } from "../lead-words";
 import { LEAD_SHEET_WORDS as SW } from "./lead-sheet";
 import type { LeadSheetChecksLineVM, LeadSheetEmailLineVM } from "./lead-sheet-card";
+import { LEAD_OWN_EMAIL_WORDS, leadEmailLineOf, type LeadEmailDto } from "./lead-sheet-email";
 
 export const LEAD_LINE_WORDS = {
   fit: "Fit",
@@ -41,6 +42,8 @@ export const LEAD_LINE_WORDS = {
   wrote: (intent: string | null) => (intent ? `Wrote back · ${intent}` : "Wrote back"),
   left_: (why: string) => capitalize(why),
   lastCall: (word: string, note: string | null) => (note ? `${word}: ${note}` : word),
+  /** "Did you send it?", answered yes, from before an email of your own had a row. */
+  wroteYourself: LEAD_OWN_EMAIL_WORDS.row.yourself,
 } as const;
 
 const LW = LEAD_LINE_WORDS;
@@ -82,39 +85,65 @@ const wroteOf = (place: SequencePlaceDto): string => {
   return LW.wrote(reply && isReplyIntent(reply.intent) ? REPLY_INTENT_WORDS[reply.intent] : null);
 };
 
+/** A row of History with when it happened, for the one order the sequence's rows and your own emails share. */
+type TimedRow = LeadHistoryRowVM & { ms: number };
+
+/** One thing that happened at a moment; nothing where nothing says when. */
+const rowAt = (iso: string | null | undefined, what: string, tz: string, nowMs: number): TimedRow[] => {
+  const at = leadDayOf(iso, tz, nowMs);
+  return at ? [{ at, what, ms: Date.parse(iso ?? "") }] : [];
+};
+
 /** What a sequence did for them, oldest first: joining it, each step that went, and how it ended. */
-function placeRows(place: SequencePlaceDto, tz: string, nowMs: number): LeadHistoryRowVM[] {
+function placeRows(place: SequencePlaceDto, tz: string, nowMs: number): TimedRow[] {
   const name = place.sequence.name;
-  const rows: LeadHistoryRowVM[] = [];
-  const joined = place.joined ? leadDayOf(place.joined.at, tz, nowMs) : null;
-  if (joined && place.joined) rows.push({ at: joined, what: place.joined.auto ? LW.joined(name) : LW.added(name) });
-  for (const s of place.sends) {
-    const at = leadDayOf(s.sent_at, tz, nowMs);
-    if (at) rows.push({ at, what: LW.sent(s.place) });
-  }
-  const at = leadDayOf(place.place.at, tz, nowMs);
-  if (at && place.place.group === "replied") rows.push({ at, what: wroteOf(place) });
-  if (at && place.place.group === "left")
-    rows.push({ at, what: LW.left_(sequenceLeftWords(place.place.why) || "taken out") });
-  return rows;
+  const { group, at, why } = place.place;
+  return [
+    ...(place.joined ? rowAt(place.joined.at, place.joined.auto ? LW.joined(name) : LW.added(name), tz, nowMs) : []),
+    ...place.sends.flatMap((s) => rowAt(s.sent_at, LW.sent(s.place), tz, nowMs)),
+    ...(group === "replied" ? rowAt(at, wroteOf(place), tz, nowMs) : []),
+    ...(group === "left" ? rowAt(at, LW.left_(sequenceLeftWords(why) || "taken out"), tz, nowMs) : []),
+  ];
 }
 
-/** History: how we found them, what a sequence did, and your last call with its note, each said once. */
+/** Each email of your own that came to anything, on its own day. */
+const emailRows = (emails: readonly LeadEmailDto[], tz: string, nowMs: number): TimedRow[] =>
+  emails.flatMap((e) => {
+    const line = leadEmailLineOf(e);
+    return line ? rowAt(e.at, line, tz, nowMs) : [];
+  });
+
+/**
+ * Your last word with them: a call, or an email of your own. `emailed` on the lead can't tell an email of yours from a
+ * sequence's (db leadWritten writes the same word), so it speaks only for a mark from before an email had a row of its
+ * own, and where no send of a sequence has gone: one that has is said already, as its step.
+ */
+function lastWordOf(
+  outcome: string | null,
+  place: SequencePlaceDto | null,
+  emails: readonly LeadEmailDto[],
+): string | null {
+  if (outcome === "emailed")
+    return emails.length > 0 || (place && place.sends.some((s) => s.sent_at)) ? null : LW.wroteYourself;
+  return outcome ? (LEAD_CALL_OUTCOME_WORDS[outcome as LeadCallOutcome] ?? null) : null;
+}
+
+/** History: how we found them, what a sequence did and your own emails in time, and your last word with them. */
 export function leadHistoryOf(p: {
   vm: Pick<LeadPeekVM, "found" | "worked">;
   place: SequencePlaceDto | null;
+  emails: readonly LeadEmailDto[];
   tz: string;
   nowMs: number;
 }): LeadHistoryRowVM[] {
   const found = p.vm.found.map((f) => ({ at: foundDay(f.at), what: f.what }));
   const worked = p.vm.worked;
-  const outcome = worked.outcome ? (LEAD_CALL_OUTCOME_WORDS[worked.outcome as LeadCallOutcome] ?? null) : null;
+  const outcome = lastWordOf(worked.outcome, p.place, p.emails);
   const called = leadDayOf(worked.at, p.tz, p.nowMs);
-  return [
-    ...found,
-    ...(p.place ? placeRows(p.place, p.tz, p.nowMs) : []),
-    ...(outcome && called ? [{ at: called, what: LW.lastCall(outcome, worked.note) }] : []),
-  ];
+  const since = [...(p.place ? placeRows(p.place, p.tz, p.nowMs) : []), ...emailRows(p.emails, p.tz, p.nowMs)]
+    .sort((a, b) => a.ms - b.ms)
+    .map(({ at, what }) => ({ at, what }));
+  return [...found, ...since, ...(outcome && called ? [{ at: called, what: LW.lastCall(outcome, worked.note) }] : [])];
 }
 
 /** What the lines read. */

@@ -1,4 +1,6 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+export { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./email/cold-request";
+export type { RequestRefusal } from "./email/cold-request";
 export { fetchMailDomains, fetchReceivedEmail, SEND_DEADLINE_MS, SEND_MIN_MS, sendEmail } from "./email/email-resend";
 export type { ResendAnswer, ResendConfig, SendEmailOptions } from "./email/email-resend";
 export { emailPlainText } from "./email/email-text";
@@ -386,6 +388,7 @@ export { META_SIGNATURE_HEADER, metaSignatureValid } from "./meta-signature";
 export { askModel, formatRejected, resetFastHolds, streamModel, tryBound } from "./models/anthropic";
 export type {
   ModelAsk,
+  ModelAttribution,
   ModelBlock,
   ModelDeps,
   ModelMessage,
@@ -393,6 +396,8 @@ export type {
   ModelReply,
   ModelStreamReply,
 } from "./models/anthropic";
+export { createUserProfile, deleteUserProfile, listUserProfiles } from "./models/anthropic-profiles";
+export type { AnthropicProfile, ProfileCreated, ProfilesPage } from "./models/anthropic-profiles";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
 export { answerObject, breakerOf, breakerStates, providerFetch, resetBreakers } from "./provider-fetch";
@@ -407,13 +412,24 @@ export {
 } from "./public-fetch";
 export type { PublicFetchDeps, Resolve, Resolved } from "./public-fetch";
 export {
+  FIRECRAWL_CREDITS,
+  FIRECRAWL_MAP,
   FIRECRAWL_SCRAPE,
+  firecrawlCredits,
+  firecrawlMapper,
   firecrawlReader,
   imageBytes,
+  setSiteMapper,
   setSitePageReader,
+  type SiteBrand,
+  type SiteLink,
+  type SiteMapper,
+  siteMapper,
   type SitePage,
   type SitePageReader,
   sitePageReader,
+  type SiteReaderCredits,
+  type SiteReadOptions,
 } from "./site-reads";
 export { CONFIRM_PATH, confirmUrl, signConfirmToken, verifyConfirmToken } from "./tokens/confirm-token";
 export type { ConfirmClaims } from "./tokens/confirm-token";
@@ -464,21 +480,25 @@ export {
   callSummaryLine,
   createAgent,
   createAgentVersion,
+  createPhoneCall,
   createPhoneNumber,
   createRetellLlm,
   createWebCall,
   deleteAgent,
+  deleteCall,
   deletePhoneNumber,
   deleteRetellLlm,
   fetchRecording,
   getAgent,
   getAgentRaw,
   getCall,
+  getConcurrency,
   getPhoneNumber,
   getRetellLlm,
   importPhoneNumber,
   listCalls,
   liveTurns,
+  MISSED_CALL_LINE,
   normalizeCall,
   parseTranscriptText,
   publishAgentVersion,
@@ -486,9 +506,8 @@ export {
   updateAgent,
   updateLiveCall,
   updatePhoneNumber,
+  updateRetellLlm,
   verifyRetellSignature,
-  webCallBody,
-  webCallMadeOf,
 } from "./voice/voice-retell";
 export type {
   ListCallsPage,
@@ -498,11 +517,11 @@ export type {
   RetellAgentConfig,
   RetellCall,
   RetellCallRead,
+  RetellConcurrency,
   RetellConfig,
   RetellLlmConfig,
   RetellTranscriptTurn,
   RetellWrite,
-  WebCallMade,
 } from "./voice/voice-retell";
 export {
   agentSettingsDrift,
@@ -510,6 +529,7 @@ export {
   CALL_ANALYSIS_FIELDS,
   CALL_FEEL,
   CALL_HANDBOOK,
+  CALL_LIMITS,
   CALLER_UNKNOWN,
   desiredVoiceShell,
   FACTS_UNAVAILABLE,
@@ -536,6 +556,8 @@ export type {
   VoiceConvergencePlan,
   VoiceShellTarget,
 } from "./voice/voice-shell";
+export { webCallBody, webCallMadeOf } from "./voice/voice-web-call";
+export type { WebCallMade } from "./voice/voice-web-call";
 export {
   contactsSyncedOf,
   fetchMediaBytes,

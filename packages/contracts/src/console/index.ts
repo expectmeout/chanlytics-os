@@ -65,6 +65,8 @@ export {
   DeliveryRedriveSchema,
   FindQuerySchema,
   HealthQuerySchema,
+  JobKindPauseSchema,
+  JobRequeueKindSchema,
   JobRequeueSchema,
   LineActSchema,
   PartnerPayoutSchema,
@@ -81,6 +83,7 @@ export {
 } from "./console-schema";
 export type { ConsoleWhyInput } from "./console-schema";
 export {
+  actedOnProfileWho,
   dollarsWords,
   HEALTH_STATE_WORDS,
   HEALTH_TAB_WORDS,
@@ -122,7 +125,7 @@ export {
 export type { ClockState, ClockVM, HealthClockDto, OperatorPageDto, PageVM } from "./health-clocks";
 export { errorGroupReport, errorGroupsOf } from "./health-errors";
 export type { ErrorGroupsVM, ErrorGroupVM } from "./health-errors";
-export { callsOf, connectionsOf, deliveriesOf, modelCallsOf, sendsOf, webhooksOf } from "./health-parts";
+export { callsOf, connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf, sendsOf, webhooksOf } from "./health-parts";
 export type {
   CallsVM,
   ConnectionVM,
@@ -137,6 +140,8 @@ export { promiseDaysOf } from "./health-promises";
 export type { PromiseCellState, PromiseCellVM, PromiseRowVM } from "./health-promises";
 export { HEALTH_SCOPE_WORDS, HEALTH_SCOPES, inScope, oursOf, workspaceNamer } from "./health-scope";
 export type { HealthScope, HealthWorkspaceDto } from "./health-scope";
+export { LEDGER_LANE_WORDS } from "./ledger";
+export type { LedgerKindDto, LedgerLaneDto, LedgerNowDto } from "./ledger";
 export {
   privacyRequestOf,
   REQUEST_KIND_WORDS,

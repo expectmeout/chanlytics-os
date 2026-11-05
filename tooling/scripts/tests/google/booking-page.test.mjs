@@ -1,23 +1,20 @@
 /**
  * The booking link found on a business's website (the first run's Check, 3c-4): what a booking page is (contracts),
- * reading a page for one (core), and the edge's one read of the website when a listing is linked.
+ * reading a page for one (core), and the website read's find off the home page it holds (that it is kept with the read
+ * is a-website-is-read-for-check.test.mjs's).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   bookingPageOf,
-  bookingPageKept,
   bookingPageOffered,
   BOOKING_PLATFORM_HOSTS,
   BrainConfigSchema,
   LEAD_JUNK_EMAIL_DOMAINS,
-  listingFactsOf,
   onDomain,
   siteHost,
 } from "@chanlytics/contracts";
-import { bookingPageLinkedFrom } from "../../../../packages/core/src/booking-page.ts";
-import { setSitePageReader } from "@chanlytics/channels";
-import { siteBookingPage } from "../../../../apps/edge/lib/google/booking-page.ts";
+import { bookingPageLinkedFrom, bookingPageOfSite } from "../../../../packages/core/src/booking-page.ts";
 
 /* ------------------------------------ what a booking page is ------------------------------------ */
 
@@ -26,6 +23,14 @@ test("a business's own page on a booking platform is its booking page, as the ht
     ["https://www.vagaro.com/example-studio", "https://www.vagaro.com/example-studio"],
     ["http://example-studio.glossgenius.com/", "https://example-studio.glossgenius.com/"],
     ["https://booksy.com/en-us/00000_example-studio", "https://booksy.com/en-us/00000_example-studio"],
+    [
+      "https://example-studio.zenoti.com/webstoreNew/services",
+      "https://example-studio.zenoti.com/webstoreNew/services",
+    ],
+    [
+      "https://www.joinblvd.com/b/example-studio/widget#/visit-type",
+      "https://www.joinblvd.com/b/example-studio/widget",
+    ],
     ["https://squareup.com/appointments/book/abc/def", "https://squareup.com/appointments/book/abc/def"],
     [
       "https://book.squareup.com/appointments/abc/location/def",
@@ -133,103 +138,28 @@ test("a page with no booking link has none, and a page written to be slow to rea
   }
 });
 
-/* ------------------------------------ the edge's read of the website ------------------------------------ */
+/* ------------------------------------ the website read's find ------------------------------------ */
 
 const FOUND = "https://booksy.com/en-us/00000_example-studio";
-/**
- * The platform's page reader stood in for (channels setSitePageReader; Firecrawl's in production, which follows the
- * site's own redirects): each address asked kept, and each answered with `answer`'s page, or none.
- */
-const reading = async (answer, run) => {
-  const asked = [];
-  const before = setSitePageReader(async (url) => {
-    asked.push(url);
-    return answer(url);
-  });
-  try {
-    return { got: await run(), asked };
-  } finally {
-    setSitePageReader(before);
-  }
-};
+/** The home page as the platform's page reader hands it (channels SitePage): where it landed, as a browser drew it. */
 const drawn = (body, url = "https://studio.example.com/") => ({ url, html: page(body), markdown: "" });
 
-test("a website that is itself a booking page is the listing's booking page, and is not read", async () => {
-  const r = await reading(
-    () => {
-      throw new Error("must not be read");
-    },
-    () => siteBookingPage("https://www.vagaro.com/example-studio"),
-  );
-  assert.deepEqual([r.got, r.asked], ["https://www.vagaro.com/example-studio", []]);
-});
-
-test("a website's home page is read for the booking page it names, wherever its own redirects landed", async () => {
-  const r = await reading(
-    () => drawn(`<a href="${FOUND}">Book now</a>`),
-    () => siteBookingPage("https://studio.example.com"),
-  );
-  assert.deepEqual([r.got, r.asked], [FOUND, ["https://studio.example.com/"]]);
-  const hopped = await reading(
-    () => drawn(`<a href="${FOUND}">Book</a>`, "https://www.studio.example.com/"),
-    () => siteBookingPage("http://studio.example.com/"),
-  );
-  assert.deepEqual([hopped.got, hopped.asked], [FOUND, ["http://studio.example.com/"]], "one ask; the reader follows");
-});
-
-test("a page that landed in a private network, a private address, no website and a read that failed give none", async () => {
-  const inward = await reading(
-    () => drawn(`<a href="${FOUND}">Book now</a>`, "http://169.254.169.254/latest/meta-data"),
-    () => siteBookingPage("https://studio.example.com/"),
-  );
-  assert.equal(inward.got, null, "a page whose redirects ended inside a private network is not read");
-  const quiet = await reading(
-    () => drawn(`<a href="${FOUND}">Book now</a>`),
-    async () => [
-      await siteBookingPage(null),
-      await siteBookingPage("http://10.0.0.5/"),
-      await siteBookingPage("http://[fd00::1]/"),
-    ],
-  );
-  assert.deepEqual([quiet.got, quiet.asked], [[null, null, null], []], "a private address is never asked for");
-  const unread = await reading(
-    () => null,
-    () => siteBookingPage("https://studio.example.com/"),
-  );
-  assert.equal(unread.got, null);
-  const down = await reading(
-    () => {
-      throw new Error("offline");
-    },
-    () => siteBookingPage("https://studio.example.com/"),
-  );
-  assert.equal(down.got, null);
-});
-
-test("no more of a home page is read than its top: a link past it is not found", async () => {
-  const deep = await reading(
-    () => drawn(`${"x".repeat(300_000)}<a href="${FOUND}">Book now</a>`),
-    () => siteBookingPage("https://studio.example.com/"),
-  );
-  assert.equal(deep.got, null);
-  const near = await reading(
-    () => drawn(`${"x".repeat(200_000)}<a href="${FOUND}">Book now</a>`),
-    () => siteBookingPage("https://studio.example.com/"),
-  );
-  assert.equal(near.got, FOUND);
-});
-
-test("a later read keeps the booking page the link found while the website is the one it was found on", () => {
-  const prev = listingFactsOf({ website: "https://studio.example.com/", booking_page: FOUND });
-  assert.equal(prev.booking_page, FOUND, "stored, and read back for what it is");
-  assert.equal(bookingPageKept(prev, "https://studio.example.com/"), FOUND);
-  assert.equal(bookingPageKept(prev, "https://new.example.com/"), null, "a new website: nothing found on it yet");
-  assert.equal(bookingPageKept(null, "https://studio.example.com/"), null);
+test("a website that is itself a booking page is its booking page, whatever its page links to; and one that lands on one is too", () => {
   assert.equal(
-    listingFactsOf({ website: "https://studio.example.com/", booking_page: "javascript:alert(1)" }).booking_page,
-    null,
-    "what is stored is read for what it is: the column is jsonb",
+    bookingPageOfSite("https://www.vagaro.com/example-studio", drawn(`<a href="${FOUND}">Book now</a>`)),
+    "https://www.vagaro.com/example-studio",
   );
+  assert.equal(
+    bookingPageOfSite("https://studio.example.com/", drawn("", "https://www.vagaro.com/example-studio")),
+    "https://www.vagaro.com/example-studio",
+    "a site that redirects there says so by landing there",
+  );
+});
+
+test("a website's home page gives the booking page it names, and a page that names none gives none", () => {
+  assert.equal(bookingPageOfSite("https://studio.example.com/", drawn(`<a href="${FOUND}">Book now</a>`)), FOUND);
+  assert.equal(bookingPageOfSite("https://studio.example.com/", drawn(`<a href="/contact">Contact</a>`)), null);
+  assert.equal(bookingPageOfSite("https://studio.example.com/", drawn("")), null);
 });
 
 test("the booking page is offered only while the config holds no booking link: the one test, for the read and the page", () => {

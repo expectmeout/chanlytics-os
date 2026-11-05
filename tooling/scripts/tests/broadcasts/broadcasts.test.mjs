@@ -363,7 +363,8 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
       h.includes("wa_profile_name, email, email_marketing"),
     "the person's row still carries what the run needs",
   );
-  assert.ok(h.includes('recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally)'));
+  // The run marked sent and its broadcast.sent with the tally, in one transaction (00527 finish_broadcast, decision 0089).
+  assert.ok(h.includes("finishBroadcast(db, job.tenant_id, id, tally)"));
   // Not one port answers from a read whose error it dropped. Every one of them
   // is a question the run then acts on, and `{ data }` alone turns a read that
   // failed into a confident wrong answer -- always in the direction of a real

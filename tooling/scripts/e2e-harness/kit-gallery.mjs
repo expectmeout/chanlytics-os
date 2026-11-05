@@ -817,7 +817,7 @@ const kitMenu = () =>
     tone: " more-item-two",
     after: `<span class="more-item-meta">Goes the day before, at the time they booked</span>`,
   }) +
-  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item">` +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item more-item-two">` +
   `<span class="more-glyph" aria-hidden="true">${icon("pause", 16)}</span>` +
   `<span class="more-item-label">Snooze</span><span class="more-item-meta">Until tomorrow, 10:00 AM</span></button>` +
   `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item danger">` +

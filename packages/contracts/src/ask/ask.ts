@@ -258,6 +258,7 @@ export interface AskProposal {
     | "sequence_move"
     | "lead_search_aim"
     | "sequence_send_decide"
+    | "sequence_lead_words"
     | "sequence_send_said"
     | "sequence_draft"
     | "sequence_make"

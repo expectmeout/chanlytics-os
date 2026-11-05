@@ -5,7 +5,13 @@
  * door given a tenant keeps to it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
+import {
+  maySpend,
+  type BillingMode,
+  type BillingStatus,
+  type LeadEmailDto,
+  type SpendKind,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { emailWordsFrom } from "./reach-out-sheet";
 import { withdrawQueued } from "./control";
@@ -14,13 +20,25 @@ import { recordEvent } from "../events";
 type Db = SupabaseClient<Database>;
 /** One message of a sequence to one person (00440): a customer's (contact_id, no lead_id) or a lead's. */
 export type SequenceSendRow = Database["public"]["Tables"]["sequence_sends"]["Row"];
-/** A send to a lead: its lead always named (sequence_sends_someone, and every reader here keeps to a lead's sends). */
-export type ReachOutSendRow = Omit<SequenceSendRow, "lead_id"> & { lead_id: string };
+/** A sequence's send to a lead: its lead always named, with its sequence and its batch (a lead's own email has neither, 00540). */
+export type ReachOutSendRow = Omit<SequenceSendRow, "lead_id" | "sequence_id" | "batch_id"> & {
+  lead_id: string;
+  sequence_id: string;
+  batch_id: string;
+};
 export type ReachOutSendInsert = Database["public"]["Tables"]["sequence_sends"]["Insert"];
+/** A send to a lead as the clock settles it: a sequence's, or a lead's own email, which names neither (00540). */
+export type LeadSendRow = Omit<SequenceSendRow, "lead_id"> & { lead_id: string };
+
+/** A sequence's own of a lead's sends: a lead's own email has no run to go back to, and no step to write it from. */
+export const ofASequence = (s: LeadSendRow): s is ReachOutSendRow => s.sequence_id !== null && s.batch_id !== null;
 
 /** The rows a lead's reader handed back, each with its lead: a customer's send among them would be a reader's mistake. */
 export function leadSends(rows: readonly SequenceSendRow[] | null): ReachOutSendRow[] {
-  return (rows ?? []).flatMap((r) => (r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []));
+  return (rows ?? []).flatMap((r) => {
+    const s = r.lead_id ? { ...r, lead_id: r.lead_id } : null;
+    return s && ofASequence(s) ? [s] : [];
+  });
 }
 
 export interface AudienceLead {
@@ -96,7 +114,7 @@ export async function claimSends(
 /** One send's move, only from the state it was read in: a stale writer changes nothing and is told so. */
 export async function moveSend(
   db: Db,
-  p: { tenantId: string; id: string; from: ReachOutSendRow["state"]; patch: Partial<ReachOutSendRow> },
+  p: { tenantId: string; id: string; from: LeadSendRow["state"]; patch: Partial<LeadSendRow> },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_sends")
@@ -154,7 +172,7 @@ export async function reachOutFollowers(
 
 /** A queued send and what became of its email (00186 reach_out_queued_outcomes). An email row gone is all nulls. */
 export interface QueuedOutcome {
-  send: ReachOutSendRow;
+  send: LeadSendRow;
   status: string | null;
   error: unknown;
   /** When it left, as its row was stamped (messages_guard's status_at.sent). */
@@ -248,6 +266,88 @@ export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; r
     reason: { reason: p.reason },
   });
   return withdrawn.length > 0;
+}
+
+/* ---------------------------------------------------- a lead's own email -- */
+
+/** The mailbox a lead's sequence writes to it from (each lead hears from one, 00424), the latest; null where none has. */
+export async function leadSequenceMailboxOf(db: Db, tenantId: string, leadId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("sequence_sends")
+    .select("mailbox_id")
+    .eq("tenant_id", tenantId)
+    .eq("lead_id", leadId)
+    .not("sequence_id", "is", null)
+    .not("mailbox_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`cannot read the lead's sequence's mailbox: ${error.message}`);
+  return data?.[0]?.mailbox_id ?? null;
+}
+
+/**
+ * Whether an email of the lead's own is still on its way (one a lead, 00540's partial index). One taken back with Undo
+ * has ended, though the clock has not read it yet: settled here, so writing it again goes straight through.
+ */
+export async function leadEmailOnItsWay(db: Db, tenantId: string, leadId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("sequence_sends")
+    .select("id, message_id")
+    .eq("tenant_id", tenantId)
+    .eq("lead_id", leadId)
+    .is("sequence_id", null)
+    .eq("state", "queued");
+  if (error) throw new Error(`cannot read the lead's emails: ${error.message}`);
+  let waiting = false;
+  for (const s of data ?? []) {
+    const email = s.message_id ? await writtenEmail(db, { tenantId, id: s.message_id }) : null;
+    if (email?.status === "canceled")
+      await moveSend(db, { tenantId, id: s.id, from: "queued", patch: { state: "skipped", reason: "canceled" } });
+    else waiting = true;
+  }
+  return waiting;
+}
+
+/**
+ * A lead's own email kept: its message, where it has one, then its row. "on_its_way" when another took the one place a
+ * lead has for one queued (a second press), and its message goes back.
+ */
+export async function keepLeadEmail(
+  db: Db,
+  p: { message: MessageInsert | null; send: ReachOutSendInsert },
+): Promise<"kept" | "on_its_way"> {
+  if (p.message) await insertQueuedEmail(db, p.message);
+  const { error } = await db.from("sequence_sends").insert(p.send);
+  if (!error) return "kept";
+  // Never a queued email no job will send: its job is asked for only once its row is kept. The row's failure is what's said.
+  if (p.message)
+    await withdrawEmail(db, { tenantId: p.send.tenant_id, id: p.message.id ?? "", reason: "send_moved" }).catch(
+      () => false,
+    );
+  if (error.code !== "23505") throw new Error(`cannot keep the lead's email: ${error.message}`);
+  return "on_its_way";
+}
+
+/** A lead's own emails, oldest first (GET leads/:id/emails), on the session's client. */
+export async function leadEmailsOf(db: Db, tenantId: string, leadId: string): Promise<LeadEmailDto[]> {
+  const { data, error } = await db
+    .from("sequence_sends")
+    .select(
+      "id, state, reason, sent_at, said_at, created_at, mailbox:mailbox_connections!sequence_sends_mailbox_id_same_workspace(address)",
+    )
+    .eq("tenant_id", tenantId)
+    .eq("lead_id", leadId)
+    .is("sequence_id", null)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the lead's emails: ${error.message}`);
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    state: s.state,
+    at: s.sent_at ?? s.created_at,
+    from: s.mailbox?.address ?? null,
+    said: s.said_at !== null,
+    reason: s.reason,
+  }));
 }
 
 /* ------------------------------------------------------------ the sender -- */
@@ -610,11 +710,12 @@ export async function recordCheck(
 }
 
 /**
- * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
- * may not. The one reading of it: the step's run (run-context.ts), the check and the dashboard's chains ask it. A read that fails throws:
- * "we could not check" is not "yes".
+ * Whether a workspace may spend now (contracts maySpend, by the spend's kind: reach-out and a plan's own reads the
+ * number's row, the finder its leads'): a paused workspace, or one with no billing row, may not. The one reading of it:
+ * the step's run (run-context.ts), the check, the dashboard's chains, the finder's runner and the rehearsal's window ask
+ * it. A read that fails throws: "we could not check" is not "yes".
  */
-export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boolean> {
+export async function workspaceMaySpend(db: Db, tenantId: string, kind: SpendKind = "number"): Promise<boolean> {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
@@ -622,7 +723,7 @@ export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boole
   if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || !billing.data) return false;
-  return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus);
+  return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus, kind);
 }
 
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */

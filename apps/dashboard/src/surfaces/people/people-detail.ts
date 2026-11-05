@@ -21,7 +21,7 @@ import { workspaceZone } from "@/legacy-bridge/zone";
 import { codeOnce } from "@/lib/code-once";
 import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
 import { holderName } from "../holder-names";
-import { keepSavedView, peopleLoaded } from "./surface";
+import { keepSavedView, peopleGoing, peopleLoaded } from "./surface";
 import { declareReads, personRouteId } from "@/legacy-bridge/surface-registry";
 import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { bootWaitsFor } from "@/legacy-bridge/surface-runner";
@@ -283,7 +283,44 @@ export async function notAPerson(id: string, scope: "address" | "domain"): Promi
   return r;
 }
 
-/** The people this tab deleted (deletePerson, notAPerson). */
+/** What a press of Delete… answered: who is going, who is not and why, and who was not there to go. */
+export interface DeletedMany {
+  ok: boolean;
+  going: string[];
+  failed: { id: string; message: string }[];
+  skipped: string[];
+  message?: string;
+}
+
+/**
+ * Many people deleted at one press (People's Delete…), however many: the server hands them to the ledger and answers,
+ * and they leave People here as it does (peopleGoing), the erasing behind it; with `notAPersonToo`, each one's address
+ * said automated first, as notAPerson says it. Owner-only on the server, on a fresh session, and never undone. The
+ * press reads nothing again (refresh-map.ts REFRESHES_NOTHING): nobody is erased yet, so there is nothing for a read to
+ * show. Pressing again after a refused press is safe: whoever is going already has their one erasure.
+ */
+export async function deletePeopleMany(ids: string[], notAPersonToo: boolean): Promise<DeletedMany> {
+  const take = [...new Set(ids)];
+  const r = await api()("POST contacts/erase", { body: { ids: take, not_a_person: notAPersonToo } });
+  if (!r.ok) return { ok: false, going: [], failed: [], skipped: [], message: r.message };
+  for (const id of r.data.going) {
+    people().forget(id);
+    deletedHere.add(id);
+  }
+  peopleGoing(r.data.going, erasedBehind);
+  return { ok: true, ...r.data };
+}
+
+/**
+ * What a person erased moves beside People, read again as Delete person's own answer reads it (refresh-map.ts `erased`):
+ * asked once the ledger has erased those a press handed it (surface.ts peopleGoing), since that press erases nobody.
+ */
+function erasedBehind(): void {
+  staleReadCaches();
+  void import("@/legacy-bridge/refresh-map").then((m) => m.refreshAfter("DELETE contacts/[id]")).catch(() => {});
+}
+
+/** The people this tab deleted (deletePerson, notAPerson, deletePeopleMany). */
 const deletedHere = new Set<string>();
 
 /**

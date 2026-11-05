@@ -118,6 +118,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(byAge("ask_voice_sessions"), "context", "scope", "token_cipher"),
     ...all(NOT_PERSONAL, "id", "conversation_id", "surface", "turn_key"),
   },
+  // Whom Anthropic is told a call is for (00544): ids and Anthropic's own words, nothing a person wrote.
+  anthropic_profiles: all(NOT_PERSONAL, "reference_id", "profile_id", "enforcement_actions"),
   // The workspace's account with Stripe: its payer's card, and Stripe's ids and price.
   billing_accounts: {
     ...all(WITH_WORKSPACE, "card_brand", "card_last4"),
@@ -271,7 +273,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   jobs: {
     // A thrown error can quote the recipient a provider refused.
     ...all(scrubbedBy("jobs_scrub", "erase_contact"), "payload", "last_error"),
-    // Ids only (jobs dedupeKeyOf).
+    // Ids only (job_dedupe_key_of, 00526: the parts each kind names in job_kinds).
     dedupe_key: NOT_PERSONAL,
   },
   lead_counters: { period: NOT_PERSONAL },
@@ -488,6 +490,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
   segments: all(NOT_PERSONAL, "name", "rule"),
+  // What the first run chose (decision 0091): the business's own number and how its calls reach the receptionist, the
+  // workspace's record; the steps it marked done, from a closed list.
+  setup_choices: { phone: WITH_WORKSPACE, marks: NOT_PERSONAL },
   // A sequence (decision 0060): its name, and a one-off kept as a draft (00465: who it goes to by list or everyone, when,
   // its channels and its message as the owner wrote it), the business's.
   sequences: all(NOT_PERSONAL, "name", "once"),
@@ -513,6 +518,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     // What became of the signer's name, and the source it replaced: closed words, never the name.
     ...all(NOT_PERSONAL, "signer_state", "signer_was"),
   },
+  // The words a member typed for a lead at a step (00545): lead_blank deletes them with the lead's details.
+  sequence_lead_words: all(scrubbedBy("leads_trigger"), "subject", "body"),
   sequence_sends: {
     // A customer's send: the words its batch kept for them.
     facts: scrubbedBy("recipients_trigger"),
@@ -520,6 +527,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
     // A draft handed to its owner (00429): the business's address, name and the words written to it; lead_blank clears it.
     ...all(scrubbedBy("leads_trigger"), "draft"),
+    // What its owner asked of the opening and the one it replaced, and what the business's site said (00505): lead_blank
+    // clears them with the opening.
+    ...all(scrubbedBy("leads_trigger"), "rewrite_asked", "website_says"),
     // A digest of the words checked, the facts' keys, and the hold's, the skip's and a failure's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason"),
   },

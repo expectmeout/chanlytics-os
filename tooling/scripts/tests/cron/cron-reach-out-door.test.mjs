@@ -17,7 +17,7 @@ import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "../_cron-do
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/reach-out.ts"));
 const { sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts"));
-const { checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts"));
+const { checkedWordsOf } = await import("@chanlytics/channels");
 const { emailWordsOf } = await import("@chanlytics/db");
 const { parseTenantConfig } = await import("@chanlytics/contracts");
 after(() => setPg(null));
@@ -1204,6 +1204,18 @@ test("a step's send answers its lead's email before (D19): Re: its subject, and 
   assert.equal(m.meta.email.request.headers.References, "<first@getharbor.example>");
   assert.deepEqual([m.meta.email.parent_id, m.meta.email.in_reply_to], ["m-first", "<first@getharbor.example>"]);
   assert.equal(m.body, "Just following up, Fixture Movers.");
+});
+
+test("an erased person's planned email is never written: its lead blank and the email before it gone, the sender skips it (its place's end is the database's, 00548)", async () => {
+  const { w, nudge } = await stepWorld();
+  // As erase_contact and lead_blank leave them: their emails deleted, each send's link to one cleared, the lead blank.
+  w.tables.messages.length = 0;
+  for (const s of w.tables.reach_out_sends) s.message_id = null;
+  Object.assign(w.tables.leads[0], { business_name: "", city: null, email: null, erased_at: ago(MIN) });
+  const [, body] = await w.send();
+  assert.deepEqual([w.row(nudge.id).state, w.row(nudge.id).reason], ["skipped", "no_parent"]);
+  assert.deepEqual([w.tables.messages.length, w.tables.jobs.length], [0, 0], "nothing is written to them");
+  assert.equal(body.claim.skipped, 1);
 });
 
 test("a step's send waits an hour while the email before has no Message-ID; after two weeks it is given up", async () => {

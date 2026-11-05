@@ -300,9 +300,8 @@ const LOCATIONS_URL = (account) => `https://mybusinessbusinessinformation.google
 const LOCATION_URL = (name) => `https://mybusinessbusinessinformation.googleapis.com/v1/${name}`;
 const REVIEWS_URL = (account, loc) => `https://mybusiness.googleapis.com/v4/${account}/locations/${loc}/reviews`;
 /** One location's own details (decision 0073, R17): its hours, services and prices, days closed and words, for Check. */
-/** A listing's facts as the one writer keeps them (listing-check.ts keepListing): every key, none known. */
+/** A listing's facts as the one writer keeps them (packages/db patchListing): every key, none known. */
 const NO_FACTS = {
-  booking_page: null,
   hours: null,
   phone_display: null,
   phone_e164: null,
@@ -685,18 +684,14 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
     ],
     google_reviews: [reviewRow(R1, { origin: "places", review_id: "p-old", body: "about the warehouse" })],
     google_listing_days: [{ tenant_id: A, day: "2026-09-01", rating: 4.5, review_count: 10 }],
+    jobs: [],
   });
   const { db } = use(tables);
+  // Google alone: the listing's website is read by the job the link asks for, never inside the link's request.
   const net = wired((req) => {
     const u = req.url.split("?")[0];
     if (u === PLACE_URL("ChIJ-does-not-exist-00")) return refusal(404, "Not found", "NOT_FOUND");
     if (u === PLACE_URL(PLACE)) return { status: 200, body: place(PLACE, { reviews: [publicReview("r-rosa")] }) };
-    // The listing's website, which says where its customers book.
-    if (u === "https://harbormoving.example/")
-      return {
-        type: "text/html; charset=utf-8",
-        body: `<nav><a href="https://calendly.com/harbor-moving-example/estimate">Book an estimate</a></nav>`,
-      };
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   const today = localDate(TZ, new Date());
@@ -763,20 +758,22 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
     [
       ["GET", PLACE_URL(PLACE)],
       ["GET", PLACE_URL(PLACE)],
-      ["GET", "https://harbormoving.example/"],
     ],
-    "read once to prove the id, once more to read the listing, and its website once for where its customers book",
+    "read once to prove the id and once more to read the listing; its website is not read inside the link",
   );
-  const [site, ...google] = [net.calls.at(-1), ...net.calls.slice(0, -1)];
   assert.ok(
-    google.every(
+    net.calls.every(
       (c) =>
         c.headers["X-Goog-Api-Key"] === "places-key-for-this-file" &&
         c.headers["X-Goog-FieldMask"] === PLACES_DETAILS_MASK,
     ),
     "the key in a header; the details mask, reviews included",
   );
-  assert.equal(site.headers["X-Goog-Api-Key"], undefined, "the key never goes to the business's own site");
+  assert.deepEqual(
+    tables.jobs.map((j) => [j.kind, j.payload.url]),
+    [["website_read", "https://harbormoving.example/"]],
+    "the website read asked for, by a job: what Check offers, and where it says its customers book (website-read.ts)",
+  );
   assert.equal(
     tables.google_listings.length,
     1,
@@ -806,7 +803,6 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
       primary_type_label: "Moving company",
       service_area_only: true,
       time_zone: "America/New_York",
-      booking_page: "https://calendly.com/harbor-moving-example/estimate",
     },
     "F7: what the listing says beyond its name is kept on the row, read at once, for the first run to offer",
   );
@@ -869,15 +865,7 @@ test("F7: a relink keeps what the read that proved the new place said, even when
 
 test("refresh on the public listing: the rating, the count and the day are written and a review written since the last read rings the bell and is on the ledger; Google's refusal stays on the row without moving the stamp; no listing is a 404; no key a 503", async () => {
   const tables = world({
-    // What the first read found on the website, which a later read keeps without reading the site again.
-    google_listings: [
-      listingRow({
-        facts: {
-          website: "https://harbormoving.example",
-          booking_page: "https://calendly.com/harbor-moving-example/estimate",
-        },
-      }),
-    ],
+    google_listings: [listingRow()],
     google_reviews: [
       reviewRow(R1, {
         origin: "places",
@@ -941,11 +929,6 @@ test("refresh on the public listing: the rating, the count and the day are writt
     "a read that succeeds clears the words",
   );
   assert.ok(Date.parse(b2.listing.checked_at) >= t0, "the stamp is the successful read");
-  assert.equal(
-    tables.google_listings[0].facts.booking_page,
-    "https://calendly.com/harbor-moving-example/estimate",
-    "the booking page the first read found, kept while the website is the same; no site is read again",
-  );
   assert.deepEqual(
     tables.google_reviews.map((r) => [r.review_id, r.origin, r.author]).sort(),
     [

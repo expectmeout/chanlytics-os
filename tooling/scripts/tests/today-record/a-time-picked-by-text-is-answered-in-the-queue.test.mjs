@@ -138,7 +138,7 @@ test("Booked it answers through the door and lays the confirmation it drafts in 
     find(tree, (n) => n.props?.["aria-label"] === NEED_YOU_WORDS.yourWords("Ana Reyes"))?.props.value;
   await until(() => typed(again(work)) === CONFIRM, "the confirmation is drafted in the row");
   const drafted = again(work);
-  assert.ok(textOf(drafted).includes("Confirmation · drafted by Ask"), textOf(drafted));
+  assert.ok(textOf(drafted).includes("Confirmation · Ask's draft"), textOf(drafted));
   assert.equal(buttonsIn(drafted, "Send").length, 1, "sent from the row, through the reply's door");
   assert.deepEqual(went, [], "the row keeps it: no trip to the thread");
   press(buttonsIn(drafted, "Don't send")[0]);

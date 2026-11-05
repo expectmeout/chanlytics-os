@@ -55,11 +55,27 @@ The started first emails carried the owner's words, but never what they changed:
    other morning asks as before and spends nothing on it. A card that waits is titled "Remember this?", never
    "Remembered".
 
+## Amended 3 November 2026 · An owner's Rewrite turns the fact down
+
+Decided by Ruben on 3 November 2026 ("Yes, build step 1", then "Yes, add both"), built on the lane
+`reach-out/rewrite-the-opening-as-you-say` with the migration `an_opening_is_written_again_as_its_owner_says`.
+
+9. **An owner's Rewrite gives way on rule 4.** Every Rewrite of a held email asks what should change, in the owner's
+   words or none. Its opening skips the fact: the writer is told the opening that was turned down and the owner's
+   words, fenced as the record's are, and the reader checks what it writes as it checks any other.
+10. **It is written at once, each step said.** The press checks that email itself (`POST reach-out-sends/check`), not on
+    the sequences' clock a minute later, and the place says each step as it is taken; at most twenty emails at once.
+    What their website says is kept with the email, up to 800 characters, so writing it again reads no site.
+11. **Undo puts the earlier opening back** with its check as it stood, until the email goes. Ask's card for a rewrite
+    takes the owner's words too, and says its Undo.
+
 ## Consequences
 
 - Migration 00493 widens one check and re-creates one door. Either deploy order after it.
 - A paste is one model call. An opening with a fact is one call where it was two to four, and cannot be held for a
   guess.
 - Step 2 adds no migration, table, sweep or page: the pair rides the ledger's row, the morning's card is Today's.
+- What a member types for one lead is decision 0096's: the model does not read it, and a check of it asks nothing of the
+  model unless the words keep their line.
 - Not in this version: Gmail's sent mail, a voice per member, a sentence joining each kind of fact to the words, facts
   ranked by their replies (worth building at about twenty replies in a workspace).

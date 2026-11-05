@@ -7,7 +7,8 @@
  *   0. an email this send already wrote (a tick that died after writing it) is adopted, whatever has changed since:
  *      it may be in somebody's inbox, so the send goes on as its email's, and the clock reads what became of it;
  *   1. the run and its chain as they stand now: a run closed since is skipped, a chain paused since waits;
- *   2. the words, the lead, the workspace and the mailbox, judged before anyone is made: words changed since the send
+ *   2. the words (this lead's own at this step, decision 0096, else the step's), the lead, the workspace and the mailbox,
+ *      judged before anyone is made: words changed since the send
  *      was checked, or an opening it names and the send has none of, send it back to be checked (Part 4, R5); a
  *      lead's own refusal (a slot it has no value for) skips it; the step's or the workspace's (no template, a slot no
  *      lead could fill, no address for the foot, no name to sign with, no booking link) holds the send, an hour on, in
@@ -18,7 +19,7 @@
  *   3. for a step after the first, the lead's email on the step before (D19), waited for while its receipt has not
  *      stamped its Message-ID;
  *   4. the person (made once, E5: reach_out_person), refused for a lead that closed or a customer's address;
- *   5. the frozen request (request.ts), the email row under its own id (core sendMessageId), and the outbound_send job
+ *   5. the frozen request (channels cold-request.ts), the email row under its own id (core sendMessageId), and the outbound_send job
  *      that sends it through the one door (deliver.ts);
  *   6. the send `claimed → queued`, and its run `scheduled → sending`.
  *
@@ -30,7 +31,7 @@
  * A reach-out its owner sends (00429) is claimed apart (reach_out_claim_drafts: no mailbox, no day's room, a step after
  * the first first) and written the same way up to its words, then, while the send door would let it go (contracts
  * draftRefusalOf), handed to its owner as a draft: claimed → drafted, its words with their values in and its foot
- * (request.ts reachOutDraft), its run's row touched so the pages that count its drafts read them again. A step after the
+ * (channels cold-request.ts reachOutDraft), its run's row touched so the pages that count its drafts read them again. A step after the
  * first whose email before it its owner sent is handed to them too, whoever sends the chain now: the thread is theirs.
  * Nobody is made and no email row is written until the owner says it went (reach_out_send_said). Drafts need no
  * unsubscribe seal, so they are claimed whether the mailbox lane is complete or not.
@@ -46,6 +47,7 @@ import {
   insertQueuedEmail,
   leadPreviewOf,
   leadSlotsOf,
+  leadStepWordsOf,
   mailboxCapacityOf,
   mailboxConnectionOf,
   monthSent,
@@ -86,7 +88,7 @@ import {
 import { dashboardOrigin, unsubscribeOrigin } from "../dashboard-origin.js";
 import { env } from "../env.js";
 import { askPreview } from "../previews/make.js";
-import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./request.js";
+import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "../packages/channels.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
 import type { LogEvent, Logger } from "../log.js";
 
@@ -409,14 +411,18 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     return turns.wait();
 
   // 2. What the email is made of, judged before anyone is made.
-  const [lead, workspace, words, mailbox] = await Promise.all([
+  const [lead, workspace, stepWords, ownWords, mailbox] = await Promise.all([
     leadSlotsOf(db, s.tenant_id, s.lead_id),
     t.reads.workspace(s.tenant_id),
     t.reads.words(s.tenant_id, standing.step.template_id),
+    // Typed for this lead on their sheet (decision 0096): the email they get, in place of the step's words. A read that
+    // fails throws, and the send stays claimed: it never goes with the step's words because this did not land.
+    leadStepWordsOf(db, { tenantId: s.tenant_id, stepId: s.step_id, leadId: s.lead_id }),
     s.mailbox_id ? t.reads.mailbox(s.tenant_id, s.mailbox_id) : Promise.resolve(null),
   ]);
   if (!lead) return skip("lead_gone");
   if (workspace.missing) return hold(workspace.missing);
+  const words = ownWords ?? stepWords;
   if (!words) return hold("no_template");
   // Checked against other words than these (its step's, the name it signs with, whether a booking link exists): the
   // check reads it again before it goes (R5). Never a skip: nothing about the lead changed.

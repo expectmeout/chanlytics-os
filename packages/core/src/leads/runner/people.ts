@@ -236,6 +236,7 @@ async function judgedPage(
         opIdFor(run.id, base, i),
         i,
         round,
+        () => !outOfTime(p, JUDGE_MARGIN_MS),
       ),
     ),
   );
@@ -265,12 +266,13 @@ async function judgedPage(
 }
 
 /**
- * How a people round ends once its run is over: the source's failure when it found nothing and did not finish, else
- * everything the plan covers was searched. Never "found what you asked for": that is the checks' to say, and a company
- * found is not yet one written to.
+ * The ending a people round leaves for its checks once its run is over: the source's failure when it found nothing and
+ * did not finish. Otherwise none: a company counts only when its address checks out, so whether the round found what
+ * was asked for is the last check's to say (lead_check_commit: the target reached, else everything searched), and a
+ * search for 100 companies that counted 100 says so (3 Nov 2026; it used to say it searched everything).
  */
-function endingOf(state: LeadRunState, held: number): LeadRoundEnding {
-  return held === 0 && state !== "succeeded" ? "source_failed" : "searched_everything";
+function pendingOf(state: LeadRunState, held: number): { ending_pending?: LeadRoundEnding } {
+  return held === 0 && state !== "succeeded" ? { ending_pending: "source_failed" } : {};
 }
 
 /**
@@ -333,7 +335,7 @@ export async function collectPeople(
   if (judged.kept.length) await p.db.companyUpsert(round.id, judged.kept);
   // Nothing of the run's first items read: it is stopped at the provider now, never paid for to its cap. The provider's
   // own state then ends it, read by the next collect with its last usage, and the round ends as the source's failure
-  // (endingOf: aborted, nobody held), never as a search that found nobody. A stop the provider did not answer leaves the
+  // (pendingOf: aborted, nobody held), never as a search that found nobody. A stop the provider did not answer leaves the
   // page uncommitted, so the collect is tried again and asks again; one it refused (the run is over already) is an answer.
   if (await unreadableStart(p, { datasetId, base, items, found: found.length })) {
     await p.apify.abortRun(run.apify_run_id as string).catch((e: unknown) => {
@@ -355,18 +357,18 @@ export async function collectPeople(
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
     run_state: runDone ? remoteState : null,
+    // The run's end sends the round to its checks in the same commit (PRD §0.5): the job is written with the move.
     next: runDone
-      ? null
+      ? { kind: "lead_check", batch: 0, run_after_seconds: 0 }
       : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort && !runOver ? POLL_SECONDS : 0 },
     round: runDone
-      ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held) }
+      ? { state: "checking", question: null, ending: null, ...pendingOf(remoteState, held) }
       : queued
         ? { state: "running", question: null, ending: null }
         : null,
   };
   const res = await p.db.collectCommit(run.id, owner, gen, base, to, page);
   if (!res.ok) return { kind: "lost", why: res.why };
-  if (runDone) await p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0);
   return {
     kind: "committed",
     commits: 1,
@@ -374,5 +376,6 @@ export async function collectPeople(
     runState: page.run_state,
     roundState: res.round_state,
     judgeRefused: judged.refused,
+    siteReads: 0,
   };
 }

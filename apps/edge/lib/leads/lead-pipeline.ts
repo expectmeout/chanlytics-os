@@ -36,7 +36,7 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
     db: leadDb(ctx.db),
     apify: wires.apify,
     judge: wires.judge,
-    fetchText: wires.fetchText,
+    readSite: wires.readSite,
     fetchBytes: wires.fetchBytes,
     storeMark: (bytes, image) => storeLeadMark(ctx.db, bytes, image),
     now: () => new Date(),

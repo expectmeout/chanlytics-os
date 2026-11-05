@@ -16,6 +16,7 @@ const KEY = "model-key-for-this-file";
 const noWait = { sleep: async () => {} };
 const ask = (over = {}) => ({
   purpose: "receptionist",
+  attribution: { profileId: null },
   body: { system: "Answer.", messages: [{ role: "user", content: "Are you open?" }] },
   ...over,
 });

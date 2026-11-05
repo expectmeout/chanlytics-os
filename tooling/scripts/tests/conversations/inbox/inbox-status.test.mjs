@@ -13,7 +13,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
-import { installLegacyReact, fresh, again, settle } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, settle, quiet, redrawWanted } from "../../_legacy-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
@@ -180,7 +180,7 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
   const rows = rowsOf(pane);
   const scroll = rows.indexOf("ix-th-scroll");
   const status = rows.indexOf("ix-th-status");
-  const composer = rows.indexOf("ix-composer");
+  const composer = rows.findIndex((r) => r.startsWith("ix-composer"));
   assert.ok(scroll > -1 && status > -1 && composer > -1, `the pane's rows: ${rows.join(", ")}`);
   assert.ok(
     scroll < status && status < composer,
@@ -389,61 +389,61 @@ test("REGRESSION: a real thread's reply box is one line with Send beside it, nam
   assert.ok(find(box, hasClass("ix-composer-send")), "Send beside it");
 });
 
-test("the reply Need you drafted is in an emailed thread's empty box, to change or send from here; an older one, or a member's own words, stay out (the live walk's INBOX-2, 27 Oct 2026)", async () => {
-  const mail = (m) => ({ ...m, channel: "email" });
-  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
-  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
-  const kept = (forId) => ({
-    conversation_id: "c1",
-    kind: "reply",
-    for_message_id: forId,
-    words: { text: "Yes, Friday works. Shall I book 10 AM?", subject: "", brief: null, asks: [] },
-    made_at: ago(30),
-  });
-  const realFetch = globalThis.fetch;
-  const open = async (forId, typed = null, over = dto) => {
-    const asked = [];
-    globalThis.fetch = async (url, init = {}) => {
-      asked.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.example").pathname}`);
-      const data = init.method === "POST" ? kept(forId) : { drafts: [kept(forId)] };
-      return new Response(JSON.stringify({ ok: true, data }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    };
-    fresh();
-    const thread = vmOf(over, esc);
-    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
-    const first = draw();
-    if (typed !== null) find(first, (n) => n.type === "textarea").props.onChange({ target: { value: typed } });
-    for (let i = 0; i < 5; i++) await settle();
-    return { value: find(draw(), (n) => n.type === "textarea").props.value, asked };
-  };
-  try {
-    const ready = await open("m1");
-    assert.equal(ready.value, "Yes, Friday works. Shall I book 10 AM?", "the draft, in the box, nothing sent");
-    assert.deepEqual(ready.asked, ["GET /api/v1/conversations/drafts"], "read as Today reads it");
-    const stale = await open("m0");
-    assert.equal(stale.value, "", "a draft for an older message is not their answer");
-    const theirs = await open("m1", "Let me check the van.");
-    assert.equal(theirs.value, "Let me check the van.", "a member's own words are never replaced");
-    // Answered since (from Gmail, or by a teammate): the draft is kept until they write again, and is no one's to send twice.
-    const answered = { ...dto, messages: [...dto.messages, mail(ours("m2", "Friday at 10 works.", 20, "sent"))] };
-    assert.equal((await open("m1", null, answered)).value, "", "answered already: the box stays empty");
-  } finally {
-    globalThis.fetch = realFetch;
-  }
-});
-
-test("the kept reply comes with the Inbox's first reads: the box draws with its words in its first frame, with no read of its own; drafts that are all the workspace keeps and hold none say none (the Inbox load review, 28 Oct 2026)", async () => {
+test("the box is the member's: a draft ready never enters it by itself; Use draft puts it in, Undo gives back what it replaced (decision 0093)", async () => {
   const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
   const mail = (m) => ({ ...m, channel: "email" });
   const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
   const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
+  const words = "Yes, Friday works. Shall I book 10 AM?";
+  const kept = (forId) => ({
+    conversation_id: "c1",
+    kind: "reply",
+    for_message_id: forId,
+    words: { text: words, subject: "", brief: null, asks: [] },
+    made_at: ago(30),
+  });
+  const open = (forId, over = dto) => {
+    setSurfaceValue("reply_drafts", { drafts: [kept(forId)], complete: true, fetchedAt: Date.now() });
+    fresh();
+    const thread = vmOf(over, esc);
+    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    return { draw, field: () => find(draw(), (n) => n.type === "textarea") };
+  };
+  try {
+    const box = open("m1");
+    assert.equal(box.field().props.value, "", "REGRESSION: the draft sat in the box, read as the member's own typing");
+    assert.equal(textOf(find(box.draw(), byTestId("ix-draft-pill"))).trim(), "Use draft");
+    box.field().props.onChange({ target: { value: "Let me check the van." } });
+    find(box.draw(), byTestId("ix-draft-pill")).props.onClick();
+    assert.equal(box.field().props.value, words, "the draft, on the press, in place of what they typed");
+    assert.equal(find(box.draw(), byTestId("ix-draft-pill")), undefined, "and the pill has done its work");
+    find(box.draw(), byTestId("ix-draft-undo")).props.onClick();
+    assert.equal(box.field().props.value, "Let me check the van.", "Undo gives the box back exactly");
+    assert.equal(find(open("m0").draw(), byTestId("ix-draft-pill"))?.props?.["data-state"] ?? null, null);
+    // Answered since (from Gmail, or by a teammate): the draft is kept until they write again, and is no one's to send twice.
+    const answered = { ...dto, messages: [...dto.messages, mail(ours("m2", "Friday at 10 works.", 20, "sent"))] };
+    assert.equal(
+      find(open("m1", answered).draw(), byTestId("ix-draft-pill")),
+      undefined,
+      "answered already: nothing offered",
+    );
+  } finally {
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
+test("a draft comes with the Inbox's first reads: the pill is there in the box's first frame, with no read of its own; drafts that are all the workspace keeps ask nothing", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({
+    last_wa_inbound_at: null,
+    messages: [mail(wrote("m-first", "Can you move a sofa on Friday?", 40))],
+  });
+  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
   const kept = {
     conversation_id: "c1",
     kind: "reply",
-    for_message_id: "m1",
+    for_message_id: "m-first",
     words: { text: "Yes, Friday works. Shall I book 10 AM?", subject: "", brief: null, asks: [] },
     made_at: ago(30),
   };
@@ -456,19 +456,23 @@ test("the kept reply comes with the Inbox's first reads: the box draws with its 
       headers: { "content-type": "application/json" },
     });
   };
-  const firstWords = async (drafts) => {
+  const firstPill = async (drafts) => {
     setSurfaceValue("reply_drafts", { ...drafts, fetchedAt: Date.now() });
     fresh();
     const thread = vmOf(dto, esc);
     const first = again(() => InboxComposer({ thread, reply: "", onSend() {} }));
     for (let i = 0; i < 5; i++) await settle();
-    return find(first, (n) => n.type === "textarea").props.value;
+    return find(first, byTestId("ix-draft-pill"));
   };
   try {
-    assert.equal(await firstWords({ drafts: [kept], complete: false }), kept.words.text, "drawn with its words");
-    assert.equal(await firstWords({ drafts: [], complete: true }), "", "none kept, and none to read");
+    assert.ok(await firstPill({ drafts: [kept], complete: false }), "drawn with the pill");
+    assert.equal(await firstPill({ drafts: [], complete: true }), undefined, "none kept, and none to read");
     assert.deepEqual(asked, [], "the thread's own read is asked for neither");
-    assert.equal(await firstWords({ drafts: [], complete: false }), "", "not among the newest: read by the thread");
+    assert.equal(
+      await firstPill({ drafts: [], complete: false }),
+      undefined,
+      "not among the newest: read by the thread",
+    );
     assert.deepEqual(asked, ["/api/v1/conversations/drafts"]);
   } finally {
     globalThis.fetch = realFetch;
@@ -501,6 +505,49 @@ test("what an email from the box is signed with is read for its thread once the 
     find(tree, (n) => n.type === "textarea").props.onChange({ target: { value: "Friday works." } });
     const line = () => textOf(find(draw(), byTestId("ix-composer-signed-words")));
     await until(() => line() === "Signed Sam Reyes · Harbor Moving", "the line under the words");
+    assert.deepEqual(asked, ["/api/v1/conversations/drafts"], "the thread's own read, once");
+  } finally {
+    globalThis.fetch = realFetch;
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
+test("what an email is signed with is asked as the caret comes into the box, so the first key brings the signature and Rewrite over the line together (Ruben's recording, 4 Nov 2026: Rewrite came alone, the signature half a second after)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const realFetch = globalThis.fetch;
+  const asked = [];
+  // The read answers when the test lets it: between the caret coming in and the first key.
+  let answer = () => {};
+  const answered = new Promise((r) => (answer = r));
+  globalThis.fetch = async (url) => {
+    asked.push(new URL(String(url), "https://app.example").pathname);
+    await answered;
+    const data = { drafts: [], complete: true, signed: { c1: "Sam Reyes\nHarbor Moving" } };
+    return new Response(JSON.stringify({ ok: true, data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    setSurfaceValue("reply_drafts", { drafts: [], complete: true, fetchedAt: Date.now() });
+    fresh();
+    const thread = vmOf(dto);
+    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    const field = () => find(draw(), (n) => n.type === "textarea");
+    field();
+    assert.deepEqual(asked, [], "an empty box nobody writes in asks nothing");
+    field().props.onFocus();
+    await until(() => (draw(), asked.length === 1), "asked as the caret comes in");
+    // What it is signed with lands before the first key (the box's one change of its own while nothing is typed).
+    quiet();
+    answer();
+    await until(redrawWanted, "the signature landed");
+    field().props.onChange({ target: { value: "F" } });
+    const first = draw();
+    assert.equal(textOf(find(first, byTestId("ix-composer-signed-words"))), "Signed Sam Reyes · Harbor Moving");
+    assert.ok(find(first, byTestId("ix-composer-rewrite")), "Rewrite in the same draw as the signature");
     assert.deepEqual(asked, ["/api/v1/conversations/drafts"], "the thread's own read, once");
   } finally {
     globalThis.fetch = realFetch;
@@ -620,43 +667,51 @@ test("a snoozed thread's band names the request still standing in its own words,
   assert.equal(errored.split("—").length - 1, 1, "REGRESSION: one dash, the label's own");
 });
 
-test("a held email the receptionist's draft found was a pitch: the dock asks Not a customer? with what it is, an owner's act opens their page, and no words are put in the box (2 Nov 2026)", async () => {
+test("a thread set aside as not a customer's: the dock asks with what it is, Not a customer and Reply anyway go to their doors (decision 0093)", async () => {
   const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
   const mail = (m) => ({ ...m, channel: "email" });
-  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Our 2027 holiday report says...", 40))] });
-  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
+  const dto = chat({
+    state: "archived",
+    set_aside_at: ago(30),
+    set_aside_why: "pitch",
+    last_wa_inbound_at: null,
+    messages: [mail(wrote("m1", "Our 2027 holiday report says...", 40))],
+  });
   const pitch = "A Reddit ad rep pitching holiday ad space.";
   const kept = {
     conversation_id: "c1",
     kind: "reply",
     for_message_id: "m1",
+    state: "pitch",
     words: { text: "", subject: "", brief: null, asks: [], pitch },
     made_at: ago(30),
   };
-  const win = globalThis.window;
-  const was = win.mayAtLeast;
-  const opened = [];
+  const realFetch = globalThis.fetch;
+  const posted = [];
+  globalThis.fetch = async (url, init = {}) => {
+    posted.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.example").pathname}`);
+    // Asked, and held there: what a press does with its answer (a toast, the refresh) is no part of this.
+    return new Promise(() => {});
+  };
   try {
     setSurfaceValue("reply_drafts", { drafts: [kept], complete: true, fetchedAt: Date.now() });
-    win.mayAtLeast = () => true;
-    const pane = paneOf(vmOf(dto, esc), { onOpenClient: (id) => opened.push(id) });
-    const dock = find(pane, byTestId("ix-needs-you"));
+    const pane = paneOf(vmOf(dto, null));
+    const dock = find(pane, byTestId("ix-set-aside"));
     assert.match(
       textOf(dock),
       /^Not someone you serve\? — A Reddit ad rep pitching holiday ad space\./,
       "what it is, first",
     );
+    assert.equal(find(pane, byTestId("ix-needs-you")), undefined, "no hold: it waits on nobody");
+    assert.equal(find(pane, byTestId("ix-first-email")), undefined, "the dock asks it: not again by the email");
     const act = find(pane, byTestId("ix-dock-not-a-customer"));
     assert.equal(textOf(act), "Not a customer");
     act.props.onClick();
-    assert.deepEqual(opened, [vmOf(dto, esc).clientId], "their page, opened with Not a person asked");
-    assert.equal(find(pane, (n) => n.type === "textarea").props.value, "", "no words of a reply in the box");
-    assert.equal(find(pane, byTestId("ix-first-email")), undefined, "the dock asks it: not again by the email");
-    // Not an owner: the reply box and Hand back are theirs, and the act is not.
-    win.mayAtLeast = () => false;
-    assert.equal(find(paneOf(vmOf(dto, esc)), byTestId("ix-dock-not-a-customer")), undefined);
+    await until(() => posted.includes("POST /api/v1/conversations/c1/not-a-customer"), "Not a customer's door");
+    find(pane, byTestId("ix-dock-reply-anyway")).props.onClick();
+    await until(() => posted.includes("POST /api/v1/conversations/c1/reply-anyway"), "Reply anyway's door");
   } finally {
-    win.mayAtLeast = was;
+    globalThis.fetch = realFetch;
     setSurfaceValue("reply_drafts", undefined);
   }
 });
@@ -673,19 +728,24 @@ test("on a phone the reply box opens folded and opens as it is tapped or typed i
     const folded = foot(draw());
     assert.equal(folded.props["data-folded"], "", "folded as the thread opens on a phone");
     // A thumb that lands on it on its way up or down the conversation is no tap: it stays folded (Ruben, 2 Nov 2026: a
-    // drag on the reply box moved it). A press is read off the box it lands on, as the browser hands it.
+    // drag on the reply box moved it). A press is read off the box it lands on, as the browser hands it. It opens at the
+    // tap's click, once the press has gone to what was under the finger (Ruben's recording, 4 Nov 2026: opened as the
+    // finger lifted, the box grew under it, and the click landed on Hand back or on nothing).
     const box = {};
     const press = (props, type, x, y) => props[type]({ currentTarget: box, clientX: x, clientY: y });
     press(folded.props, "onPointerDown", 200, 700);
     assert.equal(foot(draw()).props["data-folded"], "", "a touch alone does not open it");
-    press(foot(draw()).props, "onPointerUp", 200, 560);
+    assert.equal(foot(draw()).props.onPointerUp, undefined, "nor does the finger lifting: the click is the tap");
+    press(foot(draw()).props, "onClick", 200, 560);
     assert.equal(foot(draw()).props["data-folded"], "", "a drag up the screen does not open it");
     press(foot(draw()).props, "onPointerDown", 200, 700);
     press(foot(draw()).props, "onPointerCancel", 200, 700);
-    press(foot(draw()).props, "onPointerUp", 200, 700);
+    press(foot(draw()).props, "onClick", 200, 700);
     assert.equal(foot(draw()).props["data-folded"], "", "nor one the browser took for a scroll");
+    press(foot(draw()).props, "onClick", 200, 700);
+    assert.equal(foot(draw()).props["data-folded"], "", "nor a click no finger pressed (a key's)");
     press(foot(draw()).props, "onPointerDown", 200, 700);
-    press(foot(draw()).props, "onPointerUp", 202, 703);
+    press(foot(draw()).props, "onClick", 202, 703);
     assert.equal(foot(draw()).props["data-folded"], undefined, "tapped, it opens");
     fresh();
     foot(draw()).props.onFocus();
@@ -694,7 +754,93 @@ test("on a phone the reply box opens folded and opens as it is tapped or typed i
     fresh();
     const desk = foot(draw());
     assert.equal(desk.props["data-folded"], undefined, "a desk's pane has the room");
-    assert.equal(desk.props.onPointerUp, undefined, "and nothing to open");
+    assert.equal(desk.props.onClick, undefined, "and nothing to open");
+  } finally {
+    win.matchMedia = was;
+  }
+});
+
+test("folded, the box is one line: a draft ready for an empty box, greyed, which the tap puts in; its words once it holds them, Ask's spark while they are Ask's; and an empty box's invitation (decision 0093)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
+  const text = "Hi Rosa,\n\nYes, Friday works.\n\n  Shall I book 10 AM?";
+  const kept = { conversation_id: "c1", kind: "reply", for_message_id: "m1", made_at: ago(30) };
+  const boxOf = (words) => {
+    setSurfaceValue("reply_drafts", {
+      drafts: words ? [{ ...kept, words: { text: words, subject: "", brief: null, asks: [] } }] : [],
+      complete: true,
+      fetchedAt: Date.now(),
+    });
+    fresh();
+    const thread = vmOf(dto, esc);
+    return () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+  };
+  const glanceIn = (tree) => {
+    const glance = find(tree, byTestId("ix-composer-glance"));
+    const words_ = find(glance, hasClass("ix-composer-glance-words"));
+    return {
+      glance,
+      said: textOf(words_),
+      empty: words_.props["data-empty"],
+      spark: !!find(glance, (n) => n.props?.className === "ix-composer-drafted-spark"),
+      offers: glance.props["data-offers"],
+    };
+  };
+  try {
+    const draw = boxOf(text);
+    const offered = glanceIn(draw());
+    assert.equal(offered.said, "Hi Rosa, Yes, Friday works. Shall I book 10 AM?", "every line on the one");
+    assert.deepEqual([offered.spark, offered.empty, offered.offers], [true, "", ""], "greyed, and on offer");
+    assert.equal(
+      offered.glance.props["aria-hidden"],
+      "true",
+      "the eye's alone: the field is what a screen reader reads",
+    );
+    offered.glance.props.onClick();
+    const inBox = glanceIn(draw());
+    assert.equal(find(draw(), (n) => n.type === "textarea").props.value, text, "the tap is on it, so it is in the box");
+    assert.deepEqual([inBox.spark, inBox.empty, inBox.offers], [true, undefined, undefined]);
+    find(draw(), (n) => n.type === "textarea").props.onChange({ target: { value: "Hi Rosa,\nFriday at 10 it is." } });
+    const changed = glanceIn(draw());
+    assert.equal(changed.said, "Hi Rosa, Friday at 10 it is.");
+    assert.equal(changed.spark, false, "a member's own words wear no spark");
+    const none = glanceIn(boxOf(null)());
+    assert.equal(none.said, "Email to Rosa…", "an empty box says what it is for");
+    assert.equal(none.empty, "", "in the faint ink");
+  } finally {
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
+test("on a phone the reply box wears the sheet's handle, a button that opens it and folds it away, and takes its own pull; a desk's has neither", () => {
+  const win = globalThis.window;
+  const was = win.matchMedia;
+  const thread = vmOf(chat(), asked());
+  const draw = () => again(() => InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp" } }));
+  const foot = (tree) => find(tree, hasClass("ix-th-foot"));
+  const handle = (tree) => find(tree, byTestId("ix-th-foot-handle"));
+  try {
+    win.matchMedia = (q) => ({ matches: q.includes("720px"), addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const folded = draw();
+    assert.equal(handle(folded).props["aria-label"], "Open the reply", "named by where it goes");
+    assert.equal(handle(folded).props["aria-expanded"], false);
+    assert.equal(foot(folded).props["data-own-drag"], "", "a pull on it is its own, never the page's (page-give.ts)");
+    assert.equal(typeof foot(folded).props.onTouchStart, "function", "and a thumb moves it (dock.ts dockSwipe)");
+    handle(folded).props.onClick();
+    const open = draw();
+    assert.equal(foot(open).props["data-folded"], undefined, "pressed, it opens");
+    assert.equal(handle(open).props["aria-label"], "Fold the reply away");
+    assert.equal(handle(open).props["aria-expanded"], true);
+    handle(open).props.onClick();
+    assert.equal(foot(draw()).props["data-folded"], "", "pressed again, it folds away");
+    win.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const desk = draw();
+    assert.equal(handle(desk), undefined, "a desk's pane has the room: no handle");
+    assert.equal(foot(desk).props.onTouchStart, undefined, "and nothing to pull");
   } finally {
     win.matchMedia = was;
   }

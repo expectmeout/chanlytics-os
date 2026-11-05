@@ -2,7 +2,7 @@
  * Honour a deletion request: an erasure in the order the design gives it, and the job that finishes one that stopped
  * (decision 0036). The whole of DELETE /api/v1/contacts/:id runs here as the owner's press, behind the route that
  * judges who may ask (the owner, on the contact's own workspace, on a fresh session); the erasure_finish job runs it
- * again for a person a press left blocked.
+ * again for a person a press left blocked, and runs it for everyone a press of many hands over (people_erase_begin).
  *
  * Three stores hold the customer: Postgres rows, the private `media` bucket, and the scheduled jobs that would still
  * speak to them. ORDER IS THE DESIGN. The keys are read first (reads only, retryable with nothing to undo). Then the
@@ -38,6 +38,7 @@ import {
   recordingPathsOf,
   recordSystemDecision,
   removeMediaObjects,
+  retellCallIdsOf,
   scrubAskTurns,
   scrubErasedJobs,
   scrubModelTurns,
@@ -66,11 +67,19 @@ interface ErasureClients {
   service: Db;
   /** The Storage sweep's row on the ledger: the route records it as the member who pressed, the finish as the system. */
   record: (payload: Json) => Promise<unknown>;
+  /**
+   * The person's calls taken off the voice provider, by their provider ids (decision 0092): the provider key lives on the
+   * edge alone, so the route asks the edge's door and the finish job is handed the edge's own function. Absent (a test,
+   * a runtime with no provider), the leg says so and the provider keeps the calls for its retention.
+   */
+  providerCalls?: (callIds: string[]) => Promise<{ asked: number; deleted: number; refused: number }>;
 }
 
 interface ErasureOptions {
   /** Whether to put the finish on the ledger beside the block: a press does; the finish, running the erasure again, does not. */
   finishLater: boolean;
+  /** Who pressed, where the ledger's row cannot say it for itself: the finish of a press of many, whose row is the system's. */
+  by: string | null;
 }
 
 /**
@@ -102,7 +111,8 @@ async function erasePerson(clients: ErasureClients, contact: ErasurePerson, opti
   const finishWaits = options.finishLater && (await scheduleFinish(clients.service, contact));
   await scrubCopiesFirst(clients, contact, keys, finishWaits);
   const storage = await removeStoredObjects(clients.service, contact, keys.paths, finishWaits);
-  const out = await eraseRows(clients.session, contact, storage);
+  await forgetAtProvider(clients, contact);
+  const out = await eraseRows(clients.session, contact, storage, options.by);
   await forgetAfterRows(clients, contact, keys);
   const sweep = await sweepLateObjects(clients, contact, out, keys.paths);
   return erasedAnswer(contact.id, out, storage, sweep);
@@ -342,9 +352,32 @@ async function removeStoredObjects(
 }
 
 /* ---- 4. the rows, in one transaction, carrying the legs into the ledger ---- */
-function eraseRows(db: Db, contact: ErasurePerson, storage: StorageLeg): Promise<ErasedRows> {
+/**
+ * The provider's copies of the person's calls (decision 0092): their audio, transcripts and logs at the voice provider,
+ * asked to be deleted by the provider ids read off the call rows, before the rows go (after them nothing names the
+ * calls). Best effort, as a leg the erasure cannot undo is: a read or a provider that fails is logged and the erasure
+ * goes on, and what the provider kept goes with its retention (a week: channels CALL_LIMITS).
+ */
+async function forgetAtProvider(clients: ErasureClients, contact: ErasurePerson): Promise<void> {
+  const L = logger();
+  if (!clients.providerCalls) {
+    L.warn("erase_provider_calls_skipped", { tenant_id: contact.tenant_id, contact: contact.id });
+    return;
+  }
+  try {
+    const ids = await retellCallIdsOf(clients.service, contact.tenant_id, contact.id);
+    if (!ids.length) return;
+    const erased = await clients.providerCalls(ids);
+    L.info("erase_provider_calls", { tenant_id: contact.tenant_id, contact: contact.id, ...erased });
+  } catch (e) {
+    L.error("erase_provider_calls_failed", { tenant_id: contact.tenant_id, contact: contact.id, error: errText(e) });
+  }
+}
+
+function eraseRows(db: Db, contact: ErasurePerson, storage: StorageLeg, by: string | null): Promise<ErasedRows> {
   return eraseContactRows(db, contact.id, {
     storage: { requested: storage.requested, removed: storage.removed.length },
+    ...(by ? { by } : {}),
   });
 }
 
@@ -522,11 +555,12 @@ async function scrubAppointmentsBestEffort(
 /* ---- the finish: the job ---- */
 
 /**
- * erasure_finish: an erasure a press left unfinished, finished (decision 0036; 00501). payload: { contact_id }, put on
- * the ledger beside the block by every press, due ERASURE_FINISH_AFTER_MS on; a press that ended well had erase_contact
- * withdraw it. Written to be run again (ledger RETRY_WAITS_MS): every leg is a delete or an overwrite keyed on the
- * person, so a second run repeats nothing it should not. A person already erased has the id-keyed legs run again; one
- * never blocked is nobody's press, and nothing is done.
+ * erasure_finish: an erasure a press left unfinished, finished (decision 0036; 00501), or one a press of many handed
+ * over (people_erase_begin, 00547). payload: { contact_id, by? }, put on the ledger beside the block by every press, due
+ * ERASURE_FINISH_AFTER_MS on, or paced from now and naming who pressed; a press that ended well had erase_contact withdraw it.
+ * Written to be run again (ledger RETRY_WAITS_MS): every leg is a delete or an overwrite keyed on the person, so a second
+ * run repeats nothing it should not. A person already erased has the id-keyed legs run again; one never blocked is
+ * nobody's press, and nothing is done.
  */
 export async function erasureFinish(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const contactId = job.payload.contact_id;
@@ -539,6 +573,7 @@ export async function erasureFinish(ctx: JobContext, job: ClaimedJob): Promise<v
   const clients: ErasureClients = {
     session: ctx.db,
     service: ctx.db,
+    ...(ctx.eraseProviderCalls ? { providerCalls: ctx.eraseProviderCalls } : {}),
     record: (payload) =>
       recordSystemDecision(ctx.db, {
         tenantId: contact.tenant_id,
@@ -557,7 +592,8 @@ export async function erasureFinish(ctx: JobContext, job: ClaimedJob): Promise<v
     logger().warn("erasure_finish_not_begun", { tenant_id: job.tenant_id, job: job.id, contact: contactId });
     return;
   }
-  const { counts, jobs_canceled } = await erasePerson(clients, contact, { finishLater: false });
+  const by = typeof job.payload.by === "string" ? job.payload.by : null;
+  const { counts, jobs_canceled } = await erasePerson(clients, contact, { finishLater: false, by });
   logger().info("erasure_finish_done", {
     tenant_id: job.tenant_id,
     job: job.id,

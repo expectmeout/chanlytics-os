@@ -46,6 +46,7 @@ export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z
           text: words(2, 120),
           standard: z.enum(["likely", "seen"]),
           required: z.boolean(),
+          on_site: z.boolean().optional(),
         }),
       )
       .max(8),

@@ -38,7 +38,7 @@ import {
   type Database,
   type LeadPreviewRow,
 } from "../packages/db.js";
-import { retryWait, type ClaimedJob, type JobContext } from "../packages/jobs.js";
+import type { ClaimedJob, JobContext } from "../packages/jobs.js";
 import { readWebsite, type WebsiteReadKept } from "../imports/website-read.js";
 import { env } from "../env.js";
 import { errField, logger } from "../log.js";
@@ -46,7 +46,7 @@ import { errField, logger } from "../log.js";
 type Db = SupabaseClient<Database>;
 
 /** The website's reader, as a port: the real one, or a test's. */
-type SiteReader = (db: Db, tenantId: string, url: string, deadline: number) => Promise<WebsiteReadKept>;
+type SiteReader = (db: Db, tenantId: string, url: string, o: { deadline: number }) => Promise<WebsiteReadKept>;
 
 /** The receptionist from the lead's listing, with what its site said worn; null where the lead gives it no name. */
 async function receptionistFromListing(
@@ -62,7 +62,7 @@ async function receptionistFromListing(
   if (!brain) return "no_name";
   const site = listing.facts?.website ?? null;
   if (!site) return brain;
-  const kept = await read(db, p.preview_tenant_id, site, deadline).catch((e: unknown) => {
+  const kept = await read(db, p.preview_tenant_id, site, { deadline }).catch((e: unknown) => {
     logger({ tenant_id: p.tenant_id }).warn("preview_build_failed", {
       preview_id: p.id,
       step: "site",
@@ -98,17 +98,26 @@ async function writeReceptionist(db: Db, tenantId: string, brain: BrainConfig): 
   if (!put.ok) throw new Error(`preview_build: the receptionist's write was ${put.reason}`);
 }
 
-/** One preview's build, as the job runner hands it: built, failed, or thrown to be tried again. */
-async function buildPreview(db: Db, job: ClaimedJob, deadline: number, read: SiteReader = readWebsite): Promise<void> {
+/**
+ * One preview's build, as the job runner hands it: built, failed, nothing to build (and why), or thrown to be tried
+ * again. A build that will not be tried again is marked failed by the ledger (packages/jobs settle.ts), whether its last
+ * try threw or a run died on it, so a send waiting on it is skipped with why.
+ */
+async function buildPreview(
+  db: Db,
+  job: ClaimedJob,
+  deadline: number,
+  read: SiteReader = readWebsite,
+): Promise<void | { skipped: string }> {
   const L = logger({ tenant_id: job.tenant_id });
   const id = typeof job.payload.preview_id === "string" ? job.payload.preview_id : "";
   if (env.LEAD_PREVIEWS !== "on") {
     L.info("preview_build_off", { preview_id: id || null });
-    return;
+    return { skipped: "previews_off" };
   }
-  if (!UUID.test(id)) return;
+  if (!UUID.test(id)) return { skipped: "no_preview" };
   const p = await leadPreviewById(db, job.tenant_id, id);
-  if (!p || p.state !== "building" || !p.preview_tenant_id) return;
+  if (!p || p.state !== "building" || !p.preview_tenant_id) return { skipped: "not_building" };
   const preview = { ...p, preview_tenant_id: p.preview_tenant_id };
   try {
     const brain = await receptionistFromListing(db, preview, deadline, read);
@@ -121,9 +130,8 @@ async function buildPreview(db: Db, job: ClaimedJob, deadline: number, read: Sit
     await previewBuilt(db, p.id, true);
     L.info("preview_built", { preview_id: p.id, services: brain.profile?.services?.length ?? 0 });
   } catch (e) {
-    if (retryWait({ kind: job.kind, attempts: job.attempts ?? 1 }) !== null) throw e;
     L.error("preview_build_failed", { preview_id: p.id, step: "build", error: errField(e) });
-    await previewBuilt(db, p.id, false, "build_failed");
+    throw e;
   }
 }
 

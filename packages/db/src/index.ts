@@ -13,6 +13,18 @@ export {
 } from "./ai-usage";
 export type { AiFailures, ModelTurnKept } from "./ai-usage";
 export {
+  anthropicProfileOf,
+  anthropicProfileRows,
+  anthropicProfilesWaiting,
+  claimAnthropicProfile,
+  dropAnthropicProfile,
+  healthAnthropicProfiles,
+  keepAnthropicProfileId,
+  setAnthropicEnforcement,
+  workspaceModelStanding,
+} from "./anthropic-profiles";
+export type { AnthropicProfileClaim, AnthropicProfileHeld, AnthropicProfileRow } from "./anthropic-profiles";
+export {
   claimVoiceTurn,
   endVoiceSession,
   insertVoiceSession,
@@ -27,6 +39,7 @@ export { keepInvoiceAmount } from "./billing/events";
 export type { Database, Json } from "./database.types";
 export {
   beginErasure,
+  beginPeopleErasure,
   dropPersonPolicy,
   erasableContact,
   eraseContactRows,
@@ -48,6 +61,8 @@ export {
   deliveryOf,
   emitEvent,
   eventOfDelivery,
+  failOpenDelivery,
+  finishBroadcast,
   recordActivation,
   recordEvent,
   relayEvents,
@@ -61,8 +76,11 @@ export {
   approveBroadcast,
   assembleBroadcast,
   claimQueuedSend,
+  failedJobsOfKind,
   failQueuedSend,
-  hasNewerCopy,
+  hasRequeuedCopy,
+  pausedJobKinds,
+  queueSend,
   readJobToRequeue,
   releaseQueuedSend,
 } from "./jobs";
@@ -76,8 +94,8 @@ export { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows, readAllRowsByKey } from "./page
 export type { Page } from "./paged";
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
-export { narrowedUpdates, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
-export type { SubscribeOptions } from "./realtime";
+export { narrowedUpdates, noticesSince, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
+export type { SubscribeOptions, ToldNotice } from "./realtime";
 export { askJournalDayRows, askJournalDue, journalMemberNames, keepAskJournal } from "./repositories/ask/journal";
 export type { AskJournalDueRow, JournalDecisionRow, JournalEventRow } from "./repositories/ask/journal";
 export {
@@ -90,7 +108,20 @@ export {
 } from "./repositories/ask/memory";
 export type { AskMemoryDoor, AskRecallRow } from "./repositories/ask/memory";
 export { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "./repositories/ask/mornings";
-export { conversationDraftKeep, conversationDraftsOf, threadDraftFacts } from "./repositories/ask/reply-drafts";
+export {
+  conversationDraftClaim,
+  conversationDraftDrop,
+  conversationDraftFailed,
+  conversationDraftsOf,
+  conversationDraftWrite,
+  conversationOfEscalation,
+  conversationSetAside,
+  conversationsSetAside,
+  replyDraftsDue,
+  replyDraftThreadOf,
+  threadDraftFacts,
+} from "./repositories/ask/reply-drafts";
+export type { ConversationDraftRow, ReplyDraftThread } from "./repositories/ask/reply-drafts";
 export {
   answerBookingRequest,
   appointmentByClientStart,
@@ -136,6 +167,7 @@ export {
   dismissAppointmentNotice,
   heldNoticeKeys,
   heldNoticesOf,
+  holdNoticeIfUnkept,
   keepAppointmentNotice,
   memberHasAddress,
 } from "./repositories/calendar/notices";
@@ -144,17 +176,25 @@ export {
   callerNameOf,
   callersOf,
   callForReview,
+  callSecondsSince,
   callsOwedAnAnalysis,
+  callsOwedANotice,
+  canaryCallFacts,
+  canaryLineOf,
   claimCallActivity,
   claimCallNotification,
+  claimGuardCorrection,
   ingestCall,
   isWorkspaceCall,
   linkCallMessage,
+  markCallNoticeTold,
   recordCallNote,
+  retellCallIdsOf,
   setCallRecording,
   stampCallConfigVersion,
+  voiceDoorKnocks,
 } from "./repositories/calls";
-export type { IngestCallResult, NormalizedCallInput } from "./repositories/calls";
+export type { CanaryCallFacts, IngestCallResult, NormalizedCallInput, VoiceDoorKnocks } from "./repositories/calls";
 export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
@@ -215,6 +255,16 @@ export type {
   PreviewRefusal,
 } from "./repositories/campaigns/lead-previews";
 export {
+  leadSentEmailOf,
+  leadStepKey,
+  leadStepWordsOf,
+  leadWordsOf,
+  leadWordsOfLeads,
+  ownWordsAtSteps,
+  setLeadWords,
+} from "./repositories/campaigns/lead-words";
+export type { LeadWordsAnswer } from "./repositories/campaigns/lead-words";
+export {
   offersAnswerOf,
   recordCarrierOptOut,
   recordLateCarrierOptOut,
@@ -260,6 +310,8 @@ export {
   reachOutSources,
 } from "./repositories/campaigns/reach-out-leads";
 export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
+export { decideSendDoor, sendOpeningsOf, undoSendRewrite } from "./repositories/campaigns/reach-out-rewrite";
+export { leadStepOpeningOf } from "./repositories/campaigns/reach-out-rewrite";
 export { sequenceMakes } from "./repositories/campaigns/sequence-makes";
 export type { SequenceMake } from "./repositories/campaigns/sequence-makes";
 export {
@@ -354,13 +406,17 @@ export {
   healthBacklog,
   healthClientErrors,
   healthClocks,
+  healthDraftUses,
   healthFailedJobs,
+  healthLedgerNow,
   healthPages,
   healthParts,
   healthSweeps,
   healthWorkspaces,
   keepClientError,
+  pauseJobKind,
   redriveDeliveries,
+  resumeJobKind,
   workspaceIsOurs,
 } from "./repositories/console/health";
 export type { ClientErrorInsert } from "./repositories/console/health";
@@ -403,9 +459,11 @@ export {
   holdsReplyTurn,
   memberWithdrawDrafts,
   memberWithdrawMessage,
+  notACustomerThread,
   openEscalation,
   readLiveHold,
   releaseControl,
+  replyAnywayThread,
   sendQueuedNow,
   takeOverThread,
   withdrawAiDrafts,
@@ -420,7 +478,9 @@ export type {
   WithdrawReason,
 } from "./repositories/control";
 export {
+  activateCapabilityFn,
   createWorkspaceFn,
+  deactivateCapabilityFn,
   getTenantConfig,
   getTenantConfigAsMember,
   lineForwardingSet,
@@ -436,14 +496,19 @@ export {
   replyTokensSince,
   setPersonReplyMode,
   setPolicyMode,
+  setSetupChoices,
+  setupChoicesOf,
   setWorkspaceLogo,
   startPlaybook,
+  trialingWorkspaceIds,
+  trialUseOf,
   updatePlaybook,
   workspaceAnswersOnItsOwn,
   workspaceIdsOf,
   workspaceNamed,
   workspaceOpenToCustomers,
   workspacePublicSlug,
+  workspacesWithANumberChosen,
   workspaceZoneOf,
   writePlaybookChange,
 } from "./repositories/control-plane";
@@ -456,6 +521,8 @@ export type {
   PolicyRecord,
   PublicWorkspaceRead,
   PutTenantConfigResult,
+  SetupChoiceSetArgs,
+  SetupChoicesRow,
   TenantConfigRow,
 } from "./repositories/control-plane";
 export { dealOnFile, openDealsOf, recordDeal, yesesSince } from "./repositories/deals";
@@ -494,6 +561,7 @@ export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/
 export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
 export { suggestPersonNote } from "./repositories/facts/person-note-suggestions";
 export {
+  activeVoiceAgents,
   callReviewOf,
   configAtVersion,
   endRehearsal,
@@ -528,6 +596,7 @@ export {
   keepBusinessRead,
   linkedPlaceOf,
   listingFactsStored,
+  patchListing,
 } from "./repositories/imports/business-reads";
 export type { BusinessReadRow } from "./repositories/imports/business-reads";
 export { importCursorOf, importRowOf, importsOf, noteImport } from "./repositories/imports/ledger";
@@ -537,6 +606,7 @@ export {
   countSentToday,
   ingestInbound,
   keepMessageCost,
+  linkSentOnCall,
   markProcessed,
   messageByExternalId,
   pauseConversation,
@@ -556,17 +626,23 @@ export {
   ideasBasis,
   ideasClockAndLanguage,
   keepIdeas,
+  keepLeadMark,
+  keepLeadPrices,
   leadAddresseeChoose,
+  leadAllowanceOf,
   leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,
   leadPeopleSearchCreate,
+  leadPricesSeen,
+  leadSiteReadsSpent,
+  leadsUnmarked,
   leadViewCounts,
   readIdeaHistory,
   readLeadOne,
   saveIdeasLine,
 } from "./repositories/leads";
-export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember } from "./repositories/leads";
+export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./repositories/leads";
 export {
   addToList,
   archiveList,
@@ -776,11 +852,16 @@ export {
   emailWordsOf,
   finishableRuns,
   insertQueuedEmail,
+  keepLeadEmail,
   leadAddressBounced,
+  leadEmailOnItsWay,
+  leadEmailsOf,
+  leadSequenceMailboxOf,
   leadSlotsOf,
   leadWritten,
   monthSent,
   moveSend,
+  ofASequence,
   parentEmailOf,
   queuedOutcomes,
   reachOutAudience,
@@ -804,6 +885,7 @@ export {
 export type {
   AudienceLead,
   FollowerLead,
+  LeadSendRow,
   MessageInsert,
   ParentEmail,
   PersonForSend,

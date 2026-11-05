@@ -1,8 +1,8 @@
 /**
  * The bulk bar on a desk (moved from legacy/pages/people.jsx PeopleBulkBar, decision 0015): the count, the page's own act
  * first (`lead`: the Pipeline's Mark as passed), then what a selection can become -- people on a list, a yes on record or
- * a receptionist mode (one menu, Messages: messages.ts), a note, a file -- each drawn where the role allows and says why
- * when it does not.
+ * a receptionist mode (one menu, Messages: messages.ts), a note, a file, and for an owner gone (Delete…,
+ * delete-many.tsx) -- each drawn where the role allows and says why when it does not.
  */
 import { editorBox, focusAsDrawn, gateTitle } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
@@ -10,6 +10,7 @@ import { addToListMenu as addMenu, barMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 import { messagesChoices } from "./messages";
+import { DeleteManyQuestion, deleteManyMenu, mayDeleteMany } from "./delete-many";
 
 /**
  * The two inline boxes a desk's acts ask their words in: a new list's name, and which forms were signed. A note is the
@@ -143,6 +144,7 @@ export function deskBulk(b: BulkCtx, a: BulkActs) {
           <Icon name="external" size={12} /> Export CSV
         </button>
       )}
+      {mayDeleteMany(b) && deleteManyMenu(b, a)}
       {!canEdit && (
         <span className="cl-prof-aut-hint">
           {keeps("consent")
@@ -153,6 +155,7 @@ export function deskBulk(b: BulkCtx, a: BulkActs) {
       <button className="btn btn-ghost btn-sm" onClick={onClear} data-testid="bulk-clear">
         <Icon name="x" size={11} /> Clear
       </button>
+      {mayDeleteMany(b) && <DeleteManyQuestion b={b} a={a} />}
     </div>
   );
 }

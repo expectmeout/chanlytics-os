@@ -140,6 +140,8 @@ const WORDS: Record<string, string> = {
   make_sequence: "Made a sequence",
   discard_sequence: "Let a sequence go",
   answer_booking_request: "Answered a request to book",
+  not_a_customer: "Said it was not a customer",
+  reply_anyway: "Said it was a customer after all",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -178,6 +180,7 @@ const WORDS: Record<string, string> = {
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
   "escalation.changed": "A handover's reason changed",
+  "escalation.refreshed": "They wrote again on a held thread",
   "escalation.opened": "A thread was handed to the team",
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",
@@ -192,6 +195,7 @@ const WORDS: Record<string, string> = {
   "member.left": "Left the workspace",
   "reach_out.lead_stopped": "A sequence stopped writing to a lead",
   "reach_out.send_decided": "A held email to a lead was decided",
+  "reach_out.lead_words_changed": "An email to a lead was changed for that lead",
   "reach_out.lead_added": "Leads were added to a sequence",
   "reach_out.lead_taken_back": "Leads were taken back from a sequence",
   "lead.kept": "A lead was kept from Needs review",
@@ -500,6 +504,8 @@ const SEND_DECIDED_WORDS: Record<string, string> = {
   rewrite: "A held email to a lead was sent back to be written again",
   skip: "A held email to a lead was skipped",
   not_a_fit: "A held email to a lead was dropped: the lead is not a fit",
+  // Undo of a rewrite (00505): the opening it replaced is back.
+  rewrite_undone: "An email to a lead got its earlier opening back",
 };
 
 /** Which calls a kept number forwards (contracts FORWARDING_MODES), in an owner's words. */
@@ -530,11 +536,15 @@ const recordChangedWords = (p: Record<string, unknown>): string | null => {
   return moved.length ? moved.slice(0, 4).map(businessFieldLabel).join(", ") : "nothing changed";
 };
 
-/** Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082). */
+/**
+ * Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082), and a
+ * waiting run's whose every send left it before anyone answered (00532).
+ */
 const CANCELED_BY_SYSTEM: Readonly<Record<string, string>> = {
   day_passed: "Skipped a run whose day had passed",
   time_passed: "Skipped a freed time's run when its time came",
   taken: "Stopped a freed time's run: someone booked the time",
+  nothing_to_send: "Skipped a run with nothing left to send",
 };
 
 /** The kinds whose sentence is written whole, by its own function. */
@@ -598,6 +608,10 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["remove_member", (p, base) => (p.left === true ? "Left the team" : base)],
   ["call.recorded", callRecordedWords],
   ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
+  [
+    "reach_out.lead_words_changed",
+    (p, base) => (p.kept === false ? "An email to a lead went back to the sequence's words" : base),
+  ],
   ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
   ["lead.search_removed", searchRemovedWords],
   ["line.forwarding_set", (p, base) => joinBits(base, [wordOf(FORWARDING_WORDS, textAt(p, "mode"))])],

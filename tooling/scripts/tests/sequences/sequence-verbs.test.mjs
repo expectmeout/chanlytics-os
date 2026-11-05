@@ -166,6 +166,16 @@ test("a step taken away and people taken out say what the door did, and keep no 
     verbSpec("sequence_leave").receipt({ payload: { enrollment_ids: ["e1", "e2"] } }, { left: 2 }),
     "2 people taken out",
   );
+  assert.equal(
+    verbSpec("sequence_leave").receipt({ payload: { enrollment_ids: ["e1"], leads: true } }, { left: 1 }),
+    "1 lead taken out",
+    "the lead sheet names their place by its enrollment, and they are still a lead",
+  );
+  assert.deepEqual(
+    commit("sequence_leave", { sequence_id: SEQ, enrollment_ids: ["e1"], leads: true }).body,
+    { enrollment_ids: ["e1"] },
+    "how it is said goes no further than the receipt",
+  );
   assert.ok("refused" in commit("sequence_leave", { sequence_id: SEQ }), "nobody named is no leave");
 });
 
@@ -180,6 +190,10 @@ test("a leave's undo puts them back through its own door, and says what stays ou
   assert.equal(u.receipt({ back: 2, sends_out: 0 }, kept), "2 people put back");
   assert.equal(u.receipt({ back: 1, sends_out: 1 }, kept), "1 person put back · 1 email left out stays out");
   assert.match(u.receipt({ back: 0, sends_out: 0 }, kept), /Nobody could be put back/);
+  const lead = card("sequence_leave", { sequence_id: SEQ, enrollment_ids: ["e1"], leads: true }).card;
+  const keptLead = u.record(lead, { left: 1, sequence_id: SEQ, decision_id: "d9" }, TAB);
+  assert.deepEqual(keptLead, { sequence_id: SEQ, decision_id: "d9", leads: true });
+  assert.equal(u.receipt({ back: 1, sends_out: 0 }, keptLead), "1 lead put back", "a lead is put back as a lead");
 });
 
 test("a step's new words say whether they wait for WhatsApp, and the undo gives back the words it had", () => {
@@ -194,6 +208,31 @@ test("a step's new words say whether they wait for WhatsApp, and the undo gives 
   assert.match(s.receipt(c.card, { waits: true }), /wait for WhatsApp/);
   const kept = s.undo.record(c.card, { was: { template_id: "old", params: [] }, decision_id: "d3" }, TAB);
   assert.deepEqual(s.undo.call(kept, TAB).body, { template_id: "old", params: [] });
+});
+
+test("a lead's own words: one lead at one step, the receipt its name, and the undo gives back what stood or the step's", () => {
+  const s = verbSpec("sequence_lead_words");
+  const LEAD = "5e000000-0000-4000-8000-0000000000ff";
+  const words = { subject: "Your chair", body: "Mine." };
+  const of = (w) =>
+    card("sequence_lead_words", { sequence_id: SEQ, step_id: STEP, lead_id: LEAD, name: "Luxe Lane", words: w });
+  const c = of(words);
+  assert.deepEqual(s.commit(c.card, TAB), {
+    route: "POST sequences/[id]/steps/[step]/lead-words",
+    params: { id: SEQ, step: STEP },
+    body: { lead_id: LEAD, words },
+  });
+  assert.equal(s.receipt(c.card, {}), "Saved for Luxe Lane");
+  assert.equal(s.receipt(of(null).card, {}), "Luxe Lane gets the sequence's words");
+  const was = { subject: "Before", body: "What stood" };
+  const kept = s.undo.record(c.card, { was }, TAB);
+  assert.deepEqual(s.undo.call(kept, TAB).body, { lead_id: LEAD, words: was });
+  assert.equal(s.undo.receipt({}, kept), "Luxe Lane gets the words you had before");
+  const none = s.undo.record(c.card, { was: null }, TAB);
+  assert.deepEqual(s.undo.call(none, TAB).body, { lead_id: LEAD, words: null });
+  assert.equal(s.undo.receipt({}, none), "Luxe Lane gets the sequence's words");
+  // A card that does not say which lead, or which step, is never sent.
+  assert.ok(s.commit(card("sequence_lead_words", { sequence_id: SEQ, step_id: STEP, words }).card, TAB).refused);
 });
 
 test("a draft is asked for, never made; keeping it makes the sequence whole, and its undo takes it away again", () => {
@@ -289,7 +328,74 @@ test("an email the check held is decided, and one handed over said of, through o
     "Bloom Bar is left out of this batch",
     "Bloom Bar is set aside: not a fit",
   ]);
-  assert.equal(decide.undo, undefined, "an email let go may be on its way: nothing to undo");
+  // A rewrite says what should change (00505); the words go only with a rewrite.
+  assert.deepEqual(commit("sequence_send_decide", { send_id: SEND, decision: "rewrite", change: " Shorter " }).body, {
+    decision: "rewrite",
+    change: "Shorter",
+  });
+  assert.deepEqual(commit("sequence_send_decide", { send_id: SEND, decision: "rewrite", change: "  " }).body, {
+    decision: "rewrite",
+  });
+  assert.deepEqual(commit("sequence_send_decide", { send_id: SEND, decision: "skip", change: "Shorter" }).body, {
+    decision: "skip",
+  });
+  // Its opening is written then, by the check of that email (the verb's second call), unless the place that pressed
+  // writes it itself and says each step (check: false, campaigns/reach-out/rewrite-ask.tsx).
+  const then = (payload) => decide.then(card("sequence_send_decide", payload).card, {});
+  assert.deepEqual(then({ send_id: SEND, decision: "rewrite" }), {
+    route: "POST reach-out-sends/check",
+    body: { send_ids: [SEND] },
+  });
+  assert.equal(then({ send_id: SEND, decision: "rewrite", check: false }), null);
+  assert.equal(then({ send_id: SEND, decision: "include" }), null, "only a rewrite is written");
+  // What the check came back with, said; one still being written, or waiting on a paused sequence, says so.
+  const rewriteCard = card("sequence_send_decide", { send_id: SEND, decision: "rewrite", name: "Bloom Bar" }).card;
+  const now = (over) => ({
+    send_id: SEND,
+    opening: "Bloom Bar opens at 7.",
+    written: true,
+    held: null,
+    paused: false,
+    undo: true,
+    ...over,
+  });
+  const rewrote = (t) => decide.receipt(rewriteCard, {}, t);
+  assert.deepEqual(
+    [
+      rewrote({ ok: true, data: { sends: [now()] } }),
+      rewrote({ ok: true, data: { sends: [now({ held: "unbacked_fact" })] } }),
+      rewrote({ ok: true, data: { sends: [now({ opening: null, written: false, paused: true })] } }),
+      rewrote({ ok: true, data: { sends: [now({ opening: null, written: false })] } }),
+      rewrote({ ok: false, message: "The edge could not be reached." }),
+    ],
+    [
+      "Bloom Bar's new opening is written",
+      "Bloom Bar's new opening is written, and the check held it",
+      "Bloom Bar's opening is written again once its sequence runs",
+      "Bloom Bar's opening is being written again",
+      "Bloom Bar's opening is being written again",
+    ],
+  );
+  // Undo is a rewrite's alone: the opening it replaced, back, or refused in the database's words where there is none.
+  // An email let go may be on its way: nothing to undo there.
+  const includeCard = card("sequence_send_decide", { send_id: SEND, decision: "include", name: "Bloom Bar" }).card;
+  assert.equal(decide.undo.label(rewriteCard), "Undo");
+  assert.equal(decide.undo.label(includeCard), null);
+  assert.equal(decide.undo.record(includeCard, {}, TAB), null);
+  const kept = decide.undo.record(rewriteCard, {}, TAB);
+  assert.deepEqual(kept, { send_id: SEND, name: "Bloom Bar" });
+  assert.deepEqual(decide.undo.call(kept, TAB), {
+    route: "POST reach-out-sends/[id]/undo-rewrite",
+    params: { id: SEND },
+  });
+  assert.equal(
+    decide.undo.receipt({ rewritten: now({ opening: "Old." }) }, kept),
+    "Bloom Bar's earlier opening is back",
+  );
+  assert.equal(
+    decide.undo.receipt({ rewritten: now({ opening: "Old.", held: "unbacked_fact" }) }, kept),
+    "Bloom Bar's earlier opening is back, held as it was",
+  );
   // Open is the run that holds the email, its sheet in Sent.
   assert.equal(
     decide.open({ payload: { send_id: SEND, run_id: SEQ } }, null),

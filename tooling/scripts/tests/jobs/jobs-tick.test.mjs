@@ -62,6 +62,8 @@ function fakes(jobs, o = {}) {
       if (has(o.throwOn, j.id)) throw new Error(`boom ${j.id}`);
       // A throw of a case's own making (a failure that says it is certain).
       if (o.throwWith?.has(j.id)) throw o.throwWith.get(j.id);
+      // A handler that found nothing to do, and says why (DispatchOutcome `skipped`).
+      if (o.skip?.has(j.id)) return { skipped: o.skip.get(j.id) };
       return has(o.unknown, j.id) ? "unknown_kind" : "done";
     },
     complete: async (j) => {
@@ -120,7 +122,7 @@ test("every due job runs once, in order, and is recorded done; the tick ends whe
   );
   assert.deepEqual(calls.complete, ["a", "b", "c"]);
   assert.deepEqual(calls.claim, [90, 90, 90, 90], "each claim carries the lease; the fourth finds nothing");
-  assert.deepEqual(counts, {
+  assert.deepEqual(tally(counts), {
     claimed: 3,
     done: 3,
     failed: 0,
@@ -130,6 +132,9 @@ test("every due job runs once, in order, and is recorded done; the tick ends whe
     replyLateMs: 0,
   });
 });
+
+/** The heartbeat's counts as these cases read them: the per-workspace tallies and the skipped have cases of their own. */
+const tally = ({ skipped: _skipped, failedBy: _failedBy, replyLateBy: _replyLateBy, ...rest }) => rest;
 
 test("a job is claimed only when it is about to run", async () => {
   // Claiming a batch and working through it is the tempting shape. Kill the
@@ -162,7 +167,7 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
     /marked failed, so it is no longer shown as on its way/,
     "and what became of the message",
   );
-  assert.deepEqual(counts, {
+  assert.deepEqual(tally(counts), {
     claimed: 3,
     done: 2,
     failed: 1,
@@ -218,7 +223,7 @@ test("an email intake that throws is kept and tried again later, not failed: its
     "not failed, so nothing to settle and nobody to tell yet",
   );
   assert.ok(logged("warn", "job_deferred"));
-  assert.deepEqual(counts, {
+  assert.deepEqual(tally(counts), {
     claimed: 2,
     done: 0,
     failed: 0,
@@ -229,9 +234,9 @@ test("an email intake that throws is kept and tried again later, not failed: its
   });
 });
 
-test("a broadcast the ledger handed to a fresh run is told as carrying on, never as one that will not start again; one it could not hand on says it will not", async () => {
-  // The bell and the phone show the first line alone: it said "will not start again on its own" over a broadcast the ledger had
-  // just handed to a fresh run, up to six times a run, and an owner who believed it and sent again reached everyone twice.
+test("a broadcast the ledger handed to a fresh run carries on and tells nobody; one it could not hand on says it will not", async () => {
+  // A resumed run is nothing an owner can act on (decision 0089, D5): it used to ring the bell, mail and push the phone at
+  // every death, up to five times a run. The line says it; Health counts it; the owner hears of a run that fails for good.
   const handed = { what: "broadcast", changed: true, resumed: true, reached: 12, remaining: 30 };
   const coming = { what: "broadcast", changed: false, resumed: true, reached: 12, remaining: 30 };
   for (const [what, settled] of [
@@ -240,22 +245,17 @@ test("a broadcast the ledger handed to a fresh run is told as carrying on, never
   ]) {
     const { ports, calls } = fakes([job("b", "broadcast_send", 1)], { throwOn: new Set(["b"]), settled });
     await runTick(ports, OPTS);
-    assert.equal(calls.alert[0].subject, "A run stopped partway");
-    assert.match(calls.alert[0].body, /^It stopped and carries on in a fresh run\./, `${what}: the bell's line`);
-    assert.doesNotMatch(calls.alert[0].body.split("\n")[0], /will not start again/, what);
-    assert.match(
-      calls.alert[0].body,
-      /The broadcast carries on in a fresh run: 12 reached so far, 30 still to go/,
-      what,
+    assert.deepEqual(calls.alert, [], `${what}: nobody's bell`);
+    assert.deepEqual(
+      calls.fail.map(([id]) => id),
+      ["b"],
+      `${what}: the row still fails, and its run carries on in a fresh one`,
     );
   }
-  // A run that died without reporting back (the last try) is told the same way: unknown how it ended, the rest carries on.
+  // A run that died without reporting back (the last try) and was handed on: the same, nobody told.
   const tries = fakes([job("b", "broadcast_send", MAX_ATTEMPTS)], { throwOn: new Set(["b"]), settled: [handed] });
   await runTick(tries.ports, OPTS);
-  assert.match(
-    tries.calls.alert[0].body,
-    /^It started and never reported back, so how it ended is unknown, and the rest carries on in a fresh run\./,
-  );
+  assert.deepEqual(tries.calls.alert, []);
   // Handed on as often as it may, or not at all (the write failed, the read failed, the run had already moved on): nothing
   // carries it on, and it says so.
   for (const [what, settled] of [
@@ -331,7 +331,15 @@ test("the last try of an intake fails it for good and tells the owner how many t
     new RegExp(`^It stopped after ${MAX_ATTEMPTS} tries and will not start again on its own`),
   );
   assert.equal(calls.alert[0].subject, "An email could not be taken in");
-  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 });
+  assert.deepEqual(tally(counts), {
+    claimed: 1,
+    done: 0,
+    failed: 1,
+    gaveUp: 0,
+    deferred: 0,
+    lateMs: {},
+    replyLateMs: 0,
+  });
 });
 
 test("an intake that could not be kept is not failed either: the claim's own lease brings it back", async () => {
@@ -721,7 +729,7 @@ test("a completion that could not be written is not reported as the job failing"
   assert.deepEqual(calls.fail, []);
   assert.deepEqual(calls.alert, []);
   assert.ok(logged("error", "job_complete_write_failed"));
-  assert.deepEqual(counts, {
+  assert.deepEqual(tally(counts), {
     claimed: 1,
     done: 0,
     failed: 0,
@@ -834,4 +842,32 @@ test("the heartbeat's line carries each kind's worst wait as a field of its own,
     late_ms_broadcast_send: 0,
   });
   assert.deepEqual(lateFields({}), {});
+});
+
+test("a job that found nothing to do is done and said, never counted as work done", async () => {
+  // A preview with its switch off used to come back "done" and leave its row building: the ledger said work was done.
+  const { ports, calls, logged } = fakes([job("p", "preview_build")], { skip: new Map([["p", "previews_off"]]) });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.complete, ["p"], "the row is done: there is nothing to try again");
+  assert.deepEqual([counts.done, counts.skipped], [0, 1]);
+  assert.ok(logged("info", "job_skipped"));
+  assert.equal(calls.log.find(([, e]) => e === "job_skipped")[2].why, "previews_off");
+});
+
+test("the heartbeat counts what failed by its workspace, so the platform's page can leave our own out", async () => {
+  const a = { ...job("a1", "push_send"), tenant_id: "ws-a" };
+  const b = { ...job("b1", "push_send"), tenant_id: "ws-b" };
+  const c = { ...job("a2", "push_send", MAX_ATTEMPTS + 1), tenant_id: "ws-a" };
+  const { ports } = fakes([a, b, c], { throwOn: new Set(["a1", "b1"]) });
+  const counts = await runTick(ports, { ...OPTS, slots: 1 });
+  // push_send waits before its next try, so its throws are kept; the third, a run past the cap, is given up.
+  assert.equal(counts.deferred, 2);
+  assert.deepEqual(counts.failedBy, { "ws-a": 1 }, "a give-up is counted against its workspace");
+});
+
+test("a reply's lateness is kept by its workspace too, so a late reply in our own workspace pages nobody", async () => {
+  const late = { ...job("r", "outbound_send"), tenant_id: "ws-ours", lane: 0, due_at: "2026-01-01T00:00:00Z" };
+  const { ports } = fakes([late], { clock: () => Date.parse("2026-01-01T00:02:00Z") });
+  const counts = await runTick(ports, { ...OPTS, startedAt: Date.parse("2026-01-01T00:02:00Z") });
+  assert.equal(counts.replyLateBy["ws-ours"], 120_000);
 });

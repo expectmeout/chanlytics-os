@@ -104,6 +104,8 @@ export class ApiError extends Error {
     readonly code: string,
     readonly status: number,
     message: string,
+    /** Seconds the server said to wait before asking again (a limit's `retry-after`), where it said. */
+    readonly retryAfterS: number | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -113,7 +115,7 @@ export class ApiError extends Error {
 /** The data, or the refusal thrown: for the overrides, whose failure is "stay seeded". */
 export function unwrap<O>(r: ApiResult<O>): O {
   if (r.ok) return r.data;
-  throw new ApiError(r.code, r.status, r.message);
+  throw new ApiError(r.code, r.status, r.message, r.retryAfterS);
 }
 
 interface ApiDeps {
@@ -438,10 +440,15 @@ export function createApi(deps: ApiDeps) {
     };
   }
 
-  /** The Response itself: the two Google redirects and the Ask stream answer no envelope. */
+  /**
+   * The Response itself: the two Google redirects and the Ask stream answer no envelope. Its clock is measured and its 401
+   * read as every other answer's (signedOut): a session the Auth server ended is ended first, where it used to be sent to
+   * sign in and straight back. The 401 is read from a copy, so the caller still has the body it was answered.
+   */
   async function raw<K extends RouteKey>(key: K, ...[opts = {} as ApiOptions<K>]: OptionsOf<K>): Promise<Response> {
     const res = await deps.fetch(urlFor(key, opts), initFor(key, opts));
-    if (res.status === 401) deps.onSignedOut();
+    lead.note(res);
+    if (res.status === 401) await signedOut(deps, typeof res.clone === "function" ? res.clone() : res);
     return res;
   }
 
@@ -458,3 +465,22 @@ export function createApi(deps: ApiDeps) {
 }
 
 export type Api = ReturnType<typeof createApi>;
+
+/**
+ * A stream of JSON lines (Ask's turn, a rewrite's check), one line at a time across chunk boundaries, as the route wrote
+ * them: each handed on whole, its parsing the caller's.
+ */
+export async function readLines(body: ReadableStream<Uint8Array>, on: (line: string) => void): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let carry = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    carry += decoder.decode(value, { stream: true });
+    const lines = carry.split("\n");
+    carry = lines.pop() ?? "";
+    for (const l of lines) if (l.trim()) on(l);
+  }
+  if (carry.trim()) on(carry);
+}

@@ -1,9 +1,11 @@
 /**
  * The recording copy, and the retention purge that ends it, in one place.
  *
- * Retell serves call audio from an UNSIGNED public CDN URL, so the audio is
- * copied into the private bucket — where a customer's call is not one guessed
- * link away, and where it outlives the provider's retention. Two callers:
+ * Retell serves call audio from its CDN by a link it signs for a day (every
+ * agent has opt_in_signed_url on; before that the link was public and
+ * permanent), so the audio is copied into the private bucket — where it is
+ * ours to keep for its ninety days and to erase, and where it outlives the
+ * provider's week (CALL_LIMITS, decision 0092). Two callers:
  *
  *   - the webhook makes the first attempt on a SHORT budget. Retell's delivery
  *     timeout is 20 s on this agent and the upsert has already spent some of
@@ -19,8 +21,9 @@
  * bucket being down — spends no attempt: the row is written as it was, which
  * alone moves its updated_at (00007's trigger) and sends it to the back of
  * the queue for the next tick. The provider URL itself is
- * never written to the row: calls is in the realtime publication, so every
- * column reaches every member's browser.
+ * never written to the row: every member of the workspace may read every
+ * call row (calls_member_select), and a link to the audio is for the
+ * signed route alone (api/v1/calls/:id/recording).
  *
  * Two more things share the bucket's paths and so live here: `sniffAudioType` (what the bytes are, since the CDN's word
  * is not to be trusted) and `purgeExpiredRecordings`, which removes audio past RECORDING_RETENTION_DAYS and leaves

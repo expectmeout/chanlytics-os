@@ -34,6 +34,8 @@ import {
   toInboxThreadVM,
   toPersonVM,
   PERSON_CHANNEL_WORDS,
+  LAST_WORDS_TITLE,
+  lastWordsOf,
 } from "@chanlytics/contracts";
 import { toConversationDto } from "../../../../apps/dashboard/src/server/dto.ts";
 import { personLabel } from "../../../../apps/dashboard/src/server/export/export.ts";
@@ -300,4 +302,19 @@ test("REGRESSION: where the page holds nothing they wrote, it takes the row's wi
   );
   const wa = page({ message_channels: ["whatsapp"], channels: ["whatsapp"], last_inbound_channel: "whatsapp" });
   assert.deepEqual([wa.replyVia, wa.replyWindow.open], ["WhatsApp", false]);
+});
+
+test("REGRESSION: the person's Latest pane says They for their words, never the first word of a team's name", () => {
+  // 3 Nov 2026: "The Google Workspace Team" read "THE · OCT 28" over its bubble, under a pane titled for their words alone
+  // while it held ours too.
+  const item = (id, kind, who, ts) => ({ id, ts, day: "Oct 28", time: "12:32 PM", kind, who, text: `${id} said` });
+  const words = lastWordsOf([item("ours", "team", "Ruben", 2), item("theirs", "customer", "The", 1)]);
+  assert.deepEqual(
+    words.map((w) => [w.id, w.who, w.mine]),
+    [
+      ["theirs", "They", false],
+      ["ours", "Ruben", true],
+    ],
+  );
+  assert.equal(LAST_WORDS_TITLE, "Latest");
 });

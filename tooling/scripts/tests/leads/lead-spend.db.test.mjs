@@ -233,7 +233,7 @@ test(
     });
 
     for (const [who, client, mode, status] of [
-      ["the owner", owner, "stripe", "trialing"],
+      ["the owner", owner, "stripe", "incomplete"],
       ["the owner", owner, "stripe", "none"],
       ["the partner", partner, "stripe", "past_due"],
       ["the partner", partner, "stripe", "canceled"],
@@ -252,10 +252,12 @@ test(
       assert.deepEqual(await footprint(), before_, `${status}: nothing reserved, made or scheduled`);
     }
 
-    // A workspace invoiced by hand is never asked for a card, and an active plan spends: each door goes past the gate.
+    // A workspace invoiced by hand is never asked for a card, an active plan spends, and so does a free trial (decision
+    // 0090: the trial covers everything, leads up to its own allowance): each door goes past the gate.
     for (const [mode, status] of [
       ["direct", "none"],
       ["stripe", "active"],
+      ["stripe", "trialing"],
     ]) {
       await billing(mode, status);
       const d = doors(partner);
@@ -296,17 +298,23 @@ test(
       for (let n = 1; n <= TERMS.length; n++) {
         const top = await ceiling("search", count, n);
         for (const contact of ["phone", "email"]) {
-          const p = plan(count, TERMS.slice(0, n), contact);
-          for (const [purpose, counted] of [
-            ["probe", 0],
-            ["renew", 0],
-            ["topup", 0],
-            ["topup", Math.floor(count / 2)],
-            ["topup", count + 5],
-          ]) {
-            const est = estimateForRound(p, purpose, counted);
-            assert.ok(est <= top, `${count} leads, ${n} terms, ${contact}, ${purpose} (${counted}): ${est} > ${top}`);
-          }
+          const listed = plan(count, TERMS.slice(0, n), contact);
+          // A plan that reads each place's own site reserves the most a plan may (00541).
+          const reading = {
+            ...listed,
+            criteria: [{ key: "boxing", text: "offers boxing", standard: "seen", required: true, on_site: true }],
+          };
+          for (const p of [listed, reading])
+            for (const [purpose, counted] of [
+              ["probe", 0],
+              ["renew", 0],
+              ["topup", 0],
+              ["topup", Math.floor(count / 2)],
+              ["topup", count + 5],
+            ]) {
+              const est = estimateForRound(p, purpose, counted);
+              assert.ok(est <= top, `${count} leads, ${n} terms, ${contact}, ${purpose} (${counted}): ${est} > ${top}`);
+            }
         }
       }
     }
@@ -314,7 +322,7 @@ test(
       const top = await ceiling("list", rows, null);
       assert.ok(leadImportEstimateUsd(rows) <= top, `a list of ${rows}: ${leadImportEstimateUsd(rows)} > ${top}`);
     }
-    assert.equal(await ceiling("search", 1, 5), 5.29, "the dearest a search of one may be: well under the month's $25");
+    assert.equal(await ceiling("search", 1, 5), 5.47, "the dearest a search of one may be: well under the month's $25");
     const typo = await db.rpc("lead_estimate_ceiling", { p_kind: "serach", p_count: 1, p_terms: 1 });
     assert.equal(typo.error?.code, "22023", "a kind nobody named raises; a null would let every comparison by");
 
@@ -350,5 +358,73 @@ test(
       p_estimate_usd: top + 0.01,
     });
     assert.equal(more.error?.code, "22023", JSON.stringify(more));
+  },
+);
+
+test(
+  "a read of a business's own site is paid where it is read: against its round while that lives, out of what it reserved; else this month and today, reserved from nothing; and only the service role may say so",
+  { skip },
+  async () => {
+    await billing("stripe", "active");
+    const made = ok(
+      await owner.rpc("lead_search_create", { p_tenant_id: A, p_plan: plan(5), p_via: "people", p_estimate_usd: 1 }),
+      "search",
+    );
+    assert.ok(made.round_id, JSON.stringify(made));
+    const round = ok(await db.from("lead_rounds").select("*").eq("id", made.round_id).single(), "round");
+    const budget = async () => {
+      const row = ok(
+        await db
+          .from("lead_counters")
+          .select("used, reserved")
+          .eq("tenant_id", A)
+          .eq("kind", "budget")
+          .eq("period", round.month)
+          .single(),
+        "budget",
+      );
+      return { used: Number(row.used), reserved: Number(row.reserved) };
+    };
+    const near = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-6, `${what}: ${a} against ${b}`);
+    const before = await budget();
+    ok(
+      await db.rpc("lead_site_reads_spent", { p_tenant_id: A, p_round_id: round.id, p_reads: 4, p_usd: 0.02 }),
+      "spent",
+    );
+    const live = ok(await db.from("lead_rounds").select("site_reads, cost_usd").eq("id", round.id).single(), "round");
+    assert.equal(live.site_reads, 4);
+    near(Number(live.cost_usd), Number(round.cost_usd) + 0.02, "the round's cost");
+    const spent = await budget();
+    near(spent.used, before.used + 0.02, "the month's used");
+    near(spent.reserved, before.reserved - 0.02, "out of what the round reserved");
+
+    ok(
+      await db.rpc("lead_site_reads_spent", { p_tenant_id: A, p_round_id: round.id, p_reads: 0, p_usd: 0 }),
+      "nothing",
+    );
+    assert.deepEqual(await budget(), spent, "nothing read costs nothing");
+
+    // No round asked: the leads sweep's second try. This month's, reserved from nothing.
+    ok(await db.rpc("lead_site_reads_spent", { p_tenant_id: A, p_reads: 1, p_usd: 0.005 }), "no round");
+    const unasked = await budget();
+    near(unasked.used, spent.used + 0.005, "used");
+    near(unasked.reserved, spent.reserved, "reserved stands");
+
+    // A round that ended is final: the month carries it.
+    ok(await db.rpc("lead_round_end", { p_round_id: round.id, p_ending: "stopped" }), "ended");
+    const ended = await budget();
+    ok(
+      await db.rpc("lead_site_reads_spent", { p_tenant_id: A, p_round_id: round.id, p_reads: 2, p_usd: 0.01 }),
+      "late",
+    );
+    assert.equal(
+      ok(await db.from("lead_rounds").select("site_reads").eq("id", round.id).single(), "final").site_reads,
+      4,
+      "its count stands",
+    );
+    near((await budget()).used, ended.used + 0.01, "used");
+
+    const refused = await owner.rpc("lead_site_reads_spent", { p_tenant_id: A, p_reads: 1, p_usd: 1 });
+    assert.ok(refused.error, "a member cannot say what a read cost");
   },
 );

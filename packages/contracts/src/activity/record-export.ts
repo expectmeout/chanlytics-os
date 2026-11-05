@@ -99,6 +99,12 @@ export const EXPORT_OF = {
       why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section; the rest is a progress record and a copy of what is public.",
     },
   },
+  draft: {
+    not_exported: {
+      what: "The replies Ask drafted and you did not send",
+      why: "They are suggestions, never sent and written again when someone writes; what you sent is in the file's conversations.",
+    },
+  },
   rehearsal: {
     not_exported: {
       what: "Your rehearsals with the receptionist",

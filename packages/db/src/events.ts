@@ -152,6 +152,8 @@ interface TableData {
   "policy.changed": { class: string; mode: string; fields: string[]; by: string; via?: string };
   "reach_out.lead_stopped": { by: string };
   "reach_out.send_decided": { decision: string; by: string };
+  /** A lead's own email typed on their sheet, or the step's words put back (decision 0096): who, never the words. */
+  "reach_out.lead_words_changed": { step_id: string; kept: boolean; by: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
   /** A rename of the workspace keeps the names it changed from and to (00439, X4-5): the one setting the ledger says in full. */
   "settings.changed": {
@@ -249,6 +251,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "policy.veto_window_skipped": { category: "policy", version: 1 },
   "reach_out.lead_stopped": { category: "lead", version: 1 },
   "reach_out.send_decided": { category: "lead", version: 1 },
+  "reach_out.lead_words_changed": { category: "lead", version: 1 },
   "settings.changed": { category: "system", version: 1 },
   "template.removed": { category: "message", version: 1 },
   "template.submitted": { category: "message", version: 1 },
@@ -468,6 +471,48 @@ export async function settleDelivery(
     .eq("event_id", d.eventId)
     .eq("subscriber", d.subscriber);
   if (error) throw new Error(`event_deliveries: ${error.message}`);
+}
+
+/**
+ * A delivery whose job will not finish, settled failed unless it already settled (done, failed or paused): a run that died
+ * before its subscriber's verdict left the row scheduled, where nothing ever took it again, since Deliver again
+ * (event_deliveries_redrive) takes the failed and the paused. True when it moved. Throws when the write failed.
+ */
+export async function failOpenDelivery(
+  db: Db,
+  d: { tenantId: string; eventId: string; subscriber: string; error: string },
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("event_deliveries")
+    .update({ state: "failed", last_error: d.error.slice(0, 500) })
+    .eq("tenant_id", d.tenantId)
+    .eq("event_id", d.eventId)
+    .eq("subscriber", d.subscriber)
+    .eq("state", "scheduled")
+    .select("event_id");
+  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * A run that sent its last batch: marked sent, and its broadcast.sent with the tally written, in one transaction (00527
+ * finish_broadcast). The state used to move first and the event after, so an event that could not be written threw out
+ * of a run that had finished, and its owner was told it stopped partway. False when the run was not sending (another
+ * chain finished it first, or it was stopped), and then nothing was written. Throws when the write failed.
+ */
+export async function finishBroadcast(
+  db: Db,
+  tenantId: string,
+  id: string,
+  tally: EventData["broadcast.sent"],
+): Promise<boolean> {
+  const { data, error } = await db.rpc("finish_broadcast", {
+    p_tenant_id: tenantId,
+    p_id: id,
+    p_event: rowOf(tenantId, "broadcast.sent", "broadcast", id, tally),
+  });
+  if (error) throw new Error(`finish_broadcast: ${error.message}`);
+  return data === true;
 }
 
 /* ------------------------------------------------ what the ledgers' rows are about ------------------------------------------------ */

@@ -1,5 +1,5 @@
 /** Reach out: the campaign email's words and rules, its timetable, and the hours and time zones the window keeps. */
-export { DEFAULT_WEEK, leadFactOf, listingPeriodsOf, weekHoursOf } from "./lead-hours";
+export { DEFAULT_WEEK, leadFactOf, leadOpeningOf, listingPeriodsOf, weekHoursOf } from "./lead-hours";
 export type { FactListing, OpenWindow, WeekHours } from "./lead-hours";
 export { composeLinksOf, mailtoOf } from "./owner/compose";
 export type { ComposeLinks } from "./owner/compose";
@@ -63,12 +63,15 @@ export { REACH_OUT_DECISIONS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_SAID_OUTCOM
 export type {
   ReachOutChainDto,
   ReachOutChainReportDto,
+  ReachOutCheckLine,
+  ReachOutDecideDto,
   ReachOutDecision,
   ReachOutDraftedSend,
   ReachOutHeldSend,
   ReachOutMailboxChoice,
   ReachOutMailboxFacts,
   ReachOutNextFacts,
+  ReachOutOpeningDto,
   ReachOutPeopleCountsDto,
   ReachOutPreviewDto,
   ReachOutReachDto,
@@ -122,6 +125,7 @@ export type {
 export {
   OPENING_SCHEMA,
   OPENING_UNSTATED,
+  openingAskedOf,
   openingSystemPrompt,
   openingUserContent,
   openingVerdict,
@@ -132,7 +136,7 @@ export {
   readingSystemPrompt,
   readingUserContent,
 } from "./reach-out-opening";
-export type { OpeningVerdict, OpeningWorkspace, Reading } from "./reach-out-opening";
+export type { OpeningAsked, OpeningVerdict, OpeningWorkspace, Reading } from "./reach-out-opening";
 export {
   awayUntilOf,
   isReplyIntent,
@@ -228,11 +232,12 @@ export {
   reachOutExampleValues,
   reachOutRootOf,
 } from "./reach-out-rules";
-export { REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
+export { REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
 export type { ColdEnding, DraftLeadFacts, OutreachLeadFacts, ReachOutSignsWith, SlotLead } from "./reach-out-rules";
 export type { SlotWorkspace } from "./reach-out-rules";
 export { ReachOutChainSchema, ReachOutStepSchema } from "./reach-out-schemas";
 export {
+  ReachOutCheckSchema,
   ReachOutDecideSchema,
   ReachOutPreviewSchema,
   ReachOutReplySaidSchema,

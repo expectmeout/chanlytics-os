@@ -574,6 +574,28 @@ export async function countSentToday(
   return count ?? 0;
 }
 
+/**
+ * Whether the booking link already left on this call to this thread and was not refused at the wire (decision 0092): a
+ * tool call the provider asks again, or a caller who asks twice in a minute, is told it is on its way rather than sent
+ * a second one. A link that failed does not count: asking again is how a caller gets it by text. A read that fails
+ * throws.
+ */
+export async function linkSentOnCall(
+  db: Db,
+  p: { tenantId: string; conversationId: string; source: string; callId: string },
+): Promise<boolean> {
+  const { count, error } = await db
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", p.tenantId)
+    .eq("conversation_id", p.conversationId)
+    .eq("direction", "outbound")
+    .neq("status", "failed")
+    .contains("meta", { source: p.source, call_id: p.callId });
+  if (error) throw new Error(`link_sent_on_call: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
 export async function recordStatusByExternalId(
   db: Db,

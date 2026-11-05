@@ -21,8 +21,8 @@ import { at } from "../_cron-doors-world.mjs";
 const { checkOne, checkSends, checkBudget, backoffMs, CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_GIVE_UP_MS } =
   await import(at("apps/edge/lib/reach-out/check.ts"));
 const { hoursLine, checkInputOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
-const { checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts"));
-const { REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
+const { checkedWordsOf } = await import("@chanlytics/channels");
+const { REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -275,6 +275,22 @@ test("a listing with a fact is read once, by the reader: its opening is the fact
   assert.doesNotMatch(m.asked[0].system, /You write the first sentence/, "the one call is the reader's");
 });
 
+test("an owner who pressed Rewrite turned the fact down: the writer writes, told what was turned down and what should change (00505)", async () => {
+  const m = scripted(WROTE("Austin Movers has been family-run since 2009."), READ());
+  const asked = { was: FACT.opening, change: "Lean on how long they have been around" };
+  const out = await checkOne(input({ fact: FACT, asked }), m.ask, open);
+  assert.deepEqual([out.kind, out.hold, out.calls], ["checked", null, 2]);
+  assert.equal(out.opening.opening, "Austin Movers has been family-run since 2009.");
+  assert.match(
+    m.asked[0].system,
+    /You write the first sentence/,
+    "the first call is the writer's, not the fact's reader",
+  );
+  assert.ok(m.asked[0].user.includes(`The owner turned this opening down: ${FACT.opening}`));
+  assert.ok(m.asked[0].user.includes("The owner asks: Lean on how long they have been around"));
+  assert.match(m.asked[1].user, /The sentence: Austin Movers has been family-run since 2009\./, "the reader reads it");
+});
+
 test("a fact the reader finds in another language is held for its language, with no writer", async () => {
   const m = scripted(READ({ language: "es" }));
   const out = await checkOne(input({ fact: FACT }), m.ask, open);
@@ -301,8 +317,8 @@ test("a fact the reader cannot back goes the writer's way, as an opening with no
 /* ------------------------------------------- what a business's own website says (30 Oct 2026) -- */
 
 const { siteReaderOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
-const { siteWordsOf } = await import(at("apps/edge/lib/public-page.ts"));
-/** The most a website is said in (public-page.ts): a directory's about's 600 characters. */
+const { siteWordsOf } = await import(at("packages/core/src/site-words.ts"));
+/** The most a website is said in (check-one.ts): a directory's about's 600 characters. */
 const WEBSITE_SAYS_MAX = 600;
 
 test("the writer is given what the business's own website says, read once, and only when the writer is asked", async () => {
@@ -341,23 +357,34 @@ test("the writer is given what the business's own website says, read once, and o
   }
 });
 
-test("a home page says what the business says of itself: its title, its description, then its first words", () => {
-  const html = `<html><head><title>Austin Movers | Local &amp; Long-Distance</title>
-    <meta content="Family-run movers in Austin since 2009." name="description">
-    <style>.hero{color:red}</style><script>var tracking = "ignore me";</script></head>
-    <body><h1>Moving made calm</h1><p>We move homes and offices across Texas.</p></body></html>`;
-  const said = siteWordsOf(html);
+test("a home page says what the business says of itself: its title, its description, then its main content's words", () => {
+  const said = siteWordsOf(
+    {
+      title: "Austin Movers | Local & Long-Distance",
+      description: "Family-run movers in Austin since 2009.",
+      markdown:
+        "![Our truck](https://cdn.example/truck.jpg)\n\n# Moving made **calm**\n\n- We move [homes](/homes) and offices\n- Across *Texas*\n\n---\n\n| Crew | Price |\n|---|---|",
+    },
+    WEBSITE_SAYS_MAX,
+  );
   assert.ok(said.startsWith("Austin Movers | Local & Long-Distance · Family-run movers in Austin since 2009."), said);
-  assert.match(said, /moving made calm/i, "a heading as its page says it");
-  assert.match(said, /We move homes and offices across Texas\./);
-  assert.doesNotMatch(said, /color:red|ignore me|[\r\n]/);
-  // An og:description stands in for a missing description, and words said twice are said once.
-  const og = siteWordsOf(`<title>Harbor Repair</title><meta property="og:description" content="Harbor Repair">`);
-  assert.equal(og, "Harbor Repair");
+  assert.match(said, /Moving made calm We move homes and offices Across Texas/, "words, without their marks");
+  assert.doesNotMatch(said, /cdn\.example|truck|\/homes|[#*\r\n]|---/);
+  // Words said twice are said once, a description that repeats the title among them.
+  assert.equal(
+    siteWordsOf({ title: "Harbor Repair", description: "Harbor Repair", markdown: "" }, WEBSITE_SAYS_MAX),
+    "Harbor Repair",
+  );
   // A long page is cut at a word, within the bound; a page that says nothing is nothing.
-  const long = siteWordsOf(`<title>T</title><body><p>${"word ".repeat(400)}</p></body>`);
+  const long = siteWordsOf({ title: "T", description: null, markdown: "word ".repeat(400) }, WEBSITE_SAYS_MAX);
   assert.ok(long.length <= WEBSITE_SAYS_MAX && long.endsWith("word"), long.length);
-  assert.equal(siteWordsOf("<html><body><script>x()</script></body></html>"), null);
+  assert.equal(siteWordsOf({ title: null, description: null, markdown: "![](https://x.example/a.png)" }, 100), null);
+  // A page written to be slow to read is read no slower than any other.
+  for (const hostile of ["[".repeat(200_000), "![".repeat(100_000), "<".repeat(200_000), "\\".repeat(200_000)]) {
+    const t = performance.now();
+    siteWordsOf({ title: null, description: null, markdown: hostile }, 2_000);
+    assert.ok(performance.now() - t < 1_000, `read in ${Math.round(performance.now() - t)} ms`);
+  }
 });
 
 test("a lead's site is asked for at its own host, through the platform's page reader, and none is asked without one", async () => {
@@ -483,7 +510,15 @@ const record = (name, over = {}) => ({
  * minutes; stamped as it is handed over, with its step, its chain's name and its record. The SQL's round-robin, its
  * horizon and its joins are proved on a stack (reach-out-checked.db.test.mjs).
  */
-function world({ sends = [], records = {}, billing = "active", monthSent = 0, spentToday = 0, body = WORDS } = {}) {
+function world({
+  sends = [],
+  records = {},
+  billing = "active",
+  monthSent = 0,
+  spentToday = 0,
+  body = WORDS,
+  own = [],
+} = {}) {
   const tables = {
     tenants: [
       { id: T, name: "Harbor Moving Co", status: "active" },
@@ -505,6 +540,7 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
       },
     ],
     reach_out_sends: sends,
+    sequence_lead_words: own,
     // What the workspace's model attempts spent this UTC day (00197), counted against its ceiling.
     reach_out_check_spend: [{ tenant_id: T, day: new Date().toISOString().slice(0, 10), attempts: spentToday }],
   };
@@ -520,7 +556,8 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
           s.checked_at == null &&
           (s.check_after == null || s.check_after <= now) &&
           (s.check_started_at == null || s.check_started_at < ago(2 * MIN)) &&
-          (!a.p_tenant_id || s.tenant_id === a.p_tenant_id);
+          (!a.p_tenant_id || s.tenant_id === a.p_tenant_id) &&
+          (!a.p_send_ids || a.p_send_ids.includes(s.id));
         const perWorkspace = new Map();
         const picked = [];
         for (const s of tables.reach_out_sends.filter(free)) {
@@ -546,6 +583,7 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
           template_language: "en",
           signed_by: "Sam",
           included_for: s.included_for,
+          due_soon: s.due_soon !== false,
           ...(records[s.lead_id] ?? record(`Fixture Movers ${s.lead_id}`)),
         }));
       },
@@ -684,6 +722,142 @@ test("a failed try backs off and ends its lease; an hour of them holds the send 
   // updated_at on every write, which this double does not).
   h.updated_at = new Date().toISOString();
   assert.deepEqual([(await tick(w, async () => null)).read, w.row(hour.id).state], [0, "held"]);
+});
+
+test("an email days off is never held by a model's bad hour: it backs off, then is asked hourly, and its hour waits (decision 0098)", async () => {
+  const days = ahead(5 * DAY);
+  const fresh = send({ lead_id: "far-fresh", due_soon: false, send_at: days });
+  // Past the last backoff, and failing for far longer than an hour.
+  const long = send({ lead_id: "far-long", due_soon: false, send_at: days, check_tries: 9, updated_at: ago(3 * DAY) });
+  const w = world({ sends: [fresh, long] });
+  const log = fakeLog();
+  const before = Date.now();
+  const out = await tick(w, async () => null, { log });
+  assert.deepEqual([out.failed, out.gave_up, out.calls_failed], [2, 0, 2]);
+  const f = w.row(fresh.id);
+  assert.deepEqual([f.state, f.reason, f.checked_at, f.check_tries], ["planned", null, null, 1]);
+  assert.ok(Math.abs(Date.parse(f.check_after) - (before + MIN)) < 5_000, "a minute on, as any first failure");
+  assert.equal(f.check_first_at, null, "the hour that holds an email has not started");
+  const l = w.row(long.id);
+  assert.deepEqual([l.state, l.reason, l.check_first_at, l.check_tries], ["planned", null, null, 10]);
+  assert.ok(Math.abs(Date.parse(l.check_after) - (before + 60 * MIN)) < 5_000, "past the last backoff, hourly");
+  assert.deepEqual(
+    log.lines.filter((x) => x.event === "reach_out_check_held"),
+    [],
+  );
+  // Due soon at last, its hour starts then: still not held on the first failure there.
+  Object.assign(w.row(long.id), {
+    due_soon: true,
+    check_after: null,
+    check_started_at: null,
+    send_at: ahead(HOUR_AGO),
+  });
+  Object.assign(w.row(fresh.id), { check_after: ahead(HOUR_AGO) });
+  const near = await tick(w, async () => null);
+  assert.deepEqual([near.failed, near.gave_up], [1, 0]);
+  const now = w.row(long.id);
+  assert.equal(now.state, "planned");
+  assert.ok(Math.abs(Date.parse(now.check_first_at) - Date.now()) < 5_000, "its hour starts now");
+});
+
+test("what is not due soon leaves the day's last attempts to what is; a press is a person waiting (decision 0098)", async () => {
+  const pass = async (system) => ({
+    answer: system.includes("You write") ? WROTE("A 4.9 says it.") : READ(),
+    tokens: { input: 1, output: 1 },
+  });
+  assert.ok(REACH_OUT_CHECKS_AHEAD_PER_DAY < REACH_OUT_CHECKS_PER_DAY, "some of the day is kept");
+  const far = send({ lead_id: "far", due_soon: false, send_at: ahead(5 * DAY) });
+  const soon = send({ lead_id: "soon" });
+  const w = world({ sends: [far, soon], spentToday: REACH_OUT_CHECKS_AHEAD_PER_DAY });
+  const log = fakeLog();
+  const out = await tick(w, pass, { log });
+  assert.deepEqual([out.checked, out.gated], [1, 1], JSON.stringify(out));
+  assert.equal(w.row(soon.id).opening, "A 4.9 says it.", "due soon takes from what was kept");
+  const put = w.row(far.id);
+  assert.deepEqual([put.state, put.checked_at, put.check_started_at], ["planned", null, null]);
+  assert.ok(Date.parse(put.check_after) > Date.now() + 59 * MIN, "asked again an hour on");
+  assert.deepEqual(
+    log.lines.filter((l) => l.event === "reach_out_check_gated").map((l) => l.reason),
+    ["day_spent"],
+  );
+  // Below the share an email days off is written as any is.
+  const room = send({ lead_id: "room", due_soon: false, send_at: ahead(5 * DAY) });
+  const w2 = world({ sends: [room], spentToday: REACH_OUT_CHECKS_AHEAD_PER_DAY - 1 });
+  assert.equal((await tick(w2, pass)).checked, 1);
+  assert.equal(w2.row(room.id).opening, "A 4.9 says it.");
+  // A person pressed it: they are waiting, whatever its day.
+  const pressed = send({ lead_id: "pressed", due_soon: false, send_at: ahead(5 * DAY) });
+  const w3 = world({ sends: [pressed], spentToday: REACH_OUT_CHECKS_AHEAD_PER_DAY });
+  assert.equal((await tick(w3, pass, { tenantId: T, sendIds: [pressed.id] })).checked, 1);
+});
+
+/* ------------------------------------------------------------------ a lead's own words (decision 0096) -- */
+
+const OWN = { subject: "Your weekend chair", body: "Saw the chair is booked out.\n\nWorth a word? {{your name}}" };
+const ownFor = (lead_id, words = OWN, step_id = "root-1") => ({ step_id, lead_id, ...words });
+
+test("a lead's own words with no line cost no call: checked against them, and the line it had is left for the step's words coming back", async () => {
+  const s = send({ lead_id: "mine", opening: "A line from before.", angle: "their reviews" });
+  const w = world({ sends: [s], records: { mine: record("Mine Movers") }, own: [ownFor("mine")] });
+  const m = byBusiness({});
+  const out = await tick(w, m.ask);
+  assert.deepEqual([out.read, out.checked, out.held, out.calls, m.calls.length], [1, 1, 0, 0, 0]);
+  const r = w.row(s.id);
+  assert.deepEqual(
+    [r.state, r.opening, r.angle, !!r.checked_at, r.check_started_at],
+    ["planned", "A line from before.", "their reviews", true, null],
+  );
+  assert.equal(r.checked_words, checkedWordsOf(OWN, "Sam", false), "the sender's mark for these words, not the step's");
+  assert.notEqual(r.checked_words, checkedWordsOf(WORDS, "Sam", false));
+});
+
+test("a lead's own words hold nothing back about the business: what holds a send for who it is to still does", async () => {
+  const s = send({ lead_id: "customer" });
+  const w = world({
+    sends: [s],
+    records: { customer: record("Customer Movers", { email_domain_shared: true }) },
+    own: [ownFor("customer")],
+  });
+  const m = byBusiness({});
+  const out = await tick(w, m.ask);
+  assert.deepEqual([out.held, out.calls, m.calls.length], [1, 0, 0]);
+  assert.deepEqual([w.row(s.id).state, w.row(s.id).reason], ["held", "customer_domain"]);
+});
+
+test("a lead's own words that keep their line have it written, and another step's words are not this step's", async () => {
+  const kept = send({ lead_id: "kept" });
+  const other = send({ lead_id: "other" });
+  const keptWords = { subject: "Mine", body: "{{opening}}\n\nMy own words. {{your name}}" };
+  const w = world({
+    sends: [kept, other],
+    records: { kept: record("Kept Movers"), other: record("Other Movers") },
+    own: [ownFor("kept", keptWords), ownFor("other", OWN, "step-2")],
+  });
+  const m = byBusiness({
+    "Kept Movers": [WROTE("A 4.9 says it."), READ()],
+    "Other Movers": [WROTE("16 reviews say it."), READ()],
+  });
+  await tick(w, m.ask);
+  assert.deepEqual([w.row(kept.id).opening, w.row(other.id).opening], ["A 4.9 says it.", "16 reviews say it."]);
+  assert.equal(w.row(kept.id).checked_words, checkedWordsOf(keptWords, "Sam", false));
+  assert.equal(w.row(other.id).checked_words, checkedWordsOf(WORDS, "Sam", false), "its own words are at another step");
+});
+
+test("own words that cannot be read check nothing this tick: never the step's words over what a member typed", async () => {
+  const s = send({ lead_id: "mine" });
+  const w = world({ sends: [s], records: { mine: record("Mine Movers") }, own: [ownFor("mine")] });
+  const down = Object.create(w.db);
+  const refused = {
+    select: () => refused,
+    in: () => refused,
+    order: () => refused,
+    range: async () => ({ data: null, error: { message: "down" } }),
+  };
+  down.from = (table) => (table === "sequence_lead_words" ? refused : w.db.from(table));
+  const m = byBusiness({ "Mine Movers": [WROTE("A 4.9 says it."), READ()] });
+  const out = await tick({ ...w, db: down }, m.ask);
+  assert.deepEqual([out.checked, out.calls, m.calls.length, w.row(s.id).checked_at], [0, 0, 0, null]);
+  assert.equal(w.row(s.id).opening, null);
 });
 
 test("a check never writes onto words that changed under it (R3, R5)", async () => {
@@ -893,4 +1067,127 @@ test("a tick tells the owner of a live run it held a send in, once, with the run
   w.tables.reach_out_sends.push(send({ lead_id: "liar", broadcast_id: "run-2" }));
   const third = await tick(w, byBusiness({ "Liar Movers": [...lie(), ...lie()] }).ask, { notice });
   assert.deepEqual([third.noticed, told.length], [0, 1]);
+});
+
+/* ------------------------------------------------------------- a pressed rewrite, checked now (00505) -- */
+
+test("a press checks its own sends alone, now: its owner's ask reaches the writer, and the clock's chores wait", async () => {
+  const pressed = send({
+    lead_id: "pressed",
+    rewrite_asked: { change: "Mention the piano moves", by: "u1", at: ago(MIN), was: { opening: "A 4.9 says it." } },
+  });
+  const other = send({ lead_id: "other" });
+  // A check_unavailable hold an hour old: the clock would put it back; a press leaves it to the clock.
+  const stale = send({ lead_id: "stale", state: "held", reason: "check_unavailable", updated_at: ago(2 * HOUR_AGO) });
+  const w = world({ sends: [pressed, other, stale], records: { pressed: record("Pressed Movers") } });
+  const m = byBusiness({ "Pressed Movers": [WROTE("Pressed Movers is family-run since 2009."), READ()] });
+  const out = await tick(w, m.ask, { tenantId: T, sendIds: [pressed.id] });
+  assert.deepEqual([out.read, out.checked, out.released, out.noticed], [1, 1, 0, 0], JSON.stringify(out));
+  assert.equal(w.row(pressed.id).opening, "Pressed Movers is family-run since 2009.");
+  assert.deepEqual([w.row(other.id).checked_at, w.row(other.id).check_started_at], [null, null], "not leased");
+  assert.equal(w.row(stale.id).state, "held", "the clock's release waits for the clock");
+  assert.ok(m.calls[0].includes("The owner turned this opening down: A 4.9 says it."));
+  assert.ok(m.calls[0].includes("The owner asks: Mention the piano moves"));
+});
+
+test("a press hears each step as the check takes it, and what their website said is kept, so writing it again reads no page", async () => {
+  const pages = [];
+  const before = setSitePageReader(async (url) => {
+    pages.push(url);
+    return {
+      url,
+      html: "<html></html>",
+      markdown: "",
+      title: "Kept Movers",
+      description: "Pianos since 2009",
+      brand: null,
+    };
+  });
+  try {
+    const asked = { change: null, by: "u1", at: ago(MIN), was: { opening: "A 4.9 says it." } };
+    const pressed = send({ lead_id: "kept", rewrite_asked: asked });
+    const w = world({ sends: [pressed], records: { kept: record("Kept Movers") } });
+    const steps = [];
+    const onStep = (id, step) => steps.push([id, step]);
+    const m = byBusiness({
+      "Kept Movers": [
+        WROTE("Loved by locals."),
+        READ({ backed: false, unbacked: "Loved by locals" }),
+        WROTE("Kept Movers has moved pianos since 2009."),
+        READ(),
+      ],
+    });
+    await tick(w, m.ask, { tenantId: T, sendIds: [pressed.id], onStep });
+    assert.deepEqual(steps, [
+      [pressed.id, "reading"],
+      [pressed.id, "writing"],
+      [pressed.id, "checking"],
+      [pressed.id, "again"],
+      [pressed.id, "checking"],
+    ]);
+    assert.equal(pages.length, 1, "their page read once, for the writer and the reader alike");
+    assert.equal(w.row(pressed.id).website_says, "Kept Movers · Pianos since 2009", "kept with the email");
+    // Pressed again: the kept words are the writer's, no page is read, and no reading is said.
+    Object.assign(w.row(pressed.id), { checked_at: null, check_started_at: null, rewrite_asked: asked });
+    steps.length = 0;
+    const again = byBusiness({ "Kept Movers": [WROTE("Kept Movers moves pianos with care."), READ()] });
+    await tick(w, again.ask, { tenantId: T, sendIds: [pressed.id], onStep });
+    assert.deepEqual(
+      steps.map(([, s]) => s),
+      ["writing", "checking"],
+    );
+    assert.equal(pages.length, 1, "no second read");
+    assert.ok(again.calls[0].includes("website_says: Kept Movers · Pianos since 2009"));
+  } finally {
+    setSitePageReader(before);
+  }
+});
+
+test("the pressed check's door acts for the workspace its token names, on one to twenty email ids", async () => {
+  const { checkPressedSends } = await import(at("apps/edge/lib/reach-out/check-sweep.ts"));
+  // A press asks for at most twenty (contracts REWRITE_NOW_MAX): one more is refused.
+  const { setPg } = await import(at("apps/edge/lib/pg.ts"));
+  const token = (workspace) => ({ ok: true, via: "token", workspace, user: "u1" });
+  const id = "11111111-aaaa-4aaa-8aaa-111111111111";
+  const status = async (auth, body) => {
+    const r = await checkPressedSends(auth, body);
+    return [r.status, (await r.json()).error];
+  };
+  assert.deepEqual(await status(token(null), { send_ids: [id] }), [400, "bad_tenant"]);
+  assert.deepEqual(await status(token(T), {}), [400, "bad_request"]);
+  assert.deepEqual(await status(token(T), { send_ids: [] }), [400, "bad_request"]);
+  assert.deepEqual(await status(token(T), { send_ids: [id, "not-an-id"] }), [400, "bad_request"]);
+  const many = Array.from({ length: 21 }, (_, i) => `11111111-aaaa-4aaa-8aaa-${String(i).padStart(12, "0")}`);
+  assert.deepEqual(await status(token(T), { send_ids: many }), [400, "bad_request"]);
+  const key = process.env.ANTHROPIC_API_KEY;
+  try {
+    delete process.env.ANTHROPIC_API_KEY;
+    assert.deepEqual(await status(token(T), { send_ids: [id] }), [503, "check_unset"]);
+    process.env.ANTHROPIC_API_KEY = "not-a-real-credential";
+    // Its own workspace's sends alone: another workspace's id leases nothing.
+    const theirs = send({ tenant_id: T2, lead_id: "theirs" });
+    const w = world({ sends: [theirs] });
+    setPg(w.db);
+    const r = await checkPressedSends(token(T), { send_ids: [theirs.id] });
+    assert.equal(r.status, 400, "a fixture id that is not a UUID is refused before any read");
+    theirs.id = "22222222-aaaa-4aaa-8aaa-222222222222";
+    const ok = await checkPressedSends(token(T), { send_ids: [theirs.id] });
+    assert.deepEqual([ok.status, (await ok.json()).read], [200, 0]);
+    assert.equal(w.row(theirs.id).check_started_at, null);
+    // As a stream: JSON lines, the steps as they come (none here), then the counts.
+    const streamed = await checkPressedSends(token(T), { send_ids: [theirs.id], stream: true });
+    assert.deepEqual([streamed.status, streamed.headers.get("content-type")], [200, "application/x-ndjson"]);
+    const lines = (await streamed.text())
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    assert.deepEqual(
+      lines.map((l) => [l.t, l.read]),
+      [["done", 0]],
+    );
+  } finally {
+    if (key === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = key;
+    setPg(null);
+  }
 });

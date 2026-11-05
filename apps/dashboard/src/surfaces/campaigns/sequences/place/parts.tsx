@@ -3,7 +3,12 @@
  * name and its line (PlaceWord: Leads' cell and the picker), and the read of one lead's place both windows share
  * (useLeadPlace, GET leads/:id/place, cached as the record's reads are).
  */
-import { placeWordOf, type SequencePlaceRowDto, type SequenceState } from "@chanlytics/contracts";
+import {
+  placeWordOf,
+  type LeadStepWordsDto,
+  type SequencePlaceRowDto,
+  type SequenceState,
+} from "@chanlytics/contracts";
 import { StatePill } from "../../../kit/pill/state-pill";
 import { useSequenceRead } from "../use-record";
 import { sequenceVerbs as verbs } from "../verbs";
@@ -26,6 +31,28 @@ export function PlaceWord(p: {
       {p.line !== false && w.line ? <span className="lw-place-l">{w.line}</span> : null}
     </span>
   );
+}
+
+/**
+ * One lead's own emails and their own words at each step (GET leads/:id/emails): read as its place is. A read that failed
+ * leaves a row of History out, and says so for the words: the sheet edits none it could not read.
+ */
+export function useLeadEmails(leadId: string | null, again: number) {
+  const read = useSequenceRead(leadId, verbs.leadEmails, verbs.peekLeadEmails, { again });
+  return { read: read.state !== "reading", list: read.state === "read" ? read.data : [] };
+}
+
+/** While a lead's own words are on their way, or could not be read: none is said, and none may be typed over. */
+const NO_WORDS: LeadStepWordsDto[] = [];
+
+/** One lead's own words at each step that has some (GET leads/:id/words, decision 0096), read as their emails are. */
+export function useLeadWords(leadId: string | null, again: number) {
+  const read = useSequenceRead(leadId, verbs.leadWords, verbs.peekLeadWords, { again });
+  return {
+    read: read.state !== "reading",
+    words: read.state === "read" ? read.data : NO_WORDS,
+    wordsRead: read.state === "read",
+  };
 }
 
 /** One lead's place (GET leads/:id/place): painted from the last answer this tab holds, read again behind, and after a press. */

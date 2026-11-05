@@ -59,6 +59,9 @@
           "api/admin/mailboxes.ts": {
             "maxDuration": 60
           },
+          "api/admin/voice/erase-calls.ts": {
+            "maxDuration": 60
+          },
           "api/admin/voice-converge.ts": {
             "maxDuration": 30
           },
@@ -93,6 +96,9 @@
             "maxDuration": 60
           },
           "api/cron/deadman.ts": {
+            "maxDuration": 60
+          },
+          "api/cron/drafts.ts": {
             "maxDuration": 60
           },
           "api/cron/mailboxes.ts": {
@@ -185,6 +191,9 @@
           "api/retell-inbound.ts": {
             "maxDuration": 30
           },
+          "api/voice-canary.ts": {
+            "maxDuration": 30
+          },
           "api/admin/hand-over.ts": {
             "maxDuration": 30
           },
@@ -233,10 +242,16 @@
           "api/admin/steer.ts": {
             "maxDuration": 60
           },
+          "api/admin/draft.ts": {
+            "maxDuration": 60
+          },
           "api/admin/playbooks-run.ts": {
             "maxDuration": 60
           },
           "api/admin/calendar/freed-time.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/reach-out/check.ts": {
             "maxDuration": 60
           },
           "api/admin/voice/session.ts": {

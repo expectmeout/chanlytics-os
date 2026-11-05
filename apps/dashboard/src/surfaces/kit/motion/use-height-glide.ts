@@ -27,6 +27,13 @@ function typingIn(sheet: HTMLElement): boolean {
 
 const lessMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/**
+ * A box rising with a phone's keys (keys-rise.ts), held clear under a still copy of itself that the conversation follows:
+ * it takes its new height at once, since a glide of its own under the copy moved the conversation's edge off the copy's
+ * (an open thread's folded reply box, opened by the tap that focused it; 4 Nov 2026).
+ */
+const rising = (sheet: HTMLElement) => sheet.hasAttribute("data-rising");
+
 /** Glide this sheet's height as what it holds changes; the function it answers stops it. */
 export function glideHeight(sheet: HTMLElement): () => void {
   if (typeof ResizeObserver === "undefined" || typeof sheet.animate !== "function") return () => {};
@@ -66,7 +73,7 @@ export function glideHeight(sheet: HTMLElement): () => void {
       return;
     }
     last = now;
-    if (capMoved || lessMotion()) return;
+    if (capMoved || lessMotion() || rising(sheet)) return;
     const ease = getComputedStyle(sheet).getPropertyValue("--ease-out").trim() || "ease-out";
     playing = sheet.animate([{ height: `${was}px` }, { height: `${now}px` }], { duration: GLIDE_MS, easing: ease });
     const done = () => {

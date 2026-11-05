@@ -464,20 +464,37 @@ const searchedAlready = (idea: LeadIdeaDto, searches: LeadSearchDto[]): boolean 
 };
 
 /**
+ * The search a plan on the panel was opened from: the round a strip's next step was opened under, or its own plan run
+ * again (Search again, changed).
+ */
+const finderSearchOf = ({ finder, leads }: LeadsPage) => {
+  const { more, proposal } = finder;
+  const id = more ? more.searchId : proposal && "searchId" in proposal ? proposal.searchId : null;
+  return id ? leads.searches.find((x) => x.id === id) || null : null;
+};
+
+/**
  * A plan opened from a search itself has no Ask turn's facts: the month the page reads, and the search's nearby areas,
  * stand in (contracts leadMonthPlanFacts). None until a first page has said the month, or with no plan.
  */
 const monthFactsOf = (p: LeadsPage) => {
   const { finder, leads } = p;
   if (!finder.plan || !leads.month) return null;
-  const id = finder.more ? finder.more.searchId : null;
-  const s = id ? leads.searches.find((x) => x.id === id) || null : null;
+  const s = finderSearchOf(p);
   return leadMonthPlanFacts(leads.month, finder.plan.count, (s && s.round && s.round.nearby) || [], null);
 };
+
+/**
+ * The version a plan's "changed" counts from: Ask's card as it came, or the plan its search runs, which may be past the
+ * first with nothing on the card moved. Include opens a version on from it, since it does change what runs.
+ */
+const finderBaseVersionOf = (p: LeadsPage) =>
+  p.finder.proposal?.payload?.plan?.version || finderSearchOf(p)?.plan?.version || 1;
 
 /** The plan panel: its state as the panel reads it, and its moves. */
 const finderProps = (p: LeadsPage) => {
   const { finder, setFinder, closeFinder, openFind } = p;
+  const baseVersion = finderBaseVersionOf(p);
   return {
     finderOpen: finder.open,
     finderStage: finder.stage,
@@ -487,7 +504,8 @@ const finderProps = (p: LeadsPage) => {
     finderBusy: p.leadBusy,
     finderPlan: finder.plan,
     finderFacts: monthFactsOf(p),
-    finderChanged: !!finder.plan && finder.plan.version > ((finder.proposal?.payload?.plan?.version as number) || 1),
+    finderBaseVersion: baseVersion,
+    finderChanged: !!finder.plan && finder.plan.version > baseVersion,
     finderTrace: finder.trace,
     finderPick: finder.pick,
     onFinderWords: (words: string) => setFinder({ words }),

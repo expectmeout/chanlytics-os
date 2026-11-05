@@ -1,29 +1,32 @@
 /**
- * Send me a test (the parity review's W5; Ruben, 15 Oct 2026: email to your own address first): a customer step's message
- * mailed to the member who pressed it, at their own sign-in address, and to nobody else. It is filled for the example
- * person every preview fills for (templates exampleParams: Dani), and says each channel the step goes by as the person
- * reached on it reads it: WhatsApp's template words, a text's with the STOP line, an email's subject and words with the
- * foot the sender adds (broadcasts previewParts and previewOn, the fill a send makes). A note to a member, never a send to
- * a customer: it leaves by the edge's member mail, not the send door. Pure: every word of it is here.
+ * Send me a test (the parity review's W5; Ruben, 15 Oct 2026: email to your own address first): a step's message mailed to
+ * the member who pressed it, at their own sign-in address, and to nobody else. A note to a member, never a send to a
+ * customer: it leaves by the edge's member mail, not the send door. Pure: every word of it is here.
+ *
+ * One test for every step (3 Nov 2026: a customer step's test and a lead step's were laid out two ways, and neither as
+ * the email went): one line saying whose message it is, then the message as it goes and nothing else. An email is laid
+ * out by the one rule the wire writes every email's text with (contracts emailTextOf), from the parts its send builds: a
+ * cold email's by coldEmailOf, the send's own; a customer's from the fill a send makes (templates renderOwnVersion,
+ * through previewParts) and the foot it ends with (emailFoot, through previewOn). Where a step goes by more than one
+ * channel, each is said under its label; where by one, the message alone.
  */
 import { previewOn, previewParts, type PreviewVersions } from "../broadcasts/preview-by-channel";
 import { renderTemplate } from "../broadcasts/broadcasts";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { isOfferByEmail, purposeOfTemplate } from "../consent/consent";
+import { firstSubject } from "../email/email-subject";
+import { emailTextOf } from "../email/email-text";
 import { noVersionWords } from "../templates/message-versions";
 import { templateParts } from "../templates/template-parts";
-import { exampleParams, type ParamSpec } from "../templates/templates";
+import { testParamsOf, type ParamSpec } from "../templates/templates";
 import { messageAboutOfClass } from "./follow-up";
-import { emailFoot } from "../templates/email-foot";
-import { whyFrom } from "../reach-out/reach-out";
+import { coldEmailOf } from "../email/cold-email";
 import { leadCalledByOf } from "../leads/search/called-by";
 import {
-  coldSignedOff,
-  REACH_OUT_LANGUAGE,
   REACH_OUT_OPENING_MARK,
   REACH_OUT_VALUE_MARKS,
   reachOutCardEmailOf,
-  type ColdEnding,
+  type ReachOutSignsWith,
   type SlotLead,
   type SlotWorkspace,
 } from "../reach-out/reach-out-rules";
@@ -43,20 +46,17 @@ export const SEQUENCE_TEST_WORDS = {
   noMessage: "This step sends no message",
   subject: (what: string) => `Test: ${what}`,
   stepName: (sequence: string, place: number) => `${sequence}, step ${place}`,
-  head: (business: string) =>
-    `A test of what ${business} sends, filled in for an example person, Dani. Nobody else got it.`,
-  subjectLine: (subject: string) => `Subject: ${subject}`,
+  /** The one line over every test: whose message it is, then the message alone. */
+  head: (place: number, who: string) => `Test of step ${place}, as ${who} gets it. Only you got this.`,
+  exampleHead: (place: number, kind: "business" | "person", who: string) =>
+    `Test of step ${place}, as an example ${kind}, ${who}, would get it. Only you got this.`,
   button: (text: string) => `[${text}]`,
-  foot: "You got this because you pressed Send me a test.",
-  /** A lead's step: filled for one real lead, the opening as the line written for them when it goes. */
-  leadHead: (business: string, lead: string) =>
-    `A test of what ${business} sends ${lead}, filled in from their record. Nobody else got it.`,
-  opening: (lead: string) => `[A line about ${lead}, written for them when it goes]`,
+  /** Where no opening is written for them yet and their listing says none. */
+  opening: (lead: string) => `[A line about ${lead}, written for them when their email is planned]`,
   holes: (lead: string, labels: string[]) =>
     `${lead} has nothing for ${labels.join(" and ")}, so this email would wait for you.`,
   notWritten: "Write this email first",
   noFootAddress: "Add your business's address in Settings › Details: every email carries it at the foot.",
-  reply: (subject: string) => `Re: ${subject}`,
 } as const;
 
 /** How long a test's subject and words may run: a mail far past any message's own length is not one. */
@@ -76,6 +76,25 @@ export interface StepTestMessage {
 export interface StepTestMail {
   subject: string;
   text: string;
+}
+
+/**
+ * Every test's mail: its subject marked as a test, one line over the message (and what holds it, where something does),
+ * then the message on each channel as it goes, under its label where there is more than one.
+ */
+function testMailOf(o: {
+  subject: string;
+  head: string;
+  note: string | null;
+  parts: ReadonlyArray<{ label: string; text: string }>;
+}): StepTestMail {
+  const W = SEQUENCE_TEST_WORDS;
+  const top = [o.head, o.note].filter((s): s is string => !!s).join("\n\n");
+  const said = o.parts.map((p) => (o.parts.length > 1 ? `${p.label}\n\n${p.text}` : p.text));
+  return {
+    subject: W.subject(o.subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
+    text: [top, ...said].join("\n\n—\n\n").slice(0, SEQUENCE_TEST_LIMITS.text),
+  };
 }
 
 /** WhatsApp's words as the person reads them: the heading, the words, the line under them and the buttons, filled. */
@@ -100,15 +119,18 @@ function testChannelsOf(step: readonly string[], m: StepTestMessage): ConsentCha
 }
 
 /**
- * A step's test mail, or the channel it cannot show and why (a version the message lacks, an offer by email with no postal
- * address for its foot): never another channel's words under one's name. `policyClass` is the sequence's (its first
- * step's), which says what the message is about and so whether an email of it is an offer.
+ * A customer step's test mail, or the channel it cannot show and why (a version the message lacks, an offer by email with
+ * no postal address for its foot): never another channel's words under one's name. It is filled for the example person
+ * (templates testParamsOf: Dani, the workspace's own booking link, a link only a real person has in brackets), and an
+ * email ends with the foot that person's send would carry. `policyClass` is the sequence's (its first step's), which
+ * says what the message is about and so whether an email of it is an offer.
  */
 export function stepTestMail(o: {
   sequence: string;
   place: number;
   business: string;
   address: string | null;
+  bookingLink: string | null;
   channels: readonly string[];
   params: readonly ParamSpec[];
   policyClass: string;
@@ -116,7 +138,7 @@ export function stepTestMail(o: {
 }): StepTestMail | { missing: ConsentChannel; why: string } {
   const W = SEQUENCE_TEST_WORDS;
   const m = o.message;
-  const values = exampleParams(o.params, o.business);
+  const { who, values, facts } = testParamsOf(o.params, { businessName: o.business, bookingLink: o.bookingLink });
   const channels = testChannelsOf(o.channels, m);
   if (channels.includes("whatsapp") && !m.whatsapp) return { missing: "whatsapp", why: noVersionWords("whatsapp") };
   const drawn = previewParts(channels, {
@@ -133,26 +155,27 @@ export function stepTestMail(o: {
     language: m.language,
     business: o.business,
     address: o.address,
+    facts,
     ...(offer ? { offer: "customer" as const } : {}),
   });
   if (channels.includes("email") && email.missing) return { missing: "email", why: email.missing };
-  const blocks = drawn.parts.map((p) =>
-    [p.label, p.subject ? W.subjectLine(p.subject) : null, p.body, p.channel === "email" ? email.foot : null]
-      .filter((s): s is string => !!s)
-      .join("\n\n"),
-  );
-  const subject = drawn.parts.find((p) => p.subject)?.subject ?? W.stepName(o.sequence, o.place);
-  return {
-    subject: W.subject(subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
-    text: [W.head(o.business), ...blocks, `—\n${W.foot}`].join("\n\n\n").slice(0, SEQUENCE_TEST_LIMITS.text),
-  };
+  const subject = drawn.parts.find((p) => p.subject)?.subject;
+  return testMailOf({
+    subject: subject ? firstSubject(subject) : W.stepName(o.sequence, o.place),
+    head: W.exampleHead(o.place, "person", who),
+    note: null,
+    parts: drawn.parts.map((p) => ({
+      label: p.label,
+      text: p.channel === "email" ? emailTextOf({ body: p.body, footer: email.foot }) : p.body,
+    })),
+  });
 }
 
 /**
  * A lead's step as its test mail (the canvas's Preview as a real lead, 18 Oct 2026: "To your own inbox, marked as a test"):
- * the step's words filled for one lead by the send's own fill (reachOutCardEmailOf), the opening said as the line written
- * for them when it goes, a value they lack left as written and said, and the cold foot every such email carries. A step
- * after the first answers the first in its thread, so its subject is the first's. Refused in words where it cannot be
+ * the email as that lead gets it. Its words are filled for the lead by the send's own fill (reachOutCardEmailOf) with the
+ * opening it goes with (contracts leadOpeningOf), a value they lack left as written and said over it; then laid out by the
+ * send's own coldEmailOf, a step after the first under "Re:" the first's subject. Refused in words where it cannot be
  * shown: an email with no words yet, a foot with no address.
  */
 export function leadStepTestMail(o: {
@@ -164,9 +187,14 @@ export function leadStepTestMail(o: {
   /** The first email's subject, which a later step answers under. */
   thread: string | null;
   lead: SlotLead;
+  /** The lead is the made-up business a sequence nobody is in previews as (reachOutExampleLead). */
+  example: boolean;
+  /** The opening their email goes with (contracts leadOpeningOf); null: none written yet, said as the line to come. */
+  opening: string | null;
   workspace: SlotWorkspace;
-  /** How it ends under the words, as the send ends it (0077, contracts coldEndingOf); none: the words as they are. */
-  ending?: ColdEnding;
+  /** How it ends (0077), as the send reads it: its name, or the signature of the mailbox it first leaves from. */
+  signsWith: ReachOutSignsWith;
+  signature: string | null;
 }): StepTestMail | { why: string } {
   const W = SEQUENCE_TEST_WORDS;
   if (!o.words.body.trim()) return { why: W.notWritten };
@@ -178,44 +206,39 @@ export function leadStepTestMail(o: {
       .split(REACH_OUT_VALUE_MARKS[1])
       .join("")
       .split(REACH_OUT_OPENING_MARK)
-      .join(W.opening(name));
-  const email = reachOutCardEmailOf(o.words, o.lead, o.workspace);
+      .join(o.opening?.trim() || W.opening(name));
+  const filled = reachOutCardEmailOf(o.words, o.lead, o.workspace);
   const thread =
     o.words.subject === null && o.thread
       ? reachOutCardEmailOf({ subject: o.thread, body: "" }, o.lead, o.workspace).subject
       : null;
-  const subject =
-    email.subject !== null ? plain(email.subject) : thread ? W.reply(plain(thread)) : W.stepName(o.sequence, o.place);
-  let foot: string;
+  let email: ReturnType<typeof coldEmailOf>;
   try {
-    foot = emailFoot(
-      o.business,
-      o.address,
-      { kind: "cold", why: whyFrom(o.lead.source), unsubscribeUrl: null },
-      REACH_OUT_LANGUAGE,
-    );
+    email = coldEmailOf({
+      filled: { subject: filled.subject === null ? null : plain(filled.subject), body: plain(filled.body) },
+      before: thread === null ? null : plain(thread),
+      written: o.words.body,
+      source: o.lead.source,
+      business: o.business,
+      address: o.address?.trim() ?? "",
+      signsWith: o.signsWith,
+      signedBy: o.workspace.yourName ?? null,
+      signature: o.signature,
+      unsubscribeUrl: null,
+    });
   } catch {
     return { why: W.noFootAddress };
   }
-  const holes = email.holes.length
+  const holes = filled.holes.length
     ? W.holes(
         name,
-        email.holes.map((k) => `{{${k}}}`),
+        filled.holes.map((k) => `{{${k}}}`),
       )
     : null;
-  return {
-    subject: W.subject(subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
-    text: [
-      W.leadHead(o.business, name),
-      holes,
-      W.subjectLine(subject),
-      plain(coldSignedOff(email.body, o.ending?.signOff ?? null)),
-      o.ending?.signature ?? null,
-      foot,
-      `—\n${W.foot}`,
-    ]
-      .filter((s): s is string => !!s)
-      .join("\n\n\n")
-      .slice(0, SEQUENCE_TEST_LIMITS.text),
-  };
+  return testMailOf({
+    subject: email.subject || W.stepName(o.sequence, o.place),
+    head: o.example ? W.exampleHead(o.place, "business", name) : W.head(o.place, name),
+    note: holes,
+    parts: [{ label: "", text: emailTextOf(email) }],
+  });
 }

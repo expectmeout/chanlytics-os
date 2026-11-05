@@ -139,6 +139,88 @@ test("a keyboard is expected as a field that types is focused, with the height t
   stop();
 });
 
+test("the keys go as the field lets go: from the focus leaving for nothing that types, with them up, the document says they are leaving, until the browser says they went, a field takes the focus again, or no word comes (Ruben's recording, 4 Nov 2026: the reply box stood half a second over an empty screen)", async () => {
+  const { mock } = await import("node:test");
+  const out = (relatedTarget) => (docHeard.focusout || []).forEach((fn) => fn({ target: field, relatedTarget }));
+  mock.timers.enable({ apis: ["setTimeout"] });
+  kept.clear();
+  show(812);
+  const stop = watchKeyboard();
+  try {
+    out(null);
+    assert.equal(classes.has("kb-leaving"), false, "no keys up, none leaving");
+    focus("focusin", field);
+    show(480);
+    fire("resize");
+    assert.equal(classes.has("kb-up"), true);
+    out({ tagName: "TEXTAREA" });
+    assert.equal(classes.has("kb-leaving"), false, "the focus moving to another field keeps the keys");
+    out({ tagName: "BUTTON" });
+    assert.equal(classes.has("kb-leaving"), true, "let go for a press: the keys are on their way down");
+    assert.equal(classes.has("kb-up"), true, "and the browser has not said so yet");
+    show(812);
+    fire("resize");
+    assert.equal(classes.has("kb-up"), false, "it says they went");
+    assert.equal(classes.has("kb-leaving"), false, "and they are no longer leaving");
+    show(480);
+    fire("resize");
+    out(null);
+    assert.equal(classes.has("kb-leaving"), true);
+    focus("focusin", field);
+    assert.equal(classes.has("kb-leaving"), false, "a field focused again keeps them");
+    out(null);
+    mock.timers.tick(1199);
+    assert.equal(classes.has("kb-leaving"), true);
+    mock.timers.tick(1);
+    assert.equal(
+      classes.has("kb-leaving"),
+      false,
+      "no word that they went: the screen goes back to what the browser says",
+    );
+    out(null);
+  } finally {
+    stop();
+    mock.timers.reset();
+  }
+  assert.equal(classes.has("kb-leaving"), false, "stopped, it says nothing");
+  show(812);
+});
+
+test("what waits for the keys' room is told the moment a keyboard is expected, in the focus's own task, once; not for keys already up, nor once it stopped waiting", async () => {
+  const { whenKeysRoomMade } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/keyboard.ts");
+  kept.clear();
+  show(812);
+  const stop = watchKeyboard();
+  let last = () => {};
+  try {
+    let told = 0;
+    whenKeysRoomMade(() => told++);
+    focus("focusin", { tagName: "BUTTON" });
+    assert.equal(told, 0, "a press makes no room");
+    focus("focusin", field);
+    assert.equal(classes.has("kb-expected"), true);
+    assert.equal(told, 1, "told as the room is made, with the class already said");
+    focus("focusout", field);
+    focus("focusin", field);
+    assert.equal(told, 1, "and once only");
+    const unwait = whenKeysRoomMade(() => told++);
+    unwait();
+    focus("focusout", field);
+    focus("focusin", field);
+    assert.equal(told, 1, "one that stopped waiting is not told");
+    last = whenKeysRoomMade(() => told++);
+    show(480);
+    fire("resize");
+    focus("focusin", field);
+    assert.equal(told, 1, "with the keys up already no room is made");
+  } finally {
+    last();
+    stop();
+    show(812);
+    fire("resize");
+  }
+});
+
 test("a pinch zoom shrinks what is shown too, and is no keyboard", () => {
   show(812);
   const stop = watchKeyboard();

@@ -2959,8 +2959,8 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   font-size: var(--text-xs);
   color: var(--ink-muted);
 }
-/* An email's, or a draft the receptionist wrote: a box of the inset's ground holding whose words they are and why, the
-   words, what they are signed with and Rewrite; under it Hand back at the left and Send in its words at the right. */
+/* An email's: a box of the inset's ground holding the words, what they are signed with and Rewrite, under the row of the
+   draft and Hand back, with Send in its words under it. */
 .ix-composer.ix-composer-row[data-shape="box"] {
   flex-direction: column;
   align-items: stretch;
@@ -2974,9 +2974,10 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   border-radius: var(--radius-xl);
   background: var(--bg);
 }
+/* Four lines at least on a desk (the field itself is one, which a phone's line grows from: below). */
 .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text {
   flex: none;
-  min-height: 0;
+  min-height: calc(1.45em * 4);
   max-height: 40vh;
   padding: 0;
   border: 0;
@@ -2988,51 +2989,73 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text:focus {
   box-shadow: none;
 }
-/* That it opens, folded (below): a caret at the box's corner, the words kept clear of it. */
-.ix-composer-unfold {
+/* The box folded (below): its words on one line (composer.tsx foldedGlance), drawn only then. */
+.ix-composer-glance {
   display: none;
 }
-/* On a phone the box stands over the conversation (mobile.css): open, its words take a third of the screen at most, where
-   they took two fifths with the acts and the lines about the draft on top. Folded as the conversation is read
-   (thread.tsx foldAsRead), it is what is owed over two lines of the words: the lines about the draft and the acts put
-   away until the box is pressed or typed into, when it opens where it stands. */
-@media (max-width: 720px) {
-  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text {
-    max-height: 30vh;
+/* The one row over the reply box (decision 0093): the thread's draft at its start, Hand back at its end. */
+.ix-composer-over {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 32px;
+  margin-bottom: 6px;
+}
+.ix-composer[data-shape="box"] > .ix-composer-over {
+  margin-bottom: 0;
+}
+.ix-composer-said {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.ix-composer-said .ix-composer-why {
+  flex: none;
+  padding: 6px 2px;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink);
+}
+/* Being written: the spark breathes, and holds still where motion is asked to. */
+.ix-composer-said[data-state="writing"] .ix-composer-drafted-spark {
+  animation: ix-draft-writing 1.4s ease-in-out infinite;
+}
+@keyframes ix-draft-writing {
+  50% {
+    opacity: 0.35;
   }
-  .ix-th-foot[data-folded]
-    :is(
-      .ix-composer-drafted,
-      .ix-composer-why-said,
-      .ix-composer-signed,
-      .ix-composer-rewrite-line,
-      .ix-composer-acts
-    ) {
-    display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ix-composer-said[data-state="writing"] .ix-composer-drafted-spark {
+    animation: none;
   }
-  .ix-th-foot[data-folded] .ix-composer-draft {
-    position: relative;
-  }
-  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text {
-    max-height: calc(1.45em * 2);
-    padding-right: 24px;
-    overflow: hidden;
-  }
-  .ix-th-foot[data-folded] .ix-composer-unfold {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    display: grid;
-    color: var(--ink-muted);
-    pointer-events: none;
-  }
+}
+/* Said once to a screen reader as a draft lands: out of sight for everyone else. */
+.ix-composer-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Use draft's words rising into the field. */
+.ix-composer-text[data-landed] {
+  animation: ix-over-in var(--duration-fast) var(--ease-out);
 }
 .ix-composer-drafted {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+  white-space: nowrap;
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
@@ -3113,6 +3136,178 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-composer-row[data-shape="box"] .ix-composer-send {
   padding: 0 18px 0 20px;
   font-size: var(--text-read);
+}
+/* On a phone the reply box is one line on the page's own light (mobile.css), as Ask's is (kit.css .line-field) and a
+   chat's always was here (Ruben's iPhone, 4 Nov 2026: "when expanding it should still be one row ... the hand back etc
+   buttons can cleanly appear on top instead of expanding to show below to only expand as needed to fit the text"): a
+   capsule of the raised ground in the paper's hairline that grows with its words to six lines and then scrolls, Send a
+   round at its end inside it. An email's, or a draft the receptionist wrote, is the same line, and what stood in its box
+   and under it stands over it: whose words they are and why, then Hand back beside what they are signed with and
+   Rewrite, then how to rewrite them. It was a box four lines tall over Hand back and Send, and with the keys up it
+   pushed them under Safari's address. Folded as the conversation is read (thread.tsx foldAsRead), it is the line alone,
+   its words on it whatever lines they were written on, with the receptionist's spark before them while they are its
+   draft (Ruben, 3 Nov 2026: two lines stood a greeting over an empty one): what stands over it, Send and the field put
+   away until it is tapped, typed into or pulled up (kit sheet/dock.ts dockSwipe). The field stays for a keyboard and a
+   screen reader, out of sight. The template box (template-box.tsx) keeps its own shape.
+   It wears Ask's colours (ask.css, the field at the foot; kit.css .line-send): the inset's fill and its specular edge,
+   no ring as the caret comes in, and Send the ink's circle, faint until there are words. It was the raised ground in the
+   paper's hairline, ringed and glowing in the coral as it was typed in, with Send a coral round (Ruben's iPhone, 4 Nov
+   2026: "should follow the colors of the ask chat"). */
+@media (max-width: 720px) {
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-text,
+  .ix-th-foot[data-folded] .ix-composer-glance {
+    flex: 1 1 100%;
+    min-width: 0;
+    min-height: 48px;
+    max-height: 160px;
+    padding: 13px 52px 13px 16px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sheet);
+    background: var(--surface-inset-fill);
+    box-shadow: var(--surface-inset-depth);
+    font-size: var(--text-read);
+    line-height: 1.4;
+  }
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-text:is(:focus, :focus-visible) {
+    border-color: transparent;
+    box-shadow: var(--surface-inset-depth);
+  }
+  /* With the keys up, four lines, then its words scroll in it: a long draft under what is owed and Hand back would take
+     the conversation's whole room and then stand the line under the keys (Ruben's iPhone, 4 Nov 2026: Send under
+     Safari's address). */
+  html:is(.kb-up, .kb-expected) .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-text {
+    max-height: calc(1.4em * 4 + 28px);
+  }
+  /* Send, a round at the line's end and inside it, where the thumb that typed finds it; an email's says its words to a
+     screen reader alone here. Its arrow stands in its middle: an email's Send is a button of words, which starts them at
+     its left, so with the words gone the arrow stood 10px left of its round (Ruben's iPhone, 4 Nov 2026). */
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-send {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    justify-content: center;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-color: transparent;
+    border-radius: var(--radius-circle);
+    background: var(--ink);
+    box-shadow: none;
+    color: var(--bg);
+  }
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-send:is(:disabled, [data-gated]) {
+    background: var(--bg-active);
+    color: var(--ink-faint);
+  }
+  .ix-composer.ix-composer-row:is([data-shape="slim"], [data-shape="box"]) .ix-composer-send > svg {
+    width: 16px;
+    height: 16px;
+    color: currentColor;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-send {
+    gap: 0;
+    font-size: 0;
+  }
+  /* An email's line, with what it holds over it, in that order whatever order the box draws them in. */
+  .ix-composer.ix-composer-row[data-shape="box"] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] > :is(.ix-composer-draft, .ix-composer-acts) {
+    display: contents;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-over {
+    order: 0;
+    flex: 1 1 100%;
+  }
+  /* The whole row on one line at 375: whose words, Why this?, Rewrite, Undo for its moment, and Hand back. */
+  .ix-composer-over,
+  .ix-composer-drafted {
+    gap: 6px;
+  }
+  .ix-composer-over .ix-composer-handback {
+    padding-inline: 2px;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-why-said {
+    order: 1;
+    flex: 1 1 100%;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-signed {
+    order: 3;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0;
+    border-top: 0;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-rewrite-line {
+    order: 4;
+    flex: 1 1 100%;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] :is(.ix-composer-text, .ix-composer-glance) {
+    order: 5;
+  }
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-gap {
+    display: none;
+  }
+  /* What stands over the line rises a little into its place as the box opens, or as the words that bring it come. */
+  .ix-composer-over,
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-signed {
+    animation: ix-over-in var(--duration-base) var(--ease-out);
+  }
+  .ix-th-foot[data-folded]
+    :is(.ix-composer-over, .ix-composer-why-said, .ix-composer-signed, .ix-composer-rewrite-line),
+  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-shape="box"] > .ix-composer-acts,
+  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-glance] .ix-composer-send {
+    display: none;
+  }
+  .ix-th-foot[data-folded] .ix-composer.ix-composer-row:is([data-shape="box"], [data-glance]) .ix-composer-text {
+    position: absolute;
+    width: 1px;
+    min-height: 0;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ix-th-foot[data-folded] .ix-composer-glance {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-right: 16px;
+    color: var(--ink-muted);
+  }
+  .ix-th-foot[data-folded] .ix-composer-glance > svg {
+    flex: none;
+  }
+  .ix-composer-glance-words {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ix-composer-glance-words[data-empty] {
+    color: var(--ink-faint);
+  }
+}
+@keyframes ix-over-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ix-composer-over,
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-signed {
+    animation: none;
+  }
 }
 
 /* A day once over its run, in the mono face, and each bubble's time and what became of it in its corner (D1): every
@@ -3468,7 +3663,8 @@ html.legacy-on :is(.ix-held-acts, .ix-steer, .ix-composer-drafted, .ix-composer-
 .tl-email-head .tl-stamp {
   float: none;
   flex: none;
-  margin: 0;
+  /* At the head's end with or without a sender beside it: their own email in a conversation with them alone says none. */
+  margin: 0 0 0 auto;
   color: var(--ink-muted);
 }
 .ix-thread-pane .tl-msg.tl-email .tl-msg-subject {
@@ -3980,6 +4176,28 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
   .inbox .ix-list > .ix-buckets {
     margin: 0 16px;
   }
+  /* The search folded into a glyph at the buckets' end while it holds no words (inbox-list.tsx bucketTabs): the buckets
+     and the glyph one row, in the buckets' place, and the field under it takes no room while it rests, open while it has
+     the caret (the phone pass, 3 Nov 2026: its own row stood the first conversation at 248). */
+  .inbox .ix-list > .ix-bucket-row {
+    order: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0 8px 0 16px;
+  }
+  .inbox .ix-bucket-row > .ix-buckets {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .inbox .ix-bucket-row > .ix-find {
+    flex: none;
+  }
+  .inbox .ix-list > [data-folded]:not(:focus-within) {
+    height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   /* The search under the tabs, at the strip's sides (the capsule is the kit's, 38px). */
   .inbox .ix-list > :nth-child(2) {
     padding: 6px 12px 8px;
@@ -3998,16 +4216,21 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
   .inbox .ix-thread.active:is(:hover, [data-hover]) {
     background: var(--hover-fill);
   }
-  /* The thread's head on a phone (the thread canvas, 1 Nov 2026): the raised ground across the screen with a hairline
-     under it, the chevron back in a thumb's 40 by 44, who it is (the face at 40 in their hue with the wire on its edge,
-     the name and its chevron, where it stands and one fact), and More, a soft 44px round. It was one 52px capsule of
-     the control layer's glass, 8px from the sides, with the conversation passing under its glass. */
+  /* The thread's head on a phone (the thread canvas, 1 Nov 2026): the chevron back in a thumb's 40 by 44, who it is (the
+     face at 40 in their hue with the wire on its edge, the name, where it stands and one fact), one link to their page,
+     and More, a soft 44px round, which opens the thread's sheet, on the page's own light: the paper Safari stands its
+     bar over the clock on runs on under it, and the conversation fades out under it (mobile.css). From 3 Nov 2026 the
+     name opened the sheet, a chevron beside it, with no More (Ruben, 4 Nov 2026: "i prefer the 3 dots we had on the
+     right", and the name "should lead to its person page"). It was a bar of the raised ground with a hairline under it
+     (1 to 4 Nov 2026), a step lighter than the paper over the clock, and before that one 52px capsule of the control
+     layer's glass, 8px from the sides (Ruben's iPhone, 4 Nov 2026: "the top header and bottom fully in the new
+     background"). */
   :is(.inbox, .conversations)[data-takeover] .ix-thread-pane > .ix-th-head {
     gap: 8px;
     margin: 0;
     padding: 14px 12px 12px 8px;
-    border-bottom: 1px solid var(--line);
-    background: var(--bg-raised);
+    border-bottom: 0;
+    background: transparent;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-thread-pane .ix-back {
     width: 40px;
@@ -4036,6 +4259,11 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
   :is(.inbox, .conversations)[data-takeover] .ix-th-name {
     font-size: var(--text-lg);
     line-height: var(--leading-tight);
+  }
+  /* The face, the name and the line under it are all the press to their page, as a contact is in a messaging app, so
+     the name wears no chevron to say so (Ruben, 4 Nov 2026: "no need for the >"). */
+  :is(.inbox, .conversations)[data-takeover] .ix-th-head .ix-th-go {
+    display: none;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-th-meta {
     margin-top: 0;

@@ -17,7 +17,8 @@
  * receipt for six hours (lib/receipts-watch.ts), the mail domain no longer
  * being verified (lib/mail-domain.ts) -- the one that our own rows cannot show
  * at all -- and a workspace whose model calls or receptionist turns keep
- * failing (lib/ops/model-watch.ts, which also keeps the usage ledger).
+ * failing (lib/ops/model-watch.ts, which also keeps the usage ledger). It keeps Anthropic's profiles too
+ * (lib/anthropic-profiles/keep.ts): what Anthropic says of each, and those made and deleted, decision 0097.
  *
  * Called by pg_cron via pg_net at :13 and :43, same Vault secret as the two
  * sweeps it watches. The offset is deliberate: on the :00/:30 grid every tick
@@ -35,7 +36,11 @@ import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
-import { leadSourceClient, watchLeadPins } from "../leads/lead-sources.js";
+import { keepAnthropicProfiles } from "../anthropic-profiles/keep.js";
+import { watchSiteReader } from "../imports/site-reader-watch.js";
+import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
+import { pausedJobKinds } from "../packages/db.js";
+import { watchVoice } from "../voice/watch/voice-watch.js";
 import { env } from "../env.js";
 import type { SweepTick } from "./sweep-door.js";
 
@@ -114,6 +119,20 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     );
   }
 
+  // A kind an operator paused (decision 0089): its work waits, which is meant, and nobody should forget that it does.
+  // One page per kind per window while it holds; a read that fails is logged.
+  const paused = await pausedJobKinds(db).catch((e: unknown) => {
+    L.error("sweep_health_paused_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    return [];
+  });
+  for (const k of paused)
+    await pageOperator(
+      { db },
+      `jobs_paused:${k.kind}`,
+      `${k.kind} is paused: its work waits`,
+      `Paused since ${k.paused_at}${k.paused_why ? ` (${k.paused_why})` : ""}. Nothing of it is claimed until it is resumed on the Console's Health, Background work.`,
+    );
+
   // WhatsApp messages that never heard back, in a workspace where nothing
   // else has been receipted since either: the webhook, not a phone. The page
   // names workspaces and times, never a customer, and comes once per window
@@ -145,9 +164,18 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const pastTargets = await watchTargets(db, Date.now());
   // A workspace whose model keeps failing, paged once per window; the usage ledger's old rows removed.
   const models = await watchModels(db);
+  // Whom Anthropic is told a call is for (decision 0097): what it now says of each, and the profiles made and deleted.
+  const profiles = await keepAnthropicProfiles(db);
   // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
   // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
   const pinsGone = await watchLeadPins(db, leadSourceClient());
+  // And once a day their prices, against the last read: the cards and the SQL ceiling are priced by hand (00506).
+  const pricesPaged = await watchLeadPrices(db, leadSourceClient(), Date.now());
+  // The page reader's credits: with none left every read of a business's website comes back empty, and nothing says why.
+  const siteCredits = await watchSiteReader(db);
+  // The voice provider: its account's calls at once against its limit, and once a day every live agent against the
+  // product's shell and settings (decision 0092).
+  const voice = await watchVoice(db);
 
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
@@ -159,7 +187,16 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     past_targets: pastTargets,
     model_failures_paged: models.paged,
     ai_usage_purged: models.purged,
+    anthropic_profiles_acted_on: profiles.acted,
+    anthropic_profiles_cleared: profiles.cleared,
+    anthropic_profiles_adopted: profiles.adopted,
+    anthropic_profiles_deleted: profiles.deleted,
+    anthropic_profiles_made: profiles.made,
     lead_pins_gone: pinsGone,
+    lead_prices_paged: pricesPaged,
+    site_credits: siteCredits,
+    voice_concurrency: voice.concurrency,
+    voice_drifted: voice.drifted,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

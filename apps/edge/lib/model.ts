@@ -9,7 +9,11 @@
  *   - a purpose a person asks for (Ask, the drafts, the review reply, the notes) first asks whether the workspace may use
  *     the model at all (mayUseModels: not paused, not ended, not unbilled); a workspace that may not gets no call;
  *   - a write to the ledger that fails is logged and never costs the answer;
- *   - a receptionist's turn about a conversation is kept as the model read it (keepTurn; decision 0039), on the same terms.
+ *   - a receptionist's turn about a conversation is kept as the model read it (keepTurn; decision 0039), on the same terms;
+ *   - every call says whom it is for (decision 0097): the person or the workspace its purpose says, under its profile
+ *     (lib/anthropic-profiles/attribution.ts), so one customer's flagged traffic cannot restrict the whole organization. A
+ *     paused one gets no call. callModel and streamModelCall are the only two doors to the port, and neither takes an
+ *     ask with that answer already in it.
  *
  * askJson is the one JSON transport the platform's small reads share: the answer is asked for in its schema
  * (output_config); an API that refuses the request's format, not its content, is asked again once for plain JSON with
@@ -36,11 +40,15 @@ import {
 } from "./packages/contracts.js";
 import { keepModelTurn, recordModelUsage, workspaceMayUseModels, type ModelTurnKept } from "./packages/db.js";
 import { pg } from "./pg.js";
+import { attributionFor, forgetAnthropicProfiles } from "./anthropic-profiles/attribution.js";
 import { pageOperator } from "./ops/page-operator.js";
 import { env } from "./env.js";
 import { logger, errField } from "./log.js";
 
-/** Who a call is for: the ledger's row. A call with no workspace (a platform read) is asked and not written. */
+/**
+ * Who a call is for: the ledger's row, and whom Anthropic is told (contracts modelSubjectOf). A call with no workspace (a
+ * platform read) is asked and not written, and goes under no profile: `tenantId` is required, so that is said, never left out.
+ */
 export interface ModelCallFor {
   tenantId: string | null;
   /** What it was about: a conversation, a send, a review, or the lead round a judge's batch was paid in. */
@@ -70,10 +78,12 @@ const ASKED_BY_A_PERSON: ReadonlySet<ModelPurpose> = new Set<ModelPurpose>([
 let deps: ModelDeps = {};
 /**
  * For tests: the network (and a sleep that does not wait) every model call uses until reset (null), the second model's
- * (lib/shadow.ts, through modelDeps) as well as the primary's: a test's fetch answers by the address it is asked.
+ * (lib/shadow.ts, through modelDeps) as well as the primary's: a test's fetch answers by the address it is asked. A new
+ * network forgets the profiles the last one's calls read, so no test inherits another's.
  */
 export function setModelFetch(f: typeof fetch | null): void {
   deps = f ? { fetch: f, sleep: async () => {} } : {};
+  forgetAnthropicProfiles();
 }
 
 /** What every port's calls run over: the platform's network and clock, or a test's. */
@@ -199,15 +209,23 @@ export async function mayUseModelFor(purpose: ModelPurpose, tenantId: string | n
   }
 }
 
-/** A call the workspace may not pay for: no call, no row, and the caller says so. */
-type ModelHeld = { outcome: "held" };
+/**
+ * A call that did not go: no call, no row, and the caller says so. `unpaid`, the workspace may not pay; `paused`, Anthropic
+ * has paused whom it is for; `unread`, whether it has could not be read.
+ */
+type ModelHeld = { outcome: "held"; why: "unpaid" | "paused" | "unread" };
 
-/** One model call through the port, written to the ledger; null with no key, `held` when the workspace may not pay. */
-export async function callModel(ask: ModelAsk, forWhom: ModelCallFor): Promise<ModelReply | ModelHeld | null> {
+/** What a caller asks: all of the port's request but whom it is for, which is decided here and nowhere else. */
+type ModelRequest = Omit<ModelAsk, "attribution">;
+
+/** One model call through the port, written to the ledger; null with no key, `held` when it may not go. */
+export async function callModel(ask: ModelRequest, forWhom: ModelCallFor): Promise<ModelReply | ModelHeld | null> {
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return null;
-  if (!(await mayUseModelFor(ask.purpose, forWhom.tenantId))) return { outcome: "held" };
-  const r = await portAsk(key, ask, deps);
+  if (!(await mayUseModelFor(ask.purpose, forWhom.tenantId))) return { outcome: "held", why: "unpaid" };
+  const who = await attributionFor(ask.purpose, forWhom, key, deps);
+  if ("held" in who) return { outcome: "held", why: who.held };
+  const r = await portAsk(key, { ...ask, attribution: who.attribution }, deps);
   await recordCall(
     ask.purpose,
     {
@@ -223,10 +241,15 @@ export async function callModel(ask: ModelAsk, forWhom: ModelCallFor): Promise<M
 }
 
 /** One streamed call through the port (Ask's gateway); its usage is written by the caller once the stream has said it. */
-export async function streamModelCall(ask: ModelAsk): Promise<ModelStreamReply | null> {
+export async function streamModelCall(
+  ask: ModelRequest,
+  forWhom: ModelCallFor,
+): Promise<ModelStreamReply | ModelHeld | null> {
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return null;
-  return portStream(key, ask, deps);
+  const who = await attributionFor(ask.purpose, forWhom, key, deps);
+  if ("held" in who) return { outcome: "held", why: who.held };
+  return portStream(key, { ...ask, attribution: who.attribution }, deps);
 }
 
 /** The first JSON object in a text answer, or null. */
@@ -271,7 +294,7 @@ interface JsonAsk {
 
 /** One answer in the shape asked; null when there is no model to ask, or the workspace may not pay for one. */
 export async function askJson(a: JsonAsk): Promise<JsonAnswer | null> {
-  const base: Omit<ModelAsk, "body"> = {
+  const base: Omit<ModelRequest, "body"> = {
     purpose: a.purpose,
     ...(a.timeoutMs ? { timeoutMs: a.timeoutMs } : {}),
     ...(a.signal ? { signal: a.signal } : {}),

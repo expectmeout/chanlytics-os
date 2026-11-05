@@ -6,7 +6,7 @@
  * follows its own reply policy, and anything else is 'ask'. effectiveReplyMode lets a person's own setting (People,
  * their profile, "Receptionist for ...") win over it; an absent setting changes nothing. openInbound (./context.ts)
  * calls the first once per message, modeInForce (./gates.ts) calls the second once the person's setting is looked up,
- * and the phone agent's booking-link message (apps/edge/api/retell-fn.ts) calls the second too, so a caller set to
+ * and the phone agent's booking-link message (apps/edge/lib/voice/call-booking-link.ts) calls the second too, so a caller set to
  * never is left alone on a call as well.
  *
  * There is no fallback profile: a control plane that cannot be read is an outage, and during an outage the

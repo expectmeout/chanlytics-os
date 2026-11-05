@@ -15,6 +15,8 @@
  *   - `billing_events` is ON DELETE SET NULL on purpose: Stripe's dedup ledger
  *     has to outlive the workspace or a redelivered event would be processed
  *     twice. Those rows are backed up and reported, never deleted.
+ *   - `anthropic_profiles` is ON DELETE SET NULL too (00544, decision 0097): a row with no workspace is the health sweep's
+ *     to delete at Anthropic, and then here, so nothing is left there for a workspace that has gone.
  *
  * And the cascade is blind outside Postgres. A workspace that owns a phone line
  * owns a Twilio subaccount, a number still being billed, a trunk, a messaging
@@ -62,6 +64,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  */
 const TABLES = [
   "ai_usage",
+  "anthropic_profiles",
   "appointment_notices",
   "appointments",
   // What Ask remembers, its journal and each member's mornings (00470, decision 0070).
@@ -163,6 +166,8 @@ const TABLES = [
   "sequence_sends",
   "sequence_steps",
   "sequences",
+  // A workspace's setup choices, its own and not each member's (00513, decision 0091).
+  "setup_choices",
   "templates",
   "tenant_channels",
   "tenant_config",

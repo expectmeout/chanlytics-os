@@ -235,6 +235,21 @@
     "fresh": "Read as a draft's step sheet previews a lead in it, one lead at a time as ‹ › reaches it, and kept for the tab.",
     "why": "Preview shows a step as that lead gets it, filled from the lead's own record; a lead's name, city and listing change seldom, and the send itself fills each email from the record as it stands when it goes, never from this read."
   },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/emails": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "The lead's own emails, for its History: read as its place is, on the lead sheet, and again after a press."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/sent/[send]": {
+    "kind": "on-open",
+    "fresh": "Read as a step that went is opened on the lead sheet; what went does not change.",
+    "why": "What one send of a lead's said as it went, read from the email itself, for the step it is."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/words": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "The lead's own words at each step that has some, for the email the sheet draws: read as its place is, and a save is said at once by the door's answer."
+  },
   "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/place": {
     "kind": "on-open",
     "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
@@ -320,5 +335,10 @@
     "kind": "on-open",
     "fresh": "Read as Settings › Team opens and as its row is reached for, and again after the owner asks a partner in or withdraws one; the tab keeps the last answer to draw the card first.",
     "why": "The workspace's partner link, which only an owner's ask on this card or the partner's own answer changes: the card reads it again on its own write, and a partner's answer shows the next time the pane opens."
+  },
+  "apps/dashboard/src/legacy-bridge/hearing/live-feed.ts GET changes": {
+    "kind": "boot",
+    "fresh": "Read as the live feed is joined and joined again: the notices the topic told since the tab's load began, or since its feed went quiet.",
+    "why": "It is no surface's rows but the feed's own catch-up (decision 0019 step 4): each notice it brings is heard as a live one is, and the surfaces it names read themselves through the runner."
   }
 }

@@ -8,8 +8,8 @@ import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
 import { peoplePlanOf } from "@chanlytics/contracts";
 import { CARDS, MAPS_RUN_TIMEOUT_SECS } from "../cards";
 import { runIdFor, sha256Hex } from "../ids";
-import type { LeadPorts } from "../ports";
-import { mainAsk, probeAsk, probeYield, runCaps } from "../sizing";
+import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
+import { mainAsk, probeAsk, probeYield, runCaps, runsRoom, type TermsAsk, type TermsTried } from "../sizing";
 import { claimOrRecover, startFailed } from "./claim";
 import { startPeople } from "./people";
 import { rejudgeProbe } from "./rejudge";
@@ -41,17 +41,17 @@ export type StartOutcome =
 type WantedRun = { id: string; term: string; hash: string; places: number; cap: number };
 
 /**
- * The runs a start makes, one per term in the plan's order, and the terms it does not start. placesToAsk may give a
- * term nothing at all when little is left (S6): a run asked for no places is never started, and is not said. Nor is one
- * past the runs the reserve holds the actor's floor for (runCaps): the caps of the runs that start never add up to more
- * than the round reserved, and a term it could not afford is said beside the round's runs (no_room), with no row and no
- * call to the provider.
+ * The runs a start makes, one per term it asks, and the terms it does not start. placesToAsk may give a term nothing at
+ * all when little is left (S6): a run asked for no places is never started, and is not said. Nor is one past the runs
+ * the reserve holds the actor's floor for (runCaps): the caps of the runs that start never add up to more than the round
+ * reserved, and a term it could not afford is said beside the round's runs (no_room), with no row and no call to the
+ * provider.
  */
 async function runsToStart(
   p: LeadPorts,
   roundId: string,
   phase: Phase,
-  ask: { terms: string[]; perTerm: number[] },
+  ask: TermsAsk,
   caps: number[],
 ): Promise<{ wanted: WantedRun[]; untried: TermSaid[] }> {
   const wanted: WantedRun[] = [];
@@ -67,21 +67,59 @@ async function runsToStart(
     const id = await runIdFor(roundId, phase, term);
     wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places, cap });
   }
+  for (const term of ask.waiting) untried.push({ term, kind: "no_room" });
   return { wanted, untried };
 }
 
 /**
- * A start with no run to make. Where every term it would ask of had no room (runCaps: less left than one run's floor),
- * nothing can start, so the round ends on the word for it, as one with nothing left does, never left queued for the
- * sweep to call the source failed (29 Oct 2026: five leads reserved $0.33 and waited an hour). Otherwise it is said as
- * started, with the terms it did not start.
+ * A start with no run to make. One tried again under a run it began leaves the round to that run. With less left than
+ * one run's floor, nothing can start, so the round ends on the word for it, as one with nothing left does, never left
+ * queued for the sweep to call the source failed (29 Oct 2026: five leads reserved $0.33 and waited an hour). With room,
+ * every term it would ask has read all a term may: there is nothing new to pay for, and it says so.
  */
-async function nothingToStart(p: LeadPorts, roundId: string, phase: Phase, untried: TermSaid[]): Promise<StartOutcome> {
-  if (untried.length > 0 && untried.every((t) => t.kind === "no_room")) {
-    await p.db.roundEnd(roundId, "budget_used");
-    return { kind: "spent" };
+async function nothingToStart(
+  p: LeadPorts,
+  roundId: string,
+  phase: Phase,
+  untried: TermSaid[],
+  room: number,
+  begun: boolean,
+): Promise<StartOutcome> {
+  if (begun) return { kind: "started", phase, runs: untried };
+  await p.db.roundEnd(roundId, room > 0 ? "few_new_matches" : "budget_used");
+  return { kind: "spent" };
+}
+
+/** The even yield a later round sizes from when its search has judged nothing yet. */
+export const UNMEASURED_YIELD = 0.5;
+
+/**
+ * The yield a top-up or a renewal sizes from (PRD §0.5, "later rounds use the running yield"): the search's own, over
+ * every place its rounds judged, and an even one only when it judged none. A search whose places qualified at a tenth
+ * used to ask the provider for a fifth of what it needed, and ended "few new matches" (3 Nov 2026).
+ */
+async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> {
+  const judged = (await p.db.membersOfSearch(round.search_id)).filter(wasJudged);
+  return judged.length ? probeYield(judged) : UNMEASURED_YIELD;
+}
+
+/**
+ * What a search has asked of its terms, for a start of its main phase: the provider answers a term from the top, so
+ * what it read is what a new ask must go past. This round's probe says exactly, and the search's earlier rounds by the
+ * places they kept of each term. A main run of this round is one this phase began.
+ */
+async function termsTried(p: LeadPorts, round: LeadRoundRow, own: LeadMemberRow[]): Promise<TermsTried> {
+  const read = new Map<string, number>();
+  const begun = new Set<string>();
+  for (const r of await p.db.runsOfRound(round.id)) {
+    if (r.purpose !== "discover" || r.term === null) continue;
+    if ((await runIdFor(round.id, "probe", r.term)) === r.id) read.set(r.term, r.items_seen);
+    else begun.add(r.term);
   }
-  return { kind: "started", phase, runs: untried };
+  const ours = new Set(own.map((m) => m.lead_id));
+  for (const m of await p.db.membersOfSearch(round.search_id))
+    if (!ours.has(m.lead_id) && m.term !== null) read.set(m.term, (read.get(m.term) ?? 0) + 1);
+  return { read, begun };
 }
 
 export async function startRound(p: LeadPorts, roundId: string, owner: string, resume = false): Promise<StartOutcome> {
@@ -109,9 +147,11 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
   const card = CARDS[plan.card];
   const phase: Phase = round.purpose === "probe" && !resume && round.state !== "running" ? "probe" : "main";
 
-  let ask: { terms: string[]; perTerm: number[] };
+  const room = runsRoom(leftUsd);
+  let begun = false;
+  let ask: TermsAsk;
   if (phase === "probe") {
-    ask = probeAsk(plan);
+    ask = probeAsk(plan, room);
   } else {
     // An answer that changed the plan (Include, Change what I asked) re-judges the places the probe already judged
     // under it first: what it lets in comes back, what it now leaves out goes, and the rest is sized from that.
@@ -119,15 +159,17 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     const members = await p.db.membersOfRound(round.id);
     const judged = members.filter(wasJudged);
     const counted = members.filter((m) => m.counted).length;
-    // Round 1 sizes from its probe; a top-up or a renewal has no probe of its own and starts from an even yield.
-    const y = round.purpose === "probe" ? probeYield(judged) : 0.5;
+    // Round 1 sizes from its probe; a top-up or a renewal from what the search found in every round before it.
+    const y = round.purpose === "probe" ? probeYield(judged) : await runningYield(p, round);
     // The question said "I'm dropping X: it mostly returned those", and a yes accepted it. An answer that changed the
     // plan is a new plan, and its terms are the owner's: the dropped one finds the very kind they just included.
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
-    ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
+    const tried = await termsTried(p, round, members);
+    begun = tried.begun.size > 0;
+    ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm, room, tried);
   }
   const { wanted, untried } = await runsToStart(p, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
-  if (!wanted.length) return nothingToStart(p, round.id, phase, untried);
+  if (!wanted.length) return nothingToStart(p, round.id, phase, untried, room, begun);
   const rows = await p.db.runsEnsure(
     wanted.map((w) => ({
       id: w.id,

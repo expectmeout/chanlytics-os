@@ -19,14 +19,13 @@
  * band before the mark can reach the screen), and a thumb's pull past either end is drawn here: what gives follows the
  * thumb on the band's curve, less the further it goes, and goes back on the band's spring once let go, played by the
  * compositor. What gives is the page's rows where the page says which box holds them (the custom property
- * `--page-gives`: the Inbox's threads, Conversations' rows, People's table, an open thread's conversation), so the bar,
- * the search and the count over them hold (Ruben, 19 Oct 2026: "only the table rows should be draggable down"), and so
- * does what is stuck to the screen's foot (a thread's reply box); else the route view. Let go, the band is the screen's
- * again a frame later, in time for the glide. An app on the home screen has no pull to refresh and keeps its band under
- * a thumb and at the top too (mobile.css), so nothing here moves there. But the screen's band carries what is stuck to
- * the window along with the page, so an open thread keeps the band off at both of its ends, on the home screen too, and
- * its conversation alone gives past either (mobile.css; Ruben, 2 Nov 2026: the head and the reply box went with the
- * page).
+ * `--page-gives`: the Inbox's threads, Conversations' rows, People's table), so the bar, the search and the count over
+ * them hold (Ruben, 19 Oct 2026: "only the table rows should be draggable down"), and so does what is stuck to the
+ * screen's foot; else the route view. Let go, the band is the screen's again a frame later, in time for the glide. An app
+ * on the home screen has no pull to refresh and keeps its band under a thumb and at the top too (mobile.css), so nothing
+ * here moves there. An open thread is a screen of its own, fixed, over a window that does not scroll (mobile.css; Ruben,
+ * 2 Nov 2026: the head and the reply box went with the page): its conversation bands in its own box, and nothing here
+ * draws a pull on it.
  *
  * Nothing here knows a page; it asks the styles. A pull is drawn where the root's band is off (its overscroll-behavior-y
  * is none) and the window scrolls the page (the route view, the document's `main`, is no box of its own); where nothing

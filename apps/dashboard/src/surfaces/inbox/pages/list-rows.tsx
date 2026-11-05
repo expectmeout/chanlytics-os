@@ -15,7 +15,8 @@ import { CONF } from "../constants";
 import type { ListCtx } from "./inbox-list";
 import { pickBox } from "./pick";
 import { ReplyChip } from "../thread/reply-strip";
-import { keptPitchNow, keptReplyNow } from "../thread/kept-draft";
+import { threadDraftNow } from "../thread/kept-draft";
+import { useDraftsMoved } from "../../today/need-you/drafts";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
 import { threadUnread } from "../../seen";
@@ -195,18 +196,17 @@ function rowLine1(L: ListCtx, t: Thread) {
 
 /**
  * What a row asks of you, its last line in the coral (the thread canvas's list, 1 Nov 2026): the hold's act ("Call back",
- * "Confirm a time"), and "Check the draft" where the receptionist drafted the reply; only on a thread that needs you. It
+ * "Confirm a time"), and "Draft ready" where one is; only on a thread that needs you. It
  * stood over their words as the reason's label, a sentence over a sentence. A flagged thread you or a teammate have says
  * the reason there instead, quietly: the pill beside the name says whose it is.
  */
 function rowToDo(t: Thread) {
   if (!t.real) return null;
-  // A pitch the receptionist's draft named for what it is asks whether they are a customer at all, before any reply.
-  const todo =
-    t.needsYou && t.state === "escalated"
-      ? keptPitchNow(t)
-        ? PITCH_TODO
-        : holdToDoOf(t.holdAct, !!keptReplyNow(t))
+  // A thread's one draft says whether its reply is ready to use; set aside, it is asked whether they are a customer at all.
+  const todo = t.setAside
+    ? PITCH_TODO
+    : t.needsYou && t.state === "escalated"
+      ? holdToDoOf(t.holdAct, threadDraftNow(t).state === "ready")
       : null;
   if (todo)
     return (
@@ -247,6 +247,8 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
  * neighbours wherever they are, so the arrows and J/K that walk them find each (pick.tsx pickKeys).
  */
 export function useShownThreads(visible: readonly Thread[], openId: string | null, density: string): ShownRows {
+  // A row's last line reads its thread's draft (rowToDo), so the rows are drawn again as one lands.
+  useDraftsMoved();
   const open = visible.findIndex((t) => t.id === openId);
   return useShownRows({
     count: visible.length,

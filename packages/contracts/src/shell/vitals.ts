@@ -101,7 +101,7 @@ export type PageVitalDetailDto = z.infer<typeof PageVitalDetail>;
  */
 export const PageVitalReport = z.object({
   id: z.string().check(z.regex(VITAL_ID, { error: "A report needs the browser's id." })),
-  name: z.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
+  name: z.enum(PAGE_METRICS, { error: "A report names one of the page's metrics." }),
   value: z.number().check(z.minimum(0), z.maximum(VITAL_CEILING)),
   page: z.optional(z.string().check(z.regex(PAGE_NAME))),
   part: z.optional(z.string().check(z.regex(PAGE_NAME))),

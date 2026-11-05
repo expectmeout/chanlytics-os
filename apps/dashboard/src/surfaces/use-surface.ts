@@ -12,6 +12,7 @@ import type { FollowState, SurfaceKey, SurfaceValues } from "./surface-values";
 import { getSurfaceStatuses, isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 import { partBegins, partReady } from "@/client/page-speed";
 import { refreshSurface } from "./legacy-verbs";
+import { waitFor, type WaitPace } from "@/legacy-bridge/hearing/wait-for";
 
 export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
@@ -96,4 +97,27 @@ export function useReadsHere(keys: readonly SurfaceKey[]): void {
   useEffect(() => {
     for (const key of keys) if (surfaceValue(key) === undefined) void refreshSurface(key);
   }, [keys]);
+}
+
+/**
+ * Ask again while the page waits on work outside it (legacy-bridge/hearing/wait-for.ts): from `active` turning true until it
+ * turns false, the page goes, or the pace's own end. The pace's `read` and `until` are the latest draw's, so a page's new
+ * closures never restart the wait; a change of `everyMs`, `ceilingMs` or `maxMs` does.
+ */
+export function useWaitFor(active: boolean, pace: WaitPace): void {
+  const held = useRef(pace);
+  useLayoutEffect(() => {
+    held.current = pace;
+  });
+  const { everyMs, ceilingMs, maxMs } = pace;
+  useEffect(() => {
+    if (!active) return undefined;
+    return waitFor({
+      everyMs,
+      ceilingMs,
+      maxMs,
+      read: () => held.current.read(),
+      until: () => held.current.until?.() ?? false,
+    });
+  }, [active, everyMs, ceilingMs, maxMs]);
 }

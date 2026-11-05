@@ -19,6 +19,7 @@ import {
   useRef,
   useState,
   type HTMLAttributes,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   type RefObject,
@@ -34,7 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { mayAtLeast } from "../../legacy-verbs";
+import { drawnNow, mayAtLeast } from "../../legacy-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
 import { carryNotAPerson } from "../carried-reply";
 import { demoSession } from "../shell";
@@ -45,11 +46,13 @@ import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { GRAB_AT } from "../../kit/motion/swipe";
-import { repliesDoor } from "./shell-thread";
+import { glideHeight } from "../../kit/motion/use-height-glide";
+import { riseWithKeys } from "../../kit/motion/keys-rise";
+import { dockSwipe } from "../../kit/sheet/dock";
+import { SheetHandle, type SheetRestControl } from "../../kit/sheet/handle";
 import type { Approval, RealThread, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
 import { Composer } from "./composer";
-import { keptPitchNow } from "./kept-draft";
 import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
 import { composerAside, ThreadStatus, type Stale, type StatusProps } from "./status";
@@ -58,6 +61,9 @@ import { threadEnd, threadScroller, threadShown } from "./scroller";
 import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
 import { hasVeto, HeldDraft } from "./veto";
+import { tlCallFor } from "./call";
+import { useCallLinesFirst } from "./call-turns";
+import { conversationsData } from "../store";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
@@ -80,6 +86,27 @@ export const ixOpensAt = (thread: Thread | null | undefined, focusMessageId: str
   return thread && thread.real && i >= 0 && at && at.type === "msg" && OPENS_AT_ITS_TOP.has(at.channel) && at.messageId
     ? at.messageId
     : null;
+};
+
+/**
+ * The calls a real thread opens with their lines shown (timeline.tsx: its newest thing said, and the message it was
+ * opened at), whose lines its conversation waits for (call-turns.ts useCallLinesFirst): each one's id where the row came
+ * without them, and "" where the calls Conversations reads are not in yet (`callsRead`) and its call is not known.
+ */
+const callsOpenedWith = (thread: Thread | null, focusMessageId: string | null, callsRead: boolean): string[] => {
+  if (!thread || !thread.real) return [];
+  const tl = thread.timeline;
+  const newest = ixNewestSaid(tl);
+  const focused = focusMessageId ? tl.find((e) => e.type === "msg" && e.messageId === focusMessageId) : undefined;
+  const owed: string[] = [];
+  for (const entry of [newest >= 0 ? tl.at(newest) : undefined, focused]) {
+    if (!entry || entry.type !== "msg" || entry.channel !== "phone") continue;
+    const call = tlCallFor(entry.messageId);
+    if (!call) {
+      if (!callsRead) owed.push("");
+    } else if (call.callId && !call.transcript?.length && (call.turnsToRead ?? 0) > 0) owed.push(call.callId);
+  }
+  return owed;
 };
 
 // The phone's width, where a thread is the screen and Back is its list (mobile.css, 720px).
@@ -208,8 +235,10 @@ interface EndRefs {
  * A real thread opens at its newest message and stays with it as messages arrive, unless you have scrolled up to read.
  * Opened at a message -- a call, from Conversations -- or at the start of a call or an email that is the newest thing
  * said, it opens there instead (ixOpensAt), once the pane has a size to scroll. The thread is read when the effect runs,
- * which is when it first arrives, not when the pane first drew. The conversation `el` scrolls itself on a desk, and the
- * window scrolls it on a phone (scroller.ts). Answers what lets it go.
+ * which is when it first arrives, not when the pane first drew. The conversation `el` scrolls itself, on a desk and on a
+ * phone, where the thread is a screen of its own (mobile.css): from 21 Oct to 3 Nov 2026 the window scrolled it there,
+ * and this scroll to the end, set from a height the keyboard never changes, put back the lift the browser had given a
+ * field the keys rose under. What scrolls it is still asked (scroller.ts). Answers what lets it go.
  */
 function followTheEnd(el: HTMLElement, refs: EndRefs) {
   const box = threadScroller(el);
@@ -255,8 +284,8 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
   heard.addEventListener("scroll", onScroll, { passive: true });
   const moved = ["wheel", "touchstart", "pointerdown", "keydown"];
   for (const kind of moved) heard.addEventListener(kind, letGo, { passive: true });
-  // Shown (a phone opens the pane after it mounts) or grown (a photo lands): back to the end, if you were there. Where the
-  // window scrolls it, the pane grows round it too: its foot, standing over the screen's foot (mobile.css).
+  // Shown (a phone opens the pane after it mounts), grown (a photo lands) or made shorter (the reply box opens, the keys
+  // rise under it): back to the end, if you were there. Where the window scrolls it, the pane grows round it too.
   const seen = typeof ResizeObserver === "function" ? new ResizeObserver(toEnd) : null;
   if (seen) {
     seen.observe(el);
@@ -295,17 +324,52 @@ const pressedAt = new WeakMap<Element, { x: number; y: number }>();
 /**
  * Opens the folded reply box on a tap, never at a touch (Ruben, 2 Nov 2026: a drag on the reply box moved it): a thumb
  * that lands on it on its way up or down the conversation travels past GRAB_AT, or is taken by the browser for a scroll
- * (pointercancel), and leaves it folded. Pointer events, not a click: the foot is a box of the page's parts, no control.
+ * (pointercancel), and leaves it folded. It opens at the tap's click, once the press has gone to what was under the
+ * finger: opened as the finger lifted, the box grew under it first, and the click landed on Hand back or on nothing. A tap
+ * on its line puts the caret in the field, at the words' start, in that same press, so the keys rise for one tap (Ruben's
+ * recording, 4 Nov 2026: it took a second to type).
  */
-function openOnTap(open: () => void) {
+function openOnTap(foot: RefObject<HTMLDivElement | null>, setFolded: (v: boolean) => void) {
   return {
     onPointerDown: (e: PointerEvent<HTMLElement>) => pressedAt.set(e.currentTarget, { x: e.clientX, y: e.clientY }),
     onPointerCancel: (e: PointerEvent<HTMLElement>) => pressedAt.delete(e.currentTarget),
-    onPointerUp: (e: PointerEvent<HTMLElement>) => {
+    onClick: (e: MouseEvent<HTMLElement>) => {
       const at = pressedAt.get(e.currentTarget);
       pressedAt.delete(e.currentTarget);
-      if (at && Math.hypot(e.clientX - at.x, e.clientY - at.y) < GRAB_AT) open();
+      if (!at || Math.hypot(e.clientX - at.x, e.clientY - at.y) >= GRAB_AT) return;
+      drawnNow(() => setFolded(false));
+      const field = foot.current?.querySelector<HTMLTextAreaElement>("textarea.ix-composer-text");
+      // A glance that offers a draft puts it in (composer.tsx foldedGlance), and the keys stay down: it may be sent as it is.
+      if (!field || field === document.activeElement) return;
+      if (!(e.target as Element).closest?.(".ix-composer-glance:not([data-offers])")) return;
+      field.focus({ preventScroll: true });
+      field.setSelectionRange(0, 0);
     },
+  };
+}
+
+/**
+ * A phone's reply box under a thumb, as a sheet with two rests is (Ruben, 3 Nov 2026: "it should also work like the drawer
+ * sheets"): the sheet's handle at its top, a button that opens it or folds it away, and a pull up that opens it or down
+ * that folds it (kit sheet/dock.ts dockSwipe), its height gliding between the two (the thread's effect). It is marked as
+ * taking its own drag, so the page draws no pull of its own from it (page-give.ts). A desk's has none: its pane has room.
+ */
+function footDock(folded: boolean, setFolded: (v: boolean) => void, on: boolean) {
+  if (!on) return { props: {}, handle: null };
+  const rest: SheetRestControl = {
+    at: folded ? "half" : "full",
+    onRest: (at) => setFolded(at === "half"),
+    turn: { up: THREAD_PANE_WORDS.replyOpen, down: THREAD_PANE_WORDS.replyFold },
+  };
+  const pull = dockSwipe({
+    open: !folded,
+    onOpen: () => setFolded(false),
+    onFold: () => setFolded(true),
+    when: ixPhone,
+  });
+  return {
+    props: { "data-dock": "", "data-own-drag": "", ...pull },
+    handle: <SheetHandle rest={rest} testid="ix-th-foot" />,
   };
 }
 
@@ -445,10 +509,10 @@ function heldDraftRow(p: Held, thread: Thread, text: string) {
 function scrollBody(
   p: Held,
   thread: Thread,
-  extra: { scrollRef: RefObject<HTMLDivElement | null>; statusProps: StatusProps; rowsAt: RowsAt },
+  extra: { scrollRef: RefObject<HTMLDivElement | null>; statusProps: StatusProps; rowsAt: RowsAt; waiting: boolean },
 ) {
   const { onVerdict, onDecide, planParam, onPlanParam } = p;
-  const { scrollRef, statusProps, rowsAt } = extra;
+  const { scrollRef, statusProps, rowsAt, waiting } = extra;
   const decided = statusProps.decided;
   return (
     <div className="ix-th-scroll" ref={scrollRef}>
@@ -467,8 +531,9 @@ function scrollBody(
 
       <NarrativeSummary thread={thread} />
 
-      {/* A thread whose own read is still out draws its conversation when it lands (read-apart.ts). */}
-      {thread.real && thread.partial ? (
+      {/* A thread whose own read is still out, or its call's lines, draws its conversation when they land (read-apart.ts,
+          call-turns.ts). */}
+      {waiting ? (
         <div className="ix-timeline" aria-busy="true" data-testid="ix-timeline-reading" />
       ) : (
         <div className="ix-timeline">{timelineRows(p, thread, rowsAt)}</div>
@@ -490,8 +555,8 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
   const clientId = thread.clientId;
   const row = personOnThread(thread.conversationId, clientId)?.row ?? null;
   if (!clientId || !row || demoSession() || thread.archived || thread.primaryChannel !== "email") return null;
-  // The dock asks it, where the receptionist's draft found it was not a customer's (status.tsx notACustomerAct).
-  if (keptPitchNow(thread)) return null;
+  // The dock asks it, where the thread was set aside as not a customer's (status.tsx setAsideBar).
+  if (thread.setAside) return null;
   if (!mayAtLeast("owner") || row.threads > 1 || row.deal || row.nextVisitLine || row.lastVisitLine) return null;
   return (
     <div className="ix-first-email" data-testid="ix-first-email">
@@ -537,7 +602,6 @@ function approvalBox(p: Held, thread: Thread, decided: boolean) {
 /** The thread's own reply box, and what it draws beside its Send (status.tsx composerAside: Hand back). */
 function replyBox(p: Held, thread: Thread, decided: boolean, aside: ReactNode) {
   const { onSend, onVetoAct } = p;
-  const replies = repliesDoor();
   return (
     (!thread.approval || decided) &&
     (thread.real || thread.state !== "done") && (
@@ -545,7 +609,8 @@ function replyBox(p: Held, thread: Thread, decided: boolean, aside: ReactNode) {
         thread={thread}
         // A real draft counting down stands once, as the next bubble with its countdown (heldDraftRow): the box holds the
         // member's own words, and Edit puts the draft's in it (thread-verbs.tsx).
-        reply={thread.veto ? (thread.real ? "" : thread.veto.draft) : replies ? replies.draftOf(thread.id) : ""}
+        // A reach-out's reply has its draft in the thread's one store since decision 0093: Use draft, as every thread has.
+        reply={thread.veto && !thread.real ? thread.veto.draft : ""}
         onType={thread.veto ? () => onVetoAct(thread.id, "type") : null}
         onSend={onSend}
         aside={aside}
@@ -577,9 +642,18 @@ export const InboxThread = (props: InboxThreadProps) => {
   const focusRef = useRef<string | null>(focusMessageId);
   const threadRef = useRef<Thread | null>(thread);
   threadRef.current = thread;
-  // A real thread whose conversation waits for its own read (read-apart.ts) is drawn without it until it lands, then
-  // opens as a thread does: at its newest, or the message it was opened at, with what it opened with simply there.
-  const waiting = !!(thread && thread.real && thread.partial);
+  // A real thread whose conversation waits for its own read (read-apart.ts), or for the lines of a call it opens with
+  // (call-turns.ts), is drawn without it until they land, then opens as a thread does: at its newest, or the message it
+  // was opened at, with what it opened with simply there.
+  // The calls are read once Conversations' read has come back, whether its calls were in it or not (CALLS_READ).
+  const callsRead = conversationsData().CALLS_READ !== undefined;
+  const partial = !!(thread && thread.real && thread.partial);
+  const linesOwed = useCallLinesFirst(
+    callsOpenedWith(thread, focusMessageId, callsRead),
+    thread ? thread.id : null,
+    partial,
+  );
+  const waiting = partial || (!!(thread && thread.real) && linesOwed);
   const drawn = !!(thread && thread.real) && !waiting;
   const entries = thread && thread.timeline ? thread.timeline.length : 0;
   useEffect(() => {
@@ -600,6 +674,8 @@ export const InboxThread = (props: InboxThreadProps) => {
   const threadId = thread ? thread.id : null;
   useEffect(() => setFolded(ixPhone()), [threadId]);
   useEffect(() => foldAsRead(scrollRef.current, setFolded), [drawn]);
+  const footRef = useRef<HTMLDivElement>(null);
+  useEffect(() => (ixPhone() && footRef.current ? glideHeight(footRef.current) : undefined), [drawn]);
   if (!thread) return <InboxEmpty quiet={props.nothingOpen === "quiet"} />;
 
   const decided = !!thread.resolution;
@@ -625,6 +701,7 @@ export const InboxThread = (props: InboxThreadProps) => {
   };
   if (!waiting && seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
   const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);
+  const dock = footDock(folded, setFolded, !!thread.real && ixPhone());
 
   return (
     // On a phone the thread is the screen, and a thumb carries it back to its list (ixSwipeBack).
@@ -648,16 +725,23 @@ export const InboxThread = (props: InboxThreadProps) => {
         </div>
       )}
 
-      {scrollBody(held, thread, { scrollRef, statusProps, rowsAt: { newestSaid, seenAt, ...earlier } })}
-      {/* The foot: what the thread needs from you and the reply box. One box on a phone, standing over the screen's foot
-          as the window scrolls the conversation under it (mobile.css); on a desk no box at all (display: contents). */}
+      {scrollBody(held, thread, { scrollRef, statusProps, rowsAt: { newestSaid, seenAt, ...earlier }, waiting })}
+      {/* The foot: what the thread needs from you and the reply box. One box on a phone, on the screen's bottom edge under
+          the conversation, and on the keys while they are up (mobile.css); on a desk no box at all (display: contents). */}
       <div
+        ref={footRef}
         className="ix-th-foot"
         data-folded={folded && thread.real ? "" : undefined}
-        // Tapped or typed into, folded, it opens (foldAsRead, openOnTap): on what is owed, on the words or on an act.
-        onFocus={folded ? () => setFolded(false) : undefined}
-        {...(folded ? openOnTap(() => setFolded(false)) : {})}
+        // Tapped or typed into, folded, it opens (foldAsRead, openOnTap): on what is owed, on the words or on an act. On a
+        // phone a field in it, focused, rises into the keys' room in one glide, the conversation with it (keys-rise.ts).
+        onFocus={(e) => {
+          if (ixPhone() && footRef.current) riseWithKeys(e.target, footRef.current, scrollRef.current);
+          if (folded) setFolded(false);
+        }}
+        {...(folded ? openOnTap(footRef, setFolded) : {})}
+        {...dock.props}
       >
+        {dock.handle}
         {thread.real && (
           <div className="ix-th-status" data-testid="ix-th-status">
             <ThreadStatus {...statusProps} />

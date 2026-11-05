@@ -110,6 +110,22 @@ export const env = {
   get RETELL_DOORS_SIGNED() {
     return trimmedEnv(process.env.RETELL_DOORS_SIGNED);
   },
+  /** The knock on /api/voice-canary (x-canary-key): the daily canary call's alone; unset, the door opens for nobody. */
+  get VOICE_CANARY_KEY() {
+    return trimmedEnv(process.env.VOICE_CANARY_KEY);
+  },
+  /** The workspace of ours the canary calls (tenants.ours): its receptionist answers the canary's call. */
+  get VOICE_CANARY_TENANT() {
+    return trimmedEnv(process.env.VOICE_CANARY_TENANT);
+  },
+  /** The number of the platform's the canary calls from (E.164, held at the voice provider). */
+  get VOICE_CANARY_FROM() {
+    return trimmedEnv(process.env.VOICE_CANARY_FROM);
+  },
+  /** The provider's agent that plays the caller: a script, with no webhook of its own. */
+  get VOICE_CANARY_CALLER_AGENT() {
+    return trimmedEnv(process.env.VOICE_CANARY_CALLER_AGENT);
+  },
   get TWILIO_ACCOUNT_SID() {
     return trimmedEnv(process.env.TWILIO_ACCOUNT_SID);
   },
@@ -259,11 +275,14 @@ export const env = {
   get ELEVENLABS_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.ELEVENLABS_WEBHOOK_SECRET);
   },
-  /**
-   * Switch: the lead judge's screen (decision 0085), the second model asked first and a place it is sure is left out never
-   * judged ('1' for every workspace, or a comma-separated list of workspace ids), with its key set; anything else asks
-   * the judge everything, as before.
-   */
+  /** Switch: 'on' makes a profile for each signed-up person and workspace and names it on every model call (decision 0097);
+   * anything else sends none and creates none. Listed in contracts ai/flags.ts with its sunset. */
+  get ANTHROPIC_PROFILES() {
+    return trimmedEnv(process.env.ANTHROPIC_PROFILES);
+  },
+  /** Switch: the lead judge's screen (decision 0085), the second model asked first and a place it is sure is left out
+   * never judged ('1' for every workspace, or a comma-separated list of workspace ids), with its key set; anything else
+   * asks the judge everything, as before. Listed in contracts ai/flags.ts with its sunset (00506). */
   get TYPESAFE_SCREEN() {
     return trimmedEnv(process.env.TYPESAFE_SCREEN);
   },

@@ -186,8 +186,19 @@ export function normalizeCall(c: RetellCall): NormalizedCall {
   };
 }
 
+/** The line a missed call leaves in the customer's thread: what the text receptionist and the next call read back. */
+export const MISSED_CALL_LINE = "Missed call — they rang and it never connected.";
+
 /** The one-line note a call leaves in the customer's cross-channel thread. */
-export function callSummaryLine(n: NormalizedCall): string {
+export function callSummaryLine(
+  n: Pick<NormalizedCall, "direction" | "durationMs" | "summary" | "inVoicemail" | "analysis"> & {
+    status?: NormalizedCall["status"];
+  },
+): string {
+  // A call that never connected is a missed call in the thread too, so the receptionist's memory, the next call's
+  // context and the person's history all know they rang (it used to leave no line at all).
+  if (n.status === "not_connected")
+    return n.direction === "inbound" ? MISSED_CALL_LINE : "Outbound call — it never connected.";
   const mins = n.durationMs ? Math.max(1, Math.round(n.durationMs / 60000)) : null;
   const head = n.direction === "inbound" ? "Inbound call" : "Outbound call";
   const dur = mins ? ` · ${mins} min` : "";
@@ -243,9 +254,8 @@ export interface ListCallsPage {
 
 /**
  * History read via **v3** — /v2/list-calls is deprecated and Retell flags
- * accounts still calling it. ALWAYS filter by agent: one account hosts many
- * agents (the live account holds 432 calls across 8, only 4 this tenant's), so
- * an unfiltered import would cross tenants.
+ * accounts still calling it. ALWAYS filter by agent: one account hosts every
+ * workspace's agents, so an unfiltered import would cross tenants.
  *
  * Verified live: v3 returns {items, has_more, pagination_key, total} and OMITS
  * transcript/transcript_object (hydrate via getCall) while still including
@@ -382,6 +392,9 @@ export interface RetellAgentConfig {
   data_storage_setting: string | null;
   /** Days the provider keeps a call; null = forever. */
   data_storage_retention_days: number | null;
+  /** The longest a call may run, and how long a silent line is held (voice-shell.ts CALL_LIMITS); null = the default. */
+  max_call_duration_ms: number | null;
+  end_call_after_silence_ms: number | null;
   opt_in_signed_url: boolean | null;
   /** The post-call analysis schema on the agent, as stored; the planner
    *  checks ours are on it (voice-shell.ts CALL_ANALYSIS_FIELDS). */
@@ -421,6 +434,8 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
     data_storage_retention_days: num("data_storage_retention_days"),
+    max_call_duration_ms: num("max_call_duration_ms"),
+    end_call_after_silence_ms: num("end_call_after_silence_ms"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? (a.post_call_analysis_data as unknown[]) : null,
     reminder_trigger_ms: num("reminder_trigger_ms"),
@@ -485,56 +500,7 @@ export function publishAgentVersion(
 
 /* ------------------------------ web calls ------------------------------ */
 
-/** What a browser joins a web call with (POST /v3/create-web-call's answer): the call, its token, its transport. */
-export interface WebCallMade {
-  call_id: string;
-  access_token: string;
-  transport: string | null;
-  ice_servers: unknown[];
-  /** When the token stops letting a browser join, epoch ms. */
-  expires_at: number | null;
-}
-
-/**
- * A web call's request (decision 0069): the agent, the variables a real call's plan gives it (call-start.ts), the call's
- * own voice and length (agent_override, the saved agent untouched), and what the call is in our records (metadata, the
- * provider's to keep and ours to read back on every delivery and tool call). Pure, so a test reads what is sent.
- */
-export function webCallBody(o: {
-  agentId: string;
-  variables: Record<string, string>;
-  voiceId: string | null;
-  /** How fast the voice speaks (decision 0073, R7), as a call on the line hears it; null or absent for its own pace. */
-  voiceSpeed?: number | null;
-  maxMs: number;
-  metadata: Record<string, string | number>;
-}): Record<string, unknown> {
-  return {
-    agent_id: o.agentId,
-    retell_llm_dynamic_variables: o.variables,
-    agent_override: {
-      agent: {
-        max_call_duration_ms: Math.round(o.maxMs),
-        ...(o.voiceId ? { voice_id: o.voiceId } : {}),
-        ...(typeof o.voiceSpeed === "number" ? { voice_speed: o.voiceSpeed } : {}),
-      },
-    },
-    metadata: o.metadata,
-  };
-}
-
-/** The answer as a browser needs it, or null when it is not one: a call id and a token are the least a join needs. */
-export function webCallMadeOf(body: Record<string, unknown> | null): WebCallMade | null {
-  if (!body || typeof body.call_id !== "string" || typeof body.access_token !== "string") return null;
-  return {
-    call_id: body.call_id,
-    access_token: body.access_token,
-    transport: typeof body.transport === "string" ? body.transport : null,
-    ice_servers: Array.isArray(body.ice_servers) ? body.ice_servers : [],
-    expires_at: typeof body.expires_at === "number" ? body.expires_at : null,
-  };
-}
-
+/** Its body and its answer's shape are voice-web-call.ts's (webCallBody, webCallMadeOf). */
 /** POST /v3/create-web-call — a call a browser joins with the token it answers; nothing is dialed. */
 export function createWebCall(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite> {
   return writeRetell(cfg, "POST", "/v3/create-web-call", body);
@@ -655,6 +621,49 @@ export async function stopCall(cfg: RetellConfig, callId: string): Promise<{ ok:
   return { ok: r.outcome === "ok", status: r.status };
 }
 
+/**
+ * POST /v2/create-phone-call — a call placed from a number the account holds, answered on the other end by whatever
+ * answers that number. Only the platform's canary places one (lib/voice/watch/voice-canary.ts): a scripted caller ringing a
+ * workspace of ours, so the whole road a customer's call takes is walked once a day. The receptionist never calls a
+ * customer (decision 0038 is not built).
+ */
+export function createPhoneCall(
+  cfg: RetellConfig,
+  body: { from_number: string; to_number: string; override_agent_id?: string; metadata?: Record<string, unknown> },
+): Promise<RetellWrite> {
+  return writeRetell(cfg, "POST", "/v2/create-phone-call", body);
+}
+
+/**
+ * DELETE /v2/delete-call — the provider's copy of one call (its audio, transcript and log) taken off it: the erasure's
+ * last leg (decision 0036), since our own rows going leaves what the provider keeps until its retention. Gone already
+ * (404) is gone.
+ */
+export async function deleteCall(cfg: RetellConfig, callId: string): Promise<{ ok: boolean; status: number }> {
+  const r = answered(await retell(cfg, "DELETE", `/v2/delete-call/${encodeURIComponent(callId)}`), "delete-call");
+  return { ok: r.outcome === "ok" || r.status === 404, status: r.status };
+}
+
+/** How many calls the account is on now and how many it may hold at once, as the provider says; null fields it did not. */
+export interface RetellConcurrency {
+  current: number | null;
+  limit: number | null;
+}
+
+/**
+ * GET /get-concurrency — one account serves every workspace's line, so its limit is everybody's: a busy workspace can
+ * fill it and leave the other lines answering busy (concurrency_limit_reached). The health sweep reads it
+ * (lib/voice/watch/voice-watch.ts). Null when the provider gave no answer it could read; never throws on a refusal.
+ */
+export async function getConcurrency(cfg: RetellConfig): Promise<RetellConcurrency | null> {
+  const r = await retell(cfg, "GET", "/get-concurrency");
+  if (r.status === 0 || r.outcome !== "ok") return null;
+  const o = answerObject(r);
+  if (!o) return null;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return { current: num(o.current_concurrency), limit: num(o.concurrency_limit) };
+}
+
 /** The fields of a Retell LLM the shell is defined over. */
 export interface RetellLlmConfig {
   llm_id: string;
@@ -668,6 +677,18 @@ export interface RetellLlmConfig {
   /** Retell's tool objects as stored — the booking tool carries a secret header. */
   general_tools: Array<Record<string, unknown> & { type: string; name: string }> | null;
   knowledge_base_ids: string[] | null;
+}
+
+/**
+ * PATCH /update-retell-llm — the shell's own fields on an LLM (planVoiceConvergence's `llmPatch`): the edge's converger,
+ * so the provider key never leaves the edge (lib/voice/voice-converge.ts, `shell: true`).
+ */
+export function updateRetellLlm(
+  cfg: RetellConfig,
+  llmId: string,
+  patch: Record<string, unknown>,
+): Promise<RetellWrite> {
+  return writeRetell(cfg, "PATCH", `/update-retell-llm/${encodeURIComponent(llmId)}`, patch);
 }
 
 /** GET /get-retell-llm at a version. Null when the provider says no. */
@@ -700,9 +721,9 @@ export async function getRetellLlm(
 }
 
 /**
- * Recording bytes. Retell serves these from an UNSIGNED public CDN URL
- * (verified: HEAD 200 with no auth) — so we copy customer audio into private
- * storage rather than leaving it one guessed link away.
+ * Recording bytes, by the link the provider signs for a day (opt_in_signed_url,
+ * on every agent; the link was once public and permanent) — copied into private
+ * storage, so the audio is ours to keep and to erase.
  */
 export type RecordingFetch = { ok: true; bytes: ArrayBuffer; mime: string | null } | { ok: false; status: number };
 

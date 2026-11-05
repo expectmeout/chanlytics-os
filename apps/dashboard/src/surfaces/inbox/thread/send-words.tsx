@@ -48,12 +48,15 @@ export const IxWhy = ({ said, testid = null }: { said: ReactNode; testid?: strin
 /**
  * The field grows with what is in it, up to its cap: typed, carried in from a profile, or a draft filled in. Words put in
  * by the page (a draft, a carried reply) are read from their first line: a draft taller than the cap opened scrolled to
- * its end, its greeting and first sentence out of sight above (2 Nov 2026). What the member types keeps its place.
+ * its end, its greeting and first sentence out of sight above (2 Nov 2026). What the member types keeps its place. Its
+ * hairline is counted too: as tall as its words' scroll alone, a field with a border stood 2px short of them, and they
+ * scrolled by that much under a thumb, with a bar beside them where bars are drawn (4 Nov 2026).
  */
 export function growWithWords(taRef: RefObject<HTMLTextAreaElement | null>, real: boolean | undefined) {
   const el = taRef.current;
   if (!real || !el || !el.style) return;
   el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  const rim = el.offsetHeight && el.clientHeight ? el.offsetHeight - el.clientHeight : 0;
+  el.style.height = `${el.scrollHeight + rim}px`;
   if (typeof document !== "undefined" && document.activeElement !== el) el.scrollTop = 0;
 }

@@ -175,6 +175,7 @@ export function BulkChoose({
         void b.addTo(row).then(onClose);
       }}
       onNew={() => b.setStep("new")}
+      onWrite={null}
       onBack={onClose}
     />
   );

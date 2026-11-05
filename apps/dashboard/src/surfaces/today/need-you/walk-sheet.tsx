@@ -61,7 +61,7 @@ function nextOpen(rows: readonly TodayQueueRowVM[], kept: ReadonlySet<string>, f
  */
 function ChangeWithAsk({ row, may }: { row: TodayQueueRowVM; may: boolean }) {
   const want = replyWant(row);
-  const draft = useDraft(want, may);
+  const draft = useDraft(want);
   const [editing, setEditing] = useRowState(row.id, "editing", false);
   const [, setMine] = useRowState<string | null>(row.id, "mine", null);
   const { s: send } = useSend(row.id);

@@ -186,9 +186,9 @@ export function policyAskClass(
  * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
  * does in policyAskClass.
  *
- * The phone asks it here: apps/edge/api/retell-fn.ts (which outbound-gate.ts
+ * The phone asks it here: apps/edge/lib/voice/call-booking-link.ts (which outbound-gate.ts
  * refuses as booking_needs_a_person, with or without an approved booking
- * template) and apps/edge/api/retell-availability.ts (which still offers a caller
+ * template) and apps/edge/lib/voice/availability-tool.ts (which still offers a caller
  * the open times, then a member of the team confirming in place of the link:
  * describeOpenings' `bookingHeld`, the owner's decision of 21 Sep 2026). Chat
  * asks it through policyAskClass, and this must keep agreeing with it:
@@ -268,6 +268,11 @@ export function policyRules(
       : `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`,
   );
   return out;
+}
+
+/** The money row as a draft says it (decision 0093): the person who will send it decides, in their own words. */
+export function draftMoneyRule(): string {
+  return `Money: ${POLICY_COVERS.money} is not yours to decide or promise. Do not agree, refuse or quote terms; say you will come back to them about it.`;
 }
 
 export interface PolicyRow {

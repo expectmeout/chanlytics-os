@@ -43,6 +43,21 @@ export async function healthFailedJobs(db: Db, q: { sinceIso: string; limit: num
     .limit(q.limit);
 }
 
+/** The ledger now (jobs_ledger_now, 00526): by lane and by kind, and when its canary last finished. */
+export async function healthLedgerNow(db: Db) {
+  return db.rpc("jobs_ledger_now");
+}
+
+/** A kind of job paused (job_kind_pause, 00526): no claim takes it until it is resumed. The door's answer as it gave it. */
+export async function pauseJobKind(db: Db, kind: string, why: string) {
+  return db.rpc("job_kind_pause", { p_kind: kind, p_why: why });
+}
+
+/** A paused kind resumed (job_kind_resume, 00526), and the tick asked for what waited. */
+export async function resumeJobKind(db: Db, kind: string) {
+  return db.rpc("job_kind_resume", { p_kind: kind });
+}
+
 /** What paged us: each condition the pager remembers, the newest first. */
 export async function healthPages(db: Db, limit: number) {
   return db
@@ -55,6 +70,11 @@ export async function healthPages(db: Db, limit: number) {
 /** Every part's numbers over the last `days`, each keyed by whether its workspace is ours. */
 export async function healthParts(db: Db, days: number) {
   return db.rpc("platform_health_parts", { p_days: days });
+}
+
+/** What the replies sent over the last `days` did with the thread's draft (00539 reply_draft_uses). */
+export async function healthDraftUses(db: Db, days: number) {
+  return db.rpc("reply_draft_uses", { p_days: days });
 }
 
 /** Every workspace's name and address, and whether it is ours: Health names a row's workspace and splits by it. */

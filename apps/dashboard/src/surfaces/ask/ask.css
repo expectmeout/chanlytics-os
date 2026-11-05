@@ -217,25 +217,6 @@ body.ask-open .tb-ask .tb-ask-face {
   white-space: nowrap;
 }
 
-/* A chip of words to pick (the peek's tones, leads-peek.jsx). */
-.ask-follow-chip {
-  font: inherit;
-  font-size: var(--text-label);
-  color: var(--ink);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  padding: 5px 11px;
-  cursor: pointer;
-  text-align: left;
-}
-@media (hover: hover) {
-  .ask-follow-chip:hover {
-    border-color: var(--line-strong);
-    background: var(--bg-hover);
-  }
-}
-
 /* ---- Under the band: Right now, chips for the questions, compact rows for the conversations; the question while Ask
    reads. No hairline on top: the band's own is it. ---- */
 /* Its bar shows only while it scrolls (`data-scrolling`, surfaces/ask/line/ useArScrollCues), and once scrolled what passes

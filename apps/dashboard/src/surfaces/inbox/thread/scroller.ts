@@ -1,14 +1,14 @@
 /**
- * What scrolls a thread's conversation, and where on the screen it shows (21 Oct 2026). On a desk the pane's own scroller
- * (.ix-th-scroll) holds it. On a phone the window scrolls it, as every page there is scrolled (mobile.css, "The window
- * scrolls"): Safari 26 draws its toolbar as glass over the page, and tucks it away, for the document's own scroll alone,
- * and a thread held still in a box of its own stood on a flat band under the toolbar at its full size (Ruben, 21 Oct 2026:
- * the Inbox floated under the glass, the thread did not). There the thread's head sticks under the frame's top and its foot
- * (what it needs from you, the reply box) stands over the screen's foot, so what shows of the conversation is between them.
+ * What scrolls a thread's conversation, and where on the screen it shows (21 Oct 2026). The pane's own scroller
+ * (.ix-th-scroll) holds it, on a desk and on a phone alike. From 21 Oct to 3 Nov 2026 the window scrolled it on a phone,
+ * as every other page there is scrolled (mobile.css, "The window scrolls"), with the thread's head stuck under the frame's
+ * top and its foot over the screen's foot; since then a phone's thread is a screen of its own, its foot on the screen's
+ * bottom edge and on the keys (Ruben's recording, 3 Nov 2026: the foot floated at a thread's end, and the scroll to the
+ * end undid the keyboard's lift). What scrolls it is asked, never assumed, so the window's case is still answered.
  */
 import { isDocumentScroller, scrollerOf, shownHeight } from "../../kit/motion/page-scroll";
 
-/** The box that scrolls the conversation `el` (the pane's .ix-th-scroll): itself on a desk, the document's on a phone. */
+/** The box that scrolls the conversation `el` (the pane's .ix-th-scroll): itself, or the document's where it does not. */
 export const threadScroller = (el: Element): HTMLElement => scrollerOf(el, { self: true });
 
 /**

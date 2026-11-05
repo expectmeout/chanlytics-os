@@ -52,6 +52,7 @@ import {
 import { warmDemo } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
+import { useCallLinesFirst } from "../thread/call-turns";
 import { ixGoing, ixSwipeBack } from "../thread/thread";
 import { IxWho } from "../thread/who";
 import { businessTrailFor } from "../../people/business-trail";
@@ -291,11 +292,19 @@ const CallPane = ({ c, onBack = null }: { c: ConversationRow; onBack?: (() => vo
   }, [live, c.id]);
   const started = c.ts ?? 0;
   const secs = live && started > 0 ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : null;
+  // Its lines are read before it is drawn, as a thread that opens with a call waits for them (call-turns.ts): drawn
+  // without them, the card grew by its lines a beat later and stood 260px further up the screen.
+  const owed = !live && c.callId && !c.transcript?.length && (c.turnsToRead ?? 0) > 0 ? [c.callId] : [];
+  const waiting = useCallLinesFirst(owed, c.id);
   return (
     <div className="ix-thread-pane cv-call-pane" data-testid="cv-call-pane" {...ixSwipeBack(onBack)}>
       {callHead(c, onBack)}
       <div className="ix-th-scroll">
-        <div className="ix-timeline">{live ? callLive(secs) : <ThreadCall call={c} at={c.at} open />}</div>
+        {waiting ? (
+          <div className="ix-timeline" aria-busy="true" data-testid="ix-timeline-reading" />
+        ) : (
+          <div className="ix-timeline">{live ? callLive(secs) : <ThreadCall call={c} at={c.at} open />}</div>
+        )}
       </div>
     </div>
   );

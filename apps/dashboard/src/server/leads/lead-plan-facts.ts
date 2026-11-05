@@ -5,14 +5,7 @@
  * Cross-workspace: the niche's prior is platform-wide by design: counts per kind of business, aggregates only, which
  * name no workspace and no place (lead_niche_priors, 00140). Nothing else here reads past the workspace.
  */
-import {
-  LEAD_MONTHLY_ALLOWANCE,
-  LEAD_MONTHLY_BUDGET_USD,
-  type LeadArea,
-  leadMonth,
-  type LeadNichePrior,
-  type LeadPlanFacts,
-} from "@chanlytics/contracts";
+import { LEAD_MONTHLY_BUDGET_USD, leadMonth, type LeadNichePrior, type LeadPlanFacts } from "@chanlytics/contracts";
 import { monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
 import { tenantFacts } from "../tenant";
@@ -41,7 +34,7 @@ export async function nichePrior(
 export async function planFacts(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  opts: { categoryKey?: string | null; nearby?: LeadArea[]; cannotSee?: LeadPlanFacts["cannotSee"]; now?: Date } = {},
+  opts: { categoryKey?: string | null; now?: Date } = {},
 ): Promise<LeadPlanFacts> {
   // The month, and the day it renews, are the BUSINESS's (lead_month): a turn
   // that carries its own moment hands it in rather than reading the server's.
@@ -55,12 +48,12 @@ export async function planFacts(
   ]);
   // The whole of each ceiling is contracts', never the database's: one
   // derivation per fact, so the number a person reads is spelled once.
-  const leadsLeft = Math.max(0, LEAD_MONTHLY_ALLOWANCE - used.allowance);
+  const leadsLeft = Math.max(0, used.cap - used.allowance);
   const budgetLeftUsd = Math.max(0, LEAD_MONTHLY_BUDGET_USD - used.budget);
   // Which of the month's two ceilings this workspace is nearer, as a share of
   // each month's whole: the card says "you have N leads left" for the one and
   // names the budget for the other. Neither touched binds nothing.
-  const usedLeads = LEAD_MONTHLY_ALLOWANCE - leadsLeft;
+  const usedLeads = used.cap - leadsLeft;
   const usedUsd = LEAD_MONTHLY_BUDGET_USD - budgetLeftUsd;
   // The word is A's own counter kind (LEAD_COUNTER_KINDS: allowance | budget |
   // day), so the card, the door and the ledger all call the month's leads the
@@ -68,7 +61,7 @@ export async function planFacts(
   const bound: LeadPlanFacts["bound"] =
     usedLeads === 0 && usedUsd === 0
       ? null
-      : leadsLeft / LEAD_MONTHLY_ALLOWANCE <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD
+      : leadsLeft / Math.max(1, used.cap) <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD
         ? "allowance"
         : "budget";
   return {
@@ -79,8 +72,8 @@ export async function planFacts(
     bound,
     prior,
     priorOf: prior ? (opts.categoryKey ?? null) : null,
-    cannotSee: opts.cannotSee ?? null,
     renewsOn: renewsOnOf(timezone, now),
-    nearby: opts.nearby ?? [],
+    // Where to look next is a round's that ran dry (contracts leadMonthPlanFacts): a card Ask makes has none to offer.
+    nearby: [],
   };
 }

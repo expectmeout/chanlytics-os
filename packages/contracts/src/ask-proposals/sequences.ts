@@ -15,6 +15,8 @@ import { MEMORY_ROUTE } from "./memory";
 import { leadsRoute } from "../leads/lead-plan";
 import { handOf } from "../reach-out/reach-out-hand";
 import { SEQUENCE_FLOW_WORDS } from "../sequences/sequence-words";
+import { REWRITE_WORDS, rewroteWords, theirsOf, type RewroteOpening } from "../sequences/sequence-held";
+import { LEAD_WORDS_BOX, type LeadEmailText } from "../leads/sheet/lead-sheet-words";
 import {
   asText,
   decisionOf,
@@ -48,6 +50,63 @@ function stepFieldsOf(pl: Record<string, unknown>): Record<string, unknown> {
 const openSequence = ({ payload }: { payload: Record<string, unknown> }): string | null => {
   const id = idIn(payload, "sequence_id");
   return id ? sequenceRoute(id) : null;
+};
+
+/** The words a payload keeps for a lead: a body, with its subject or none; none at all puts the step's back. */
+const leadWordsIn = (v: unknown): LeadEmailText | null => {
+  const w = rec(v);
+  return typeof w.body === "string"
+    ? { subject: typeof w.subject === "string" ? w.subject : null, body: w.body }
+    : null;
+};
+
+/**
+ * A lead's own email at a step (decision 0096), typed on their sheet, or the step's words put back. The undo puts back
+ * what the door found when it wrote (its `was`): the words before, or the step's.
+ */
+export const sequenceLeadWordsSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const step = idIn(pl, "step_id");
+    const lead = idIn(pl, "lead_id");
+    return id && step && lead
+      ? {
+          route: "POST sequences/[id]/steps/[step]/lead-words",
+          params: { id, step },
+          body: { lead_id: lead, words: leadWordsIn(pl.words) },
+        }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) =>
+    leadWordsIn(pl.words) ? LEAD_WORDS_BOX.saved(asText(pl.name)) : LEAD_WORDS_BOX.backAgain(asText(pl.name)),
+  undo: {
+    label: () => LEAD_WORDS_BOX.undo,
+    window: "ten_minutes",
+    record: ({ payload: pl }, data) => ({
+      sequence_id: pl.sequence_id,
+      step_id: pl.step_id,
+      lead_id: pl.lead_id,
+      name: asText(pl.name),
+      words: leadWordsIn(rec(data).was),
+    }),
+    call: (u) => {
+      const id = asText(u.sequence_id);
+      const step = asText(u.step_id);
+      const lead = asText(u.lead_id);
+      return id && step && lead
+        ? {
+            route: "POST sequences/[id]/steps/[step]/lead-words",
+            params: { id, step },
+            body: { lead_id: lead, words: leadWordsIn(u.words) },
+          }
+        : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: (_data, u) =>
+      leadWordsIn(u.words) ? LEAD_WORDS_BOX.undone(asText(u.name)) : LEAD_WORDS_BOX.backAgain(asText(u.name)),
+  },
+  open: openSequence,
 };
 
 /**
@@ -177,6 +236,16 @@ export const sequenceWordsSpec: ProposalSpec = {
 };
 
 /**
+ * Leads, said as leads: a sequence to leads takes businesses, not people. The lead sheet's Take out says so (`leads`), since
+ * it names their place by its enrollment; lead ids alone say so too.
+ */
+const saidAsLeads = (pl: Record<string, unknown>): boolean =>
+  pl.leads === true ||
+  (Array.isArray(pl.lead_ids) &&
+    pl.lead_ids.length > 0 &&
+    !(Array.isArray(pl.enrollment_ids) && pl.enrollment_ids.length > 0));
+
+/**
  * People taken out of a sequence: a send of theirs not yet gone is skipped with them. The undo puts them back with their
  * next step (00450 sequence_return), where still out for its reason; the sends it skipped stay skipped, and it says so.
  */
@@ -198,11 +267,7 @@ export const sequenceLeaveSpec: ProposalSpec = {
   },
   receipt: ({ payload: pl }, data) => {
     const n = Number(rec(data).left) || 0;
-    // Leads, said as leads: a sequence to leads takes businesses, not people (the lead sheet's Take out).
-    const leads =
-      Array.isArray(pl.lead_ids) &&
-      pl.lead_ids.length > 0 &&
-      !(Array.isArray(pl.enrollment_ids) && pl.enrollment_ids.length > 0);
+    const leads = saidAsLeads(pl);
     return n === 0
       ? "Nobody was still in it"
       : `${plural(n, leads ? "lead" : "person", leads ? "leads" : "people")} taken out`;
@@ -210,20 +275,22 @@ export const sequenceLeaveSpec: ProposalSpec = {
   undo: {
     label: () => "Put them back",
     window: "ten_minutes",
-    record: (_p, data) => {
+    record: ({ payload: pl }, data) => {
       const id = asText(rec(data).sequence_id);
       const decision = decisionOf(data);
-      return id && decision && (Number(rec(data).left) || 0) > 0 ? { sequence_id: id, decision_id: decision } : null;
+      return id && decision && (Number(rec(data).left) || 0) > 0
+        ? { sequence_id: id, decision_id: decision, ...(saidAsLeads(pl) ? { leads: true } : {}) }
+        : null;
     },
     call: (u) => {
       const id = asText(u.sequence_id);
       return id ? { route: "POST sequences/[id]/return", params: { id } } : refuseWith(PROPOSAL_WORDS.noUndo);
     },
-    receipt: (data) => {
+    receipt: (data, u) => {
       const back = Number(rec(data).back) || 0;
       const out = Number(rec(data).sends_out) || 0;
       if (back === 0) return "Nobody could be put back: they left or came back in since";
-      const said = `${plural(back, "person", "people")} put back`;
+      const said = `${u.leads === true ? plural(back, "lead", "leads") : plural(back, "person", "people")} put back`;
       return out > 0
         ? `${said} · ${plural(out, "email", "emails")} left out ${out === 1 ? "stays" : "stay"} out`
         : said;
@@ -558,21 +625,28 @@ const openRun = ({ payload }: { payload: Record<string, unknown> }): string | nu
 };
 
 /** What deciding a held email did, by the answer given: said with the business's name where the press carries it. */
-/** A name's possessive, as the receipt says it: "Lamplight Books' email", "Persida's email". */
-const theirs = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
-
 const DECIDED: Record<(typeof REACH_OUT_DECISIONS)[number], (name: string) => string> = {
-  include: (name) => `${theirs(name)} email goes as written`,
-  // Said as it is: the check writes it within the minute, and People shows it being written until it is back.
-  rewrite: (name) => `${theirs(name)} opening is being written again`,
+  include: (name) => `${theirsOf(name)} email goes as written`,
+  rewrite: (name) => rewroteWords(name, null),
   skip: (name) => `${name} is left out of this batch`,
   not_a_fit: (name) => `${name} is set aside: not a fit`,
 };
 
+/** The opening an email stands with, as POST reach-out-sends/check and Undo answer it (ReachOutOpeningDto); null where none. */
+function openingOf(sent: unknown): RewroteOpening | null {
+  const o = rec(sent);
+  return typeof o.written === "boolean"
+    ? { written: o.written, held: asText(o.held) || null, paused: o.paused === true }
+    : null;
+}
+
 /**
  * An email the check held, decided (R18, 00211 reach_out_send_decide): it goes as it is, its opening is written again, it
  * is left out of its batch, or its business is set aside as not a fit. The run's sheet in Sent and a sequence's People
- * press the same door. Nothing to undo: an email let go may already be on its way.
+ * press the same door. A rewrite may say what should change (`change`, 00505), and its opening is written at once by
+ * the second call (POST reach-out-sends/check), whose answer the receipt says; a page that shows the check's steps as it
+ * goes asks for it itself (`check: false`). Its undo puts back the opening it replaced while the email waits. The other
+ * answers have none: an email let go may already be on its way.
  */
 export const sequenceSendDecideSpec: ProposalSpec = {
   needs: "operator",
@@ -580,13 +654,44 @@ export const sequenceSendDecideSpec: ProposalSpec = {
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "send_id");
     const decision = REACH_OUT_DECISIONS.find((d) => d === pl.decision);
+    const change = decision === "rewrite" ? asText(pl.change).trim() : "";
     return id && decision
-      ? { route: "POST reach-out-sends/[id]/decide", params: { id }, body: { decision } }
+      ? { route: "POST reach-out-sends/[id]/decide", params: { id }, body: { decision, ...(change ? { change } : {}) } }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) => {
+  then: ({ payload: pl }) => {
+    const id = idIn(pl, "send_id");
+    return pl.decision === "rewrite" && id && pl.check !== false
+      ? { route: "POST reach-out-sends/check", body: { send_ids: [id] } }
+      : null;
+  },
+  receipt: ({ payload: pl }, _data, then) => {
     const decision = REACH_OUT_DECISIONS.find((d) => d === pl.decision) ?? "include";
-    return DECIDED[decision](asText(pl.name) || "The business");
+    const name = asText(pl.name) || "The business";
+    if (decision !== "rewrite") return DECIDED[decision](name);
+    const sent = then && then.ok ? rec(then.data).sends : null;
+    return rewroteWords(name, Array.isArray(sent) ? openingOf(sent[0]) : null);
+  },
+  undo: {
+    label: ({ payload: pl }) => (pl.decision === "rewrite" ? REWRITE_WORDS.undo : null),
+    window: "ten_minutes",
+    // The opening it replaced is the database's to put back, or to refuse in its words where there is none.
+    record: ({ payload: pl }) => {
+      const id = idIn(pl, "send_id");
+      return pl.decision === "rewrite" && id ? { send_id: id, name: asText(pl.name) } : null;
+    },
+    call: (u) => {
+      const id = asText(u.send_id);
+      return id
+        ? { route: "POST reach-out-sends/[id]/undo-rewrite", params: { id } }
+        : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: (data, u) => {
+      const name = asText(u.name) || "The business";
+      return openingOf(rec(data).rewritten)?.held
+        ? `${theirsOf(name)} earlier opening is back, held as it was`
+        : `${theirsOf(name)} earlier opening is back`;
+    },
   },
   open: openRun,
 };

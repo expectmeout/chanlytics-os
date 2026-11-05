@@ -4,11 +4,54 @@
  * answer, the API's own reason beside it (kept since 00469; none before). A key out of credit is said as such, since it
  * stops every call. Every word is contracts' (modelCallsOf).
  */
-import { dollarsWords, modelCallsOf, workspaceNamer, type HealthScope } from "@chanlytics/contracts";
+import {
+  actedOnProfileWho,
+  dollarsWords,
+  draftUsesOf,
+  enforcementWords,
+  modelCallsOf,
+  workspaceNamer,
+  type HealthScope,
+} from "@chanlytics/contracts";
 import { Figure } from "../../kit/figure/figure";
 import { NoneRow, ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
 import { HealthRow, HealthRows, healthCount as n, utcWords as when } from "./line";
+
+/** Whom Anthropic is told a call is for (decision 0097): how far that has come, and whom it has limited or paused. */
+function ProfilesSection({ h }: { h: ConsoleHealth }) {
+  const p = h.anthropic_profiles;
+  if (p === undefined) return null;
+  if (p === null)
+    return (
+      <ScreenSection title="Anthropic profiles" testid="console-health-model-profiles">
+        <NoneRow words="The profiles could not be read just now." />
+      </ScreenSection>
+    );
+  const nameOf = workspaceNamer(h.workspaces);
+  return (
+    <ScreenSection
+      title="Anthropic profiles"
+      sub={`${n(p.kept)} kept · ${n(p.waiting)} waiting to be made · ${n(p.leaving)} waiting to be deleted`}
+      testid="console-health-model-profiles"
+    >
+      {p.acted_on.length === 0 ? (
+        <NoneRow words="Anthropic has limited or paused nobody." />
+      ) : (
+        <HealthRows head={["What Anthropic said", "Who"]} label="Limited or paused by Anthropic">
+          {p.acted_on.map((row) => (
+            <HealthRow
+              key={row.id}
+              title={enforcementWords(row.status, row.actions)}
+              cells={[{ v: actedOnProfileWho(row, nameOf) }]}
+              testid={`console-health-model-acted-on-${row.id}`}
+            />
+          ))}
+        </HealthRows>
+      )}
+    </ScreenSection>
+  );
+}
 
 export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
   if (h.parts === null)
@@ -18,10 +61,12 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
       </ScreenSection>
     );
   const m = modelCallsOf(h.parts, scope);
+  const drafts = draftUsesOf(h.parts, scope);
   const nameOf = workspaceNamer(h.workspaces);
   const credit = m.failureGroups.some((g) => g.credit);
   return (
     <>
+      <ProfilesSection h={h} />
       <dl className="cs-h-figures" data-testid="console-health-model-figures">
         <Figure label="Model calls" value={n(m.total)} meta={`in ${h.days} days`} />
         <Figure
@@ -31,6 +76,13 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
           {...(m.noAnswer ? { tone: credit ? ("fail" as const) : ("warn" as const) } : {})}
         />
         <Figure label="What it cost" value={dollarsWords(m.usd)} meta="as the usage ledger priced each call" />
+        <Figure
+          label="Drafts sent as written"
+          value={n(drafts.asWritten)}
+          meta={`of the replies sent in ${h.days} days`}
+        />
+        <Figure label="Drafts edited" value={n(drafts.edited)} meta="changed, then sent" />
+        <Figure label="Drafts not used" value={n(drafts.notUsed)} meta="a reply written apart from one" />
       </dl>
       <ScreenSection title="By what it was for" sub="the most spent first" testid="console-health-model-purposes">
         {m.byPurpose.length === 0 ? (

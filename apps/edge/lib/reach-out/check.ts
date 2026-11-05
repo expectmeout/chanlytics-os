@@ -1,18 +1,23 @@
 /**
  * The check before each send (Reach out, Part 4; spec §4.4; F2–F6, R1–R7, R12), the work of its own clock
  * (api/cron/reach-out-check.ts). Every planned send not yet checked, in a run that goes ahead or waits for its owner,
- * is checked once before the claim may take it. How one send is checked (the opening written and read, the code holds,
+ * is checked once before the claim may take it, as soon as it is planned and whatever its day (decision 0098), so its line
+ * can be read and changed before it goes. A lead's own words at its step (decision 0096) are its words here: with
+ * no {{opening}} in them nothing is asked of the model, and what holds a send for its business still does.
+ * How one send is checked (the opening written and read, the code holds,
  * a business hold its owner included past never made again while a word hold's Include covers one email, R7) is
  * check-one.ts's.
  *
  * What passes is marked checked, with the words it was checked against (checked_words, R5), and stays planned: the claim
  * takes it when it is due. What is held waits for its owner. A model that fails (it throws, runs past its deadline,
  * says nothing, or says it in no shape) is tried again later, backing off, and only an hour of failures holds the send
- * as check_unavailable (R4); such a hold is put back to be checked an hour on.
+ * as check_unavailable (R4); such a hold is put back to be checked an hour on. One not due soon has days to spare, and no
+ * model's bad hour holds it (failedCheck).
  *
  * What the model costs is bounded where it is spent (R2, R12): a few sends of each workspace a tick, only a workspace
  * that may spend and has room in its month, at most REACH_OUT_CHECKS_PER_DAY attempts a UTC day (00197
- * reach_out_check_spend, taken before each attempt that asks the model, so no reset gives one back), and never a call
+ * reach_out_check_spend, taken before each attempt that asks the model, so no reset gives one back), the last of them kept
+ * for what is due soon (REACH_OUT_CHECKS_AHEAD_PER_DAY), and never a call
  * after the tick's budget. The sends are leased (00197 reach_out_unchecked), and a check writes only onto the send and the words'
  * version it read (R3, R5), so two ticks never pay for one send and a check never stamps words that changed under it.
  *
@@ -27,14 +32,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   OPENING_CHARS_MAX,
+  REACH_OUT_CHECKS_AHEAD_PER_DAY,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
+  openingAskedOf,
   reachOutCountryOf,
+  type RewriteStep,
   type WrittenOpening,
 } from "../packages/contracts.js";
 import {
   emailWordsOf,
   leadCountriesOf,
+  leadStepKey,
+  leadWordsOfLeads,
   monthSent,
   recordCheck,
   releaseUnavailableHolds,
@@ -58,7 +68,7 @@ import {
   type CheckWorkspace,
   type Tokens,
 } from "./check-one.js";
-import { checkedWordsOf } from "./request.js";
+import { checkedWordsOf } from "../packages/channels.js";
 import { noticeHeldRuns, type HeldNoticeSend } from "./held-notice.js";
 import type { LogEvent, Logger } from "../log.js";
 
@@ -82,7 +92,10 @@ type Db = SupabaseClient<Database>;
 /** How many sends one tick reads to check, and how many of one workspace (R2): round-robin, so none waits on another. */
 export const CHECK_PER_TICK = 40;
 export const CHECK_PER_WORKSPACE_PER_TICK = 20;
-/** How far ahead a send due is checked: a run waiting for its owner is checked whatever its day (R2). */
+/**
+ * How near its time a send is due soon: taken before those further off, and the only kind a model's bad hour holds. A run
+ * waiting for its owner is due soon whatever its day, since they may be reading it now. No send waits for this (decision 0098).
+ */
 export const CHECK_AHEAD_MS = 2 * 3_600_000;
 /** Sends asked about at once. */
 const CHECK_AT_ONCE = 4;
@@ -93,6 +106,8 @@ export const CHECK_GIVE_UP_MS = 60 * 60_000;
 export const CHECK_BACKOFF_MINUTES = [1, 2, 4, 8, 15] as const;
 /** A workspace that may not spend, or has no room, is asked again this much later (R2). */
 export const CHECK_GATE_WAIT_MS = 3_600_000;
+/** The most of what a site said a send keeps (00505 sequence_sends_website_says_shape). */
+const WEBSITE_SAYS_KEPT_MAX = 800;
 /** A check_unavailable hold with no rule broken goes back to be checked this long after it was held (R4). */
 export const CHECK_RELEASE_AFTER_MS = 3_600_000;
 
@@ -109,6 +124,10 @@ function stored(o: WrittenOpening | null): Pick<ReachOutSendRow, "opening" | "an
     return null;
   return { opening, angle, facts_used: o.facts_used };
 }
+
+/** How much of the workspace's day a send may spend: all of it where it is due soon or a person is waiting (decision 0098). */
+const dayShareOf = (u: UncheckedSend, pressed: boolean): number =>
+  pressed || u.due_soon ? REACH_OUT_CHECKS_PER_DAY : REACH_OUT_CHECKS_AHEAD_PER_DAY;
 
 /** How long a send waits after its nth failed try (R4). */
 export function backoffMs(tries: number): number {
@@ -144,9 +163,18 @@ export interface CheckCounts {
   tokens: Tokens;
 }
 
-/** A check that failed: asked again after its backoff, or, a day of tries on, held for its owner (R4). */
-function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
+/**
+ * A check that failed: asked again after its backoff, or, an hour of tries on, held for its owner (R4). One not due soon is
+ * only asked again (decision 0098): no model's bad hour holds an email due next week, so its hour starts once it is due
+ * soon, and past the last backoff it is asked hourly, so one that never answers does not spend the day on itself.
+ */
+function failedCheck(s: ReachOutSendRow, now: Date, at: string, dueSoon: boolean) {
   const tries = Math.min((s.check_tries ?? 0) + 1, 100);
+  if (!dueSoon) {
+    const wait = tries > CHECK_BACKOFF_MINUTES.length ? CHECK_GATE_WAIT_MS : backoffMs(tries);
+    const after = new Date(now.getTime() + wait).toISOString();
+    return { gaveUp: false, tries, patch: { check_tries: tries, check_after: after } };
+  }
   const first = s.check_first_at ?? at;
   if (now.getTime() - Date.parse(first) < CHECK_GIVE_UP_MS) {
     const after = new Date(now.getTime() + backoffMs(tries)).toISOString();
@@ -157,24 +185,40 @@ function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
 }
 
 /**
- * A leased send's check input (checkInputOf), with what its business's website says read by the platform's page reader
- * when the writer is asked (siteReaderOf, 30 Oct 2026).
+ * A leased send's check input (checkInputOf), with what its business's website says when the writer is asked: what the
+ * send kept from the last read (00505), else read by the platform's page reader (siteReaderOf, 30 Oct 2026), the
+ * reading said as a step since only a page read anew takes time. `onStep` hears each step the check takes.
  */
 function sendInputOf(
   u: UncheckedSend,
   words: { subject: string | null; body: string },
   ws: CheckWorkspace,
   country: string | null,
+  onStep?: (step: RewriteStep) => void,
 ): CheckInput {
+  const kept = u.send.website_says?.trim() || null;
+  const read = siteReaderOf(u.record.website_host);
+  const site = kept
+    ? () => Promise.resolve(kept)
+    : read
+      ? async () => {
+          onStep?.("reading");
+          return read();
+        }
+      : undefined;
   return {
     ...checkInputOf(u.record, words, ws.opening, u.template_language, u.included_for, country),
-    site: siteReaderOf(u.record.website_host),
+    site,
+    asked: openingAskedOf(u.send.rewrite_asked),
+    onStep,
   };
 }
 
 /**
  * One tick of the check: the holds to check again, then the sends leased to this tick, each workspace's gates asked
  * before any call, then each send's check, a few at once, until the budget. `ask` is the model (tests give their own).
+ * With `sendIds` (a person pressed them: Rewrite the opening, 00505), those sends alone, whatever their day, and nothing
+ * the clock does around them (its releases and its notices are the next tick's).
  */
 export async function checkSends(p: {
   db: Db;
@@ -182,6 +226,9 @@ export async function checkSends(p: {
   started: number;
   log: Logger;
   tenantId?: string;
+  sendIds?: string[];
+  /** Hears each step a send's check takes, as it takes it (00505: a pressed rewrite says them). */
+  onStep?: (sendId: string, step: RewriteStep) => void;
   ask?: AskModel;
   budget?: CheckBudget;
   notice?: HeldNoticeSend;
@@ -214,14 +261,18 @@ export async function checkSends(p: {
   const write = (u: UncheckedSend, patch: Partial<ReachOutSendRow>) =>
     recordCheck(db, { tenantId: u.send.tenant_id, id: u.send.id, gen: u.check_gen, patch });
 
+  const pressed = p.sendIds !== undefined;
+
   /* the holds the model could not answer, an hour on: checked again (R4) */
-  try {
-    out.released = await releaseUnavailableHolds(db, {
-      before: new Date(now.getTime() - CHECK_RELEASE_AFTER_MS),
-      tenantId: p.tenantId,
-    });
-  } catch (e) {
-    error("reach_out_check_release_failed", {}, e);
+  if (!pressed) {
+    try {
+      out.released = await releaseUnavailableHolds(db, {
+        before: new Date(now.getTime() - CHECK_RELEASE_AFTER_MS),
+        tenantId: p.tenantId,
+      });
+    } catch (e) {
+      error("reach_out_check_release_failed", {}, e);
+    }
   }
 
   const rows = await uncheckedSends(db, {
@@ -229,6 +280,7 @@ export async function checkSends(p: {
     perWorkspace: CHECK_PER_WORKSPACE_PER_TICK,
     aheadMinutes: CHECK_AHEAD_MS / 60_000,
     tenantId: p.tenantId,
+    sendIds: p.sendIds,
   });
   out.read = rows.length;
 
@@ -248,8 +300,10 @@ export async function checkSends(p: {
   for (const [tenantId, sends] of byTenant) {
     let why: string | null = null;
     try {
-      if (!(await workspaceMaySpend(db, tenantId))) why = "billing";
-      else if ((await monthSent(db, tenantId, now)) >= REACH_OUT_MONTH_EMAILS) why = "month_spent";
+      // Both read at once: a pressed rewrite waits on them before its first call (00505).
+      const [mays, sent] = await Promise.all([workspaceMaySpend(db, tenantId), monthSent(db, tenantId, now)]);
+      if (!mays) why = "billing";
+      else if (sent >= REACH_OUT_MONTH_EMAILS) why = "month_spent";
     } catch (e) {
       // Its leases lapse in two minutes, and the next tick asks again.
       error("reach_out_check_gate_failed", { tenant_id: tenantId }, e);
@@ -266,6 +320,17 @@ export async function checkSends(p: {
     error("reach_out_check_error", { stage: "countries" }, e);
     go.length = 0;
     return new Map<string, string | null>();
+  });
+
+  /* the words typed for these leads (decision 0096): nothing is checked against the step's where a lead has its own */
+  const ownWords = await leadWordsOfLeads(
+    db,
+    go.map((u) => u.send.lead_id),
+  ).catch((e: unknown) => {
+    // As the countries: the leases lapse in two minutes, and the next tick asks again.
+    error("reach_out_check_error", { stage: "own_words" }, e);
+    go.length = 0;
+    return new Map<string, { subject: string | null; body: string }>();
   });
 
   /* each send's check, a few at once */
@@ -293,17 +358,18 @@ export async function checkSends(p: {
           out.skipped += 1;
         return;
       }
-      const w = await once(words, u.template_id, () => emailWordsOf(db, s.tenant_id, u.template_id));
+      const own = s.step_id ? (ownWords.get(leadStepKey(s.step_id, s.lead_id)) ?? null) : null;
+      const w = own ?? (await once(words, u.template_id, () => emailWordsOf(db, s.tenant_id, u.template_id)));
       // No words to check: marked checked, so the sender holds it as it always has (no_template).
       if (!w) {
         if (await write(u, { checked_at: at, checked_words: null, check_after: null })) out.checked += 1;
         return;
       }
       const ws = await once(workspaces, s.tenant_id, () => checkWorkspaceOf(db, s.tenant_id));
-      const input = sendInputOf(u, w, ws, country);
+      const input = sendInputOf(u, w, ws, country, p.onStep && ((step) => p.onStep?.(s.id, step)));
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
-      const cap = REACH_OUT_CHECKS_PER_DAY;
+      const cap = dayShareOf(u, pressed);
       if (input.needsOpening && !(await takeCheckAttempt(db, { tenantId: s.tenant_id, cap, at: now }))) {
         await gate(u, "day_spent");
         return;
@@ -316,7 +382,7 @@ export async function checkSends(p: {
         return;
       }
       const failed = async (why: string) => {
-        const f = failedCheck(s, now, at);
+        const f = failedCheck(s, now, at, u.due_soon);
         if (!(await write(u, f.patch))) return;
         if (!f.gaveUp) return void (out.failed += 1);
         out.gave_up += 1;
@@ -334,10 +400,14 @@ export async function checkSends(p: {
         await failed("unstorable");
         return;
       }
+      // Words of the lead's own that hold no line write none: the one the send has stands, for the step's words coming back.
+      const line = own && !input.needsOpening ? {} : (keep ?? { opening: null, angle: null, facts_used: [] });
       const patch: Partial<ReachOutSendRow> = {
         checked_at: at,
-        ...(keep ?? { opening: null, angle: null, facts_used: [] }),
+        ...line,
         hold_detail: c.detail ? c.detail.slice(0, 120) : null,
+        // What the site said, kept for the next time this email's opening is written (00505).
+        ...(c.site && c.site !== s.website_says ? { website_says: c.site.slice(0, WEBSITE_SAYS_KEPT_MAX) } : {}),
         checked_words: checkedWordsOf(w, u.signed_by, ws.bookingLink !== null),
         check_after: null,
         ...(c.hold ? { state: "held", reason: c.hold } : {}),
@@ -353,6 +423,6 @@ export async function checkSends(p: {
     }
   };
   for (let i = 0; i < go.length; i += CHECK_AT_ONCE) await Promise.all(go.slice(i, i + CHECK_AT_ONCE).map(one));
-  out.noticed = await noticeHeldRuns({ db, now, error, tenantId: p.tenantId, send: p.notice });
+  if (!pressed) out.noticed = await noticeHeldRuns({ db, now, error, tenantId: p.tenantId, send: p.notice });
   return out;
 }

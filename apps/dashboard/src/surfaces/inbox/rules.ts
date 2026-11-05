@@ -84,9 +84,11 @@ export const ixWaitsOnYou = (t: Thread | null | undefined, nowMs: number = Date.
 export const ixBucketOf = (t: Thread | null | undefined, nowMs: number = Date.now()): ThreadState | null | undefined =>
   ixSending(t, nowMs)
     ? "escalated"
-    : t && t.real && t.state === "escalated" && !ixWaitsOnYou(t, nowMs)
-      ? "done"
-      : t && t.state;
+    : t && t.real && t.setAside
+      ? "aside"
+      : t && t.real && t.state === "escalated" && !ixWaitsOnYou(t, nowMs)
+        ? "done"
+        : t && t.state;
 
 /**
  * The order a bucket stands in: a reply about to send first, then what needs you, then the threads you have, then a

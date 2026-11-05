@@ -106,7 +106,7 @@ function LeadStartRow({
       lead={
         <>
           {start.lead}
-          <b>{start.name}</b>
+          {start.name && <b>{start.name}</b>}
         </>
       }
       sub={start.sub}

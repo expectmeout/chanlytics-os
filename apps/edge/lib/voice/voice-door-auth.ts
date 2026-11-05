@@ -38,9 +38,12 @@
  */
 import crypto from "node:crypto";
 import { stripKey, verifyRetellSignature } from "../packages/channels.js";
+import { emitEvent } from "../packages/db.js";
+import { MIN_MS } from "../packages/contracts.js";
 import { env } from "../env.js";
-import { logger } from "../log.js";
+import { errField, logger } from "../log.js";
 import { json } from "../http.js";
+import { pg } from "../pg.js";
 
 /** Retell's signature over a delivery: the badged key, the raw body, then the body as Retell's example re-serialises it. */
 export function retellSigned(
@@ -150,4 +153,62 @@ export function voiceDoorAuth(
   const ok = sig || (!signedOnly && secret);
   if (ok || signedOnly) logger().info("voice_door_auth", { door, sig, secret, signed_only: signedOnly, ok });
   return { ok, sig, secret };
+}
+
+/** The platform's own workspace id, under which provider-wide evidence is kept (as the call webhook keeps its own). */
+const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
+
+/** How often one instance keeps a row for the same door, credential and verdict: once a minute is evidence enough. */
+const DOOR_EVIDENCE_EVERY_MS = MIN_MS;
+
+/** When this instance last kept each door's evidence, by door, credential and verdict. */
+const lastEvidence = new Map<string, number>();
+
+/**
+ * The knock voiceDoorAuth judged, KEPT AS A ROW (decision 0092): `webhook.auth` under the platform, as the call webhook
+ * keeps its own, with the door named (`door`), what the knock carried (`sig`, `secret`) and the verdict. Each door calls
+ * it right after its own voiceDoorAuth, before it answers.
+ *
+ * The switch that closes the shared secret (RETELL_DOORS_SIGNED) is set on evidence that every door's real deliveries
+ * carry Retell's signature. That evidence lived only in Vercel's log, which keeps about a day, so a door nobody knocked
+ * that day could never be judged; the call webhook's own evidence was rows from the start. /api/diag (retellAuth.doors)
+ * says, for the last seven days, which doors were knocked with what. A row is kept at most once a minute per instance
+ * for each door, credential and verdict, so a public URL is no write amplifier, and a refusal is kept only once the
+ * signature is required (it may then be Retell's), as the log line is. Awaited, never thrown: a serverless instance is
+ * frozen once it answers, and a row the freeze ate is no evidence.
+ */
+export async function keepKnock(
+  door: VoiceDoor,
+  knock: { ok: boolean; sig: boolean; secret: boolean },
+  o: { now?: number; db?: ReturnType<typeof pg> } = {},
+): Promise<void> {
+  const signedOnly = signatureOnly();
+  if (!knock.ok && !signedOnly) return;
+  const now = o.now ?? Date.now();
+  const key = `${door}|${knock.sig}|${knock.secret}|${knock.ok}`;
+  if (now - (lastEvidence.get(key) ?? 0) < DOOR_EVIDENCE_EVERY_MS) return;
+  lastEvidence.set(key, now);
+  const db = o.db === undefined ? pg() : o.db;
+  if (!db) return;
+  try {
+    await emitEvent(db, PLATFORM_TENANT, "webhook.auth", null, null, {
+      provider: "retell",
+      door,
+      sig: knock.sig,
+      secret: knock.secret,
+      signed_only: signedOnly,
+      ok: knock.ok,
+    });
+  } catch (e) {
+    logger().error("webhook_auth_event_failed", { door, error: errField(e) });
+  }
+}
+
+/**
+ * The secret provisioning hands Retell with a new agent and number: none once the voice doors open for the signature
+ * alone (null: the tools get no header and the inbound URL no `?key=`, so nothing new carries a secret the edge no
+ * longer reads), else RETELL_FN_SECRET, undefined when it is not set (the provisioning door then refuses, no_fn_secret).
+ */
+export function secretToProvision(): string | null | undefined {
+  return signatureOnly() ? null : env.RETELL_FN_SECRET || undefined;
 }

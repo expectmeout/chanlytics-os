@@ -21,6 +21,7 @@ import {
   leadMonth,
   whyCannotSpend,
   leadDraftFooter,
+  LEAD_ASKED_NOT_WRITTEN,
   LEAD_NO_ADDRESS,
   LEAD_PROBE_PLACES,
   SPEND_LEADS,
@@ -858,13 +859,14 @@ test("release B's ten declare their policy: working a lead is the operator's, er
 });
 
 test("a refusal to spend on a search says what the money was for, and the lines door keeps saying its own", () => {
-  assert.equal(whyCannotSpend("stripe", "none", SPEND_LEADS), "Start your plan from Billing before finding leads.");
-  assert.equal(whyCannotSpend("stripe", "none"), "Start your plan from Billing before buying a number.");
-  // A free trial finds no leads: each search is a cost on our account (contracts maySpend).
   assert.equal(
-    whyCannotSpend("stripe", "trialing", SPEND_LEADS),
-    "Your free trial doesn't cover finding leads. Start your plan from Billing, then find leads.",
+    whyCannotSpend("stripe", "none", SPEND_LEADS),
+    "Start your free trial from Billing before finding leads.",
   );
+  assert.equal(whyCannotSpend("stripe", "none"), "Start your free trial from Billing before buying a number.");
+  // A free trial finds leads, up to the trial's own (decision 0090: the trial covers everything; lead_reserve holds the
+  // trial's count).
+  assert.equal(whyCannotSpend("stripe", "trialing", SPEND_LEADS), null);
   assert.equal(
     whyCannotSpend("stripe", "unpaid", SPEND_LEADS),
     "Billing needs attention before this workspace can find leads. Open Billing to sort it out.",
@@ -977,7 +979,9 @@ test("a viewer is refused every write; an operator may work leads but not erase,
   assert.deepEqual(calls, [], "not one door was reached");
 });
 
-test("a draft needs the business's address, its foot is code's, and the model is asked once with the lead's facts quoted", async () => {
+test("a draft needs the business's address, its foot is code's, and the model is asked once with the lead's facts quoted", async (t) => {
+  setServiceClient(fakeDb({}, {}, { lead_addresses_suppressed: () => [] }));
+  t.after(() => setServiceClient(null));
   await assert.rejects(
     draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator", address: null }), { id: LEAD }, doors())),
     (e) => e.message === LEAD_NO_ADDRESS,
@@ -1011,6 +1015,32 @@ test("a draft needs the business's address, its foot is code's, and the model is
     draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator", emailState: "invalid" }), { id: LEAD }, doors())),
     (e) => e.message === "This lead has no address that reaches them. Call instead.",
   );
+});
+
+test("a draft to an address on the never-again list is refused before the model is asked, and a list that can't be read is no yes", async (t) => {
+  t.after(() => setServiceClient(null));
+  const before = modelCalls.length;
+  const asked = [];
+  setServiceClient(
+    fakeDb(
+      {},
+      {},
+      {
+        lead_addresses_suppressed: (a) => {
+          asked.push(a);
+          return ["hello@travisheightscoaching.example"];
+        },
+      },
+    ),
+  );
+  await assert.rejects(
+    draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors())),
+    (e) => e.message === LEAD_ASKED_NOT_WRITTEN && e.status === 409,
+  );
+  assert.deepEqual(asked, [{ p_tenant_id: A, p_addresses: ["hello@travisheightscoaching.example"] }]);
+  setServiceClient({ rpc: async () => ({ data: null, error: { code: "XX000", message: "no answer" } }) });
+  await assert.rejects(draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors())));
+  assert.equal(modelCalls.length, before, "not one model call, either way");
 });
 
 test("bulk acts on the ids, or on the view for Select all that match; the door gets one or the other", async () => {
@@ -1235,7 +1265,7 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
             judgment: judged([
               { key: "kind", answer: "pass", facts: ["name", "category"] },
               { key: "open_weekends", answer: "unknown", facts: [] },
-              { key: "chains", answer: "fail", facts: ["name"] },
+              { key: "chains", answer: "fail", facts: ["name", "site"] },
               // Answered from the listing's own numbers: a fact the listing shows, seen there, never Claude's read.
               { key: "rated_low", answer: "pass", facts: ["rating", "reviews"] },
               // A key that shares a seen check's name is measured, never read: it is not said twice.
@@ -1252,7 +1282,7 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
     [
       ["kind", "yes", "Claude · the listing", "open Saturdays, per the listing"],
       ["open_weekends", "unknown", "Claude · the listing", "open Saturdays, per the listing"],
-      ["chains", "no", "Claude · the listing", "open Saturdays, per the listing"],
+      ["chains", "no", "Claude · their website", "open Saturdays, per the listing"],
     ],
     "every criterion the judge answered, under the plan's key: only LEAD_CHECK_KEYS were, and no plan's keys were those",
   );
@@ -2007,6 +2037,15 @@ test("the owner's own business line is saved with no suggestions, so the next re
   );
 });
 
+test("a new round's plan reaches the door at the search's version or the next, however many changes the card counted", async () => {
+  const seen = [];
+  const rpcs = { lead_search_more: (a) => (seen.push(a.p_plan.version), { round_id: "r2" }) };
+  const ctx = ctxOf(world({ role: "owner" }), { id: SEARCH }, rpcs);
+  for (const version of [1, 2, 5])
+    await more.POST.run(req("POST", { purpose: "renew", plan: { ...PLAN, version } }), ctx);
+  assert.deepEqual(seen, [1, 2, 2], "the search is at version 1, and lead_search_more raises past the next");
+});
+
 test("the plan card's facts are the month's own numbers and what past searches measured, and a kind nobody searched has no prior", async (t) => {
   // The counters are September's ("2026-09") and the card renews on the 1st of the next month, so the clock is 28
   // September: read off the wall clock, from 1 October the card read October's counters, and none of these held.
@@ -2014,10 +2053,7 @@ test("the plan card's facts are the month's own numbers and what past searches m
   const rpcs = doors();
   const ctx = ctxOf(world({ role: "owner" }), {}, rpcs);
   const bare = await planFacts(ctx, A);
-  assert.deepEqual(
-    [bare.dupes, bare.leadsLeft, bare.prior, bare.priorOf, bare.cannotSee, bare.nearby],
-    [322, 486, null, null, null, []],
-  );
+  assert.deepEqual([bare.dupes, bare.leadsLeft, bare.prior, bare.priorOf, bare.nearby], [322, 486, null, null, []]);
   assert.equal(bare.renewsOn, "Oct 1", "the month the leads come back");
   // The two caps are sized to run out together (500 leads for $25), so which
   // binds is which one this workspace is nearer: $1.50 spent on 14 leads is
@@ -2033,19 +2069,9 @@ test("the plan card's facts are the month's own numbers and what past searches m
     ["allowance", 100],
     "400 of the month's leads found for $5: the leads bind first",
   );
-  // The card's area picker offers areas, not words: what it hands the plan is
-  // what a round would be started with.
-  const southAustin = {
-    kind: "city",
-    label: "South Austin, TX",
-    state: "TX",
-    center: { lat: 30.2276, lng: -97.7713 },
-    radius_m: 15_000,
-    query: "South Austin, TX, USA",
-  };
-  const withPrior = await planFacts(ctx, A, { categoryKey: "personal_trainer", nearby: [southAustin] });
+  const withPrior = await planFacts(ctx, A, { categoryKey: "personal_trainer" });
   assert.deepEqual(withPrior.prior, { places: 1200, matched: 700, with_email: 406 });
-  assert.deepEqual([withPrior.priorOf, withPrior.nearby], ["personal_trainer", [southAustin]]);
+  assert.equal(withPrior.priorOf, "personal_trainer");
   const spent = world({ role: "owner" });
   spent.lead_counters = [
     { tenant_id: A, kind: "allowance", period: "2026-09", used: 10, reserved: 0 },

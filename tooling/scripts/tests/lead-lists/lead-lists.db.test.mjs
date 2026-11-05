@@ -670,8 +670,16 @@ test(
   { skip },
   async () => {
     const w = await world();
-    const told = bodyIn(migration("00491"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(liveBody("lead_rounds_notify"), told, "the database runs 00491's");
+    const rang = bodyIn(migration("00506"), "create or replace function public.lead_rounds_notify(");
+    assert.equal(liveBody("lead_rounds_notify"), rang, "the database runs 00506's");
+    // 00506 is 00491's with a search that ended waiting a day on its question ringing, and saying so, and nothing else.
+    const told = rang
+      .replace(
+        "coalesce(NEW.ending, '') <> 'stopped' then",
+        "coalesce(NEW.ending, '') not in ('stopped', 'question_unanswered') then",
+      )
+      .replace(/ {16}when NEW\.ending = 'question_unanswered' then\n[^\n]*\n/, "");
+    assert.equal(told, bodyIn(migration("00491"), "create or replace function public.lead_rounds_notify("));
     // 00491 is 00421's with a search whose source failed saying so (didn't run, or stopped), and nothing else.
     const bell = told
       .replace("  v_seen boolean;\n", "")
@@ -709,7 +717,16 @@ test(
     // 00459 (one road from a lead to a sequence) finds a lead's chain on the search it draws from as well as its list,
     // names that search for a lead it brought, and counts a first send skipped as moved as the old one; nothing else.
     const roads = bodyIn(migration("00459"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), roads, "the database runs 00459's");
+    // 00540 (a lead's own email is a send with no sequence) leaves such a send out of where a lead's chain is found; nothing
+    // else.
+    assert.equal(
+      liveBody("reach_out_lead_timeline"),
+      roads.replace(
+        "s.tenant_id = p_tenant_id and s.lead_id = p_lead_id\n",
+        "s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null\n",
+      ),
+      "the database runs 00540's",
+    );
     const CASE =
       "case when p.source_search_id is null\n                     or exists (select 1 from public.lead_search_members x\n                                 where x.search_id = p.lead_search_id and x.lead_id = v_lead.id and x.blanked_at is null)\n                   then p.lead_search_id else p.source_search_id end";
     assert.equal(

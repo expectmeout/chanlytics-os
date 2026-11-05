@@ -247,7 +247,9 @@
    heights (Ruben's screenshot, 18 Oct 2026). */
 .cal-dayhead { flex-direction: column; align-items: flex-start; row-gap: 3px; }
 .cal-dayhead-when { display: inline-flex; align-items: center; gap: 6px; }
-.cal-dayhead .cal-date { white-space: nowrap; }
+/* Every day's date stands in the today mark's box, so a head that holds today is as tall as one that does not: today's
+   were 3px taller, and a board's hours stepped 3px as the days changed to or from it (3 Nov 2026). */
+.cal-dayhead .cal-date { display: inline-grid; place-items: center; min-width: 22px; height: 22px; white-space: nowrap; }
 
 /* ---- Month, agenda, the rules bar, the controls ---- */
 /* The service picker takes the room its choice needs and no more, on one line: it narrows the board's open times to the
@@ -382,33 +384,41 @@
 
 /* ---- The bar ---- */
 /* The first pane stands 14px under the bar, as the Inbox's and People's stand under the frame's row of views. */
-.main-scroll > .calendar .cal-head {
-  padding: 0 0 14px;
+/* On a phone the bar is the frame's top's, under its row of views (kit/head/standing.ts `under`): 16 under the views (the
+   slot's 14 between its rows, and 2), as the slot stood over the page, and the first pane 14 under it, as the Inbox's and
+   People's stand under theirs; across, at the boards' 12px from the screen's edges (below), out of the slot's gutter, as
+   it stood in the page. Every rule names it in the frame's top, as heavy as they were when they named the page's. */
+.frame-top .pg-under-slot > .cal-head {
+  margin-inline: calc(var(--space-3) - var(--gutter-page));
+  padding: 2px 0 0;
 }
-.main-scroll > .calendar .cal-bar {
+.frame-top .pg-slot:has(> .pg-under-slot > .cal-head) {
+  padding-bottom: 14px;
+}
+.frame-top .pg-under-slot .cal-bar {
   gap: var(--space-2) var(--space-3);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-steps {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-steps {
   padding: 2px;
   border: 0;
   border-radius: var(--radius-full);
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-steps > * {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-steps > * {
   height: var(--control-h-md);
   border-radius: var(--radius-full);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-steps > * + * {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-steps > * + * {
   border-left: 0;
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-title {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-title {
   min-height: var(--control-h-lg);
   margin-left: 0;
   padding: 0 var(--space-2) 0 var(--space-3);
   border-radius: var(--radius-full);
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-title-range {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-title-range {
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
@@ -422,10 +432,10 @@
   }
 }
 
-:is(.main-scroll > .calendar, .cal-act) .cal-tools {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-tools {
   margin-left: auto;
 }
-:is(.main-scroll > .calendar, .cal-act) .cal-tools .cal-service {
+:is(.frame-top .pg-under-slot, .cal-act) .cal-tools .cal-service {
   height: var(--control-h-lg);
   padding-left: var(--space-4);
   border: 0;
@@ -669,11 +679,11 @@
 @media (max-width: 720px) {
   /* Under the frame's row of views (Settings at its right, the act's rules), the bar is one row: the range, then the
      steps at the right, where a thumb finds them wherever the range's words end; then the first day. */
-  .main-scroll > .calendar .cal-bar {
+  .frame-top .pg-under-slot .cal-bar {
     flex-wrap: nowrap;
     column-gap: var(--space-2);
   }
-  .main-scroll > .calendar .cal-when {
+  .frame-top .pg-under-slot .cal-when {
     flex: 1 0 auto;
   }
   /* The pane is the column the page leaves (mobile.css): it never pulls, and the body takes the room under the notices
@@ -694,15 +704,21 @@
   .main-scroll > .calendar .cal-body:has(> .cal-scroll)::after {
     bottom: -1px;
   }
-  /* The days arrive with the page, as they will stand, as the Inbox's rows do (inbox-list.tsx): faded in, the Agenda's
-     stood a pixel low under the bar and jumped up as cal-in ended, where the bar over them stood still (Ruben's
-     recording, 3 Nov 2026). A view that comes in for another stops under the bar, as tall as it is (--cal-bar-h,
-     calendar-page.tsx), not only under the frame's top (kit/motion/view-deck.ts): after Day's board had scrolled to now,
-     the Month came in with its row of days' names under the bar. */
+  /* The days hold still (spec 2026-11-03, a still Calendar on a phone): nothing moves them but the thumb scrolling them.
+     While they moved, an iPhone drew them on a layer of their own, and as the move ended it drew them on the page again a
+     pixel off: as cal-in ended, as the deck's slide between views ended, as a swipe's glide between days ended, in each of
+     Ruben's recordings of 3 Nov 2026. So they arrive with the page, as they will stand; a view of the strip is cut in
+     (--view-travel: none, kit/motion/view-deck.ts), a swipe draws the next days in place (acts.tsx swipePagesOf), and the
+     page says where it stands after each (board-dom.ts standAfter). A read on its way leaves them as they are, where they
+     faded to 45% and back: the days not read yet say so themselves, and take no presses until it lands. */
   .main-scroll > .calendar .cal-body {
     overscroll-behavior: contain;
     animation: none;
-    scroll-margin-top: var(--cal-bar-h, 0px);
+    transition: none;
+    --view-travel: none;
+  }
+  .main-scroll > .calendar[data-loading] .cal-body {
+    opacity: 1;
   }
   .main-scroll > .calendar .cal-scroll {
     padding: 0;
@@ -715,11 +731,11 @@
   /* The steps, a week's day heads and Hours and rules keep the size they are drawn at (the touch floor made the steps' row
      48, each head 57 and the foot 56), with the thumb's 44 as an invisible margin where a neighbour leaves the room: the
      board gets the forty pixels, which is what a nine-hour day needs to fit. */
-  .main-scroll > .calendar .cal-steps > * {
+  .frame-top .pg-under-slot .cal-steps > * {
     position: relative;
     min-height: var(--control-h-md);
   }
-  .main-scroll > .calendar .cal-steps > *::after {
+  .frame-top .pg-under-slot .cal-steps > *::after {
     content: "";
     position: absolute;
     inset: -6px 0;
@@ -1026,6 +1042,18 @@
     font-size: var(--text-base);
   }
 }
+/* On a phone Today and Tomorrow are the day's name: "Today · Nov 3", where the head said the day three ways ("Today TUE Nov
+   3"; the phone pass, 3 Nov 2026). An empty day's open times stand on its line (blocks.tsx agendaDay). */
+@media (max-width: 720px) {
+  .cal-agenda-rel + .cal-dow {
+    display: none;
+  }
+  .cal-agenda-rel::after {
+    content: " ·";
+    font-weight: var(--weight-regular);
+    color: var(--ink-dim);
+  }
+}
 
 /* ---- The bar on the frame's row of views (board-parts.tsx calendarAct) ----
    The page's act, where Reports' period stands: on a desk the whole bar, its steps and range after the views and Show,
@@ -1041,14 +1069,21 @@
   .pg-slot[data-strip="calendar"] > .pg-head-slot { flex: 1 0 100%; }
   .pg-slot[data-strip="calendar"] > .pg-act-slot { flex: 1 1 auto; min-width: 0; }
 }
-@media (max-width: 900px), (pointer: coarse) {
+/* The strip's height beside it (kit.css). On a phone under a thumb it holds that over the touch floor, which it outweighs
+   under :root, and is 44 to a finger by a margin no one sees, as the page's act is (components.css). Wider under a thumb
+   the strip is the taller one, and this stands 44 beside it. */
+@media (pointer: coarse) and (max-width: 900px) {
+  :root .cal-act .cal-options { position: relative; min-height: var(--control-h-lg); }
+  .cal-act .cal-options::after { content: ""; position: absolute; inset: -4px; }
+}
+@media (pointer: coarse) and (width > 900px) {
   .cal-act .cal-options { height: 44px; }
 }
 /* The views are 247 wide on a phone and Settings with its word 105, 8 apart, on a row 8 wider than the slot's content
    (each stands 4 past its gutter): the word needs 352 of it (measured 14 Oct 2026), and 4 more are kept for a font that
    draws wider. A phone 390 wide says it; one 375 wide keeps the circle. */
 @container cal-row (max-width: 355px) {
-  .cal-act .cal-options { width: 44px; padding: 0; justify-content: center; }
+  .cal-act .cal-options { width: var(--control-h-lg); padding: 0; justify-content: center; }
   .cal-act .cal-options-word { display: none; }
 }
 

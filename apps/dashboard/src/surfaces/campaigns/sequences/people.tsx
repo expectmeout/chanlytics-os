@@ -8,7 +8,7 @@
  * person or the lead. Someone still in it may be taken out, alone or with the rest of their group: a send of theirs not
  * yet gone is skipped with them (00442 sequence_leave).
  */
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   PEOPLE_GROUP_WORDS,
   SEQUENCE_NEEDS_WORDS as N,
@@ -40,6 +40,7 @@ import { tripNow } from "./trip";
 import { SequenceNeeds } from "./needs";
 import { usePeopleRead } from "./use-record";
 import { pressed } from "./verbs";
+import { RewriteAsk } from "../reach-out/rewrite-ask";
 
 type Flash = (flash: LegacyFlash) => void;
 
@@ -208,9 +209,12 @@ interface WaitingProps {
  */
 function WaitingEmails({ rows, emails, rec, flash, moved, lit }: WaitingProps) {
   const [busy, setBusy] = useState<string | null>(null);
+  // The email whose Rewrite the opening is asking what should change (00505): one at a time.
+  const [asking, setAsking] = useState<string | null>(null);
   const nowMs = Date.now();
   const may = canDo("approve");
   const answer = async (e: SequenceWaitingEmailVM, door: HeldChoice) => {
+    if (door === "rewrite") return void setAsking(e.id);
     setBusy(e.id);
     if (door === "take_out")
       await pressed(
@@ -233,54 +237,67 @@ function WaitingEmails({ rows, emails, rec, flash, moved, lit }: WaitingProps) {
       {emails.map((e) => {
         const r = rows.find((x) => x.send_id === e.id);
         return (
-          <ListRow
-            key={e.id}
-            face={{ person: { name: e.name }, size: "sm" }}
-            name={e.name}
-            said={(place) => (
-              <div className={`${place} sq-waiting-said`}>
-                {r ? personLineOf(r, rec.timezone, nowMs) : null}
-                {e.opening ? (
-                  <q
-                    className={e.checking ? "sq-waiting-opening sq-waiting-writing" : "sq-waiting-opening"}
-                    data-testid="sq-waiting-opening"
-                  >
-                    {e.checking ? e.opening : e.opening.slice(1, -1)}
-                  </q>
-                ) : null}
-              </div>
-            )}
-            facts={
-              may && e.answers.length > 0
-                ? [
-                    <div key="answers" className="sq-held-answers">
-                      {e.answers.map((a) => (
-                        <Button
-                          key={a.door}
-                          size="sm"
-                          variant="quiet"
-                          disabled={busy !== null}
-                          aria-busy={busy === e.id || undefined}
-                          onClick={(ev) => {
-                            // The row is a door to the lead (leadOverDoor): the press answers the email, and opens nothing.
-                            ev.preventDefault();
-                            ev.stopPropagation();
-                            void answer(e, a.door);
-                          }}
-                          data-testid={`sq-waiting-${a.door}`}
-                        >
-                          {a.words}
-                        </Button>
-                      ))}
-                    </div>,
-                  ]
-                : []
-            }
-            className={lit && e.leadId === lit ? "sq-row-lit" : undefined}
-            ref={lit && e.leadId === lit ? litInView : undefined}
-            data-testid="sq-waiting-email"
-            {...(e.leadId ? leadOverDoor(e.leadId) : {})}
-          />
+          <Fragment key={e.id}>
+            <ListRow
+              face={{ person: { name: e.name }, size: "sm" }}
+              name={e.name}
+              said={(place) => (
+                <div className={`${place} sq-waiting-said`}>
+                  {r ? personLineOf(r, rec.timezone, nowMs) : null}
+                  {e.opening ? (
+                    <q
+                      className={e.checking || e.own ? "sq-waiting-opening sq-waiting-writing" : "sq-waiting-opening"}
+                      data-testid="sq-waiting-opening"
+                    >
+                      {e.checking || e.own ? e.opening : e.opening.slice(1, -1)}
+                    </q>
+                  ) : null}
+                </div>
+              )}
+              facts={
+                may && asking !== e.id && e.answers.length > 0
+                  ? [
+                      <div key="answers" className="sq-held-answers">
+                        {e.answers.map((a) => (
+                          <Button
+                            key={a.door}
+                            size="sm"
+                            variant="quiet"
+                            disabled={busy !== null}
+                            aria-busy={busy === e.id || undefined}
+                            onClick={(ev) => {
+                              // The row is a door to the lead (leadOverDoor): the press answers the email, and opens nothing.
+                              ev.preventDefault();
+                              ev.stopPropagation();
+                              void answer(e, a.door);
+                            }}
+                            data-testid={`sq-waiting-${a.door}`}
+                          >
+                            {a.words}
+                          </Button>
+                        ))}
+                      </div>,
+                    ]
+                  : []
+              }
+              className={lit && e.leadId === lit ? "sq-row-lit" : undefined}
+              ref={lit && e.leadId === lit ? litInView : undefined}
+              data-testid="sq-waiting-email"
+              {...(e.leadId ? leadOverDoor(e.leadId) : {})}
+            />
+            {/* Under the row, never in it: the row is a door to the lead, and the ask is a field and its presses. */}
+            {asking === e.id ? (
+              <RewriteAsk
+                sendId={e.id}
+                runId={e.batchId}
+                name={e.name}
+                flash={flash}
+                moved={moved}
+                onBack={() => setAsking(null)}
+                testid="sq-waiting-rewrite"
+              />
+            ) : null}
+          </Fragment>
         );
       })}
     </div>

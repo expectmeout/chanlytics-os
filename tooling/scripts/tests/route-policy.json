@@ -377,6 +377,13 @@
       "rate": "settings",
       "spend": false
     },
+    "GET changes": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET channels/instagram/callback": {
       "kind": "read",
       "scope": "account",
@@ -612,6 +619,14 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/erase": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "erase_many",
+      "spend": false
+    },
     "PUT contacts/receptionist": {
       "kind": "write",
       "scope": "workspace",
@@ -662,6 +677,20 @@
       "spend": false
     },
     "POST conversations/[id]/hand-back": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "thread_state",
+      "spend": false
+    },
+    "POST conversations/[id]/not-a-customer": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "thread_state",
+      "spend": false
+    },
+    "POST conversations/[id]/reply-anyway": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
@@ -993,6 +1022,13 @@
       "rate": "lead_draft",
       "spend": false
     },
+    "POST leads/[id]/send": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_send",
+      "spend": false
+    },
     "POST leads/[id]/exclude": {
       "kind": "write",
       "scope": "workspace",
@@ -1012,6 +1048,27 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "lead_member",
+      "spend": false
+    },
+    "GET leads/[id]/emails": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET leads/[id]/sent/[send]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET leads/[id]/words": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "GET leads/[id]/place": {
@@ -1515,6 +1572,14 @@
       "rate": null,
       "spend": false
     },
+    "POST platform/jobs/pause": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_job_pause",
+      "spend": false,
+      "act": "job_kind_pause"
+    },
     "POST platform/jobs/requeue": {
       "kind": "write",
       "scope": "platform",
@@ -1522,6 +1587,14 @@
       "rate": "platform_job_requeue",
       "spend": false,
       "act": "job_requeue"
+    },
+    "POST platform/jobs/requeue-kind": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_job_requeue_kind",
+      "spend": false,
+      "act": "job_requeue_kind"
     },
     "POST platform/lines/refile": {
       "kind": "write",
@@ -1771,6 +1844,20 @@
       "role": "operator",
       "rate": "playbook",
       "spend": false
+    },
+    "POST reach-out-sends/[id]/undo-rewrite": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST reach-out-sends/check": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": true
     },
     "POST reach-outs/[id]/leads/check": {
       "kind": "write",
@@ -2122,6 +2209,13 @@
       "rate": "step_test",
       "spend": false
     },
+    "POST sequences/[id]/steps/[step]/lead-words": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "POST sequences/[id]/steps/[step]/words": {
       "kind": "write",
       "scope": "row",
@@ -2211,6 +2305,13 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "PUT setup/choices": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
       "spend": false
     },
     "POST support/report": {

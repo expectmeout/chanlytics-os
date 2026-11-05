@@ -372,6 +372,40 @@
       }
     },
     {
+      "kind": "over-read",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not, reach_out_why_not's one predicate): it asks whether People holds the lead's address or number (a customer is never written to), and Leads draws that only as the why of a lead its batch cannot take. It rides with the places' read, which Leads makes again with the sequences and batches it hears.",
+      "reads": {
+        "leads": [
+          "contacts"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not): the never-again list (lead_suppressions), which the feed does not tell. Leads reads it again with the places, as it hears a sequence's batches; a person's page with their lead, which it hears.",
+      "reads": {
+        "leads": [
+          "lead_suppressions"
+        ],
+        "person": [
+          "lead_suppressions"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "sequence_batches"
+        ],
+        "person": [
+          "leads"
+        ]
+      }
+    },
+    {
       "kind": "unfed",
       "finding": "W-campaign-run-template-reachout-2",
       "why": "The Library's sent counts join a run's per-person rows (broadcast_recipients), which the feed never tells. Settings hears no run and no message, so a count moves only on the settings read's next read: owed with the Library's hearing of the campaign and send kinds on its page (lane R5).",
@@ -452,6 +486,20 @@
     },
     {
       "kind": "unfed",
+      "why": "What Anthropic has said of this workspace (decision 0097, workspaceModelStanding over anthropic_profiles), read with the billing row for the shell's line. The health sweep writes it at most twice an hour and the feed does not tell it: it is the service role's table, and no member's press moves it. The line says so at the next read of Billing.",
+      "reads": {
+        "billing": [
+          "anthropic_profiles"
+        ]
+      },
+      "heardWith": {
+        "billing": [
+          "billing_accounts"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "why": "The previews a lead tried (previewsTriedSince over lead_previews, decision 0079), Today's tried row, in a workspace of ours alone. The feed does not tell lead_previews: what moves it is the business texting or calling its preview, in the preview's own workspace, which this workspace's topic cannot carry. Today reads it with its other reads each time it hears its own records (heardWith), and a lead who tried theirs stays named three days, so the row is a read behind at most.",
       "reads": {
         "today": [
@@ -479,6 +527,20 @@
         "reach_outs": [
           "sequence_replies",
           "sequence_steps"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "rereadAfter": {
+        "reach_outs": [
+          "POST sequences/[id]/steps/[step]/lead-words"
+        ]
+      },
+      "why": "Whether a chain's waiting and held rows go with a lead's own words (ownWordsAtSteps, decision 0096): the feed does not tell the table. The door that writes them re-reads the chains (the refresh map); a teammate's save shows on the pane's next read, and the send itself reads the words as it goes.",
+      "reads": {
+        "reach_outs": [
+          "sequence_lead_words"
         ]
       }
     },
@@ -521,6 +583,25 @@
       "reads": {
         "setup": [
           "profiles"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "R6",
+      "why": "What the first run chose for the workspace (setup_choices, decision 0091: the number and how calls reach it, where WhatsApp answers, the steps done), read into Setup's DTO (setupChoicesOf). The feed does not tell it: the member who chose has the door's answer (PUT setup/choices publishes Setup from it), and another member's tab reads the choice on its next Setup read. Owed with the silent records joining the feed (lane R6).",
+      "reads": {
+        "setup": [
+          "setup_choices"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "why": "The month's allowance of leads the page counts against is the plan's (00512 lead_allowance: a free trial's 50 until it pays, then the month's), read inside the leads' month (leadAllowanceOf). The plan moves a few times in a workspace's life, at the end of its trial or a change of plan; the page reads it again when it is reached for, and a search's own reserve reads it at the door (lead_reserve).",
+      "reads": {
+        "leads": [
+          "billing_accounts"
         ]
       }
     },
@@ -1020,20 +1101,6 @@
       }
     },
     {
-      "kind": "unfed",
-      "why": "The drafts Ask kept for Need you's rows (decision 0071), which Today reads with its own first reads. The feed does not tell of conversation_drafts: a draft is written by the row that wants it (POST conversations/[id]/draft), which lays it on itself and reads the drafts again behind it where Today is drawn; a teammate's is taken as a row asks for it, and one answering an older message is written again by the row.",
-      "reads": {
-        "reply_drafts": [
-          "conversation_drafts"
-        ]
-      },
-      "rereadAfter": {
-        "reply_drafts": [
-          "POST conversations/[id]/draft"
-        ]
-      }
-    },
-    {
       "kind": "over-read",
       "why": "The words a reply from a kept draft would be signed with (00487): which mailbox a thread's reply leaves from (the message the customer wrote to) and that mailbox's signature. The surface holds them for the rows and draws nothing of them; a new message makes the row ask for a new draft, which carries the signature as it stands, and a signature changed in Settings is read with the next draft or once the drafts have aged.",
       "reads": {
@@ -1078,6 +1145,20 @@
         ],
         "inbox": [
           "escalations"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The threads set aside as not a customer's (00539), for Today's one line. A thread is set aside only with its draft row written, which the feed tells of, so a message on a thread need not read the drafts again.",
+      "reads": {
+        "reply_drafts": [
+          "conversations"
+        ]
+      },
+      "heardWith": {
+        "reply_drafts": [
+          "conversation_drafts"
         ]
       }
     }

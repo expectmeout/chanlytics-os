@@ -4,10 +4,9 @@
  * `connectionsDue` are what the sweep (api/cron/google.ts) reads each tick.
  * A connected profile's own read is profile-sync.ts.
  */
-import { emitEvent, type Database } from "../packages/db.js";
+import { emitEvent, patchListing } from "../packages/db.js";
 import { planListingCheck, type PlaceDetails } from "../packages/channels.js";
-import { bookingPageKept, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
-import { siteBookingPage } from "./booking-page.js";
+import { localDate, HOUR_MS } from "../packages/contracts.js";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 import { keepAndPush } from "../ops/notify.js";
 import { logger } from "../log.js";
@@ -27,40 +26,22 @@ export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
 
 /**
- * Whether a read of a listing reads its website for the booking page it names (lib/google/booking-page.ts). Only the
- * link does, inside its own request and at the owner's press. Every other read keeps what the link found, while the
- * website is the one it was found on: the sweep reads its listings one after another inside its function's time
- * (vercel.json), with no room for a site each.
- */
-type SiteRead = "read" | "keep";
-
-/**
  * Read the public listing, decide what changed, write it, tell the bell. A
  * failed read leaves its words on the row (check_error) and the last good
  * numbers in place; the next hour tries again. With the profile connected
  * the reviews come from there, every one of them, and this keeps only the
  * rating, the count and the day. Never throws for Google's sake — only for
  * the database's.
+ *
+ * `askWebsite`: a listing just linked has its website read too (imports/website-read.ts: its services, prices and rules
+ * for Check, and where it says its customers book), by a job: no read of a listing waits for a site, since a page drawn
+ * as a browser draws it takes longer than a request can hold. Only the link asks, at the owner's press.
  */
-/**
- * The workspace's listing row written with what a read of it says: the public listing's read here (its rating, its
- * count, its facts), and the owner's own profile's details where they are connected (profile-details.ts). One writer.
- */
-export async function keepListing(
-  db: Db,
-  tenantId: string,
-  patch: Database["public"]["Tables"]["google_listings"]["Update"],
-): Promise<void> {
-  const { error } = await db.from("google_listings").update(patch).eq("tenant_id", tenantId);
-  if (error) throw new Error(error.message);
-}
-
 export async function checkListing(
   db: Db,
   row: ListingRow,
   tz: string,
-  site: SiteRead,
-  now = new Date(),
+  { askWebsite = false, now = new Date() }: { askWebsite?: boolean; now?: Date } = {},
 ): Promise<CheckResult> {
   const L = logger({ tenant_id: row.tenant_id, place: row.place_id });
   const key = placesKey();
@@ -82,22 +63,12 @@ export async function checkListing(
     // past a permanently failing row needs its own `last_attempt_at` column,
     // which is a migration, not a stamp borrowed from a column that means
     // something else.
-    const { error: upErr } = await db
-      .from("google_listings")
-      .update({ check_error: error })
-      .eq("tenant_id", row.tenant_id);
-    if (upErr) throw new Error(upErr.message, { cause: e });
+    await patchListing(db, row.tenant_id, { check_error: error });
     L.warn("google_check_failed", { error });
     return { ok: false, error };
   }
 
-  const booking_page =
-    site === "read"
-      ? await siteBookingPage(details.facts.website)
-      : bookingPageKept(listingFactsOf(row.facts), details.facts.website);
-  details = { ...details, facts: { ...details.facts, booking_page } };
-  // A listing just linked has its website read for Check too (decision 0073, R10): its services, prices and rules.
-  if (site === "read") await scheduleWebsiteRead(db, row.tenant_id, details.facts.website);
+  if (askWebsite) await scheduleWebsiteRead(db, row.tenant_id, details.facts.website);
 
   const conn = await connectionOf(db, row.tenant_id);
   const carriesReviews = !(conn && conn.location_name);
@@ -117,7 +88,7 @@ export async function checkListing(
     { reviews: carriesReviews },
   );
 
-  await keepListing(db, row.tenant_id, plan.listing);
+  await patchListing(db, row.tenant_id, plan.listing);
   const day = await db
     .from("google_listing_days")
     .upsert({ tenant_id: row.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });

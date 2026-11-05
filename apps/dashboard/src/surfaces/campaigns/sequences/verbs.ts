@@ -23,6 +23,8 @@ type HistoryAnswer = ApiResult<Output<"GET sequences/[id]/history">>;
 type ReachAnswer = ApiResult<Output<"GET sequences/[id]/reach">>;
 type ListAnswer = ApiResult<Output<"GET sequences">>;
 type PlaceAnswer = ApiResult<Output<"GET leads/[id]/place">>;
+type LeadEmailsAnswer = ApiResult<Output<"GET leads/[id]/emails">>;
+type LeadWordsAnswer = ApiResult<Output<"GET leads/[id]/words">>;
 
 // A record, its People and its History's first page are kept in the tab (read-cache.ts `tab`): in memory alone, any press in
 // the workspace let them all go, so every record opened after one read from nothing behind "Reading…" (the load review of
@@ -33,11 +35,15 @@ const histories = readCache<HistoryAnswer>("sequence_history", (r) => r.ok, { ta
 const reaches = readCache<ReachAnswer>("sequence_reach", (r) => r.ok);
 const sequenceLists = readCache<ListAnswer>("sequence_list", (r) => r.ok);
 const places = readCache<PlaceAnswer>("lead_place", (r) => r.ok, { tab: true });
+const leadEmails = readCache<LeadEmailsAnswer>("lead_emails", (r) => r.ok, { tab: true });
+const leadWords = readCache<LeadWordsAnswer>("lead_words", (r) => r.ok, { tab: true });
 
 const readRecord = (id: string) => api()("GET sequences/[id]", { params: { id } });
 const readPeople = (id: string) => api()("GET sequences/[id]/people", { params: { id } });
 const readHistory = (id: string) => api()("GET sequences/[id]/history", { params: { id } });
 const readPlace = (leadId: string) => api()("GET leads/[id]/place", { params: { id: leadId } });
+const readLeadEmails = (leadId: string) => api()("GET leads/[id]/emails", { params: { id: leadId } });
+const readLeadWords = (leadId: string) => api()("GET leads/[id]/words", { params: { id: leadId } });
 
 export const sequenceVerbs = {
   /** One sequence: its row, its steps, who approves its batches. */
@@ -61,6 +67,15 @@ export const sequenceVerbs = {
   /** Where one lead stands (00459 sequence_place): the lead sheet's Sequence section, as the record files them. */
   place: (leadId: string) => places.through(leadId, () => readPlace(leadId)),
   peekPlace: (leadId: string): PlaceAnswer | null => places.peek(leadId),
+  /** One lead's own emails (decision 0094): the rows of its History that no sequence wrote. */
+  leadEmails: (leadId: string) => leadEmails.through(leadId, () => readLeadEmails(leadId)),
+  peekLeadEmails: (leadId: string): LeadEmailsAnswer | null => leadEmails.peek(leadId),
+  /** One lead's own words at each step that has some (decision 0096). */
+  leadWords: (leadId: string) => leadWords.through(leadId, () => readLeadWords(leadId)),
+  peekLeadWords: (leadId: string): LeadWordsAnswer | null => leadWords.peek(leadId),
+  /** What one send of a lead's said as it went (decision 0096), read when its step is opened. */
+  leadSent: (leadId: string, sendId: string) =>
+    api()("GET leads/[id]/sent/[send]", { params: { id: leadId, send: sendId } }),
   /** An email the owner wrote, read by Ask into lines on how they write, kept in its memory (decision 0078). */
   learnVoice: (text: string) => commitVerb("sequence_voice", { text }),
 };

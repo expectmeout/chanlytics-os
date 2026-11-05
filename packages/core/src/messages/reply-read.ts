@@ -159,7 +159,15 @@ export interface ReplyReadPorts {
   draft(
     tenantId: string,
     ask: { conversationId: string; text: string; note: string; deadline: number },
-  ): Promise<{ text: string } | { why: DraftWhy }>;
+  ): Promise<{ text: string; used?: readonly string[] } | { why: DraftWhy }>;
+  /**
+   * The draft kept where every page reads a thread's draft (decision 0093, conversation_drafts). Absent, the reading alone
+   * holds it. A failure costs the page its draft, never the reading.
+   */
+  keepDraft?(
+    tenantId: string,
+    d: { conversationId: string; messageId: string; text: string; subject: string | null; used: readonly string[] },
+  ): Promise<unknown>;
   /** The draft's mark (reach_out_reply_draft): only from none or waiting, so a second stage never writes over the first. */
   markDraft(tenantId: string, messageId: string, mark: DraftMark): Promise<boolean>;
   /** This message's next read, or its draft, at most once per stage. */
@@ -260,12 +268,12 @@ async function draftNow(
   facts: ReplyFacts,
   kind: "answer" | "thanks",
 ): Promise<void> {
-  let out: { text: string } | { why: DraftWhy };
+  let out: { text: string; used?: readonly string[] } | { why: DraftWhy };
   try {
     out = await ports.draft(cmd.tenantId, {
       conversationId: facts.conversationId,
       text: replyTextOf(facts.text),
-      note: leadReplyNote({ business: facts.business, answered: facts.answered, signedBy: facts.signedBy, kind }),
+      note: leadReplyNote({ business: facts.business, answered: facts.answered, kind }),
       deadline: cmd.deadline,
     });
   } catch {
@@ -278,6 +286,19 @@ async function draftNow(
     cmd.messageId,
     text ? { state: "written", draft: text } : { state: "not_written", why: "why" in out ? out.why : "not_drafted" },
   );
+  // The thread's one draft (decision 0093): what every page reads and a member changes. A row that could not be kept costs
+  // the page its draft, never the reading or its notice, which carries the words.
+  if (text && ports.keepDraft) {
+    await ports
+      .keepDraft(cmd.tenantId, {
+        conversationId: facts.conversationId,
+        messageId: cmd.messageId,
+        text,
+        subject: facts.subject,
+        used: "used" in out ? (out.used ?? []) : [],
+      })
+      .catch(() => undefined);
+  }
 }
 
 /**

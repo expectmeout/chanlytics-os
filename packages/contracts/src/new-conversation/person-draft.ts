@@ -25,7 +25,7 @@ export const PLAN_NOTE_MAX = 280;
 export const PERSON_DRAFT_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["asks", "text", "subject", "note", "opening", "points", "avoid", "ask", "pitch"],
+  required: ["asks", "text", "subject", "note", "opening", "points", "avoid", "ask"],
   properties: {
     asks: {
       type: "array",
@@ -43,7 +43,6 @@ export const PERSON_DRAFT_JSON_SCHEMA = {
     points: { type: "array", items: { type: "string" } },
     avoid: { type: "array", items: { type: "string" } },
     ask: { type: "string" },
-    pitch: { type: "string" },
   },
 } as const;
 
@@ -71,11 +70,6 @@ export interface PersonDraftDto {
   brief: CallBrief | null;
   /** What the product knows of them, in a few lines, for the brief: said by code from their page, never by the model. */
   facts: string[];
-  /**
-   * A reply to what they wrote, where that was not a customer's (a sales pitch, a vendor, a newsletter, a partnership
-   * offer): one sentence saying what it is, and no words written. "" for everything else, and for every first message.
-   */
-  pitch: string;
 }
 
 /** What GET people/[id]/reach answers: how this person can be written to and called now. */

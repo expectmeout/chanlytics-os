@@ -24,7 +24,7 @@ import {
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
+  "id, state, paused_until, snooze_until, set_aside_at, set_aside_why, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
@@ -37,6 +37,8 @@ interface ConversationRow {
   state: string;
   paused_until: string | null;
   snooze_until: string | null;
+  set_aside_at: string | null;
+  set_aside_why: string | null;
   assignee_user_id: string | null;
   last_wa_inbound_at: string | null;
   /** Absent where a reader's select did not ask for it (00486's accessor: the thread's DM clock). */
@@ -220,6 +222,8 @@ export function toConversationDto(
     state: c.state as ConversationDto["state"],
     paused_until: c.paused_until,
     snooze_until: c.snooze_until,
+    set_aside_at: c.set_aside_at,
+    set_aside_why: c.set_aside_why,
     assignee_user_id: c.assignee_user_id,
     assignee_is_me: c.assignee_user_id ? c.assignee_user_id === userId : undefined,
     last_wa_inbound_at: c.last_wa_inbound_at,

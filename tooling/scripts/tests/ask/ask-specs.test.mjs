@@ -79,6 +79,7 @@ const KINDS = [
   "sequence_step",
   "sequence_step_remove",
   "sequence_words",
+  "sequence_lead_words",
   "sequence_leave",
   "sequence_add",
   "sequence_move",
@@ -159,6 +160,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     sequence_step: "approve",
     sequence_step_remove: "approve",
     sequence_words: "approve",
+    sequence_lead_words: "approve",
     sequence_leave: "approve",
     sequence_add: "approve",
     sequence_move: "approve",
@@ -415,6 +417,7 @@ const ANSWER_ALL = {
 const ANSWERS = {
   sequence_step: { ...ANSWER_ALL, was: { after_days: 2 } },
   sequence_words: { ...ANSWER_ALL, was: { template_id: "t0", params: [] } },
+  sequence_lead_words: { ...ANSWER_ALL, was: { subject: "Before", body: "What stood" } },
   // POST sequences/[id]/leave's (SequenceDoorAnswer): one taken out, which its undo puts back.
   sequence_leave: { ...ANSWER_ALL, sequence_id: "q1", left: 1 },
   // POST ask/memory's (AskMemoryDoorDto): the line kept, which its undo forgets.
@@ -527,6 +530,15 @@ const SHAPES = {
   ],
   sequence_step_remove: [card("sequence_step_remove", { sequence_id: "q1", step_id: "st1" })],
   sequence_words: [card("sequence_words", { sequence_id: "q1", step_id: "st1", template_id: "t1", params: [] })],
+  sequence_lead_words: [
+    card("sequence_lead_words", {
+      sequence_id: "q1",
+      step_id: "st1",
+      lead_id: "ld1",
+      name: "Luxe Lane",
+      words: { subject: "Your weekend chair", body: "Their own words" },
+    }),
+  ],
   sequence_leave: [card("sequence_leave", { sequence_id: "q1", enrollment_ids: ["e1"] })],
   sequence_add: [card("sequence_add", { sequence_id: "q1", lead_ids: ["ld1"], name: "Bookstore intro" })],
   sequence_move: [card("sequence_move", { sequence_id: "q1", lead_id: "ld1", name: "Bookstore intro" })],
@@ -805,6 +817,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     ],
     sequence_step_remove: ["DELETE sequences/[id]/steps/[step]"],
     sequence_words: ["POST sequences/[id]/steps/[step]/words"],
+    sequence_lead_words: ["POST sequences/[id]/steps/[step]/lead-words"],
     sequence_leave: ["POST sequences/[id]/leave", "POST sequences/[id]/return"],
     sequence_add: ["POST lead-operations/[id]/undo", "POST sequences/[id]/leads"],
     sequence_move: ["POST sequences/[id]/move"],

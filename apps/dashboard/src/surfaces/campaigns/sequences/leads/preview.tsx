@@ -1,7 +1,7 @@
 /**
  * Preview as a real lead (the lead-to-sequence canvas's board D): one step's email as each lead in it gets it, ‹ › through
  * them, drawn whole by the part the lead sheet draws it with (place/email-as.tsx): from, to, subject, its words with each
- * value marked where it came from, the opening as the line written for them when it goes, and what holds it. Nobody in
+ * value marked where it came from, the opening it goes with (as its test says it), and what holds it. Nobody in
  * it yet: an example business, said so. The emails the check held stand under it, one press from the Leads tab. Its foot
  * is the test: the step as this lead gets it, to your own inbox (step-sheet.tsx).
  */
@@ -12,7 +12,8 @@ import {
   coldEndingOf,
   emailFoot,
   leadDraftChainOf,
-  leadFactOf,
+  leadOpeningOf,
+  leadOwnWordsOf,
   leadPreviewEmailOf,
   sequenceRoute,
   whyFrom,
@@ -24,10 +25,17 @@ import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { navigate } from "../../../legacy-verbs";
-import { surfaceValue } from "../../../surface-values";
-import { brainOf } from "../../templates/words";
 import { EmailAs } from "../place/email-as";
-import { cardLeadOf, exampleCardLead, useLeadRow, workspaceOf, type PreviewLead } from "./reads";
+import { useLeadWords } from "../place/parts";
+import {
+  businessAddressOf,
+  cardLeadOf,
+  exampleCardLead,
+  useLeadRow,
+  usePreviewName,
+  workspaceOf,
+  type PreviewLead,
+} from "./reads";
 import type { LeadChain } from "./use-chain";
 
 interface PreviewProps {
@@ -67,12 +75,6 @@ function endingOf(lc: LeadChain, place: number): string | null {
   return e.signature ?? e.signOff;
 }
 
-/** The business's postal address as Settings holds it, which the foot says; "" while it is not set. */
-function businessAddressOf(): string {
-  const brain = brainOf(surfaceValue("settings")?.settings);
-  return typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
-}
-
 /**
  * The foot the send writes under this lead's email (the edge's request builder: why they hear from you by how they were
  * found, your business and address, how to stop), or none while the address is not set: the send refuses then, and How
@@ -99,9 +101,10 @@ export function LeadPreview({ rec, lc, place, leads, at, onAt }: PreviewProps) {
   const row = useLeadRow(one?.id ?? null);
   const lead = row ? cardLeadOf(row) : one ? null : exampleCardLead();
   const workspace = workspaceOf(lc.draft.signed_by);
-  // The opening the lead's listing says, where it says one (decision 0078): the check writes the same sentence.
-  const fact = row
-    ? leadFactOf({
+  // The opening it goes with, as Send me a test says it (leadOpeningOf): the one written for this step's email where its
+  // check wrote one, else the one the listing says (decision 0078), which the check offers its reader first.
+  const opening = row
+    ? leadOpeningOf(one?.written?.place === place ? one.written.opening : null, {
         business_name: row.business_name,
         city: row.city,
         hours: row.hours ?? null,
@@ -109,11 +112,15 @@ export function LeadPreview({ rec, lc, place, leads, at, onAt }: PreviewProps) {
         reviews: row.reviews,
       })
     : null;
+  // Their own words at this step, where they have some (decision 0096): the preview reads as the send sends.
+  const own = leadOwnWordsOf(useLeadWords(one?.id ?? null, 0).words);
+  const stepId = lc.chain.steps[place - 1]?.id ?? null;
+  const theirOwn = !!stepId && own.has(stepId);
   const drafted = lead
-    ? leadPreviewEmailOf({ chain: leadDraftChainOf(lc.chain, lc.draft), lead, workspace, place })
+    ? leadPreviewEmailOf({ chain: leadDraftChainOf(lc.chain, lc.draft), lead, workspace, place, own })
     : null;
-  const email = drafted ? withOpeningSaid(drafted, fact?.opening ?? null) : null;
-  const name = one ? one.name || row?.business_name || "" : (lead?.business_name ?? "");
+  const email = drafted ? withOpeningSaid(drafted, opening) : null;
+  const name = usePreviewName(one);
   const held = rec.sequence.needs.held;
   return (
     <div className="ld-pre" data-testid="ld-preview">
@@ -151,6 +158,11 @@ export function LeadPreview({ rec, lc, place, leads, at, onAt }: PreviewProps) {
         ) : null}
       </div>
       {one ? null : <p className="ld-note">{W.example}</p>}
+      {theirOwn ? (
+        <p className="ld-note" data-testid="ld-preview-own">
+          {W.ownWords}
+        </p>
+      ) : null}
       {email && lead ? (
         <EmailAs
           email={email}

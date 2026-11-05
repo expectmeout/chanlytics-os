@@ -81,6 +81,11 @@ export interface SequenceWaitingBatchDto {
   run_for: string | null;
   at: string;
   people: number;
+  /**
+   * A batch to leads: how many of its emails the check held, each waiting on its own answer, which an OK never sends
+   * (withReadyCounts). Absent on any other batch, and from a server before it.
+   */
+  held?: number;
   audience: { kind: string | null; trigger: string | null };
 }
 
@@ -192,6 +197,8 @@ export interface SequencePersonDto {
   opening?: string | null;
   /** Beside `opening`: whether the check has read the email yet. */
   checked?: boolean;
+  /** Beside `opening`: its lead has words of their own at its step, holding no line (decision 0096). */
+  own?: boolean;
   /**
    * On a replied row (00455), the reply that asks for an answer, the one the overview counts: what they said and the
    * conversation it is answered in. Null on every other row, and absent from a server before 00455.

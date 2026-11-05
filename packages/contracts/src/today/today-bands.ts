@@ -390,9 +390,10 @@ export const TODAY_PHONE_WORDS = {
   /**
    * Each of the day's four figures by its short name, for the row of numbers on a desk's head and a phone's card alike
    * (0076): the figure's own label ("answered by the receptionist") is its title, and its clause and receipt say the rest
-   * when it is pressed.
+   * when it is pressed. A word each, so a phone's row of four stays one line ("new people" broke in its 65px; the
+   * phone pass, 3 Nov 2026); the figure's label, its title, still says who is new.
    */
-  figure: { booked: "booked", answered: "answered", calls: "calls", new: "new people" },
+  figure: { booked: "booked", answered: "answered", calls: "calls", new: "new" },
   /** The day's figures on a phone, with the week under them: the card's name. */
   soFar: "Today so far",
   /** The day after closing (the canvas of 2 Nov 2026): tomorrow's name, its first visit, and what already happened. */

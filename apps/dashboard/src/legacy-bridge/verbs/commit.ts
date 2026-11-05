@@ -173,7 +173,7 @@ async function sendThen(
   if (isRefusal(next)) return { ok: false, message: next.refused };
   const n = await sendCall(client, next, { ...use, key: use.key ? `${use.key}:then` : undefined });
   if (n.ok && use.tell !== false) tellCall(win, next);
-  return n.ok ? { ok: true } : { ok: false, message: n.message };
+  return n.ok ? { ok: true, data: n.data } : { ok: false, message: n.message };
 }
 
 /** The specs of the verbs the pages press, and the readings of a spec (contracts ask-proposals/page-specs.ts). */

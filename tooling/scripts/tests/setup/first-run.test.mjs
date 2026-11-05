@@ -52,6 +52,7 @@ import {
   soundsWords,
   TONE_PRESETS,
   PHONE_VOICES_NATIVE_TO,
+  businessReadFactsOf,
 } from "@chanlytics/contracts";
 import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels";
 
@@ -604,6 +605,8 @@ test("after the first run, with the calendar in, Today's card carries one door t
     // No word for the appointment: New sequence, which it opens, says the workspace's own (a meeting where deals are on).
     id: REMIND_SKIPPED,
     name: "The day-before reminder",
+    // A phone's row says the short name beside its one pill (the phone pass, 3 Nov 2026).
+    nameShort: "Reminders",
     stateWords: "Not started",
     words: "Your calendar is in. Remind each customer the day before.",
     label: "Turn on",
@@ -861,7 +864,6 @@ const googleSaid = (over = {}) => ({
   primary_type_label: "Moving company",
   service_area_only: false,
   time_zone: "America/New_York",
-  booking_page: null,
   ...over,
 });
 const listed = (said = {}, over = {}) => ({
@@ -1018,8 +1020,15 @@ test("Check is Your receptionist's once the business is set up: what Google foun
     bookingPage: null,
   });
   const found = "https://calendly.com/harbor-moving-example/estimate";
+  const readSays = {
+    source: "website",
+    facts: businessReadFactsOf({ booking_page: found }),
+    read_from: "https://harbor.example.com/",
+    read_at: new Date(NOW).toISOString(),
+    error: null,
+  };
   assert.equal(
-    firstRunOf(setupSteps(harbor({}, { bookingPage: found }), NOW), null, OWNER).check.bookingPage,
+    firstRunOf(setupSteps({ ...harbor(), reads: [readSays] }, NOW), null, OWNER).check.bookingPage,
     found,
     "the booking page the website names, carried to Check to offer",
   );

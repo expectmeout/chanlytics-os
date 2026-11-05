@@ -10,6 +10,7 @@
  * to keep as a note, a tone to merge. Its answer is checked in code (`checkFixRoute`) before the owner sees it, and the
  * owner sees the field before Keep (`fixLine`): "Add to Services: Balayage · $180 · about 3 h".
  */
+import { defang } from "../ai/fence";
 import { DAYS, DAY_NAMES, PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { AskSettingsChange, GuardrailRule } from "../ask/ask-settings-change";
 import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/ask-settings-change";
@@ -352,15 +353,19 @@ export function fixRouteSystemPrompt(): string {
   ].join("\n");
 }
 
-/** The correction and what the settings hold, as quoted JSON inside tags. */
+/**
+ * The correction and what the settings hold, as quoted JSON inside tags they cannot close. What a reader cannot see goes
+ * before the cut, so a run of it uses up none of the bound. JSON leaves brackets and format characters as they are, so
+ * the settings are held whole, after it.
+ */
 export function fixRouteUserContent(ask: FixAsk, o: { customer: string; answer: string; tone: string | null }): string {
-  const max = 1200;
+  const part = (s: string) => JSON.stringify(squashedSpaces(defang(s)).slice(0, 1200));
   return [
     `<kind>${ask.kind}</kind>`,
-    `<owner>\n${JSON.stringify(squashedSpaces(ask.words).slice(0, max))}\n</owner>`,
-    `<customer>\n${JSON.stringify(squashedSpaces(o.customer).slice(0, max))}\n</customer>`,
-    `<answer>\n${JSON.stringify(squashedSpaces(o.answer).slice(0, max))}\n</answer>`,
-    `<settings>\n${JSON.stringify({ today: ask.today, services: ask.services.map((s) => s.name), languages: ask.languages, tone: o.tone ?? "" })}\n</settings>`,
+    `<owner>\n${part(ask.words)}\n</owner>`,
+    `<customer>\n${part(o.customer)}\n</customer>`,
+    `<answer>\n${part(o.answer)}\n</answer>`,
+    `<settings>\n${defang(JSON.stringify({ today: ask.today, services: ask.services.map((s) => s.name), languages: ask.languages, tone: o.tone ?? "" }))}\n</settings>`,
   ].join("\n");
 }
 
@@ -387,17 +392,19 @@ export const FIX_ROUTE_SCHEMA = {
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const field = (v: unknown, max: number) => (typeof v === "string" ? squashedSpaces(v).slice(0, max) : "");
+/** A value the model answered, read as its fence would show it: no figure, number or link hides behind what cannot be seen. */
+const field = (v: unknown, max: number) => (typeof v === "string" ? squashedSpaces(defang(v)).slice(0, max) : "");
 
 /**
  * The model's answer, checked in code: the op is one the settings take, every value is in its field's shape and bounds,
  * a price is one the owner said, a service set is one listed, and a note names no money, link or number (a price is a
- * service's to hold) and says what the owner said. Null when it does not pass, with why.
+ * service's to hold) and says what the owner said. The owner's words and the services are read as the fence showed them.
+ * Null when it does not pass, with why.
  */
 export function checkFixRoute(answer: unknown, ask: FixAsk): FixRouted {
   const a = (answer ?? {}) as Record<string, unknown>;
   const check = typeof a.op === "string" ? FIX_CHECKS.get(a.op) : undefined;
-  return check ? check(a, ask, squashedSpaces(ask.words)) : NO_FIX;
+  return check ? check(a, ask, squashedSpaces(defang(ask.words))) : NO_FIX;
 }
 
 /** The answer that changes nothing. */
@@ -433,7 +440,7 @@ function checkService(a: Record<string, unknown>, ask: FixAsk, words: string): F
   const figure = /\d+(?:[.,]\d{2})?/.exec(price)?.[0];
   if (price && (!figure || !words.includes(figure))) return NO_FIX;
   if (minutes < 0 || minutes > L.serviceMinutes) return NO_FIX;
-  const listed = ask.services.find((s) => foldedLine(s.name) === foldedLine(name));
+  const listed = ask.services.find((s) => foldedLine(defang(s.name)) === foldedLine(name));
   const op = listed ? "set_service" : "add_service";
   if (!price && !minutes && op === "set_service") return NO_FIX;
   return {

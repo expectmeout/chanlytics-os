@@ -6,7 +6,7 @@
  * by the edge where the keys are (apps/edge/lib/leads/lead-wires.ts). Every verb
  * here runs over fakes in a test: no network, no database.
  */
-import type { ApifyClient, LeadJudge } from "@chanlytics/channels";
+import type { ApifyClient, LeadJudge, SitePage } from "@chanlytics/channels";
 import type { MarkImage } from "./mark-image";
 import type {
   CompanyFitAnswer,
@@ -232,6 +232,12 @@ export interface CollectJudgment {
   tokens: number;
 }
 
+/** The job a commit writes with its page: lead_collect_commit inserts it once, under its dedupe key. */
+export type LeadNextJob =
+  | { kind: "lead_collect"; seq: string; run_after_seconds: number }
+  | { kind: "lead_check"; batch: number; run_after_seconds: number }
+  | { kind: "lead_round_start"; resume: true; run_after_seconds: number };
+
 /**
  * One page, as lead_collect_commit takes it: everything a commit writes, in
  * one call (E4). `round.ending` ends the round inline; `round.ending_pending`
@@ -245,8 +251,15 @@ export interface CollectPage {
   /** The run's usage as the provider reports it now; the commit settles the difference from the row. */
   usage_usd: number;
   items_seen: number;
+  /** The page's places the workspace already held, read and paid for and skipped (B4: what a main phase pays twice). */
+  already_yours?: number;
   run_state: LeadRunState | null;
-  next: { kind: "lead_collect"; seq: string; run_after_seconds: number } | null;
+  /**
+   * The job that follows, written in the page's own transaction (PRD §0.5: "each page of results is one commit … the next
+   * job"): the run's next collect, the round's checks, or the main phase once the probe passed. Never scheduled after the
+   * commit: a function killed between the two left the round waiting on a job nobody wrote (3 Nov 2026).
+   */
+  next: LeadNextJob | null;
   /** `nearby` (D3): where to look next when the round ran dry, written with the ending it belongs to. */
   round: {
     state: LeadRoundState | null;
@@ -296,6 +309,11 @@ export interface LeadDb {
   ): Promise<{ ok: boolean }>;
   roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
   /**
+   * What reading businesses' sites cost (lead_site_reads_spent): against the round while it lives, else the month and the
+   * day it was read in. `roundId` null is a read no round asked for (the leads sweep's second try at a mark).
+   */
+  siteReadsSpent(tenantId: string, roundId: string | null, reads: number, usd: number): Promise<void>;
+  /**
    * A people run's page of companies (00430 lead_company_upsert), before its own commit moves the run: a lead each, or
    * the people a company already held gains. Idempotent, so a page read twice keeps each company once.
    */
@@ -333,6 +351,8 @@ export interface LeadDb {
   run(id: string): Promise<LeadRunRow | null>;
   runsOfRound(roundId: string): Promise<LeadRunRow[]>;
   membersOfRound(roundId: string): Promise<LeadMemberRow[]>;
+  /** Every member of the search, of every round: what a top-up or a renewal sizes from (PRD §0.5, "the running yield"). */
+  membersOfSearch(searchId: string): Promise<LeadMemberRow[]>;
   /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
   placeIdsHeld(tenantId: TenantId, placeIds: string[]): Promise<Map<string, string>>;
   sharesOf(
@@ -365,11 +385,12 @@ export interface LeadPorts {
     runAfterSeconds: number,
   ): Promise<void>;
   /**
-   * One GET of a page as text, for the engine's own reading -- today the business's home page, for its mark (D6).
-   * Answers null rather than throwing on anything that is not a page we can read. Absent in a runtime that has no
-   * business fetching (a test world that models none): the collect then simply marks nothing.
+   * A business's home page by its website's host, as the platform's page reader draws it, for the engine's own reading:
+   * its mark (D6), and what the judge reads where a plan asks what only a website shows. A credit a read: site-reads.ts
+   * reads each host once. Answers null rather than throwing on anything that is not a page we can read. Absent in a
+   * runtime that has no business reading (a test world that models none): the collect then simply marks nothing.
    */
-  fetchText?(url: string, timeoutMs: number): Promise<string | null>;
+  readSite?(host: string, timeoutMs: number): Promise<SitePage | null>;
   /**
    * One GET of an image's bytes (00161): at most `maxBytes`, null on anything else -- a refusal, a timeout, a body
    * that runs longer. What the bytes are is the engine's to judge (mark-image.ts), never the server's word for them.

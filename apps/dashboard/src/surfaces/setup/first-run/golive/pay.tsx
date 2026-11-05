@@ -77,16 +77,6 @@ export function FrPay(o: {
     }
     if (!canDo("billing")) return;
     setChoice(next);
-    if (cta.act === "startNow") {
-      setState("opening");
-      const r = await billingVerbs.startNow();
-      setState("none");
-      if (!r.ok) {
-        setChoice({ ...next, pending: false });
-        flash({ tone: "danger", msg: <>{r.message}</> });
-      }
-      return;
-    }
     setState("opening");
     const r = await billingVerbs.checkoutInPage("start");
     if (!r.ok) {

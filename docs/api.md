@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-344 handlers in 55 domains.
+358 handlers in 56 domains.
 
 ## activity
 
@@ -355,7 +355,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `conversation_id` | string | no |  |
-| `status` | string | no |  |
+| `status` | one of `"registered"`, `"ongoing"`, `"ended"`, `"error"`, `"not_connected"` | no |  |
 | `ids` | string | no |  |
 | `q` | string | no | at most 100 characters |
 
@@ -408,6 +408,16 @@ Writes; for a member of the workspace the request names, partner or above; count
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/capabilities/[kind]/route.ts`).
+
+## changes
+
+### `GET /api/v1/changes`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `since` | string (date-time) | yes |  |
 
 ## channels
 
@@ -700,6 +710,15 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `source` | string | no |  |
 | `note` | string | no |  |
 
+### `POST /api/v1/contacts/erase`
+
+Writes; for a member of the workspace the request names, owner or above; counts against the `erase_many` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `ids` | array of string (uuid) | yes | at least 1; at most 100000 |
+| `not_a_person` | boolean | no |  |
+
 ### `GET /api/v1/contacts/export`
 
 Reads; for a member of the workspace the request names, owner or above; counts against the `export` rate; spends nothing.
@@ -802,6 +821,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/hand-back/route.ts`).
 
+### `POST /api/v1/conversations/[id]/not-a-customer`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `undo` | boolean | no |  |
+
 ### `POST /api/v1/conversations/[id]/reply`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `reply` rate; spends nothing. Keeps its own `Idempotency-Key`.
@@ -811,6 +838,12 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `text` | string | no | at most 20000 characters |
 | `email_to` | string | no | at most 320 characters |
 | `template` | object | no |  |
+
+### `POST /api/v1/conversations/[id]/reply-anyway`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/reply-anyway/route.ts`).
 
 ### `POST /api/v1/conversations/[id]/snooze`
 
@@ -1184,6 +1217,12 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `tone` | one of `"first"`, `"shorter"`, `"warmer"` | no |  |
 | `previous` | object | no |  |
 
+### `GET /api/v1/leads/[id]/emails`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/emails/route.ts`).
+
 ### `POST /api/v1/leads/[id]/exclude`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lead_member` rate; spends nothing.
@@ -1234,6 +1273,21 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `search_id` | string (uuid) | yes |  |
 
+### `POST /api/v1/leads/[id]/send`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_send` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `subject` | string | yes | at least 1 characters; at most 200 characters |
+| `body` | string | yes | at least 1 characters; at most 4000 characters |
+
+### `GET /api/v1/leads/[id]/sent/[send]`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/sent/[send]/route.ts`).
+
 ### `POST /api/v1/leads/[id]/stage`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
@@ -1274,6 +1328,13 @@ Body 5:
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `kind` | `"emailed"` | yes |  |
+| `words` | object | no |  |
+
+### `GET /api/v1/leads/[id]/words`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/words/route.ts`).
 
 ### `GET /api/v1/leads/back`
 
@@ -1818,6 +1879,16 @@ Reads; for platform staff; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/home/route.ts`).
 
+### `POST /api/v1/platform/jobs/pause`
+
+Writes; for platform staff; counts against the `platform_job_pause` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"canary"` | yes |  |
+| `paused` | boolean | yes |  |
+| `why` | object | yes |  |
+
 ### `POST /api/v1/platform/jobs/requeue`
 
 Writes; for platform staff; counts against the `platform_job_requeue` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
@@ -1826,6 +1897,16 @@ Writes; for platform staff; counts against the `platform_job_requeue` rate; spen
 | --- | --- | --- | --- |
 | `tenant_id` | string (uuid) | yes |  |
 | `job_id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
+
+### `POST /api/v1/platform/jobs/requeue-kind`
+
+Writes; for platform staff; counts against the `platform_job_requeue_kind` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"canary"` | yes |  |
+| `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 
 ### `POST /api/v1/platform/lines/refile`
@@ -2145,6 +2226,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `decision` | one of `"include"`, `"rewrite"`, `"skip"`, `"not_a_fit"` | yes |  |
+| `change` | string | no | at most 280 characters |
 
 ### `POST /api/v1/reach-out-sends/[id]/said`
 
@@ -2153,6 +2235,21 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `outcome` | one of `"sent"`, `"not_sent"` | yes |  |
+
+### `POST /api/v1/reach-out-sends/[id]/undo-rewrite`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/reach-out-sends/[id]/undo-rewrite/route.ts`).
+
+### `POST /api/v1/reach-out-sends/check`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; may spend the workspace's money.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `send_ids` | array of string (uuid) | yes | at least 1; at most 20 |
+| `stream` | boolean | no |  |
 
 ## reach-outs
 
@@ -2639,6 +2736,15 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/steps/[step]/route.ts`).
 
+### `POST /api/v1/sequences/[id]/steps/[step]/lead-words`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `words` | object or null | yes |  |
+
 ### `POST /api/v1/sequences/[id]/steps/[step]/test`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `step_test` rate; spends nothing.
@@ -2724,6 +2830,17 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/setup/route.ts`).
+
+### `PUT /api/v1/setup/choices`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `phone` | object or null | no |  |
+| `whatsapp` | one of `"same"`, `"own"`, `"later"` | no |  |
+| `marks` | array of one of `"receptionist-met"`, `"rehearse-skipped"`, `"channels-seen"` | no | at most 3 |
+| `version` | integer | no | ≥ 0; ≤ 9007199254740991 |
 
 ### `POST /api/v1/setup/request`
 

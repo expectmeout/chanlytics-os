@@ -48,17 +48,8 @@ interface IxWhoProps {
   children?: ReactNode;
 }
 
-export const IxWho = ({
-  to = null,
-  go = null,
-  who,
-  avatar,
-  photo = null,
-  priority = null,
-  hued = false,
-  badge = null,
-  children,
-}: IxWhoProps) => {
+/** The face, with the wire's badge on its edge where it has one. Called, not drawn. */
+function whoFace({ who, avatar, photo = null, priority = null, hued = false, badge = null }: IxWhoProps): ReactElement {
   const drawn = (
     <Face
       person={{ name: who, initials: avatar }}
@@ -69,7 +60,7 @@ export const IxWho = ({
     />
   );
   // A badge stands on the face's edge, outside the circle that clips its picture: the two in a box of their own.
-  const face = badge ? (
+  return badge ? (
     <span className="ix-th-pic">
       {drawn}
       {badge}
@@ -77,6 +68,11 @@ export const IxWho = ({
   ) : (
     drawn
   );
+}
+
+export const IxWho = (p: IxWhoProps) => {
+  const { to = null, go = null, who, children } = p;
+  const face = whoFace(p);
   if (!to || !hasRouteDoor())
     return (
       <div className="ix-th-who">
@@ -160,7 +156,11 @@ const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
       ),
     };
   if (thread.state !== "done" || thread.resolution) return null;
-  if (thread.archived) return { pill: <StatePill kind="thread" value="archived" label="Archived" lit /> };
+  // Set aside is archived underneath (00539), and is not what the member reads it as: the list it stands in says so.
+  if (thread.archived)
+    return {
+      pill: <StatePill kind="thread" value="archived" label={thread.setAside ? "Set aside" : "Archived"} lit />,
+    };
   if (thread.veto) return null;
   // A reply that didn't send, or what they wrote held and closed with nothing sent (contracts unansweredOf), wears the
   // row's own pill and, beside it, how long they have waited. Every other thread nothing waits on is handled.

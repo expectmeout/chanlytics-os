@@ -11,9 +11,9 @@ const contracts = await import("@chanlytics/contracts");
 
 test("a dock's line is what is owed at 600 and the clause after its dash, and a line with no dash is all lead", () => {
   const { dockLineOf } = contracts;
-  assert.deepEqual(dockLineOf("They wrote by email — nothing has been sent"), {
+  assert.deepEqual(dockLineOf("They wrote by email — nothing sent"), {
     lead: "They wrote by email",
-    rest: "nothing has been sent",
+    rest: "nothing sent",
   });
   assert.deepEqual(dockLineOf("Confirm the time — they're waiting to hear"), {
     lead: "Confirm the time",
@@ -204,4 +204,25 @@ test("an email's files are counted where only their names were kept, an id's nam
   assert.doesNotMatch(kept.leftOut, /055004a9/, "an id's name is counted, never printed");
   assert.equal(entryOf({ email: { subject: "Plans" } }).filesLeft, undefined, "none, where none came");
   assert.deepEqual([1, 3].map(THREAD_PANE_WORDS.filesNotKept), ["1 file not kept", "3 files not kept"]);
+});
+
+test("the sheet's head says since when as every date on the page reads, and a team's or a business's name is never cut to its first word", () => {
+  const { THREAD_PANE_WORDS, shortName, sinceWords } = contracts;
+  // The sheet says since when in the person page's own words (sinceWords), never a second spelling of the rule.
+  const line = (reach, label, estimate = false) =>
+    THREAD_PANE_WORDS.personLine(reach, sinceWords({ firstContact: { label, estimate } }));
+  // REGRESSION (3 Nov 2026): "first wrote aug 26", the label lowered whole.
+  assert.equal(line("ana@example.com", "Aug 26"), "ana@example.com · Since Aug 26");
+  assert.equal(line(null, "Before Aug 27", true), "Since before Aug 27", "an import's floor, not a date");
+  assert.equal(line("ana@example.com", "—", true), "ana@example.com", "no date known, none said");
+  assert.equal(THREAD_PANE_WORDS.personLine(null, ""), "");
+  // REGRESSION (3 Nov 2026): a person page's last words said "THE · OCT 28" for "The Google Workspace Team".
+  assert.equal(shortName("The Google Workspace Team"), "The Google Workspace Team");
+  // REGRESSION (3 Nov 2026): a thread's sheet named a business by its possessive first word alone.
+  assert.equal(shortName("Rosa's Nail Bar"), "Rosa's Nail Bar");
+  assert.equal(shortName("Rosa’s Nail Bar"), "Rosa’s Nail Bar", "the curly apostrophe too");
+  assert.equal(shortName("An Nguyen"), "An", "An is a given name, not an article");
+  assert.equal(shortName("Ana Reyes"), "Ana", "a person's first name");
+  assert.equal(shortName("Theo Lind"), "Theo", "a name that starts with the letters, not the word");
+  assert.equal(shortName("+1 (917) 555-0102"), "+1 (917) 555-0102");
 });

@@ -407,7 +407,10 @@ export function sequenceSubLine(
     return `One message · ${DATE[row.date.state] ?? "goes on its own"}`;
   }
   if (row.starts === "leads") {
-    const from = row.first?.search_name ? `Leads from “${row.first.search_name}”` : "Leads";
+    // A search named as the sequence is not said again under its name (3 Nov 2026: "Local: your receptionist is built"
+    // read 'Leads from "Local: your receptionist is built"' beneath itself).
+    const search = row.first?.search_name?.trim() ?? "";
+    const from = search && search.toLowerCase() !== row.name.trim().toLowerCase() ? `Leads from “${search}”` : "Leads";
     // Fed by a list, each first email waits for an OK whatever its mode (00426: each of its leads was added by hand).
     const asks = rec.fed_by === "list" ? SEQUENCE_WORDS.asksFirstEmail : sequenceApprovalWords(row.mode);
     return `${from} · ${row.first?.owner_sends ? "you send each one" : asks}`;

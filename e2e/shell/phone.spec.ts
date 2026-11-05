@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
-import { givenOf, motionSettled, pullHeld, sheetFloat } from "../signals";
+import { givenOf, motionSettled, pullHeld, sheetFloat, sheetFoot } from "../signals";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -435,8 +435,8 @@ test.describe("Phone shell on a real workspace", () => {
       return Math.round(b.y + b.height);
     };
     // At rest it floats clear of the foot (#1789); on the keys it stands on them, the keys the higher of the two.
-    const float = await sheetFloat(page);
-    await expect.poll(foot, { message: "at rest, floating just clear of the bottom" }).toBe(tall - float);
+    const rest = await sheetFoot(page);
+    await expect.poll(foot, { message: "at rest, floating just clear of the bottom" }).toBe(tall - rest);
     const keys = 300;
     await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
     await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
@@ -444,7 +444,7 @@ test.describe("Phone shell on a real workspace", () => {
     const save = (await page.getByTestId("rec-sheet-save-people-add").boundingBox())!;
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
-    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall - float);
+    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall - rest);
   });
   /**
    * A thumb pulls a sheet down to close it (the kit's Sheet, through kit/motion/swipe.ts touchSwipe, 5 Oct 2026): from its handle,
@@ -750,6 +750,32 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * The strip stands as tall as what stands beside it, on its line (Ruben, 4 Nov 2026): it stood 46 under a thumb beside
+   * a coral act of 36, and Reports' period and the Calendar's Settings stood 44 between the two.
+   */
+  test("the strip of views is the height of the act beside it, on its line", async ({ page }) => {
+    const placeOf = (el: Locator) =>
+      el.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        return { top: Math.round(r.top), height: Math.round(r.height) };
+      });
+    for (const [label, hash] of [
+      ["the Inbox", "conversations"],
+      ["People", "clients"],
+      ["the Calendar", "calendar"],
+      ["Reports", "reports"],
+    ] as const) {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      const act = page.locator(".pg-act-slot").locator("button, a").first();
+      await expect(act, `${label} draws an act beside its strip`).toBeVisible();
+      expect(await placeOf(act), `${label}'s act is its strip's height, on its line`).toEqual(
+        await placeOf(page.locator(".pg-slot > nav")),
+      );
+    }
+  });
+
+  /**
    * Every list pulls under a thumb, however short (25 Sep). A list rubber-bands on a touch screen only when it holds
    * more than its box: Needs you with two threads and Live with no calls could not be pulled at all, where
    * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. On a phone the window
@@ -980,9 +1006,10 @@ test.describe("Phone shell on a real workspace", () => {
     };
     // Floating just clear of the screen's sides and foot, as every phone sheet does (#1789).
     const float = await sheetFloat(page);
+    const rest = await sheetFoot(page);
     await expect
       .poll(edges, { message: "side to side and on the bottom, clear by the float" })
-      .toEqual([float, size.width - float, size.height - float]);
+      .toEqual([float, size.width - float, size.height - rest]);
     await expect(pop.locator(".tbn-handle")).toBeVisible();
     const y = Math.round((await pop.boundingBox())!.y) + 20;
     const cdp = await page.context().newCDPSession(page);
@@ -1068,10 +1095,10 @@ test.describe("Phone shell on a real workspace", () => {
    * a pull dragged them, as People's strip did before #1041: now the bar stands over the days (8 Oct 2026: the board
    * takes the room the page leaves, and the pane never pulls), sticking under the frame's top as the window scrolls the
    * days (21 Oct 2026, mobile.css "The window scrolls": in a pane of its own Safari's toolbar stood on a flat band under
-   * it), and a swipe across the days walks to the next or previous days, as the steps do. The views keep their 38px
-   * look, with 44px to press.
+   * it), and a swipe across the days walks to the next or previous days, as the steps do. The views are drawn 28 tall
+   * in a strip of 36 (4 Nov 2026), and pressed across the whole of it.
    */
-  test("the Calendar's bar stays over its days, a swipe walks them, and its views are a thumb tall to press", async ({
+  test("the Calendar's bar stays over its days, a swipe walks them, and its views are pressed across their strip", async ({
     page,
   }) => {
     await page.goto("/#/calendar");
@@ -1184,8 +1211,9 @@ test.describe("Phone shell on a real workspace", () => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };
     const places: Record<string, string> = {};
-    // The room under the list is the list's own where the row's page is a thread: the window scrolls an open thread and
-    // opens it at its end (#1781), and room left on the body was that end, the thread scrolled out of sight above it.
+    // The room under the list is the list's own where the row's page is a thread: while the window scrolled an open thread
+    // (#1781, until the thread became a screen of its own on 3 Nov 2026) it opened it at its end, and room left on the
+    // body was that end, the thread scrolled out of sight above it.
     for (const [hash, rowSel, opened, room] of [
       ["conversations", ".cv-row", ".conversations .ix-thread-pane", ".conversations > .cv-list"],
       ["clients", ".pl-table tbody tr.pl-card-row", ".cl-prof-name", "body"],

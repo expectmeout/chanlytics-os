@@ -515,10 +515,6 @@ test("the writes listed as untold are still untold, and each says why", () => {
 const NOT_READ = {
   "PUT lead-suggestions -> leads":
     "The ideas are kept through an object the trace does not follow (ideaStore.saveLine in server/leads/lead-suggestions.ts); it writes lead_suggestions, which Leads reads for a new search's ideas (GET lead-suggestions).",
-  "PUT people/[id]/business -> leads":
-    "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: drop leads() from the row once the peek is seen to redraw from People's re-read alone.",
-  "DELETE people/[id]/business -> leads":
-    "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: drop leads() from the row once the peek is seen to redraw from People's re-read alone.",
   "POST settings/receptionist -> reports_campaigns":
     "channelChange() names the Campaigns lens for the connected number's health; the first receptionist writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST calendar/visits/[id] -> reports_people":

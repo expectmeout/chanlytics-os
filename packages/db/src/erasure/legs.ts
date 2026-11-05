@@ -166,6 +166,25 @@ export async function beginErasure(
   if (error) throw new Error(`begin_erasure: ${error.message}`);
 }
 
+/**
+ * A press of Delete… for a selection of any size (people_erase_begin, 00547): everyone named out of reach and on the
+ * ledger, in one transaction, on the member's own session, which the door judges. Who is going and who has no address to
+ * say automated, each in the order named; anyone else named was not this workspace's to delete, or is gone already.
+ */
+export async function beginPeopleErasure(
+  db: Db,
+  p: { tenantId: string; ids: string[]; notAPerson: boolean },
+): Promise<{ going: string[]; noAddress: string[] }> {
+  const { data, error } = await db.rpc("people_erase_begin", {
+    p_tenant_id: p.tenantId,
+    p_contact_ids: p.ids,
+    p_not_a_person: p.notAPerson,
+  });
+  if (error) throw new Error(`people_erase_begin: ${error.message}`);
+  const answer = data as { going?: string[]; no_address?: string[] } | null;
+  return { going: answer?.going ?? [], noAddress: answer?.no_address ?? [] };
+}
+
 /* ---- the stored objects ---- */
 
 /**

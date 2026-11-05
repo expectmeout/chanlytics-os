@@ -535,7 +535,7 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
 | `bundle-week.yml`                          | Mondays, and by hand                                                                              | What a workspace loads, main beside main a week before, from the records every push to main keeps; a sum grown past its week's line keeps one issue open, naming the merges                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                   | Production has applied every migration main carries, nothing main does not, and each under the name main's file has (a version both hold under different names is two migrations on one number); a day's disagreement keeps an issue open and pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `migrate.yml`                              | by hand alone (Actions, Run workflow), from main; the press is the approval                       | Main's migrations reach production once main's own CI and Database runs passed on the commit and both apps serve it or a later one: the dry run lists exactly what main carries and production lacks (`tooling/scripts/checks/migration-push.mjs`: no version under two names, nothing production holds that main does not, nothing below production's head), then `supabase db push`, then the compare; the job summary says what was applied. Off until the `production` Environment's three secrets are set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `production-smoke.yml`                     | the edge's production deployment ready, once per merge (it deploys after the dashboard)           | Both hosts answer with the deployed commit (`tooling/scripts/checks/smoke.mjs`), asked up to ten times over five minutes; a commit main has moved past is left to the newer one; a failure opens, or comments on, `Production smoke failed (<sha>)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `production-smoke.yml`                     | either project's production deployment finished; it smokes on the one that finished last          | Both hosts answer with the deployed commit (`tooling/scripts/checks/smoke.mjs`), once both projects have deployed it, asked up to ten times over five minutes; a commit main has moved past is left to the newer one; a failure opens, or comments on, `Production smoke failed (<sha>)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `preview-smoke.yml`                        | a dashboard preview ready; off until the variable `PREVIEW_SMOKE` is `1`                          | The credential-free specs against the pull request's preview                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 Every run on main finishes: a pull request's newer run cancels its older one,
@@ -641,12 +641,15 @@ lists them; deleting one is Ruben's call.
    `VERCEL_AUTOMATION_BYPASS_SECRET`, and `--allow-unhealthy` takes a 503 from a preview with no database), and
    `node tooling/scripts/ops/golden-edge.mjs --no-secret` probes the edge's public pages and each door refusing a
    stranger, with `BASE_URL` or a preview's `VERCEL_URL`, holding no secret. `.github/workflows/production-smoke.yml`
-   runs that smoke by itself once per merge, when the edge's production deployment is ready (the edge deploys about
-   three minutes after the dashboard; Vercel names the commit's sha as the deployment's ref), up to ten times over
-   five minutes, and a failure opens, or comments on, the issue `Production smoke failed (<sha>)`: read it before
-   anything else, and "Roll back" says how to promote the previous deployment. A commit main has already moved past
-   is left to the newer commit's own smoke. Nothing checked production after a deploy before October 2026; this step
-   was a command a person ran, or did not.
+   runs that smoke by itself once per merge, once both projects' production deployments of the commit have finished,
+   on the event of whichever finished last: neither project waits for the other, and either can be minutes behind
+   (the dashboard finished seven minutes after the edge on 2 Nov 2026), so each finished deployment reads the other's
+   from GitHub's deployments API (`smoke.mjs --turn`) and leaves the smoke to it while it is still deploying or
+   finished later. Vercel names the commit's sha as the deployment's ref. The smoke asks up to ten times over five
+   minutes, and a failure, a deployment that failed among them, opens, or comments on, the issue
+   `Production smoke failed (<sha>)`: read it before anything else, and "Roll back" says how to promote the previous
+   deployment. A commit main has already moved past is left to the newer commit's own smoke. Nothing checked
+   production after a deploy before October 2026; this step was a command a person ran, or did not.
 5. A merge that carried a migration: the migration was applied before the merge, from the pull request's branch, or
    is applied now by `.github/workflows/migrate.yml`, started by hand, as its header says ("Apply a migration",
    below). Either way the compare must find nothing missing.
@@ -986,6 +989,42 @@ update public.lead_platform set cards_on = array['local_businesses', 'people_at_
 Find people appears on Leads at its next read, and Ask proposes people searches. Off again is the same update with the
 card left out; a search already running finishes.
 
+## Turn on Anthropic's user profiles
+
+Without a profile on a request, one customer's flagged traffic can restrict the whole organization (decision 0097). They are
+off until `ANTHROPIC_PROFILES=on` is set on the edge's Vercel project.
+
+Before the switch: 00544 on production (with the switch on and no table, every model call is held), and one read with the
+production key, which creates nothing and proves the key, the endpoint and the shape:
+
+```bash
+curl -s "https://api.anthropic.com/v1/user_profiles?limit=1" -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2026-10-21"
+```
+
+After the switch and a redeploy, each person and workspace has a profile by their first call, and the health sweep (:13 and :43)
+makes five more a tick. Read these:
+
+- Console › Health › Model calls, "Anthropic profiles": how many are kept, wait to be made and wait to be deleted, and who is limited or paused.
+- `model_call_no_profile` in the logs: a call that went without one, because its create failed or is in flight. It should go quiet.
+- `anthropic_profile_not_made`, `anthropic_profile_not_deleted` and `anthropic_profiles_unlisted`: what Anthropic refused or did not answer.
+- `anthropic_profile_twice`: two profiles found for one reference. The sweep kept the oldest and left the other at Anthropic.
+
+A profile works only under the organization that made it: anything else is a 400, on that person's or workspace's every
+call. So `ANTHROPIC_API_KEY` stays in this organization. A key from another one, the second organization for our own use above
+all, would refuse every stored id.
+
+Off again is the variable unset: requests go with no profile and none is made. Profiles already made stay at Anthropic, and those
+whose person or workspace goes are still deleted.
+
+**When Anthropic restricts an account,** the platform is paged once and the shell says "Your receptionist is limited". Its calls
+still go under its own id, and Anthropic decides each one. What it refuses fails as any refusal does: the receptionist sends its
+holding reply and hands the message to a person.
+
+**When Anthropic bans an account,** the platform is paged and its calls stop here: Ask says it is paused, and the receptionist
+holds every message for a person. Everyone else goes on in both cases. Read why on Health. Never clear `enforcement_status` by
+hand, and never delete a row to get an account a new profile: that is evading a safety action, and the next listing would say the
+same of the old id anyway. It lifts when Anthropic's list says it has.
+
 ## Turn on push
 
 The phone app is told through Expo's push service (`apps/edge/lib/ops/push.ts`, PR 0 and PR 2 of the phone app).
@@ -1236,6 +1275,59 @@ page_spots(7, 50000);` for the elements.
 5. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
+## When calls fail
+
+The phone receptionist's troubles, each with where it shows and what to do (decision 0092; `docs/voice.md` is the whole
+picture).
+
+- **The canary failed** (an issue "Voice canary failed", and a page). The verdict names what did not hold: `call_placed`
+  (the provider would not ring: its balance, the canary's number, the caller agent), `composed` (the inbound plan did not
+  compose the facts in time: `retell_inbound` with `facts`, `plan_ms`), `analysed`, `thread_line`, `notice_claimed` and
+  `notice_told` (the webhook: `retell_event`, `ingest_call_failed`, `call_notice_owed`), `recording_stored`
+  (`calls_sweep_done`'s recordings), `hold_released`, `inbound_signed` and `webhook_signed` (the signature:
+  `/api/diag`'s `retellAuth.doors`).
+- **Calls end our way** (a page "Calls are ending on our side"): `credit_exhausted` or `no_valid_payment` is the
+  provider's account (turn on auto-recharge); `concurrency_limit_reached` is its limit on calls at once (raise it);
+  `error_inbound_webhook` is our `/api/retell-inbound` (its log at the call's time); any other `error_*` is the provider's
+  (its log and status page).
+- **Near the limit on calls at once** (a page "The voice provider is on N of its M calls"): raise the account's limit
+  before callers hear a busy line.
+- **Drift** (a page "N phone lines have drifted from the product's shell"): run
+  `EDGE_CALL_SECRET=… node --import tsx tooling/scripts/ops/voice/voice-converge.mjs` (a dry run), then `--apply --publish`.
+  A line whose number follows the latest version rather than the published one (provisioning could not publish):
+  `--agent agent_… --pin +1… --apply`, which the door refuses while that agent's latest version is a draft.
+- **An owner says no email came for a call**: `call_notice_owed` in the edge log; the calls sweep finishes an owed notice
+  for two days (`calls_sweep_done`'s notices). Past that the mail provider was down: Health's mail line.
+- **A missed call has no line in the thread**: the sweep writes it fifteen minutes after the call (`calls_sweep_done`'s
+  notes).
+- **Closing the shared secret**: read `/api/diag`'s `retellAuth.doors`; once `inbound`, `fn` and `availability` each show
+  signed knocks, set `RETELL_DOORS_SIGNED=1` on the edge and converge every agent (`--apply --publish`), which takes the
+  header off the tools.
+
+## A page is not updating
+
+A page hears what changed from its workspace's topic on Realtime (`workspace:<id>:changes`, decision 0019): the database
+tells it once a transaction for each table and event, at the commit, and the tab reads again what the notice names. What
+the feed cannot tell (a return to the tab, the network back, a join or a rejoin, midnight) is read in one pass, and
+anything a page draws is read again once its last read is 15 minutes old. `docs/architecture.md`, "The shell", says how.
+
+1. **Ask the tab.** The status line under the top bar says when the feed is down ("Live updates aren't coming
+   through") or a surface stopped refreshing. DevTools' console has `realtime_status` for a channel that errored or
+   timed out, and `surface_override_failed` with the surface's key for a read that failed.
+2. **Ask what the tabs said.** Each tab reports, beside its page speed as it is put away, how long its feed was down
+   (`FEED_DOWN`, ms), how many times it came back (`FEED_BACK`) and each surface's reads that failed (`READ_FAILED`, the
+   surface as its part), only where something happened (00509, `apps/dashboard/src/legacy-bridge/hearing/freshness.ts`).
+   As the service role: `select * from page_freshness(7);`, by metric, page and part.
+3. **Ask the database whether it told.** As the service role, the notices a workspace was told in the last ten minutes:
+   `select inserted_at, event, payload from realtime.messages where topic = 'workspace:<tenant id>:changes' and
+inserted_at > now() - interval '10 minutes' order by inserted_at desc;`. None for a change you made means the table is
+   not watched (`packages/db/src/realtime.ts` WATCHED) or the update moved no column a page draws (NARROWED_UPDATES).
+4. **Ask whether the page hears it.** `tooling/scripts/tests/baselines/reads-not-heard.json` lists every table a page
+   draws and does not hear, and why; a pair there under `owed` is a known gap. `tooling/scripts/tests/baselines/hearing/`
+   says, per page, what each notice reads.
+5. **Realtime itself.** Supabase's dashboard, Realtime: the project's connections and messages against the plan, and
+   "Allow public access" off (the production smoke asks that an anonymous join is refused).
+
 ## Read the logs
 
 ### What a log line holds
@@ -1371,9 +1463,40 @@ Every version of a workspace's settings is kept while it is in force and 400 day
 ## Read the jobs ledger
 
 Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's
-intake, the lead finder, a phone told. pg_cron asks every ten seconds whether one is due and calls `api/jobs/tick`,
-which runs up to three at once (`CLAIM_SLOTS`; `1` is the old one at a time). The claim takes a reply first, then someone
-waiting who is not a customer, then bulk, each workspace taking its turn at bulk (decision 0018).
+intake, the lead finder, a phone told. pg_cron asks every two seconds whether one is due and calls `api/jobs/tick` at once
+for a row that just came due, and every ten seconds for the rest of the ledger; a tick runs up to three at once
+(`CLAIM_SLOTS`). The claim takes a reply first, then someone waiting who is not a customer, then bulk, each workspace
+taking its turn in each lane (decision 0018). Each kind's lane and once-only rule is its row in `job_kinds` (00526); a
+job that threw waits `scheduled` for its next try, so `fired` always means running (decision 0089).
+
+### When the ledger pages
+
+Each page names its condition (`operator_pages.key`); our own workspaces' work never pages (Health shows it under Ours).
+
+- **`/api/health` names `jobs_canary`.** The ledger's own check has not finished for three minutes: pg_cron, pg_net, the
+  edge, the claim or a handler stopped. `select * from sweep_health() where sweep in ('jobs', 'jobs_canary');` says which:
+  `jobs` unhealthy is the clock or the edge's answer (its note or status code); `jobs` healthy and `jobs_canary` not is the
+  claim or the run (read the edge's `jobs_tick` and `jobs_tick_failed` lines). The canary runs in our first workspace.
+- **`jobs_backlog`.** Work the claim could take and has not for two minutes, a lease that ran out counted too: `select
+kind, state, count(*), min(due_at) from jobs where (state = 'scheduled' and due_at < now() - interval '2 minutes') or
+(state = 'fired' and lease_until < now() - interval '2 minutes') group by 1, 2;`. A paused kind is never counted.
+- **`jobs_replies_late`.** A customer's reply waited a minute for its claim: see "Is a reply waiting?" below.
+- **`jobs_mass_failure`.** Ten or more customers' jobs failed in one heartbeat: the page holds the query; the same
+  `last_error` across workspaces is a shared cause (a provider's key, the database, a deploy).
+- **`jobs_paused:<kind>`.** A kind is paused, on purpose, and nothing of it runs until it is resumed: the Console's
+  Health, Background work, The ledger now, Resume. Paged once per window while it holds.
+- **`job_payload_refused:<kind>`.** A job was written without an id its handler needs (packages/jobs kinds.ts `ids`): it
+  failed as never run. The writer is ours; the page names the job.
+- **`event_deliver_failed:<subscriber>`, a lead search's collect.** The platform's to mend: Deliver again (Health) once it
+  is, never Run again; a search says it stopped by itself.
+
+**The incident lever.** A provider answering garbage, a run that should not go on, a handler a deploy broke: pause its
+kind on Health (it asks why; the Admin log keeps it). Its rows wait where they are, due or not, and Resume makes what
+waited due at once, oldest first. A send already claimed finishes; nothing new of the kind is claimed.
+
+**After an outage.** Run every failed job of a kind again since a moment (Health, The ledger now, Run every failed one
+again: `POST /api/v1/platform/jobs/requeue-kind`), at most 200 a press, each once (a copy names the job it copies,
+`requeue_of`). Sends, and jobs that spoke, are never run again: send them again from the thread or the broadcast.
 
 - **Is a reply waiting?** Each `jobs_tick` line in the edge's logs carries `late_ms_<kind>`, the worst first-claim wait of
   each kind in that heartbeat, and `reply_late_ms`, the reply lane's. A reply claimed more than a minute late pages the

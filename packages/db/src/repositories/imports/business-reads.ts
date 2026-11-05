@@ -62,6 +62,20 @@ export async function listingFactsStored(db: Db, tenantId: string): Promise<Json
   return data ? (data.facts ?? null) : null;
 }
 
+/**
+ * The workspace's listing row changed with what a read of it says: the public listing's (the edge's listing-check.ts: its
+ * rating, its count, its facts, or why it could not be read) and the owner's own profile's details where they are
+ * connected (profile-details.ts). Service role.
+ */
+export async function patchListing(
+  db: Db,
+  tenantId: string,
+  patch: Database["public"]["Tables"]["google_listings"]["Update"],
+): Promise<void> {
+  const { error } = await tenantDb(db, tenantId).from("google_listings").update(patch);
+  if (error) throw new Error(`google_listings: ${error.message}`);
+}
+
 /** The place the workspace's listing is linked to (google_listings.place_id), when one is: what the owner said was theirs. */
 export async function linkedPlaceOf(db: Db, tenantId: string): Promise<string | null> {
   const { data, error } = await tenantDb(db, tenantId).from("google_listings").select("place_id").maybeSingle();

@@ -45,6 +45,25 @@ export const ReceptionistModeBody = z.object({ mode: MODE });
 /** The same for many people (PUT contacts/receptionist). */
 export const ReceptionistManyBody = z.object({ ids: SOME_PEOPLE, mode: MODE });
 
+/**
+ * What one request can carry of a press's people, under the host's 4.5 MB, and twice what People holds (fifty pages of a
+ * thousand). It is not a limit on anyone: a press takes everyone selected (decision 0036, 5 Nov 2026).
+ */
+const ONE_REQUEST_CARRIES = 100_000;
+
+/**
+ * Many people deleted at one press (POST contacts/erase), however many, handed to the ledger in one write, which erases
+ * them as Delete person erases one; with `not_a_person`, each one's address said automated first, so their mail stays in
+ * the mailbox from now on.
+ */
+export const EraseManyBody = z.object({
+  ids: z
+    .array(z.uuid())
+    .min(1, "Pick at least one person.")
+    .max(ONE_REQUEST_CARRIES, "Too many people for one request."),
+  not_a_person: z.boolean({ message: "Not a person is a yes or a no." }).optional(),
+});
+
 /** One line under many people's notes (PUT contacts/notes), appended and never replacing. */
 export const NotesAppendManyBody = z.object({
   ids: SOME_PEOPLE,

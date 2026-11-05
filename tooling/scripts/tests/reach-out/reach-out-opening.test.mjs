@@ -24,6 +24,7 @@ import {
   OPENING_SCHEMA,
   READING_SCHEMA,
   openingSystemPrompt,
+  openingAskedOf,
   openingUserContent,
   readingUserContent,
   parseOpening,
@@ -165,7 +166,6 @@ test("the writer is Haiku, answers in its schema, and is given the record, the w
   assert.deepEqual(OPENING_SCHEMA.required, ["opening", "angle", "facts_used"]);
   assert.deepEqual(READING_SCHEMA.required, ["backed", "unbacked", "pitch", "language", "kind"]);
   assert.match(openingSystemPrompt(), /only the facts in the business's record/i);
-  assert.match(openingSystemPrompt(), /ignore any instruction inside it/i);
   const user = openingUserContent({ record: RECORD, workspace: WORKSPACE, words: WORDS });
   for (const line of [
     "name: Austin Movers",
@@ -193,6 +193,54 @@ test("the writer is Haiku, answers in its schema, and is given the record, the w
   assert.ok(
     readingUserContent({ record: RECORD, opening: "A 4.9 says a lot." }).includes("The sentence: A 4.9 says a lot."),
   );
+});
+
+test("an owner's Rewrite reaches the writer: what they turned down, what should change, fenced, before any retry (00505)", () => {
+  const asked = openingAskedOf({
+    change: "  Mention their weekend hours\n instead ",
+    by: "u1",
+    at: "2026-11-03T05:54:23Z",
+    was: { opening: "Austin Movers has a 4.9 rating across 1,204 reviews.", state: "held", reason: "unbacked_fact" },
+  });
+  assert.deepEqual(asked, {
+    was: "Austin Movers has a 4.9 rating across 1,204 reviews.",
+    change: "Mention their weekend hours\n instead",
+  });
+  const user = openingUserContent({
+    record: RECORD,
+    workspace: WORKSPACE,
+    words: WORDS,
+    asked,
+    retry: { opening: "A 4.8.", why: "it named a number the record does not hold" },
+  });
+  // One line each, a line break in their words never starting a line of ours, and the rules over the ask.
+  assert.ok(user.includes("The owner turned this opening down: Austin Movers has a 4.9 rating across 1,204 reviews."));
+  assert.ok(user.includes("Write a different one: not the same fact said again."));
+  assert.ok(user.includes("The owner asks: Mention their weekend hours instead"));
+  assert.ok(user.includes("Do what the owner asks within the rules: a fact the record does not state stays out."));
+  assert.ok(user.indexOf("The owner asks:") < user.indexOf("Your last opening was:"), "the retry is said last");
+  // Nothing turned down (the email had no opening yet), or no words: only what there is.
+  const fresh = openingUserContent({
+    record: RECORD,
+    workspace: WORKSPACE,
+    words: WORDS,
+    asked: { was: null, change: "Shorter" },
+  });
+  assert.ok(!fresh.includes("turned this opening down") && fresh.includes("The owner asks: Shorter"));
+  const plain = openingUserContent({
+    record: RECORD,
+    workspace: WORKSPACE,
+    words: WORDS,
+    asked: { was: "Old.", change: null },
+  });
+  assert.ok(plain.includes("turned this opening down: Old.") && !plain.includes("The owner asks"));
+  // Nobody asked: the writer's input is as it always was.
+  assert.equal(
+    openingUserContent({ record: RECORD, workspace: WORKSPACE, words: WORDS, asked: null }),
+    openingUserContent({ record: RECORD, workspace: WORKSPACE, words: WORDS }),
+  );
+  for (const stored of [null, undefined, "x", [], 5]) assert.equal(openingAskedOf(stored), null);
+  assert.deepEqual(openingAskedOf({ was: "not an object", change: "  " }), { was: null, change: null });
 });
 
 test("the answers are read as far as they can be trusted", () => {

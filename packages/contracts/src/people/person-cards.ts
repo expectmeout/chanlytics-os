@@ -594,15 +594,6 @@ export function aboutOf({
   return about;
 }
 
-/** "Since Jul 14" / "Since before Aug 27" / "" */
-export function sinceWords(base: PersonRowVM): string {
-  return base.firstContact.label === "—"
-    ? ""
-    : base.firstContact.estimate
-      ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}`
-      : `Since ${base.firstContact.label}`;
-}
-
 /**
  * The row's reply fields made exact by the profile: the wire in words, its window, and the booking link's act for it
  * (which says an address that stopped accepting mail cannot be emailed: `emailStopped`, the row's own flag; and offers

@@ -115,11 +115,13 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "website_read",
       "preview_build",
       "erasure_finish",
+      "reply_draft",
+      "canary",
     ],
   );
   const handlers = readCode("packages/jobs/src/handlers.ts");
   for (const k of JOB_KINDS)
-    assert.ok(new RegExp(`^\\s*${k}: \\w+,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
+    assert.ok(new RegExp(`^\\s*${k}(?:: \\w+)?,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
   for (const dead of [
     "veto_fire",
     "media_fetch",
@@ -146,7 +148,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
     const inserted = new RegExp(`insert into (?:public\\.)?jobs\\b[^;]*'${k}'`, "s");
     assert.ok(named.test(src) || inserted.test(sql), `${k} is scheduled by something`);
   }
-  // That the CHECK agrees is held at compile time by contracts/src/shared/schema-sets.ts.
+  // That the database's job_kinds rows agree is held by jobs/job-kinds.test.mjs (decision 0089).
 });
 
 test("the retired kind is withdrawn from the database too, rows first", () => {

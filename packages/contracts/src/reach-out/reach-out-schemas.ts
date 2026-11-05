@@ -19,6 +19,8 @@ import { HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
 import { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "./reach-out-dtos";
 import { OWNER_SAID_INTENTS } from "./reach-out-replies";
 import { LEAD_LIST_MAX } from "../leads/lead-import";
+import { LEAD_REWRITE_CHANGE_MAX } from "../sequences/sequence-lead-build";
+import { REWRITE_NOW_MAX } from "../sequences/sequence-held";
 import { REACH_OUT_SIGNS_WITH } from "./reach-out-rules";
 
 /** GET reach-out-replies: since when (at most the reading's window back), and one thread's alone. */
@@ -96,7 +98,29 @@ export const ReachOutPreviewSchema = z.object({
 
 export type ReachOutPreviewInput = z.infer<typeof ReachOutPreviewSchema>;
 
-export const ReachOutDecideSchema = z.object({ decision: z.enum(REACH_OUT_DECISIONS) });
+/**
+ * POST reach-out-sends/:id/decide: the member's answer to one email. A rewrite may say what should change (00505, at most
+ * LEAD_REWRITE_CHANGE_MAX characters); its opening is written by POST reach-out-sends/check.
+ */
+export const ReachOutDecideSchema = z
+  .object({
+    decision: z.enum(REACH_OUT_DECISIONS),
+    change: z
+      .string()
+      .trim()
+      .max(LEAD_REWRITE_CHANGE_MAX, `Say it in ${LEAD_REWRITE_CHANGE_MAX} characters or fewer.`)
+      .optional(),
+  })
+  .refine((b) => b.decision === "rewrite" || !b.change, { message: "Only a rewrite takes words." });
+
+/**
+ * POST reach-out-sends/check (00505): the emails a person pressed Rewrite on, written now, at most REWRITE_NOW_MAX; as a
+ * stream of lines (`stream`), each step the check takes said as it takes it.
+ */
+export const ReachOutCheckSchema = z.object({
+  send_ids: z.array(z.uuid()).min(1, "Which emails?").max(REWRITE_NOW_MAX, `At most ${REWRITE_NOW_MAX} at once.`),
+  stream: z.boolean().optional(),
+});
 
 /** POST reach-out-sends/:id/said (00429): the owner's word on an email handed to them, that it went or did not. */
 export const ReachOutSaidSchema = z.object({ outcome: z.enum(REACH_OUT_SAID_OUTCOMES) });

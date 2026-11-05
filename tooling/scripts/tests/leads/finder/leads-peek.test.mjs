@@ -20,6 +20,7 @@ import { roleGate } from "../../../../../packages/contracts/src/shell/refusal.ts
 import { stateOf } from "../../../../../packages/contracts/src/shell/tone.ts";
 import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { LEAD_DOCK_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet-dock.ts";
+import { LEAD_ASKED_NOT_WRITTEN } from "../../../../../packages/contracts/src/leads/lead-words.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
@@ -104,6 +105,9 @@ let placeFails = false;
 let doorRefuses = false;
 let sequencesListed = [];
 const placed = {};
+// A lead's own words at each step they have some (decision 0096), by lead; and that read refusing.
+const ownWords = {};
+let wordsFail = false;
 let recorded = null;
 const READ_REFUSED = { ok: false, error: { code: "internal", message: "It did not answer." } };
 const json = (status, body) =>
@@ -126,6 +130,11 @@ globalThis.window = {
     wired.push(String(url));
     if (/^\/api\/v1\/reach-outs\/leads\?/.test(String(url)))
       return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
+    if (/^\/api\/v1\/leads\/[^/]+\/emails\?/.test(String(url))) return json(200, { ok: true, data: [] });
+    if (/^\/api\/v1\/leads\/[^/]+\/words\?/.test(String(url)))
+      return wordsFail
+        ? json(500, READ_REFUSED)
+        : json(200, { ok: true, data: ownWords[String(url).split("/")[4]] ?? [] });
     if (/^\/api\/v1\/leads\/[^/]+\/place\?/.test(String(url)))
       return placeFails
         ? json(500, READ_REFUSED)
@@ -353,6 +362,10 @@ const NOW = new Date("2026-09-18T20:00:00.000Z");
 const TZ = "America/Chicago";
 const vmOf = (over) => toLeadPeekVM(row(over), SEARCH, TZ, NOW);
 
+/** The words the route writes, and what the mail app's road puts under them. */
+const WRITTEN = "Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.";
+const FOOT = leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701");
+
 /** A courier that answers as the routes do, and records what it was asked. */
 const courierOf = (over = {}) => {
   const seen = [];
@@ -386,10 +399,23 @@ const courierOf = (over = {}) => {
             data: {
               to: "hello@travisheightscoaching.example",
               subject: "Missed calls at Travis Heights",
-              body: `Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.${leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701")}`,
+              body: `${WRITTEN}${FOOT}`,
               mailto: "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls",
+              words: WRITTEN,
+              mail_foot: FOOT,
+              from: over.from ?? null,
+              why_not: over.from ? null : (over.whyNot ?? null),
+              foot: over.from ? "Sam\n\nI came across your business on Google Maps." : null,
             },
           };
+    },
+    __leadSend: async (id, words) => {
+      seen.push(["send", id, words]);
+      return over.send ? over.send(words) : { ok: true, data: { message_id: "m-1", from: over.from } };
+    },
+    __leadCallBack: async (id) => {
+      seen.push(["callBack", id]);
+      return over.callBack ? over.callBack() : { ok: true, data: {} };
     },
     __leadUndo: async (opId, version) => {
       seen.push(["undo", opId, version]);
@@ -510,7 +536,7 @@ const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 /* ==================================================== the one draw ==== */
 
 // Where this lead stands, read: the sheet the rest of this file draws is the one whose reads are in.
-await sequenceVerbs.place(LEAD);
+await Promise.all([sequenceVerbs.place(LEAD), sequenceVerbs.leadEmails(LEAD), sequenceVerbs.leadWords(LEAD)]);
 
 const saysReading = (tree) => byTestId(tree, "lead-sheet-reading") !== null;
 /** What only a read can say: drawn before it lands, these are a guess the next read takes back. */
@@ -577,15 +603,16 @@ test("the add door owes an answer until it gives one or cannot, and asking again
   assert.equal(aimNow().checking(other), false, "no answer is coming: the sheet does not wait on one for ever");
 });
 
-test("a lead that needs nothing has no foot, in a pile too: its line waits in the body, and the foot comes back to say it", async () => {
+test("a lead with nothing left to press has no foot, in a pile too: its line waits in the body, and the foot comes back to say it", async () => {
   reset();
   const IN = "5e000000-0000-4000-8000-000000000555";
   const ROOT = "5e000000-0000-4000-8000-0000000000bb";
   recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
   await sequenceVerbs.record(ROOT);
+  // They unsubscribed: no Put back, no sequence of theirs runs, and nothing of yours is offered, so nothing is left to press.
   placed[IN] = {
     sequence: { id: ROOT, name: "Trainers", state: "on" },
-    place: { group: "in", place: 2, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    place: { group: "left", place: 2, at: NOW.toISOString(), why: "unsubscribed", send_id: null, batch_id: null },
     sends: [],
     reads_replies: true,
     owner_sends: false,
@@ -604,13 +631,287 @@ test("a lead that needs nothing has no foot, in a pile too: its line waits in th
   await until(() => !saysReading(inPile(null)), "their place and its record landing");
   const foot = (tree) => all(tree, (n) => n.props?.className === "lw-foot");
   const desk = inPile(null);
-  assert.equal(foot(desk).length, 0, "nothing needs you: no foot");
+  assert.equal(foot(desk).length, 0, "nothing left to press: no foot");
   assert.ok(byTestId(desk, "lead-pile-said"), "the live region is there before it speaks");
   assert.ok(byTestId(inPile("Added Pearl Nail Bar"), "lead-pile-said"));
   assert.equal(foot(inPile("Added Pearl Nail Bar")).length, 1, "and the foot comes back to say what a press did");
   const phone = inPile(null, { phone: true });
   assert.equal(phone.props.foot, null, "on a phone a foot is a capsule, words or none: so none");
   assert.ok(byTestId(phone, "lead-pile-said"));
+});
+
+/** The test ids drawn under a node, once each, in their order: a kit component and the element it renders share one. */
+const idsUnder = (node, pattern) => [
+  ...new Set(all(node, (n) => pattern.test(n.props?.["data-testid"] ?? "")).map((n) => n.props["data-testid"])),
+];
+
+test("their sequence runs and nothing needs you: Take out asks, Never write under it, and Write to them is the draft", async () => {
+  reset();
+  const IN = "5e000000-0000-4000-8000-000000000666";
+  const ROOT = "5e000000-0000-4000-8000-0000000000cc";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[IN] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: { group: "next", place: 1, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const courier = courierOf();
+  const P = page({ vm: vmOf({ id: IN }), courier });
+  await until(() => !saysReading(P.draw().tree), "their place and its record landing");
+  const tree = P.draw().tree;
+  assert.deepEqual(
+    idsUnder(byTestId(tree, "lead-sheet-dock"), /^lead-sheet-(leave|call|write)$/),
+    ["lead-sheet-leave", "lead-sheet-call", "lead-sheet-write"],
+    "the quiet ways on: Take out, your call, your email",
+  );
+  assert.deepEqual(
+    idsUnder(byTestId(tree, "lead-sheet-quick"), /^lead-sheet-call$/),
+    [],
+    "a door never repeats the dock",
+  );
+  assert.equal(await menuItem(P, "Never write"), null, "Take out asks it while their sequence runs");
+  await press(byTestId(tree, "lead-sheet-leave"));
+  const asked = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
+  assert.match(textOf(asked), /Take Travis Heights Coaching Co\. out of Trainers\?/);
+  await press(byTestId(asked, "lead-sheet-leave-never"));
+  assert.ok(
+    byTestId(P.draw().tree, "lead-sheet-stop-confirm"),
+    "Never write to them again: the stop door's own question",
+  );
+  await press(byTestId(P.draw().tree, "lead-sheet-stop-no"));
+
+  await press(byTestId(P.draw().tree, "lead-sheet-write"));
+  await until(() => P.st.draft && !P.st.draft.busy, "the draft written");
+  const writing = P.draw().tree;
+  assert.equal(P.st.mode, "draft");
+  assert.equal(byTestId(writing, "peek-draft-subject").props.value, "Missed calls at Travis Heights");
+  assert.equal(byTestId(writing, "peek-draft-body").props.value, WRITTEN, "the words alone, theirs to change");
+  const app = byTestId(writing, "peek-open-mail");
+  assert.match(app.props.href, /^mailto:hello%40travisheightscoaching\.example\?subject=Missed%20calls%20at/);
+  await press(app);
+  assert.equal(P.st.armed.kind, "sent", "opening their mail app asks Did you send it? once they are back");
+  P.st.armed = { ...P.st.armed, asked: true };
+  await press(byTestId(P.draw().tree, "peek-sent-yes"));
+  assert.deepEqual(courier.seen.at(-1), [
+    "stage",
+    IN,
+    { kind: "emailed", words: { subject: "Missed calls at Travis Heights", body: WRITTEN } },
+  ]);
+  assert.equal(P.st.mode, "info", "sent: back to the card");
+  const after = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
+  assert.match(textOf(after), /You wrote to them yourself/, "and Take out is asked, said for why");
+  assert.equal(byTestId(after, "lead-sheet-leave-never"), null);
+});
+
+test("a call that reached them asks nothing: the send door writes to them no more, and the sheet offers nothing it cannot do", async () => {
+  reset();
+  const CALLED = "5e000000-0000-4000-8000-000000000888";
+  const ROOT = "5e000000-0000-4000-8000-0000000000ee";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[CALLED] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: { group: "next", place: 1, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const armed = { kind: "call", leadId: CALLED, asked: true, outcome: "not_interested", note: "" };
+  const courier = courierOf();
+  const P = page({ vm: vmOf({ id: CALLED }), courier, armed });
+  await until(() => !saysReading(P.draw().tree), "their place and its record landing");
+  await press(byTestId(P.draw().tree, "peek-call-save"));
+  assert.deepEqual(courier.seen.at(-1), ["stage", CALLED, { kind: "outcome", outcome: "not_interested" }]);
+  assert.equal(byTestId(P.draw().tree, "lead-sheet-leave-confirm"), null, "no question: nothing more would go");
+  // The lead, as the door answered: said no. Its place has not caught up, and the sheet does not take its word.
+  P.p.vm = vmOf({ id: CALLED, stage: "archived", closed_reason: "said_no" });
+  const said = P.draw().tree;
+  assert.doesNotMatch(textOf(byTestId(said, "lead-sheet-verdict")), /tomorrow|Nothing needs you/);
+  assert.deepEqual(
+    idsUnder(byTestId(said, "lead-sheet-dock"), /^lead-sheet-/),
+    ["lead-sheet-dock", "lead-sheet-ready"],
+    "no Take out and no Write to them: its one fix",
+  );
+});
+
+test("an email waiting for your OK keeps Never write in More: its dock's Take out leaves only that email out", async () => {
+  reset();
+  const WAITS = "5e000000-0000-4000-8000-000000000777";
+  const ROOT = "5e000000-0000-4000-8000-0000000000dd";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[WAITS] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: {
+      group: "waiting",
+      place: 1,
+      at: NOW.toISOString(),
+      why: null,
+      send_id: "s-1",
+      batch_id: "b-1",
+      checked: true,
+    },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const P = page({ vm: vmOf({ id: WAITS }) });
+  await until(() => !saysReading(P.draw().tree), "their place and its record landing");
+  const dock = byTestId(P.draw().tree, "lead-sheet-dock");
+  assert.deepEqual(idsUnder(dock, /^lead-sheet-(take_out|leave|approve)$/), [
+    "lead-sheet-take_out",
+    "lead-sheet-approve",
+  ]);
+  assert.ok(await menuItem(P, "Never write"), "the one place it is asked while that email waits");
+});
+
+test("Write to them from a mailbox: Send is the primary, the mail apps under its caret, and what goes under the words is drawn", async () => {
+  reset();
+  const courier = courierOf({ from: "sam@getharbor.example" });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  const tree = P.draw().tree;
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-send")), /Send/);
+  assert.equal(textOf(byTestId(tree, "lead-sheet-write-from")), "From sam@getharbor.example");
+  assert.equal(byTestId(tree, "peek-open-mail"), null, "one primary");
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-foot")), /I came across your business/);
+  assert.equal(byTestId(tree, "lead-sheet-write-why"), null);
+  assert.ok(kitItem(tree, "lead-sheet-write-more", "Your mail app"), "the mail app stays, under the caret");
+});
+
+test("Their words changed go as changed: Send takes them, without the foot", async () => {
+  reset();
+  const courier = courierOf({ from: "sam@getharbor.example" });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  P.draw().acts.onWords({ words: "Hi, it's Sam. A short question." });
+  P.draw().acts.onWords({ subject: "A short question" });
+  assert.equal(P.st.draft.body.endsWith(FOOT), true, "the mail app's road keeps its foot under them");
+  await press(byTestId(P.draw().tree, "lead-sheet-write-send"));
+  await until(() => courier.seen.some((s) => s[0] === "send"), "the send");
+  assert.deepEqual(courier.seen.at(-1), [
+    "send",
+    P.p.vm.id,
+    { subject: "A short question", body: "Hi, it's Sam. A short question." },
+  ]);
+});
+
+test("Send: back to the card with Sending from… and an Undo that brings the words back, and Take out asked while their sequence runs", async () => {
+  reset();
+  const ROOT = "5e000000-0000-4000-8000-0000000000ef";
+  const IN = "5e000000-0000-4000-8000-000000000889";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[IN] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: { group: "in", place: 1, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const courier = courierOf({ from: "sam@getharbor.example" });
+  const P = page({ vm: vmOf({ id: IN }), courier });
+  await until(() => !saysReading(P.draw().tree), "their place landing");
+  await press(byTestId(P.draw().tree, "lead-sheet-write"));
+  await until(() => P.st.draft && !P.st.draft.busy, "the draft written");
+  await press(byTestId(P.draw().tree, "lead-sheet-write-send"));
+  await until(() => P.st.mode === "info", "back to the card");
+  const said = flashes.at(-1);
+  assert.equal(said.msg, "Sending from sam@getharbor.example");
+  const asked = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
+  assert.match(textOf(asked), /You wrote to them yourself/, "nurture keeps it writing, so it asks");
+
+  await said.undo();
+  assert.deepEqual(courier.seen.at(-1), ["callBack", "m-1"]);
+  assert.equal(P.st.mode, "draft", "its words come back to change");
+  assert.equal(P.st.draft.words, WRITTEN);
+  assert.equal(P.st.draft.sending, false);
+  await press(byTestId(P.draw().tree, "lead-sheet-step-back"));
+  assert.equal(P.st.mode, "info");
+  assert.equal(byTestId(P.draw().tree, "lead-sheet-leave-confirm"), null, "nothing went, so nothing asks about it");
+});
+
+test("Send refused: its words stay, the door's reason beside them, and nothing moves on", async () => {
+  reset();
+  const courier = courierOf({
+    from: "sam@getharbor.example",
+    send: () => ({ ok: false, message: "Your mailbox has sent its share for today." }),
+  });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  await press(byTestId(P.draw().tree, "lead-sheet-write-send"));
+  await until(() => P.st.draft.refusal, "the refusal");
+  const tree = P.draw().tree;
+  assert.equal(textOf(byTestId(tree, "peek-draft-error")), "Your mailbox has sent its share for today.");
+  assert.equal(byTestId(tree, "peek-draft-body").props.value, WRITTEN);
+  assert.equal(P.st.mode, "draft");
+  assert.equal(flashes.length, 0);
+});
+
+test("No mailbox: the mail app is the primary, as it was, and it says why", async () => {
+  reset();
+  const courier = courierOf({ whyNot: "Connect a Google mailbox on Connections to send from here." });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  const tree = P.draw().tree;
+  assert.ok(byTestId(tree, "peek-open-mail"));
+  assert.equal(byTestId(tree, "lead-sheet-write-send"), null);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /Connect a Google mailbox/);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-foot")), /no thanks/, "the foot that road puts under the words");
+});
+
+test("Write to them refused outright: why and the way back alone, no empty email and no mail app to press", () => {
+  reset();
+  const P = page({
+    mode: "draft",
+    draft: { busy: false, tone: "first", subject: "", body: "", mailto: null, refusal: LEAD_ASKED_NOT_WRITTEN },
+  });
+  const tree = P.draw().tree;
+  assert.equal(textOf(byTestId(tree, "peek-draft-error")), LEAD_ASKED_NOT_WRITTEN);
+  assert.ok(byTestId(tree, "lead-sheet-step-back"), "the way back");
+  for (const id of ["peek-draft-body", "peek-tone-shorter", "peek-open-mail", "lead-sheet-dock"])
+    assert.equal(byTestId(tree, id), null, `no ${id}: nothing was written`);
+});
+
+test("Write to them, a long email or a shut clipboard: the words are said to be copied, and a refused copy says so", async () => {
+  reset();
+  const long = `Hi,\n\n${"We answer the calls that ring out. ".repeat(130)}`;
+  const P = page({
+    mode: "draft",
+    draft: {
+      busy: false,
+      tone: "first",
+      to: "hello@travisheightscoaching.example",
+      subject: "Calls",
+      body: long,
+      mailto: null,
+    },
+  });
+  const tree = P.draw().tree;
+  assert.ok(byTestId(tree, "lead-sheet-write-paste"), "a link too long for the words: they are copied as it opens");
+  assert.doesNotMatch(
+    byTestId(tree, "peek-open-mail").props.href,
+    /body=/,
+    "the link carries the address and subject alone",
+  );
+  const was = globalThis.window.navigator.clipboard.writeText;
+  globalThis.window.navigator.clipboard.writeText = async () => {
+    throw new Error("Write permission denied.");
+  };
+  const said = (msg) => () => flashes.at(-1)?.msg === msg;
+  try {
+    await press(kitItem(tree, "lead-sheet-write-more", "Copy"));
+    await until(said(LEAD_WORDS.copyRefused), "the refused copy said");
+  } finally {
+    globalThis.window.navigator.clipboard.writeText = was;
+  }
+  assert.equal(P.st.armed, null, "nothing copied: Did you send it? is not armed");
+  await press(kitItem(P.draw().tree, "lead-sheet-write-more", "Copy"));
+  await until(said(LEAD_WORDS.copiedDraft), "the copy said");
+  assert.equal(P.st.armed.kind, "sent");
 });
 
 /* =================================================== the one scroll ==== */
@@ -715,7 +1016,11 @@ test("a Needs review lead says so and offers Keep and Leave out; one left out sa
     }),
   });
   tree = out.draw().tree;
-  assert.match(textOf(byTestId(tree, "lead-sheet-verdict")), /^Left out/, "the finder's own call, its verdict first");
+  assert.match(
+    textOf(byTestId(tree, "lead-sheet-verdict")),
+    /^Filtered out/,
+    "the finder's own call, its verdict first",
+  );
   await press(byTestId(tree, "lead-sheet-put_back"));
   assert.deepEqual(
     flashes.map((f) => f.msg),

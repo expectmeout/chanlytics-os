@@ -11,8 +11,9 @@
  * One model call reads the whole conversation (purpose receptionist_review, Sonnet: D3), every part of it as data. Its
  * answer is checked here, as the learning loop checks its model's (notes/fact-suggest.ts): what it quotes of the
  * receptionist must be the receptionist's words in that answer, and what it quotes of the instructions must be in them,
- * or the verdict is dropped. Nothing it says is taken on its word.
+ * each as its fence showed it, or the verdict is dropped. Nothing it says is taken on its word.
  */
+import { defang } from "../ai/fence";
 import type { Tone } from "../shell/tone";
 import type { RehearsalTurn } from "./rehearsal";
 
@@ -81,8 +82,11 @@ export function exchangesOf(turns: readonly RehearsalTurn[]): ReviewExchange[] {
   return out.slice(0, REVIEW_LIMITS.exchangesMax);
 }
 
-/** A part as the model reads it: inside its tag as JSON, never as instructions, and cut short. */
-const asData = (s: string, max: number) => s.replace(/\s+/g, " ").trim().slice(0, max);
+/**
+ * A part as the model reads it: inside its tag as JSON, never as instructions, unable to close the tag, and cut short,
+ * after what a reader cannot see is out, so a run of that uses up none of the bound.
+ */
+const asData = (s: string, max: number) => defang(s).replace(/\s+/g, " ").trim().slice(0, max);
 
 /** What the model is told. Every part of the conversation and the instructions is data inside tags. */
 export function reviewSystemPrompt(): string {
@@ -111,7 +115,7 @@ export function reviewUserContent(instructions: string, exchanges: readonly Revi
     receptionist: asData(e.receptionist, REVIEW_LIMITS.turnMaxChars),
   }));
   return [
-    `<instructions>\n${JSON.stringify(instructions.slice(0, REVIEW_LIMITS.instructionsMaxChars))}\n</instructions>`,
+    `<instructions>\n${JSON.stringify(defang(instructions).slice(0, REVIEW_LIMITS.instructionsMaxChars))}\n</instructions>`,
     `<conversation>\n${JSON.stringify(conv)}\n</conversation>`,
   ].join("\n");
 }
@@ -168,12 +172,15 @@ export type ReviewDto = {
   judged_against: "then" | "now";
 };
 
-/** Text compared as words: case, spacing and the curly quotes a transcript uses set aside. */
+/**
+ * Text compared as words: as its fence shows it, since a quote is of what the model was shown, with case, spacing and
+ * the curly quotes a transcript uses set aside.
+ */
 const comparable = (s: string) =>
-  s.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
+  defang(s).toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
 
-const textUpTo = (v: unknown, max: number) =>
-  typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "";
+/** What the model answered, read as a part is: a quote of nothing but what a reader cannot see has no length to pass on. */
+const textUpTo = (v: unknown, max: number) => (typeof v === "string" ? asData(v, max) : "");
 
 const isVerdict = (v: unknown): v is ReviewVerdict => (REVIEW_VERDICTS as readonly unknown[]).includes(v);
 const isFix = (v: unknown): v is FixKind => (FIX_KINDS as readonly unknown[]).includes(v);

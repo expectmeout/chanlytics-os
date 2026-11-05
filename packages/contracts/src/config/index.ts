@@ -129,6 +129,7 @@ export {
   hardLimitsWords,
   heldLine,
   isLiveCall,
+  MEMBER_REPLY_STALE_MS,
   namesMoney,
   PAUSE_HOURS_DEFAULT,
   pauseHoursOf,

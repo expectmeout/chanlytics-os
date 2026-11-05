@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { apiGet } from "../workspace";
-import { expectFocusInside, expectNoSidewaysScroll, sheetFloat } from "../signals";
+import { expectFocusInside, expectNoSidewaysScroll, sheetFloat, sheetFoot } from "../signals";
 
 /**
  * The business's record on a real workspace, and the things only a browser can show about it: Settings › Details, Hours &
@@ -1369,7 +1369,8 @@ test.describe("Settings › Business on a real workspace", () => {
       const rise = await boxOf(sheet, "the sheet");
       // It floats just clear of the screen's sides and foot, as every phone sheet does (#1789).
       const float = await sheetFloat(page);
-      expect(Math.round(rise.y + rise.h), "the sheet does not stand just clear of the bottom").toBe(844 - float);
+      const foot = await sheetFoot(page);
+      expect(Math.round(rise.y + rise.h), "the sheet does not stand just clear of the bottom").toBe(844 - foot);
       expect(Math.round(rise.w), "the sheet is not the screen's width less its float").toBe(390 - 2 * float);
 
       // Quiet, and made for a finger: nothing scrolls sideways, nothing loud is painted, every control is 44px.

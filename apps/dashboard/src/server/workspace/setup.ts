@@ -46,6 +46,8 @@ import {
   peopleCount,
   rehearsalTally,
   runningStepsOn,
+  setSetupChoices,
+  setupChoicesOf,
 } from "@chanlytics/db";
 import { configRowOf } from "./config-row";
 import {
@@ -62,6 +64,11 @@ import {
   channelFor,
   hoursFromGoogle,
   memberWords,
+  AppError,
+  callsNotByPhone,
+  setupPhoneWantOf,
+  WORKSPACE_MARKS,
+  type SetupWorkspaceChoicesDto,
   type SetupDto,
   type CapabilityKind,
   IMPORT_SOURCES,
@@ -82,6 +89,7 @@ import { emailWire } from "../connections/email-readiness";
 import { tenantFacts } from "../tenant";
 import { once } from "@/server/lazy";
 import { log } from "@/server/log";
+import { dbRefusal } from "@/server/with-route";
 
 /**
 /**
@@ -369,6 +377,8 @@ function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: 
     quietly(peopleCount(supabase, tenantId)),
     // What the Business Profile and the website say, for Check to offer (decision 0073, R10, R17).
     quietly(businessReadsOf(supabase, tenantId)),
+    // What the first run chose for the workspace (setup_choices, decision 0091): unread, the member's own view stands.
+    quietly(setupChoicesOf(supabase, tenantId)),
   ]);
 }
 
@@ -413,6 +423,7 @@ async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, 
     imports,
     people,
     reads,
+    choices,
   ] = await askSetup(supabase, tenantId, viewer, now);
   // A count that could not be read is not a zero: read as one, the row says nobody has said yes.
   for (const read of [channels, lastMsg, lastCall, templates, yes, offersSaid, offersReach, requested, activations])
@@ -445,6 +456,7 @@ async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, 
     imports,
     people,
     reads,
+    choices,
   };
 }
 
@@ -647,7 +659,6 @@ function googleSection(
         )
       : [],
     type: listingFacts?.facts?.primary_type ?? null,
-    bookingPage: listingFacts?.facts?.booking_page ?? null,
     phone: listingFacts?.facts?.phone_e164 ?? null,
   };
 }
@@ -745,6 +756,54 @@ export async function setupDtoFor(
     ...(read.imports ? { imports: importsSection(read.imports) } : {}),
     ...(read.people === null ? {} : { people: read.people }),
     ...(read.reads ? { reads: readsSection(read.reads) } : {}),
+    ...(read.choices ? { workspace_choices: read.choices } : {}),
   };
   return setup;
+}
+
+/**
+ * PUT setup/choices (decision 0091): what the first run chose for the workspace, kept on the workspace through its door
+ * (setup_choice_set, 00513), the version compared when the tab names one. The number is checked by contracts' own
+ * reading (setupPhoneWantOf), so a shape the page could not read back is refused rather than kept.
+ */
+export async function saveSetupChoices(
+  ctx: { supabase: SupabaseClient<Database> },
+  tenantId: string,
+  input: { phone?: unknown; whatsapp?: string; marks?: string[]; version?: number },
+): Promise<{ choices: SetupWorkspaceChoicesDto }> {
+  // Not by phone (decision 0091) is kept as the number's choice is, so one key says how calls reach the business.
+  const noCalls = callsNotByPhone({ phone: input.phone });
+  const phone = noCalls
+    ? { way: "none" }
+    : input.phone === undefined || input.phone === null
+      ? null
+      : setupPhoneWantOf({ phone: input.phone });
+  if (input.phone && !phone) throw new AppError("validation", "That number cannot be kept: choose it again.");
+  const marks = (input.marks ?? []).filter((m) => (WORKSPACE_MARKS as readonly string[]).includes(m));
+  const { data, error } = await setSetupChoices(ctx.supabase, {
+    p_tenant_id: tenantId,
+    ...(phone ? { p_phone: { ...phone } } : {}),
+    ...(input.phone === null ? { p_clear_phone: true } : {}),
+    ...(input.whatsapp ? { p_whatsapp: input.whatsapp } : {}),
+    ...(marks.length ? { p_marks: marks } : {}),
+    ...(input.version === undefined ? {} : { p_version: input.version }),
+  });
+  if (error) throw dbRefusal(error, { code: "forbidden", status: 403 });
+  const row = (data ?? {}) as {
+    error?: string;
+    phone?: unknown;
+    whatsapp?: string | null;
+    marks?: string[];
+    version?: number;
+  };
+  if (row.error === "stale")
+    throw new AppError("conflict", "Another tab changed what was chosen. Look again, then choose.", 409);
+  return {
+    choices: {
+      phone: row.phone ?? null,
+      whatsapp: row.whatsapp ?? null,
+      marks: row.marks ?? [],
+      version: row.version ?? 0,
+    },
+  };
 }

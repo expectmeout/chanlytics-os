@@ -14,6 +14,7 @@ import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from 
 import { agoWords } from "../shared/time";
 import { plural } from "../shared/words";
 import { bookingPageOffered, connectionWords, listingLine } from "../google/google";
+import { bookingPageRead } from "../imports/business-reads";
 import {
   dayWords,
   trialWords,
@@ -35,6 +36,7 @@ import {
   BROKEN_CONFIG_WORDS,
   SETUP_STATE_WORDS,
   forwardedLineOf,
+  withWorkspaceChoices,
   type SetupInputs,
   type SetupRowBuilder,
   type SetupRowContext,
@@ -671,7 +673,7 @@ const checkFactsOf = (i: SetupInputs): SetupVM["check"] => ({
   listed: !!i.google?.listing,
   unsure: i.google?.unsure ?? [],
   type: i.google?.type ?? null,
-  bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink),
+  bookingPage: bookingPageOffered(bookingPageRead(i.reads), i.business.bookingLink),
 });
 
 /**
@@ -737,6 +739,7 @@ function firstRunFactsOf(i: SetupInputs, ctx: SetupRowContext, off: SetupPutOff,
     rehearsal: { reviewed: i.rehearsal?.reviewed ?? 0, kept: i.rehearsal?.kept ?? 0 },
     choices: i.choices ?? { whatsapp: null },
     want: i.want ?? null,
+    noCalls: !!i.noCalls,
     lineUnderway: !!ctx.ownLine || ctx.voice.present || !!i.requests.line || !!i.requests.port,
     numbersHere: !!i.lines?.ready,
     channelsSeen: setupPutOffEver(off, CHANNELS_SEEN),
@@ -750,7 +753,9 @@ function firstRunFactsOf(i: SetupInputs, ctx: SetupRowContext, off: SetupPutOff,
  * from a week put off; the readiness they add up to; the first open verb; and what the first run's Check reads beside
  * them.
  */
-export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
+export function setupSteps(given: SetupInputs, nowMs = Date.now()): SetupVM {
+  // The workspace's own choices first (decision 0091), so every viewer stands at the same step.
+  const i = withWorkspaceChoices(given);
   // A fixture written before rests carries none: no rows rest.
   const off: SetupPutOff = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);

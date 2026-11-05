@@ -181,11 +181,25 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "ANTHROPIC_PROFILES",
+    mechanism: "edge_env",
+    does: "'on' makes a profile for each signed-up person and workspace and names it on every model call, so one customer's flagged traffic cannot restrict the whole organization (decision 0097); anything else sends none and creates none, as before. Deleting a profile whose person or workspace went runs either way.",
+    owner: "Ruben",
+    sunset: "2027-03-31",
+  },
+  {
     name: "TYPESAFE_SHADOW",
     mechanism: "edge_env",
     does: "'1' (every workspace) or a list of workspace ids (a pilot), with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
     owner: "Ruben",
     sunset: "2026-11-30",
+  },
+  {
+    name: "TYPESAFE_SCREEN",
+    mechanism: "edge_env",
+    does: "'1' (every workspace) or a list of workspace ids, with TYPESAFE_API_KEY set, has the second model screen each batch before the lead judge (decision 0085): a place it fails at the judge's floor is left out on its answer and never judged. The runner asks it only where the judge keeps its whole bound after it (00506).",
+    owner: "Ruben",
+    sunset: "2026-12-31",
   },
   {
     name: "LEAD_JUDGE_FALLBACKS",

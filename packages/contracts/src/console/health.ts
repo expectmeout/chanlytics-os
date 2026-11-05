@@ -7,9 +7,16 @@
  * answer, never from a guess: a part with no number says Not judged, never Kept. Our own workspaces (tenants.ours, 00469)
  * are counted apart, so the nightly suite's numbers never read as a customer's. Pure: the reader hands it rows.
  */
+import {
+  anthropicPaused,
+  enforcementWords,
+  type HealthActedOnProfileDto,
+  type HealthAnthropicProfilesDto,
+} from "../ai/anthropic-enforcement";
 import type { Tone } from "../shell/tone";
 import type { PageVitalsRowDto } from "../shell/vitals";
 import type { PageSpeedRowDto, PageSpotRowDto } from "../shell/page-speed";
+import type { LedgerNowDto } from "./ledger";
 import { vitalVerdict } from "../shell/vitals";
 import type { PlatformDayRowDto } from "../workspace/platform-days";
 import { agoWords, DAY_MS, WEEK_MS } from "../shared/time";
@@ -83,6 +90,8 @@ export interface HealthDto {
   clocks: HealthClockDto[] | null;
   backlog: number | null;
   failed_jobs: FailedJobDto[] | null;
+  /** The ledger now (jobs_ledger_now, 00526); absent from a server before it. */
+  ledger?: LedgerNowDto | null;
   pages: OperatorPageDto[] | null;
   /** The nightly roll-up's days (platform_metrics), the window's. */
   day_rows: PlatformDayRowDto[] | null;
@@ -90,6 +99,8 @@ export interface HealthDto {
   client_errors: ClientErrorDto[] | null;
   vitals: PageVitalsRowDto[] | null;
   speed: { rows: PageSpeedRowDto[]; spots: PageSpotRowDto[] } | null;
+  /** Whom Anthropic is told a call is for (decision 0097), and whom it has paused. Absent from a server before it. */
+  anthropic_profiles?: HealthAnthropicProfilesDto | null;
 }
 
 // ------------------------------------------------------------------------------------------------- the states
@@ -367,6 +378,8 @@ export type HealthSeverity = "red" | "amber" | "plain";
 export type HealthAct =
   | { kind: "run_again"; jobId: string; tenantId: string }
   | { kind: "redrive"; subscriber: string }
+  | { kind: "run_kind_again"; jobKind: string; sinceIso: string }
+  | { kind: "pause_kind"; jobKind: string; paused: boolean }
   | { kind: "open"; tab: HealthTab };
 
 /** One row of Needs a look: what, why, where, since when, and its one act. */
@@ -468,6 +481,26 @@ function backlogLooks({ h, nowMs }: LookCtx): HealthLookVM[] {
   ];
 }
 
+/** A kind an operator paused: its work waits until someone resumes it, so it is a look for as long as it is paused. */
+function pausedLooks({ h, nowMs, sinceWords }: LookCtx): HealthLookVM[] {
+  return (h.ledger?.kinds ?? [])
+    .filter((k) => k.paused_at)
+    .map((k) => {
+      const at = Date.parse(k.paused_at ?? "") || nowMs;
+      return look({
+        key: `paused:${k.kind}`,
+        severity: "amber",
+        what: `${jobWords(k.kind)} is paused`,
+        why: k.paused_why ?? HEALTH_WORDS.pausedWhy,
+        where: PLATFORM_WHERE,
+        ours: false,
+        sinceMs: at,
+        since: sinceWords(at),
+        act: { kind: "pause_kind", jobKind: k.kind, paused: false },
+      });
+    });
+}
+
 function promiseLooks({ h, scope, nowMs, ours, sinceWords }: LookCtx): HealthLookVM[] {
   return promiseDaysOf(h.day_rows, ours, scope, h.days)
     .rows.filter((r) => r.state === "missed" && r.alarm)
@@ -564,6 +597,30 @@ function modelLooks({ h, nameOf, sinceWords }: LookCtx): HealthLookVM[] {
   );
 }
 
+/** Whom a profile Anthropic acted on stands for, as a row names them: a workspace by name, a person by no more than that. */
+export const actedOnProfileWho = (p: HealthActedOnProfileDto, nameOf: (id: string | null) => string): string =>
+  p.kind === "workspace" ? nameOf(p.tenant_id) : "One person";
+
+/** What Anthropic has acted on: that account's model calls have stopped or may be refused, and only that account's. */
+function anthropicLooks({ h, ours, nowMs, nameOf, sinceWords }: LookCtx): HealthLookVM[] {
+  return (h.anthropic_profiles?.acted_on ?? []).map((p) => {
+    const atMs = p.at ? Date.parse(p.at) : nowMs;
+    const paused = anthropicPaused(p.status);
+    return look({
+      key: `anthropic:${p.id}`,
+      severity: paused ? "red" : "amber",
+      what: `Anthropic has ${paused ? "paused" : "limited"} one account's model calls`,
+      why: enforcementWords(p.status, p.actions),
+      where: actedOnProfileWho(p, nameOf),
+      ours: !!p.tenant_id && ours.has(p.tenant_id),
+      sinceMs: atMs,
+      since: sinceWords(atMs),
+      act: { kind: "open", tab: "model" },
+      tenantId: p.tenant_id,
+    });
+  });
+}
+
 function sendLooks({ h, nowMs, sinceWords }: LookCtx): HealthLookVM[] {
   return sendsOf(h.parts, "all").troubled.map((c) =>
     look({
@@ -617,10 +674,12 @@ function connectionLooks({ h, nowMs, nameOf, sinceWords }: LookCtx): HealthLookV
 const LOOK_SOURCES = [
   clockLooks,
   backlogLooks,
+  pausedLooks,
   promiseLooks,
   jobLooks,
   deliveryLooks,
   pageLooks,
+  anthropicLooks,
   modelLooks,
   sendLooks,
   callLooks,
@@ -629,7 +688,7 @@ const LOOK_SOURCES = [
 
 /**
  * Everything that needs a person, worst first then newest: a clock not running, the ledger backing up, a model key out
- * of credit, a promise missed for customers, failed jobs, failing deliveries, what paged us, sends and calls failing on
+ * of credit, a promise missed for customers, failed jobs, failing deliveries, what paged us, an account Anthropic acted on, sends and calls failing on
  * a provider's word, model calls with no answer, and connections that are not healthy. Each names its workspace.
  */
 export function healthLooksOf(h: HealthDto, scope: HealthScope, nowMs: number): HealthLookVM[] {
@@ -715,5 +774,27 @@ export const HEALTH_WORDS = {
   close: "Close",
   ranAgain: "It's on the ledger again.",
   redriven: (n: number) => (n === 0 ? "Nothing was left to deliver again." : `${n} scheduled again.`),
+  runKindAgain: "Run every failed one again",
+  runKindAgainAsk: (kind: string) => `Run every failed ${kind} again?`,
+  runKindAgainDetail:
+    "Each one that failed since then gets one fresh job of its kind and payload, due now. Sends, and jobs that spoke, are never run again.",
+  ranKindAgain: (n: number, refused: number) =>
+    n === 0 && refused === 0
+      ? "Nothing had failed since then."
+      : `${n} on the ledger again${refused ? `; ${refused} left as they are (sends, or already run again)` : ""}.`,
+  pause: "Pause",
+  pauseAsk: (kind: string) => `Pause ${kind}?`,
+  pauseDetail: "No claim takes its work until you resume it; what is due waits where it is.",
+  resume: "Resume",
+  resumeAsk: (kind: string) => `Resume ${kind}?`,
+  resumeDetail: "What waited is due at once, oldest first.",
+  pausedNow: "Paused: its work waits until it is resumed.",
+  resumedNow: "Resumed: what waited is on its way.",
+  pausedWhy: "An operator paused it.",
+  ledgerTitle: "The ledger now",
+  ledgerSub: "by lane · waiting means a retry waits its turn",
+  ledgerUnread: "The ledger could not be read just now.",
+  canaryWords: (ago: string) => `The ledger's own check last finished ${ago}.`,
+  canaryNever: "The ledger's own check has not finished yet.",
   oursNote: "Ours: our own workspaces (the nightly suite's, the smoke test), counted apart and never paged.",
 } as const;

@@ -100,6 +100,9 @@ const draftsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? 
 // The Sequences list counts a batch's replies by their messages (0060): a person erased takes theirs with them. Read where it
 // is drawn, left for its page elsewhere.
 const sequencesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([sequencesOverride]) : []);
+// One held email answered moves its run and its lead, never its chain (the row's counts are its report, read on open), and
+// the Needs you of its sequence where the Sequences page is drawn; its rewrite's check, now, and its Undo the same (00505).
+const heldEmailMoves = () => [broadcastsOverride, playbooksOverride, leadsOverride, ...sequencesIfDrawn()];
 // What the Reviews lens says of a review's reply mode (whether its composer asks the receptionist for a draft) is made wrong by a mode
 // saved, which is saved on Autonomy or from a chip, never from the lens: read where the lens is on screen, forgotten elsewhere
 // (the wiring's second audit, W-review-facts-rules-9: a mode saved read the lens nobody had open).
@@ -287,6 +290,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // The thread verbs, and the two that act on a held draft.
   "POST conversations/[id]/take-over": thread,
   "POST conversations/[id]/hand-back": thread,
+  "POST conversations/[id]/not-a-customer": thread,
+  "POST conversations/[id]/reply-anyway": thread,
   "POST conversations/[id]/snooze": thread,
   "POST conversations/[id]/wake": thread,
   "POST conversations/[id]/archive": thread,
@@ -298,8 +303,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/cancel-send": thread,
   // People.
   "DELETE contacts/[id]": erased,
-  // Not a person (00483): their address or domain said to be automated, which moves nothing on screen (their next email stays
-  // in the mailbox), then the person deleted as Delete person deletes them.
+  // Not a person (00483): an address said automated moves nothing, then the person as above (Delete… for many: REFRESHES_NOTHING).
   "POST contacts/[id]/not-a-person": erased,
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
@@ -345,13 +349,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST segments": () => [peopleOverride, ...audiences()],
   "PUT segments/[id]": () => [peopleOverride, ...audiences()],
   "DELETE segments/[id]": () => [peopleOverride, ...audiences()],
-  // Leads. Every one of these PATCHES: the surface re-reads the view and keeps
-  // the pages, the selection and the cursor the owner already has (leads.ts).
-  // `POST leads/[id]/stage` names People too: an Interested call makes a
-  // person, and People would otherwise not know until it was read again;
-  // a lead converted is a person added, so the book the People lens counts moves.
-  // A draft is not here on purpose -- it changes no row a surface shows; the
-  // lead moves when the owner answers "Did you send it?", which is a stage.
+  // Leads. Every one of these PATCHES: the surface re-reads the view and keeps the pages, the selection and the cursor
+  // the owner already has (leads.ts). `POST leads/[id]/stage` names People too: an Interested call makes a person, and
+  // People would otherwise not know until it was read again; a lead converted is a person added, so the book the People
+  // lens counts moves. A draft is not here on purpose -- it changes no row a surface shows; the lead moves when the
+  // owner answers "Did you send it?", which is a stage.
   "POST lead-searches": leads,
   // A list of your own (00242) is a search: the rail and the leads read again.
   "POST lead-searches/import": leads,
@@ -380,6 +382,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/export": leads,
   "DELETE leads/[id]": leads,
   "PUT lead-suggestions": leads,
+  "POST leads/[id]/send": () => [...leadsAnswered()],
   "POST leads/[id]/stage": () => [...leadsAnswered(), peopleOverride, ...reportsPeople()],
   // Outbound.
   // A broadcast made moves the month's emails and texts both composers say before a send, and Playbooks' composer reads
@@ -400,6 +403,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT sequences/[id]/steps/[step]": () => [...savedAndChains(), sequencesOverride],
   "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
   "POST sequences/[id]/steps/[step]/words": () => [...savedAndChains(), sequencesOverride, ...templates()],
+  // A lead's own words (decision 0096): what a chain's waiting and held rows say of them, and nothing else on a page.
+  "POST sequences/[id]/steps/[step]/lead-words": () => [reachOutsOverride],
   "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
   // Put back reads what taking them out read: a person's place returns and the clock writes their next (00450), and a lead
   // nothing reached goes back on its list with its skipped email freed (00502).
@@ -427,14 +432,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   "PUT reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
   "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
-  // One held email decided moves its run and its lead, never its chain (the row's counts are its report, read on open),
-  // and the Needs you of its sequence where the Sequences page is drawn.
-  "POST reach-out-sends/[id]/decide": () => [
-    broadcastsOverride,
-    playbooksOverride,
-    leadsOverride,
-    ...sequencesIfDrawn(),
-  ],
+  "POST reach-out-sends/[id]/decide": heldEmailMoves,
+  "POST reach-out-sends/check": heldEmailMoves,
+  "POST reach-out-sends/[id]/undo-rewrite": heldEmailMoves,
   // An email its owner said went (00429): its run and its lead, the person it made and the email on their thread, and the
   // reach-out's people; one left out moves the run alone, which the same reads cover.
   "POST reach-out-sends/[id]/said": () => [
@@ -658,6 +658,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  "POST contacts/erase": "handed to the ledger, none erased yet: People drops them, the rest is read once gone",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",
@@ -758,6 +759,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST receptionist/agent":
     "the rehearsal's agent made ahead of the first call (decision 0073), in the background; no page shows it",
   "PUT views/[page]": "the member's saved view, which the page already shows",
+  "PUT setup/choices": "the workspace's setup choices, which the Setup surface publishes from the door's answer",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
   "POST support/report": "a report of a problem, kept and mailed to the support inbox; the sheet says its number",
@@ -776,6 +778,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST platform/jobs/requeue":
     "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",
   "POST platform/deliveries/redrive": "Health's deliveries, read again by its screen after the act",
+  "POST platform/jobs/requeue-kind": "Health's failed jobs, read again by its screen after the act",
+  "POST platform/jobs/pause": "Health's ledger, read again by its screen after the act",
   "POST platform/lines/refile": "the back office's lines, read again by its pane",
   "POST platform/lines/release": "the back office's lines, read again by its pane",
   "POST platform/lines/replace": "the back office's lines, read again by its pane",

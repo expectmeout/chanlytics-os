@@ -2,8 +2,9 @@
  * The lead workbench's card (canvas B v2, "The decide card"): what a decision on one lead needs, in the order the eye
  * wants it. The reason to write now and what it rests on, whether they can be reached, and the first email they would
  * get from the sequence the pile adds to, filled with this lead's values by the send's own fill (reachOutCardEmailOf).
- * Nothing here calls a model: the opening is shown as still to come, written when its batch is planned and read on it
- * before anything goes. Every sentence the card and its tabs say is here.
+ * Nothing here calls a model: the opening is shown as still to come, written before the email goes. A lead's own words at
+ * a step (decision 0096) stand in for the step's, in every email drawn here. Every sentence the card and its tabs say is
+ * here.
  *
  *   leadCardEmailOf    email 1 for this lead: its parts, when it goes, and what Add would come to (a fallback said
  *                      first; the door's own answer, reach_out_why_not, or a slot with no value turns Add off and
@@ -34,6 +35,7 @@ import { slotMentions } from "../templates/slot-sets";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { LeadEmailState } from "./search/sets";
 import type { LeadPeekVM } from "./lead-peek";
+import type { LeadEmailText, LeadStepWordsDto } from "./sheet/lead-sheet-words";
 
 /**
  * A piece of a card's email: words, a value filled for this lead, the opening (still to come, or, where the listing's
@@ -99,7 +101,19 @@ export interface LeadCardStepVM {
   body: LeadCardPart[];
   /** A slot with no value here: the send would hold this email. */
   gap: boolean;
+  /** The words it reads from, as written, and the step's own under them: what the sheet's box opens from and goes back to. */
+  written: LeadEmailText;
+  stepWritten: LeadEmailText;
+  /** These words are this lead's, typed on their sheet (decision 0096), not the step's. */
+  own: boolean;
 }
+
+/** A lead's own words at each step they have some, by the step's id (decision 0096). */
+export type LeadOwnWords = ReadonlyMap<string, LeadEmailText>;
+
+/** A lead's own words as the read answers them, by the step's id. */
+export const leadOwnWordsOf = (rows: readonly LeadStepWordsDto[]): LeadOwnWords =>
+  new Map(rows.map((r) => [r.step_id, { subject: r.subject, body: r.body }]));
 
 /** The card's words. */
 export const LEAD_CARD_WORDS = {
@@ -108,7 +122,7 @@ export const LEAD_CARD_WORDS = {
   fromBoxes: "from your mailboxes",
   to: "To",
   subject: "Subject",
-  opening: "A line about them, written when its batch is planned. You read it before it goes.",
+  opening: "A line about them, written before it goes.",
   /** The legend under an email drawn whole (the canvas's preview as a real lead): where each marked part comes from. */
   fromRecord: "from their record",
   // A company the people card found has no listing (00430): its opening is said from its directory record and site.
@@ -116,7 +130,7 @@ export const LEAD_CARD_WORDS = {
   greets: (fallback: string) => `Nobody is named here, so it greets them as “${fallback}”.`,
   checking: "once their address checks out",
   holes: (labels: string[]) =>
-    `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Change the words in the sequence.`,
+    `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Type it in the email, or change the words in the sequence.`,
   firstPile: "You write their email once, when you write to them all at the end.",
   after: (days: number | null) => `${days ?? "?"} days after, if nothing comes back`,
   emailsTitle: "What they would get",
@@ -217,6 +231,12 @@ const signedAs = (chain: LeadCardChain, w: SlotWorkspace): SlotWorkspace => ({ .
 /** The email steps, in their order: a call or a note for the team is no email. */
 const emailSteps = (chain: LeadCardChain) => chain.steps.filter((s) => !s.hand).sort((a, b) => a.n - b.n);
 
+/** A step's words as written: its subject where it is the first email, which a later one answers under. */
+const stepWrittenOf = (s: { subject?: string | null; body: string }, first: boolean): LeadEmailText => ({
+  subject: first ? (s.subject ?? "") : null,
+  body: s.body,
+});
+
 /** Where its emails leave from, after the head's "·". */
 function fromWords(chain: LeadCardChain): string | null {
   if (chain.owner_sends) return LEAD_CARD_WORDS.fromInbox;
@@ -257,12 +277,13 @@ export function leadCardEmailOf(p: {
   nowMs: number;
   tz: string;
   check?: LeadCardCheck;
+  own?: LeadOwnWords;
 }): LeadCardEmailVM | null {
   const steps = emailSteps(p.chain);
   const first = steps[0];
   if (!first) return null;
   const email = reachOutCardEmailOf(
-    { subject: first.subject ?? "", body: first.body },
+    p.own?.get(first.id) ?? stepWrittenOf(first, true),
     p.lead,
     signedAs(p.chain, p.workspace),
   );
@@ -300,10 +321,14 @@ export function leadCardStepsOf(p: {
   chain: LeadCardChain;
   lead: LeadCardLead;
   workspace: SlotWorkspace;
+  own?: LeadOwnWords;
 }): LeadCardStepVM[] {
   const w = signedAs(p.chain, p.workspace);
   return emailSteps(p.chain).map((s, i) => {
-    const email = reachOutCardEmailOf({ subject: i === 0 ? (s.subject ?? "") : null, body: s.body }, p.lead, w);
+    const stepWritten = stepWrittenOf(s, i === 0);
+    const own = p.own?.get(s.id) ?? null;
+    const written = own ?? stepWritten;
+    const email = reachOutCardEmailOf(written, p.lead, w);
     return {
       id: s.id,
       label: `Email ${i + 1}`,
@@ -311,6 +336,9 @@ export function leadCardStepsOf(p: {
       subject: email.subject === null ? null : leadCardPartsOf(email.subject),
       body: leadCardPartsOf(email.body),
       gap: email.holes.length > 0,
+      written,
+      stepWritten,
+      own: own !== null,
     };
   });
 }
@@ -334,7 +362,7 @@ const LEAD_CARD_SLOT_FROM = {
   workspace: "Your workspace's name, in Settings",
   signs: "The name this sequence signs with",
   booking: "Your booking link, in Settings",
-  opening: "Written for them when its batch is planned, and read by you before it goes",
+  opening: "Written for them before it goes",
   preview: "Their own receptionist, made when the first email that names it goes",
   fallback: (said: string) => `Nobody is named here, so it says “${said}”`,
   gap: "They have none, so the send would hold this email",

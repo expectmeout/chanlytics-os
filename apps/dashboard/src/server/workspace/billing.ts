@@ -5,11 +5,17 @@
  * the edge; nothing here knows it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
+import { callSecondsSince, workspaceModelStanding, type Database } from "@chanlytics/db";
+import {
+  billingAccountDto,
+  type BillingAccountDto,
+  type BillingPriceDto,
+  type ModelStanding,
+} from "@chanlytics/contracts";
 import { deployment } from "../env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 import { log } from "@/server/log";
+import { serviceDbIfConfigured } from "@/server/service-db";
 
 export const BILLING_COLUMNS =
   "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
@@ -22,6 +28,37 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? billingAccountDto(data) : null;
+}
+
+/**
+ * The phone receptionist's minutes since the month began (UTC), rounded up, as the member reads the events (decision
+ * 0092): what Settings › Billing says the voice provider was paid for. Null when the read failed: the page says nothing
+ * then, rather than a zero it does not know.
+ */
+export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
+  const now = new Date();
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  try {
+    return Math.ceil((await callSecondsSince(db, tenantId, since)) / 60);
+  } catch (e) {
+    log.warn("billing_minutes_unread", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
+/**
+ * What Anthropic has said of this workspace's profile (decision 0097): the service role's table, read for the shell's line.
+ * Null when it could not be read: the line is said on the row's word alone. Never throws.
+ */
+export async function modelStandingFor(tenantId: string): Promise<ModelStanding | null> {
+  const db = serviceDbIfConfigured();
+  if (!db) return null;
+  try {
+    return await workspaceModelStanding(db, tenantId);
+  } catch (e) {
+    log.warn("billing_model_paused_unread", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
 }
 
 /**

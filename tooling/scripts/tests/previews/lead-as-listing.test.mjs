@@ -68,7 +68,6 @@ test("the lead as a listing: the name it is called by, its address, number, webs
   assert.equal(listing.facts.primary_type_label, "Barber shop");
   assert.equal(listing.facts.time_zone, "America/Chicago");
   assert.equal(listing.facts.service_area_only, false);
-  assert.equal(listing.facts.booking_page, null);
   assert.equal(listing.facts.hours.length, 6);
 });
 

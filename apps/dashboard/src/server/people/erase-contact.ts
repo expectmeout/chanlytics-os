@@ -9,9 +9,14 @@
  */
 import "server-only";
 import { eraseOrRedrive } from "@chanlytics/jobs";
+import { callEdge, edgeAnswered } from "@/server/edge";
+import { deployment } from "@/server/env";
 import { serviceDb } from "@/server/service-db";
 import { type erasureScope, recordDecision } from "@/server/verbs";
 import type { RouteContext } from "@/server/with-route";
+
+/** How long the provider's leg may take: a delete per call at the edge, each bounded at 8 s by the adapter. */
+const ERASE_CALLS_TIMEOUT_MS = 55_000;
 
 /** The person an erasure acts on, as erasureScope read them: live, or already erased and re-driven. */
 type ErasedContact = Awaited<ReturnType<typeof erasureScope.load>>;
@@ -22,8 +27,21 @@ export function eraseContact(ctx: RouteContext, contact: ErasedContact) {
       session: ctx.supabase,
       service: serviceDb(),
       record: (payload) => recordDecision(ctx, contact.tenant_id, "contact", contact.id, "erase", payload),
+      // The person's calls taken off the voice provider, by the edge that holds its key (decision 0092).
+      providerCalls: async (callIds) => {
+        if (!deployment.providersLive) return { asked: 0, deleted: 0, refused: callIds.length };
+        const r = await callEdge(
+          "/api/admin/voice/erase-calls",
+          { tenant_id: contact.tenant_id, call_ids: callIds },
+          { workspace: contact.tenant_id, user: ctx.userId, timeoutMs: ERASE_CALLS_TIMEOUT_MS },
+        );
+        if (!edgeAnswered(r)) return { asked: callIds.length, deleted: 0, refused: callIds.length };
+        const b = (r.body ?? {}) as { asked?: number; deleted?: number; refused?: number };
+        return { asked: b.asked ?? callIds.length, deleted: b.deleted ?? 0, refused: b.refused ?? 0 };
+      },
     },
     contact,
-    { finishLater: true },
+    // Its ledger row says who pressed by itself: erase_contact reads them off the session.
+    { finishLater: true, by: null },
   );
 }

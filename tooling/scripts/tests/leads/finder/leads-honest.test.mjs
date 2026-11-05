@@ -664,7 +664,7 @@ const answers = [
   ],
   [/^PATCH \/api\/v1\/lead-searches\/[^/]+$/, (b) => ({ name: b.name })],
   [/^DELETE \/api\/v1\/lead-searches\/[^/]+$/, () => ({ archived: 143, kept: 18 })],
-  [/^POST \/api\/v1\/lead-searches\/[^/]+\/more$/, () => ({ round_id: "r9" })],
+  [/^POST \/api\/v1\/lead-searches\/[^/]+\/more$/, (_, key) => ({ search_id: key.split("/").at(-2), round_id: "r9" })],
   // An idea pressed (POST ask/idea): the thread its card waits in, which the page opens Ask on.
   [/^POST \/api\/v1\/ask\/idea$/, (b) => ({ thread: { id: "t-idea", title: b.words } })],
   [/^POST \/api\/v1\/lead-searches\/[^/]+\/stop$/, () => ({})],
@@ -766,12 +766,13 @@ const serveRead = (path, query) => {
     return reply(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
   if (path === "/api/v1/reach-outs/reach")
     return reply(200, { ok: true, data: { ready: 0, with_unconfirmed: 0, phone_only: 0, of: 0, chain: null } });
-  // The sequences Add can go to, read as the lead sheet first opens (sheet/use-aim.ts): none takes leads by hand here.
+  // The sequences Add can go to, and those to leads the pick and the picker offer (sheet/use-aim.ts, 00459): none here.
   if (path === "/api/v1/reach-outs") return reply(200, { ok: true, data: { chains: [] } });
-  // The sequences to leads the pick and the picker offer (sheet/use-aim.ts, 00459): none in this world.
   if (path === "/api/v1/sequences") return reply(200, { ok: true, data: { sequences: [] } });
   // A lead's place in a sequence (00459 sequence_place, the lead sheet's one reader): none of these leads is in one.
   if (/^\/api\/v1\/leads\/[^/]+\/place$/.test(path)) return reply(200, { ok: true, data: null });
+  if (/^\/api\/v1\/leads\/[^/]+\/emails$/.test(path)) return reply(200, { ok: true, data: [] });
+  if (/^\/api\/v1\/leads\/[^/]+\/words$/.test(path)) return reply(200, { ok: true, data: [] });
   // A lead's own preview (decision 0079, the sheet's Their preview): this workspace makes none, so the sheet draws nothing.
   if (/^\/api\/v1\/leads\/[^/]+\/preview$/.test(path))
     return reply(200, { ok: true, data: { preview: null, makes: false } });
@@ -801,7 +802,7 @@ const serve = async (u, init) => {
   const hit = answers.find(([re]) => re.test(key));
   if (!hit) unexpected.push(key);
   takeEffect(key, body);
-  return reply(200, { ok: true, data: hit ? hit[1](body) : { done: true } });
+  return reply(200, { ok: true, data: hit ? hit[1](body, key) : { done: true } });
 };
 globalThis.window.fetch = async (u, init = {}) => {
   const saving = new URL(String(u), "https://app.chanlytics.com").pathname.match(/^\/api\/v1\/views\/([^/]+)$/);
@@ -973,7 +974,7 @@ const install = ({ role = "owner" } = {}) => {
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
     usePPToast: () => [null, (t) => flashes.push(t)],
     CHANLY: { nav: (to) => went.push(to), address, R: { thread: (id) => `inbox/${id}` } },
-    __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM" },
+    __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM", zone: () => TZ },
   });
   // The bridge's reading of who is acting over this window's __ME (the pages ask mayAtLeast), beside the stub's own.
   installRoleStore();
@@ -1084,6 +1085,11 @@ const openPlanFrom = (name = "Personal trainers · Austin") => {
     .items.find((i) => i.label === "Search again, changed")
     .onClick();
   draw();
+};
+/** What the open plan says of itself: a desk card's tag, and the flag a phone's sheet builds its title from. */
+const planChanged = (props) => {
+  const tree = draw(props);
+  return [!!byTestId(tree, "plan-changed"), find(tree, (n) => "finderChanged" in (n.props ?? {})).props.finderChanged];
 };
 
 test("Leads draws every row of a list on its first draw where its box cannot be watched", async () => {
@@ -1369,7 +1375,7 @@ test("with no search kept and no lead held the first day stands alone: the quest
   assert.equal(textOf(find(fd, (n) => n.type === "h1")), LEAD_WORDS.firstDay.title, "the page is its question");
 
   // Nothing stands round it that acts on a list: no rail (its lists and searches are all empty), no search box, and no
-  // act in the head beside the page's own door. The head keeps People's name and says no "0 leads · 0 ready · 0 searches".
+  // act in the head beside the page's own door. The head keeps People's name and says no "0 leads · 0 not contacted · 0 searches".
   assert.equal(
     find(tree, (n) => n.type === LeadsRailRows),
     null,
@@ -1793,7 +1799,7 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
   ]);
   assert.deepEqual(rows, [
     ["All leads", "322"],
-    ["Ready", "272"],
+    ["Not contacted", "272"],
     ["Contacted", "31"],
     ["Talking", "9"],
     ["Said no", "6"],
@@ -1812,7 +1818,7 @@ test("the rail counts what the lists hold, a waiting search wears a question mar
     null,
     "the one that ended does not",
   );
-  assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 ready·2 searches·1 search needs you");
+  assert.equal(textOf(byTestId(tree, "leads-standing")), "322 leads·272 not contacted·2 searches·1 search needs you");
   click(byTestId(tree, "leads-standing-needs"));
   assert.deepEqual(
     went,
@@ -1876,7 +1882,7 @@ test("the Leads rail picks one row at a time, as People's does: a list leaves an
   const head = (route) => byTestId(draw({ leadsRoute: route }), "leads-list-head");
   assert.equal(textOf(byTestId(head("leads"), "leads-list-title")), "All leads");
   assert.equal(byTestId(head("leads"), "leads-show-all"), null, "all of them has nowhere to go back to");
-  assert.equal(textOf(byTestId(head("leads:l-ready"), "leads-list-title")), "Ready");
+  assert.equal(textOf(byTestId(head("leads:l-ready"), "leads-list-title")), "Not contacted");
   went.length = 0;
   click(byTestId(head("leads:l-ready"), "leads-show-all"));
   assert.equal(went.at(-1), leadsRoute({}), "Show all leads goes back to all of them");
@@ -3392,7 +3398,7 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
     [
       ["2 Qualified", false],
       ["1 Needs review", false],
-      ["1 Left out", true],
+      ["1 Filtered out", true],
     ],
     "the three classes, each a view of the search",
   );
@@ -3432,21 +3438,24 @@ test("a kept search's menu says what was asked and when, and offers Rename, Find
 });
 
 test("Search again, changed opens the plan with what was asked; Rename renames through its route; Remove is asked first, keeps the worked leads, and says so", async () => {
-  await fresh();
-  draw();
-  menuOf("Personal trainers · Austin")
-    .items.find((i) => i.label === "Search again, changed")
-    .onClick();
-  draw();
+  const near = { kind: "zip", label: "near 78660", state: "TX", center: null, radius_m: 8_000, query: "78660" };
+  const dry = search({ round: { ...search().round, ending: "searched_everything", nearby: [near] } });
+  await fresh({ leads: { searches: [{ ...dry, plan: { ...PLAN, version: 3 } }] } });
+  openPlanFrom();
+  const again = panels.at(-1);
   assert.deepEqual(
-    [panels.at(-1).stage, panels.at(-1).words, panels.at(-1).proposal.purpose],
+    [again.stage, again.words, again.proposal.purpose],
     ["plan", "personal trainers in Austin with a website, about 200", "renew"],
   );
-  assert.equal(
-    panels.at(-1).plan,
-    panels.at(-1).proposal.plan,
-    "the card draws this search's plan, not an earlier one's",
-  );
+  assert.equal(again.plan, again.proposal.plan, "the card draws this search's plan, not an earlier one's");
+  assert.deepEqual(again.facts.nearby, [near], "and offers where that search's last round said to look next");
+  // However far along the search is, its plan opens unchanged, and says changed once the owner changes something.
+  assert.deepEqual(planChanged(), [false, false], "at version 3, and nothing on the card has moved it");
+  again.onChangePlan({ ...again.plan, version: 4 });
+  assert.deepEqual(planChanged(), [true, true]);
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  strips.at(-1).onAction("nearby", { ...again.plan, area: near });
+  assert.deepEqual(planChanged({ leadsRoute: `leads:s-${SEARCH_A}` }), [false, false], "a strip's next step, the same");
   // Rename happens where the search is: the rail's row becomes the box.
   await fresh();
   draw();
@@ -3503,7 +3512,7 @@ test("Export these N is a press that POSTs the search's own view to the export r
 
 /* ------------------------------------- the phone ------------------------------------- */
 
-test("REGRESSION: on a phone a lead's row is People's row -- one cell of the face, the name and its state; where it is, what it waits on or what left it out; its reach, its rating and when it was found. Leads' cards were their own: a 40px tile, three columns and a 44px Call", async () => {
+test("REGRESSION: on a phone a lead's row is People's row -- one cell of the face, the name and its state where it is not Ready; where it is, what it waits on or what left it out; its rating and when it was found. Leads' cards were their own: a 40px tile, three columns and a 44px Call", async () => {
   await fresh();
   globalThis.__phone = true;
   try {
@@ -3518,16 +3527,11 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
       "one cell beside the face's box, as a person's row",
     );
     const card = cardOf("l1");
-    // The row is the kit's list row, the one People's is: its face, name, what trails the name, what was said, the facts.
-    for (const part of ["list-row-face", "list-row-name", "list-row-end", "list-row-said", "list-row-facts"])
-      assert.ok(
-        find(card, (n) =>
-          String(n.props?.className || "")
-            .split(/\s+/)
-            .includes(part),
-        ),
-        `a person's row, part for part: ${part}`,
-      );
+    // The kit's list row, People's: face, name, what trails it (on one that waits: Ready trails nothing), said, facts.
+    const partOf = (c, part) => find(c, (n) => ` ${n.props?.className || ""} `.includes(` ${part} `));
+    for (const part of ["list-row-face", "list-row-name", "list-row-said", "list-row-facts"])
+      assert.ok(partOf(card, part), `a person's row, part for part: ${part}`);
+    assert.ok(partOf(cardOf("l3"), "list-row-end"), "a person's row, part for part: list-row-end");
     const faceOf = (id) => find(cardOf(id), (n) => /\bface\b/.test(String(n.props?.className || "")));
     assert.equal(textOf(faceOf("l1")), ROWS[0].tile.initials, "the face: its initials, under the mark");
     // D6: the mark is the face on a phone too, on its own plate over the photo -- never the photo's circle crop.
@@ -3535,13 +3539,14 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     assert.deepEqual(faceImgs("l1"), [["face-photo face-mark", MARK_KEPT]], "the mark, contained on its plate");
     assert.deepEqual(faceImgs("l2"), [], "and a lead with neither keeps its initials");
     assert.equal(textOf(find(card, (n) => n.props?.className === "list-row-name")), "Zilker Strength Lab");
-    assert.equal(textOf(byTestId(card, "lead-state")), "Ready", "its state, as a person's row says theirs");
+    // REGRESSION (the phone pass, 3 Nov 2026): "Not contacted" on nearly every row took the names' room.
+    assert.equal(byTestId(card, "lead-state"), null, "Ready is the silent default, on a phone too");
     assert.equal(textOf(byTestId(card, "lead-sub")), L().rows[0].sub, "where it is");
     const facts = find(card, (n) => n.props?.className === "list-row-facts");
     assert.equal(
       all(facts, (n) => /\bld-slot-shape\b/.test(String(n.props?.className || ""))).length,
-      2,
-      "whether the phone and the mailbox reach them, as shapes",
+      0,
+      "how a phone and a mailbox reach them is the lead's own page's, never two unlabelled circles",
     );
     assert.match(textOf(byTestId(facts, "lead-rated")), /5\.0 · 16/, "how it is rated");
     assert.equal(textOf(byTestId(facts, "lead-found")), L().rows[0].foundLine, "and when it was found, in words");
@@ -3560,7 +3565,6 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     assert.equal(clsOf(byTestId(cardOf("l3"), "lead-state")), "pill pill-warn");
     assert.equal(textOf(byTestId(cardOf("l4"), "lead-sub")), "Chain");
     assert.equal(textOf(byTestId(cardOf("l4"), "lead-state")), L().rows[3].stateTag);
-    assert.equal(byTestId(cardOf("l4"), "lead-reach"), null, "nothing about a left-out place was checked");
     // The face is the checkbox, and while anyone is selected a tap on a row selects it rather than opening it.
     byTestId(rowOf(tree, "l1"), "row-select").props.onChange();
     tree = draw();
@@ -3621,7 +3625,10 @@ test("on a phone the list and search are one top under the frame's strip; Find l
   );
   door.props.onClick({ type: "click" });
   assert.deepEqual(opened, ["find"], "Find leads opens Ask");
-  assert.equal(byTestId(t, "leads-phone-find"), null, "the old coral square is gone");
+  // The old coral square is gone: the bar's find glyph is the search's, folded while it holds no words (3 Nov 2026).
+  const glyph = byTestId(t, "leads-phone-find");
+  assert.equal(glyph.props["aria-label"], "Search leads", "the glyph opens the search, not Ask");
+  assert.equal(find(glyph, (n) => n.type === Icon).props.name, "search", "the search's glyph");
   // The gate reads the role, as every gate does (frame-globals gate): an operator meets it at the door.
   await fresh({ role: "operator" });
   const gatedDoor = byTestId(bar({ canFind: false }), "leads-bar-find");
@@ -3794,7 +3801,7 @@ test("Leads' rows, compact in a phone's sheet: an empty list is said in a line, 
   const rail = {
     lists: [
       { id: "all", label: "All leads", count: 12 },
-      { id: "ready", label: "Ready", count: 12 },
+      { id: "ready", label: "Not contacted", count: 12 },
       { id: "nurture", label: "Contacted", count: 0 },
       { id: "converted", label: "Talking", count: 0 },
       { id: "not_a_fit", label: "Not a fit", count: 0 },
@@ -3872,20 +3879,23 @@ test("the running strip's Stop reaches the stop route, and the question's Yes an
   assert.deepEqual(lastWrite(), { key: `POST /api/v1/lead-searches/${SEARCH_B}/answer`, body: { answer: "stop" } });
 });
 
-// The commit answers with the search it started (commit.ts, undo.search_id). The page used to leave the owner on All
-// leads with a live dot in the rail and no strip: the receipt said "Leads shows it", and Leads did not.
-test("approving a new plan lands on the search it started, where the strip is; a top-up stays where it is", async () => {
+// The door answers with the search the round is on (POST lead-searches/[id]/more). The page used to leave the owner on
+// All leads with a live dot in the rail and no strip: the receipt said "Leads shows it", and Leads did not.
+test("approving a search's own plan starts a round of it and lands on it, where the strip is; a top-up stays where it is", async () => {
   await fresh();
-  const NEW = "3d1d5c1e-0000-4000-8000-00000000c0de";
-  askCalls().commit = async () => ({ ok: true, receipt: "Finding 50 gyms.", undo: { search_id: NEW } });
-  // A new search from the page: a kept search's Search again, changed opens the plan Claude wrote, and approving
-  // it goes through Ask's commit door as a fresh Find from the Line does (leadFinderApprove).
+  // A kept search's Search again, changed opens the plan Claude wrote, and approving it goes to the door Find new ones
+  // goes to. It is no Ask card: Ask's door refused it for having no kind, from the first build (#690) to 4 Nov 2026.
   openPlanFrom();
   const f = panels.at(-1);
   assert.deepEqual([f.open, f.stage], [true, "plan"], "the card is up");
-  await f.onApprove({ ...PLAN, count: 50 });
+  const changed = { ...PLAN, count: 50 };
+  await f.onApprove(changed);
   await settle();
-  assert.equal(went.at(-1), `clients/leads:s-${NEW}`, "straight to the new search, its strip and its classes");
+  assert.deepEqual(lastWrite(), {
+    key: `POST /api/v1/lead-searches/${SEARCH_A}/more`,
+    body: { purpose: "renew", plan: changed },
+  });
+  assert.equal(went.at(-1), `clients/leads:s-${SEARCH_A}`, "straight to the search, its strip and its classes");
   went.length = 0;
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
   strips.at(-1).onAction("include", "chain");
@@ -3908,6 +3918,7 @@ test("Include opens the plan with that exclusion taken back and starts nothing; 
   assert.equal(f.stage, "plan");
   assert.deepEqual(f.plan.exclusions, [], "the thing it asked about is taken out of the plan");
   assert.equal(f.plan.version, 2, "which is a new version, and that is the one the route is given");
+  assert.deepEqual(planChanged({ leadsRoute: `leads:s-${SEARCH_B}` }), [true, true], "it does change what runs");
   assert.equal(f.words, "", "the answer row under it starts empty: the owner's answer, not what they first asked");
   await f.onApprove(f.plan);
   await settle();
@@ -3977,6 +3988,7 @@ test("Change what I asked opens the answer row under the question, and approving
   assert.equal(sent[0].surface, "leads", "the amend turn is on the Leads surface (spec F5)");
   const shown = panels.at(-1);
   assert.deepEqual([shown.stage, shown.plan.version, shown.plan.count], ["plan", 2, 200], "the card's own plan");
+  assert.deepEqual(planChanged({ leadsRoute: `leads:s-${SEARCH_B}` }), [false, false], "Ask's card counts from itself");
   await shown.onApprove(shown.plan);
   await settle();
   assert.equal(committed.length, 1, "the card commits through Ask's door");
@@ -4206,10 +4218,10 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   }
   assert.match(
     textOf(byTestId(tree, "lead-map-key-out")),
-    /Closed or left out/,
+    /Closed or filtered out/,
     "the row's own words for a lead that left",
   );
-  // Left out steps back, as its row does.
+  // Filtered out steps back, as its row does.
   assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /is-out/);
 
   click(byTestId(tree, "lead-pin-l1"));
@@ -4333,21 +4345,22 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
     "Talking is said by the column once",
   );
 
-  // On a phone the row is People's (the phone pass), and its pill is the row's state -- Ready too, as a person's row
-  // always says theirs -- in the same registry tones.
+  // On a phone the row is People's (the phone pass), and its pill is the row's state in the same registry tones. Ready
+  // is the silent default there too: "Not contacted" on nearly every row took the names' room (3 Nov 2026).
   await fresh({ leads: { searches: [open], rows: dtos } });
   globalThis.__phone = true;
   const ph = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   globalThis.__phone = false;
   const pillOf = (id) => byTestId(rowOf(ph, id), "lead-state");
+  assert.equal(pillOf("p1"), null, "ready wears none");
   assert.deepEqual(
-    ["p1", "p2", "p3", "p4", "p5", "p6"].map((id) => cls((pillOf(id) || {}).rendered || pillOf(id))),
-    ["pill", "pill pill-info", "pill pill-ok", "pill pill-warn", "pill", "pill"],
-    "ready, contacted, talking, needs review, said no, left out",
+    ["p2", "p3", "p4", "p5", "p6"].map((id) => cls((pillOf(id) || {}).rendered || pillOf(id))),
+    ["pill pill-info", "pill pill-ok", "pill pill-warn", "pill", "pill"],
+    "contacted, talking, needs review, said no, left out",
   );
   assert.deepEqual(
-    ["p1", "p4", "p5", "p6"].map((id) => textOf(pillOf(id))),
-    ["Ready", rows[3].stateTag, "Said no", rows[5].stateTag],
+    ["p4", "p5", "p6"].map((id) => textOf(pillOf(id))),
+    [rows[3].stateTag, "Said no", rows[5].stateTag],
     "in the row's own words",
   );
 
@@ -4767,4 +4780,60 @@ test("a list of your own draws with no round and no area, reaches no finder stri
     .items.filter((i) => i.label)
     .map((i) => i.label);
   assert.ok(found.includes("Find new ones") && found.includes("Search again, changed"), "a found search keeps both");
+});
+
+test("a lead in a sequence wears one status, its place there, with the step and the sequence under its name (the phone walk of 3 Nov 2026: Ready beside Waits for your OK read as two answers)", async () => {
+  const placed = (group, extra = {}) => ({
+    lead_id: "",
+    sequence_id: "seq-1",
+    name: "Bookstore intro",
+    state: "on",
+    group,
+    place: 1,
+    at: null,
+    why: null,
+    ...extra,
+  });
+  const rows = ROW_DTOS.map((r) =>
+    r.id === "l1"
+      ? { ...r, place: placed("waiting", { lead_id: r.id }) }
+      : r.id === "l2"
+        ? { ...r, place: placed("left", { lead_id: r.id, why: "removed" }) }
+        : r.id === "l4"
+          ? { ...r, place: placed("waiting", { lead_id: r.id }) }
+          : r,
+  );
+  await fresh({ leads: { rows } });
+  globalThis.__phone = true;
+  try {
+    const tree = draw();
+    const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-card\b/.test(String(n.props?.className || "")));
+    const pill = (id) => byTestId(cardOf(id), "lead-state");
+    assert.equal(textOf(pill("l1")), "Waits for your OK", "the place, never Not contacted beside it");
+    assert.equal(String(pill("l1").rendered?.props?.className ?? pill("l1").props?.className), "pill pill-warn");
+    assert.equal(textOf(byTestId(cardOf("l1"), "lead-sub")), "Step 1 · Bookstore intro", "the step and the sequence");
+    assert.equal(textOf(pill("l2")), "Taken out", "why it left, never Left beside the finder's Filtered out");
+    assert.equal(textOf(byTestId(cardOf("l2"), "lead-sub")), "Bookstore intro");
+    assert.equal(textOf(pill("l4")), "Filtered out", "a lead the finder filtered out says that, whatever its place");
+  } finally {
+    globalThis.__phone = false;
+  }
+  // A desk's name tag says the same, while the Stage column is not drawn to say it; with it, only the column does.
+  const desk = draw();
+  const rowNode = find(
+    desk,
+    (n) => n.type && (n.type.name === "TableRowView" || (n.type.type && n.type.type.name === "TableRowView")),
+  );
+  const business = LEAD_COLUMNS.find((c) => c.key === "business");
+  const tagOf = (id, stageShown) =>
+    find(
+      business.cell(
+        L().rows.find((r) => r.id === id),
+        { ...rowNode.props.ctx, stageShown },
+      ),
+      (n) => n.props?.testid === "lead-state-tag",
+    );
+  assert.equal(tagOf("l1", false)?.props.label, "Waits for your OK");
+  assert.equal(tagOf("l2", false)?.props.label, "Taken out");
+  assert.equal(tagOf("l1", true), null, "the Stage column says it");
 });

@@ -19,7 +19,7 @@ import type {
 } from "@chanlytics/contracts";
 
 /** The states a seeded thread is in; a real thread is only ever escalated, snoozed or done. */
-export type ThreadState = "needs" | "watching" | "drafts" | "escalated" | "snoozed" | "done";
+export type ThreadState = "needs" | "watching" | "drafts" | "escalated" | "snoozed" | "done" | "aside";
 
 /** The agent that answers: by name and glyph, and for a seeded thread what it may do and how it speaks. */
 interface ThreadAgent {
@@ -269,6 +269,8 @@ export interface InboxBucket {
   icon: string;
   accent?: boolean;
   count?: number;
+  /** Drawn only where it holds a thread: Set aside is no list to keep an eye on. */
+  onlyWithRows?: boolean;
 }
 
 /** A saved view, a real predicate over the threads. */

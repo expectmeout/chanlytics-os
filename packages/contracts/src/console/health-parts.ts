@@ -21,10 +21,18 @@ export interface HealthPartsDto {
   days: number;
   sends: Array<Keyed & { channel: string; status: string; n: number }>;
   send_errors: Array<Keyed & { channel: string; code: string; title: string | null; n: number; last_at: string }>;
-  calls: Array<Keyed & { status: string; reason: string; n: number; last_at: string }>;
+  /**
+   * Each ending's calls, in the platform's words: the server attaches `words` and `mend` from the one table of endings
+   * (voice/call-endings-platform.ts, callEndingOf), so a page loads the words of the endings it draws, never the table.
+   */
+  calls: Array<
+    Keyed & { status: string; reason: string; n: number; last_at: string; words: string; mend: string | null }
+  >;
   webhooks: Array<Keyed & { provider: string; door: string; n: number; unverified: number; last_at: string }>;
   billing: Array<{ type: string; state: string; n: number; last_at: string }>;
   model: Array<Keyed & { purpose: string; outcome: string; n: number; usd: number }>;
+  /** What the replies sent did with the thread's draft (00539 reply_draft_uses, decision 0093). */
+  draft_uses?: Array<Keyed & { use: string; n: number }>;
   model_by_workspace: Array<Keyed & { tenant_id: string; purpose: string; n: number; usd: number }>;
   model_failures: Array<
     Keyed & {
@@ -204,28 +212,6 @@ export function sendsOf(parts: HealthPartsDto | null, scope: HealthScope): Sends
 
 // ----------------------------------------------------------------------------------------------------- calls
 
-/** A call's end, in words: the provider's reason as a person says it. */
-const CALL_REASON_WORDS: Record<string, string> = {
-  user_hangup: "hung up",
-  agent_hangup: "the receptionist ended it",
-  voicemail_reached: "reached voicemail",
-  call_transfer: "passed to a person",
-  dial_no_answer: "nobody answered",
-  dial_busy: "the line was busy",
-  credit_exhausted: "the voice provider's credit ran out",
-  error_unknown: "an error the provider didn't name",
-  inactivity: "went quiet",
-  max_duration_reached: "ran past the longest a call may last",
-  concurrency_limit_reached: "too many calls at once",
-};
-
-/** The reasons that are ours to mend, never a caller's choice. */
-const CALL_TROUBLE: Record<string, string> = {
-  credit_exhausted: "Top up the voice provider's credit: every call fails until it is.",
-  error_unknown: "The voice provider's log has the call: look it up by its time.",
-  concurrency_limit_reached: "The voice provider's plan takes too few calls at once for this workspace.",
-};
-
 export interface CallsVM {
   total: number;
   connected: number;
@@ -237,7 +223,9 @@ export interface CallsVM {
 
 export function callsOf(parts: HealthPartsDto | null, scope: HealthScope): CallsVM {
   const rows = inScopeRows(parts?.calls, scope);
-  const reasonWords = (r: string) => CALL_REASON_WORDS[r] ?? (r ? r.replace(/_/g, " ") : "no reason given");
+  // A call's end in words, and what mends it when it is ours: as the server read them off the one table.
+  const said = new Map(rows.map((r) => [r.reason, r]));
+  const reasonWords = (r: string) => said.get(r)?.words ?? (r ? r.replace(/_/g, " ") : "no reason given");
   const byReason = new Map<string, { n: number; last: string[] }>();
   for (const r of rows) {
     const k = r.reason;
@@ -255,7 +243,7 @@ export function callsOf(parts: HealthPartsDto | null, scope: HealthScope): Calls
         reason,
         words: reasonWords(reason),
         n: mine.reduce((n, r) => n + r.n, 0),
-        why: CALL_TROUBLE[reason] ?? "The call failed on the voice provider's side.",
+        why: said.get(reason)?.mend ?? "The call failed on the voice provider's side.",
         lastMs: latest(mine.map((r) => r.last_at)),
         ours: side ?? false,
       };
@@ -373,6 +361,16 @@ export interface ModelCallsVM {
 function failureReasonOf(f: { error_type: string | null; error_message: string | null }): string | null {
   if (!f.error_type && !f.error_message) return null;
   return [f.error_type, f.error_message].filter(Boolean).join(": ");
+}
+
+/** What the drafts came to, over the window: how many of the replies sent used the thread's draft, and how. */
+export function draftUsesOf(
+  parts: HealthPartsDto | null,
+  scope: HealthScope,
+): { asWritten: number; edited: number; notUsed: number } {
+  const rows = inScopeRows(parts?.draft_uses, scope);
+  const of = (use: string) => rows.filter((r) => r.use === use).reduce((n, r) => n + r.n, 0);
+  return { asWritten: of("as_written"), edited: of("edited"), notUsed: of("not_used") };
 }
 
 export function modelCallsOf(parts: HealthPartsDto | null, scope: HealthScope): ModelCallsVM {

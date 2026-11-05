@@ -165,6 +165,8 @@ export interface InboxThreadVM {
   /** The stamp of the reader's own mark on this person as this read carried it, epoch ms; 0 where they have none. */
   markAtMs: number;
   escalatedAtMs?: number;
+  /** Set aside as not a customer's (decision 0093): under Set aside, with Not a customer and Reply anyway on its dock. */
+  setAside?: boolean;
   /**
    * New to the reader: the customer wrote or called after they last opened the thread, or they put it back as unread
    * (standing.ts isUnseen, over the reader's own marks, 00349). It meant needsYou until the marks were kept, since

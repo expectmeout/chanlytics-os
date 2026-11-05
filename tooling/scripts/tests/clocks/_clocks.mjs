@@ -32,6 +32,10 @@ export const CLOCKS = {
     kind: "reconcile",
     why: "reconciles what a crash left, which no row's time says: a message no turn finished, a reply no job was left to send, a run no job started; and tells of a hold still open two hours after its own time, once",
   },
+  drafts: {
+    kind: "reconcile",
+    why: "writes the reply a hold is owed where its event was dropped, its run died or the rules changed; the hold's own events write the rest (00538, decision 0093)",
+  },
   google: { kind: "reconcile", why: "reads each workspace's listings and profiles from Google" },
   health: { kind: "judge", why: "judges every clock, and mails and pages when one falls silent" },
   instagram_tokens: {
@@ -41,6 +45,10 @@ export const CLOCKS = {
   jobs: {
     kind: "reconcile",
     why: "the ledger's backstop: a written job wakes the runner (00333), and the tick claims what a wake missed",
+  },
+  jobs_canary: {
+    kind: "judge",
+    why: "puts the ledger's own job on it every minute, and is judged by the newest one done: the whole loop proved from outside (00526, decision 0089)",
   },
   leads: { kind: "reconcile", why: "takes up lead runs whose start or lease was lost" },
   lines: {

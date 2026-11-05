@@ -276,6 +276,33 @@ interface RehearsalStart {
 }
 
 /**
+ * The open times and the caller's visits, read at once: in series they took four of the plan's six and a half seconds
+ * (decision 0092). Each is read only where its reads came back (a workspace that can answer, a caller with a memory), and
+ * each failure is thrown where its value is used (settledOrThrow), so a failed visits read keeps the facts composed.
+ */
+function calendarReads(
+  calendar: Calendar,
+  rtR: PromiseSettledResult<TenantRuntime>,
+  leadR: PromiseSettledResult<{ name: string | null } | null>,
+  phone: string | null,
+  now: Date,
+): Promise<[PromiseSettledResult<string | null>, PromiseSettledResult<string | null>]> {
+  const rt = rtR.status === "fulfilled" ? rtR.value : null;
+  const lead = leadR.status === "fulfilled" ? leadR.value : null;
+  const answers = rt && !rt.loadFailed && !rt.paused && rt.brain;
+  return Promise.allSettled([
+    answers ? calendar.openings(rt, now) : Promise.resolve(null),
+    rt && phone && lead ? calendar.visits(rt, { phone, name: lead.name }, now) : Promise.resolve(null),
+  ]);
+}
+
+/** A read run beside another, as if it had been awaited where it is used: its value, or its failure thrown there. */
+function settledOrThrow<T>(r: PromiseSettledResult<T>): T {
+  if (r.status === "rejected") throw r.reason;
+  return r.value;
+}
+
+/**
  * What a rehearsal's call is told (decision 0069): the composition a call on the line gets -- the facts, the clock and
  * the open times, the greeting, the voice -- for an owner playing a customer. No memory: they are nobody on file. And
  * no line to put them through to, since a rehearsal dials nobody (D4): its facts are composed as a workspace's with no
@@ -364,6 +391,8 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
           phone ? readLeadContext(db, routed.tenantId, phone, 12) : Promise.resolve(null),
         ]);
 
+        const [openingsR, visitsR] = await calendarReads(calendar, rtR, leadR, phone, now);
+
         let rt: TenantRuntime | null = null;
         if (rtR.status === "rejected") {
           fail(rtR.reason);
@@ -393,7 +422,7 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
             // the openings before the caller asks "when could I come in?".
             facts = "composed";
             configVersion = rt.configVersion ?? null;
-            businessFacts = composedFacts(rt, rt.brain, now, await calendar.openings(rt, now));
+            businessFacts = composedFacts(rt, rt.brain, now, settledOrThrow(openingsR));
           } else {
             facts = "missing";
             if (rt.configBroken) fail("the workspace's config does not parse");
@@ -408,9 +437,8 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
         } else if (leadR.value) {
           const lead = leadR.value;
           const parts = [describeLead(lead, now, rt?.timezone ?? "UTC", "voice")];
-          // The caller's appointments ride with who they are, so "when am I
-          // booked?" is answered from the calendar, not guessed.
-          const visits = rt ? await calendar.visits(rt, { phone, name: lead.name }, now) : null;
+          // The caller's appointments ride with who they are: "when am I booked?" is answered from the calendar.
+          const visits = settledOrThrow(visitsR);
           if (visits) parts.push(visits);
           const lines = lead.history.map(
             (h) => `${h.role === "user" ? "Customer" : "Business"}: ${String(h.content).slice(0, 160)}`,

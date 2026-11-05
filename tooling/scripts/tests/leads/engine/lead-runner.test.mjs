@@ -248,7 +248,7 @@ test("a workspace that stopped paying after the door reserved: a start reaches n
   for (const [mode, status] of [
     ["stripe", "past_due"],
     ["stripe", "canceled"],
-    ["stripe", "trialing"],
+    ["stripe", "none"],
   ]) {
     const { w, p } = world();
     w.T.billing_accounts[0] = { tenant_id: TENANT, mode, status };
@@ -256,11 +256,16 @@ test("a workspace that stopped paying after the door reserved: a start reaches n
     assert.deepEqual([w.round().state, w.round().ending], ["ended", "paused"], status);
     assert.deepEqual([w.apify.calls.length, w.runs().length], [0, 0], `${status}: no run, no row, no charge`);
   }
-  // A workspace invoiced by hand is never asked for a card: it starts.
-  const { w, p } = world();
-  w.T.billing_accounts[0] = { tenant_id: TENANT, mode: "direct", status: "none" };
-  assert.equal((await startRound(p(), w.round().id, OWNER)).kind, "started");
-  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2);
+  // A workspace invoiced by hand is never asked for a card, and a trial finds leads (decision 0090): each starts.
+  for (const [mode, status] of [
+    ["direct", "none"],
+    ["stripe", "trialing"],
+  ]) {
+    const { w, p } = world();
+    w.T.billing_accounts[0] = { tenant_id: TENANT, mode, status };
+    assert.equal((await startRound(p(), w.round().id, OWNER)).kind, "started", status);
+    assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2, status);
+  }
 });
 
 test("a round's runs never cap more than it reserved: with $0.60 for three terms one run starts, and the others are said", async () => {
@@ -626,16 +631,16 @@ test("a term the sizing gives nothing to is never started: no row, no provider c
   };
   const before = w.apify.calls.filter((c) => c.op === "startRun").length;
   const out = await startRound(p("job-3"), round.id, "job-3", true);
-  assert.deepEqual([out.phase, out.runs.map((r) => r.term)], ["main", ["personal trainer", "strength coach"]]);
+  assert.deepEqual([out.phase, out.runs.map((r) => r.term)], ["main", ["kettlebell class", "personal trainer"]]);
   assert.equal(
     w.apify.calls.filter((c) => c.op === "startRun").length,
     before + 2,
-    "the third term reached the provider not at all",
+    "the third term reached the provider not again",
   );
   assert.equal(
-    w.runs().filter((r) => r.term === "kettlebell class").length,
-    0,
-    "and it has no row to claim, lease or collect",
+    w.runs().filter((r) => r.term === "strength coach").length,
+    1,
+    "and it has no row to claim, lease or collect but its probe's",
   );
 });
 
@@ -1297,7 +1302,15 @@ test("the mark: a lead keeps the logo its own site declares, a left-out place ke
   const { w: w2, p: p2 } = await probed();
   w2.pages["https://place0001.example"] = `<head><link rel="icon" href="/i.svg"></head>`;
   // Enough time for the page and the judge, and none for the marks: the last thing the collect does is the first it gives up.
-  const tight = { ...p2("c2"), deadline: w2.clock.ms + JUDGE_MARGIN_MS + 100 };
+  const asked = w2.judge.judge;
+  const slow = {
+    ...w2.judge,
+    judge: async (...a) => {
+      w2.clock.ms += JUDGE_MARGIN_MS;
+      return asked(...a);
+    },
+  };
+  const tight = { ...p2("c2"), judge: slow, deadline: w2.clock.ms + JUDGE_MARGIN_MS + 100 };
   const done = await collect(tight, w2.runs()[0].id, "p0", "c2");
   assert.equal(done.kind, "committed", JSON.stringify(done));
   assert.equal(
@@ -1311,11 +1324,12 @@ test("the mark: a lead keeps the logo its own site declares, a left-out place ke
 test("the mark: a page that does not answer, or answers something that is not a page, leaves the lead unmarked", async () => {
   const { w, p } = await probed();
   w.pages["https://place0001.example"] = "<html><body>no head here</body></html>";
-  w.wires.fetchText = async (url) => {
-    if (url === "https://place0002.example") throw new Error("refused");
-    return w.pages[url] ?? null;
+  const read = w.wires.readSite;
+  w.wires.readSite = async (host) => {
+    if (host === "place0002.example") throw new Error("refused");
+    return read(host);
   };
-  const ports = { ...p("c1"), fetchText: w.wires.fetchText };
+  const ports = { ...p("c1"), readSite: w.wires.readSite };
   const out = await collect(ports, w.runs()[0].id, "p0", "c1");
   assert.equal(out.kind, "committed", JSON.stringify(out));
   const markOf = (n) => (w.T.leads.find((l) => l.place_id === `ChIJfixture000${n}`) || {}).logo_url;

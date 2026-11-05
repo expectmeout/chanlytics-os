@@ -19,6 +19,7 @@ import {
   GET_YES_ROUTE,
   NO_NUMBER_REACH,
   newReceptionistDefaults,
+  businessReadFactsOf,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
@@ -313,8 +314,16 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           connected: false,
           unsure: ["fri"],
           type: "moving_company",
-          bookingPage: "https://calendly.com/northside-movers-example/estimate",
         },
+        reads: [
+          {
+            source: "website",
+            facts: businessReadFactsOf({ booking_page: "https://calendly.com/northside-movers-example/estimate" }),
+            read_from: "https://northside.example.com/",
+            read_at: new Date(NOW).toISOString(),
+            error: null,
+          },
+        ],
       }),
       NOW,
     ).check,
@@ -349,9 +358,19 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
           website: null,
           service_area_only: true,
           primary_type: "moving_company",
-          booking_page: "https://calendly.com/northside-movers-example/estimate",
           phone_e164: "+13055550100",
         },
+      },
+    ],
+    // Where the website's read says its customers book, with no listing needed for it.
+    business_reads: [
+      {
+        tenant_id: T,
+        source: "website",
+        facts: { booking_page: "https://calendly.com/northside-movers-example/estimate" },
+        read_from: "https://northside.example.com/",
+        read_at: new Date(NOW).toISOString(),
+        error: null,
       },
     ],
     tenant_config: [
@@ -378,7 +397,6 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
     "by the one test (receptionistOf)",
   );
   assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
-  assert.equal(dto.google.bookingPage, "https://calendly.com/northside-movers-example/estimate");
   assert.equal(dto.google.phone, "+13055550100", "the listing's number, which the phone step offers to keep");
   assert.equal(
     setupSteps(dto, NOW).check.bookingPage,
@@ -395,7 +413,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
   assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
   assert.equal(none.google.type, null, "no listing, no kind");
-  assert.equal(none.google.bookingPage, null, "no listing, no website read");
+  assert.equal(setupSteps(none, NOW).check.bookingPage, null, "no website read, nothing to offer");
   assert.equal(none.google.phone, null, "no listing, no number to keep");
   const bare = tables();
   bare.google_listings[0].facts = {};
@@ -477,6 +495,8 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "google_listings.select",
       "google_connections.select",
       "billing_accounts.select",
+      // What the first run chose for the workspace (setup_choices, decision 0091): asked at once, read quietly.
+      "setup_choices.select",
       "invitations.select",
       "lines.select",
       // The mailboxes a reach-out writes from (decision 0056): read with the email line, whatever the hosted one.
@@ -510,7 +530,7 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
     await setupDtoFor(office, T, { kind: "back_office" }, new Date(NOW));
     assert.deepEqual(
       asked(office),
-      [...READS.slice(0, 8), "memberships.select", ...READS.slice(8)],
+      [...READS.slice(0, 9), "memberships.select", ...READS.slice(9)],
       "the back office: the members counted, and no RPC at all",
     );
 
@@ -1254,14 +1274,14 @@ test("a workspace that cannot spend AND has no card door is offered the thing th
   const paying = withBilling({ mode: "stripe", status: "active", ready: true, trial_days: 14 });
   assert.equal(lineRow(paying).verb.to, "verb:choose-line");
 
-  // 2. CANNOT SPEND, but a door exists: no plan yet, or a free trial, which covers no number -- the number starts the
-  // plan, on the first run's phone step, which takes it.
-  for (const status of ["none", "trialing"]) {
-    const w = withBilling({ mode: "stripe", status, ready: true, trial_days: 14 });
-    assert.match(lineRow(w).sentence, /it starts your plan/, status);
-    assert.equal(lineRow(w).verb.to, "start/channels", status);
-    assert.ok(billingRow(w), `${status}: and the billing row is drawn`);
-  }
+  // 2. CANNOT SPEND, but a door exists: no plan yet -- the number starts the free trial, on the first run's Go live,
+  // which takes it. A trial already running covers the number (decision 0090): the number is the next step, as paying.
+  const none = withBilling({ mode: "stripe", status: "none", ready: true, trial_days: 14 });
+  assert.match(lineRow(none).sentence, /it starts your free trial/);
+  assert.equal(lineRow(none).verb.to, "start/channels");
+  assert.ok(billingRow(none), "and the billing row is drawn");
+  const trial = withBilling({ mode: "stripe", status: "trialing", ready: true, trial_days: 14 });
+  assert.equal(lineRow(trial).verb.to, "verb:choose-line");
 
   // 3. CANNOT SPEND AND NO DOOR: neither row may send anybody to Billing.
   const closed = withBilling({ mode: "stripe", status: "none", ready: false, trial_days: 14 });

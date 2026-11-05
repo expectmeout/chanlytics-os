@@ -12,7 +12,7 @@
  *
  * Nothing here is read or drawn yet: the job that asks the model and applies the plan is PR 3's.
  */
-import { DATA_NOT_INSTRUCTIONS } from "../ai/fence";
+import { DATA_NOT_INSTRUCTIONS, defang } from "../ai/fence";
 import type { SystemOneQuestion } from "../ai/system-one";
 import { isRealDate } from "../config/workspace-config/config-rules";
 import { mondayOf, shiftKey } from "../calendar/day-keys";
@@ -196,10 +196,11 @@ export function replySystemPrompt(): string {
 }
 
 /**
- * A value of theirs cannot close the fence or open one: a reply tag, written with plain, escaped (&lt;) or full-width
- * (＜) brackets, becomes ‹reply› or ‹/reply›.
+ * A value of theirs cannot close the fence or open one, however a mail client wrote the tag: defang has made its plain
+ * brackets look-alikes by now, and a reply tag in what is left, with escaped (&lt;) or full-width (＜) brackets or some of
+ * each, becomes ‹reply› or ‹/reply›.
  */
-const FENCE_TAG = /(?:<|&lt;|＜)\s*([/／]?)\s*reply\b[^<>＜＞]*?(?:>|&gt;|＞)/gi;
+const FENCE_TAG = /(?:‹|&lt;|＜)\s*([/／]?)\s*reply\b[^‹›＜＞]*?(?:›|&gt;|＞)/gi;
 const unfenced = (v: string): string => v.replace(FENCE_TAG, (_tag, close: string) => (close ? "‹/reply›" : "‹reply›"));
 
 /** A day's weekday by name: built when first asked, so a bundle that never asks builds no formatter. */
@@ -222,7 +223,14 @@ export function replyUserContent(p: {
   answered: string | null;
 }): string {
   const received = isRealDate(p.receivedDay) ? `${p.receivedDay} (${weekdayNameOf(p.receivedDay)})` : p.receivedDay;
-  const head = (v: string | null, max: number) => unfenced((v ?? "").replace(/\s+/g, " ").trim().slice(0, max));
+  // What a reader cannot see goes first: it would hide a tag from unfenced, and use up the bound on nothing.
+  const head = (v: string | null, max: number) =>
+    unfenced(
+      defang(v ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, max),
+    );
   const lines = [
     fenceLine("subject", head(p.subject, REPLY_SUBJECT_MAX)),
     fenceLine("automatic", p.automatic ? "yes" : "no"),

@@ -14,6 +14,74 @@
       "where": null
     },
     {
+      "table": "anthropic_profiles",
+      "name": "anthropic_profiles_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "anthropic_profiles",
+      "name": "anthropic_profiles_profile_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "profile_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "anthropic_profiles",
+      "name": "anthropic_profiles_person",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "user_id"
+        }
+      }
+    },
+    {
+      "table": "anthropic_profiles",
+      "name": "anthropic_profiles_workspace",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "tenant_id"
+        }
+      }
+    },
+    {
+      "table": "appointment_notices",
+      "name": "appointment_notices_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "appointment_notices",
       "name": "appointment_notices_delivery_uq",
       "primary": false,
@@ -29,8 +97,8 @@
       "where": null
     },
     {
-      "table": "appointment_notices",
-      "name": "appointment_notices_pkey",
+      "table": "appointments",
+      "name": "appointments_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -42,12 +110,33 @@
     },
     {
       "table": "appointments",
-      "name": "appointments_pkey",
-      "primary": true,
+      "name": "appointments_tenant_id_id_key",
+      "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
+          "column": "tenant_id"
+        },
+        {
           "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "appointments",
+      "name": "appointments_source_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "source"
+        },
+        {
+          "column": "external_id"
         }
       ],
       "where": null
@@ -87,39 +176,6 @@
           }
         ]
       }
-    },
-    {
-      "table": "appointments",
-      "name": "appointments_source_uq",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "source"
-        },
-        {
-          "column": "external_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "appointments",
-      "name": "appointments_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "ask_journal_days",
@@ -219,6 +275,18 @@
     },
     {
       "table": "billing_accounts",
+      "name": "billing_accounts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "billing_accounts",
       "name": "billing_accounts_customer_idx",
       "primary": false,
       "nullsNotDistinct": false,
@@ -232,18 +300,6 @@
           "column": "stripe_customer_id"
         }
       }
-    },
-    {
-      "table": "billing_accounts",
-      "name": "billing_accounts_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "billing_card_marks",
@@ -310,21 +366,6 @@
     },
     {
       "table": "calls",
-      "name": "calls_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "calls",
       "name": "calls_tenant_id_retell_call_id_key",
       "primary": false,
       "nullsNotDistinct": false,
@@ -334,6 +375,21 @@
         },
         {
           "column": "retell_call_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "calls",
+      "name": "calls_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
         }
       ],
       "where": null
@@ -439,6 +495,25 @@
     },
     {
       "table": "contacts",
+      "name": "contacts_tenant_phone_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "phone_e164"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "phone_e164"
+        }
+      }
+    },
+    {
+      "table": "contacts",
       "name": "contacts_tenant_email_uq",
       "primary": false,
       "nullsNotDistinct": false,
@@ -472,23 +547,16 @@
       "where": null
     },
     {
-      "table": "contacts",
-      "name": "contacts_tenant_phone_uq",
-      "primary": false,
+      "table": "conversation_channel_state",
+      "name": "conversation_channel_state_pkey",
+      "primary": true,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "tenant_id"
-        },
-        {
-          "column": "phone_e164"
+          "column": "id"
         }
       ],
-      "where": {
-        "notNull": {
-          "column": "phone_e164"
-        }
-      }
+      "where": null
     },
     {
       "table": "conversation_channel_state",
@@ -509,8 +577,8 @@
       "where": null
     },
     {
-      "table": "conversation_channel_state",
-      "name": "conversation_channel_state_pkey",
+      "table": "conversation_drafts",
+      "name": "conversation_drafts_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -534,18 +602,6 @@
         },
         {
           "column": "kind"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "conversation_drafts",
-      "name": "conversation_drafts_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
         }
       ],
       "where": null
@@ -594,6 +650,18 @@
     },
     {
       "table": "deals",
+      "name": "deals_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "deals",
       "name": "deals_open_uq",
       "primary": false,
       "nullsNotDistinct": false,
@@ -624,18 +692,6 @@
           "won"
         ]
       }
-    },
-    {
-      "table": "deals",
-      "name": "deals_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "deals",
@@ -693,6 +749,18 @@
     },
     {
       "table": "escalations",
+      "name": "escalations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "escalations",
       "name": "escalations_one_open",
       "primary": false,
       "nullsNotDistinct": false,
@@ -710,18 +778,6 @@
           "value": "open"
         }
       }
-    },
-    {
-      "table": "escalations",
-      "name": "escalations_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "event_deliveries",
@@ -899,6 +955,18 @@
     },
     {
       "table": "imports",
+      "name": "imports_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "imports",
       "name": "imports_one_a_source",
       "primary": false,
       "nullsNotDistinct": true,
@@ -916,8 +984,8 @@
       "where": null
     },
     {
-      "table": "imports",
-      "name": "imports_pkey",
+      "table": "invitations",
+      "name": "invitations_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -958,8 +1026,20 @@
       }
     },
     {
-      "table": "invitations",
-      "name": "invitations_pkey",
+      "table": "job_kinds",
+      "name": "job_kinds_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "kind"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "jobs",
+      "name": "jobs_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -968,94 +1048,6 @@
         }
       ],
       "where": null
-    },
-    {
-      "table": "job_capacity",
-      "name": "job_capacity_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "scope"
-        },
-        {
-          "column": "key"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "jobs",
-      "name": "jobs_dedupe_live",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "dedupe_key"
-        }
-      ],
-      "where": {
-        "and": [
-          {
-            "notNull": {
-              "column": "dedupe_key"
-            }
-          },
-          {
-            "in": {
-              "column": "state"
-            },
-            "values": [
-              "scheduled",
-              "fired"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "table": "jobs",
-      "name": "jobs_email_ingest_uq",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "path": [
-            "payload",
-            "mailbox_id"
-          ],
-          "text": true
-        },
-        {
-          "path": [
-            "payload",
-            "received_id"
-          ],
-          "text": true
-        }
-      ],
-      "where": {
-        "and": [
-          {
-            "cmp": "=",
-            "left": {
-              "column": "kind"
-            },
-            "right": {
-              "value": "email_ingest"
-            }
-          },
-          {
-            "cmp": "<>",
-            "left": {
-              "column": "state"
-            },
-            "right": {
-              "value": "failed"
-            }
-          }
-        ]
-      }
     },
     {
       "table": "jobs",
@@ -1103,53 +1095,53 @@
     },
     {
       "table": "jobs",
-      "name": "jobs_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "jobs",
-      "name": "jobs_reply_read_once",
+      "name": "jobs_dedupe_live",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "path": [
-            "payload",
-            "message_id"
-          ],
-          "text": true
-        },
-        {
-          "coalesce": [
-            {
-              "path": [
-                "payload",
-                "stage"
-              ],
-              "text": true
-            },
-            {
-              "value": "read"
-            }
-          ]
+          "column": "dedupe_key"
         }
       ],
       "where": {
         "and": [
           {
-            "cmp": "=",
-            "left": {
-              "column": "kind"
+            "notNull": {
+              "column": "dedupe_key"
+            }
+          },
+          {
+            "in": {
+              "column": "state"
             },
-            "right": {
-              "value": "reply_read"
+            "values": [
+              "scheduled",
+              "fired"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "table": "jobs",
+      "name": "jobs_dedupe_kept",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "dedupe_key"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "truthy": {
+              "column": "dedupe_kept"
+            }
+          },
+          {
+            "notNull": {
+              "column": "dedupe_key"
             }
           },
           {
@@ -1196,24 +1188,24 @@
     },
     {
       "table": "lead_judgments",
-      "name": "lead_judgments_op_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "op_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "lead_judgments",
       "name": "lead_judgments_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
         {
           "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_judgments",
+      "name": "lead_judgments_op_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "op_id"
         }
       ],
       "where": null
@@ -1295,6 +1287,18 @@
     },
     {
       "table": "lead_previews",
+      "name": "lead_previews_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_previews",
       "name": "lead_previews_one_per_lead",
       "primary": false,
       "nullsNotDistinct": false,
@@ -1310,12 +1314,12 @@
     },
     {
       "table": "lead_previews",
-      "name": "lead_previews_pkey",
-      "primary": true,
+      "name": "lead_previews_token_key",
+      "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "id"
+          "column": "token"
         }
       ],
       "where": null
@@ -1335,18 +1339,6 @@
           "column": "preview_tenant_id"
         }
       }
-    },
-    {
-      "table": "lead_previews",
-      "name": "lead_previews_token_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "token"
-        }
-      ],
-      "where": null
     },
     {
       "table": "lead_rounds",
@@ -1392,24 +1384,24 @@
     },
     {
       "table": "lead_runs",
-      "name": "lead_runs_apify_run_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "apify_run_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "lead_runs",
       "name": "lead_runs_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
         {
           "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_runs",
+      "name": "lead_runs_apify_run_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "apify_run_id"
         }
       ],
       "where": null
@@ -1524,21 +1516,6 @@
     },
     {
       "table": "leads",
-      "name": "leads_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "leads",
       "name": "leads_tenant_place_uq",
       "primary": false,
       "nullsNotDistinct": false,
@@ -1555,6 +1532,21 @@
           "column": "place_id"
         }
       }
+    },
+    {
+      "table": "leads",
+      "name": "leads_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "leads",
@@ -1577,6 +1569,18 @@
           "column": "source_key"
         }
       }
+    },
+    {
+      "table": "lines",
+      "name": "lines_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "lines",
@@ -1628,8 +1632,8 @@
       }
     },
     {
-      "table": "lines",
-      "name": "lines_pkey",
+      "table": "mailbox_connections",
+      "name": "mailbox_connections_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -1638,6 +1642,41 @@
         }
       ],
       "where": null
+    },
+    {
+      "table": "mailbox_connections",
+      "name": "mailbox_connections_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailbox_connections",
+      "name": "mailbox_connections_live_address",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "address"
+        }
+      ],
+      "where": {
+        "cmp": "<>",
+        "left": {
+          "column": "state"
+        },
+        "right": {
+          "value": "removed"
+        }
+      }
     },
     {
       "table": "mailbox_connections",
@@ -1664,53 +1703,6 @@
           "value": "removed"
         }
       }
-    },
-    {
-      "table": "mailbox_connections",
-      "name": "mailbox_connections_live_address",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "address"
-        }
-      ],
-      "where": {
-        "cmp": "<>",
-        "left": {
-          "column": "state"
-        },
-        "right": {
-          "value": "removed"
-        }
-      }
-    },
-    {
-      "table": "mailbox_connections",
-      "name": "mailbox_connections_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "mailbox_connections",
-      "name": "mailbox_connections_tenant_id_id",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "mailbox_left",
@@ -1759,6 +1751,30 @@
     },
     {
       "table": "mailboxes",
+      "name": "mailboxes_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailboxes",
+      "name": "mailboxes_tenant_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailboxes",
       "name": "mailboxes_local_part_uq",
       "primary": false,
       "nullsNotDistinct": false,
@@ -1771,12 +1787,12 @@
     },
     {
       "table": "mailboxes",
-      "name": "mailboxes_pkey",
-      "primary": true,
+      "name": "mailboxes_reply_token_uq",
+      "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "id"
+          "column": "reply_token"
         }
       ],
       "where": null
@@ -1796,30 +1812,6 @@
           "column": "reply_token_prev"
         }
       }
-    },
-    {
-      "table": "mailboxes",
-      "name": "mailboxes_reply_token_uq",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "reply_token"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "mailboxes",
-      "name": "mailboxes_tenant_uq",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "memberships",
@@ -2017,6 +2009,18 @@
     },
     {
       "table": "partner_earnings",
+      "name": "partner_earnings_stripe_event_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "stripe_event_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partner_earnings",
       "name": "partner_earnings_share_idx",
       "primary": false,
       "nullsNotDistinct": false,
@@ -2034,18 +2038,6 @@
           "value": "share"
         }
       }
-    },
-    {
-      "table": "partner_earnings",
-      "name": "partner_earnings_stripe_event_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "stripe_event_id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "partner_invitations",
@@ -2097,18 +2089,6 @@
     },
     {
       "table": "partners",
-      "name": "partners_code_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "code"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "partners",
       "name": "partners_pkey",
       "primary": true,
       "nullsNotDistinct": false,
@@ -2132,6 +2112,30 @@
       "where": null
     },
     {
+      "table": "partners",
+      "name": "partners_code_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "code"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "person_doubts",
+      "name": "person_doubts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "person_doubts",
       "name": "person_doubts_pair_once",
       "primary": false,
@@ -2145,18 +2149,6 @@
         },
         {
           "column": "other_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "person_doubts",
-      "name": "person_doubts_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
         }
       ],
       "where": null
@@ -2294,24 +2286,24 @@
     },
     {
       "table": "privacy_requests",
-      "name": "privacy_requests_number_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "number"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "privacy_requests",
       "name": "privacy_requests_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
         {
           "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "privacy_requests",
+      "name": "privacy_requests_number_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "number"
         }
       ],
       "where": null
@@ -2345,22 +2337,6 @@
     },
     {
       "table": "push_devices",
-      "name": "push_devices_activity_token_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "activity_token"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "activity_token"
-        }
-      }
-    },
-    {
-      "table": "push_devices",
       "name": "push_devices_pkey",
       "primary": true,
       "nullsNotDistinct": false,
@@ -2382,6 +2358,22 @@
         }
       ],
       "where": null
+    },
+    {
+      "table": "push_devices",
+      "name": "push_devices_activity_token_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "activity_token"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "activity_token"
+        }
+      }
     },
     {
       "table": "reach_out_check_spend",
@@ -2451,6 +2443,18 @@
     },
     {
       "table": "segments",
+      "name": "segments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "segments",
       "name": "segments_live_name",
       "primary": false,
       "nullsNotDistinct": false,
@@ -2472,18 +2476,6 @@
     },
     {
       "table": "segments",
-      "name": "segments_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "segments",
       "name": "segments_tenant_id_id_key",
       "primary": false,
       "nullsNotDistinct": false,
@@ -2496,25 +2488,6 @@
         }
       ],
       "where": null
-    },
-    {
-      "table": "sequence_batches",
-      "name": "sequence_batches_offered_once",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "step_id"
-        },
-        {
-          "column": "offered_from"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "offered_from"
-        }
-      }
     },
     {
       "table": "sequence_batches",
@@ -2550,6 +2523,52 @@
     {
       "table": "sequence_batches",
       "name": "sequence_batches_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_batches",
+      "name": "sequence_batches_offered_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "step_id"
+        },
+        {
+          "column": "offered_from"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "offered_from"
+        }
+      }
+    },
+    {
+      "table": "sequence_enrollments",
+      "name": "sequence_enrollments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_enrollments",
+      "name": "sequence_enrollments_tenant_id_id_key",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
@@ -2627,28 +2646,16 @@
       }
     },
     {
-      "table": "sequence_enrollments",
-      "name": "sequence_enrollments_pkey",
+      "table": "sequence_lead_words",
+      "name": "sequence_lead_words_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "sequence_enrollments",
-      "name": "sequence_enrollments_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
+          "column": "step_id"
         },
         {
-          "column": "id"
+          "column": "lead_id"
         }
       ],
       "where": null
@@ -2667,6 +2674,33 @@
     },
     {
       "table": "sequence_sends",
+      "name": "sequence_sends_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_sends",
       "name": "sequence_sends_batch_id_lead_id_key",
       "primary": false,
       "nullsNotDistinct": false,
@@ -2679,6 +2713,25 @@
         }
       ],
       "where": null
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_person_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "batch_id"
+        },
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": {
+        "isNull": {
+          "column": "lead_id"
+        }
+      }
     },
     {
       "table": "sequence_sends",
@@ -2739,26 +2792,39 @@
     },
     {
       "table": "sequence_sends",
-      "name": "sequence_sends_person_once",
+      "name": "sequence_sends_own_once",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "batch_id"
+          "column": "tenant_id"
         },
         {
-          "column": "contact_id"
+          "column": "lead_id"
         }
       ],
       "where": {
-        "isNull": {
-          "column": "lead_id"
-        }
+        "and": [
+          {
+            "isNull": {
+              "column": "sequence_id"
+            }
+          },
+          {
+            "cmp": "=",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "queued"
+            }
+          }
+        ]
       }
     },
     {
-      "table": "sequence_sends",
-      "name": "sequence_sends_pkey",
+      "table": "sequence_steps",
+      "name": "sequence_steps_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -2767,37 +2833,6 @@
         }
       ],
       "where": null
-    },
-    {
-      "table": "sequence_sends",
-      "name": "sequence_sends_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "sequence_steps",
-      "name": "sequence_steps_one_chain_per_search",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "lead_search_id"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "lead_search_id"
-        }
-      }
     },
     {
       "table": "sequence_steps",
@@ -2821,6 +2856,21 @@
     },
     {
       "table": "sequence_steps",
+      "name": "sequence_steps_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_steps",
       "name": "sequence_steps_one_next",
       "primary": false,
       "nullsNotDistinct": false,
@@ -2837,31 +2887,19 @@
     },
     {
       "table": "sequence_steps",
-      "name": "sequence_steps_one_source",
+      "name": "sequence_steps_one_chain_per_search",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "source_search_id"
+          "column": "lead_search_id"
         }
       ],
       "where": {
         "notNull": {
-          "column": "source_search_id"
+          "column": "lead_search_id"
         }
       }
-    },
-    {
-      "table": "sequence_steps",
-      "name": "sequence_steps_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
     },
     {
       "table": "sequence_steps",
@@ -2880,18 +2918,19 @@
     },
     {
       "table": "sequence_steps",
-      "name": "sequence_steps_tenant_id_id_key",
+      "name": "sequence_steps_one_source",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
+          "column": "source_search_id"
         }
       ],
-      "where": null
+      "where": {
+        "notNull": {
+          "column": "source_search_id"
+        }
+      }
     },
     {
       "table": "sequences",
@@ -2921,13 +2960,13 @@
       "where": null
     },
     {
-      "table": "support_reports",
-      "name": "support_reports_number_key",
-      "primary": false,
+      "table": "setup_choices",
+      "name": "setup_choices_pkey",
+      "primary": true,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "number"
+          "column": "tenant_id"
         }
       ],
       "where": null
@@ -2940,6 +2979,18 @@
       "keys": [
         {
           "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "support_reports",
+      "name": "support_reports_number_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "number"
         }
       ],
       "where": null
@@ -3006,6 +3057,18 @@
     },
     {
       "table": "tenant_channels",
+      "name": "tenant_channels_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenant_channels",
       "name": "tenant_channels_kind_external_id_key",
       "primary": false,
       "nullsNotDistinct": false,
@@ -3015,18 +3078,6 @@
         },
         {
           "column": "external_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "tenant_channels",
-      "name": "tenant_channels_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
         }
       ],
       "where": null
@@ -3099,6 +3150,18 @@
     },
     {
       "table": "voice_agents",
+      "name": "voice_agents_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "voice_agents",
       "name": "voice_agents_agent_id_key",
       "primary": false,
       "nullsNotDistinct": false,
@@ -3110,13 +3173,13 @@
       "where": null
     },
     {
-      "table": "voice_agents",
-      "name": "voice_agents_pkey",
+      "table": "waitlist",
+      "name": "waitlist_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
         {
-          "column": "tenant_id"
+          "column": "id"
         }
       ],
       "where": null
@@ -3136,8 +3199,8 @@
       "where": null
     },
     {
-      "table": "waitlist",
-      "name": "waitlist_pkey",
+      "table": "workspace_notices_pending",
+      "name": "workspace_notices_pending_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
@@ -3159,6 +3222,7 @@
       "state": "open"
     },
     "jobs": {
+      "dedupe_kept": false,
       "state": "scheduled"
     },
     "lead_platform": {

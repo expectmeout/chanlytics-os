@@ -45,6 +45,8 @@ export interface UncheckedSend {
    * (contracts HOLDS_INCLUDED_FOR_CHAIN).
    */
   included_for: string[];
+  /** Waiting for its owner, or due within the tick's `aheadMinutes`: taken first, and the only kind a model's bad hour holds (decision 0098). */
+  due_soon: boolean;
   record: ReachOutRecordRow;
 }
 
@@ -75,17 +77,19 @@ function recordOf(r: Record<string, unknown>): ReachOutRecordRow {
 
 /**
  * The sends this tick checks, leased under their row locks (00197): at most `perWorkspace` of each workspace, round
- * robin, waiting for their owner or due within `aheadMinutes`, none another tick started in the last two minutes.
+ * robin, every planned send whatever its day (decision 0098), those waiting for their owner or due within `aheadMinutes`
+ * first, none another tick started in the last two minutes. With `sendIds`, those sends alone (00505: a person pressed them).
  */
 export async function uncheckedSends(
   db: Db,
-  p: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: string },
+  p: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: string; sendIds?: string[] },
 ): Promise<UncheckedSend[]> {
   const { data, error } = await db.rpc("sequence_unchecked", {
     p_limit: p.limit,
     p_per_workspace: p.perWorkspace,
     p_ahead_minutes: p.aheadMinutes,
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+    ...(p.sendIds ? { p_send_ids: p.sendIds } : {}),
   });
   if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
@@ -99,6 +103,8 @@ export async function uncheckedSends(
       included_for: Array.isArray(r.included_for)
         ? r.included_for.filter((x): x is string => typeof x === "string")
         : [],
+      // A function from before 00546 says nothing, and takes only what is due soon.
+      due_soon: r.due_soon !== false,
       record: recordOf(r),
     };
   });

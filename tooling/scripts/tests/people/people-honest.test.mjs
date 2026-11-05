@@ -1641,15 +1641,15 @@ test("REGRESSION: on a phone a selection is one row in the tab bar's shape -- �
     assert.match(textOf(byTestId(sheet, "bulk-list-s1")), /Regulars/);
   }));
 
-test("on a phone More opens the selection's sheet -- Messages and receptionist ›, Export -- Note is the dock's own, and a step asks, acts, then shuts", () =>
+test("on a phone More opens the selection's sheet -- Messages and receptionist ›, Export, Delete… -- Note is the dock's own, and a step asks, acts, then shuts", () =>
   onPhone(async () => {
     const seen = await freshPage({ people: [person(1), person(2), person(3)] });
     let tree = bulkSheetOpen();
     let sheet = openSheet(tree, "bulk-sheet");
     assert.equal(sheet.props.title, "2 selected");
     // A yes on record and the receptionist's mode are one step, the person page's own group (Messages and receptionist):
-    // the owner's modes are in it. Select all is the bar's at the top, and the note is up front in the dock.
-    assert.deepEqual(sheetRows(sheet), ["bulk-messages", "bulk-export"]);
+    // the owner's modes are in it. Select all is the bar's at the top, the note up front in the dock; the deletes last.
+    assert.deepEqual(sheetRows(sheet), ["bulk-messages", "bulk-export", "bulk-not-a-person", "bulk-delete"]);
     // A yes on a sign-up form: the step asks which forms, then records, then the sheet shuts.
     click(byTestId(sheet, "bulk-messages"));
     tree = draw();

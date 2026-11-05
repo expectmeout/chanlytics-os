@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import {
+  leadCalledByOf,
   reachOutExampleLead,
   type LeadCardLead,
   type LeadRowDto,
@@ -16,12 +17,17 @@ import { api } from "@/legacy-bridge/api";
 import { workspaceName } from "../../../people/person-verbs";
 import { tplOwn } from "../../templates/words";
 import { sequenceVerbs as verbs } from "../verbs";
+import { surfaceValue } from "../../../surface-values";
+import { brainOf } from "../../templates/words";
 import { useSequenceRead } from "../use-record";
 
 /** A lead in it, as the preview steps through them. */
 export interface PreviewLead {
   id: string;
+  /** Its name as its listing has it; usePreviewName says it as its email does. */
   name: string;
+  /** The opening its email waiting for an OK, or held, was written with, and that email's step; null where none is. */
+  written: { place: number; opening: string } | null;
 }
 
 /** The groups of who is in it that the preview reads as: everyone with a place, never those who left. */
@@ -36,9 +42,16 @@ export function usePreviewLeads(rec: SequenceRecordDto): PreviewLead[] {
   for (const r of read.data.rows) {
     if (!r.lead_id || seen.has(r.lead_id) || LEFT.has(r.group)) continue;
     seen.add(r.lead_id);
-    out.push({ id: r.lead_id, name: r.name ?? "" });
+    const opening = r.checked ? r.opening?.trim() : null;
+    out.push({ id: r.lead_id, name: r.name ?? "", written: opening && r.place ? { place: r.place, opening } : null });
   }
   return out;
+}
+
+/** The business's postal address as Settings holds it, which the foot says; "" while it is not set. */
+export function businessAddressOf(): string {
+  const brain = brainOf(surfaceValue("settings")?.settings);
+  return typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
 }
 
 /** Each lead's row as its page read it, for the tab. */
@@ -99,6 +112,14 @@ export function workspaceOf(signedBy: string): SlotWorkspace {
   };
 }
 
-/** The name the preview reads as: the lead's, or the example business's where nobody is in it. */
-export const previewNameOf = (lead: PreviewLead | null): string =>
-  lead?.name || reachOutExampleLead().business_name || "";
+/**
+ * The name the preview reads as: the one the business is called by, as its email, its opening and its test say it
+ * (leadCalledByOf: "L&B Mechanical", not its listing's "L&B Mechanical | Brooklyn NY | Plumbing"), with its city once
+ * its row is read; or the example business's where nobody is in it.
+ */
+export function usePreviewName(lead: PreviewLead | null): string {
+  const row = useLeadRow(lead?.id ?? null);
+  if (!lead) return reachOutExampleLead().business_name ?? "";
+  const listed = row?.business_name || lead.name;
+  return leadCalledByOf({ business_name: listed, city: row?.city ?? null }) ?? listed;
+}

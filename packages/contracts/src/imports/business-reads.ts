@@ -5,7 +5,9 @@
  * holds, and kept only on the owner's tap, a price with its service (the tap is the price confirmed, never assumed).
  * Pure: the edge writes the row, Setup reads it, and this says what Check offers of it.
  */
+import { DATA_NOT_INSTRUCTIONS } from "../ai/fence";
 import { sameListed } from "../calendar/service-offer";
+import { bookingPageOf } from "../google/booking-page";
 
 export const BUSINESS_READ_SOURCES = ["google_profile", "website"] as const;
 export type BusinessReadSource = (typeof BUSINESS_READ_SOURCES)[number];
@@ -22,6 +24,17 @@ export interface BusinessReadFacts {
   description: string | null;
   /** What the website read found of the business's look, and what it wore (decision 0075); null for a read before it, or the profile's. */
   look: LookRead | null;
+  /**
+   * Where the website says its customers book (the first run's Check, 3c-4): its own address on a booking platform, or
+   * the page its home page links to as the way to book; null where it names none. Check offers it while the record
+   * holds no booking link (bookingPageRead).
+   */
+  booking_page: string | null;
+  /**
+   * Whether a booking platform's page was read beside the website (a Booksy, Vagaro or Fresha page: the services, prices
+   * and minutes a salon's own site rarely says; the onboarding PRD's P8): what "your website and booking page" says.
+   */
+  booking_read: boolean;
 }
 
 /** What the website read found of the business's look (decision 0075), kept with the read whether or not it was worn. */
@@ -90,7 +103,15 @@ export function businessReadFactsOf(raw: unknown): BusinessReadFacts {
     }),
     description: cleanText(r.description, 750),
     look: lookReadOf(r.look),
+    booking_page: bookingPageOf(cleanText(r.booking_page, 400)),
+    // A row kept before the two were told apart named a page only where it had read one.
+    booking_read: r.booking_read === undefined ? !!r.booking_page : r.booking_read === true,
   };
+}
+
+/** Where the website says its customers book, as its newest read kept it; null with no read, or none named. */
+export function bookingPageRead(reads: readonly BusinessReadDto[] | null | undefined): string | null {
+  return (reads ?? []).find((r) => r.source === "website")?.facts.booking_page ?? null;
 }
 
 /** What Check offers of the reads, beside what the record holds: each thing once, the profile's before the website's. */
@@ -111,6 +132,8 @@ export const FOUND_WORDS = {
   title: "Found for you",
   lead: "Read from your Google profile and your website. Add what's right; a price comes with its service.",
   from: { google_profile: "Google profile", website: "your website" } as Record<BusinessReadSource, string>,
+  /** The website's read, where it read the booking platform's page too. */
+  fromWithBooking: "your website and booking page",
   add: "Add",
   addAll: (n: number) => `Add all ${n}`,
   added: (what: string) => `${what} added.`,
@@ -145,7 +168,8 @@ export function foundOf(
   const noted = (record.notes ?? []).map((n) => `${n?.title ?? ""} ${n?.text ?? ""}`.toLowerCase());
   const out: FoundVM = { services: [], closed: [], notes: [], description: null, unread: null, any: false };
   for (const r of ordered) {
-    const from = FOUND_WORDS.from[r.source];
+    const from =
+      r.source === "website" && r.facts.booking_read ? FOUND_WORDS.fromWithBooking : FOUND_WORDS.from[r.source];
     if (r.error && !out.unread) out.unread = FOUND_WORDS.unread(from, r.error);
     for (const s of r.facts.services) {
       if (listed.some((n) => sameListed(n, s.name)) || out.services.some((x) => sameListed(x.name, s.name))) continue;
@@ -181,6 +205,8 @@ export function foundOf(
 /** What the model is asked of a website's pages: only what they say, in their words, never a guess. */
 export const WEBSITE_READ_SYSTEM = [
   "You read a small business's own website pages for its owner, who checks each thing before their receptionist says it.",
+  "Each page comes in a <page> block of its own, its address on the first line.",
+  DATA_NOT_INSTRUCTIONS,
   "Answer only from what the pages say. Leave out anything they do not state; never guess a price, a time or a rule.",
   'services: each service or treatment offered, its price exactly as written ("$65", "from $40", "$120+") or null, and its length in minutes where stated, else null.',
   "closed: days the business says it is closed (a holiday, a break), as YYYY-MM-DD with the last day of a run in until, else null. Never a weekly day off.",

@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 
 let reduced = false;
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", ...over });
@@ -141,19 +142,29 @@ test("a pull down says how far it took the sheet under its rest, which a phone's
 });
 
 test("a page that asks first keeps its sheet: it leaves, the page asks, and it settles back to show the question", async () => {
+  // How long the leave takes is the finger's speed as it lifted (carryOn), read off the clock between the touches: a
+  // millisecond ticking between two of them made it 120 ms where it was 180, and a fixed wait of 200 found the sheet
+  // already back (CI, 3 Nov 2026). So the test waits for what it asserts.
   const el = element();
   let asked = 0;
-  const h = touchSwipe({ onDown: () => (asked += 1) });
+  const seen = {};
+  const h = touchSwipe({
+    onDown: () => {
+      asked += 1;
+      seen.asked = el.style.transform;
+      setImmediate(() => (seen.after = el.style.transform));
+    },
+  });
   drag(h, el, [100, 100], [100, 300], [100, 400]);
-  await wait(200);
+  await until(() => "after" in seen, "the page asked, and a turn went by");
   assert.equal(asked, 1);
+  assert.equal(seen.asked, "translate3d(0, 100%, 0)", "asked once it has left");
   assert.equal(
-    el.style.transform,
+    seen.after,
     "translate3d(0, 100%, 0)",
     "judged only once React has had its commit: no frame back in view",
   );
-  await wait(80);
-  assert.equal(el.style.transform, "translate3d(0, 0, 0)", "still on screen after the close: back");
+  await until(() => el.style.transform === "translate3d(0, 0, 0)", "still on screen after the close: back");
 });
 
 test("a sheet still on the page as it plays its leaving (the kit's Sheet, which Base UI lets go after) stays where the pull took it", async () => {
@@ -731,8 +742,6 @@ test("under reduced motion the finger still carries it, and the rest happens at 
 // itself before, by an inline style React was about to take away with the page (8 Oct 2026).
 
 const pager = (over = {}) => ({ prev: true, next: true, drag() {}, settle() {}, go() {}, ...over });
-/** The Calendar's days: a page that stays, and turns in place. It says only what is each side and how to turn. */
-const days = (over = {}) => ({ prev: true, next: true, stays: true, go() {}, ...over });
 
 test("a page follows the thumb across, both ways: it is told how far, which side, and that a page is there", () => {
   const seen = [];
@@ -934,67 +943,6 @@ test("where a page has both, a page to the left is walked first, and Back is wha
   const left = element();
   drag(h, left, [300, 300], [220, 300], [120, 300]);
   assert.deepEqual(went, [-1, 1]);
-});
-
-test("a page that stays (the Calendar's days) leaves, turns, and comes back in from the side it is going to", async () => {
-  const went = [];
-  const moves = [];
-  const style = {};
-  const el = element({
-    style: new Proxy(style, {
-      set: (o, k, v) => {
-        if (k === "transform") moves.push(v);
-        o[k] = v;
-        return true;
-      },
-    }),
-  });
-  const h = touchSwipe({ pages: () => days({ go: (s) => went.push(s) }) });
-  drag(h, el, [300, 300], [240, 300], [160, 300]);
-  assert.equal(style.transform, "translate3d(-375px, 0, 0)", "away first, as any page");
-  await wait(220);
-  assert.deepEqual(went, [1], "then the next days");
-  assert.deepEqual(
-    moves.slice(-2),
-    ["translate3d(40px, 0, 0)", "translate3d(0, 0, 0)"],
-    "and they come in from the right",
-  );
-  await wait(280);
-  assert.equal(style.transform, "", "the page's own rules own it again");
-});
-
-test("a page that stays waits where it went until `go` says the next has landed, then comes back in with it", async () => {
-  // A turn that is not drawn at once answers a promise, and the page comes back in only when it has landed: brought
-  // back as soon as it was asked, it came in showing what it was leaving, which turned into the next in mid-air (Reports'
-  // lenses, 7 Oct 2026, which are views of a strip now and move by the deck).
-  const moves = [];
-  const style = {};
-  const el = element({
-    style: new Proxy(style, {
-      set: (o, k, v) => {
-        if (k === "transform") moves.push(v);
-        o[k] = v;
-        return true;
-      },
-    }),
-  });
-  let landed = null;
-  const h = touchSwipe({
-    pages: () =>
-      days({
-        go: () =>
-          new Promise((r) => {
-            landed = r;
-          }),
-      }),
-  });
-  drag(h, el, [300, 300], [240, 300], [160, 300]);
-  await wait(220);
-  assert.ok(landed, "asked for the next once it had left");
-  assert.equal(moves.at(-1), "translate3d(-375px, 0, 0)", "and waits where it went while the next draws");
-  landed();
-  await wait(20);
-  assert.deepEqual(moves.slice(-2), ["translate3d(40px, 0, 0)", "translate3d(0, 0, 0)"], "then in from the right");
 });
 
 test("under reduced motion a page still follows, and the switch is at once; a swipe read only at its ends switches too", () => {

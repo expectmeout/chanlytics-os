@@ -12,15 +12,47 @@
  * last keyboard had (--kb-last, kept on the device), and a screen that makes room for it at once gives the browser nothing
  * to move the view for; the word is kept for the keyboard that never comes (a hardware one: KEYBOARD_DUE_MS), and ends as
  * the keyboard is reported (html.kb-up). Ask's screen stands on all of these (ask.css, the Stage's 5.9).
+ *
+ * The keys go as the field that raised them lets go, and iOS reports it half a second after they have: an open thread's
+ * reply box stood that long over an empty screen before it came down (Ruben's recording, 4 Nov 2026). So from the moment
+ * the focus leaves for nothing that types, while they are up, the document says they are LEAVING (html.kb-leaving) until
+ * the browser says they have gone, or a field takes the focus again. A screen that reads it gives their room back over
+ * their own beat, eased, so nothing under a finger has moved by the time its click lands (mobile.css, the open thread).
  */
 
 const KEYBOARD_MIN = 100;
 const KEYBOARD_DUE_MS = 600;
+/** How long the keys are said to be leaving when the browser never says they went (a field the focus moved to by itself). */
+const KEYBOARD_GOING_MS = 1200;
 const KEYBOARD_KEY = "chanlytics-os-keyboard";
 const ZOOMED = 1.01;
 const NOT_TYPING = /^(button|checkbox|radio|range|submit|reset|file|color|image|hidden)$/;
 
-const typesIn = (el: EventTarget | null): boolean => {
+/**
+ * What waits for the keys' room: each told once, the moment the document says a keyboard is expected, in the task the
+ * focus came in, and then forgotten (keys-rise.ts riseWithKeys). A frame later was too late: an iPhone had already drawn
+ * the screen with the room made, and the reply box went up in one frame (Ruben's recording, 4 Nov 2026).
+ */
+const roomWaiters = new Set<() => void>();
+
+/** Be told the moment the keys' room is made; the function it answers stops waiting. */
+export const whenKeysRoomMade = (told: () => void): (() => void) => {
+  roomWaiters.add(told);
+  return () => {
+    roomWaiters.delete(told);
+  };
+};
+
+/** The keys' room was made: everything waiting for it is told, once. */
+export const keysRoomMade = (): void => {
+  for (const told of Array.from(roomWaiters)) {
+    roomWaiters.delete(told);
+    told();
+  }
+};
+
+/** A field the keyboard rises for: what makes the document expect it (and what a box on the keys rises for, keys-rise.ts). */
+export const typesIn = (el: EventTarget | null): boolean => {
   const n = el as HTMLElement | null;
   return (
     !!n &&
@@ -39,6 +71,7 @@ export const watchKeyboard = (): (() => void) => {
   let said: string | null = null;
   let up = false;
   let due: ReturnType<typeof setTimeout> | undefined;
+  let going: ReturnType<typeof setTimeout> | undefined;
   let last = 0;
   try {
     last = Number(window.localStorage.getItem(KEYBOARD_KEY)) || 0;
@@ -49,7 +82,14 @@ export const watchKeyboard = (): (() => void) => {
   const expect = (on: boolean) => {
     clearTimeout(due);
     if (cls) cls.toggle("kb-expected", on);
-    if (on) due = setTimeout(() => expect(false), KEYBOARD_DUE_MS);
+    if (!on) return;
+    due = setTimeout(() => expect(false), KEYBOARD_DUE_MS);
+    keysRoomMade();
+  };
+  const leaving = (on: boolean) => {
+    clearTimeout(going);
+    if (cls) cls.toggle("kb-leaving", on);
+    if (on) going = setTimeout(() => leaving(false), KEYBOARD_GOING_MS);
   };
   const set = () => {
     const zoomed = (vv.scale || 1) > ZOOMED;
@@ -63,7 +103,10 @@ export const watchKeyboard = (): (() => void) => {
     root.style.setProperty("--kb", `${kb}px`);
     root.style.setProperty("--vv-top", `${top}px`);
     if (cls) cls.toggle("kb-up", up);
-    if (!up) return;
+    if (!up) {
+      leaving(false);
+      return;
+    }
     expect(false);
     if (keys === last) return;
     last = keys;
@@ -76,9 +119,16 @@ export const watchKeyboard = (): (() => void) => {
   };
   // Not where the phone app shrinks the page above the keys (contracts APP_KEYS_RESIZE_CLASS): room made would then go.
   const focusIn = (e: Event) => {
-    if (!up && typesIn(e.target) && !(cls && cls.contains("app-keys-resize"))) expect(true);
+    if (!typesIn(e.target)) return;
+    leaving(false);
+    if (!up && !(cls && cls.contains("app-keys-resize"))) expect(true);
   };
-  const focusOut = () => expect(false);
+  // The focus gone to nothing that types, with the keys up: they are on their way down (the field moving to another
+  // field keeps them, and says so first).
+  const focusOut = (e: Event) => {
+    expect(false);
+    if (up && !typesIn((e as FocusEvent).relatedTarget)) leaving(true);
+  };
   set();
   vv.addEventListener("resize", set);
   vv.addEventListener("scroll", set);
@@ -90,10 +140,12 @@ export const watchKeyboard = (): (() => void) => {
     document.removeEventListener("focusin", focusIn);
     document.removeEventListener("focusout", focusOut);
     clearTimeout(due);
+    clearTimeout(going);
     for (const p of ["--kb", "--vv-top", "--kb-last"]) root.style.removeProperty(p);
     if (cls) {
       cls.remove("kb-up");
       cls.remove("kb-expected");
+      cls.remove("kb-leaving");
     }
   };
 };

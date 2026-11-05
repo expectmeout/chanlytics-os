@@ -2,7 +2,8 @@
  * Scheduling is one insert. The heartbeat (api/jobs/tick.ts, over
  * claim_due_jobs) runs whatever is due, so there is no second system to tell,
  * no publish that can be lost after the row is written, and no orphan to clean
- * up. Service-role territory (§8): never called with a session client.
+ * up. Service-role territory (§8): never called with a session client. The database writes each row's lane and its
+ * once-only key from its kind's job_kinds row (00526), so a SQL function's insert and this one are held alike.
  *
  * A job scheduled while a request is being served carries that request's name
  * in its payload (`request_id`), and the tick runs the job under it: a click's
@@ -10,9 +11,10 @@
  * payload that names one already keeps it, so a job a job schedules (a
  * broadcast's next batch) carries the request that started the chain.
  */
-import { hasNewerCopy, readJobToRequeue, type Json } from "@chanlytics/db";
+import { hasRequeuedCopy, readJobToRequeue, type Json } from "@chanlytics/db";
 import { JOB_KINDS, type JobKind } from "@chanlytics/contracts";
 import { logger, requestId } from "@chanlytics/channels";
+import { kindPolicyOf } from "./kinds";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
 
 /** The payload with the request it was scheduled in, when there is one and it does not name one already. */
@@ -31,93 +33,83 @@ export interface ScheduleParams {
 }
 
 /**
- * What makes a row once-only while it is scheduled or fired (jobs.dedupe_key, 00333, decision 0033): the three kinds the
- * ledger held once per subject by an index of their own carry the same subject as their key, so one index holds every
- * kind once the three retire. A text's answer (inbound_answer, 00347) is held once per message the same way. A kind with
- * no rule has no key. The key is unique across every workspace (jobs_dedupe_live), so a subject that is not one
- * workspace's alone carries the workspace in its key.
+ * Why a payload is not one its kind takes, or null when it is: an id its handler cannot run without that it does not name
+ * (kinds.ts `ids`). Read at the write here and at the claim (handlers.ts dispatchJob), so a writer's slip fails loudly
+ * where it was made, and a row nothing could run is never half-run.
  */
-function dedupeKeyOf({ tenantId, kind, payload }: ScheduleParams): string | null {
-  const p = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
-  const field = (name: string): string | null => (typeof p[name] === "string" ? p[name] : null);
-  switch (kind) {
-    case "email_ingest":
-      return field("mailbox_id") && field("received_id")
-        ? `email_ingest:${field("mailbox_id")}:${field("received_id")}`
-        : null;
-    case "lead_collect":
-      return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
-    case "reply_read":
-      return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
-    // One read per delivery in each workspace (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again,
-    // or the provider's webhook replayed, finds the read already on the ledger. One delivery addressed to two
-    // workspaces' mailboxes is an intake for each (edge resend-event.ts), and each reads it into its own appointments:
-    // keyed by the delivery alone, the second workspace's read was already_scheduled, and its booking never read.
-    case "booking_read":
-      return field("received_id") ? `booking_read:${tenantId}:${field("received_id")}` : null;
-    case "inbound_answer":
-      return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
-    // One part of one source's history per workspace (00478), and per mailbox for what a mailbox brings (0086): a
-    // connect told twice, or a part's next scheduled twice, finds it already on the ledger, and two mailboxes' runs never
-    // find each other's.
-    case "history_import": {
-      const through = field("connection_id");
-      return field("source") && field("seq")
-        ? `history_import:${tenantId}:${field("source")}:${field("seq")}${through ? `:${through}` : ""}`
-        : null;
-    }
-    // One read of a workspace's website waiting at a time (00479): a link and a save told together read it once.
-    case "website_read":
-      return `website_read:${tenantId}`;
-    // One build of a lead's preview waiting at a time (00497): a send and a press told together build it once.
-    case "preview_build":
-      return field("preview_id") ? `preview_build:${field("preview_id")}` : null;
-    // One finish of a person's erasure waiting at a time (00501, decision 0036): a second press while one waits finds
-    // it on the ledger, and the id is the person's across every workspace.
-    case "erasure_finish":
-      return field("contact_id") ? `erasure_finish:${field("contact_id")}` : null;
-    default:
-      return null;
-  }
+export function payloadRefusal(kind: string, payload: unknown): string | null {
+  const policy = kindPolicyOf(kind);
+  if (!policy) return null;
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return "the payload is not an object";
+  const p = payload as Record<string, unknown>;
+  const missing = policy.ids.filter((id) => typeof p[id] !== "string" || p[id] === "");
+  return missing.length ? `the payload names no ${missing.join(", ")}` : null;
 }
 
-/** The row an insert writes: the key beside the payload where the kind has one. */
-function rowToInsert(p: ScheduleParams, key: string | null) {
+/**
+ * The payload as the ledger keeps it: ids, not people (decision 0089). What the kind never carries (kinds.ts `never`: a
+ * reply's words, a text's words) is left on the row it names, where its handler reads it and an erasure finds it, and
+ * never copied onto the ledger.
+ */
+function idsOnly(kind: string, payload: Json): Json {
+  const never = kindPolicyOf(kind)?.never ?? [];
+  if (!never.length || payload === null || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  return Object.fromEntries(Object.entries(payload).filter(([k]) => !never.includes(k)));
+}
+
+/**
+ * The key a writer asks for, for the two kinds the database leaves unkeyed unless asked (job_kinds.once_parts null,
+ * 00506): a lead round's start, and each batch of its checks, one waiting at a time among the writers that carry the key
+ * (the sweep carrying a round on, a run's next, lead_collect_commit), while a door's own start (lead_round_answer, a
+ * search made or widened) is never refused for one already waiting. A Check again carries its own nonce, so it is never
+ * held behind the round's own checks.
+ */
+function askedKeyOf(kind: JobKind, payload: Json): string | null {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const round = typeof payload.round_id === "string" && payload.round_id !== "" ? payload.round_id : null;
+  if (!round) return null;
+  if (kind === "lead_round_start") return `lead_round_start:${round}`;
+  if (kind !== "lead_check") return null;
+  const again = typeof payload.again === "string" ? payload.again : "round";
+  return `lead_check:${round}:${again}:${typeof payload.batch === "number" ? payload.batch : 0}`;
+}
+
+/**
+ * The row an insert writes. Its once-only key and its lane are the database's to write (jobs_take_their_kind, 00526:
+ * the kind's job_kinds row), whoever the writer is: this, the fifteen SQL functions that insert jobs, and a Console
+ * requeue are held alike, and the rule is spelled once. The two lead kinds whose key a writer asks for are the one
+ * exception (askedKeyOf).
+ */
+function rowToInsert(p: ScheduleParams) {
+  const refused = payloadRefusal(p.kind, p.payload);
+  if (refused) throw new Error(`schedule_job: ${p.kind}: ${refused}`);
+  const asked = askedKeyOf(p.kind, p.payload);
   return {
     tenant_id: p.tenantId,
     kind: p.kind,
     due_at: p.dueAt.toISOString(),
-    payload: named(p.payload),
-    ...(key ? { dedupe_key: key } : {}),
+    payload: named(idsOnly(p.kind, p.payload)),
+    ...(asked ? { dedupe_key: asked } : {}),
   };
 }
 
 export async function scheduleJob(db: Db, p: ScheduleParams): Promise<{ jobId: string }> {
-  const { data, error } = await db
-    .from("jobs")
-    .insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: named(p.payload) })
-    .select("id")
-    .single();
+  const { data, error } = await db.from("jobs").insert(rowToInsert(p)).select("id").single();
   if (error || !data) throw new Error(`schedule_job: ${error?.message ?? "no row"}`);
   return { jobId: data.id };
 }
 
 /**
- * The same insert, for a kind the ledger holds at most one of per subject (a
- * unique index on its payload: email_ingest, 00127). A second insert for the
- * same subject is the provider delivering its webhook again, and is answered
- * as the fact it is rather than thrown: the work is already on the ledger.
+ * The same insert, for a kind the ledger holds at most one of per subject (its once-only key, job_kinds.once_parts). A
+ * second insert for the same subject is the provider delivering its webhook again, and is answered as the fact it is
+ * rather than thrown: the work is already on the ledger.
  */
 export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"scheduled" | "already_scheduled"> {
-  const key = dedupeKeyOf(p);
-  const insert = (dedupeKey: string | null) => db.from("jobs").insert(rowToInsert(p, dedupeKey));
-  let { error } = await insert(key);
-  // A database 00333 has not reached has no dedupe_key column (PostgREST: PGRST204): the row is written without the
-  // key, held once by the kind's own index as before, so the edge and the migration may land in either order.
-  if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
+  const { error } = await db.from("jobs").insert(rowToInsert(p));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
-  // The database's code travels with it: a caller tells a refusal (a CHECK a kind fails) from a write that may have landed.
+  // The database's code travels with it: a caller tells a refusal (a kind the database does not know) from a write that
+  // may have landed.
   throw Object.assign(new Error(`schedule_job: ${error.message}`), { code: error.code });
 }
 
@@ -172,8 +164,8 @@ export type Requeued =
  * whose outcome nobody knows, and it goes again from its thread or its broadcast, where a person sees whether it left.
  * Nor is a job of any kind whose run said it was about to speak (spoke_at, ledger markSpoke): a text's answer that put
  * its words on the wire and then threw may have reached the customer, and a fresh row would answer them twice.
- * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
- * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
+ * A job already run again (a copy that names it, `requeue_of`, not itself failed) answers `already_scheduled`, and so
+ * does a kind the ledger holds once per subject when the subject is on the ledger again.
  * An event's delivery is not run again here: its row is the delivery's, which a fresh job would leave failed and naming
  * the old one, and its one way back is `event_deliveries_redrive` (00334, 00390), which replays every failed or paused
  * delivery of its subscriber once the subscriber is mended, each with a job of its own (decision 0031's review of
@@ -193,12 +185,17 @@ export async function requeueFailedJob(
     return { outcome: "redrive", subscriber: typeof subscriber === "string" ? subscriber : "" };
   }
   if (SPEAKS_TO_A_PERSON.has(row.kind) || row.spoke_at) return { outcome: "speaks_to_a_person", kind: row.kind };
-  // Run again once: a second press, or a second person, finds the copy the first left and does not make another.
-  if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
+  // Run again once: a second press, or a second person, finds the copy the first left (it names the job it copies,
+  // requeue_of) and does not make another; the copy's once-only key holds the same while it is live.
+  if (await hasRequeuedCopy(db, tenantId, row.id)) return { outcome: "already_scheduled" };
   // A kind a newer deploy wrote and this one does not know (failed after a day unknown) waits for the deploy that does.
   const kind = JOB_KINDS.find((k) => k === row.kind);
   if (!kind) return { outcome: "unknown_kind", kind: row.kind };
   await record(kind);
-  const again = await scheduleJobOnce(db, { tenantId, kind, dueAt: new Date(), payload: row.payload });
+  const payload = {
+    ...(row.payload !== null && typeof row.payload === "object" && !Array.isArray(row.payload) ? row.payload : {}),
+    requeue_of: row.id,
+  };
+  const again = await scheduleJobOnce(db, { tenantId, kind, dueAt: new Date(), payload });
   return again === "scheduled" ? { outcome: "requeued", kind } : { outcome: "already_scheduled" };
 }

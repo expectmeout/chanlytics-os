@@ -1,19 +1,18 @@
 /**
- * The email a reach-out send leaves as (apps/edge lib/reach-out/request.ts, Reach out Part 3 C9, C10, D19; from a
+ * The email a reach-out send leaves as (channels email/cold-request.ts, Reach out Part 3 C9, C10, D19; from a
  * mailbox the business connected since decision 0056), run over the real request builder, the real identity and the
  * real unsubscribe seal: a first step's email, a step's that answers the one before, and the two refusals that hold one
  * back.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { verifyUnsubscribeToken } from "@chanlytics/channels";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { reachOutRequest, reachOutDraft, reachOutWords, checkedWordsOf } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/reach-out/request.ts")).href
-);
+import {
+  checkedWordsOf,
+  reachOutDraft,
+  reachOutRequest,
+  reachOutWords,
+  verifyUnsubscribeToken,
+} from "@chanlytics/channels";
 
 const SECRET = "a-secret-only-this-file-holds";
 const T = "22222222-2222-4222-8222-222222222222";
@@ -291,6 +290,37 @@ test("the email its owner sends ends with the name, never a mailbox's signature:
   assert.equal(d.ok, true);
   assert.equal(d.body, "Hi Fixture Movers.\n\nSam");
   assert.ok(d.text.startsWith("Hi Fixture Movers.\n\nSam\n\nI found your business on Google Maps."), d.text);
+});
+
+test("the email its owner sends is the email the send makes, word for word: its subject, a nudge's under 'Re:' once, its words, its foot (contracts coldEmailOf)", () => {
+  const ws = { ...input().workspace, yourName: "Sam" };
+  const parent = {
+    messageId: "44444444-4444-4444-8444-444444444444",
+    rfcMessageId: "<first@getharbor.example>",
+    references: [],
+    subject: "RE: Re: A quote for Fixture Movers",
+  };
+  for (const [what, words, before] of [
+    [
+      "a first email",
+      { subject: "A quote for {{business}}", body: "Hi {{business}},\n\nMovers in {{city}} ask us." },
+      null,
+    ],
+    ["a nudge", { subject: null, body: "Hi {{business}}, just checking this reached you." }, parent],
+  ]) {
+    const sent = reachOutRequest(input({ words, workspace: ws, signsWith: "name", parent: before }));
+    const d = reachOutDraft({
+      words,
+      lead: input().lead,
+      workspace: ws,
+      opening: null,
+      parent: before ? { subject: before.subject } : null,
+      signsWith: "name",
+    });
+    assert.equal(sent.ok && d.ok, true, what);
+    assert.equal(d.subject, sent.request.subject, `${what}: its subject`);
+    assert.equal(d.text, sent.request.text, `${what}: its words and its foot, as the send writes them`);
+  }
 });
 
 test("their preview (decision 0079): its link filled in; being made holds, gone skips, before the lead's own values", () => {

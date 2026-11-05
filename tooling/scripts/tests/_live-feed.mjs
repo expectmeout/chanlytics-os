@@ -33,7 +33,8 @@ export async function changesOf({ event, payload }, tenantId = "ws-1") {
   const changes = [];
   const off = subscribeWorkspaceChanges(
     client,
-    (row, table, heard, at) => changes.push({ table, event: heard, row, ...(at ? { at } : {}) }),
+    (row, table, heard, at, threads) =>
+      changes.push({ table, event: heard, row, ...(at ? { at } : {}), ...(threads ? { threads } : {}) }),
     { tenantId, onStatus: () => {} },
   );
   await new Promise((r) => setTimeout(r, 0));

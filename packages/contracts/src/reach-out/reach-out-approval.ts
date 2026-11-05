@@ -133,11 +133,12 @@ export function reachOutRunWordsOf(
         clock: !owner && !retimed,
         // The opening it goes with and what may be done about it alone (30 Oct 2026), the Leads tab's one rule
         // (sequences waitingAnswersOf); a read from before carries none, and its row is drawn as it was.
-        opening: x.opening?.trim() || null,
+        opening: x.own ? null : x.opening?.trim() || null,
+        own: x.own === true,
         answers:
           x.opening === undefined
             ? []
-            : waitingAnswersOf({ opening: x.opening?.trim() || null, checking: false }, place),
+            : waitingAnswersOf({ opening: x.own ? null : x.opening?.trim() || null, checking: false }, place),
       };
     }),
     skipAsk: `Skip ${r.chain_name}'s run?`,

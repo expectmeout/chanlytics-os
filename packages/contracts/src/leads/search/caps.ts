@@ -10,6 +10,16 @@ import { dayInZone } from "../../calendar/zone-math";
 
 /** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
 export const LEAD_MONTHLY_ALLOWANCE = 500;
+/**
+ * The leads a free trial includes (decision 0090, Ruben, 3 Nov 2026: lead generation is kept apart past what the trial
+ * includes), counted as the month's are, while the workspace's billing says trialing. SQL's lead_cap('trial_leads').
+ */
+export const LEAD_TRIAL_ALLOWANCE = 50;
+
+/** The leads a workspace may count this month: the trial's while it is on a trial, else the month's. */
+export function leadAllowanceFor(billingStatus: string | null | undefined): number {
+  return billingStatus === "trialing" ? LEAD_TRIAL_ALLOWANCE : LEAD_MONTHLY_ALLOWANCE;
+}
 /** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
 export const LEAD_MONTHLY_BUDGET_USD = 25;
 export const LEAD_DAY_CAP_USD = 10;
@@ -23,6 +33,14 @@ export const LEAD_JUDGE_BATCH = 25;
 export const LEAD_MAX_PLACES = 1000;
 /** Every fact a place gives the judge is cut to this many characters (§7.1). */
 export const LEAD_FACT_MAX = 120;
+/** What a place's own website says is cut to this, where a plan reads sites: its booking link, title, description and first words. */
+export const LEAD_SITE_FACT_MAX = 2_000;
+/**
+ * What reading one business's home page costs: one credit with the page's reader, whatever it answers, at the dearest
+ * we would pay on the plan we are on (Firecrawl's Hobby: 5,000 a month for $19, then $5 for 1,000 more). What a card
+ * reserves for a search that reads sites, and what every read of a search is settled at (00541 lead_site_reads_spent).
+ */
+export const LEAD_SITE_READ_USD = 0.005;
 /**
  * How long the business line the ideas are written from may be (00473): a few sentences, what the business sells and who
  * buys it. It was one sentence of 160, which said too little for the ideas to be written from (Ruben, 22 Oct 2026).

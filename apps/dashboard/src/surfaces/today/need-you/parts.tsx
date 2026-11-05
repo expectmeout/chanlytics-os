@@ -6,14 +6,12 @@
  */
 import {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -24,8 +22,10 @@ import {
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { Button, Field, Menu, Meter, Panel } from "../../kit";
+import { useGrowAsTyped } from "../../kit/field/grow-as-typed";
 import { Icon } from "../../kit/icon/icon";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
+import { useTodayOnPhone } from "../phone";
 import type { Flash } from "../shell";
 
 /** What a row's work is handed: the row, how its act is drawn, who may act, the clock, the toast, and the card's hold. */
@@ -78,7 +78,7 @@ function AskMark({ live = false }: { live?: boolean }) {
 
 /**
  * The head over what the row prepared: Ask's mark where the words are Ask's, what they are in the darker ink, whose they
- * are after it ("Reply · drafted by Ask", "Call notes · only you see these"), and the presses at its right. Labels,
+ * are after it ("Reply · Ask's draft", "Call notes · only you see these"), and the presses at its right. Labels,
  * like every state and press on the card, stand at the small step (need-you.css): what a box is never reads smaller
  * than the time beside a name.
  */
@@ -123,19 +123,6 @@ function Signature({ signed, onSigned }: { signed: string; onSigned: (() => void
 const keepKeys = (event: MouseEvent) => event.preventDefault();
 
 /**
- * Where the browser cannot size a box by its words (kit.css .rec-input-words, `field-sizing`), the box grows as they are
- * typed, so nothing scrolls inside it.
- */
-function useGrowAsTyped(box: RefObject<HTMLTextAreaElement | null>, text: string) {
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el || typeof CSS === "undefined" || CSS.supports("field-sizing", "content")) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [box, text]);
-}
-
-/**
  * Whose a row's words are, and the way back to the drafted ones, from what was drafted and what the member has typed:
  * the drafted words' own (`by`, Ask's unless said) until the member's differ, theirs where nothing was drafted, and Use
  * Ask's draft only once there is a draft to go back to.
@@ -173,7 +160,7 @@ export function Words({
 }: {
   /** What they are: a reply, a rebook, a public reply, a confirmation. */
   what: string;
-  /** Whose they are: drafted by Ask, written by your receptionist, your words. */
+  /** Whose they are: Ask's draft, written by your receptionist, your words. */
   by: string;
   text: string;
   who: string;
@@ -538,10 +525,15 @@ export function NotNow({
    */
   letGo?: (() => void) | null;
 }) {
+  // On a phone the sheet says whose it is at its head (Ruben, 20 Oct 2026: a phone's menu heads with what it is about),
+  // and each time wears a clock, so every row's words stand on one edge with Mark done's and Not a person's (the phone
+  // pass, 3 Nov 2026: three edges, 30, 52 and 57).
+  const phone = useTodayOnPhone();
   return (
     <Menu
       align="start"
       label={label ?? W.notNowFor(who)}
+      head={phone ? { title: `${W.notNow} · ${who}`, close: <Icon name="x" size={13} /> } : undefined}
       trigger={
         <Button variant="quiet" disabled={busy} className="ny-not-now" onPointerDown={onOpen} onFocus={onOpen}>
           {W.notNow}
@@ -550,7 +542,12 @@ export function NotNow({
       }
       groups={[
         {
-          items: choices.map((c, i) => ({ label: c.label, hint: c.when, onSelect: () => onChoose(i) })),
+          items: choices.map((c, i) => ({
+            label: c.label,
+            hint: c.when,
+            glyph: <Icon name="clock" size={13} />,
+            onSelect: () => onChoose(i),
+          })),
           ...(caption ? { caption } : {}),
         },
         ...(markDone

@@ -1362,11 +1362,22 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .dash-a-v2 .today-setup [data-testid="today-setup-fold"] svg { rotate: 180deg; transition: rotate var(--duration-base) var(--ease-out); }
 .dash-a-v2 .today-setup [data-testid="today-setup-fold"][data-folded] svg { rotate: 0deg; }
 @media (prefers-reduced-motion: reduce) { .dash-a-v2 .today-setup [data-testid="today-setup-fold"] svg { transition: none; } }
-/* On a phone the eyebrow and Hide for a week do not fit one line: the count stands under the title, each whole, where
-   side by side they broke into three ragged lines beside Hide. */
+/* On a phone the head is the card's title, as Tomorrow's and Ask found's are (zones.css .tpd-title), on one line with its
+   count and the chevron (the phone pass, 3 Nov 2026): Hide for a week is the open card's last row (setup-card-body.tsx),
+   where beside it the eyebrow and its count stood on two lines. */
 @media (max-width: 720px) {
-  .dash-a-v2 .today-setup > :first-child > :first-child { flex-direction: column; align-items: flex-start; gap: 2px; white-space: nowrap; }
-  .dash-a-v2 .today-setup > :first-child > :first-child::after { content: none; }
+  .dash-a-v2 .today-setup > :first-child > :first-child {
+    font-family: inherit;
+    font-size: var(--text-xl);
+    line-height: 25px;
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .dash-a-v2 .today-setup [data-testid="today-setup-left"] { font-weight: var(--weight-regular); color: var(--ink-dim); }
+  .dash-a-v2 .today-setup > [data-testid="today-setup-hide"] { align-self: flex-start; justify-self: start; }
 }
 @media (min-width: 721px) {
   .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }

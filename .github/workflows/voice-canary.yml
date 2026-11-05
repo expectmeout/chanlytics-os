@@ -1,0 +1,95 @@
+name: Voice canary
+
+# Once a day a real call walks the road a customer's call takes (decision 0092): a scripted caller rings a workspace
+# of ours, and ten minutes later the edge is asked what the call left behind -- a row, the business's facts composed
+# within Retell's budget, an analysis, a line in the thread, the owner's notice told in full, the audio stored, the
+# hold let go, and Retell's signature on the inbound door and the webhook (apps/edge/lib/voice/watch/voice-canary.ts). It
+# runs here, outside the database's failure domain, as pg_cron does not. A failure pages the platform from the edge and
+# opens one issue here, or comments on the one open.
+#
+# Off until VOICE_CANARY_KEY is set as a secret here and on the edge, with the edge's three other VOICE_CANARY_*
+# settings (apps/edge/.env.example): without it the run says so and places nothing. Each run costs two short calls at
+# the voice provider.
+on:
+  schedule:
+    - cron: "17 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: voice-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: A real call reaches the receptionist and leaves everything behind
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EDGE: https://chanlytics-messaging.vercel.app
+      KEY: ${{ secrets.VOICE_CANARY_KEY }}
+    steps:
+      - id: on
+        name: The canary is set up
+        shell: bash
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::notice::VOICE_CANARY_KEY is not set: no canary call is placed."
+            echo "on=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "on=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - id: place
+        if: steps.on.outputs.on == 'yes'
+        name: Ring the canary's line
+        shell: bash
+        run: |
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "since=$since" >> "$GITHUB_OUTPUT"
+          code="$(curl -sS -o place.json -w '%{http_code}' -X POST "$EDGE/api/voice-canary" \
+            -H "x-canary-key: $KEY" -H 'content-type: application/json' -d '{"op":"place"}')"
+          cat place.json; echo
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          [ "$code" = "200" ]
+      - if: steps.place.outputs.code == '200'
+        name: Let the call end, be analysed and settle
+        shell: bash
+        run: sleep 600
+      - id: verdict
+        if: steps.place.outputs.code == '200'
+        name: The call left everything behind
+        shell: bash
+        env:
+          SINCE: ${{ steps.place.outputs.since }}
+        run: |
+          code="$(curl -sS -o verdict.json -w '%{http_code}' -X POST "$EDGE/api/voice-canary" \
+            -H "x-canary-key: $KEY" -H 'content-type: application/json' -d "{\"op\":\"verdict\",\"since\":\"$SINCE\"}")"
+          cat verdict.json; echo
+          [ "$code" = "200" ]
+      - if: failure() && steps.on.outputs.on == 'yes'
+        name: Say so where the next person will see it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "The daily canary call did not leave everything behind. What the edge answered:"
+            echo
+            echo '```'
+            cat place.json 2>/dev/null; echo
+            cat verdict.json 2>/dev/null; echo
+            echo '```'
+            echo
+            echo "docs/runbook.md, \"When calls fail\", says where each check is read."
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > issue.md
+          title="Voice canary failed"
+          number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh issue create --title "$title" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+          fi

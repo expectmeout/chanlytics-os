@@ -22,7 +22,9 @@ const {
   leadSheetWhyOf,
   leadDockOf,
   dockSlotsOf,
+  leadLeaveAskOf,
   leadNowOf,
+  leadApproveAskOf,
   leadLinesOf,
   leadHistoryOf,
   leadPickerRowsOf,
@@ -34,6 +36,8 @@ const {
   runApproveWords,
   LEAD_SHEET_WORDS: W,
   LEAD_DOCK_WORDS: D,
+  LEAD_LEAVE_WORDS: L,
+  outreachRefusalOf,
   LEAD_NOW_WORDS: N,
   LEAD_SHEET_CARD_WORDS,
   PLACE_RAIL_WORDS: R,
@@ -255,7 +259,43 @@ test("where they stand, the same words in every window: what needs you by its wo
   assert.equal(word("queued", {}, false).word, "In it", "the sheet's head, beside the name, names no sequence");
   assert.equal(word("in").line, "Between steps");
   assert.deepEqual(word("done"), { word: "Done", tone: "plain", line: "Bookstore intro · every step went" });
-  assert.equal(word("left").word, "Left");
+  // Left says why, never "Left", which Leads' Filtered out sat beside (the phone walk of 3 Nov 2026).
+  assert.deepEqual(word("left", { why: "removed" }), { word: "Taken out", tone: "plain", line: "Bookstore intro" });
+  assert.equal(word("left", { why: "outreach_wrote_back" }).word, "Wrote back");
+  assert.equal(word("left").word, "Taken out", "a leave with no why was a take-out");
+});
+
+test("a row's one status: the place's short word, the sequence named in the line under it", () => {
+  const seq = { name: "Bookstore intro", state: "on" };
+  const row = (group, extra = {}) =>
+    placeWordOf({ group, place: 1, at: null, why: null, ...extra }, seq, clock, "line");
+  assert.deepEqual(row("waiting"), { word: "Waits for your OK", tone: "warn", line: "Step 1 · Bookstore intro" });
+  assert.deepEqual(row("queued"), { word: "In sequence", tone: "ok", line: "In its next batch · Bookstore intro" });
+  assert.deepEqual(row("in"), { word: "In sequence", tone: "ok", line: "Between steps · Bookstore intro" });
+  assert.equal(row("next").line, "Step 1 · Bookstore intro");
+  assert.deepEqual(row("left", { why: "removed" }), { word: "Taken out", tone: "plain", line: "Bookstore intro" });
+});
+
+test("a lead on a list that no batch can take says why, in amber, never In its next batch", () => {
+  const seq = { name: "Brooklyn intro", state: "on" };
+  const word = (why, named) => placeWordOf({ group: "queued", place: 1, at: null, why }, seq, clock, named);
+  assert.deepEqual(word("unchecked", true), {
+    word: "Not planned",
+    tone: "warn",
+    line: "Their address couldn't be checked · Brooklyn intro",
+  });
+  assert.equal(word("unchecked", "line").line, "Their address couldn't be checked · Brooklyn intro");
+  assert.equal(word("unchecked", false).line, "Their address couldn't be checked", "the sheet's head names it beside");
+  assert.equal(word("invalid", true).line, "Their address bounced · Brooklyn intro");
+  assert.equal(word("no_email", true).word, "Not planned");
+  // Checking is no reason: the address is on its way, and the next batch takes them once it is checked.
+  assert.deepEqual(word("checking", "line"), {
+    word: "In sequence",
+    tone: "ok",
+    line: "Joins once their address is checked · Brooklyn intro",
+  });
+  assert.equal(word(null, true).line, "In its next batch", "a lead its batch can take stays as it was");
+  assert.equal(word("already", true).line, "In its next batch", "a reason the predicate never gives says nothing new");
 });
 
 test("a held email's answers follow why it was held, and Skip this email only from step 2", () => {
@@ -394,6 +434,24 @@ test("the card while a sequence has them: one status word, what it needs of you,
     "Approve waits for its opening",
   );
   assert.equal(nowOf({ batch: 1, place: placeOf("waiting") }).say, N.batchOne);
+  // A batch made today says so; one made days before says since when it waits (the phone walk of 3 Nov 2026: "today's
+  // batch" of one four days old), and how long an OK takes where its mailboxes need more than a day.
+  const today = "2026-10-18T13:05:00Z";
+  const before = "2026-10-14T21:05:00Z";
+  const say = (over) => nowOf({ place: placeOf("waiting", { checked: true }), ...over }).say;
+  assert.equal(say({ batchAt: today }), "In today's batch of 17.");
+  assert.equal(say({ batchAt: before }), "In a batch of 17, waiting since Oct 14.");
+  assert.equal(
+    say({ batchAt: before, pace: 10 }),
+    "In a batch of 17, waiting since Oct 14. Once approved, it goes out over about 2 days.",
+  );
+  assert.equal(say({ batchAt: today, pace: 40 }), "In today's batch of 17.", "a day's sending says nothing of days");
+  assert.equal(say({ batch: 1, batchAt: before }), "Waiting since Oct 14.");
+  assert.equal(
+    say({ batchAt: before, pace: 0 }),
+    "In a batch of 17, waiting since Oct 14.",
+    "no mailbox, no pace said",
+  );
   const held = nowOf({ place: placeOf("held", { why: "unbacked_fact", hold_detail: "busy:stretched" }) });
   assert.equal(held.word, N.held);
   assert.match(held.say, /^The opening guesses how busy they are/);
@@ -412,15 +470,53 @@ test("the card while a sequence has them: one status word, what it needs of you,
   const inIt = nowOf({ place: placeOf("in", { place: 2, at: "2026-10-21T13:00:00Z" }) });
   assert.deepEqual([inIt.word, inIt.tone, inIt.need], ["In Bookstore intro", "ok", false]);
   assert.match(inIt.say, /Nothing needs you\.$/);
+  assert.equal(inIt.mail, null, "between steps: no email of a day set");
+  const next = nowOf({ place: placeOf("next", { place: 1, at: "2026-10-19T13:00:00Z" }) });
+  assert.deepEqual(
+    [next.word, next.need, next.mail],
+    ["In Bookstore intro", false, "step"],
+    "up next on its day: the email that goes then, read where it is said",
+  );
   assert.equal(nowOf({ place: placeOf("done") }).word, "Done");
   const left = nowOf({ place: placeOf("left", { why: "removed", at: "2026-10-17T15:00:00Z" }) });
   assert.deepEqual(
     [left.word, left.say],
-    ["Left Bookstore intro", `Taken out. ${N.sentNothing}`],
-    "why, and whether any went",
+    ["Taken out", `Out of Bookstore intro. ${N.sentNothing}`],
+    "why as the word, the sequence it left, and whether any went",
   );
   const leftAfter = nowOf({ place: placeOf("left", { why: "removed" }, { sends: [sent(1)] }) });
-  assert.equal(leftAfter.say, "Taken out.");
+  assert.equal(leftAfter.say, "Out of Bookstore intro.");
+  const notPlanned = nowOf({ place: placeOf("queued", { why: "unchecked" }) });
+  assert.deepEqual(
+    [notPlanned.word, notPlanned.tone, notPlanned.need, notPlanned.say],
+    ["Not planned", "warn", true, "Their address couldn't be checked, so Bookstore intro can't write to them yet."],
+  );
+  const listed = nowOf({ place: placeOf("queued") });
+  assert.deepEqual([listed.word, listed.say], ["In Bookstore intro", "In its next batch. Nothing needs you."]);
+});
+
+test("Approve on one lead's sheet asks first: how many go, from where, over how long, and what stays with you", () => {
+  const ask = leadApproveAskOf({ n: 17, held: 2, from: "hi@example.com", pace: 10 });
+  assert.deepEqual(ask, {
+    question: "Send 17 emails?",
+    detail: "From hi@example.com, over about 2 days. 2 held emails stay with you.",
+    yes: runApproveWords(17),
+    no: "Not yet",
+    read: "Read all 17",
+  });
+  assert.equal(ask.yes, "Approve all 17", "the Yes is the dock's own word");
+  assert.equal(
+    leadApproveAskOf({ n: 5, held: 1, from: "hi@example.com", pace: 40 }).detail,
+    "From hi@example.com. 1 held email stays with you.",
+  );
+  assert.equal(
+    leadApproveAskOf({ n: 30, held: 0, from: null, pace: 20 }).detail,
+    "Over about 2 days.",
+    "several mailboxes",
+  );
+  assert.equal(leadApproveAskOf({ n: 8, held: 0, from: null, pace: null }).detail, null, "nothing known, nothing said");
+  const one = leadApproveAskOf({ n: 1, held: 0, from: "hi@example.com", pace: 10 });
+  assert.deepEqual([one.question, one.yes, one.read], ["Send this email?", "Approve", null]);
 });
 
 test("the card for a lead no sequence has: what stopped it, or the sequence the door names", () => {
@@ -497,12 +593,12 @@ test("History: how we found them, what a sequence did, and your last call, each 
   };
   const place = placeOf("left", { why: "removed", at: "2026-10-17T15:00:00Z" }, { sends: [sent(1)] });
   assert.deepEqual(
-    leadHistoryOf({ vm, place, tz: TZ, nowMs: NOW }),
+    leadHistoryOf({ vm, place, emails: [], tz: TZ, nowMs: NOW }),
     [
       { at: "Oct 12", what: "Google Maps · #7 for “salons”" },
       { at: "Oct 12", what: "Mailbox · Checked" },
-      { at: "Oct 16", what: "You added them to Bookstore intro" },
       { at: "Oct 14", what: "Step 1 sent" },
+      { at: "Oct 16", what: "You added them to Bookstore intro" },
       { at: "Oct 17", what: "Taken out" },
       { at: "Oct 16", what: "Left a voicemail: Back Tuesday" },
     ],
@@ -510,7 +606,7 @@ test("History: how we found them, what a sequence did, and your last call, each 
   );
   const quiet = { ...vm, worked: { outcome: null, note: null, at: null } };
   assert.equal(
-    leadHistoryOf({ vm: quiet, place: null, tz: TZ, nowMs: NOW }).length,
+    leadHistoryOf({ vm: quiet, place: null, emails: [], tz: TZ, nowMs: NOW }).length,
     2,
     "no sequence, no call: found alone",
   );
@@ -556,12 +652,14 @@ test("About says each fact once, and a company's source-rights note is a tip, ne
 });
 
 const dockFacts = (over = {}) => ({
-  state: "ready",
+  // A lead with a place is one still being written to (leadSheetStateOf), unless a test says it moved past it.
+  state: over.place ? "sequence" : "ready",
   place: null,
   pick: { id: "seq-1", name: "Bookstore intro", state: "on" },
   blocked: null,
   elsewhere: null,
   canCall: true,
+  canWrite: true,
   canLater: true,
   closed: null,
   ...over,
@@ -632,7 +730,7 @@ test("Approve says what it does: every email an OK sends, and it waits while an 
   assert.equal(writing.primary.off, D.writing, "you read each before it goes");
 });
 
-test("while a sequence has them, the dock holds only what needs you there, and no dock while it runs", () => {
+test("while a sequence has them, the dock holds what needs you there, else its quiet ways on", () => {
   const held = dockOf({ place: placeOf("held", { send_id: "x1", batch_id: "b1", why: "unbacked_fact", place: 1 }) });
   assert.equal(held.primary.door, "rewrite", "the first answer that lets it go is the primary");
   assert.deepEqual(
@@ -649,14 +747,131 @@ test("while a sequence has them, the dock holds only what needs you there, and n
     place: placeOf("replied", { reply: { intent: "question", summary: null, conversation_id: null } }),
   });
   assert.deepEqual(acts(replied), ["thread"]);
-  assert.equal(dockOf({ place: placeOf("queued") }), null, "up next: nothing needs you");
-  assert.equal(dockOf({ place: placeOf("in") }), null, "in it, replies read: nothing");
-  const told = dockOf({ place: placeOf("in", {}, { reads_replies: false, sends: [sent(1)] }) });
-  assert.deepEqual(acts(told), ["they_wrote"], "sent by hand: only they can say a reply came");
-  assert.equal(dockOf({ place: placeOf("left", { why: "removed" }) }), null, "left, and no leave to undo: no foot");
   const back = dockOf({ place: placeOf("left", { why: "removed" }, { put_back: { decision_id: "d1" } }) });
-  assert.deepEqual(acts(back), ["return"], "taken out with nothing sent: Put back");
+  assert.deepEqual(acts(back), ["return", "call", "write"], "taken out with nothing sent: Put back, and your own ways");
   assert.equal(back.primary, null, "a way back, no primary");
+  assert.deepEqual(
+    acts(dockOf({ place: placeOf("left", { why: "removed" }) })),
+    ["call", "write"],
+    "taken out after an email went: no Put back, and the way on is still yours",
+  );
+  for (const why of ["unsubscribed", "stopped", "outreach_stopped", "address_stopped"])
+    assert.equal(dockOf({ place: placeOf("left", { why }) }), null, `${why}: nothing of yours is offered, and no foot`);
+  const stoppedBack = dockOf({ place: placeOf("left", { why: "stopped" }, { put_back: { decision_id: "d1" } }) });
+  assert.deepEqual(acts(stoppedBack), ["return"], "out for another reason: only what was there");
+});
+
+test("where their sequence runs and nothing needs you, its quiet ways on: Take out, asked, and your own call and email", () => {
+  const next = dockOf({ place: placeOf("next") });
+  assert.deepEqual(acts(next), ["leave", "call", "write"]);
+  assert.equal(next.primary, null, "nothing needs you: no primary");
+  assert.deepEqual([next.others[0].label, next.others[2].label], [D.takeOut, D.write]);
+  assert.deepEqual(
+    acts(dockOf({ place: placeOf("queued"), canCall: false })),
+    ["leave", "write"],
+    "no number, no Call",
+  );
+  assert.deepEqual(acts(dockOf({ place: placeOf("in"), canCall: false, canWrite: false })), ["leave"]);
+  const told = dockOf({ place: placeOf("in", {}, { reads_replies: false, sends: [sent(1)] }) });
+  assert.deepEqual(acts(told), ["leave", "they_wrote", "call"], "sent by hand: only you can say a reply came");
+  const away = dockOf({
+    place: placeOf("queued", {}, { sequence: { id: "seq-2", name: "Florists", state: "on" } }),
+    elsewhere: { id: "seq-2", name: "Florists", written: false },
+  });
+  assert.deepEqual(acts(away), ["leave", "move"], "in another than the pick, nothing sent: Move stays the primary");
+  assert.equal(away.primary.label, D.moveTo("Bookstore intro"));
+});
+
+test("every step went and no reply came: the way on is yours, a call where there is a number, else an email", () => {
+  const done = dockOf({ place: placeOf("done") });
+  assert.equal(done.x, true, "Not a fit sets them aside");
+  assert.deepEqual([done.primary.act, acts(done)], ["call", ["write", "call"]]);
+  const mailOnly = dockOf({ place: placeOf("done"), canCall: false });
+  assert.deepEqual([mailOnly.primary.act, acts(mailOnly)], ["write", ["write"]]);
+  const told = dockOf({ place: placeOf("done", {}, { reads_replies: false, sends: [sent(1)] }) });
+  assert.deepEqual(acts(told), ["they_wrote", "call"]);
+});
+
+test("Take out asks first, Never write under it; once you wrote to them yourself, it says why, and nothing a door would not do", () => {
+  assert.deepEqual(leadLeaveAskOf({ name: "Lumen Books", place: placeOf("next"), wrote: false }), {
+    question: "Take Lumen Books out of Bookstore intro?",
+    detail: L.putBack,
+    never: W.menu.never,
+    yes: "Take out",
+    no: "Keep them in",
+  });
+  const went = leadLeaveAskOf({ name: "Lumen Books", place: placeOf("in", {}, { sends: [sent(1)] }), wrote: false });
+  assert.equal(went.detail, L.nothingMore, "an email went: no putting back");
+  const wrote = leadLeaveAskOf({ name: "Lumen Books", place: placeOf("in"), wrote: true });
+  assert.deepEqual([wrote.detail, wrote.never, wrote.no], [L.wrote, null, L.keepGoing]);
+  // What it says is the send door's own rule: it still writes to a lead you marked contacted, and to no lead past that.
+  assert.equal(outreachRefusalOf({ leadStage: "nurture", suppressed: false, wroteBack: false, away: false }), null);
+  for (const stage of ["archived", "converted"])
+    assert.equal(
+      outreachRefusalOf({ leadStage: stage, suppressed: false, wroteBack: false, away: false }),
+      "outreach_lead_closed",
+      `${stage}: a call that reached them needs no question, the door writes no more`,
+    );
+});
+
+test("a lead that moved past its place (said no, a person now): the card promises no next step, and nothing of yours is offered", () => {
+  const closed = { title: "Said no", line: "Nothing is written to them.", fix: "ready" };
+  for (const group of ["next", "queued", "in"]) {
+    const place = placeOf(group, { place: 1, at: "2026-10-19T13:00:00Z" });
+    const said = nowOf({ state: "closed", closed, place });
+    assert.equal(said.word, "Said no", `${group}: not "Step 1 tomorrow"`);
+    assert.equal(said.mail, null, "and no email that will not go");
+    assert.deepEqual(
+      acts(dockOf({ state: "closed", closed, place })),
+      ["ready"],
+      "its one fix, which lets it write again",
+    );
+    const person = nowOf({ state: "replied", place });
+    assert.deepEqual([person.word, person.say], [N.inPeople, N.noMoreFrom("Bookstore intro")]);
+    assert.equal(dockOf({ state: "replied", place }), null, "their page is the way on");
+  }
+  const done = placeOf("done");
+  assert.deepEqual(acts(dockOf({ state: "closed", closed, place: done })), ["ready"]);
+  const out = placeOf("left", { why: "removed" });
+  assert.equal(
+    dockOf({ state: "closed", closed: { ...closed, fix: null }, place: out }),
+    null,
+    "taken out and closed: no Write",
+  );
+});
+
+test("History says an email you wrote yourself, and never takes a sequence's send for one", () => {
+  const worked = { outcome: "emailed", note: null, at: "2026-10-16T15:00:00Z" };
+  const said = (place) =>
+    leadHistoryOf({ vm: { found: [], worked }, place, emails: [], tz: TZ, nowMs: NOW }).map((r) => r.what);
+  const YOURS = "You wrote to them yourself";
+  assert.ok(said(placeOf("next")).includes(YOURS), "their sequence has sent nothing yet: the email is yours");
+  const went = said(placeOf("in", { place: 2 }, { sends: [sent(1)] }));
+  assert.equal(went.includes(YOURS), false, "a send of the sequence writes the same word on the lead (leadWritten)");
+  assert.ok(went.includes("Step 1 sent"), "and that send is said already, as its step");
+
+  const rows = leadHistoryOf({
+    vm: { found: [], worked: { outcome: "emailed", note: null, at: "2026-10-16T15:00:00Z" } },
+    place: null,
+    emails: [],
+    tz: TZ,
+    nowMs: NOW,
+  });
+  assert.deepEqual(
+    rows.map((r) => r.what),
+    ["You wrote to them yourself"],
+  );
+  const noted = leadHistoryOf({
+    vm: { found: [], worked: { outcome: "voicemail", note: null, at: "2026-10-16T15:00:00Z" } },
+    place: null,
+    emails: [],
+    tz: TZ,
+    nowMs: NOW,
+  });
+  assert.deepEqual(
+    noted.map((r) => r.what),
+    ["Left a voicemail"],
+  );
 });
 
 const seqRow = (over = {}) => ({

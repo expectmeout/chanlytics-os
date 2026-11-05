@@ -17,16 +17,17 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { Notice } from "../../kit/notice/notice";
-import { demoSession, gate, navigate } from "../shell";
+import { gate, navigate, useToast } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { IxWhy } from "./send-words";
-import { keptPitchNow, keptReplyNow } from "./kept-draft";
-import { carryNotAPerson } from "../carried-reply";
+import { useDraftsMoved } from "../../today/need-you/drafts";
+import { notACustomerVerb, replyAnywayVerb, type VerbResult } from "../verbs";
+import { threadDraftNow } from "./kept-draft";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { mayAtLeast, routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../legacy-verbs";
 
 /** The other side's move while you read: who did what, and the entries it left behind. */
 export interface Stale {
@@ -407,15 +408,13 @@ function takeAct(p: DockProps, thread: Thread): ReactNode {
 }
 
 /**
- * Whether the reply box under the dock answers this hold, with Hand back beside its Send (composerAside): a hold that asks
- * for a reply, on a real thread nobody has taken, where free words can go, in the box's drafted shape (an email, or the
- * receptionist's draft kept for it: composer.tsx realComposer). A chat's one line, or an approved message's box past
- * WhatsApp's window, draws nothing beside its Send, and Hand back stays on the dock's line.
+ * Whether the reply box under the dock answers this hold, with Hand back in the row over it (composerAside): a hold that
+ * asks for a reply, on a real thread nobody has taken, where free words can go. An approved message's box past WhatsApp's
+ * window draws no row of its own here, and Hand back stays on the dock's line.
  */
 const boxAnswers = (thread: Thread): boolean =>
   !!thread.real &&
   thread.windowOpen !== false &&
-  (thread.primaryChannel === "email" || !!keptReplyNow(thread)) &&
   thread.state === "escalated" &&
   !!thread.escalationId &&
   thread.holdAct === "reply" &&
@@ -425,27 +424,28 @@ const boxAnswers = (thread: Thread): boolean =>
   thread.primaryChannel !== "phone" &&
   replyGoes(thread);
 
-/** Hand back, as the quiet act beside a coral one: outlined, a thumb tall, its glyph the way back. */
+/** Hand back, in the row over the reply box: quiet and small beside the draft's pill, its glyph the way back (decision 0093). */
 function handBackButton(p: DockProps, go: () => void) {
   return (
     <Button
-      variant="outline"
-      size="touch"
+      variant="quiet"
+      size="sm"
+      className="ix-composer-handback"
       onClick={guardedHandBack(p, go)}
       aria-label="Nothing needed — hand it back to the receptionist"
       data-testid="ix-hand-back"
       {...gate("approve", "hand a conversation back")}
     >
-      <Icon name="undo" size={15} />
+      <Icon name="undo" size={13} />
       {THREAD_PANE_WORDS.handBack}
     </Button>
   );
 }
 
 /**
- * What the reply box draws beside its Send, from the thread's state (the thread canvas, 1 Nov 2026: "Hand back" at the
- * left, "Send email" at the right, under the draft): Hand back, where the box answers the hold. The pane holds which
- * thread's hand back is asked about (thread.tsx), so the dock's question and this press are one.
+ * What the reply box draws in the row over its words, at the end of the draft's pill, from the thread's state: Hand back,
+ * where the box answers the hold. The pane holds which thread's hand back is asked about (thread.tsx), so the dock's
+ * question and this press are one.
  */
 export function composerAside(p: StatusProps): ReactNode {
   const { thread, onDecide, asking = null, setAsking = () => undefined } = p;
@@ -454,27 +454,65 @@ export function composerAside(p: StatusProps): ReactNode {
 }
 
 /**
- * Not a customer, where the receptionist's draft found what they wrote was not a customer's (a sales pitch, a vendor, a
- * newsletter): their page opens with Not a person asked, as the first email's own ask opens it (thread.tsx FirstEmailAsk).
- * An owner's, as that is; nothing for anyone else, who has the reply box and Hand back.
+ * A thread set aside as not a customer's (decision 0093): what its sender was read to want, under the page's own question,
+ * and the two words on it. Its hold is resolved and it is archived, so nothing else in the dock speaks.
  */
-function notACustomerAct(p: DockProps, thread: Thread): ReactNode {
-  const clientId = thread.clientId;
-  const open = p.onOpenClient;
-  if (!clientId || !open || demoSession() || !mayAtLeast("owner")) return null;
+function SetAsideBar({ thread }: { thread: Thread }) {
+  const W = THREAD_PANE_WORDS;
+  const [toastNode, flash] = useToast();
+  const [busy, setBusy] = useState(false);
+  const id = thread.conversationId;
+  if (!id) return null;
+  const v = threadDraftNow(thread);
+  const rest = v.state === "pitch" && v.what ? v.what : null;
+  const act = async (go: () => Promise<VerbResult>, done?: () => void) => {
+    setBusy(true);
+    const r = await go();
+    setBusy(false);
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    done?.();
+  };
   return (
-    <Button
-      variant="soft"
-      size="sm"
-      className="ix-press"
-      onClick={() => {
-        carryNotAPerson(clientId);
-        open(clientId);
-      }}
-      data-testid="ix-dock-not-a-customer"
-    >
-      {THREAD_PANE_WORDS.notACustomer}
-    </Button>
+    <>
+      {toastNode}
+      <Dock
+        testid="ix-set-aside"
+        label={rest ? `${W.pitchLead} — ${rest}` : W.pitchLead}
+        fact={dockLine({ lead: W.pitchLead, rest })}
+        line
+        acts={
+          <>
+            <Button
+              variant="soft"
+              size="sm"
+              className="ix-press"
+              disabled={busy}
+              onClick={() =>
+                void act(
+                  () => notACustomerVerb(id),
+                  () => flash({ msg: <>{W.notACustomerDone}</>, undo: () => void notACustomerVerb(id, true) }),
+                )
+              }
+              data-testid="ix-dock-not-a-customer"
+              {...gate("approve", "say this is not a customer")}
+            >
+              {W.notACustomer}
+            </Button>
+            <Button
+              variant="quiet"
+              size="sm"
+              className="ix-press"
+              disabled={busy}
+              onClick={() => void act(() => replyAnywayVerb(id))}
+              data-testid="ix-dock-reply-anyway"
+              {...gate("approve", "reply to a thread set aside")}
+            >
+              {W.replyAnyway}
+            </Button>
+          </>
+        }
+      />
+    </>
   );
 }
 
@@ -490,30 +528,21 @@ function dockLine({ lead, rest }: { lead: string; rest: string | null }) {
 }
 
 /**
- * A real thread that needs you: the one line of what is owed (contracts reasonLineOf; "Check the draft" where the
- * receptionist drafted its reply into the box), its whole why a press away where the box holds no draft to say it, and
- * what to do about it. Where the reply box under it answers the hold, Hand back stands beside the box's Send
- * (composerAside) and the dock is its line alone (the thread canvas, 1 Nov 2026).
+ * A real thread that needs you: the one line of what is owed (contracts reasonLineOf; "Draft ready" where the thread's draft
+ * is), its whole why a press away where no draft says it, and what to do about it. Where the reply box under it answers the
+ * hold, Hand back stands over the box (composerAside) and the dock is its line alone.
  */
 function needsYouState(p: DockProps, thread: Thread) {
   const { onDecide } = p;
   const handBack = () => onDecide(thread.id, "__HANDBACK__");
   if (p.asking === thread.id) return handBackAsk(p, handBack);
-  // What they wrote was not a customer's, as the receptionist's draft found (it wrote no words): the dock asks that first.
-  const pitch = boxAnswers(thread) ? keptPitchNow(thread) : null;
-  const drafted = boxAnswers(thread) && !!keptReplyNow(thread);
+  const drafted = boxAnswers(thread) && threadDraftNow(thread).state === "ready";
   const said = dockLineOf((thread.real && thread.holdLine) || thread.summary);
-  const line = pitch
-    ? { lead: THREAD_PANE_WORDS.pitchLead, rest: pitch }
-    : drafted
-      ? { lead: THREAD_PANE_WORDS.checkDraft, rest: said.rest }
-      : said;
+  const line = drafted ? { lead: THREAD_PANE_WORDS.checkDraft, rest: THREAD_PANE_WORDS.draftReadyRest } : said;
   const label = line.rest ? `${line.lead} — ${line.rest}` : line.lead;
   // A request its card draws (RequestCard) answers there; one whose time the hold does not carry keeps its two words.
   const card = thread.holdAct === "confirm" && thread.real && !!thread.request;
-  const acts = card ? null : pitch ? (
-    notACustomerAct(p, thread)
-  ) : thread.holdAct === "confirm" ? (
+  const acts = card ? null : thread.holdAct === "confirm" ? (
     requestActsOf(thread, onDecide)
   ) : (
     <>
@@ -541,7 +570,7 @@ function needsYouState(p: DockProps, thread: Thread) {
       fact={dockLine(line)}
       // Why it was held, a press away, where the box holds no draft whose own Why this? says what it read, and no card says
       // what was asked.
-      source={drafted || card || pitch ? null : holdWhy(thread)}
+      source={drafted || card ? null : holdWhy(thread)}
       line
       acts={acts}
     />
@@ -737,6 +766,8 @@ function steerStatus(p: StatusProps) {
  * ("Reply to take it from …", composer.tsx), the one thing left to know.
  */
 export const ThreadStatus = (props: StatusProps) => {
+  // Its lines read the thread's draft (threadDraftNow), so they are drawn again as one lands.
+  useDraftsMoved();
   // Which thread's hand back is being asked about: kept by its id, so it never shows over another thread. The pane's
   // where it holds it (thread.tsx), since the reply box's Hand back asks it too; the band's own otherwise.
   const [own, setOwn] = useState<string | null>(null);
@@ -753,7 +784,7 @@ export const ThreadStatus = (props: StatusProps) => {
       {snoozedBar(p)}
 
       {escalatedBar(p)}
-      {handledBar(p)}
+      {p.thread.real && p.thread.setAside ? <SetAsideBar thread={p.thread} /> : handledBar(p)}
       {yoursBar(p)}
       {vetoStatus(p)}
       {steerStatus(p)}

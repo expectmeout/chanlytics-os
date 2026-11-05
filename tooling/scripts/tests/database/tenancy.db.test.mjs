@@ -183,6 +183,8 @@ before(async () => {
     verb: "archive",
   });
   await seed("events", { tenant_id: A, kind: "message.received" });
+  // Whom Anthropic is told a call is for (00544, decision 0097): the service role's alone.
+  await seed("anthropic_profiles", { kind: "workspace", tenant_id: A, reference_id: `workspace:${A}` }, null);
   // One model call kept in dollars (00273): the service role's model port writes it, a member of the workspace reads it.
   await seed(
     "ai_usage",
@@ -261,6 +263,8 @@ before(async () => {
   });
   ctx.segment = await seed("segments", { tenant_id: A, name: "tenancy segment" });
   await seed("segment_members", { tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact }, null);
+  // The workspace's first-run choices (00513): one row a workspace, which setup_choice_set writes.
+  await seed("setup_choices", { tenant_id: A, whatsapp: "same" }, null);
   await seed("deals", { tenant_id: A, contact_id: ctx.contact, stage: "proposed" }, null);
   await seed("person_notes", { tenant_id: A, contact_id: ctx.contact, body: "tenancy note" }, null);
   // The appointments record and the notices ledger (00345): members read; the booking_read job writes.
@@ -409,6 +413,12 @@ before(async () => {
     },
     null,
   );
+  // A lead's own words at a step (00545): its door writes them, members read them.
+  await seed(
+    "sequence_lead_words",
+    { tenant_id: A, step_id: ctx.reachRoot, lead_id: ctx.lead, subject: "Tenancy", body: "Tenancy words" },
+    null,
+  );
   // A reply's reading (00222): the service role's doors write it, members read it.
   await seed(
     "sequence_replies",
@@ -479,9 +489,6 @@ before(async () => {
     },
     null,
   );
-  // A capacity row of this suite's own (00335), so "a member reads nothing" is not proved on an empty table.
-  const cap = await db.from("job_capacity").upsert({ scope: "provider", key: "tenancy-suite", max_in_flight: 1 });
-  assert.equal(cap.error, null, `capacity: ${cap.error?.message}`);
   // The spine (00334): an outbox row and a delivery of the workspace's, as the copy and the relay would write them.
   await seed(
     "event_outbox",
@@ -593,7 +600,6 @@ function earning(eventId) {
 }
 
 after(async () => {
-  if (!skip) await db.from("job_capacity").delete().eq("key", "tenancy-suite");
   if (skip) return;
   for (const [table, col, val] of probes) await db.from(table).delete().eq(col, val);
   if (A) await db.from("tenants").delete().eq("id", A);
@@ -772,6 +778,8 @@ const TENANT_TABLES = {
     () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
   ],
   segments: ["member", () => ({ tenant_id: A, name: "stranger segment" })],
+  // What the first run chose for the workspace (00513, decision 0091): its members read it; setup_choice_set writes.
+  setup_choices: ["member", () => ({ tenant_id: A, whatsapp: "later" })],
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],
   person_notes: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, body: "stranger note" })],
@@ -814,6 +822,7 @@ const TENANT_TABLES = {
     "none",
     () => ({ tenant_id: A, version: 900_000 + Math.floor(Math.random() * 99_999), config: {} }),
   ],
+  anthropic_profiles: ["none", () => ({ kind: "workspace", tenant_id: A, reference_id: "workspace:stranger" })],
   billing_accounts: ["member", () => ({ tenant_id: A })],
   billing_events: ["none", () => ({ id: `evt_stranger_${Date.now()}`, type: "invoice.paid", tenant_id: A })],
   business_records: [
@@ -943,6 +952,10 @@ const TENANT_TABLES = {
   lead_judgments: ["none", () => ({ tenant_id: A, round_id: ctx.leadRound, op_id: "stranger", answer: {} })],
   leads: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger0001", business_name: "Stranger" })],
   lead_places: ["member", () => ({ tenant_id: A, lead_id: ctx.lead, place_id: "ChIJstranger0002" })],
+  sequence_lead_words: [
+    "member",
+    () => ({ tenant_id: A, step_id: ctx.reachRoot, lead_id: ctx.lead, body: "Stranger" }),
+  ],
   lead_previews: ["member", () => ({ tenant_id: A, lead_id: ctx.lead, token: "strangerStrangerStran1" })],
   lead_search_members: [
     "member",
@@ -1029,9 +1042,11 @@ const OTHER_TABLES = {
   client_errors: "none", // the errors pages hit (00469): no workspace, a hash of who; the service role's alone
   platform_admins: "none",
   rate_hits: "none",
+  // A transaction's notices kept for its commit (00507): empty at rest, each row deleted as it is told; the service role's alone.
+  workspace_notices_pending: "empty",
   sweep_status: "none",
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
-  job_capacity: "none", // how many jobs naming a key may run at once (00335): platform-wide rows, the service role's alone
+  job_kinds: "none", // each job kind's lane, once-only rule and pause (00526): platform-wide rows, the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()
@@ -1276,13 +1291,15 @@ test(
     const raised = await partner.client.from("partners").update({ share_bp: 10000 }).eq("id", ctx.partner).select("id");
     if (!raised.error && raised.data.length > 0) note("partners", "a partner raised their own share");
 
-    for (const table of Object.keys(OTHER_TABLES).filter((t) => OTHER_TABLES[t] === "none")) {
+    for (const table of Object.keys(OTHER_TABLES).filter((t) => ["none", "empty"].includes(OTHER_TABLES[t]))) {
       const counted = await db.from(table).select("*", { count: "exact", head: true });
       if (counted.error) {
         note(table, `the service role could not count: ${counted.error.message}`);
         continue;
       }
-      if (!(counted.count >= 1)) note(table, "nothing to read, so the proof would be vacuous");
+      // A table empty at rest proves its scope by the grant alone (below): no member may even ask.
+      if (OTHER_TABLES[table] === "none" && !(counted.count >= 1))
+        note(table, "nothing to read, so the proof would be vacuous");
       const asViewer = await seen(viewer.client, table, []);
       const asOwner = await seen(owner.client, table, []);
       if (!nothing(asViewer)) note(table, `the service role's table was readable by a member (${asViewer})`);

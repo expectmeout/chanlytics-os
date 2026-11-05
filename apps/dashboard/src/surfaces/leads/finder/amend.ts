@@ -100,10 +100,12 @@ type StartResult = { ok: boolean; message?: string; error?: { message?: string }
 
 /** The plan, started through the door that fits it (see leadFinderApprove). */
 async function startPlan(proposal: FinderProposal | null, plan: LeadSearchPlan, set: FinderSet): Promise<StartResult> {
+  // A search's own plan run again (Search again, changed) is no Ask card: it goes to the door Find new ones goes to.
+  if (proposal && "searchId" in proposal) return await moreForSearch(proposal.searchId, proposal.purpose, plan);
   if (proposal) {
     const A = askCalls();
     return A && typeof A.commit === "function"
-      ? await A.commit({ ...(proposal as AskProposal), payload: { ...(proposal.payload || {}), plan } })
+      ? await A.commit({ ...proposal, payload: { ...(proposal.payload || {}), plan } })
       : { ok: false, message: "Claude isn't available here yet — try again in a moment." };
   }
   // The plan is sent as the owner saw it; the route sets the version and the count the round reserved (G1). If the round
@@ -117,11 +119,11 @@ async function startPlan(proposal: FinderProposal | null, plan: LeadSearchPlan, 
  * Find N leads. An Ask card goes through commitProposal (legacy-bridge ask/commit.ts), which posts the plan to POST
  * lead-searches marked as Ask's, or, when the card carries `amends`, answers the search it amends: an answer that came
  * back from Ask commits as its card. An Include opened on the page (a strip's step on a round still waiting, no card) posts
- * the plan through answerSearch and the route versions it; any other plan the panel opened from a strip's next step goes
- * through moreForSearch (an idea's search is Ask's card now, never this panel's). Either way the route's own sentence on a
- * refusal (402, 409, 429) is said under the button, in its words, and nothing on the page says it started. Started, the
- * panel shuts the one way the page shuts it (`set.close`, which lets go of the round it was opened under too), left at
- * rest: no words, card or plan.
+ * the plan through answerSearch and the route versions it; any other plan the panel opened from a strip's next step, and
+ * a search's own plan run again (Search again, changed), goes through moreForSearch (an idea's search is Ask's card now,
+ * never this panel's). Either way the route's own sentence on a refusal (402, 409, 429) is said under the button, in its
+ * words, and nothing on the page says it started. Started, the panel shuts the one way the page shuts it (`set.close`,
+ * which lets go of the round it was opened under too), left at rest: no words, card or plan.
  */
 export const leadFinderApprove = async (
   proposal: FinderProposal | null,

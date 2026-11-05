@@ -20,8 +20,8 @@ import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
 import { navigate } from "../../legacy-verbs";
 
-/** The three places the frame leaves, by id: the dateline in the top bar, the head, and the act beside the views. */
-const PLACES = { dateline: "pg-dateline", head: "pg-head", act: "pg-act" } as const;
+/** The places the frame leaves, by id: the dateline in the top bar, the head, the act beside the views, and under them. */
+const PLACES = { dateline: "pg-dateline", head: "pg-head", act: "pg-act", under: "pg-under" } as const;
 
 type Places = { [K in keyof typeof PLACES]: Element | null };
 
@@ -44,6 +44,7 @@ function placesNow(): Places {
     dateline: document.getElementById(PLACES.dateline),
     head: document.getElementById(PLACES.head),
     act: document.getElementById(PLACES.act),
+    under: document.getElementById(PLACES.under),
   };
 }
 
@@ -201,6 +202,12 @@ function PageAct() {
   return said?.act ? <>{said.act}</> : null;
 }
 
+/** What the page said stands under its row of views (the Calendar's bar on a phone). */
+function PageUnder() {
+  const said = useStandingSaid();
+  return said?.under ? <>{said.under}</> : null;
+}
+
 /**
  * A phone's top bar, at its centre between the way back and the bell: the name and the dot the page said once its own
  * head has scrolled away (a person's, canvas A's hand-off), fading in and out. Always drawn on a phone, so it fades
@@ -286,6 +293,7 @@ export function FrameHead({ look }: { look: string }) {
       {places.dateline && createPortal(<PageDateline />, places.dateline)}
       {createPortal(<GlassHead />, places.head)}
       {places.act && createPortal(<PageAct />, places.act)}
+      {places.under && createPortal(<PageUnder />, places.under)}
       {column && createPortal(<BarTitleSaid />, column)}
     </>
   );

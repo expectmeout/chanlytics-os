@@ -253,6 +253,50 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   unmount();
 });
 
+test("on a phone the bar is the frame's, under its row of views, and the page draws none of its own, its frame neither", () => {
+  // Stuck in the page under the frame's top, the range and the steps stepped a pixel or two under the thumb as the window
+  // scrolled, where the top over them held still (Ruben's recording, 3 Nov 2026): they stand in the top now
+  // (kit/head/standing.ts `under`), Settings beside the views as before.
+  const heads = (tree) =>
+    find(tree, (n) =>
+      String(n.props?.className ?? "")
+        .split(" ")
+        .includes("cal-head"),
+    );
+  const [si, ci] = [globalThis.setInterval, globalThis.clearInterval];
+  globalThis.setInterval = () => 0;
+  globalThis.clearInterval = () => {};
+  globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  try {
+    globalThis.__DEMO_MODE = false;
+    values.setSurfaceValue("calendar", undefined);
+    fresh();
+    const cold = CalendarPage({});
+    assert.ok(byTestId(cold, "calendar-cold"));
+    assert.equal(heads(cold), null, "no bar in the board's frame");
+    assert.match(textOf(standingSaid()?.under), /Reading…/, "it reads under the frame's views");
+    globalThis.__DEMO_MODE = true;
+    fresh();
+    const board = CalendarPage({});
+    assert.ok(byTestId(board, "calendar-real"));
+    assert.equal(heads(board), null, "no bar in the page, where it stuck");
+    const { under, act } = standingSaid();
+    for (const id of ["cal-prev", "cal-today", "cal-next"]) assert.ok(byTestId(under, id), `${id} under`);
+    // The range opens the kit's date picker, which holds it as a prop (Base UI draws it).
+    const pick = find(under, (n) => typeof n.props?.today === "string" && typeof n.props?.onValueChange === "function");
+    assert.ok(byTestId(pick.props.trigger, "cal-range"), "the range under them too");
+    const settings = find(act, (n) => n.props?.trigger && byTestId(n.props.trigger, "cal-options"));
+    assert.ok(settings, "and Settings beside the views, the kit's menu");
+    assert.equal(byTestId(act, "cal-range"), null, "the range under them, not beside them");
+  } finally {
+    delete globalThis.window.matchMedia;
+    globalThis.setInterval = si;
+    globalThis.clearInterval = ci;
+    globalThis.__DEMO_MODE = false;
+    unmount();
+  }
+});
+
 test("the Business tab's calendar row still finds the Calendar's verbs by their old name, and imports the page's two words", () => {
   const was = globalThis.__calendar;
   delete globalThis.__calendar;

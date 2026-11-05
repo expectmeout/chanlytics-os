@@ -273,10 +273,8 @@ export interface LeadPlanFacts {
   prior: { places: number; matched: number; with_email: number } | null;
   /** The kind of business the prior is for, in the owner's words: "trainers". */
   priorOf: string | null;
-  /** A must-be-seen criterion the chosen card cannot see (§0.1), with the likely version offered. */
-  cannotSee: { key: string; text: string; likely: string } | null;
   /** The day the month's leads renew, in the workspace's zone: "Oct 1". */
   renewsOn: string;
-  /** Claude's nearby areas, for the card's area picker and for a round further out. */
+  /** The areas the card's picker offers beside the plan's: the nearby areas of the round it was opened from, if any. */
   nearby: LeadArea[];
 }

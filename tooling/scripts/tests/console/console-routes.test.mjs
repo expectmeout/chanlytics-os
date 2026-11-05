@@ -815,6 +815,11 @@ test("Health is one read for staff alone: every part read on its own, the clocks
     [["numbers_past_target", 9]],
   );
   assert.equal(h.parts.calls[0].n, 4);
+  assert.deepEqual(
+    [h.parts.calls[0].words, h.parts.calls[0].mend],
+    ["hung up", null],
+    "each ending in the platform's words, from the one table, so the page loads no table",
+  );
   assert.deepEqual(h.client_errors, []);
 
   // A parts answer missing its lists is not drawn as a quiet platform: it is unread, and the rest still answer.

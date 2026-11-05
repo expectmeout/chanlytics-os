@@ -30,8 +30,8 @@ interface SetupLaterWords {
   backShort?: string;
 }
 
-/** A row as drawn: Setup's. */
-type DrawnRow = SetupRowVM;
+/** A row as drawn: Setup's, and on Today's card its name and act's word for a phone (contracts SetupCardRowVM.short). */
+type DrawnRow = SetupRowVM & { short?: { name: string; verb: string | null } };
 
 interface SetupRowsProps {
   S: SetupSurface;
@@ -68,6 +68,7 @@ function rowActs(
   const cta = r.verb
     ? {
         label: r.verb.label,
+        ...(r.short?.verb ? { short: r.short.verb } : {}),
         kind: primary === r.id ? "primary" : "ghost",
         onClick: () => act(r.verb),
         gate: setupGate(r.verb),
@@ -152,6 +153,7 @@ export const SetupRows = ({
                   tone={primary === r.id ? "warn" : setupTone(r.state)}
                   stateWords={r.stateWords}
                   name={r.title}
+                  nameShort={r.short && r.short.name !== r.title ? r.short.name : null}
                   note={r.back && later.back ? { long: later.back, short: later.backShort ?? later.back } : null}
                   sentence={r.sentence}
                   left={i === 0 ? left : null}

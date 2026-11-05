@@ -121,12 +121,9 @@ const ONE_STATE = {
  * The words that still name two different states, each with why. This list may only get shorter: one of these fixed (a
  * state renamed) is deleted from here, and the test fails until it is.
  */
-const STILL_TWO_STATES = {
-  ready: {
-    why: "a Setup step that is done, and a lead not yet contacted: Setup's and Leads' own vocabularies, owed a decision",
-    ids: ["lead_stage/ready", "setup/ready"],
-  },
-};
+// Ready named a Setup step that is done and a lead not yet contacted, owed a decision until the phone walk of 3 Nov 2026
+// made the lead's Not contacted. None is left.
+const STILL_TWO_STATES = {};
 
 const wordsOfEveryState = () => [
   ...stateWordList().map(({ kind, value, label }) => ({ id: `${kind}/${value}`, label })),

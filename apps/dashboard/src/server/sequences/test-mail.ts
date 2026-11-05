@@ -2,15 +2,16 @@ import "server-only";
 import {
   AppError,
   SEQUENCE_TEST_WORDS as W,
-  coldEndingOf,
   chainFirstSender,
+  leadOpeningOf,
+  leadOwnWordsOf,
   leadStepTestMail,
   parseParamSpecs,
   previewVersionsOf,
   reachOutExampleLead,
   stepTestMail,
 } from "@chanlytics/contracts";
-import { leadSlotsOf, messageVersionRowsOf, sequenceOverview } from "@chanlytics/db";
+import { leadSlotsOf, leadStepOpeningOf, leadWordsOf, messageVersionRowsOf, sequenceOverview } from "@chanlytics/db";
 import { businessOf, chainsOf } from "../campaigns/reach-outs";
 import { deployment } from "../env";
 import { callEdge, edgeConfigured } from "../edge";
@@ -26,39 +27,43 @@ type Sequence = { id: string; tenant_id: string; name: string; starts: string };
 
 /**
  * The test mail of a lead's step (the lead-to-sequence canvas's Preview as a real lead): its words as the chain holds them,
- * filled for one lead in it by the send's own fill, or for an example business where none is named; a later step under
- * the first's subject, as it answers in its thread. Refused in words for a call or a note, and an email with no words yet.
+ * filled for one lead in it by the send's own fill with the opening their email goes with (the one written for it, else
+ * the one their listing says), or for an example business where none is named; a later step under the first's subject,
+ * as it answers in its thread. A lead with words of their own (decision 0096) is tested with those, as the send sends
+ * them. Refused in words for a call or a note, and an email with no words yet.
  */
 async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, leadId: string | null) {
   const id = requireUuid(stepId, "step");
-  const [chains, business, lead] = await Promise.all([
+  const lid = leadId ? requireUuid(leadId, "lead") : null;
+  const [chains, business, lead, opened, typed] = await Promise.all([
     chainsOf(ctx, seq.tenant_id),
     businessOf(ctx, seq.tenant_id),
-    leadId ? leadSlotsOf(ctx.supabase, seq.tenant_id, requireUuid(leadId, "lead")) : Promise.resolve(null),
+    lid ? leadSlotsOf(ctx.supabase, seq.tenant_id, lid) : Promise.resolve(null),
+    lid ? leadStepOpeningOf(ctx.supabase, { tenantId: seq.tenant_id, stepId: id, leadId: lid }) : Promise.resolve(null),
+    lid ? leadWordsOf(ctx.supabase, seq.tenant_id, lid) : Promise.resolve([]),
   ]);
   const chain = chains.find((c) => c.root_id === seq.id);
   const step = chain?.steps.find((s) => s.id === id);
   if (!chain || !step) throw new AppError("not_found", "Step not found.", 404);
   if (step.hand) throw new AppError("validation", W.noMessage, 422);
   if (leadId && !lead) throw new AppError("not_found", "Lead not found.", 404);
+  const own = leadOwnWordsOf(typed);
+  const firstStep = chain.steps.find((s) => s.n === 0);
+  const words = own.get(step.id) ?? { subject: step.n === 0 ? (step.subject ?? "") : null, body: step.body };
   const mail = leadStepTestMail({
     sequence: seq.name,
     place: step.n + 1,
     business: business.name,
     address: business.address,
-    words: { subject: step.n === 0 ? (step.subject ?? "") : null, body: step.body },
-    thread: chain.steps.find((s) => s.n === 0)?.subject ?? null,
+    words,
+    thread: (firstStep ? own.get(firstStep.id)?.subject : null) ?? firstStep?.subject ?? null,
     lead: lead ?? reachOutExampleLead(),
+    example: !lead,
+    opening: opened ? leadOpeningOf(opened.written, opened.listing) : null,
     workspace: { businessName: business.name, yourName: chain.signed_by, bookingLink: business.bookingLink },
-    // How it ends, as the send ends it (0077): from the first mailbox the sequence writes from.
-    ending: coldEndingOf({
-      signsWith: chain.signs_with ?? "name",
-      signedBy: chain.signed_by,
-      signature: chainFirstSender(chain)?.signature?.words ?? null,
-      first: step.n === 0,
-      body: step.body,
-      address: business.address,
-    }),
+    // How it ends, as the send ends it (0077): the signature of the first mailbox the sequence writes from.
+    signsWith: chain.signs_with ?? "name",
+    signature: chainFirstSender(chain)?.signature?.words ?? null,
   });
   if ("why" in mail) throw new AppError("validation", mail.why, 422);
   return mail;
@@ -87,6 +92,7 @@ async function mailOf(ctx: RouteContext, seq: Sequence, stepId: string) {
     place: step.place,
     business: business.name,
     address: business.address,
+    bookingLink: business.bookingLink,
     channels: step.channels,
     params: parseParamSpecs(step.params),
     policyClass: overview[0]?.first?.policy_class ?? "",

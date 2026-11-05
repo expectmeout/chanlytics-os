@@ -1,9 +1,9 @@
 /**
- * scheduleJobOnce writes the row's dedupe key beside its payload (jobs.dedupe_key, 00333, decision 0033 step 2): the
- * three kinds the ledger held once per subject by an index of their own carry the same subject as their key, a kind
- * with no rule carries none, a second schedule of a live key is already_scheduled, and a database the migration has
- * not reached (no column: PGRST204) takes the row without the key, as before. Run over the database in memory, whose
- * unique keys are the migrations' own (jobs_dedupe_live, _unique-keys.generated.json).
+ * A job's once-only key (jobs.dedupe_key, 00333, decision 0033 step 2) is written by the database from its kind's
+ * job_kinds row (jobs_take_their_kind, 00526), whoever inserts it: each once-only kind carries its subject as its key, a
+ * kind with no rule carries none, a second schedule of a live key is already_scheduled, and the writer names neither key
+ * nor lane. Run over the database in memory, which fills the row as the trigger does and whose unique keys are the
+ * migrations' own (jobs_dedupe_live, jobs_dedupe_kept, _unique-keys.generated.json).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -30,7 +30,12 @@ test("each once-only kind carries its subject as its key; a kind with no rule ca
     dueAt: at,
     payload: { message_id: "msg1", stage: "reread-1" },
   });
-  await scheduleJobOnce(db, { tenantId: T, kind: "inbound_answer", dueAt: at, payload: { message_id: "msg2" } });
+  await scheduleJobOnce(db, {
+    tenantId: T,
+    kind: "inbound_answer",
+    dueAt: at,
+    payload: { message_id: "msg2", conversation_id: "c2" },
+  });
   await scheduleJob(db, { tenantId: T, kind: "push_receipts", dueAt: at, payload: { tickets: [] } });
   assert.deepEqual(
     tables.jobs.map((j) => [j.kind, j.dedupe_key ?? null]),
@@ -87,31 +92,87 @@ test("a booking notice is read once per delivery in each workspace: one delivery
   );
 });
 
-test("a database without the column takes the row without the key, so the edge and 00333 land in either order", async () => {
+test("the writer names no key and no lane: the database writes both from the kind's row, whoever the writer is (00526)", async () => {
   const sent = [];
-  let first = true;
-  const older = {
+  const recorder = {
     from: () => ({
       insert: async (row) => {
         sent.push(row);
-        if (first) {
-          first = false;
-          return { error: { code: "PGRST204", message: "Could not find the 'dedupe_key' column of 'jobs'" } };
-        }
         return { error: null };
       },
     }),
   };
-  const out = await scheduleJobOnce(older, {
+  await scheduleJobOnce(recorder, {
     tenantId: T,
     kind: "email_ingest",
     dueAt: at,
     payload: { mailbox_id: "m1", received_id: "r1" },
   });
-  assert.equal(out, "scheduled");
   assert.deepEqual(
-    sent.map((r) => "dedupe_key" in r),
-    [true, false],
-    "the key first, then the row as an older database knows it",
+    sent.map((r) => ["dedupe_key" in r, "lane" in r]),
+    [[false, false]],
+    "one spelling of the rule: jobs_take_their_kind's, which a SQL function's insert meets too",
+  );
+});
+
+test("a payload is ids, not people: what its kind never carries is left on its row, and an id it cannot run without is refused at the write", async () => {
+  const tables = { jobs: [] };
+  const db = fakeDb(tables);
+  await scheduleJob(db, {
+    tenantId: T,
+    kind: "outbound_send",
+    dueAt: at,
+    payload: { message_id: "m1", conversation_id: "c1", to_phone: "+15550100142", body: "See you at 3" },
+  });
+  assert.equal(
+    "body" in tables.jobs[0].payload,
+    false,
+    "a reply's words stay on its message, where an erasure finds them",
+  );
+  assert.equal(tables.jobs[0].payload.message_id, "m1");
+  await assert.rejects(
+    scheduleJob(db, { tenantId: T, kind: "outbound_send", dueAt: at, payload: { conversation_id: "c1" } }),
+    /^Error: schedule_job: outbound_send: the payload names no message_id$/,
+    "a send with no message to send is a writer's slip, said where it was made",
+  );
+  await assert.rejects(
+    scheduleJobOnce(db, { tenantId: T, kind: "erasure_finish", dueAt: at, payload: {} }),
+    /^Error: schedule_job: erasure_finish: the payload names no contact_id$/,
+  );
+  assert.equal(tables.jobs.length, 1);
+});
+
+test("a lead round's start and its checks are keyed by the writer that asks (00506), and a door's own start is never refused for one waiting", async () => {
+  const tables = { jobs: [] };
+  const db = fakeDb(tables);
+  const R = "11111111-1111-4111-8111-111111111111";
+  const start = { tenantId: T, kind: "lead_round_start", dueAt: at, payload: { round_id: R, carry_on: true } };
+  assert.equal(await scheduleJobOnce(db, start), "scheduled");
+  assert.equal(await scheduleJobOnce(db, start), "already_scheduled", "the sweep carrying the round on starts it once");
+  const check = (payload) => scheduleJobOnce(db, { tenantId: T, kind: "lead_check", dueAt: at, payload });
+  assert.equal(await check({ round_id: R, batch: 0, carry_on: true }), "scheduled");
+  assert.equal(
+    await check({ round_id: R, batch: 0 }),
+    "already_scheduled",
+    "each batch of the round's own checks once",
+  );
+  assert.equal(await check({ round_id: R, batch: 0, again: "nonce-1" }), "scheduled", "a Check again is its own");
+  // A door's insert names no key (lead_round_answer, 00506), and the trigger writes none for these two kinds: it is
+  // written beside the sweep's waiting start, as main had it, never refused for it.
+  const door = await db.from("jobs").insert({
+    tenant_id: T,
+    kind: "lead_round_start",
+    due_at: at.toISOString(),
+    payload: { round_id: R, resume: true },
+  });
+  assert.equal(door.error, null, door.error?.message);
+  assert.deepEqual(
+    tables.jobs.map((j) => [j.kind, j.dedupe_key ?? null]),
+    [
+      ["lead_round_start", `lead_round_start:${R}`],
+      ["lead_check", `lead_check:${R}:round:0`],
+      ["lead_check", `lead_check:${R}:nonce-1:0`],
+      ["lead_round_start", null],
+    ],
   );
 });
