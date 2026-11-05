@@ -59,7 +59,7 @@ export const RATE = {
   /** Irreversible, and a job per erasure. */
   erase: { limit: 5, windowMs: HOUR_MS, noun: "erasures" },
   /**
-   * Many people deleted at a press, fifty at most (People's Delete…): an owner clearing what a mailbox brought in before
+   * Many people deleted at a press, however many (People's Delete…): an owner clearing what a mailbox brought in before
    * it judged its senders (3 Nov 2026: 46 on one workspace, nine hours of `erase`'s five) stays well under this.
    */
   erase_many: { limit: 10, windowMs: HOUR_MS, noun: "deletions of many people" },

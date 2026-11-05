@@ -1,14 +1,12 @@
 /**
- * Whoever a press of Delete… hands the ledger leaves People at once (surface.ts peopleGoing). The ledger erases them over
- * the next seconds, and until it reaches each one the server still lists them, so every read of the list in that time
- * (a teammate's change, the live feed's) leaves them out in this tab: they do not come back to be taken away a second
- * time, one at a time. Once the server lists fewer of them the ledger has erased some, and the surface says so once it has
- * stopped, for what an erasure moves beside People to be read then, one reading for the press. The real surface module,
- * over a fake of its reads.
+ * Whoever a press of Delete… hands the ledger leaves People at once (surface.ts peopleGoing). The server leaves them out
+ * of its list from then on (00547), and a read already under way when the door answered may still name them, so every
+ * read in this tab leaves them out too. The ledger erases them over the next seconds or minutes, each erasure a notice
+ * that has People read again, and once those reads have stopped the surface says so, for what an erasure moves beside
+ * People to be read then, one reading for the press. The real surface module, over a fake of its reads.
  */
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { until } from "../../shared/_until.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -74,7 +72,9 @@ globalThis.fetch = (...a) => globalThis.window.fetch(...a);
 
 const { peopleGoing, peopleOverride, peopleSearch } =
   await import("../../../../../apps/dashboard/src/surfaces/people/surface.ts");
-/** Each time the surface said those going had left the server's list too (peopleGoing's `gone`). */
+/** Past the twelve seconds a stream of notices is waited out (DEAR_READ_LONGEST_WAIT_MS), or a long press says it early. */
+const GONE_QUIET_MS = 15_000;
+/** Each time the surface said the reads had stopped behind a press (peopleGoing's `gone`). */
 const gone = [];
 const shown = () => globalThis.window.__PEOPLE.rows.map((r) => r.id);
 const total = () => globalThis.window.__PEOPLE.aggregates.total;
@@ -92,9 +92,8 @@ test("whoever a press hands the ledger leaves the rows and the count at once, an
   assert.ok(heard.includes("surface:clients"), "and the page told");
 
   await peopleOverride.apply();
-  assert.deepEqual(shown(), ["p1", "p4"], "the server still lists them, and the rows do not");
+  assert.deepEqual(shown(), ["p1", "p4"], "a read that still names them does not bring them back");
   assert.equal(total(), 2, "nor does the count");
-  assert.deepEqual(gone, [], "and nobody is said gone while the server lists them all");
 
   const found = await peopleSearch("person");
   assert.deepEqual(
@@ -104,22 +103,43 @@ test("whoever a press hands the ledger leaves the rows and the count at once, an
   );
 });
 
-test("once the ledger has reached them the server's count is the count, and their going is said once for the press, not once a person", async () => {
-  listed = [person(1), person(3), person(4)];
-  await peopleOverride.apply();
+test("REGRESSION: their going is said once, when People's reads have stopped behind the press, however long the ledger takes (5 Nov 2026: a press of thousands is on the ledger for minutes, and the server's list no longer shows its progress)", async () => {
   listed = [person(1), person(4)];
-  await peopleOverride.apply();
-  assert.deepEqual(shown(), ["p1", "p4"]);
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    gone.length = 0;
+    peopleGoing(["p2"], () => gone.push("gone"));
+    for (let reads = 0; reads < 5; reads++) {
+      mock.timers.tick(GONE_QUIET_MS - 1);
+      await peopleOverride.apply();
+    }
+    assert.deepEqual(gone, [], "the ledger still at work: each erasure has People read again");
+    mock.timers.tick(GONE_QUIET_MS);
+    assert.deepEqual(gone, ["gone"], "the reads have stopped: said once");
+    await peopleOverride.apply();
+    mock.timers.tick(GONE_QUIET_MS);
+    assert.deepEqual(gone, ["gone"], "and a later read says nothing more");
+  } finally {
+    mock.timers.reset();
+  }
   assert.equal(total(), 2, "nobody is taken off the count twice");
-  await until(() => gone.length > 0, "their going said, once the server lists none of them");
-  assert.deepEqual(gone, ["gone"], "once: the two left a read apart");
-  await peopleOverride.apply();
-  assert.deepEqual(gone, ["gone"], "and a later read says nothing more");
+});
+
+test("a press with no read behind it is still said", () => {
+  gone.length = 0;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    peopleGoing(["p3"], () => gone.push("alone"));
+    mock.timers.tick(GONE_QUIET_MS);
+    assert.deepEqual(gone, ["alone"]);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("nobody going changes nothing and tells nobody", async () => {
   heard.length = 0;
   peopleGoing([], () => gone.push("nobody"));
   assert.deepEqual(heard, []);
-  assert.deepEqual(gone, ["gone"]);
+  assert.deepEqual(gone, ["alone"], "and nothing is said for them");
 });

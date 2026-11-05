@@ -486,7 +486,7 @@
     },
     {
       "kind": "unfed",
-      "why": "Whether Anthropic has paused this workspace (decision 0097, workspaceAnthropicPaused over anthropic_profiles), read with the billing row for the shell's line. The health sweep writes it at most twice an hour and the feed does not tell it: it is the service role's table, and no member's press moves it. The line says so at the next read of Billing.",
+      "why": "What Anthropic has said of this workspace (decision 0097, workspaceModelStanding over anthropic_profiles), read with the billing row for the shell's line. The health sweep writes it at most twice an hour and the feed does not tell it: it is the service role's table, and no member's press moves it. The line says so at the next read of Billing.",
       "reads": {
         "billing": [
           "anthropic_profiles"

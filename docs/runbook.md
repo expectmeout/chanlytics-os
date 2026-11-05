@@ -992,10 +992,10 @@ card left out; a search already running finishes.
 ## Turn on Anthropic's user profiles
 
 Without a profile on a request, one customer's flagged traffic can restrict the whole organization (decision 0097). They are
-off until `ANTHROPIC_PROFILES=on` is set on the edge's Vercel project, and each step here is Ruben's word.
+off until `ANTHROPIC_PROFILES=on` is set on the edge's Vercel project.
 
-Before the switch: 00544 on production, the letter in `Claude Video/docs/2026-11-04-anthropic-user-profiles-letter.md` answered,
-and one read with the production key, which creates nothing and proves the key, the endpoint and the shape:
+Before the switch: 00544 on production (with the switch on and no table, every model call is held), and one read with the
+production key, which creates nothing and proves the key, the endpoint and the shape:
 
 ```bash
 curl -s "https://api.anthropic.com/v1/user_profiles?limit=1" -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2026-10-21"
@@ -1004,7 +1004,7 @@ curl -s "https://api.anthropic.com/v1/user_profiles?limit=1" -H "x-api-key: $ANT
 After the switch and a redeploy, each person and workspace has a profile by their first call, and the health sweep (:13 and :43)
 makes five more a tick. Read these:
 
-- Console › Health › Model calls, "Anthropic profiles": how many are kept, wait to be made and wait to be deleted, and who is paused.
+- Console › Health › Model calls, "Anthropic profiles": how many are kept, wait to be made and wait to be deleted, and who is limited or paused.
 - `model_call_no_profile` in the logs: a call that went without one, because its create failed or is in flight. It should go quiet.
 - `anthropic_profile_not_made`, `anthropic_profile_not_deleted` and `anthropic_profiles_unlisted`: what Anthropic refused or did not answer.
 - `anthropic_profile_twice`: two profiles found for one reference. The sweep kept the oldest and left the other at Anthropic.
@@ -1016,10 +1016,14 @@ all, would refuse every stored id.
 Off again is the variable unset: requests go with no profile and none is made. Profiles already made stay at Anthropic, and those
 whose person or workspace goes are still deleted.
 
-**When Anthropic pauses an account,** the platform is paged once and its calls stop here: Ask says it is paused, and the
-receptionist sends its holding reply and hands each message to a person. Everyone else goes on. Read why on Health. Never clear
-`enforcement_status` by hand, and never delete a row to get a paused account a new profile: that is evading a safety action,
-and the next listing would say the same of the old id anyway. It lifts when Anthropic's list says it has.
+**When Anthropic restricts an account,** the platform is paged once and the shell says "Your receptionist is limited". Its calls
+still go under its own id, and Anthropic decides each one. What it refuses fails as any refusal does: the receptionist sends its
+holding reply and hands the message to a person.
+
+**When Anthropic bans an account,** the platform is paged and its calls stop here: Ask says it is paused, and the receptionist
+holds every message for a person. Everyone else goes on in both cases. Read why on Health. Never clear `enforcement_status` by
+hand, and never delete a row to get an account a new profile: that is evading a safety action, and the next listing would say the
+same of the old id anyway. It lifts when Anthropic's list says it has.
 
 ## Turn on push
 

@@ -17,7 +17,7 @@ export { ACTIVITY_SUBJECT_HOMES } from "./activity/subjects";
 export { activityTone } from "./activity/tones";
 export { adRoute, ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adsPreviewOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
 export { aboutADayAfter, addDays, adWith, daysBetween, MINOR_PER_UNIT, patchRestarts, sameArea } from "./ads/ads";
-export { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS, anthropicPaused, enforcementActionsOf, enforcementStatusOf, enforcementWords, MODEL_PAUSED_WORDS } from "./ai/anthropic-enforcement";
+export { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS, anthropicActed, anthropicPaused, enforcementActionsOf, enforcementStatusOf, enforcementWords, MODEL_PAUSED_WORDS, modelStandingOf } from "./ai/anthropic-enforcement";
 export { modelSubjectOf, profileDetailsOf, profileReferenceOf, subjectIdOf } from "./ai/anthropic-profiles";
 export { EFFORT_MESSAGE_BETA, effortAbove, effortInForce, effortMessage, foldEffortMessages, isEffortMessage } from "./ai/effort";
 export { DATA_NOT_INSTRUCTIONS, defang, fenceActed, fenced, fencedInline, injectionQuestion, PROFILE_NAME_MAX, promptSafeName } from "./ai/fence";
@@ -140,7 +140,7 @@ export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./consent/offers-unsub
 export { optInLink, waMeDigits, waMeLink } from "./consent/wa-links";
 export { ACT_LOG_PAGE, ACT_OUTCOMES, ACT_TARGETS, actRowOf, actsCsv, CLAIM_MS, claimWords, CONSOLE_ACT_KEYS, CONSOLE_ACTS, CONSOLE_GROUP_WORDS, CONSOLE_SCREEN_WORDS, CONSOLE_SCREENS, CONSOLE_WORDS, CONSOLE_WORKSPACE_TAB_WORDS, CONSOLE_WORKSPACE_TABS, consoleAddressOf, consoleGroupOf, consoleGroups, consoleNumbersFrom, consoleNumbersOf, consolePathOf, homeSentence, LINE_ACTS, REASON_KINDS, REASON_LIMITS, REASON_WORDS, STAFF_ROLE_WORDS, STAFF_ROLES, STAFF_STATES, staffCannotSeeWords, staffCannotWords, staffMay, staffName, staffSees, staffSeesScreen, verdictPill, whyWords } from "./console/console";
 export { CONSOLE_PATH } from "./console/console-path";
-export { dollarsWords, HEALTH_STATE_WORDS, HEALTH_TAB_WORDS, HEALTH_TABS, HEALTH_WINDOWS, HEALTH_WORDS, healthCounts, healthLooksOf, healthPathOf, healthQuietWords, healthSentence, healthTabOf, healthTilesOf, pausedProfileWho, secondsWords } from "./console/health";
+export { actedOnProfileWho, dollarsWords, HEALTH_STATE_WORDS, HEALTH_TAB_WORDS, HEALTH_TABS, HEALTH_WINDOWS, HEALTH_WORDS, healthCounts, healthLooksOf, healthPathOf, healthQuietWords, healthSentence, healthTabOf, healthTilesOf, secondsWords } from "./console/health";
 export { healthAskOf } from "./console/health-ask";
 export { clocksOf, failureReadingOf, jobWords, pageKeyWords, pagesOf, scheduleWords, subscriberWords } from "./console/health-clocks";
 export { errorGroupReport, errorGroupsOf } from "./console/health-errors";

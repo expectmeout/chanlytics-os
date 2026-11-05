@@ -11,21 +11,23 @@
  *   anthropicProfileRows      every row, for the sweep, with whether a workspace's last member has left it.
  *   anthropicProfilesWaiting  who has no row yet.
  *   setAnthropicEnforcement   what Anthropic now says of a profile.
- *   workspaceAnthropicPaused  whether a workspace's profile is paused: what its members are told.
- *   healthAnthropicProfiles   the counts and the paused, as Health reads them.
+ *   workspaceModelStanding    what Anthropic has said of a workspace's profile: what its members are told.
+ *   healthAnthropicProfiles   the counts and those Anthropic acted on, as Health reads them.
  *
  * Cross-workspace: a person's profile belongs to no workspace, and the sweep and Health read every workspace's by name.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  anthropicPaused,
+  anthropicActed,
   enforcementActionsOf,
   enforcementStatusOf,
+  modelStandingOf,
   subjectIdOf,
   type AnthropicEnforcementStatus,
   type AnthropicProfileKind,
   type EnforcementAction,
   type HealthAnthropicProfilesDto,
+  type ModelStanding,
   type ProfiledSubject,
 } from "@chanlytics/contracts";
 import type { Database } from "./database.types";
@@ -51,12 +53,11 @@ export async function anthropicProfileOf(db: Db, subject: ProfiledSubject): Prom
   return data ? { profile_id: data.profile_id, enforcement_status: statusOfRow(data.enforcement_status) } : null;
 }
 
-/** What a create needs of a claim. `email` is a person's, to hash; a workspace has none. */
+/** What a create needs of a claim. */
 export interface AnthropicProfileClaim {
   id: string;
   referenceId: string;
   onboardedAt: string;
-  email: string | null;
 }
 
 export async function claimAnthropicProfile(db: Db, subject: ProfiledSubject): Promise<AnthropicProfileClaim | null> {
@@ -65,9 +66,9 @@ export async function claimAnthropicProfile(db: Db, subject: ProfiledSubject): P
     p_subject: subjectIdOf(subject),
   });
   if (error) throw new Error(`anthropic_profile_claim: ${error.message}`);
-  const c = data as { id?: string; reference_id?: string; onboarded_at?: string; email?: string | null } | null;
+  const c = data as { id?: string; reference_id?: string; onboarded_at?: string } | null;
   if (!c?.id || !c.reference_id || !c.onboarded_at) return null;
-  return { id: c.id, referenceId: c.reference_id, onboardedAt: c.onboarded_at, email: c.email ?? null };
+  return { id: c.id, referenceId: c.reference_id, onboardedAt: c.onboarded_at };
 }
 
 export async function keepAnthropicProfileId(db: Db, rowId: string, profileId: string): Promise<void> {
@@ -144,9 +145,9 @@ export async function setAnthropicEnforcement(
   if (error) throw new Error(`anthropic_profiles: ${error.message}`);
 }
 
-export async function workspaceAnthropicPaused(db: Db, tenantId: string): Promise<boolean> {
+export async function workspaceModelStanding(db: Db, tenantId: string): Promise<ModelStanding | null> {
   const row = await anthropicProfileOf(db, { kind: "workspace", tenantId });
-  return !!row && anthropicPaused(row.enforcement_status);
+  return row ? modelStandingOf(row.enforcement_status) : null;
 }
 
 /** How many a waiting count reads at most: Health's number, which says so past it. */
@@ -158,8 +159,8 @@ export async function healthAnthropicProfiles(db: Db): Promise<HealthAnthropicPr
     kept: rows.filter((r) => r.profile_id && !r.leaving).length,
     waiting: waiting.length,
     leaving: rows.filter((r) => r.leaving).length,
-    paused: rows
-      .filter((r) => anthropicPaused(r.enforcement_status) && !r.leaving)
+    acted_on: rows
+      .filter((r) => anthropicActed(r.enforcement_status) && !r.leaving)
       .map((r) => ({
         id: r.id,
         kind: r.kind,

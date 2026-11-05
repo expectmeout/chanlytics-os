@@ -45,15 +45,17 @@ export const subjectIdOf = (s: ProfiledSubject): string => (s.kind === "person" 
 /** How a profile names its subject (reference_id): stable, ours, and what finds a create whose answer was lost. */
 export const profileReferenceOf = (s: ProfiledSubject): string => `${s.kind}:${subjectIdOf(s)}`;
 
-/** What a create is told, and nothing more: no name, no address (its hash), no words, nothing we would have to keep current. */
+/**
+ * What a create is told, and nothing more: no name, no address and no hash of one, no words, nothing we would have to keep
+ * current. Its page says a detail sent can be replaced and never cleared, so one we don't need stays here.
+ */
 export function profileDetailsOf(
   kind: AnthropicProfileKind,
-  claim: { referenceId: string; onboardedAt: string; emailHash: string | null },
+  claim: { referenceId: string; onboardedAt: string },
 ): Record<string, string> {
   return {
     reference_id: claim.referenceId,
     entity_type: kind === "person" ? "individual" : "business",
     onboarded_at: new Date(claim.onboardedAt).toISOString(),
-    ...(claim.emailHash ? { email_hash: claim.emailHash } : {}),
   };
 }

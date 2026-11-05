@@ -21,7 +21,7 @@ export {
   healthAnthropicProfiles,
   keepAnthropicProfileId,
   setAnthropicEnforcement,
-  workspaceAnthropicPaused,
+  workspaceModelStanding,
 } from "./anthropic-profiles";
 export type { AnthropicProfileClaim, AnthropicProfileHeld, AnthropicProfileRow } from "./anthropic-profiles";
 export {
@@ -39,6 +39,7 @@ export { keepInvoiceAmount } from "./billing/events";
 export type { Database, Json } from "./database.types";
 export {
   beginErasure,
+  beginPeopleErasure,
   dropPersonPolicy,
   erasableContact,
   eraseContactRows,

@@ -1,9 +1,10 @@
 # 0097 · Anthropic is told whom a call is for
 
-**Status:** Built on the lane `cm-model-profiles` (`ai/model-profiles`), 4 November 2026, from section 5 of
-`Claude Video/docs/2026-11-04-pictures-in-chanlytics-safety.md`. Written against main's `219e073414`. It merges dark:
-`ANTHROPIC_PROFILES` is unset, so no profile exists and no request carries one until Ruben sets it. Migration 00544. Nothing
-here has met Anthropic's real API: the wire is written to its documentation, read 4 November 2026.
+**Status:** Built on the lane `cm-model-profiles`, from section 5 of `Claude Video/docs/2026-11-04-pictures-in-chanlytics-safety.md`.
+Written against main's `219e073414`, merged dark as #2102 on 5 November 2026, migration 00544 on production. Changed the same day
+before any profile existed (Ruben): no letter to Anthropic goes first, only a ban holds a call, and no email hash is sent. On
+5 November the production key read the real list (no profiles, shape as documented), and the header was refused when malformed,
+on the API version the port sends. No real profile had been created when this was written.
 
 ## Context
 
@@ -33,16 +34,21 @@ those two reach `askModel` and `streamModel`, so the change has one place to sta
      person runs. It also has no answer when the owner leaves.
    - _One profile per customer of a business:_ no sign-up, no details we may send, no way to erase it, and a stranger could
      mint them against a rate-limited endpoint.
-   - _`passthrough`:_ it means a company we resell API access to, and we resell none. If Anthropic prefers it, `access_type` is
+   - _`passthrough`:_ it means a company we resell API access to, and we resell none. If that ever changes, `access_type` is
      replaced by an update, with no new profile.
    - _No profile:_ the gap itself.
 
-   The question is written for Anthropic's account team in `Claude Video/docs/2026-11-04-anthropic-user-profiles-letter.md`.
+   We ask nobody first. The reference's own example is an `application` profile with `entity_type: business`, and the choice can
+   be changed by one update per profile. The guide asks to hear before a customer base is registered in bulk; this is about 14
+   profiles, at five a half hour.
 
-3. **A paused subject's calls do not leave.** `enforcement_status` of anything but `unrestricted` holds them here (`held`, no
-   call and no ledger row). Anthropic's reference says a restricted end user "may still be served in part", and we give that
-   up for one plain state a member can be told. A paused subject is never sent on with no id, or under another's: that would
-   hand their traffic back to the whole organization. Holding also means less flagged traffic from us while it stands.
+3. **Only a ban stops a call here.** A banned subject's calls are held (`held`, no call and no ledger row): Anthropic "does not
+   plan to serve them there again". A restricted subject's go under its own id, as does one with an identity check under review
+   (`pending`) and a status we do not know, which reads restricted. Its reference says a restricted end user "may still be served
+   in part", so holding them would stop what Anthropic still serves, and would stay stopped for up to half an hour after a
+   restriction lifts. Anthropic refuses what it refuses, call by call. A refusal is no fault to the provider's breaker, so nobody
+   else feels it, and it reaches the receptionist's holding reply and hand-over as any refusal does. A banned subject is never
+   sent on with no id, or under another's: that would hand their traffic back to the whole organization.
 
 4. **A profile is made once.** `POST /v1/user_profiles` is not idempotent, so nothing creates without winning
    `anthropic_profile_claim` (00544): one row per subject on a unique index, and the details only to the caller that made it.
@@ -65,13 +71,14 @@ those two reach `askModel` and `streamModel`, so the change has one place to sta
    deletes at Anthropic and then here. A workspace whose last member left (`left_empty_at`) goes the same way. A failed delete
    is tried on the next tick, and a 404 means it went. This runs with the switch off.
 
-8. **What Anthropic is told is the least that serves.** `reference_id`, `entity_type`, `onboarded_at`, and for a person
-   `email_hash` (sha-256 of the trimmed lowercase address), so it can see a banned person sign up again. No name and no
-   address. No `account_status`, which we would have to keep current. No country, which we do not know reliably.
+8. **What Anthropic is told is the least that serves.** `reference_id`, `entity_type`, `onboarded_at`. No name, no address and no
+   hash of one: its page says a detail sent can be replaced and never cleared, and one can be added by an update if it is ever
+   needed. No `account_status`, which we would have to keep current. No country, which we do not know reliably.
 
-9. **Paused is said plainly, and no reason reaches a member.** Ask answers "Ask is paused on your account" (403 `model_paused`).
-   The shell's line says "Your receptionist is paused". The platform is paged once, and Health's Model calls tab and its needs-a-look
-   list show who, why and whether an identity check can clear it.
+9. **A member is told plainly, and no reason reaches them.** While a workspace is restricted, the shell's line says "Your
+   receptionist is limited". Once it is banned, "Your receptionist is paused", and Ask answers "Ask is paused on your account"
+   (403 `model_paused`). The platform is paged when an action opens and again if it becomes a ban, and Health's Model calls tab and
+   its needs-a-look list show who, why and whether an identity check can clear it.
 
 ## Shape
 
@@ -83,30 +90,32 @@ those two reach `askModel` and `streamModel`, so the change has one place to sta
 
 ## Steps
 
-Each is Ruben's word, in this order.
-
 1. Merge, then apply 00544. Nothing changes for anyone: the switch is off, and it stays off until 00544 is on.
-2. Send the letter. Its page asks to hear before a customer base is registered. On 4 November that base is 8 people and 6
-   workspaces, 14 profiles, so this is a courtesy more than a queue, but the answer to its first question can change the
-   receptionist's shape, and that is cheapest to change before any exist.
-3. Set `ANTHROPIC_PROFILES=on` on the edge's Vercel project and redeploy. `docs/runbook.md`, "Turn on Anthropic's user
+2. Set `ANTHROPIC_PROFILES=on` on the edge's Vercel project and redeploy. `docs/runbook.md`, "Turn on Anthropic's user
    profiles", says what to read after.
-4. Move our own use to a second organization (below).
+3. Move our own use to a second organization (below).
 
 **Internal use belongs in a separate organization.** Its page: "Keep the traffic you send for your end customers in one
 organization and your own internal usage in another", and "separate workspaces in one organization aren't enough". Three of
 the six live workspaces are ours, on the production key, and `tooling/scripts/evals/reply-intents.mjs` and `reply-signers.mjs`
-read `ANTHROPIC_API_KEY` when run by hand. Until they move, our workspaces take workspace profiles like anyone's, so a flagged
-nightly case pauses that workspace and not the organization. Which organization `ANTHROPIC_EVAL_KEY` sits in is not something
-this repo can say: Ruben checks it in the Console.
+read `ANTHROPIC_API_KEY` when run by hand. Until they move, our workspaces take workspace profiles like anyone's, so a flagged case
+acts on that workspace and not the organization. The evals send no profile, so they must leave first: on 5 November the copy of
+`ANTHROPIC_EVAL_KEY` we could read answered from production's organization (`anthropic-organization-id`). GitHub's copy cannot be
+read, and the nightly run was skipped then.
 
 ## Not built
 
-- `metadata.user_id` on a receptionist's turn, an opaque id for the one customer writing. It could separate one abusive
-  customer from the business, and the letter asks whether Anthropic wants it. Nothing else depends on it.
+- `metadata.user_id` on a receptionist's turn, an opaque id for the one customer writing. Its page describes it for a
+  `passthrough` profile, so what it does for ours is unknown. Nothing else depends on it.
 - An identity check's link. A `verify` action says a person can clear it, but `POST /v1/user_profiles/{id}/action_urls` documents
-  only `enroll_end_user`. Health says so, and the letter asks how.
-- `name`, `country`, `account_status`, each its page's option, none needed for attribution.
+  only `enroll_end_user`. Health says so.
+- Its webhooks, whose page says "Event delivery isn't live", and its Verification Portal, which its page says to skip if you need
+  only attribution.
+- The official SDK. It has `client.userProfiles` and `user_profile_id`, but nothing here imports the SDK: the port is one hand-written
+  door, a test holds that, and a second way to reach Anthropic for three calls is worse than this file. A create there also needs
+  `maxRetries: 0`, or its retries can make a second profile. Moving the whole port is its own change.
+- `name`, `email_hash`, `country`, `account_status`, each its page's option, none needed for attribution. 00544's claim still
+  answers a person's address, which nothing reads now; it goes when that function is next re-created.
 - A rename or a suspension pushed to a profile: with none of those fields sent, there is nothing to keep current.
 - Erasing a business's customer (`eraseContact`) touches no profile, because they have none.
 
@@ -114,26 +123,22 @@ this repo can say: Ruben checks it in the Console.
 
 `tooling/scripts/tests/anthropic-profiles/`: every purpose through the real `callModel` with the header it sends; the switch off
 reads nothing and sends nothing; a request with no attribution never leaves; a syntax-tree check that only `lib/model.ts` asks
-the port, only the port names the API, and nothing imports the SDK; a paused subject sends nothing, under any id; concurrent
-first calls create once; every create outcome; the sweep's read, delete, adoption and pacing. The type test beside the port
+the port, only the port names the API, and nothing imports the SDK; a restricted subject goes under its own id and a refusal touches
+nobody else; a banned subject sends nothing, under any id; concurrent first calls create once; every create outcome; the sweep's read, delete, adoption and pacing. The type test beside the port
 holds the compiler's half. `anthropic-profiles.db.test.mjs` holds the claim and the cascade on the stack, in CI alone.
 
 ## Risks
 
-- **The first real answer may differ from the documentation.** No test has met the real API, and creating a profile is Ruben's
-  word. `GET /v1/user_profiles?limit=1` before the switch proves the key, the endpoint and the shape, and creates nothing.
+- **The first real create may differ from the documentation.** No test has created a real profile. `GET /v1/user_profiles?limit=1`
+  before the switch proves the key, the endpoint and the shape, and creates nothing. **What a refused call looks like is not
+  documented either**: the first one is read off the ledger, and until then it fails as any model refusal does.
 - **A profile works only under the organization that made it.** Its page: any other "gets the same 400". Moving
   `ANTHROPIC_API_KEY` to another organization would fail every call that names a stored id, and rightly so: the port never
   drops the id to get an answer. The second organization takes our own use, never this key.
 - **Voice is outside this.** The phone receptionist's model runs on Retell's own account (`RETELL_MODELS`), which we do not send
   and cannot attribute.
 - **A person who deletes their account ends Anthropic's open actions on that profile**, as its page says of any delete, and the
-  same address signing up again gets a new one. `email_hash` is how Anthropic can link the two. We hold nothing against the new
-  one. The letter asks whether it should.
-- **Up to half an hour between Anthropic's pause and ours.** Calls in between carry the right id and are refused by the API, so
-  they fail as any model failure does. Nothing goes unattributed for it.
-
-## Open questions
-
-In the letter: the workspace reading, `metadata.user_id`, the pace of registration, our own workspaces, what a refused call
-looks like, how an identity check is passed, and a deleted profile's successor.
+  same address signing up again gets a new one. With no `email_hash`, nothing links the two, and we hold nothing against the new
+  one. If that is ever needed, the hash can be added to a profile by an update.
+- **Up to half an hour before a member or the platform hears of an action.** Calls in between carry the right id and are refused
+  by the API, so they fail as any model failure does. Nothing goes unattributed for it.
