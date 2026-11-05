@@ -6389,7 +6389,7 @@ COMMENT ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text
 CREATE FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid DEFAULT NULL::uuid) RETURNS text
     LANGUAGE plpgsql STABLE
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_base text := left(coalesce(nullif(p_base, ''), 'file'), 60);
   v_name text := v_base;
@@ -6403,7 +6403,7 @@ begin
     v_name := regexp_replace(left(v_base, 55), '-+$', '') || '-' || v_n;
   end loop;
   return v_name;
-end $$;
+end $_$;
 
 
 --
@@ -54604,7 +54604,7 @@ GRANT SELECT(updated_at) ON TABLE public.files TO authenticated;
 -- Name: TABLE files_let_go; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE ON TABLE public.files_let_go TO service_role;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.files_let_go TO service_role;
 
 
 --

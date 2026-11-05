@@ -150,7 +150,7 @@ comment on table public.files_let_go is
   'What a person removed from a business''s files, by fingerprint alone, written at the press (00551, decision 0099): an import does not bring it back. A person may still add it again. Nothing else of the file stays.';
 alter table public.files_let_go enable row level security;
 revoke all on public.files_let_go from anon, authenticated;
-grant select, insert, delete on public.files_let_go to service_role;
+grant select, insert, update, delete on public.files_let_go to service_role;
 
 /* ---------------------------------------------------------------------------------------------- 3. the job's kinds -- */
 
