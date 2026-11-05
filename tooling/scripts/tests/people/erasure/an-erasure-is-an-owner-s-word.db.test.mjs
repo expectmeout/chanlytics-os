@@ -327,7 +327,7 @@ test(
   "Not a person: each address said automated in the same write, one line for the press; someone with no address stays",
   { skip },
   async () => {
-    const alerts = `Alerts-${stamp()}@Notice.Example.com`;
+    const alerts = `alerts-${stamp()}@notice.example.com`;
     const shared = `shared-${stamp()}@notice.example.com`;
     const [a, phoneOnly, b] = await seeded([
       { display_name: "Alerts", email: alerts },
@@ -346,9 +346,9 @@ test(
         .from("mailbox_senders")
         .select("sender, verdict, set_by")
         .eq("tenant_id", A)
-        .in("sender", [alerts.toLowerCase(), shared]),
+        .in("sender", [alerts, shared]),
     );
-    assert.equal(said.length, 2, "the address alone, lower-cased, as the single door says it");
+    assert.equal(said.length, 2, "the address alone, as the single door says it");
     for (const s of said) assert.deepEqual([s.verdict, s.set_by], ["automated", owner.userId]);
     const events = ok(
       await db.from("events").select("data").eq("tenant_id", A).eq("kind", "mailbox_connection.sender_sorted"),

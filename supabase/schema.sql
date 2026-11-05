@@ -17745,15 +17745,6 @@ $$;
 
 
 --
--- Name: FUNCTION people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO authenticated;
-GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO service_role;
-
-
---
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -50466,6 +50457,15 @@ GRANT ALL ON FUNCTION public.partner_workspace_money() TO service_role;
 
 REVOKE ALL ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO service_role;
 
 
 --
