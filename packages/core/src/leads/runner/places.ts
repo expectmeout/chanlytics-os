@@ -14,6 +14,8 @@
  */
 
 import {
+  LEAD_NO_SITE_KEY,
+  planNeedsASite,
   type LeadArea,
   classify,
   leadPhoneState,
@@ -27,7 +29,7 @@ import { cleanPlace, type CleanPlace } from "../clean";
 import { inArea, haversineM, medianCenter, nearestAreas, radiusFromSpread, type LatLng } from "../geo";
 import { JUDGE_REFUSED_REASON, factsOf } from "../judge";
 import type { CollectPlace, LeadMemberRow, LeadShare } from "../ports";
-import { CLOSED_REASON, NO_LOCATION_REASON } from "./rules";
+import { CLOSED_REASON, NO_LOCATION_REASON, NO_SITE_REASON } from "./rules";
 
 interface Prepared {
   index: number;
@@ -182,10 +184,12 @@ export function memberOf(
  */
 export function takeBatch(
   card: LeadCardRunner,
+  plan: LeadSearchPlan,
   items: unknown[],
   cursor: number,
   judgeable: number,
 ): { end: number; prepared: Prepared[] } {
+  const needsASite = planNeedsASite(plan);
   const prepared: Prepared[] = [];
   let toJudge = 0;
   let end = cursor;
@@ -197,7 +201,9 @@ export function takeBatch(
         ? { class: "excluded", reason: CLOSED_REASON, token: "closed", excluded_by: "closed" }
         : mapped.location === null
           ? { class: "review", reason: NO_LOCATION_REASON, token: "out_of_area", excluded_by: null }
-          : null;
+          : needsASite && !clean.host && !clean.bookingPage
+            ? { class: "excluded", reason: NO_SITE_REASON, token: LEAD_NO_SITE_KEY, excluded_by: LEAD_NO_SITE_KEY }
+            : null;
       if (!rule) {
         if (toJudge >= judgeable) break;
         toJudge += 1;

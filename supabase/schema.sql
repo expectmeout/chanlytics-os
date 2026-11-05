@@ -33420,8 +33420,22 @@ begin
   -- whose lead_round_start job died before it wrote a run sits in 'queued'
   -- with no run at all, and nothing but the sweep can end it and give its
   -- allowance and budget back (lead_rounds_live serves this predicate).
+  -- And a lead just found with a site and no mark, whose round has ended by
+  -- the time the sweep's second try reaches it (leads_untouched_purge serves it).
   if exists (select 1 from public.lead_runs r where r.state in ('claimed', 'starting', 'running', 'unknown'))
-     or exists (select 1 from public.lead_rounds r where r.state <> 'ended') then
+     or exists (select 1 from public.lead_rounds r where r.state <> 'ended')
+     or exists (
+       select 1 from public.leads l
+        where l.found_at >= now() - interval '11 minutes'
+          and l.stage = 'ready'
+          and l.contact_id is null
+          and l.contacted_at is null
+          and l.exported_at is null
+          and l.erased_at is null
+          and l.blanked_at is null
+          and l.website_host is not null
+          and l.mark_path is null
+     ) then
     return public.request_sweep('leads', '/api/cron/leads');
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('leads', now())
@@ -33434,7 +33448,7 @@ end $$;
 -- Name: FUNCTION trigger_leads_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live or a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
+COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live, a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it -- or a lead just found has a site and no mark, for the sweep''s second try; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
 
 
 --

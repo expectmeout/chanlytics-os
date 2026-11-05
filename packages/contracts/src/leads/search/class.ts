@@ -31,6 +31,8 @@ export const leadKindWord = (name: string): string => `Not one of the ${name}`;
  * left out under this key, and the chip says why (leads.ts leadExclusionWord).
  */
 export const LEAD_UNREACHABLE_KEY = "unreachable";
+/** Left out by code, the judge not asked: a plan that must see a website, and a listing with nothing to read. */
+export const LEAD_NO_SITE_KEY = "no_site";
 
 /**
  * A lead's phone, as the count reads it (decision 0010): `ok` when it dials (contracts phoneDialable), `invalid` when a
