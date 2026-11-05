@@ -26,12 +26,15 @@ import {
   routeSurfaceFor,
 } from "./surface-registry";
 import {
-  deliveryTicksOnly,
+  erasureHeard,
   feedWatch,
+  isErasureNotice,
   REALTIME_GRACE_MS,
-  RECEIPTS_LONGEST_WAIT_MS,
+  REFRESH_MAX_WAIT_MS,
+  refreshWait,
   subscribesToRealtime,
   wantsRefresh,
+  type ErasureStream,
   type FeedWatch,
   type RealtimeChange,
 } from "./surface-realtime";
@@ -80,14 +83,6 @@ const RETRY_AFTER_MS = [2_000, 10_000] as const;
  * again (hearing/passes.ts holdWhileHidden): a pinned tab read the Inbox, Today and the threads all day for nobody (S10-3).
  */
 const READ_WHILE_HIDDEN: ReadonlySet<string> = new Set(["workspace", "inbox", "live", "notifications"]);
-/** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
-const REFRESH_DEBOUNCE_MS = 400;
-/**
- * And never longer than this after the first: a broadcast's receipts are each their own notice, a few hundred
- * milliseconds apart, and each restarted the wait, so a customer's new message reached no open page until they stopped.
- * A surface whose read is dear names a longer one of its own (`maxWaitMs`).
- */
-const REFRESH_MAX_WAIT_MS = 3_000;
 
 /**
  * A read the page on screen opens on that is no surface -- a person's page reads its person (people-detail.ts
@@ -254,6 +249,8 @@ interface SurfaceRun {
    * only what those can have changed (`apply(heard)`: a delivery tick re-reads the threads, not the calls and the holds, S10-2).
    */
   readonly heard: Map<string, RealtimeChange[]>;
+  /** The erasures the feed is telling of, one after another (surface-realtime.ts refreshWait), or null before any. */
+  erasures: ErasureStream | null;
   /** The one pass that reads everything again (hearing/passes.ts), once the runner has started it. */
   passes: Passes | null;
   /** Stops waiting for the workspace's id, where the tab joined no feed for want of it (joinFeedEarly). */
@@ -283,6 +280,7 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     unsubscribe: null,
     held: new Set(),
     heard: new Map<string, RealtimeChange[]>(),
+    erasures: null,
     passes: null,
     began: Date.now(),
     quietSince: null,
@@ -476,10 +474,7 @@ function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
   const now = Date.now();
   const first = run.firstAsked.get(o.key) ?? now;
   run.firstAsked.set(o.key, first);
-  // A count made of receipts is read once a run's receipts quieten (receiptsQuietMs; S3-5); anything else at its own pace.
-  const ticksQuiet = deliveryTicksOnly(run.heard.get(o.key)) ? o.receiptsQuietMs : undefined;
-  const quiet = ticksQuiet ?? o.debounceMs ?? REFRESH_DEBOUNCE_MS;
-  const longest = ticksQuiet === undefined ? (o.maxWaitMs ?? REFRESH_MAX_WAIT_MS) : RECEIPTS_LONGEST_WAIT_MS;
+  const { quiet, longest } = refreshWait(o, run.heard.get(o.key), run.erasures, now);
   const wait = Math.max(0, Math.min(quiet, first + longest - now));
   run.timers.set(
     o.key,
@@ -728,6 +723,7 @@ function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWa
  */
 function hear(run: SurfaceRun, change: RealtimeChange): void {
   const arrived = Date.now();
+  if (isErasureNotice(change)) run.erasures = erasureHeard(run.erasures, arrived);
   const hidden = pageHidden();
   run.realtime
     .filter((o) => !readAfter(run, o, change.at) && wantsRefresh(o, change.table, change))

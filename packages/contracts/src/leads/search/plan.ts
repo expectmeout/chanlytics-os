@@ -135,6 +135,10 @@ export const US_CODES = new Set(Object.values(US_STATES));
 export const planReadsSites = (plan: Pick<LeadSearchPlan, "criteria">): boolean =>
   plan.criteria.some((c) => c.on_site === true);
 
+/** Whether a place with nothing to read cannot be what a search asks: such a criterion, required. */
+export const planNeedsASite = (plan: Pick<LeadSearchPlan, "criteria">): boolean =>
+  plan.criteria.some((c) => c.on_site === true && c.required);
+
 export const KEY = /^[a-z][a-z0-9_]{0,39}$/;
 // Control/format characters (bidi overrides, tag characters) and newlines are stripped from every
 // plan-authored text field before it can reach the judge's rubric (26; security review, item 9).

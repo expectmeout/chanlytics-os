@@ -33420,8 +33420,22 @@ begin
   -- whose lead_round_start job died before it wrote a run sits in 'queued'
   -- with no run at all, and nothing but the sweep can end it and give its
   -- allowance and budget back (lead_rounds_live serves this predicate).
+  -- And a lead just found with a site and no mark, whose round has ended by
+  -- the time the sweep's second try reaches it (leads_untouched_purge serves it).
   if exists (select 1 from public.lead_runs r where r.state in ('claimed', 'starting', 'running', 'unknown'))
-     or exists (select 1 from public.lead_rounds r where r.state <> 'ended') then
+     or exists (select 1 from public.lead_rounds r where r.state <> 'ended')
+     or exists (
+       select 1 from public.leads l
+        where l.found_at >= now() - interval '11 minutes'
+          and l.stage = 'ready'
+          and l.contact_id is null
+          and l.contacted_at is null
+          and l.exported_at is null
+          and l.erased_at is null
+          and l.blanked_at is null
+          and l.website_host is not null
+          and l.mark_path is null
+     ) then
     return public.request_sweep('leads', '/api/cron/leads');
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('leads', now())
@@ -33434,7 +33448,7 @@ end $$;
 -- Name: FUNCTION trigger_leads_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live or a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
+COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live, a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it -- or a lead just found has a site and no mark, for the sweep''s second try; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
 
 
 --
@@ -33981,6 +33995,27 @@ COMMENT ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to da
 
 
 --
+-- Name: workspace_notices_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_notices_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+begin
+  perform set_config('chanlytics.workspace_erasing', 'true', true);
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_notices_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_notices_on_erase() IS 'Decision 0019 (00549): as a person''s row becomes a tombstone, says this transaction is an erasure (chanlytics.workspace_erasing, the transaction''s alone), and workspace_tell_at_commit says so on each notice it sends at the commit, so a tab can wait out a stream of erasures and nothing else.';
+
+
+--
 -- Name: workspace_notices_since(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -34077,9 +34112,15 @@ begin
   if not found then
     return null;
   end if;
-  -- The clock now, at the commit: a read that began before it may not hold the change; one that began after it does.
+  -- The clock now, at the commit: a read that began before it may not hold the change; one that began after it does. And
+  -- whether this transaction erased someone (00549): unset, the setting reads null, and the notice says nothing.
   perform realtime.send(
-    kept.payload || jsonb_build_object('at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+    kept.payload
+      || jsonb_build_object('at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+      || case when current_setting('chanlytics.workspace_erasing', true) = 'true'
+              then jsonb_build_object('erasure', true)
+              else '{}'::jsonb
+         end,
     kept.event,
     kept.topic,
     true);
@@ -34091,7 +34132,7 @@ end $$;
 -- Name: FUNCTION workspace_tell_at_commit(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.workspace_tell_at_commit() IS 'Decision 0019 (00507): sends one notice a statement kept for its workspace, at the commit, with the commit''s clock as `at`, and deletes its row. A deferred constraint trigger on workspace_notices_pending.';
+COMMENT ON FUNCTION public.workspace_tell_at_commit() IS 'Decision 0019 (00507): sends one notice a statement kept for its workspace, at the commit, with the commit''s clock as `at`, and deletes its row, and says `erasure` where this transaction made a person a tombstone (00549). A deferred constraint trigger on workspace_notices_pending.';
 
 
 --
@@ -42430,6 +42471,13 @@ CREATE TRIGGER contacts_erase_leaves_lists AFTER UPDATE OF erased_at ON public.c
 --
 
 CREATE TRIGGER contacts_erase_leaves_sequences AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.sequence_enrollments_on_erase();
+
+
+--
+-- Name: contacts contacts_erase_marks_its_notices; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_marks_its_notices AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW WHEN (((old.erased_at IS NULL) AND (new.erased_at IS NOT NULL))) EXECUTE FUNCTION public.workspace_notices_on_erase();
 
 
 --
@@ -53103,6 +53151,14 @@ GRANT ALL ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uui
 REVOKE ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) TO authenticated;
 GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_notices_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_notices_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_notices_on_erase() TO service_role;
 
 
 --

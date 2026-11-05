@@ -21,7 +21,7 @@ import {
   heldBack,
   outOfTime,
   targetOf,
-  wasJudged,
+  wasWeighed,
   webhookUrl,
 } from "./rules";
 
@@ -99,7 +99,7 @@ export const UNMEASURED_YIELD = 0.5;
  * used to ask the provider for a fifth of what it needed, and ended "few new matches" (3 Nov 2026).
  */
 async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> {
-  const judged = (await p.db.membersOfSearch(round.search_id)).filter(wasJudged);
+  const judged = (await p.db.membersOfSearch(round.search_id)).filter(wasWeighed);
   return judged.length ? probeYield(judged) : UNMEASURED_YIELD;
 }
 
@@ -157,7 +157,7 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     // under it first: what it lets in comes back, what it now leaves out goes, and the rest is sized from that.
     if (resume && round.answered === "include" && round.purpose === "probe") await rejudgeProbe(p, round);
     const members = await p.db.membersOfRound(round.id);
-    const judged = members.filter(wasJudged);
+    const judged = members.filter(wasWeighed);
     const counted = members.filter((m) => m.counted).length;
     // Round 1 sizes from its probe; a top-up or a renewal from what the search found in every round before it.
     const y = round.purpose === "probe" ? probeYield(judged) : await runningYield(p, round);

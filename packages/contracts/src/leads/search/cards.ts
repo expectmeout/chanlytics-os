@@ -60,7 +60,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
       "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
       "emails and social profiles from the business's own website",
-      "what a business's own home page says it offers, sells or how it books, where a criterion is on_site: each place's site is then read, at a little more a place, and a site that does not say it sends the place to review",
+      "what a business's own home page says it offers, sells or how it books, where a criterion is on_site: each place's site is then read, at a little more a place, a site that does not say it sends the place to review, and a place with no website of its own is left out",
       "a mailbox check on the email found",
     ],
     notFor: [

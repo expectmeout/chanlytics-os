@@ -26,7 +26,7 @@ import { workspaceZone } from "@/legacy-bridge/zone";
 import { codeOnce } from "@/lib/code-once";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEAR_READ_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
+import { DEAR_READ_LONGEST_WAIT_MS, ERASURES_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { holderName } from "../holder-names";
 import { carriesMark } from "../seen-carry";
 import type { PeopleLoaded } from "./surface-map";
@@ -194,10 +194,10 @@ const pageLess = (page: PeopleSurface["page"], going: number): PeopleSurface["pa
   page && going ? { ...page, total: page.total - going } : page;
 
 /**
- * How long after People's last read a press is said done: past the twelve seconds a stream of notices is waited out
- * (surface-realtime.ts DEAR_READ_LONGEST_WAIT_MS), so a long press is said at its end, and not each time a read comes late.
+ * How long after People's last read a press is said done: past the half minute a stream of erasures is waited out
+ * (surface-realtime.ts ERASURES_LONGEST_WAIT_MS), so a long press is said at its end, and not each time a read comes late.
  */
-const GONE_QUIET_MS = 15 * SECOND_MS;
+const GONE_QUIET_MS = ERASURES_LONGEST_WAIT_MS + 5 * SECOND_MS;
 
 /** What to do once the reads behind a press have stopped (peopleGoing's `gone`), and the wait for it. */
 const awaited: { gone: (() => void) | null; timer: ReturnType<typeof setTimeout> | null } = { gone: null, timer: null };

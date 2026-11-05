@@ -194,6 +194,7 @@ export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = {
 
 /** The Excluded chip for a place with no phone and no email (search/class.ts LEAD_UNREACHABLE_KEY). */
 export const LEAD_UNREACHABLE_WORD = "No way to reach them";
+export const LEAD_NO_SITE_WORD = "No website of its own";
 
 export const LEAD_CHECK_UNSURE = "Couldn't tell";
 
