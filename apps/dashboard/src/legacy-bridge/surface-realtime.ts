@@ -61,6 +61,66 @@ export function deliveryTicksOnly(heard: readonly RealtimeChange[] | undefined):
   );
 }
 
+/** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
+const REFRESH_DEBOUNCE_MS = 400;
+/**
+ * And never longer than this after the first: a broadcast's receipts are each their own notice, a few hundred
+ * milliseconds apart, and each restarted the wait, so a customer's new message reached no open page until they stopped.
+ * A surface whose read is dear names a longer one of its own (`maxWaitMs`).
+ */
+export const REFRESH_MAX_WAIT_MS = 3_000;
+
+/**
+ * How long a read asked for by nothing but a stream of erasures waits for them to quieten, and the longest it waits from the
+ * first while they keep coming. Delete… for many hands its people to the ledger, a thread gone and a tombstone every 300 ms
+ * for as long as the press runs (5,000 people, 25 minutes). A third of the gaps in the press of fifty outlasted the runner's
+ * 400 ms, so a surface was read in each, a dear one too: 75 reads and 1,167 requests in 16 s (5 Nov 2026). The tab that
+ * pressed hides them at once (surfaces/people/surface.ts peopleGoing); another sees them go half a minute at a time.
+ */
+const ERASURES_QUIET_MS = 5_000;
+export const ERASURES_LONGEST_WAIT_MS = 30_000;
+/** One erasure's notices come within milliseconds and a press of two within a moment: read as any change is. A stream runs on past this. */
+const A_STREAM_RUNS_MS = 1_000;
+
+/** Erasures heard one after another, none as long as ERASURES_QUIET_MS after the last: when the first came, and the newest. */
+export interface ErasureStream {
+  since: number;
+  last: number;
+}
+
+/** Whether this notice's transaction erased someone (00549). Nothing else says so: a teammate's rename is the same table and event. */
+export const isErasureNotice = (change: RealtimeChange): boolean => change.row.erasure === true;
+
+/** The stream as an erasure's notice arriving at `now` leaves it: the same one, or a new one after a quiet. */
+export function erasureHeard(stream: ErasureStream | null, now: number): ErasureStream {
+  return stream && now - stream.last < ERASURES_QUIET_MS
+    ? { since: stream.since, last: now }
+    : { since: now, last: now };
+}
+
+/**
+ * How long a surface's refresh waits for what it was asked by: after the last notice (`quiet`) and from the first (`longest`).
+ * A count made of receipts until a run's receipts quieten (receiptsQuietMs; S3-5). Anything else at the surface's own pace,
+ * but a read nothing has asked for but a stream of erasures, which is waited out unless the surface already waits longer: one
+ * notice of anything else among them, a customer's message or a teammate's edit, puts the read back on the surface's own pace.
+ */
+export function refreshWait(
+  o: { debounceMs?: number; maxWaitMs?: number; receiptsQuietMs?: number },
+  heard: readonly RealtimeChange[] | undefined,
+  stream: ErasureStream | null,
+  now: number,
+): { quiet: number; longest: number } {
+  if (deliveryTicksOnly(heard) && o.receiptsQuietMs !== undefined)
+    return { quiet: o.receiptsQuietMs, longest: RECEIPTS_LONGEST_WAIT_MS };
+  const quiet = o.debounceMs ?? REFRESH_DEBOUNCE_MS;
+  const longest = o.maxWaitMs ?? REFRESH_MAX_WAIT_MS;
+  const streaming =
+    !!stream && now - stream.since >= A_STREAM_RUNS_MS && !!heard?.length && heard.every(isErasureNotice);
+  return streaming
+    ? { quiet: Math.max(quiet, ERASURES_QUIET_MS), longest: Math.max(longest, ERASURES_LONGEST_WAIT_MS) }
+    : { quiet, longest };
+}
+
 /** One realtime event, as the rule sees it. */
 export interface RealtimeChange {
   table: string;
