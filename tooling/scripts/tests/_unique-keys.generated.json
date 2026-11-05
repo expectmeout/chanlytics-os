@@ -2720,6 +2720,38 @@
       }
     },
     {
+      "table": "sequence_sends",
+      "name": "sequence_sends_own_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "isNull": {
+              "column": "sequence_id"
+            }
+          },
+          {
+            "cmp": "=",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "queued"
+            }
+          }
+        ]
+      }
+    },
+    {
       "table": "sequence_steps",
       "name": "sequence_steps_pkey",
       "primary": true,
