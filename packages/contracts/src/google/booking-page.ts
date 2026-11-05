@@ -36,6 +36,8 @@ const BOOKING_PLATFORMS: readonly { host: string; path?: RegExp; tool?: BookingT
   { host: "youcanbook.me" },
   { host: "zocdoc.com" },
   { host: "janeapp.com" },
+  { host: "zenoti.com" },
+  { host: "joinblvd.com", path: /^\/b\// },
 ];
 
 /** The tools a platform of the list names, for the test that holds the two lists together (booking-notice.test.mjs). */

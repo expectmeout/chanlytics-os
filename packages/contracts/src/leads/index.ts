@@ -366,6 +366,7 @@ export {
   estimateRoundUsd,
   LEAD_CARDS,
   LEAD_COUNT_CHOICES,
+  placesPastRead,
   placesToAsk,
   planCeiling,
   planMinutes,

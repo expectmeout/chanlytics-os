@@ -33,7 +33,7 @@ export const LEAD_JUDGE_BATCH = 25;
 export const LEAD_MAX_PLACES = 1000;
 /** Every fact a place gives the judge is cut to this many characters (§7.1). */
 export const LEAD_FACT_MAX = 120;
-/** What a place's own website says is cut to this, where a plan reads sites: its title, description and first words. */
+/** What a place's own website says is cut to this, where a plan reads sites: its booking link, title, description and first words. */
 export const LEAD_SITE_FACT_MAX = 2_000;
 /**
  * What reading one business's home page costs: one credit with the page's reader, whatever it answers, at the dearest

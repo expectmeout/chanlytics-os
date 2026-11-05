@@ -67,8 +67,8 @@ test("a top-up of a search whose places qualified at a tenth asks for what that 
   await startRound(p(), top.id, OWNER);
   assert.equal(
     askedFor(w),
-    80,
-    "20 wanted at a tenth is 200, held to four times the 20: it asked for 40 at an even yield",
+    100,
+    "20 wanted at a tenth is 200, held to four times the 20: it asked for 40 at an even yield. And the 20 the first term read, which the provider answers first",
   );
 });
 

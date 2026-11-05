@@ -3,8 +3,9 @@
  * arithmetic the runner (runner/) turns into runs, over contracts' placesToAsk (the places to ask each term for) and
  * estimateRoundUsd (their price, with room).
  *
- *   - probeAsk / mainAsk: the terms and places per term for the probe (LEAD_PROBE_PLACES spread across every term, E10)
- *     and for the main phase (what remains, over the probe's yield, without the term the question dropped).
+ *   - probeAsk / mainAsk: the terms and places per term for the probe (LEAD_PROBE_PLACES spread across the terms the
+ *     reserve holds a run for, E10) and for the main phase (what remains, over the yield, without the term the question
+ *     dropped: a term not yet asked before one that was, and one asked again past what it read).
  *   - yieldOf / probeYield / hasContact: the yield that sizes the main phase: the share of the probe's places that are not
  *     left out and hold a way to reach them (a phone that dials, or a candidate email: decision 0010), never the Qualified
  *     share, and never under 5%; a probe that judged nothing counts as 20%.
@@ -16,6 +17,7 @@
 import {
   LEAD_PROBE_PLACES,
   estimateRoundUsd,
+  placesPastRead,
   placesToAsk,
   leadPhoneState,
   type LeadMemberClass,
@@ -23,22 +25,53 @@ import {
 } from "@chanlytics/contracts";
 import { MAPS_CAP_FLOOR_USD } from "./cards";
 
-/** The probe: LEAD_PROBE_PLACES spread across every term (E10). */
-export function probeAsk(plan: LeadSearchPlan): { terms: string[]; perTerm: number[] } {
-  return { terms: plan.terms, perTerm: placesToAsk(plan, LEAD_PROBE_PLACES, null).perTerm };
+/** What a start asks: the terms it can start runs for, the places each, and the terms the reserve holds no run for. */
+export interface TermsAsk {
+  terms: string[];
+  perTerm: number[];
+  waiting: string[];
 }
 
-/** The main phase: the remainder over the probe's yield, without the term the question dropped. */
+/** What a search asked of its terms before this start: the places each has read, and the terms this phase has begun. */
+export interface TermsTried {
+  read: ReadonlyMap<string, number>;
+  begun: ReadonlySet<string>;
+}
+
+/** The probe: LEAD_PROBE_PLACES spread across the terms the reserve holds a run for (E10), the rest waiting. */
+export function probeAsk(plan: LeadSearchPlan, room: number): TermsAsk {
+  const terms = plan.terms.slice(0, room);
+  const perTerm = terms.length ? placesToAsk({ ...plan, terms }, LEAD_PROBE_PLACES, null).perTerm : [];
+  return { terms, perTerm, waiting: plan.terms.slice(room) };
+}
+
+/**
+ * The main phase: the remainder over the yield, without the term the question dropped, shared by the terms the reserve
+ * holds a run for. A term this phase began stays (a start tried again starts no other), then a term not yet asked, then
+ * one that was, asked past what it read (contracts placesPastRead).
+ */
 export function mainAsk(
   plan: LeadSearchPlan,
   remaining: number,
   yieldSoFar: number,
   dropTerm: string | null,
-): { terms: string[]; perTerm: number[] } {
-  const terms = plan.terms.filter((t) => t !== dropTerm);
-  const kept = terms.length ? terms : plan.terms;
-  const sized = placesToAsk({ ...plan, terms: kept }, Math.max(1, remaining), yieldSoFar);
-  return { terms: kept, perTerm: sized.perTerm };
+  room: number,
+  tried: TermsTried,
+): TermsAsk {
+  const left = plan.terms.filter((t) => t !== dropTerm);
+  const kept = left.length ? left : plan.terms;
+  const order = [
+    ...kept.filter((t) => tried.begun.has(t)),
+    ...kept.filter((t) => !tried.begun.has(t) && !tried.read.has(t)),
+    ...kept.filter((t) => !tried.begun.has(t) && tried.read.has(t)),
+  ];
+  const terms = order.slice(0, Math.max(room, tried.begun.size));
+  const more = terms.length ? placesToAsk({ ...plan, terms }, Math.max(1, remaining), yieldSoFar).perTerm : [];
+  return {
+    terms,
+    perTerm: terms.map((t, i) => placesPastRead(plan, tried.read.get(t) ?? 0, more[i] ?? 0)),
+    waiting: order.slice(terms.length),
+  };
 }
 
 /** A share of what was judged, floored so one bad probe never asks for everything. */
@@ -69,6 +102,11 @@ export function probeYield(members: { class: LeadMemberClass; phone: string | nu
 /** Dollars as whole cents, read down, so a sum of caps is never a rounding over what it is held to. */
 const centsDown = (usd: number) => Math.floor(usd * 100 + 1e-6);
 
+/** How many runs what is left of a reserve holds the actor's floor for. */
+export function runsRoom(reservedLeftUsd: number): number {
+  return Math.floor(centsDown(Math.max(0, reservedLeftUsd)) / centsDown(MAPS_CAP_FLOOR_USD));
+}
+
 /**
  * One cap per run: the estimate for its places (with the estimate's own
  * room); when the sum would pass what the round still has reserved, every
@@ -86,7 +124,7 @@ export function runCaps(plan: LeadSearchPlan, perTerm: number[], reservedLeftUsd
   // not reserved: with less left than one run's floor, every term gets nothing
   // and the round starts nothing (runner startRound); with room for two, a
   // third term waits.
-  let room = Math.floor(centsDown(left) / centsDown(MAPS_CAP_FLOOR_USD));
+  let room = runsRoom(left);
   const runs = perTerm.map((n) => {
     if (n <= 0 || room <= 0) return false;
     room -= 1;

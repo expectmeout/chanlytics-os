@@ -677,10 +677,11 @@ test("the endings read as the States artboard wrote them", () => {
     "Stopped at 464 · this month's leads are used · the 464 found are yours",
   );
   assert.equal(said(line("budget_used")), "Stopped at 61 · this month's searching is used up · the 61 found are yours");
-  // "already yours" read as dedupe, and it stood beside an Undo. "Found all" says what happened: the area ran dry.
+  // "already yours" read as dedupe, and it stood beside an Undo; "Found all" said the area ran dry when the round had only
+  // stopped short. What it found of what was asked says what happened.
   assert.equal(
     said(line("few_new_matches", { name: "chiropractors", seen: 64 })),
-    "Found all 64 chiropractors in Austin · the 61 found are yours · Look further out, in Round Rock and Pflugerville?",
+    "Found 61 of 200 chiropractors in Austin · the 61 found are yours · Look further out, in Round Rock and Pflugerville?",
   );
   assert.equal(
     line("few_new_matches", { name: "chiropractors", seen: 64 }).step.label,
