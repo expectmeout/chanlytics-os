@@ -112,7 +112,7 @@ export interface PlacePhoto {
 const PLACE_PHOTO_SIDE = 2400;
 
 /** Where a photo can be read just now, asked of Google and answered, since its address does not last (photos/media). */
-export function placePhotoRequest(key: string, name: string): PlacesRequest {
+function placePhotoRequest(key: string, name: string): PlacesRequest {
   const q = new URLSearchParams({ maxWidthPx: String(PLACE_PHOTO_SIDE), skipHttpRedirect: "true" });
   return { url: `${PLACES_BASE}/${name}/media?${q.toString()}`, method: "GET", headers: { "X-Goog-Api-Key": key } };
 }

@@ -48,8 +48,7 @@ export {
   FILE_LOOK_PLAIN_HINT,
   FILE_LOOK_SCHEMA,
   FILE_LOOK_SYSTEM,
-  FILE_QUALITIES,
   fileLookAsked,
   fileLookOf,
 } from "./look";
-export type { FileLook, FileLookRead, FileQuality } from "./look";
+export type { FileLook, FileLookRead } from "./look";

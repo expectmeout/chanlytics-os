@@ -63,11 +63,11 @@ export function reviewsRequest(token: string, parent: string, pageToken?: string
 }
 
 /** A profile's photos, a page at a time: few, since each is then read whole. Customers' are a list of their own. */
-export const GBP_MEDIA_PAGE = 12;
+const GBP_MEDIA_PAGE = 12;
 /** The long side a photo is asked for at: Google's address takes it after a last "=". */
 const GBP_PHOTO_SIDE = 2400;
 
-export function mediaRequest(token: string, parent: string, pageToken?: string | null): PlacesRequest {
+function mediaRequest(token: string, parent: string, pageToken?: string | null): PlacesRequest {
   const q = new URLSearchParams({ pageSize: String(GBP_MEDIA_PAGE) });
   if (pageToken) q.set("pageToken", pageToken);
   return { url: `${GBP_V4_BASE}/${parent}/media?${q.toString()}`, method: "GET", headers: bearer(token, true) };
@@ -308,7 +308,7 @@ function photoAtSize(url: string): string {
   return `${base}=s${GBP_PHOTO_SIDE}`;
 }
 
-export function parseMediaPage(json: unknown): { photos: GbpPhoto[]; next_page_token: string | null } {
+function parseMediaPage(json: unknown): { photos: GbpPhoto[]; next_page_token: string | null } {
   const o = recordOrNull(json);
   const items = Array.isArray(o?.mediaItems) ? o.mediaItems : [];
   const photos = items.flatMap((raw): GbpPhoto[] => {

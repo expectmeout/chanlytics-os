@@ -8,8 +8,8 @@ import { importSrc } from "../_source.mjs";
 
 const { deleteClaudeFile, uploadClaudeFile } = await importSrc("packages/channels/src/models/anthropic-files.ts");
 const { FINGERPRINT_BYTES, fileFingerprintOf } = await importSrc("packages/channels/src/file-fingerprint.ts");
-const { mediaRequest, parseMediaPage } = await importSrc("packages/channels/src/google/google-profile.ts");
-const { PLACES_DETAILS_MASK, parsePlaceDetails, placePhotoRequest, placePhotoUri } = await importSrc(
+const { listMedia } = await importSrc("packages/channels/src/google/google-profile.ts");
+const { PLACES_DETAILS_MASK, parsePlaceDetails, placePhotoUri } = await importSrc(
   "packages/channels/src/google/google-places.ts",
 );
 
@@ -60,34 +60,48 @@ test("two files are one by their first MiB and their size, and a change past the
   assert.match(fileFingerprintOf(a, a.length), /^[0-9a-f]{64}$/);
 });
 
-test("a profile's photos are asked of the location's own list, a page at a time", () => {
-  const req = mediaRequest("tok", "accounts/1/locations/2", "next");
+test("a profile's photos are asked of the location's own list, a page at a time", async () => {
+  const asked = [];
+  const http = async (req) => {
+    asked.push(req);
+    return { status: 200, body: "{}" };
+  };
+  await listMedia(http, "tok", "accounts/1/locations/2", "next");
+  const [req] = asked;
   assert.ok(req.url.startsWith("https://mybusiness.googleapis.com/v4/accounts/1/locations/2/media?"));
   assert.match(req.url, /pageToken=next/);
   assert.equal(req.headers.Authorization, "Bearer tok");
 });
 
-test("only photos are taken from a profile, each at the size asked for", () => {
-  const page = parseMediaPage({
-    mediaItems: [
-      {
-        name: "m/1",
-        mediaFormat: "PHOTO",
-        googleUrl: "https://lh3.example/p/abc=s512",
-        locationAssociation: { category: "EXTERIOR" },
-      },
-      { name: "m/2", mediaFormat: "PHOTO", googleUrl: "https://lh3.example/p/def" },
-      { name: "m/3", mediaFormat: "VIDEO", googleUrl: "https://lh3.example/v/ghi" },
-      { name: "m/4", mediaFormat: "PHOTO" },
-    ],
-    nextPageToken: "more",
-  });
+test("only photos are taken from a profile, each at the size asked for", async () => {
+  const answering = (body) => async () => ({ status: 200, body: JSON.stringify(body) });
+  const page = await listMedia(
+    answering({
+      mediaItems: [
+        {
+          name: "m/1",
+          mediaFormat: "PHOTO",
+          googleUrl: "https://lh3.example/p/abc=s512",
+          locationAssociation: { category: "EXTERIOR" },
+        },
+        { name: "m/2", mediaFormat: "PHOTO", googleUrl: "https://lh3.example/p/def" },
+        { name: "m/3", mediaFormat: "VIDEO", googleUrl: "https://lh3.example/v/ghi" },
+        { name: "m/4", mediaFormat: "PHOTO" },
+      ],
+      nextPageToken: "more",
+    }),
+    "tok",
+    "accounts/1/locations/2",
+  );
   assert.deepEqual(page.photos, [
     { name: "m/1", url: "https://lh3.example/p/abc=s2400", category: "EXTERIOR" },
     { name: "m/2", url: "https://lh3.example/p/def=s2400", category: null },
   ]);
   assert.equal(page.next_page_token, "more");
-  assert.deepEqual(parseMediaPage({}), { photos: [], next_page_token: null });
+  assert.deepEqual(await listMedia(answering({}), "tok", "accounts/1/locations/2"), {
+    photos: [],
+    next_page_token: null,
+  });
 });
 
 test("a listing's read asks for its photos, and says who each is by", () => {
@@ -111,14 +125,17 @@ test("a listing's read asks for its photos, and says who each is by", () => {
 });
 
 test("a listing's photo is asked for its address now, with the key in a header and never in the address", async () => {
-  const req = placePhotoRequest("secret", "places/p1/photos/a");
+  const asked = [];
+  const http = async (req) => {
+    asked.push(req);
+    return { status: 200, body: JSON.stringify({ photoUri: "https://lh3.example/x" }) };
+  };
+  assert.equal(await placePhotoUri(http, "secret", "places/p1/photos/a"), "https://lh3.example/x");
   assert.equal(
-    req.url,
+    asked[0].url,
     "https://places.googleapis.com/v1/places/p1/photos/a/media?maxWidthPx=2400&skipHttpRedirect=true",
   );
-  assert.equal(req.headers["X-Goog-Api-Key"], "secret");
-  const http = async () => ({ status: 200, body: JSON.stringify({ photoUri: "https://lh3.example/x" }) });
-  assert.equal(await placePhotoUri(http, "secret", "places/p1/photos/a"), "https://lh3.example/x");
+  assert.equal(asked[0].headers["X-Goog-Api-Key"], "secret");
   const none = async () => ({ status: 200, body: "{}" });
   assert.equal(await placePhotoUri(none, "secret", "places/p1/photos/a"), null);
 });

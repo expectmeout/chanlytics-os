@@ -67,7 +67,7 @@ function firstNameOf(url: string, source: string): string {
 }
 
 /** What became of a found picture: new here, here already (or let go), no room for it, or not one to keep. */
-export type FoundFate = "kept" | "here" | "full" | "passed";
+type FoundFate = "kept" | "here" | "full" | "passed";
 
 /**
  * One found picture read, judged by its own bytes, and kept once (00551 file_found). A picture that cannot be read is passed

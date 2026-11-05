@@ -12,7 +12,7 @@ function filePeopleOf(raw: unknown): FilePeople | null {
 }
 
 /** A row as the page and Ask read it: never where it is stored, and of its look only what a person reads. */
-export function fileDtoOf(r: FileMemberRow): FileDto {
+function fileDtoOf(r: FileMemberRow): FileDto {
   const look = recordOrNull(r.look);
   return {
     id: r.id,
