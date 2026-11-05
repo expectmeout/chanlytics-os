@@ -22,7 +22,7 @@ import { createClient } from "@supabase/supabase-js";
 import { takeLock } from "../../_file-lock.mjs";
 import { ROLE_PERMS, leadMonth, legacyLeadSuppressionHash } from "@chanlytics/contracts";
 import { at } from "../../_cron-doors-world.mjs";
-import { sha256, siteReaderOver, webhookToken } from "../../_lead-world.mjs";
+import { leadsClockTurn, sha256, siteReaderOver, webhookToken } from "../../_lead-world.mjs";
 import { fakeApify, fakeJudge, checkerItem, probeItems } from "../../_lead-fixtures.mjs";
 import { startRound } from "../../../../../packages/core/src/leads/runner/start.ts";
 import { collect } from "../../../../../packages/core/src/leads/runner/collect.ts";
@@ -2098,70 +2098,6 @@ test(
   },
 );
 
-/** What request_sweep writes when there is no edge to ask, which is every database this suite will run against. */
-const NO_EDGE = "missing cron_sweep_key or edge_base_url in Vault";
-
-/**
- * One turn of the clock, with what its own predicate saw at that moment.
- *
- * The two branches write disjoint columns of sweep_status: asking goes
- * through request_sweep, which rewrites note; recording a look stamps
- * requested_at and never touches note. A sentinel in note therefore tells
- * them apart whatever the row said before -- and the row is the platform's,
- * so it is put back as it was.
- *
- * The counts are read through the service role immediately before the call,
- * because the predicate is the whole database's: other database suites run
- * beside this one and their open rounds are lead work too.
- */
-/**
- * The same turn, judged against the counts the predicate itself reads. This suite shares its database with every
- * other, and the counts are read before the clock asks, so work that arrives in between makes one turn disagree
- * with itself. A turn that disagrees is taken again: three in a row is the predicate, not the traffic.
- */
-async function turnAgrees(why) {
-  let turn = null;
-  for (let i = 0; i < 3; i += 1) {
-    turn = await turnTheClock(why);
-    if (turn.asked === (turn.open > 0 || turn.live > 0 || turn.unmarked > 0)) return turn;
-  }
-  return assert.fail(`${why}: the clock and the database disagreed three turns running: ${JSON.stringify(turn)}`);
-}
-
-async function turnTheClock(why) {
-  const was = ok(await db.from("sweep_status").select("note, requested_at").eq("sweep", "leads").single());
-  const mark = `lead-engine ${Math.random().toString(36).slice(2)}`;
-  ok(await db.from("sweep_status").update({ note: mark }).eq("sweep", "leads"));
-  const open = await db.from("lead_rounds").select("id", { count: "exact", head: true }).neq("state", "ended");
-  assert.equal(open.error, null, open.error?.message);
-  const live = await db
-    .from("lead_runs")
-    .select("id", { count: "exact", head: true })
-    .in("state", ["claimed", "starting", "running", "unknown"]);
-  assert.equal(live.error, null, live.error?.message);
-  const unmarked = await db
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .gte("found_at", new Date(Date.now() - 11 * 60_000).toISOString())
-    .eq("stage", "ready")
-    .is("contact_id", null)
-    .is("contacted_at", null)
-    .is("exported_at", null)
-    .is("erased_at", null)
-    .is("blanked_at", null)
-    .not("website_host", "is", null)
-    .is("mark_path", null);
-  assert.equal(unmarked.error, null, unmarked.error?.message);
-  const returned = ok(await db.rpc("trigger_leads_sweep"));
-  const now = ok(await db.from("sweep_status").select("note, requested_at").eq("sweep", "leads").single());
-  ok(await db.from("sweep_status").update({ note: was.note }).eq("sweep", "leads"));
-  const asked = now.note !== mark;
-  assert.equal(returned, null, `${why}: on a database with no edge to ask, either branch answers null`);
-  if (asked) assert.equal(now.note, NO_EDGE, `${why}: the ask reached request_sweep`);
-  else assert.notEqual(now.requested_at, was.requested_at, `${why}: a look is a look only once it is stamped`);
-  return { asked, open: open.count, live: live.count, unmarked: unmarked.count };
-}
-
 test(
   "the clock asks the edge exactly when the database holds lead work, and records a look when it holds none",
   { skip },
@@ -2181,7 +2117,7 @@ test(
       [],
       "none of this suite's rounds is left",
     );
-    await turnAgrees("nothing of this suite's left");
+    await leadsClockTurn(db, ok, "nothing of this suite's left");
 
     // A round queued with no run at all: its start job died before it wrote
     // one, and nothing but the sweep can end it and give its reservation back.
@@ -2202,7 +2138,7 @@ test(
       [],
       "and nothing has run for it",
     );
-    const turn = await turnAgrees("a round of this suite's own, queued, with no run");
+    const turn = await leadsClockTurn(db, ok, "a round of this suite's own, queued, with no run");
     assert.ok(turn.open >= 1, "this suite's own round is open");
     assert.equal(turn.asked, true, "a round that has not ended is work, whether or not anything has run for it");
   },
@@ -2225,7 +2161,7 @@ test(
         .select("id")
         .single(),
     );
-    const turn = await turnAgrees("a lead of this suite's own, just found, with a site and no mark");
+    const turn = await leadsClockTurn(db, ok, "a lead of this suite's own, just found, with a site and no mark");
     assert.ok(turn.unmarked >= 1, "this suite's own lead is waiting");
     assert.equal(turn.asked, true, "a mark the sweep owes is work, with no round open");
     ok(await db.from("leads").delete().eq("id", lead.id));

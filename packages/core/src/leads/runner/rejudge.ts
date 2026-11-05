@@ -41,6 +41,9 @@ const versionOf = (m: LeadMemberRow): number => {
 };
 
 /** Every key the plan asks the judge (contracts' rubric): the kind, each exclusion, each criterion. */
+/** Whom an answer's plan judges again: a place code left out for having no site to read, only where it no longer needs one. */
+const lookedAtUnder = (plan: LeadSearchPlan) => (planNeedsASite(plan) ? wasJudged : wasWeighed);
+
 const keysOf = (plan: LeadSearchPlan): string[] => [
   LEAD_KIND_KEY,
   ...plan.exclusions.map((e) => e.key),
@@ -78,8 +81,7 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
   const plan = round.plan;
   const card = CARDS[plan.card];
   const members = await p.db.membersOfRound(round.id);
-  // A place code left out for having no site to read is judged again only where the plan no longer needs one.
-  const looked = planNeedsASite(plan) ? wasJudged : wasWeighed;
+  const looked = lookedAtUnder(plan);
   const pending = members.filter(
     (m) => looked(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version,
   );
