@@ -14,8 +14,11 @@ import { LeadRetry } from "./rules";
 
 const sitesLog = logger();
 
-/** Sites read at once: one slow site holds up only its own place. */
-export const SITES_AT_ONCE = 6;
+/**
+ * Sites read at once: one slow site holds up only its own place. No more than the reader's plan renders at a time
+ * (Firecrawl's Hobby: five, per team): one past them waits in its queue with its own timeout running, and reads as slow.
+ */
+export const SITES_AT_ONCE = 5;
 /** The most one site is given, whatever is left: a site that takes longer costs its place's reading, never the batch's. */
 const SITE_READ_MOST_MS = 10_000;
 /**

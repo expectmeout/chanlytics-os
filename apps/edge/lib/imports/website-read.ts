@@ -20,6 +20,7 @@ import {
   bookingToolOfLink,
   businessReadFactsOf,
   feedUrlOk,
+  fenced,
   listingFactsOf,
   parseTenantConfig,
 } from "../packages/contracts.js";
@@ -120,9 +121,14 @@ export async function readWebsite(
     (p): p is { at: string; page: SitePage; booking: boolean } => !!p.page,
   );
   const booking_read = pages.some((p) => p.booking);
+  // A page is someone else's words, and its address too, which a link on the site can make say anything: both in its
+  // fence, and only the read's own word for it outside.
   const user = pages
-    .map((p) => `Page ${p.at}${p.booking ? " (where customers book)" : ""}\n${p.page.markdown.slice(0, PAGE_TEXT_MAX)}`)
-    .join("\n\n---\n\n");
+    .map((p) => {
+      const page = fenced("page", `${p.at}\n${p.page.markdown.slice(0, PAGE_TEXT_MAX)}`);
+      return p.booking ? `Where customers book:\n${page}` : page;
+    })
+    .join("\n\n");
   const ms = Math.min(READ_CALL_MS, deadline - Date.now());
   if (ms <= 0) throw new Error("website_read: no time left for the reading");
   let answer: unknown;

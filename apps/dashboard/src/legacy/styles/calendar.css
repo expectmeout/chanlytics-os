@@ -1069,14 +1069,21 @@
   .pg-slot[data-strip="calendar"] > .pg-head-slot { flex: 1 0 100%; }
   .pg-slot[data-strip="calendar"] > .pg-act-slot { flex: 1 1 auto; min-width: 0; }
 }
-@media (max-width: 900px), (pointer: coarse) {
+/* The strip's height beside it (kit.css). On a phone under a thumb it holds that over the touch floor, which it outweighs
+   under :root, and is 44 to a finger by a margin no one sees, as the page's act is (components.css). Wider under a thumb
+   the strip is the taller one, and this stands 44 beside it. */
+@media (pointer: coarse) and (max-width: 900px) {
+  :root .cal-act .cal-options { position: relative; min-height: var(--control-h-lg); }
+  .cal-act .cal-options::after { content: ""; position: absolute; inset: -4px; }
+}
+@media (pointer: coarse) and (width > 900px) {
   .cal-act .cal-options { height: 44px; }
 }
 /* The views are 247 wide on a phone and Settings with its word 105, 8 apart, on a row 8 wider than the slot's content
    (each stands 4 past its gutter): the word needs 352 of it (measured 14 Oct 2026), and 4 more are kept for a font that
    draws wider. A phone 390 wide says it; one 375 wide keeps the circle. */
 @container cal-row (max-width: 355px) {
-  .cal-act .cal-options { width: 44px; padding: 0; justify-content: center; }
+  .cal-act .cal-options { width: var(--control-h-lg); padding: 0; justify-content: center; }
   .cal-act .cal-options-word { display: none; }
 }
 
