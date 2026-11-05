@@ -28692,6 +28692,35 @@ COMMENT ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uu
 
 
 --
+-- Name: sequence_enrollments_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_enrollments_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if NEW.erased_at is not null and OLD.erased_at is null then
+    perform public.sequence_enrollments_leave(
+      NEW.tenant_id,
+      array(select e.id from public.sequence_enrollments e
+             where e.tenant_id = NEW.tenant_id and e.state = 'in'
+               and case when TG_TABLE_NAME = 'leads' then e.lead_id = NEW.id
+                        else e.lead_id is null and e.contact_id = NEW.id end),
+      'erased', null);
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_enrollments_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_enrollments_on_erase() IS 'When a person or a lead is erased, each place of theirs that still stands in a sequence leaves as erased (sequence_enrollments_leave), and a send of theirs not yet gone is skipped with it (00548). A person''s own places are a customer''s; a lead''s go when the lead is erased.';
+
+
+--
 -- Name: sequence_evidence(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -42302,6 +42331,13 @@ CREATE TRIGGER contacts_erase_leaves_lists AFTER UPDATE OF erased_at ON public.c
 
 
 --
+-- Name: contacts contacts_erase_leaves_sequences; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_leaves_sequences AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.sequence_enrollments_on_erase();
+
+
+--
 -- Name: contacts contacts_erase_scrubs_events; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -42572,6 +42608,13 @@ CREATE TRIGGER lead_runs_guard BEFORE UPDATE ON public.lead_runs FOR EACH ROW EX
 --
 
 CREATE TRIGGER lead_suppressions_erasure_digest_keyed BEFORE INSERT OR UPDATE OF hash ON public.lead_suppressions FOR EACH ROW WHEN ((new.hash !~~ 'h1:%'::text)) EXECUTE FUNCTION public.erasure_digest_keyed_on_write();
+
+
+--
+-- Name: leads leads_erase_leaves_sequences; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER leads_erase_leaves_sequences AFTER UPDATE OF erased_at ON public.leads FOR EACH ROW EXECUTE FUNCTION public.sequence_enrollments_on_erase();
 
 
 --
@@ -51989,6 +52032,14 @@ GRANT ALL ON FUNCTION public.sequence_discard(p_tenant_id uuid, p_sequence_id uu
 
 REVOKE ALL ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uuid[], p_why text, p_by uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uuid[], p_why text, p_by uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_enrollments_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_enrollments_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_enrollments_on_erase() TO service_role;
 
 
 --

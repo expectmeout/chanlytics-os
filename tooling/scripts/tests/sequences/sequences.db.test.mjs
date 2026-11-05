@@ -345,6 +345,58 @@ test(
 );
 
 test(
+  "a person erased leaves their sequences: a place still standing ends as erased, a send not yet gone is skipped with it, and the step after never finds them (00548)",
+  { skip },
+  async () => {
+    const root = await firstStep({ name: "Erased" });
+    const next = ok(await laterStep(root, { after_days: 3 }), "the step after").id;
+    const person = async (name, phone) =>
+      ok(
+        await db
+          .from("contacts")
+          .insert({ tenant_id: tenantId, display_name: name, phone_e164: phone })
+          .select("id")
+          .single(),
+        "the person",
+      ).id;
+    const waiting = await person("Waiting Fixture", "+15555550121");
+    const between = await person("Between Fixture", "+15555550122");
+    const b1 = await batchOf(root, "2026-10-05");
+    for (const id of [waiting, between, people.bo]) await sendTo(b1, id);
+    // Between steps: their first step went, and the step after it is due them three days on.
+    ok(
+      await db
+        .from("sequence_sends")
+        .update({ state: "sent", sent_at: new Date().toISOString() })
+        .eq("batch_id", b1)
+        .eq("contact_id", between),
+    );
+    const later = new Date(Date.now() + 10 * DAY).toISOString().slice(0, 10);
+    const due = async () =>
+      ok(await db.rpc("sequence_follow_ups_due", { p_step_id: next, p_run_for: later })).map((d) => d.contact_id);
+    assert.equal((await enrollmentOf(root, between)).state, "in");
+    assert.ok((await due()).includes(between), "the step after would have found them");
+
+    // An owner's press blocks them (beginErasure), and the erasure's rows go on the service role (00501).
+    for (const id of [waiting, between]) {
+      ok(await db.from("contacts").update({ erasing_since: new Date().toISOString() }).eq("id", id), "the block");
+      ok(await db.rpc("erase_contact", { p_contact_id: id, p_legs: {} }), "the erasure");
+    }
+    for (const id of [waiting, between]) {
+      const e = await enrollmentOf(root, id);
+      assert.deepEqual([e.state, e.why, e.next_at], ["left", "erased", null]);
+    }
+    const sends = ok(await db.from("sequence_sends").select("contact_id, state, reason").eq("batch_id", b1));
+    const byPerson = Object.fromEntries(sends.map((s) => [s.contact_id, [s.state, s.reason]]));
+    assert.deepEqual(byPerson[waiting], ["skipped", "erased"]);
+    assert.deepEqual(byPerson[between], ["sent", null], "what went stays sent");
+    assert.deepEqual(byPerson[people.bo], ["queued", null], "nobody else is touched");
+    assert.equal((await enrollmentOf(root, people.bo)).state, "in");
+    assert.ok(!(await due()).includes(between), "nobody to follow up");
+  },
+);
+
+test(
   "new words wait for WhatsApp: the step keeps its message until WhatsApp approves the new one, which then takes its place",
   { skip },
   async () => {
