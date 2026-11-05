@@ -33,7 +33,7 @@
     },
     "DELETE google/connection": {
       "changes": "",
-      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -42,7 +42,7 @@
     },
     "DELETE google/link": {
       "changes": "",
-      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -114,7 +114,7 @@
     },
     "DELETE mailbox-connections/[id]": {
       "changes": "",
-      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -350,7 +350,7 @@
     },
     "PATCH mailbox-connections/[id]": {
       "changes": "",
-      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -547,7 +547,7 @@
     },
     "POST capabilities/[kind]": {
       "changes": "capability_activations INSERT UPDATE",
-      "doors": "billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
+      "doors": "anthropic_profiles · billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
     },
     "POST channels/instagram/disconnect": {
       "changes": "",
@@ -844,7 +844,7 @@
     },
     "POST conversations/[id]/draft": {
       "changes": "",
-      "doors": "conversation_drafts · conversations · escalations · mailbox_sender_reads · notifications",
+      "doors": "anthropic_profiles · conversation_drafts · conversations · escalations · mailbox_sender_reads · notifications",
       "door": {
         "reply_drafts": "inbox, today"
       }
@@ -1095,7 +1095,7 @@
     },
     "POST google/link": {
       "changes": "",
-      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -1104,7 +1104,7 @@
     },
     "POST google/locations": {
       "changes": "",
-      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -1113,7 +1113,7 @@
     },
     "POST google/refresh": {
       "changes": "",
-      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -1122,7 +1122,7 @@
     },
     "POST google/reviews/[id]/reply": {
       "changes": "",
-      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "extra": {
         "today": "every page"
       },
@@ -1132,7 +1132,7 @@
     },
     "POST google/reviews/[id]/stop": {
       "changes": "",
-      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "reports_reviews": "every page"
       }
@@ -1613,35 +1613,35 @@
     },
     "POST mailbox-connections/[id]/check": {
       "changes": "",
-      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/history": {
       "changes": "",
-      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/resume": {
       "changes": "",
-      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/test": {
       "changes": "",
-      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-senders": {
       "changes": "mailbox_senders DELETE INSERT UPDATE",
-      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "audiences": "broadcasts",
         "conversations": "every page",

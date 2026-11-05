@@ -1,5 +1,23 @@
 /** The model layer: which model each purpose asks, what a call cost, a turn as it is kept, the one fence for someone else's words, the switches. */
 export {
+  ANTHROPIC_ENFORCEMENT_STATUSES,
+  ANTHROPIC_PROFILE_KINDS,
+  anthropicPaused,
+  enforcementActionsOf,
+  enforcementStatusOf,
+  enforcementWords,
+  MODEL_PAUSED_WORDS,
+} from "./anthropic-enforcement";
+export type {
+  AnthropicEnforcementStatus,
+  AnthropicProfileKind,
+  EnforcementAction,
+  HealthAnthropicProfilesDto,
+  HealthPausedProfileDto,
+} from "./anthropic-enforcement";
+export { modelSubjectOf, profileDetailsOf, profileReferenceOf, subjectIdOf } from "./anthropic-profiles";
+export type { ModelSubject, ProfiledSubject } from "./anthropic-profiles";
+export {
   EFFORT_MESSAGE_BETA,
   effortAbove,
   effortInForce,

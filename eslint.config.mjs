@@ -356,6 +356,7 @@ export const LIMITED_TREES = [
   "apps/edge/api/cron",
   "apps/edge/api/jobs",
   "apps/edge/api/mailbox",
+  "apps/edge/lib/anthropic-profiles",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
   "apps/edge/lib/drafts",

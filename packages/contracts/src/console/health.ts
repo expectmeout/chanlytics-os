@@ -7,6 +7,11 @@
  * answer, never from a guess: a part with no number says Not judged, never Kept. Our own workspaces (tenants.ours, 00469)
  * are counted apart, so the nightly suite's numbers never read as a customer's. Pure: the reader hands it rows.
  */
+import {
+  enforcementWords,
+  type HealthAnthropicProfilesDto,
+  type HealthPausedProfileDto,
+} from "../ai/anthropic-enforcement";
 import type { Tone } from "../shell/tone";
 import type { PageVitalsRowDto } from "../shell/vitals";
 import type { PageSpeedRowDto, PageSpotRowDto } from "../shell/page-speed";
@@ -93,6 +98,8 @@ export interface HealthDto {
   client_errors: ClientErrorDto[] | null;
   vitals: PageVitalsRowDto[] | null;
   speed: { rows: PageSpeedRowDto[]; spots: PageSpotRowDto[] } | null;
+  /** Whom Anthropic is told a call is for (decision 0097), and whom it has paused. Absent from a server before it. */
+  anthropic_profiles?: HealthAnthropicProfilesDto | null;
 }
 
 // ------------------------------------------------------------------------------------------------- the states
@@ -589,6 +596,29 @@ function modelLooks({ h, nameOf, sinceWords }: LookCtx): HealthLookVM[] {
   );
 }
 
+/** Whom a paused profile stands for, as a row names them: a workspace by name, a person by no more than that. */
+export const pausedProfileWho = (p: HealthPausedProfileDto, nameOf: (id: string | null) => string): string =>
+  p.kind === "workspace" ? nameOf(p.tenant_id) : "One person";
+
+/** What Anthropic has paused: that account's model calls have stopped, and only that account's. */
+function anthropicLooks({ h, ours, nowMs, nameOf, sinceWords }: LookCtx): HealthLookVM[] {
+  return (h.anthropic_profiles?.paused ?? []).map((p) => {
+    const atMs = p.at ? Date.parse(p.at) : nowMs;
+    return look({
+      key: `anthropic:${p.id}`,
+      severity: "red",
+      what: "Anthropic has paused one account's model calls",
+      why: enforcementWords(p.status, p.actions),
+      where: pausedProfileWho(p, nameOf),
+      ours: !!p.tenant_id && ours.has(p.tenant_id),
+      sinceMs: atMs,
+      since: sinceWords(atMs),
+      act: { kind: "open", tab: "model" },
+      tenantId: p.tenant_id,
+    });
+  });
+}
+
 function sendLooks({ h, nowMs, sinceWords }: LookCtx): HealthLookVM[] {
   return sendsOf(h.parts, "all").troubled.map((c) =>
     look({
@@ -647,6 +677,7 @@ const LOOK_SOURCES = [
   jobLooks,
   deliveryLooks,
   pageLooks,
+  anthropicLooks,
   modelLooks,
   sendLooks,
   callLooks,
@@ -655,7 +686,7 @@ const LOOK_SOURCES = [
 
 /**
  * Everything that needs a person, worst first then newest: a clock not running, the ledger backing up, a model key out
- * of credit, a promise missed for customers, failed jobs, failing deliveries, what paged us, sends and calls failing on
+ * of credit, a promise missed for customers, failed jobs, failing deliveries, what paged us, an account Anthropic paused, sends and calls failing on
  * a provider's word, model calls with no answer, and connections that are not healthy. Each names its workspace.
  */
 export function healthLooksOf(h: HealthDto, scope: HealthScope, nowMs: number): HealthLookVM[] {

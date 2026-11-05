@@ -17,7 +17,8 @@
  * receipt for six hours (lib/receipts-watch.ts), the mail domain no longer
  * being verified (lib/mail-domain.ts) -- the one that our own rows cannot show
  * at all -- and a workspace whose model calls or receptionist turns keep
- * failing (lib/ops/model-watch.ts, which also keeps the usage ledger).
+ * failing (lib/ops/model-watch.ts, which also keeps the usage ledger). It keeps Anthropic's profiles too
+ * (lib/anthropic-profiles/keep.ts): what Anthropic says of each, and those made and deleted, decision 0097.
  *
  * Called by pg_cron via pg_net at :13 and :43, same Vault secret as the two
  * sweeps it watches. The offset is deliberate: on the :00/:30 grid every tick
@@ -35,6 +36,7 @@ import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
+import { keepAnthropicProfiles } from "../anthropic-profiles/keep.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
 import { pausedJobKinds } from "../packages/db.js";
@@ -162,6 +164,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const pastTargets = await watchTargets(db, Date.now());
   // A workspace whose model keeps failing, paged once per window; the usage ledger's old rows removed.
   const models = await watchModels(db);
+  // Whom Anthropic is told a call is for (decision 0097): what it now says of each, and the profiles made and deleted.
+  const profiles = await keepAnthropicProfiles(db);
   // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
   // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
   const pinsGone = await watchLeadPins(db, leadSourceClient());
@@ -183,6 +187,11 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     past_targets: pastTargets,
     model_failures_paged: models.paged,
     ai_usage_purged: models.purged,
+    anthropic_profiles_paused: profiles.paused,
+    anthropic_profiles_cleared: profiles.cleared,
+    anthropic_profiles_adopted: profiles.adopted,
+    anthropic_profiles_deleted: profiles.deleted,
+    anthropic_profiles_made: profiles.made,
     lead_pins_gone: pinsGone,
     lead_prices_paged: pricesPaged,
     site_credits: siteCredits,

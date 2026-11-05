@@ -152,7 +152,8 @@ export async function runCase(key, workspace, c, over = {}) {
       output_config: { effort: "low", format: { type: "json_schema", schema: BRAIN_OUTPUT_JSON_SCHEMA } },
     },
   };
-  const r = await askModel(key, ask, { fetch: over.fetch, sleep: over.sleep });
+  // Our own use, on the eval key, for no customer: no profile, by decision (decision 0097).
+  const r = await askModel(key, { ...ask, attribution: { profileId: null } }, { fetch: over.fetch, sleep: over.sleep });
   const ms = Date.now() - started;
   if (r.outcome !== "ok") return { id: c.id, ok: false, error: `${r.outcome}: ${r.error}`, ms };
   if (r.message.stop_reason === "refusal" || r.message.stop_reason === "max_tokens") {
