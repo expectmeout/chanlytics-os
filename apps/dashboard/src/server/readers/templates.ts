@@ -110,7 +110,9 @@ async function templateSendsRead(
         .range(from, to),
     ),
   ]);
-  return templateSends({ runs: runRows, recipients, inbox });
+  // A customer's send always names its batch (00540's check).
+  const sends = recipients.flatMap((r) => (r.broadcast_id ? [{ ...r, broadcast_id: r.broadcast_id }] : []));
+  return templateSends({ runs: runRows, recipients: sends, inbox });
 }
 
 /**

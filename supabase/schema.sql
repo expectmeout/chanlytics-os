@@ -8437,7 +8437,7 @@ CREATE FUNCTION public.lead_chain_of(p_tenant_id uuid, p_lead_id uuid) RETURNS u
     AS $$
   select coalesce(
     (select s.sequence_id as root_id from public.sequence_sends s
-      where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+      where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
         and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))
       order by s.created_at desc
       limit 1),
@@ -22405,7 +22405,7 @@ begin
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at
         from public.sequence_sends s
         left join public.messages m on m.id = s.message_id
-       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id is not null
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     period as (
@@ -22915,7 +22915,7 @@ begin
     return null;
   end if;
   select s.sequence_id as root_id into v_root from public.sequence_sends s
-   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
      and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back', 'moved')))
    order by s.created_at desc
    limit 1;
@@ -24375,7 +24375,7 @@ begin
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
         from public.sequence_sends s
         left join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id is not null
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     sent as (
@@ -25424,7 +25424,7 @@ CREATE FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_
         then 'suppressed'
       -- Never twice by the workspace: a send of any reach-out, bar one in a run its owner skipped or one taken back.
       when exists (select 1 from public.sequence_sends ro
-                    where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id
+                    where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id and ro.sequence_id is not null
                       and not (ro.state = 'skipped' and ro.reason in ('run_canceled', 'owner_took_back', 'moved'))))
         then 'written'
       -- One business written to once: the finder saw it share a number, an own-domain address or a site with another.
@@ -28031,9 +28031,9 @@ end $$;
 CREATE TABLE public.sequence_sends (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
-    sequence_id uuid NOT NULL,
+    sequence_id uuid,
     step_id uuid,
-    batch_id uuid NOT NULL,
+    batch_id uuid,
     contact_id uuid,
     lead_id uuid,
     state text NOT NULL,
@@ -28073,6 +28073,7 @@ CREATE TABLE public.sequence_sends (
     CONSTRAINT sequence_sends_drafted_is_whole CHECK ((((state <> 'drafted'::text) OR ((drafted_at IS NOT NULL) AND (draft IS NOT NULL))) AND ((draft IS NULL) OR ((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 16000))))),
     CONSTRAINT sequence_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
     CONSTRAINT sequence_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
+    CONSTRAINT sequence_sends_own_is_a_leads CHECK ((((sequence_id IS NOT NULL) AND (batch_id IS NOT NULL)) OR ((sequence_id IS NULL) AND (batch_id IS NULL) AND (step_id IS NULL) AND (lead_id IS NOT NULL)))),
     CONSTRAINT sequence_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
     CONSTRAINT sequence_sends_reason_check CHECK (((lead_id IS NULL) OR (reason IS NULL) OR (char_length(reason) <= 60))),
     CONSTRAINT sequence_sends_rewrite_asked_shape CHECK (((rewrite_asked IS NULL) OR ((jsonb_typeof(rewrite_asked) = 'object'::text) AND (((rewrite_asked -> 'change'::text) IS NULL) OR (jsonb_typeof((rewrite_asked -> 'change'::text)) = 'null'::text) OR ((char_length((rewrite_asked ->> 'change'::text)) >= 1) AND (char_length((rewrite_asked ->> 'change'::text)) <= 280))) AND (octet_length((rewrite_asked)::text) <= 4000)))),
@@ -28087,7 +28088,7 @@ CREATE TABLE public.sequence_sends (
 -- Name: TABLE sequence_sends; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.';
+COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team. A lead''s own email (00540) has no sequence, batch or step: a member pressed Send, or said they sent it; it is born queued or sent, the mailbox''s day counts it and a reply finds it.';
 
 
 --
@@ -29031,7 +29032,7 @@ begin
   end if;
   -- One business gets one sequence: a lead written to, or handed an email to send, stays where it is.
   if exists (select 1 from public.sequence_sends s
-              where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+              where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
                 and s.state in ('claimed', 'queued', 'sent', 'handed', 'drafted')) then
     raise exception 'They were written to already: a business gets one sequence.' using errcode = '23505';
   end if;
@@ -41631,6 +41632,13 @@ CREATE UNIQUE INDEX sequence_sends_one_first ON public.sequence_sends USING btre
 --
 
 CREATE INDEX sequence_sends_open ON public.sequence_sends USING btree (tenant_id, state) WHERE (state = ANY (ARRAY['claimed'::text, 'queued'::text]));
+
+
+--
+-- Name: sequence_sends_own_once; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX sequence_sends_own_once ON public.sequence_sends USING btree (tenant_id, lead_id) WHERE ((sequence_id IS NULL) AND (state = 'queued'::text));
 
 
 --

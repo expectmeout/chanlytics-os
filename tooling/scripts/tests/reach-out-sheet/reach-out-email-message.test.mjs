@@ -20,8 +20,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
@@ -55,8 +53,7 @@ const { SlotName } = await import(`${S}/campaigns/parts/slot.tsx`);
 
 const { REACH_OUT_SLOT_SET, reachOutRowName, reachOutRules, reachOutEditedWords, wordsIssueWords, renderOwnVersion } =
   contracts;
-const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { reachOutRequest } = await import(pathToFileURL(path.join(ROOT_DIR, "apps/edge/lib/reach-out/request.ts")).href);
+const { reachOutRequest } = await import("@chanlytics/channels");
 
 const BIZ = "Harbor Moving Co";
 const LINK = "https://example.com/book";

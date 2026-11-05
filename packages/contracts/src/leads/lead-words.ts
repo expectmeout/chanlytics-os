@@ -128,8 +128,6 @@ export const LEAD_SOURCE_WORD = "Google Maps listing";
 export const LEAD_LOCKED_LINE =
   "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
 
-export const LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
-
 /** An address on the never-again list: no email is written to it here, as no sequence writes to it. */
 export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no email is written here.";
 

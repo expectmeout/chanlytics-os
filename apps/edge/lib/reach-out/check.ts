@@ -60,7 +60,7 @@ import {
   type CheckWorkspace,
   type Tokens,
 } from "./check-one.js";
-import { checkedWordsOf } from "./request.js";
+import { checkedWordsOf } from "../packages/channels.js";
 import { noticeHeldRuns, type HeldNoticeSend } from "./held-notice.js";
 import type { LogEvent, Logger } from "../log.js";
 

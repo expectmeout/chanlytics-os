@@ -1,4 +1,6 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+export { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./email/cold-request";
+export type { RequestRefusal } from "./email/cold-request";
 export { fetchMailDomains, fetchReceivedEmail, SEND_DEADLINE_MS, SEND_MIN_MS, sendEmail } from "./email/email-resend";
 export type { ResendAnswer, ResendConfig, SendEmailOptions } from "./email/email-resend";
 export { emailPlainText } from "./email/email-text";

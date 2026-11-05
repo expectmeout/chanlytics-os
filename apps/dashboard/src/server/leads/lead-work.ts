@@ -14,6 +14,7 @@ import { emitEvent } from "@chanlytics/db";
 import { answerOf, type DoorAnswer, refusalOf } from "./lead-answers";
 import type { DoorArgs } from "./lead-helpers";
 import type { LeadRow } from "./lead-searches";
+import { keepSaidEmail } from "./lead-send";
 import { serviceDb } from "../service-db";
 import { recordDecision } from "../verbs";
 import type { RouteContext } from "../with-route";
@@ -62,7 +63,7 @@ interface StageAnswer {
 
 /** The one door for a stage, a call's outcome, "Did you send it?" and Not a fit. */
 export async function setStage(
-  ctx: Pick<RouteContext, "supabase">,
+  ctx: Pick<RouteContext, "supabase" | "userId">,
   lead: LeadRow,
   input: LeadStageInput,
 ): Promise<StageAnswer> {
@@ -75,6 +76,10 @@ export async function setStage(
   const refused = refusalOf(a);
   if (refused) throw refused;
   const converted = a.converted === true;
+  // "Did you send it?" with the words it went with: the email keeps a row of its own (decision 0094). The person that
+  // makes is not undone from a toast (§9.6), so nor is the mark.
+  const kept = input.kind === "emailed" && !!input.words;
+  if (input.kind === "emailed" && input.words) await keepSaidEmail(ctx, lead, input.words);
   return {
     stage: a.stage ?? lead.stage,
     closed_reason: a.closed_reason ?? null,
@@ -84,7 +89,7 @@ export async function setStage(
     op_id: a.op_id ?? null,
     version: a.version ?? 0,
     toast: stageToast(input, a, lead.business_name),
-    undo: converted || !a.op_id ? null : { op_id: a.op_id, version: a.version ?? 0 },
+    undo: converted || kept || !a.op_id ? null : { op_id: a.op_id, version: a.version ?? 0 },
   };
 }
 

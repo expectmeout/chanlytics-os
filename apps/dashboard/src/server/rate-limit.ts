@@ -274,6 +274,7 @@ export const RATE = {
    */
   lead_bulk: { limit: 30, windowMs: MIN_MS, noun: "changes to many leads" },
   lead_draft: { limit: 60, windowMs: HOUR_MS, noun: "email drafts" },
+  lead_send: { limit: 60, windowMs: HOUR_MS, noun: "emails" },
   person_draft: { limit: 60, windowMs: HOUR_MS, noun: "drafts" },
   /** A reach-out's preview (Part 4, R12): one business's email written by the model, counted in Ask's day as well. */
   reach_out_preview: { limit: 10, windowMs: MIN_MS, noun: "previews" },

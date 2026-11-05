@@ -6644,7 +6644,7 @@ export type Database = {
         Row: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -6673,7 +6673,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -6683,7 +6683,7 @@ export type Database = {
         Insert: {
           angle?: string | null
           attempts?: number
-          batch_id: string
+          batch_id?: string | null
           channel?: string | null
           check_after?: string | null
           check_first_at?: string | null
@@ -6712,7 +6712,7 @@ export type Database = {
           said_by?: string | null
           send_at?: string | null
           sent_at?: string | null
-          sequence_id: string
+          sequence_id?: string | null
           state: string
           step_id?: string | null
           tenant_id: string
@@ -6722,7 +6722,7 @@ export type Database = {
         Update: {
           angle?: string | null
           attempts?: number
-          batch_id?: string
+          batch_id?: string | null
           channel?: string | null
           check_after?: string | null
           check_first_at?: string | null
@@ -6751,7 +6751,7 @@ export type Database = {
           said_by?: string | null
           send_at?: string | null
           sent_at?: string | null
-          sequence_id?: string
+          sequence_id?: string | null
           state?: string
           step_id?: string | null
           tenant_id?: string
@@ -10562,7 +10562,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10591,7 +10591,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -10615,7 +10615,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10644,7 +10644,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -10741,7 +10741,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10770,7 +10770,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -10911,7 +10911,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10940,7 +10940,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string

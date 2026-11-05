@@ -18,7 +18,7 @@
  *   3. for a step after the first, the lead's email on the step before (D19), waited for while its receipt has not
  *      stamped its Message-ID;
  *   4. the person (made once, E5: reach_out_person), refused for a lead that closed or a customer's address;
- *   5. the frozen request (request.ts), the email row under its own id (core sendMessageId), and the outbound_send job
+ *   5. the frozen request (channels cold-request.ts), the email row under its own id (core sendMessageId), and the outbound_send job
  *      that sends it through the one door (deliver.ts);
  *   6. the send `claimed → queued`, and its run `scheduled → sending`.
  *
@@ -30,7 +30,7 @@
  * A reach-out its owner sends (00429) is claimed apart (reach_out_claim_drafts: no mailbox, no day's room, a step after
  * the first first) and written the same way up to its words, then, while the send door would let it go (contracts
  * draftRefusalOf), handed to its owner as a draft: claimed → drafted, its words with their values in and its foot
- * (request.ts reachOutDraft), its run's row touched so the pages that count its drafts read them again. A step after the
+ * (channels cold-request.ts reachOutDraft), its run's row touched so the pages that count its drafts read them again. A step after the
  * first whose email before it its owner sent is handed to them too, whoever sends the chain now: the thread is theirs.
  * Nobody is made and no email row is written until the owner says it went (reach_out_send_said). Drafts need no
  * unsubscribe seal, so they are claimed whether the mailbox lane is complete or not.
@@ -86,7 +86,7 @@ import {
 import { dashboardOrigin, unsubscribeOrigin } from "../dashboard-origin.js";
 import { env } from "../env.js";
 import { askPreview } from "../previews/make.js";
-import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./request.js";
+import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "../packages/channels.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
 import type { LogEvent, Logger } from "../log.js";
 

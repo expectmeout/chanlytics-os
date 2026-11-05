@@ -139,6 +139,7 @@ export {
   BusinessLineSchema,
   LeadDraftAnswerSchema,
   LeadDraftInputSchema,
+  LeadEmailWordsSchema,
   LeadExportQuerySchema,
   LeadOneQuerySchema,
   LeadsBulkSchema,
@@ -153,6 +154,7 @@ export {
   RenameLeadSearchSchema,
 } from "./lead-plan-schema";
 export type {
+  LeadEmailWords,
   LeadsBulkInput,
   LeadsCheckAgainInput,
   LeadsQuery,
@@ -177,7 +179,6 @@ export {
   LEAD_CONSENT_REFUSAL,
   LEAD_CONTACT_STANDARD_WORDS,
   LEAD_DRAFT_JSON_SCHEMA,
-  LEAD_DRAFT_NOTE,
   LEAD_EMAIL_STATES,
   LEAD_EMAIL_WORDS,
   LEAD_ERASE_WORDS,
@@ -523,6 +524,8 @@ export type {
 } from "./sheet/lead-sheet-card";
 export { dockSlotsOf, LEAD_DOCK_WORDS, LEAD_LEAVE_WORDS, leadDockOf, leadLeaveAskOf } from "./sheet/lead-sheet-dock";
 export type { LeadLeaveAskVM, LeadSheetDockFacts, LeadSheetDockVM } from "./sheet/lead-sheet-dock";
+export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusalOf } from "./sheet/lead-sheet-email";
+export type { LeadEmailDto, LeadEmailMailbox, LeadEmailWhy } from "./sheet/lead-sheet-email";
 export { leadHistoryOf, leadLinesOf } from "./sheet/lead-sheet-lines";
 export type { LeadHistoryRowVM, LeadLineId, LeadLineVM } from "./sheet/lead-sheet-lines";
 export { LEAD_NOW_WORDS, leadApproveAskOf, type LeadApproveAskVM, leadNowOf } from "./sheet/lead-sheet-now";
