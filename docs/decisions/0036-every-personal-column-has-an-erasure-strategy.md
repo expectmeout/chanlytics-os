@@ -93,7 +93,9 @@ A press of many takes everyone selected, however many (Ruben, 5 November 2026: "
 reason"), in one write: `people_erase_begin` (00547) blocks them, says Not a person's addresses and puts one finish each
 on the ledger in a single transaction, an owner's, on their own session. The finishes come due 300 ms apart, so a press of
 thousands sits ahead of nobody else's work, and `people_page` leaves out whoever is being erased for a day, after which a
-stopped erasure shows again to be pressed again.
+stopped erasure shows again to be pressed again. The threads, holds and calls the Inbox, Conversations and Today read
+leave out the same people by the same rule (the dashboard's `server/people/going.ts`), and the press reads them again
+behind it, so nothing drains off a page while the ledger works. Read by its id, a person or a thread still answers.
 
 Before that, the same day: A press of many hands everyone to that same job (People's Delete…, `POST contacts/erase`; 5 November 2026). It writes
 each person's block and their finish, due now, naming who pressed, and answers in under a second; the ledger erases them

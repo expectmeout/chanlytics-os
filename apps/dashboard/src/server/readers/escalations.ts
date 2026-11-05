@@ -2,6 +2,7 @@ import "server-only";
 import { HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, type EscalationDto } from "@chanlytics/contracts";
 import { openRequestsOfThreads } from "@chanlytics/db";
 import { stamp, type Reader } from "./index";
+import { isGoing } from "../people/going";
 
 /**
  * The booking each open booking_request hold asks to confirm (decision 0061), laid on its hold: the request card's day,
@@ -55,7 +56,7 @@ export const escalations: Reader<
     const base = () =>
       supabase
         .from("escalations")
-        .select("id, reason, details, state, created_at, conversation_id")
+        .select("id, reason, details, state, created_at, conversation_id, conversations (contacts (erasing_since))")
         .eq("tenant_id", tenantId)
         .eq("state", state);
     const [waiting, handBack] = await Promise.all([
@@ -71,12 +72,22 @@ export const escalations: Reader<
     if (waiting.error) throw new Error(waiting.error.message);
     if (handBack.error) throw new Error(handBack.error.message);
     // The column is text under a CHECK; the contract names the two states, so the client reads the enum, not a string.
+    const now = rc.now.getTime();
     const escalations: Array<EscalationDto & { conversation_id: string }> = [
       ...(waiting.data ?? []),
       ...(handBack.data ?? []),
     ]
+      // Nobody waits on someone being erased, and a hold of theirs would read their thread back into the Inbox by its id.
+      .filter((e) => !isGoing(e.conversations?.contacts?.erasing_since, now))
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      .map((e) => ({ ...e, state: e.state as EscalationDto["state"] }));
+      .map(({ id, reason, details, state: held, created_at, conversation_id }) => ({
+        id,
+        reason,
+        details,
+        state: held as EscalationDto["state"],
+        created_at,
+        conversation_id,
+      }));
     return { data: { escalations: await withRequests(rc, escalations) }, rows: [], stamp: stamp() };
   },
 };
