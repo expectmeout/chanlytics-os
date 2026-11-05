@@ -39,6 +39,7 @@ export { keepInvoiceAmount } from "./billing/events";
 export type { Database, Json } from "./database.types";
 export {
   beginErasure,
+  beginPeopleErasure,
   dropPersonPolicy,
   erasableContact,
   eraseContactRows,

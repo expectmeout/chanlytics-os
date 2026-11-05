@@ -89,7 +89,13 @@ an owner's press wrote and for nobody else, and the ledger's row then says the s
 as before, in the body, from `auth.uid()`. The finish is a net under the erasure, never a leg of it: a ledger that would
 not take it (a database before 00501) is logged, and the press goes on.
 
-A press of many hands everyone to that same job (People's Delete…, `POST contacts/erase`; 5 November 2026). It writes
+A press of many takes everyone selected, however many (Ruben, 5 November 2026: "we should not limit them for no
+reason"), in one write: `people_erase_begin` (00547) blocks them, says Not a person's addresses and puts one finish each
+on the ledger in a single transaction, an owner's, on their own session. The finishes come due 300 ms apart, so a press of
+thousands sits ahead of nobody else's work, and `people_page` leaves out whoever is being erased for a day, after which a
+stopped erasure shows again to be pressed again.
+
+Before that, the same day: A press of many hands everyone to that same job (People's Delete…, `POST contacts/erase`; 5 November 2026). It writes
 each person's block and their finish, due now, naming who pressed, and answers in under a second; the ledger erases them
 behind it, three side by side, in the same order and through the same legs as one person's press, and tries again by its
 own waits. That is the shape the press has because of what the first shape did on production on 5 November: erased inside
@@ -138,6 +144,16 @@ someone blocked is refused by the wire from the moment of the press. A job that 
    scrubs that were already there), the order and its logging to `packages/jobs` (`erasure.ts`), the route keeping its
    hand on it (its session's client for the key reads, the Ask scrub, the policy delete and `erase_contact`; the service
    role's for the rest; its own ledger row for a late leg).
+5. **An erased person leaves their sequences** (5 November 2026, 00548). An erasure ended no place. A lead's later
+   step finds whom it writes to by the email its step before sent, and `erase_contact` deletes that email with the
+   person: the step never saw them again, so it never passed them over (00455), and their place stood for good,
+   counted among the sequence's people. Nothing was sent, there being no address left; the count was wrong, and an
+   email still planned for them waited to be refused for another reason. Now each place of theirs that stands leaves
+   as `erased` in the erasure's own transaction (`sequence_enrollments_on_erase`, a trigger on `contacts` for a
+   customer's places and on `leads` for a lead's, through `sequence_enrollments_leave`, the door every leave goes
+   through), and a send of theirs not yet gone is skipped with the same word. A lead someone else at the business
+   stands in for is not erased, and keeps its place. The places an erasure before 00548 left standing are ended by
+   `tooling/scripts/ops/erasure/erased-leave-sequences.mjs`, dry run first.
 
 ## What stays, by design
 
@@ -170,6 +186,10 @@ someone blocked is refused by the wire from the moment of the press. A job that 
   leg, the re-drive's four legs, the words of a stop with and without a finish waiting) and the job itself
   (`jobs/erasure-finish.test.mjs`: a blocked person erased, an erased one re-driven, nobody's press left alone, a throw
   tried again after waits that outlast the lease).
+- Step 5 on a real Postgres: a lead's place and its planned email as its person is erased, and the next step's
+  followers after (`reach-out/reach-out-doors.db.test.mjs`); a lead its owner erases on Leads
+  (`lead-workbench/a-lead-s-place-stays-true.db.test.mjs`); a customer's place and their queued send
+  (`sequences/sequences.db.test.mjs`). The script's own judgements: `reach-out-stops/erased-leave-sequences.test.mjs`.
 
 ## Consequences
 

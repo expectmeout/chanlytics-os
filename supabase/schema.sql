@@ -17414,6 +17414,98 @@ COMMENT ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p
 
 
 --
+-- Name: people_erase_begin(uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET statement_timeout TO '25s'
+    AS $_$
+declare
+  v_actor uuid := auth.uid();
+  v_at    timestamptz := now();
+  v_go    uuid[];
+  v_stays uuid[] := '{}';
+  v_said  integer;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule). An owner's, as erase_contact is.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not exists (
+    select 1 from public.memberships m
+     where m.user_id = v_actor and m.tenant_id = p_tenant_id and m.role = 'owner'
+  ) then
+    raise exception 'Not yours to delete.' using errcode = '42501';
+  end if;
+
+  -- Who of those named may go, each once, in the order named. An erased person, a person merged away, another
+  -- workspace's and a stranger are simply not in the answer.
+  select coalesce(array_agg(c.id order by n.ord), '{}')
+    into v_go
+    from (select u.id, min(u.ord) as ord
+            from unnest(p_contact_ids) with ordinality as u(id, ord)
+           group by u.id) n
+    join public.contacts c on c.id = n.id
+   where c.tenant_id = p_tenant_id and c.erased_at is null and c.merged_into_contact_id is null;
+
+  -- Not a person: each address said automated first, in this same write, as mailbox_sender_sort says one (00483), the
+  -- address alone: a selection is many senders, and a domain is many people's. Someone with no address to say stays.
+  if coalesce(p_not_a_person, false) then
+    select coalesce(array_agg(g.id order by g.ord) filter (where a.ok), '{}'),
+           coalesce(array_agg(g.id order by g.ord) filter (where not a.ok), '{}')
+      into v_go, v_stays
+      from unnest(v_go) with ordinality as g(id, ord)
+      join public.contacts c on c.id = g.id
+     cross join lateral (
+       select coalesce(char_length(btrim(c.email)) between 3 and 254
+                       and btrim(c.email) !~ '[[:space:]<>]'
+                       and btrim(c.email) ~ '^[^@]+@[^@]+\.[^@]+$', false) as ok
+     ) a;
+    insert into public.mailbox_senders (tenant_id, sender, verdict, set_by, set_at)
+    select distinct p_tenant_id, lower(btrim(c.email)), 'automated', v_actor, v_at
+      from public.contacts c
+     where c.id = any (v_go)
+    on conflict (tenant_id, sender)
+      do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
+    get diagnostics v_said = row_count;
+    -- One line for the press: Activity is not a list of everyone it named, and the line never holds an address.
+    if v_said > 0 then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
+              jsonb_build_object('kind', 'address', 'verdict', 'automated', 'by', v_actor));
+    end if;
+  end if;
+
+  -- The block: from here the wire refuses them. The digests as beginErasure writes them, from the number still on the
+  -- row, and only for someone not blocked already, so a press pressed again moves nothing.
+  update public.contacts c
+     set erasing_since = v_at,
+         erased_phone_hash = coalesce(public.erasure_digest(p_tenant_id, c.phone_e164), c.erased_phone_hash),
+         erased_email_hash = coalesce(public.erasure_digest(p_tenant_id, c.email), c.erased_email_hash)
+   where c.id = any (v_go) and c.tenant_id = p_tenant_id and c.erased_at is null and c.erasing_since is null;
+
+  -- Their erasures on the ledger, on the word of who pressed, paced (the header). Someone whose finish already waits
+  -- keeps it (its key), so a press pressed again starts nothing beside the first; someone blocked with none gets one.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select p_tenant_id, 'erasure_finish', v_at + (g.ord - 1) * interval '300 milliseconds',
+         jsonb_build_object('contact_id', g.id, 'by', v_actor)
+    from unnest(v_go) with ordinality as g(id, ord)
+  on conflict do nothing;
+
+  return jsonb_build_object('going', to_jsonb(v_go), 'no_address', to_jsonb(v_stays));
+end $_$;
+
+
+--
+-- Name: FUNCTION people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) IS 'People''s Delete… for a selection of any size (00547, decision 0036): everyone named goes out of reach and onto the ledger in one transaction, an owner''s, on their own session. The erasing is erasure_finish''s, paced 300 ms apart. Answers who is going and who has no address to say, each in the order named; whoever else was named is neither.';
+
+
+--
 -- Name: people_list(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -17712,6 +17804,9 @@ begin
            and c.tenant_id = p_tenant_id
            and c.erased_at is null
            and c.merged_into_contact_id is null
+           -- Someone being erased has left People (00547): a press of thousands is on the ledger for minutes, and a reload
+           -- must not bring them back. A day on it is an erasure that stopped, and they show again, to be pressed again.
+           and (c.erasing_since is null or c.erasing_since < now() - interval '1 day')
            -- The search: a name, their name on WhatsApp, their email address, or
            -- three digits of the number, the way the page's own box matches.
            -- Nothing else is indexed here; the page still narrows by state and
@@ -28689,6 +28784,35 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uuid[], p_why text, p_by uuid) IS 'People taken out of a sequence (0060): each of p_ids still in it leaves with p_why, and a send of theirs not yet gone is skipped with it. p_by names the member who did it. Service role only: a member''s door writes its decision beside it.';
+
+
+--
+-- Name: sequence_enrollments_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_enrollments_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if NEW.erased_at is not null and OLD.erased_at is null then
+    perform public.sequence_enrollments_leave(
+      NEW.tenant_id,
+      array(select e.id from public.sequence_enrollments e
+             where e.tenant_id = NEW.tenant_id and e.state = 'in'
+               and case when TG_TABLE_NAME = 'leads' then e.lead_id = NEW.id
+                        else e.lead_id is null and e.contact_id = NEW.id end),
+      'erased', null);
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_enrollments_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_enrollments_on_erase() IS 'When a person or a lead is erased, each place of theirs that still stands in a sequence leaves as erased (sequence_enrollments_leave), and a send of theirs not yet gone is skipped with it (00548). A person''s own places are a customer''s; a lead''s go when the lead is erased.';
 
 
 --
@@ -42302,6 +42426,13 @@ CREATE TRIGGER contacts_erase_leaves_lists AFTER UPDATE OF erased_at ON public.c
 
 
 --
+-- Name: contacts contacts_erase_leaves_sequences; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_leaves_sequences AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.sequence_enrollments_on_erase();
+
+
+--
 -- Name: contacts contacts_erase_scrubs_events; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -42572,6 +42703,13 @@ CREATE TRIGGER lead_runs_guard BEFORE UPDATE ON public.lead_runs FOR EACH ROW EX
 --
 
 CREATE TRIGGER lead_suppressions_erasure_digest_keyed BEFORE INSERT OR UPDATE OF hash ON public.lead_suppressions FOR EACH ROW WHEN ((new.hash !~~ 'h1:%'::text)) EXECUTE FUNCTION public.erasure_digest_keyed_on_write();
+
+
+--
+-- Name: leads leads_erase_leaves_sequences; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER leads_erase_leaves_sequences AFTER UPDATE OF erased_at ON public.leads FOR EACH ROW EXECUTE FUNCTION public.sequence_enrollments_on_erase();
 
 
 --
@@ -50366,6 +50504,15 @@ GRANT ALL ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text,
 
 
 --
+-- Name: FUNCTION people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO service_role;
+
+
+--
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51989,6 +52136,14 @@ GRANT ALL ON FUNCTION public.sequence_discard(p_tenant_id uuid, p_sequence_id uu
 
 REVOKE ALL ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uuid[], p_why text, p_by uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uuid[], p_why text, p_by uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_enrollments_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_enrollments_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_enrollments_on_erase() TO service_role;
 
 
 --

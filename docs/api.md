@@ -716,7 +716,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `ids` | array of string (uuid) | yes | at least 1; at most 50 |
+| `ids` | array of string (uuid) | yes | at least 1; at most 100000 |
 | `not_a_person` | boolean | no |  |
 
 ### `GET /api/v1/contacts/export`

@@ -1,12 +1,11 @@
 /**
  * Many people deleted at one press (POST contacts/erase): the People bar's Delete…, for a selection the mailbox brought
- * in before it judged its senders (decision 0080's open question, 3 Nov 2026: 46 programs and pitches on one workspace,
- * and an owner's five erasures an hour made that nine hours of taps). The press takes each person out of reach (the
- * block), hands them to the ledger (erasure_finish, due now) and answers: the erasing is the job's
- * (erasure-finish.test.mjs). It erased inside the request until 5 Nov 2026, where fifty people at 0.8 s each outran the
- * browser's 30 s wait, one person with 44 calls took 40 s alone, and the press pressed again ran beside the first. With
- * Not a person on, each address is said automated first, as the person page's switch does. Run through route(): the real
- * route module, its `run` called with a database in memory.
+ * in before it judged its senders (decision 0080's open question, 3 Nov 2026), of any size. The press is one door
+ * (people_erase_begin, 00547): everyone named goes out of reach and onto the ledger in one transaction, and the erasing
+ * is the job's (erasure-finish.test.mjs). What only Postgres can answer is an-erasure-is-an-owner-s-word.db.test.mjs.
+ * It erased inside the request until 5 Nov 2026, where fifty people at 0.8 s each outran the browser's 30 s wait; then
+ * it wrote each person in turn, sixty a second, which a press of thousands would outrun too. Run through route(): the
+ * real route module, its `run` called with a database in memory.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -20,7 +19,6 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore, RATE } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const many = await import(at("apps/dashboard/app/api/v1/contacts/erase/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -44,16 +42,6 @@ const both = (harbor, bayside) => [
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
 const inA = `?workspace=${A}`;
-const contact = (id, tenant_id, over = {}) => ({
-  id,
-  tenant_id,
-  phone_e164: null,
-  email: `${id.slice(0, 4)}@notice.example.com`,
-  display_name: "Notices",
-  erased_at: null,
-  erasing_since: null,
-  ...over,
-});
 const send = (body, q = inA) =>
   new Request(`http://localhost/api/v1/contacts/erase${q}`, { method: "POST", body: JSON.stringify(body) });
 async function refused(p, code, status, why) {
@@ -65,44 +53,26 @@ async function refused(p, code, status, why) {
 }
 
 /**
- * A workspace in memory, the service client's legs on the same database, and what this test is about kept in the order
- * asked: the addresses said, each with whether their person was blocked by then, and any erasing the press did itself.
+ * A workspace in memory, its one door played by `answer`, and every write this test is about kept: what the door was
+ * asked, and anything else the press wrote, which should be nothing.
  */
-function world(tables, rpcs = {}) {
+function world(answer = ({ p_contact_ids }) => ({ going: p_contact_ids, no_address: [] })) {
   const asked = [];
-  const legOfTheJob = (name) => (a) => {
-    asked.push([name, a.p_contact_id]);
-    return name === "erase_contact" ? { counts: {}, storage_paths: [], jobs_canceled: 0 } : 0;
-  };
-  const all = { memberships: both("owner", "operator"), calls: [], messages: [], jobs: [], decisions: [], ...tables };
+  const tables = { memberships: both("owner", "operator"), contacts: [], jobs: [], decisions: [] };
   const doors = {
-    erase_contact: legOfTheJob("erase_contact"),
-    scrub_ask_for_contact: legOfTheJob("scrub_ask_for_contact"),
-    provider_events_scrub: legOfTheJob("provider_events_scrub"),
-    person_notes_scrub: legOfTheJob("person_notes_scrub"),
-    model_turns_scrub: legOfTheJob("model_turns_scrub"),
-    mailbox_sender_sort: (a) => {
-      const person = all.contacts.find((c) => c.email?.toLowerCase() === a.p_sender);
-      asked.push(["sort", a.p_sender, a.p_verdict, person?.erasing_since ? "blocked already" : "not blocked yet"]);
-      return null;
+    people_erase_begin: (a) => {
+      asked.push(a);
+      return answer(a);
     },
-    ...rpcs,
   };
-  const ctx = { supabase: fakeDb(all, {}, doors), userId: USER, email: "ada@example.com", params: {} };
-  return { ctx, asked, tables: all };
+  const ctx = { supabase: fakeDb(tables, {}, doors), userId: USER, email: "ada@example.com", params: {} };
+  return { ctx, asked, tables };
 }
 
-/** The route's answer, its service-client legs on the world's own database. */
-async function press(w, body, q = inA) {
-  setServiceClient(w.ctx.supabase);
-  try {
-    return await many.POST.run(send(body, q), w.ctx);
-  } finally {
-    setServiceClient(null);
-  }
-}
+const press = (w, body, q = inA) => many.POST.run(send(body, q), w.ctx);
+const manyIds = (n) => Array.from({ length: n }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
 
-test("the door is the owner's, on a fresh session, with a bucket of its own: a press takes fifty, the single door five an hour", () => {
+test("the door is the owner's, on a fresh session, with a bucket of its own: the single door five an hour", () => {
   assert.deepEqual(many.POST.policy, {
     kind: "write",
     fresh: true,
@@ -115,138 +85,70 @@ test("the door is the owner's, on a fresh session, with a bucket of its own: a p
   assert.equal(RATE.erase.limit, 5, "the single door's own bucket is left as it was");
 });
 
-const finishes = (w) => w.tables.jobs.filter((j) => j.kind === "erasure_finish");
-const row = (w, id) => w.tables.contacts.find((c) => c.id === id);
-
-test("a press takes each person of this workspace out of reach and leaves the erasing to the ledger; another workspace's, an erased one and a stranger come back skipped", async () => {
-  const w = world({
-    contacts: [contact(P1, A), contact(P2, A), contact(P3, B), contact(P4, A, { erased_at: "2026-10-01T00:00:00Z" })],
-  });
+test("a press asks the door once, each person once in the order picked, and whoever the door did not take comes back skipped", async () => {
   const stranger = "99999999-9999-4999-8999-999999999999";
-  const before = Date.now();
+  const w = world(() => ({ going: [P1, P2], no_address: [] }));
   const out = await press(w, { ids: [P1, P2, P3, P4, stranger, P1] });
+  assert.deepEqual(w.asked, [{ p_tenant_id: A, p_contact_ids: [P1, P2, P3, P4, stranger], p_not_a_person: false }]);
   assert.deepEqual(out, { going: [P1, P2], failed: [], skipped: [P3, P4, stranger] });
-  assert.deepEqual(w.asked, [], "the press erases nobody: not a scrub, not the rows");
-  assert.ok(row(w, P1).erasing_since && row(w, P2).erasing_since, "out of reach from now: the wire refuses them");
-  assert.equal(row(w, P1).erased_at, null, "and not erased yet: that is the job's");
-  assert.equal(row(w, P3).erasing_since, null, "another workspace's person is untouched");
-  assert.deepEqual(
-    finishes(w).map((j) => [j.tenant_id, j.payload.contact_id, j.payload.by, j.dedupe_key]),
-    [
-      [A, P1, USER, `erasure_finish:${P1}`],
-      [A, P2, USER, `erasure_finish:${P2}`],
-    ],
-    "one finish a person, naming who pressed, for the ledger's row",
-  );
-  for (const j of finishes(w))
-    assert.ok(Date.parse(j.due_at) <= Date.now() && Date.parse(j.due_at) >= before, "due now");
 });
 
-test("REGRESSION: a press pressed again starts no second erasure: who is going already is said as going, with their one finish (5 Nov 2026: a second press ran beside the first, and asked the provider about 44 calls again)", async () => {
-  const w = world({ contacts: [contact(P1, A), contact(P2, A)] });
-  assert.deepEqual((await press(w, { ids: [P1] })).going, [P1]);
-  const blockedAt = row(w, P1).erasing_since;
-  const again = await press(w, { ids: [P1, P2] });
-  assert.deepEqual(again, { going: [P1, P2], failed: [], skipped: [] });
-  assert.equal(finishes(w).filter((j) => j.payload.contact_id === P1).length, 1, "their one finish stands");
-  assert.equal(row(w, P1).erasing_since, blockedAt, "the block is not moved");
-  assert.deepEqual(w.asked, []);
+test("REGRESSION: a press of five thousand is one write, with nobody erased or written one at a time (5 Nov 2026: fifty at a press made 242 leftovers five presses)", async () => {
+  const ids = manyIds(5000);
+  const w = world();
+  const out = await press(w, { ids });
+  assert.equal(w.asked.length, 1, "one door, one transaction, however many it names");
+  assert.deepEqual(out.going, ids, "every one, in the order picked");
+  assert.deepEqual([out.failed, out.skipped], [[], []]);
+  assert.deepEqual([w.tables.jobs, w.tables.decisions], [[], []], "the door writes them, not this route");
 });
 
-test("a person a press left blocked with no finish waiting is handed to the ledger again", async () => {
-  const w = world({ contacts: [contact(P1, A, { erasing_since: "2026-11-01T00:00:00Z" })] });
-  assert.deepEqual((await press(w, { ids: [P1] })).going, [P1]);
-  assert.equal(finishes(w).length, 1);
+test("a press takes everyone a page can hold: the only ceiling is what one request can carry", async () => {
+  const held = manyIds(50 * 1000);
+  assert.equal((await press(world(), { ids: held })).going.length, held.length, "fifty pages of a thousand");
+  await refused(press(world(), { ids: manyIds(100_001) }), "validation", 400);
 });
 
-test("Not a person: each address is said automated before its person is blocked; someone with no address is left alone, and says why", async () => {
-  const w = world({
-    contacts: [
-      contact(P1, A, { email: "Alerts@Notice.Example.com" }),
-      contact(P2, A, { email: null, phone_e164: "+15550100123" }),
-      contact(P3, A),
-    ],
-  });
+test("Not a person: the door is told, and someone it could not say automated stays, and says why", async () => {
+  const w = world(({ p_contact_ids }) => ({
+    going: p_contact_ids.filter((id) => id !== P2),
+    no_address: [P2],
+  }));
   const out = await press(w, { ids: [P1, P2, P3], not_a_person: true });
+  assert.equal(w.asked[0].p_not_a_person, true);
   assert.deepEqual(out.going, [P1, P3]);
   assert.deepEqual(out.failed, [{ id: P2, message: "This person has no email address to sort." }]);
-  assert.deepEqual(
-    w.asked.sort(),
-    [
-      ["sort", `${P3.slice(0, 4)}@notice.example.com`, "automated", "not blocked yet"],
-      ["sort", "alerts@notice.example.com", "automated", "not blocked yet"],
-    ],
-    "the address alone, never the domain: a selection is many senders, and a domain is many people's",
-  );
-  assert.equal(row(w, P2).erasing_since, null, "the person with no address is not going");
+  assert.deepEqual(out.skipped, [], "they are ours: failed, never skipped");
 });
 
-test("one person who could not be handed over is said, and the others still go", async () => {
-  const w = world(
-    { contacts: [contact(P1, A), contact(P2, A)] },
-    {
-      erasure_digests: (a, plain) => {
-        if (a.p_values.includes(row(w, P1).email)) throw new Error("statement timeout");
-        return plain(a);
-      },
-    },
-  );
-  const out = await press(w, { ids: [P1, P2] });
-  assert.deepEqual(out.going, [P2]);
-  assert.deepEqual(out.failed, [
-    { id: P1, message: "Could not mark this person as being erased, so nothing was deleted. Try again." },
-  ]);
-  assert.equal(row(w, P1).erasing_since, null, "not blocked, and no finish for them");
-  assert.deepEqual(
-    finishes(w).map((j) => j.payload.contact_id),
-    [P2],
-  );
+test("a door that refuses is the whole press refused: one transaction, so nobody went", async () => {
+  const w = world(() => {
+    throw new Error("statement timeout");
+  });
+  await assert.rejects(press(w, { ids: [P1, P2] }), /statement timeout/);
+  assert.deepEqual([w.tables.jobs, w.tables.decisions], [[], []]);
 });
 
-test("a ledger that would not take the finish is said: this press has no other way to erase them", async () => {
-  const w = world({ contacts: [contact(P1, A)] });
-  w.ctx.supabase = fakeDb(w.tables, { "jobs.insert": { message: "the ledger refused" } }, {});
-  const out = await press(w, { ids: [P1] });
-  assert.deepEqual(out.going, []);
-  assert.deepEqual(out.failed, [{ id: P1, message: "Could not start deleting this person. Try again." }]);
+test("the count leaves out who is being erased, as the list does (00547), and shows a stopped erasure a day on", async () => {
+  const { countPeople } = await import(at("apps/dashboard/src/server/people/people.ts"));
+  const hoursAgo = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
+  const person = (id, erasing_since) => ({
+    id,
+    tenant_id: A,
+    display_name: "Notices",
+    erased_at: null,
+    merged_into_contact_id: null,
+    erasing_since,
+  });
+  const contacts = [person(P1, null), person(P2, hoursAgo(1)), person(P3, hoursAgo(25))];
+  const supabase = fakeDb({ contacts }, {}, {});
+  assert.equal(await countPeople({ supabase }, A, null), 2, "the one being erased is not counted");
 });
 
-test("REGRESSION: a press of fifty is handed over side by side, a few at a time, and says them in the order picked (5 Nov 2026: one after another, it outran the browser's 30 s wait)", async () => {
-  const ids = Array.from({ length: 50 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
-  const w = world({ contacts: ids.map((id) => contact(id, A)) });
-  let asking = 0;
-  let most = 0;
-  /** Nobody is answered until a second person is out beside the first: one after another, this never ends. */
-  let open;
-  const beside = new Promise((resolve) => (open = resolve));
-  const db = w.ctx.supabase;
-  const plain = db.rpc.bind(db);
-  db.rpc = (name, args) =>
-    name !== "erasure_digests"
-      ? plain(name, args)
-      : (async () => {
-          asking += 1;
-          most = Math.max(most, asking);
-          if (asking >= 2) open();
-          await beside;
-          asking -= 1;
-          return plain(name, args);
-        })();
-  const out = await press(w, { ids });
-  assert.deepEqual(out.going, ids, "every one, in the order picked");
-  assert.ok(most >= 2, "side by side");
-  assert.ok(most <= 12, `a few at a time, asked ${most}`);
-  assert.equal(finishes(w).length, 50);
-});
-
-test("refused: an operator, nobody, more than fifty, and anything but a yes or no for Not a person", async () => {
-  const w = world({ contacts: [contact(P1, A)] });
+test("refused: an operator, nobody, and anything but a yes or no for Not a person", async () => {
+  const w = world();
   await refused(press(w, { ids: [P1] }, `?workspace=${B}`), "forbidden", 403, "an operator in bayside");
   await refused(press(w, { ids: [] }), "validation", 400);
-  const fiftyOne = Array.from({ length: 51 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
-  await refused(press(w, { ids: fiftyOne }), "validation", 400);
   await refused(press(w, { ids: [P1], not_a_person: "yes" }), "validation", 400);
-  assert.deepEqual(w.asked, [], "nothing was erased or said");
-  assert.equal(w.tables.contacts[0].erasing_since, null, "and nobody blocked");
-  assert.equal(w.tables.jobs.length, 0, "and nothing on the ledger");
+  assert.deepEqual(w.asked, [], "the door was never asked");
 });

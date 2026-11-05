@@ -738,6 +738,89 @@ test(
 );
 
 test(
+  "an erased person's lead leaves its sequence: its place ends as erased, an email not yet gone is skipped with it, and the next step has nobody to follow (00548)",
+  { skip },
+  async () => {
+    const d = await mailboxRow();
+    const from = await addressOf(d);
+    const placeOf = async (leadId) =>
+      ok(
+        await db
+          .from("sequence_enrollments")
+          .select("state, why, next_at")
+          .eq("sequence_id", root)
+          .eq("lead_id", leadId),
+      );
+    const sendOf = async (id) => ok(await db.from("sequence_sends").select("state, reason").eq("id", id).single());
+    /** A lead whose first email went four days ago, in its person's thread: between steps, its nudge due. */
+    const written = async () => {
+      const l = await lead();
+      const p = ok(await db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: l }));
+      const m = await emailFrom(from, { sentAt: Date.now() - 4 * DAY, conv: p.conversation_id });
+      const first = await sendIn({ lead_id: l, contact_id: p.contact_id, mailbox_id: d }, "sent", {
+        messageId: m,
+        sentAt: Date.now() - 4 * DAY,
+      });
+      return { lead: l, contact: p.contact_id, first };
+    };
+    const followers = async () =>
+      ok(
+        await db.rpc("reach_out_followers", {
+          p_tenant_id: A,
+          p_step_id: step,
+          p_parent_id: root,
+          p_after_days: 3,
+          p_limit: 200,
+        }),
+      ).map((r) => r.lead_id);
+    const between = await written();
+    const stays = await written();
+    // Its nudge already planned: the place is on the second step, with nothing due after it.
+    const nudged = await written();
+    const nudge = await sendIn({
+      batch_id: stepRun,
+      step_id: step,
+      lead_id: nudged.lead,
+      contact_id: nudged.contact,
+      mailbox_id: d,
+    });
+    const [standing] = await placeOf(between.lead);
+    assert.deepEqual([standing.state, standing.why, standing.next_at !== null], ["in", null, true]);
+    assert.ok((await followers()).includes(between.lead), "the next step would have followed them");
+
+    // An owner's press blocks them (beginErasure), and the erasure's rows go on the service role (00501).
+    for (const who of [between, nudged]) {
+      ok(
+        await db
+          .from("contacts")
+          .update({ erasing_since: iso(Date.now()) })
+          .eq("id", who.contact),
+      );
+      ok(await db.rpc("erase_contact", { p_contact_id: who.contact, p_legs: {} }));
+    }
+    for (const who of [between, nudged])
+      assert.deepEqual(await placeOf(who.lead), [{ state: "left", why: "erased", next_at: null }]);
+    assert.deepEqual(await sendOf(nudge), { state: "skipped", reason: "erased" });
+    assert.equal((await sendOf(between.first)).state, "sent", "what went stays sent");
+    assert.equal((await placeOf(stays.lead))[0].state, "in", "nobody else is touched");
+    const after = await followers();
+    assert.ok(after.includes(stays.lead) && !after.includes(between.lead), "nobody to follow up");
+    // Where the sequence's people are read: neither is between steps or up next any more.
+    const places = ok(
+      await db.rpc("sequence_places", {
+        p_tenant_id: A,
+        p_sequence_id: root,
+        p_lead_ids: [between.lead, nudged.lead, stays.lead],
+      }),
+    );
+    const groups = Object.fromEntries(places.map((r) => [r.lead_id, [r.grp, r.why]]));
+    assert.deepEqual(groups[between.lead], ["left", "erased"]);
+    assert.deepEqual(groups[nudged.lead], ["left", "erased"]);
+    assert.equal(groups[stays.lead][0], "in");
+  },
+);
+
+test(
   "the claim: within the day's room, due sends of a running chain only, and never twice under two ticks (C7)",
   { skip },
   async () => {
