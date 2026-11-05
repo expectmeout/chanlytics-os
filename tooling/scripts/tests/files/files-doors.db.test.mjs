@@ -513,6 +513,8 @@ test("a wrong listing's photos leave the Inbox, and what a person touched or kep
   assert.equal((await rowOf(named)).status, "inbox");
   assert.equal((await rowOf(kept)).status, "filed");
   assert.equal((await rowOf(fromSite)).status, "inbox");
+  const said = ok(await db.from("events").select("data").eq("tenant_id", A).eq("kind", "file.set_aside"), "events");
+  assert.ok(said.length >= 1, "nobody pressed this, so the record says where they went");
 });
 
 test("a removal is said once and asks its purge, and a second press finds it gone", { skip }, async () => {

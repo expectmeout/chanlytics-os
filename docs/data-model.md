@@ -50,8 +50,8 @@ what the script writes.
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/fact-suggestions.ts` | on, 1 policy |
-| [`files`](#files) | `packages/db/src/repositories/files.ts` | on, 1 policy |
-| [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files.ts` | on, no policy, so only the service role reaches it |
+| [`files`](#files) | `packages/db/src/repositories/files/files.ts` | on, 1 policy |
+| [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
@@ -1209,7 +1209,7 @@ Foreign keys:
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
 
-- Owned by: `packages/db/src/repositories/files.ts`
+- Owned by: `packages/db/src/repositories/files/files.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1253,7 +1253,7 @@ Foreign keys:
 
 What a person removed from a business's files, by fingerprint alone, written at the press (00551, decision 0099): an import does not bring it back. A person may still add it again. Nothing else of the file stays.
 
-- Owned by: `packages/db/src/repositories/files.ts`
+- Owned by: `packages/db/src/repositories/files/files.ts`
 - Primary key: `tenant_id`, `fingerprint`
 - Row-level security: on, no policy, so only the service role reaches it
 

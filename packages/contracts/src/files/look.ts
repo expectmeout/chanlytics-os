@@ -127,25 +127,26 @@ export interface FileLookRead {
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const words = (v: unknown, max: number): string[] =>
+const wordsHeld = (v: unknown, max: number): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()).slice(0, max) : [];
-const short = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const cutTo = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const share = (n: number, of: number): number => Math.round((Math.min(Math.max(n, 0), of) / of) * 1000) / 1000;
 
 /** A word of a closed set, whatever its case; null for anything else. */
-function oneOf<T extends string>(v: unknown, set: readonly T[]): T | null {
+function closedWordOf<T extends string>(v: unknown, set: readonly T[]): T | null {
   const said = typeof v === "string" ? v.trim().toLowerCase() : null;
   return set.find((x) => x === said) ?? null;
 }
 
-const countOf = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null);
+const peopleCountOf = (v: unknown): number | null =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null;
 
 /** Who it counted: the recognizable never more than the count, and neither if the count is no count. */
-function peopleOf(v: unknown): FilePeople | null {
+function lookPeopleOf(v: unknown): FilePeople | null {
   const said = isObj(v) ? v : {};
-  const count = countOf(said.count);
+  const count = peopleCountOf(said.count);
   if (count === null) return null;
-  return { count, recognizable: Math.min(countOf(said.recognizable) ?? count, count) };
+  return { count, recognizable: Math.min(peopleCountOf(said.recognizable) ?? count, count) };
 }
 
 /** A pixel box as shares of the picture, or null for anything that is not a box on it. */
@@ -165,21 +166,24 @@ function subjectOf(box: unknown, width: number, height: number): FileLook["subje
 /** The model's answer, read: null where it says nothing a person could use (no sentence at all). */
 export function fileLookOf(answer: unknown, size: { width: number; height: number }): FileLookRead | null {
   if (!isObj(answer)) return null;
-  const line = short(answer.line, 400);
+  const line = cutTo(answer.line, 400);
   if (!line) return null;
   const quality = isObj(answer.quality) ? answer.quality : {};
   return {
     look: {
       line,
-      people: peopleOf(answer.people),
-      text_seen: words(answer.text_seen, 40),
-      quality: { sharp: oneOf(quality.sharp, FILE_QUALITIES), light: oneOf(quality.light, FILE_QUALITIES) },
+      people: lookPeopleOf(answer.people),
+      text_seen: wordsHeld(answer.text_seen, 40),
+      quality: {
+        sharp: closedWordOf(quality.sharp, FILE_QUALITIES),
+        light: closedWordOf(quality.light, FILE_QUALITIES),
+      },
       subject: subjectOf(answer.subject_box, size.width, size.height),
-      colors: words(answer.colors, 3).filter((c) => /^#[0-9a-f]{6}$/i.test(c)),
-      issues: words(answer.issues, 8),
+      colors: wordsHeld(answer.colors, 3).filter((c) => /^#[0-9a-f]{6}$/i.test(c)),
+      issues: wordsHeld(answer.issues, 8),
       looks_like_stock: answer.looks_like_stock === true,
     },
-    name: fileNameOf(short(answer.name, 120), FILE_NAME_WORDS),
-    shows: oneOf(answer.shows, FILE_SHOWS),
+    name: fileNameOf(cutTo(answer.name, 120), FILE_NAME_WORDS),
+    shows: closedWordOf(answer.shows, FILE_SHOWS),
   };
 }

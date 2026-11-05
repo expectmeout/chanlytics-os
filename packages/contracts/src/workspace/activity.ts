@@ -258,6 +258,7 @@ const WORDS: Record<string, string> = {
   "file.changed": "A photo was changed",
   "file.kept": "Photos were kept",
   "file.removed": "A photo was deleted",
+  "file.set_aside": "Photos from a listing were set aside",
   "mailbox_connection.unpaused": "A mailbox to write from writes again",
   "mailbox_connection.removed": "A mailbox to write from was removed",
   "mailbox_connection.sender_sorted": "Who sends your mailbox automated mail changed",

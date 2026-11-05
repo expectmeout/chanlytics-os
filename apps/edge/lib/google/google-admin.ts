@@ -49,7 +49,7 @@ import { draftFor, holdReviewReply, replyOnProfile, reviewReplyMode } from "./re
 import { bindLocation, connectProfile, disconnectProfile, locationsFor } from "./profile-connection.js";
 import { syncProfile } from "./profile-sync.js";
 import { errField, logger, type Logger } from "../log.js";
-import { askForListingPhotos } from "../files.js";
+import { askForListingPhotos } from "../files/found.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   UNKNOWN_GOOGLE_OP,

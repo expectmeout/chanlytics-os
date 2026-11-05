@@ -11,6 +11,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
 import { ROOT } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 
@@ -84,13 +85,7 @@ const stateNow = () => {
   return seen;
 };
 const photo = (name) => new File([new Uint8Array(4)], name, { type: "image/jpeg" });
-const waitFor = async (what) => {
-  for (let i = 0; i < 400; i += 1) {
-    if (what()) return;
-    await new Promise((r) => setTimeout(r, 1));
-  }
-  assert.fail(`never came to pass: ${what}`);
-};
+const waitFor = (what) => until(what, String(what));
 const toasts = [];
 const flash = (f) => toasts.push(f);
 const realAdd = S.fileVerbs.add;

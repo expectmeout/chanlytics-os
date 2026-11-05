@@ -26,7 +26,7 @@ import { emailBoundFor, emailIntake } from "../email/email.js";
 import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
 import { historyImports } from "../imports/history-import.js";
 import { websiteReader } from "../imports/website-read.js";
-import { fileJobs } from "../files.js";
+import { fileJobs } from "../files/upkeep.js";
 import { previewBuilder } from "../previews/build.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
 import { pageOperator } from "./page-operator.js";

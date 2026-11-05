@@ -584,23 +584,26 @@ export {
 export type { RehearsalRow } from "./repositories/facts/rehearsals";
 export {
   fileChange,
-  fileForWork,
   fileFound,
   fileKeepMany,
   fileListingAside,
   fileLookKeep,
-  fileOf,
   filePurged,
   fileRemove,
+  fileStart,
+} from "./repositories/files/doors";
+export type { FileFate } from "./repositories/files/doors";
+export {
+  fileForWork,
+  fileOf,
   filesBucket,
   fileSeen,
   filesOf,
-  fileStart,
   filesToLookAgain,
   filesToPurgeAgain,
   keepClaudeCopy,
-} from "./repositories/files";
-export type { FileFate, FileMemberRow, FileRow } from "./repositories/files";
+} from "./repositories/files/files";
+export type { FileMemberRow, FileRow } from "./repositories/files/files";
 export {
   claimIdempotencyKey,
   keepIdempotencyReceipt,

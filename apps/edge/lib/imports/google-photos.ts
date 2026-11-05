@@ -8,7 +8,7 @@
 import { IMPORT_STOPPED_WORDS, recordOrNull, type FileShows } from "../packages/contracts.js";
 import { listMedia, reviewParent, type GbpPhoto } from "../packages/channels.js";
 import { fileListingAside, importCursorOf, noteImport } from "../packages/db.js";
-import { keepFoundFile, type FoundFile } from "../files.js";
+import { keepFoundFile, type FoundFile } from "../files/found.js";
 import { connectionOf, type Db } from "../google/google-rows.js";
 import { tokenFor } from "../google/profile-credentials.js";
 import { http } from "../google/places.js";
@@ -17,7 +17,7 @@ import type { Part, PartOutcome } from "./history-import.js";
 /** The most a profile brings. Google documents no order, so this is a bound on the work and no judgement of the photos. */
 const PHOTOS_MAX = 200;
 /** How many are read at once. */
-const AT_ONCE = 4;
+const PHOTOS_AT_ONCE = 4;
 
 /** What Google files a photo under, as a shelf. The two that say nothing of what it shows (COVER, ADDITIONAL) start on none. */
 const SHOWS_OF: Readonly<Record<string, FileShows>> = {
@@ -46,7 +46,7 @@ interface Place {
   read: number;
 }
 
-function placeOf(cursor: unknown): Place {
+function photosPlaceOf(cursor: unknown): Place {
   const o = recordOrNull(cursor);
   return {
     page: typeof o?.page === "string" ? o.page : null,
@@ -80,7 +80,7 @@ export async function googlePhotosPart(db: Db, part: Part): Promise<PartOutcome>
   });
 
   const parent = reviewParent(conn.account_name, conn.location_name);
-  let place = placeOf(await importCursorOf(db, part.tenantId, "google_photos"));
+  let place = photosPlaceOf(await importCursorOf(db, part.tenantId, "google_photos"));
   // What the profile has in Files, counted a whole page at a time: a page read again is not counted twice, and a reconnect
   // that finds them all here already says how many there are, not none.
   let brought = 0;
@@ -93,10 +93,10 @@ export async function googlePhotosPart(db: Db, part: Part): Promise<PartOutcome>
     let at = 0;
     let onPage = 0;
     let full = false;
-    for (; at < got.photos.length && Date.now() < part.until && !full; at += AT_ONCE) {
+    for (; at < got.photos.length && Date.now() < part.until && !full; at += PHOTOS_AT_ONCE) {
       const fates = await Promise.all(
         got.photos
-          .slice(at, at + AT_ONCE)
+          .slice(at, at + PHOTOS_AT_ONCE)
           .map((p) =>
             keepFoundFile(db, part.tenantId, { source: "google_profile", status: "filed", file: foundOf(p) }),
           ),

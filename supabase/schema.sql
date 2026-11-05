@@ -6468,6 +6468,11 @@ begin
    where f.tenant_id = p_tenant_id and f.source = 'google_listing' and f.status = 'inbox' and f.removed_at is null
      and not f.owner_named and not f.owner_shelved;
   get diagnostics v_moved = row_count;
+  -- Nobody pressed this, so the record says where they went.
+  if v_moved > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.set_aside', 'setup', 'workspace', p_tenant_id, jsonb_build_object('count', v_moved));
+  end if;
   return v_moved;
 end $$;
 

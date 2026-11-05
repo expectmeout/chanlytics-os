@@ -4,7 +4,7 @@ import { filesOf, type FileMemberRow } from "@chanlytics/db";
 import { stamp, type Reader } from "./index";
 
 /** Who the look counted, as the row keeps it; null until it has, or where it could not say. */
-function peopleOf(raw: unknown): FilePeople | null {
+function filePeopleOf(raw: unknown): FilePeople | null {
   const p = recordOrNull(raw);
   return typeof p?.count === "number" && typeof p.recognizable === "number"
     ? { count: p.count, recognizable: p.recognizable }
@@ -24,7 +24,7 @@ export function fileDtoOf(r: FileMemberRow): FileDto {
     height: r.height,
     shows: r.shows as FileDto["shows"],
     who_in_it: r.who_in_it as FileDto["who_in_it"],
-    people: peopleOf(look?.people),
+    people: filePeopleOf(look?.people),
     look_status: r.look_status as FileDto["look_status"],
     line: typeof look?.line === "string" ? look.line : null,
     issues: Array.isArray(look?.issues) ? look.issues.filter((i): i is string => typeof i === "string") : [],

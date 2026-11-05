@@ -35,7 +35,7 @@ interface Sending {
 }
 
 let now: Sending = { photos: [], said: null, finished: 0 };
-const hearing = new Set<() => void>();
+const sendingListeners = new Set<() => void>();
 let nextKey = 1;
 let senders = 0;
 let flashing: (f: LegacyFlash) => void = () => {};
@@ -44,17 +44,17 @@ let run = { kept: 0, twins: 0 };
 
 function set(change: Partial<Sending>): void {
   now = { ...now, ...change };
-  for (const hear of hearing) hear();
+  for (const told of sendingListeners) told();
 }
 
-function hear(listener: () => void): () => void {
-  hearing.add(listener);
-  return () => hearing.delete(listener);
+function listenToSending(listener: () => void): () => void {
+  sendingListeners.add(listener);
+  return () => sendingListeners.delete(listener);
 }
 
 export const useSending = (): Sending =>
   useSyncExternalStore(
-    hear,
+    listenToSending,
     () => now,
     () => now,
   );

@@ -1,12 +1,10 @@
 /**
- * A business's files (00551, decision 0099): reads on the member's session, under RLS and the columns a member may see;
- * every write through a door. The doors a member calls ask the settings permission themselves; the ones the edge calls are
- * the service role's alone, and the copy Anthropic holds is read only by them. A row lives from its bytes proven until they
- * are gone: file_start holds a place on the ledger and nothing else, and file_found is the one door every road keeps a file by.
+ * A business's files (00551, decision 0099), the rows: reads on the member's session, under RLS and the columns a member may see,
+ * and the service role's own. The doors are doors.ts, and the copy Anthropic holds is read only by the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { FILES_MAX, FILES_BUCKET, type FileLook, type FileShows, type FileStatus } from "@chanlytics/contracts";
-import type { Database } from "../database.types";
+import { FILES_MAX, FILES_BUCKET } from "@chanlytics/contracts";
+import type { Database } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
 
@@ -89,127 +87,6 @@ export async function fileSeen(db: Db, tenantId: string, fingerprint: string): P
   return (live.count ?? 0) + (letGo.count ?? 0) > 0;
 }
 
-/** A member's upload begins: the door's permission and cap, and the purge that lets its bytes go if they never become a file. */
-export async function fileStart(db: Db, tenantId: string, id: string) {
-  return db.rpc("file_start", { p_tenant_id: tenantId, p_id: id });
-}
-
-/** What became of what was brought: a new file, the file it twins (or nothing, if a person let it go), or no room. */
-export type FileFate = { fate: "kept" | "here" | "full"; file_id: string | null };
-
-function fateOf(data: unknown): FileFate {
-  const o = (data ?? {}) as { fate?: unknown; file_id?: unknown };
-  if (o.fate !== "kept" && o.fate !== "here" && o.fate !== "full") throw new Error("file found: no fate answered");
-  return { fate: o.fate, file_id: typeof o.file_id === "string" ? o.file_id : null };
-}
-
-/**
- * A file whose bytes were proven, by any road: the one door. The service role's: no session may say what the bytes are, and
- * asked twice it answers the same.
- */
-export async function fileFound(
-  db: Db,
-  a: {
-    tenantId: string;
-    id: string;
-    status: Extract<FileStatus, "inbox" | "filed">;
-    source: string;
-    sourceRef: string | null;
-    name: string;
-    mime: string;
-    bytes: number;
-    fingerprint: string;
-    width: number | null;
-    height: number | null;
-    shows: FileShows | null;
-    edition: number;
-    actor: string | null;
-  },
-): Promise<FileFate> {
-  const { data, error } = await db.rpc("file_found", {
-    p_tenant_id: a.tenantId,
-    p_id: a.id,
-    p_status: a.status,
-    p_source: a.source,
-    p_source_ref: a.sourceRef as string,
-    p_name: a.name,
-    p_mime: a.mime,
-    p_bytes: a.bytes,
-    p_fingerprint: a.fingerprint,
-    p_width: a.width as number,
-    p_height: a.height as number,
-    p_shows: a.shows as string,
-    p_edition: a.edition,
-    ...(a.actor ? { p_actor: a.actor } : {}),
-  });
-  if (error) throw new Error(`file found: ${error.message}`);
-  return fateOf(data);
-}
-
-/** What a person says of a file. A field left out stays. */
-export async function fileChange(
-  db: Db,
-  a: {
-    tenantId: string;
-    id: string;
-    name?: string | undefined;
-    shows?: string | undefined;
-    whoInIt?: string | undefined;
-    status?: "filed" | "set_aside" | undefined;
-  },
-) {
-  return db.rpc("file_change", {
-    p_tenant_id: a.tenantId,
-    p_id: a.id,
-    ...(a.name !== undefined ? { p_name: a.name } : {}),
-    ...(a.shows !== undefined ? { p_shows: a.shows } : {}),
-    ...(a.whoInIt !== undefined ? { p_who_in_it: a.whoInIt } : {}),
-    ...(a.status !== undefined ? { p_status: a.status } : {}),
-  });
-}
-
-/** The Inbox's one press: what waits, among these, is filed. Answers how many moved. */
-export async function fileKeepMany(db: Db, tenantId: string, ids: readonly string[]) {
-  return db.rpc("file_keep_many", { p_tenant_id: tenantId, p_ids: [...ids] });
-}
-
-/** A person removed a file. Its bytes go by the file_purge job, and an import does not bring it back. */
-export async function fileRemove(db: Db, tenantId: string, id: string) {
-  return db.rpc("file_remove", { p_tenant_id: tenantId, p_id: id });
-}
-
-/** What the look saw, under the owner's corrections, and every way a look ends: a settled failure comes here too. */
-export async function fileLookKeep(
-  db: Db,
-  a: {
-    tenantId: string;
-    id: string;
-    status: "done" | "refused" | "failed";
-    edition: number;
-    look: FileLook | null;
-    name: string | null;
-    shows: FileShows | null;
-  },
-): Promise<void> {
-  const { error } = await db.rpc("file_look_keep", {
-    p_tenant_id: a.tenantId,
-    p_id: a.id,
-    p_status: a.status,
-    p_edition: a.edition,
-    p_look: a.look,
-    p_name: a.name as string,
-    p_shows: a.shows as string,
-  });
-  if (error) throw new Error(`file look: ${error.message}`);
-}
-
-/** What a public listing offered and nobody kept goes aside: that listing was not this business's, or its own profile came. */
-export async function fileListingAside(db: Db, tenantId: string): Promise<number> {
-  const { data, error } = await db.rpc("file_listing_aside", { p_tenant_id: tenantId });
-  if (error) throw new Error(`file listing aside: ${error.message}`);
-  return typeof data === "number" ? data : 0;
-}
-
 /**
  * The copy Anthropic holds for reading it, kept unless the file was removed while it went up: then nothing would ever let
  * that copy go, so this answers false and the caller deletes it.
@@ -229,12 +106,6 @@ export async function keepClaudeCopy(
     .select("id");
   if (error) throw new Error(`file copy: ${error.message}`);
   return (data ?? []).length > 0;
-}
-
-/** A removed file's bytes and Anthropic's copy are gone, so its row goes. */
-export async function filePurged(db: Db, tenantId: string, id: string): Promise<void> {
-  const { error } = await db.rpc("file_purged", { p_tenant_id: tenantId, p_id: id });
-  if (error) throw new Error(`file purged: ${error.message}`);
 }
 
 /**

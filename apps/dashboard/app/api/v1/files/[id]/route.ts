@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FILE_NAME_MAX, FILE_SHOWS } from "@chanlytics/contracts";
 import { write } from "@/server/route";
-import { changeFile, fileScope, removeFile } from "@/server/files";
+import { changeFile, fileScope, removeFile } from "@/server/files/file";
 
 /**
  * PATCH /api/v1/files/:id — `{ name?, shows?, who_in_it?, status? }`: what a person says of a file. What they name and shelve
@@ -10,7 +10,7 @@ import { changeFile, fileScope, removeFile } from "@/server/files";
  * DELETE — it goes from every page at once, and its bytes, Anthropic's copy and its row by the file_purge job. Only its
  * fingerprint stays, so an import does not bring it back.
  *
- * The handles are in src/server/files.ts.
+ * The handles are in src/server/files/file.ts.
  */
 export const PATCH = write({
   scope: fileScope,

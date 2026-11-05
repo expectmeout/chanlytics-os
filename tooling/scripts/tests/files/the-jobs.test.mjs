@@ -1,5 +1,5 @@
 /**
- * What the edge does with a business's files (apps/edge/lib/files.ts, decision 0099), run over a database in memory and a web
+ * What the edge does with a business's files (apps/edge/lib/files/, decision 0099), run over a database in memory and a web
  * that answers from memory: a look, read through a copy the model is sent by id and answered in code; a removed file let go;
  * bytes that never became a file given up on; what an import finds, kept once; a profile's photos brought a page at a time; and
  * the sweep, which brings back a look that failed and finishes a removal.
@@ -30,9 +30,10 @@ globalThis.fetch = (url, init) => answer(String(url), init);
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
-const { askForFoundFiles, askForListingPhotos, fileJobs, keepFilesMoving, keepFoundFile, sitePhotosOf } = await import(
-  at("apps/edge/lib/files.ts")
+const { askForFoundFiles, askForListingPhotos, keepFoundFile, sitePhotosOf } = await import(
+  at("apps/edge/lib/files/found.ts")
 );
+const { fileJobs, keepFilesMoving } = await import(at("apps/edge/lib/files/upkeep.ts"));
 const { historyImports } = await import(at("apps/edge/lib/imports/history-import.ts"));
 const { importAgain } = await import(at("apps/edge/lib/imports/import-again.ts"));
 

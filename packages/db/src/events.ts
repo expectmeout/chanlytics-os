@@ -142,6 +142,7 @@ interface TableData {
   };
   "file.kept": { count: number; by: string };
   "file.removed": { file_id: string; by: string };
+  "file.set_aside": { count: number };
   "mailbox_connection.unpaused": { address: string; by: string };
   "mailbox_connection.removed": { address: string; by: string | null };
   "mailbox_connection.sender_sorted": {
@@ -250,6 +251,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "file.changed": { category: "setup", version: 1 },
   "file.kept": { category: "setup", version: 1 },
   "file.removed": { category: "setup", version: 1 },
+  "file.set_aside": { category: "setup", version: 1 },
   "mailbox_connection.unpaused": { category: "setup", version: 1 },
   "mailbox_connection.removed": { category: "setup", version: 1 },
   "mailbox_connection.sender_sorted": { category: "setup", version: 1 },

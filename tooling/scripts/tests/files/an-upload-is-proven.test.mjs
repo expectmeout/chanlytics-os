@@ -1,5 +1,5 @@
 /**
- * A member's upload, run through route() (apps/dashboard/src/server/files.ts, decision 0099): the real route modules over a
+ * A member's upload, run through route() (apps/dashboard/src/server/files/, decision 0099): the real route modules over a
  * database in memory and a Storage that answers from memory. There is no file until the server has proven the bytes, by their
  * own first bytes and never the browser's word, and Storage's decoder is asked only where the head can't say. On Storage's wire
  * HTTP 400 means many things and the true status is in the body, so only its own "400" refuses a photo.

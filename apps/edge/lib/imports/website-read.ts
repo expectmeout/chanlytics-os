@@ -32,7 +32,7 @@ import { askJson, promptHashOf } from "../model.js";
 import { env } from "../env.js";
 import { homePage, PAGE_READS, sitePage, siteLinks, sitePagesReadable } from "../public-page.js";
 import { wearSiteLook } from "./look.js";
-import { askForFoundFiles, sitePhotosOf } from "../files.js";
+import { askForFoundFiles, sitePhotosOf } from "../files/found.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";

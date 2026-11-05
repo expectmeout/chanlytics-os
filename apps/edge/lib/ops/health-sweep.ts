@@ -37,7 +37,7 @@ import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { keepAnthropicProfiles } from "../anthropic-profiles/keep.js";
-import { keepFilesMoving } from "../files.js";
+import { keepFilesMoving } from "../files/upkeep.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
 import { pausedJobKinds } from "../packages/db.js";

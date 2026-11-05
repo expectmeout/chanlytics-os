@@ -97,6 +97,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "file.changed": "image",
   "file.kept": "image",
   "file.removed": "image",
+  "file.set_aside": "image",
   "mailbox_connection.unpaused": "mail",
   "mailbox_connection.removed": "mail",
   "mailbox_connection.sender_sorted": "mail",
