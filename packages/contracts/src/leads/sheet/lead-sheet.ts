@@ -101,9 +101,9 @@ export const LEAD_SHEET_WORDS = {
     pick: "the pick for this search",
     /** One email instead of a sequence: the draft for their own inbox (the 4 Nov 2026 review: no way to it was left). */
     write: "Write one email instead",
-    writeLine: "From your own mail app, no sequence",
+    writeLine: "Just this email, no sequence",
   },
-  /** Write to them: one email, written here and sent from the owner's own mail app (POST leads/:id/draft). */
+  /** Write to them: one email, written here (POST leads/:id/draft), sent from their own mail app where no mailbox can. */
   write: {
     title: (name: string) => `Write to ${name}`,
     sub: "Written for them. You send it from your own mail app.",

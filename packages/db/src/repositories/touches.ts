@@ -167,7 +167,7 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
   const sinceMs = since.getTime();
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows<{
-      broadcast_id: string;
+      broadcast_id: string | null;
       contact_id: string | null;
       sent_at: string | null;
       state: string;
@@ -189,7 +189,7 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
         .range(from, to),
     );
     for (const r of rows) {
-      const run = ofRun.get(r.broadcast_id);
+      const run = r.broadcast_id ? ofRun.get(r.broadcast_id) : null;
       if (!run || !r.contact_id) continue;
       if (STOPPED.has(run.state) && r.state !== "sent") continue;
       const at = r.sent_at ?? run.scheduled_for ?? run.created_at;

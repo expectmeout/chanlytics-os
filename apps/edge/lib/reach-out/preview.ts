@@ -1,7 +1,7 @@
 /**
  * The sheet's preview (Reach out, Part 4; F12, R11): the n-th business a chain over this search would write to, and its
  * email as that business would read it. Its opening is written and read by the check's own code (check.ts), and the
- * email is assembled by the sender's own (request.ts reachOutRequest), so the preview holds what a send holds: a slot
+ * email is assembled by the sender's own (channels cold-request.ts reachOutRequest), so the preview holds what a send holds: a slot
  * that is none of the six, no subject, words no email may carry, no name to sign with, no booking link, no address
  * for the foot, a value this business lacks. Nothing is stored and nothing is sent: the email's From, its reply route
  * and its unsubscribe seal are stand-ins, and only its words come back. The whole run is checked by the check's clock
@@ -36,7 +36,7 @@ import {
   type AskModel,
   type CheckBudget,
 } from "./check.js";
-import { reachOutRequest, type RequestRefusal } from "./request.js";
+import { reachOutRequest, type RequestRefusal } from "../packages/channels.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 
 type Db = SupabaseClient<Database>;

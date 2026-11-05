@@ -127,6 +127,7 @@ globalThis.window = {
     wired.push(String(url));
     if (/^\/api\/v1\/reach-outs\/leads\?/.test(String(url)))
       return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
+    if (/^\/api\/v1\/leads\/[^/]+\/emails\?/.test(String(url))) return json(200, { ok: true, data: [] });
     if (/^\/api\/v1\/leads\/[^/]+\/place\?/.test(String(url)))
       return placeFails
         ? json(500, READ_REFUSED)
@@ -354,6 +355,10 @@ const NOW = new Date("2026-09-18T20:00:00.000Z");
 const TZ = "America/Chicago";
 const vmOf = (over) => toLeadPeekVM(row(over), SEARCH, TZ, NOW);
 
+/** The words the route writes, and what the mail app's road puts under them. */
+const WRITTEN = "Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.";
+const FOOT = leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701");
+
 /** A courier that answers as the routes do, and records what it was asked. */
 const courierOf = (over = {}) => {
   const seen = [];
@@ -387,10 +392,23 @@ const courierOf = (over = {}) => {
             data: {
               to: "hello@travisheightscoaching.example",
               subject: "Missed calls at Travis Heights",
-              body: `Hi,\n\nI came across Travis Heights Coaching Co. on Google Maps.${leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701")}`,
+              body: `${WRITTEN}${FOOT}`,
               mailto: "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls",
+              words: WRITTEN,
+              mail_foot: FOOT,
+              from: over.from ?? null,
+              why_not: over.from ? null : (over.whyNot ?? null),
+              foot: over.from ? "Sam\n\nI came across your business on Google Maps." : null,
             },
           };
+    },
+    __leadSend: async (id, words) => {
+      seen.push(["send", id, words]);
+      return over.send ? over.send(words) : { ok: true, data: { message_id: "m-1", from: over.from } };
+    },
+    __leadCallBack: async (id) => {
+      seen.push(["callBack", id]);
+      return over.callBack ? over.callBack() : { ok: true, data: {} };
     },
     __leadUndo: async (opId, version) => {
       seen.push(["undo", opId, version]);
@@ -511,7 +529,7 @@ const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 /* ==================================================== the one draw ==== */
 
 // Where this lead stands, read: the sheet the rest of this file draws is the one whose reads are in.
-await sequenceVerbs.place(LEAD);
+await Promise.all([sequenceVerbs.place(LEAD), sequenceVerbs.leadEmails(LEAD)]);
 
 const saysReading = (tree) => byTestId(tree, "lead-sheet-reading") !== null;
 /** What only a read can say: drawn before it lands, these are a guess the next read takes back. */
@@ -662,14 +680,19 @@ test("their sequence runs and nothing needs you: Take out asks, Never write unde
   await until(() => P.st.draft && !P.st.draft.busy, "the draft written");
   const writing = P.draw().tree;
   assert.equal(P.st.mode, "draft");
-  assert.equal(textOf(byTestId(writing, "peek-draft-subject")), "Missed calls at Travis Heights");
+  assert.equal(byTestId(writing, "peek-draft-subject").props.value, "Missed calls at Travis Heights");
+  assert.equal(byTestId(writing, "peek-draft-body").props.value, WRITTEN, "the words alone, theirs to change");
   const app = byTestId(writing, "peek-open-mail");
   assert.match(app.props.href, /^mailto:hello%40travisheightscoaching\.example\?subject=Missed%20calls%20at/);
   await press(app);
   assert.equal(P.st.armed.kind, "sent", "opening their mail app asks Did you send it? once they are back");
   P.st.armed = { ...P.st.armed, asked: true };
   await press(byTestId(P.draw().tree, "peek-sent-yes"));
-  assert.deepEqual(courier.seen.at(-1), ["stage", IN, { kind: "emailed" }]);
+  assert.deepEqual(courier.seen.at(-1), [
+    "stage",
+    IN,
+    { kind: "emailed", words: { subject: "Missed calls at Travis Heights", body: WRITTEN } },
+  ]);
   assert.equal(P.st.mode, "info", "sent: back to the card");
   const after = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
   assert.match(textOf(after), /You wrote to them yourself/, "and Take out is asked, said for why");
@@ -736,6 +759,101 @@ test("an email waiting for your OK keeps Never write in More: its dock's Take ou
     "lead-sheet-approve",
   ]);
   assert.ok(await menuItem(P, "Never write"), "the one place it is asked while that email waits");
+});
+
+test("Write to them from a mailbox: Send is the primary, the mail apps under its caret, and what goes under the words is drawn", async () => {
+  reset();
+  const courier = courierOf({ from: "sam@getharbor.example" });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  const tree = P.draw().tree;
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-send")), /Send/);
+  assert.equal(textOf(byTestId(tree, "lead-sheet-write-from")), "From sam@getharbor.example");
+  assert.equal(byTestId(tree, "peek-open-mail"), null, "one primary");
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-foot")), /I came across your business/);
+  assert.equal(byTestId(tree, "lead-sheet-write-why"), null);
+  assert.ok(kitItem(tree, "lead-sheet-write-more", "Your mail app"), "the mail app stays, under the caret");
+});
+
+test("Their words changed go as changed: Send takes them, without the foot", async () => {
+  reset();
+  const courier = courierOf({ from: "sam@getharbor.example" });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  P.draw().acts.onWords({ words: "Hi, it's Sam. A short question." });
+  P.draw().acts.onWords({ subject: "A short question" });
+  assert.equal(P.st.draft.body.endsWith(FOOT), true, "the mail app's road keeps its foot under them");
+  await press(byTestId(P.draw().tree, "lead-sheet-write-send"));
+  await until(() => courier.seen.some((s) => s[0] === "send"), "the send");
+  assert.deepEqual(courier.seen.at(-1), [
+    "send",
+    P.p.vm.id,
+    { subject: "A short question", body: "Hi, it's Sam. A short question." },
+  ]);
+});
+
+test("Send: back to the card with Sending from… and an Undo that brings the words back, and Take out asked while their sequence runs", async () => {
+  reset();
+  const ROOT = "5e000000-0000-4000-8000-0000000000ef";
+  const IN = "5e000000-0000-4000-8000-000000000889";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[IN] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: { group: "in", place: 1, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const courier = courierOf({ from: "sam@getharbor.example" });
+  const P = page({ vm: vmOf({ id: IN }), courier });
+  await until(() => !saysReading(P.draw().tree), "their place landing");
+  await press(byTestId(P.draw().tree, "lead-sheet-write"));
+  await until(() => P.st.draft && !P.st.draft.busy, "the draft written");
+  await press(byTestId(P.draw().tree, "lead-sheet-write-send"));
+  await until(() => P.st.mode === "info", "back to the card");
+  const said = flashes.at(-1);
+  assert.equal(said.msg, "Sending from sam@getharbor.example");
+  const asked = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
+  assert.match(textOf(asked), /You wrote to them yourself/, "nurture keeps it writing, so it asks");
+
+  await said.undo();
+  assert.deepEqual(courier.seen.at(-1), ["callBack", "m-1"]);
+  assert.equal(P.st.mode, "draft", "its words come back to change");
+  assert.equal(P.st.draft.words, WRITTEN);
+  assert.equal(P.st.draft.sending, false);
+  await press(byTestId(P.draw().tree, "lead-sheet-step-back"));
+  assert.equal(P.st.mode, "info");
+  assert.equal(byTestId(P.draw().tree, "lead-sheet-leave-confirm"), null, "nothing went, so nothing asks about it");
+});
+
+test("Send refused: its words stay, the door's reason beside them, and nothing moves on", async () => {
+  reset();
+  const courier = courierOf({
+    from: "sam@getharbor.example",
+    send: () => ({ ok: false, message: "Your mailbox has sent its share for today." }),
+  });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  await press(byTestId(P.draw().tree, "lead-sheet-write-send"));
+  await until(() => P.st.draft.refusal, "the refusal");
+  const tree = P.draw().tree;
+  assert.equal(textOf(byTestId(tree, "peek-draft-error")), "Your mailbox has sent its share for today.");
+  assert.equal(byTestId(tree, "peek-draft-body").props.value, WRITTEN);
+  assert.equal(P.st.mode, "draft");
+  assert.equal(flashes.length, 0);
+});
+
+test("No mailbox: the mail app is the primary, as it was, and it says why", async () => {
+  reset();
+  const courier = courierOf({ whyNot: "Connect a Google mailbox on Connections to send from here." });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  const tree = P.draw().tree;
+  assert.ok(byTestId(tree, "peek-open-mail"));
+  assert.equal(byTestId(tree, "lead-sheet-write-send"), null);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /Connect a Google mailbox/);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-foot")), /no thanks/, "the foot that road puts under the words");
 });
 
 test("Write to them refused outright: why and the way back alone, no empty email and no mail app to press", () => {
