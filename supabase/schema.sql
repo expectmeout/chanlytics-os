@@ -29537,7 +29537,8 @@ CREATE FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid
     cross join lateral public.reach_out_why_not(p_tenant_id, array[x.lead_id], st.include_unconfirmed) as w(wl, why)
    where x.lead_id is not null
      and exists (select 1 from public.memberships m
-                  where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id)
+                  where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id
+                    and (m.role <> 'partner' or public.session_shows_second_factor()))
 $$;
 
 
@@ -29545,7 +29546,7 @@ $$;
 -- Name: FUNCTION sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) IS 'Why each lead on a sequence''s list would not be planned by its next batch (00533): reach_out_why_not at the list''s own setting (its first step''s include_unconfirmed), or null where it would be. For a member of the workspace alone, and a sequence of it; the places'' reads ask it so a lead no batch can take says why instead of "In its next batch".';
+COMMENT ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) IS 'Why each lead on a sequence''s list would not be planned by its next batch (00533): reach_out_why_not at the list''s own setting (its first step''s include_unconfirmed), or null where it would be. For a member of the workspace alone, a partner''s seat once its session has shown the code (00542), and a sequence of it; the places'' reads ask it so a lead no batch can take says why instead of "In its next batch".';
 
 
 --
