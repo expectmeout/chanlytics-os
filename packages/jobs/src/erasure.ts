@@ -2,7 +2,7 @@
  * Honour a deletion request: an erasure in the order the design gives it, and the job that finishes one that stopped
  * (decision 0036). The whole of DELETE /api/v1/contacts/:id runs here as the owner's press, behind the route that
  * judges who may ask (the owner, on the contact's own workspace, on a fresh session); the erasure_finish job runs it
- * again for a person a press left blocked, and runs it for everyone a press of many hands over (eraseByTheLedger).
+ * again for a person a press left blocked, and runs it for everyone a press of many hands over (people_erase_begin).
  *
  * Three stores hold the customer: Postgres rows, the private `media` bucket, and the scheduled jobs that would still
  * speak to them. ORDER IS THE DESIGN. The keys are read first (reads only, retryable with nothing to undo). Then the
@@ -102,39 +102,6 @@ type StorageLeg = Awaited<ReturnType<typeof removeMediaObjects>>;
 /** A press: a live person erased, an erased one re-driven. */
 export async function eraseOrRedrive(clients: ErasureClients, contact: ErasurePerson, options: ErasureOptions) {
   return contact.erased_at ? redriveErasure(clients, contact) : erasePerson(clients, contact, options);
-}
-
-/**
- * A person handed to the ledger (People's Delete… for a selection, decision 0036): out of reach now, by the block, and
- * erased by the finish, due now, on the word of who pressed, which the ledger's row keeps. The press runs none of the
- * legs: a person is some twenty round trips and one with calls a delete of each at the provider, and fifty of them in one
- * request outran the browser's wait (5 Nov 2026). Someone going already keeps their one finish (its key), so a press
- * pressed again starts nothing beside it. Here the finish is the erasure, so a ledger that will not take it stops this
- * person and says so, where a press that runs the legs itself logs it and goes on (scheduleFinish). The block is written
- * by then, and a second press finds it and asks again. Both are written on the clients' service role, as a press of
- * one writes them (erasePerson).
- */
-export async function eraseByTheLedger(
-  clients: Pick<ErasureClients, "service">,
-  contact: ErasurePerson,
-  by: string,
-): Promise<void> {
-  await blockErasure(clients.service, contact);
-  try {
-    await scheduleJobOnce(clients.service, {
-      tenantId: contact.tenant_id,
-      kind: "erasure_finish",
-      dueAt: new Date(),
-      payload: { contact_id: contact.id, by },
-    });
-  } catch (e) {
-    logger().error("erase_finish_schedule_failed", {
-      tenant_id: contact.tenant_id,
-      contact: contact.id,
-      error: errText(e),
-    });
-    throw new AppError("internal", "Could not start deleting this person. Try again.", 500);
-  }
 }
 
 /** A live person, erased in the order the header gives, and what was removed. */
@@ -589,8 +556,8 @@ async function scrubAppointmentsBestEffort(
 
 /**
  * erasure_finish: an erasure a press left unfinished, finished (decision 0036; 00501), or one a press of many handed
- * over (eraseByTheLedger). payload: { contact_id, by? }, put on the ledger beside the block by every press, due
- * ERASURE_FINISH_AFTER_MS on, or due now and naming who pressed; a press that ended well had erase_contact withdraw it.
+ * over (people_erase_begin, 00547). payload: { contact_id, by? }, put on the ledger beside the block by every press, due
+ * ERASURE_FINISH_AFTER_MS on, or paced from now and naming who pressed; a press that ended well had erase_contact withdraw it.
  * Written to be run again (ledger RETRY_WAITS_MS): every leg is a delete or an overwrite keyed on the person, so a second
  * run repeats nothing it should not. A person already erased has the id-keyed legs run again; one never blocked is
  * nobody's press, and nothing is done.

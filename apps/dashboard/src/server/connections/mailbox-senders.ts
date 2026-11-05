@@ -67,14 +67,17 @@ export async function sortSender(
   return { sender, verdict: input.verdict, kept };
 }
 
+/** What a person with no address to say automated is told (here, and for a press of many, people-many.ts). */
+export const NO_ADDRESS_TO_SORT = "This person has no email address to sort.";
+
 /** A person's address, or every address at their domain where that is offered, said to be automated. */
-export async function sayNotAPerson(
+async function sayNotAPerson(
   ctx: RouteContext,
   contact: Pick<Awaited<ReturnType<typeof erasureScope.load>>, "email" | "tenant_id">,
   scope: "address" | "domain",
 ): Promise<void> {
   const address = normalizeEmail(contact.email);
-  if (!address) throw new AppError("validation", "This person has no email address to sort.");
+  if (!address) throw new AppError("validation", NO_ADDRESS_TO_SORT);
   const domain = scope === "domain" ? senderDomainOffered(address, await ownHosts(ctx, contact.tenant_id)) : null;
   if (scope === "domain" && !domain) throw new AppError("validation", "Only this address can be marked.");
   await sortMailboxSender(ctx.supabase, {

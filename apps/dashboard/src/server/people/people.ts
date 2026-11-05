@@ -1,4 +1,4 @@
-import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
+import { DAY_MS, isUuid, type PersonRowDto } from "@chanlytics/contracts";
 import {
   PEOPLE_PAGE,
   addPersonByHand,
@@ -185,7 +185,9 @@ export async function countPeople(
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .is("erased_at", null)
-    .is("merged_into_contact_id", null);
+    .is("merged_into_contact_id", null)
+    // Who people_page lists (00547): someone being erased has left, and a day on it is an erasure that stopped.
+    .or(`erasing_since.is.null,erasing_since.lt.${new Date(Date.now() - DAY_MS).toISOString()}`);
   const needle = searchNeedle(q);
   if (needle) {
     const digits = needle.replace(/\D/g, "");

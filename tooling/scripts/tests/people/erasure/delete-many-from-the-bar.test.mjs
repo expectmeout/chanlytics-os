@@ -152,6 +152,33 @@ test("REGRESSION: a press closes as the server answers, whatever the page is sti
   assert.equal(sheetOf(b.redraw()).props.open, false);
 });
 
+test("REGRESSION: Delete takes the whole selection in one request, past the fifty the bar's other acts take (5 Nov 2026: 242 selected, fifty at a press)", async () => {
+  const rows = Array.from({ length: 3000 }, (_, i) => row(`m${i}`, `Sender ${i}`));
+  const b = bar("owner", { rows, sel: new Set(rows.map((r) => r.id)) });
+  await sheetIn(b);
+  chooseIn(b.redraw(), DELETE_MANY_WORDS.delete);
+  let tree = b.redraw();
+  assert.equal(sheetOf(tree).props.title, DELETE_MANY_WORDS.title(3000, false));
+  assert.equal(sheetOf(tree).props.foot.props.typed, "3000", "the count typed is everyone selected");
+  sheetOf(tree).props.foot.props.onType("3000");
+  tree = b.redraw();
+  const sent = [];
+  const was = W.fetch;
+  const going = rows.map((r) => r.id);
+  W.fetch = answering({ going, failed: [], skipped: [] }, sent);
+  try {
+    sheetOf(tree).props.foot.props.onYes();
+    await until(() => b.seen.toasts.length > 0, "the press's toast");
+  } finally {
+    W.fetch = was;
+  }
+  assert.equal(sent.length, 1, "one request");
+  assert.deepEqual(sent.at(0)?.at(2).ids, going);
+  assert.equal(textOf(b.seen.toasts[0].msg), "Deleting 3000 people");
+  assert.equal(b.seen.kept, null, "nobody left over");
+  assert.equal(b.seen.cleared, 1, "the selection is done");
+});
+
 test("who was already going or gone is said in the toast and leaves the selection", async () => {
   const b = bar("owner");
   await sheetIn(b);
