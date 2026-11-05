@@ -287,9 +287,8 @@ async function collectHeld(
           round,
           run,
           phase,
-          remoteState,
+          { state: remoteState, items_seen: seen + end },
           [...members, ...memberRows(newMembers, run.term)],
-          seen + end,
           Math.max(0, usage - run.usage_usd) + sites.count() * LEAD_SITE_READ_USD,
         )
       : null;

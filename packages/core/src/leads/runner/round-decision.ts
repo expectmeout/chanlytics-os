@@ -5,7 +5,6 @@
  * the commit leaves nothing unwritten. `after` is only what is said once it is true (the question's mail).
  */
 
-import type { LeadRunState } from "@chanlytics/contracts";
 import { discoveryEnding, FINAL_RUN_STATES, termsShortOf } from "../endings";
 import { runIdFor } from "../ids";
 import type { CollectPage, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
@@ -29,14 +28,11 @@ async function roundDecision(
   round: LeadRoundRow,
   run: LeadRunRow,
   phase: Phase,
-  runState: LeadRunState,
+  runNow: Pick<LeadRunRow, "state" | "items_seen">,
   members: LeadMemberRow[],
-  itemsSeenNow: number,
   spentNow: number,
 ): Promise<Decision | null> {
-  const runs = (await p.db.runsOfRound(round.id)).map((r) =>
-    r.id === run.id ? { ...r, state: runState, items_seen: itemsSeenNow } : r,
-  );
+  const runs = (await p.db.runsOfRound(round.id)).map((r) => (r.id === run.id ? { ...r, ...runNow } : r));
   const phaseOf = new Map<string, Phase>();
   for (const r of runs)
     if (r.purpose === "discover" && r.term !== null)
