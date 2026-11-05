@@ -1,10 +1,8 @@
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
-import { eachAtOnce } from "@chanlytics/core";
-import { setPersonReplyMode } from "@chanlytics/db";
+import { beginPeopleErasure, setPersonReplyMode } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
-import { sayNotAPerson } from "@/server/connections/mailbox-senders";
-import { eraseContactByTheLedger } from "@/server/people/erase-contact";
+import { NO_ADDRESS_TO_SORT } from "@/server/connections/mailbox-senders";
 
 /**
  * The same change for many people at once, through the door each would go
@@ -113,12 +111,6 @@ export async function appendNotesMany(
   return { done, failed, skipped };
 }
 
-/**
- * How many people a press hands the ledger side by side. A person is three round trips here, about a tenth of a second,
- * so a press of fifty answers in under a second.
- */
-const ERASE_MANY_AT_ONCE = 8;
-
 /** Who a press handed the ledger, who it could not and why, and who was not ours to delete. */
 interface ErasedMany {
   going: string[];
@@ -127,13 +119,13 @@ interface ErasedMany {
 }
 
 /**
- * Many people deleted at one press (People's Delete…): each taken out of reach and handed to the ledger, which erases
- * them as Delete person erases one, and answered (erase-contact.ts eraseContactByTheLedger). The press does no erasing,
- * so it cannot outrun anyone's wait, a tab closed behind it loses nothing, and a press pressed again starts nothing
- * beside the first. With `notAPersonToo`, each one's address is said automated first, as the person page's switch says it
- * (mailbox-senders.ts sayNotAPerson), the address alone: a selection is many senders, and a domain is many people's. A
- * person who could not be handed over is said and the others still go; an erased one, or another workspace's, is skipped.
- * Each list in the order they were picked.
+ * Many people deleted at one press (People's Delete…), however many: everyone named goes out of reach and onto the
+ * ledger in one write (db legs.ts beginPeopleErasure), and the ledger erases them as Delete person erases one, paced so
+ * nobody else's work waits behind them. The press does no erasing, so it cannot outrun anyone's wait, a tab closed
+ * behind it loses nothing, and a press pressed again starts nothing beside the first. With `notAPersonToo`, each one's
+ * address is said automated in the same write, the address alone: a selection is many senders, and a domain is many
+ * people's. Someone with no address to say stays, and says why; an erased one, or another workspace's, is skipped. Each
+ * list in the order they were picked.
  */
 export async function eraseMany(
   ctx: RouteContext,
@@ -142,34 +134,15 @@ export async function eraseMany(
   notAPersonToo: boolean,
 ): Promise<ErasedMany> {
   const uniq = [...new Set(ids)];
-  const { rows, skipped } = await ours<{
-    id: string;
-    tenant_id: string;
-    phone_e164: string | null;
-    email: string | null;
-    erased_at: string | null;
-  }>(ctx, tenantId, uniq, "id, tenant_id, phone_e164, email, erased_at");
-  const picked = uniq.flatMap((id) => rows.filter((c) => c.id === id));
-  const refused = new Map<string, string>();
-  await eachAtOnce(
-    picked,
-    ERASE_MANY_AT_ONCE,
-    () => true,
-    async (c) => {
-      try {
-        if (notAPersonToo) await sayNotAPerson(ctx, c, "address");
-        await eraseContactByTheLedger(ctx, c);
-      } catch (e) {
-        refused.set(c.id, e instanceof Error ? e.message : String(e));
-      }
-    },
-  );
+  const { going, noAddress } = await beginPeopleErasure(ctx.supabase, {
+    tenantId,
+    ids: uniq,
+    notAPerson: notAPersonToo,
+  });
+  const answered = new Set([...going, ...noAddress]);
   return {
-    going: picked.filter((c) => !refused.has(c.id)).map((c) => c.id),
-    failed: picked.flatMap((c) => {
-      const message = refused.get(c.id);
-      return message === undefined ? [] : [{ id: c.id, message }];
-    }),
-    skipped,
+    going,
+    failed: noAddress.map((id) => ({ id, message: NO_ADDRESS_TO_SORT })),
+    skipped: uniq.filter((id) => !answered.has(id)),
   };
 }

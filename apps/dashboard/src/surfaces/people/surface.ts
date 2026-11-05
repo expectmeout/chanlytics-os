@@ -182,58 +182,54 @@ function peopleValidUntil(): number | null {
   return Number.isFinite(first) ? Math.max(first, peopleLoaded.readAt + PEOPLE_STANDS_MS) : null;
 }
 
-/** Who this tab handed the ledger to erase (peopleGoing): the server lists them until the ledger reaches each. */
+/** Who this tab handed the ledger to erase (peopleGoing): a read already under way when the door answered may name them. */
 const goingHere = new Set<string>();
 
 /** The people, without who this tab handed the ledger. */
 const staying = <T extends { id: string }>(people: T[]): T[] =>
   goingHere.size ? people.filter((p) => !goingHere.has(p.id)) : people;
 
-/** The page's count, less those of its rows who are going: the server counts them until the ledger reaches each. */
+/** The page's count, less those of its rows who are going: such a read counted them too. */
 const pageLess = (page: PeopleSurface["page"], going: number): PeopleSurface["page"] =>
   page && going ? { ...page, total: page.total - going } : page;
 
-/** How long after the server last listed fewer of those going their erasure is said: once for a press, not once a person. */
-const GONE_QUIET_MS = 1.5 * SECOND_MS;
+/**
+ * How long after People's last read a press is said done: past the twelve seconds a stream of notices is waited out
+ * (surface-realtime.ts DEAR_READ_LONGEST_WAIT_MS), so a long press is said at its end, and not each time a read comes late.
+ */
+const GONE_QUIET_MS = 15 * SECOND_MS;
 
-/** Those going the server listed at its last read, what to do once it lists fewer (peopleGoing's `gone`), and the wait for it. */
-const awaited: { ids: Set<string>; gone: (() => void) | null; timer: ReturnType<typeof setTimeout> | null } = {
-  ids: new Set(),
-  gone: null,
-  timer: null,
-};
+/** What to do once the reads behind a press have stopped (peopleGoing's `gone`), and the wait for it. */
+const awaited: { gone: (() => void) | null; timer: ReturnType<typeof setTimeout> | null } = { gone: null, timer: null };
 
 /**
- * A read of everyone, looked through for who is going: once the server lists fewer of them the ledger has erased some, and
- * what an erasure moves beside People (their threads, the counts made of their messages, which the feed is not told of) is
- * read again when that has stopped (`gone`). One reading for a press: erased one after another over a minute, each
- * erasure's notice had the app read its screens again, some eighty requests a person (5 Nov 2026).
+ * A read of everyone behind a press. Each erasure's notice has People read again, so once those reads have stopped the
+ * ledger has done, and what an erasure moves beside People (their threads, the counts made of their messages, which the
+ * feed is not told of) is read again (`gone`). One reading for a press, however long it takes: erased one after another
+ * over a minute, each erasure's notice had the app read its screens again, some eighty requests a person (5 Nov 2026).
  */
-function heardGone(listed: readonly { id: string }[]): void {
-  if (!awaited.ids.size) return;
-  const still = new Set(listed.filter((p) => awaited.ids.has(p.id)).map((p) => p.id));
-  if (still.size === awaited.ids.size) return;
-  awaited.ids = still;
+function heardGone(): void {
+  if (!awaited.gone) return;
   if (awaited.timer) clearTimeout(awaited.timer);
   awaited.timer = setTimeout(() => {
+    const gone = awaited.gone;
     awaited.timer = null;
-    awaited.gone?.();
+    awaited.gone = null;
+    gone?.();
   }, GONE_QUIET_MS);
 }
 
 /**
- * Whoever a press of Delete… handed the ledger leaves the rows and the count as the door answers, as placeDeal lays on a
- * move: the erasing takes a few seconds behind it, and each read in that time (a teammate's change, the live feed's)
- * leaves them out here, so nobody comes back to be taken away again one at a time. Another tab sees each go as the ledger
- * reaches them; a reload reads what the server says. `gone` is asked once they have left the server's list too (heardGone).
+ * Whoever a press of Delete… handed the ledger leaves the rows and the count as the door answers, as placeDeal lays on
+ * a move: the erasing takes seconds or minutes behind it, and the server's list leaves them out from the press on
+ * (00547), so a reload or another tab does not bring them back. `gone` is asked once the reads behind the press have
+ * stopped (heardGone).
  */
 export function peopleGoing(ids: readonly string[], gone: () => void): void {
   if (!ids.length) return;
-  for (const id of ids) {
-    goingHere.add(id);
-    awaited.ids.add(id);
-  }
+  for (const id of ids) goingHere.add(id);
   awaited.gone = gone;
+  heardGone();
   if (!peopleLoaded) return;
   const rows = staying(peopleLoaded.people);
   peopleLoaded.page = pageLess(peopleLoaded.page, peopleLoaded.people.length - rows.length);
@@ -540,7 +536,7 @@ export const peopleOverride: SurfaceOverride = {
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
     // Every page, so a list, a count and a search cover everyone, and a refresh keeps them.
     const everyone = await everyPerson(data);
-    heardGone(everyone.people);
+    heardGone();
     const rows = staying(everyone.people);
     peopleLoaded = {
       tz,
