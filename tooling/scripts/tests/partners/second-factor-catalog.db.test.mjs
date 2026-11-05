@@ -180,6 +180,49 @@ test(
 );
 
 test(
+  "why no batch takes a lead answers a session that showed the code, and nothing to a password alone (00542)",
+  { skip },
+  async () => {
+    const shown = partner.client;
+    const password = await signIn(partner.email, partner.password);
+    const template = ok(
+      await db
+        .from("templates")
+        .insert({ tenant_id: owner.tenant, channel: "whatsapp", name: "catalog_why", language: "en" })
+        .select("id, name, language")
+        .single(),
+    );
+    const step = ok(
+      await db
+        .from("sequence_steps")
+        .insert({
+          tenant_id: owner.tenant,
+          name: "Catalog why",
+          trigger: "quiet_30",
+          policy_class: "reengage",
+          template_id: template.id,
+          template_name: template.name,
+          template_language: template.language,
+        })
+        .select("sequence_id")
+        .single(),
+    );
+    // No such lead: the door's own word for one, so the answer is the seat's and nothing about a lead's state.
+    const lead = "66666666-6666-4666-8666-666666666666";
+    const ask = (who) =>
+      who.rpc("sequence_queued_why_not", {
+        p_tenant_id: owner.tenant,
+        p_lead_ids: [lead],
+        p_sequence_ids: [step.sequence_id],
+      });
+    const said = [{ lead_id: lead, sequence_id: step.sequence_id, why: "gone" }];
+    assert.deepEqual(ok(await ask(shown)), said, "to the partner's session that showed the code");
+    assert.deepEqual(ok(await ask(owner.client)), said, "a seat that is no partner's needs no code");
+    assert.deepEqual(ok(await ask(password)), [], "and nothing to a partner's password alone");
+  },
+);
+
+test(
   "a partner's invitations, by the door and by the table, are the session's that showed the code",
   { skip },
   async () => {

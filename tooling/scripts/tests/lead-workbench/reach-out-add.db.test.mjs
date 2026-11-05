@@ -669,7 +669,8 @@ test("the doors are a signed-in member's; the predicate, the lines and the recor
     why: "reach_out_why_not(uuid, uuid[], boolean)",
     lines: "reach_out_root_lines(uuid, uuid)",
     record: "reach_out_record(uuid, uuid, uuid)",
-    unchecked: "sequence_unchecked(integer, integer, integer, uuid)",
+    // 00505 made it again with the sends a person pressed (p_send_ids).
+    unchecked: "sequence_unchecked(integer, integer, integer, uuid, uuid[])",
     rule: "reach_out_people_of(uuid, uuid)",
   };
   const cols = [
