@@ -1049,7 +1049,11 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
         "Stopped at 61 \u00b7 this month's searching is used up \u00b7 the 61 found are yours",
         ["excluded"],
       ],
-      ["few_new_matches", "Found all 40 personal trainers in Austin, TX \u00b7 the 61 found are yours", ["excluded"]],
+      [
+        "few_new_matches",
+        "Found 61 of 200 personal trainers in Austin, TX \u00b7 the 61 found are yours",
+        ["excluded"],
+      ],
       [
         "stopped",
         "Stopped at 61 \u00b7 the 61 found are yours \u00b7 nothing else was counted",

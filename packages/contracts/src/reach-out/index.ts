@@ -232,7 +232,7 @@ export {
   reachOutExampleValues,
   reachOutRootOf,
 } from "./reach-out-rules";
-export { REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
+export { REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
 export type { ColdEnding, DraftLeadFacts, OutreachLeadFacts, ReachOutSignsWith, SlotLead } from "./reach-out-rules";
 export type { SlotWorkspace } from "./reach-out-rules";
 export { ReachOutChainSchema, ReachOutStepSchema } from "./reach-out-schemas";

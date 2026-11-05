@@ -23,6 +23,14 @@ test("a business's own page on a booking platform is its booking page, as the ht
     ["https://www.vagaro.com/example-studio", "https://www.vagaro.com/example-studio"],
     ["http://example-studio.glossgenius.com/", "https://example-studio.glossgenius.com/"],
     ["https://booksy.com/en-us/00000_example-studio", "https://booksy.com/en-us/00000_example-studio"],
+    [
+      "https://example-studio.zenoti.com/webstoreNew/services",
+      "https://example-studio.zenoti.com/webstoreNew/services",
+    ],
+    [
+      "https://www.joinblvd.com/b/example-studio/widget#/visit-type",
+      "https://www.joinblvd.com/b/example-studio/widget",
+    ],
     ["https://squareup.com/appointments/book/abc/def", "https://squareup.com/appointments/book/abc/def"],
     [
       "https://book.squareup.com/appointments/abc/location/def",

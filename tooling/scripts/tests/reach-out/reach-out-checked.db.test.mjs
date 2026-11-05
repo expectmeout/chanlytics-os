@@ -424,14 +424,15 @@ test(
 );
 
 test(
-  "the sends to check are leased, round-robin, within the horizon and past their backoff, with their chain's inclusions",
+  "the sends to check are leased, round-robin, those due soon first and past their backoff, with their chain's inclusions",
   { skip },
   async () => {
     const take = (over = {}) =>
       uncheckedSends(db, { limit: 50, perWorkspace: 50, aheadMinutes: 120, tenantId: A, ...over });
-    // Due within two hours, or waiting for its owner whatever its day; not one due next week in a run that goes ahead.
-    const soon = await sendIn({ send_at: iso(Date.now() + H) });
+    // Every planned send, whatever its day (decision 0098). The one due next week is the older, and still goes after those
+    // due within two hours or waiting for their owner.
     const later = await sendIn({ send_at: iso(Date.now() + 7 * DAY) });
+    const soon = await sendIn({ send_at: iso(Date.now() + H) });
     const waitingRun = await runOf(A, root, "pending_approval");
     const waiting = await sendIn({ batch_id: waitingRun, send_at: iso(Date.now() + 7 * DAY) });
     const backing = await sendIn({ check_after: iso(Date.now() + 5 * MIN) });
@@ -468,8 +469,13 @@ test(
     });
     const got = await take();
     const ids = got.map((u) => u.send.id);
-    for (const id of [soon, waiting, first]) assert.ok(ids.includes(id), `${id} is taken`);
-    for (const id of [later, backing]) assert.ok(!ids.includes(id), `${id} is not`);
+    for (const id of [soon, later, waiting, first]) assert.ok(ids.includes(id), `${id} is taken`);
+    assert.ok(!ids.includes(backing), "one waiting out its backoff is not");
+    assert.deepEqual(
+      [soon, waiting, first, later].map((id) => got.find((x) => x.send.id === id).due_soon),
+      [true, true, true, false],
+      "due within the two hours, waiting for its owner, or neither",
+    );
     assert.deepEqual(
       got.find((x) => x.send.id === first).included_for,
       ["chain"],
@@ -492,7 +498,9 @@ test(
     // A few of a workspace a tick, never its whole run (R2). (Asked of this workspace alone: a lease taken across every
     // workspace would be taken from the suites beside this one.)
     ok(await db.from("sequence_sends").update({ check_started_at: null }).eq("tenant_id", A));
-    assert.equal((await take({ perWorkspace: 2 })).length, 2);
+    const two = await take({ perWorkspace: 2 });
+    assert.equal(two.length, 2);
+    assert.ok(!two.some((x) => x.send.id === later), "those due soon take its turn, though it waited longest");
     ok(await db.from("sequence_sends").delete().eq("step_id", nudge));
     ok(await db.from("sequence_steps").delete().eq("id", nudge));
   },

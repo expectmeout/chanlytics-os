@@ -225,9 +225,7 @@ function stepEmailOf(f: SheetFacts, a: SequenceActs, leadId: string) {
   if (!mail) return null;
   if (mail.sent) return <SentEmail leadId={leadId} sendId={mail.sent} box={a.box} />;
   const onCard = f.mail && f.mail.edit && mail.edit && f.mail.edit.stepId === mail.edit.stepId;
-  return onCard ? null : (
-    <SheetEmail mail={mail} whole onWhole={null} onRewrite={null} onUndo={null} onWriteNow={null} box={a.box} />
-  );
+  return onCard ? null : <SheetEmail mail={mail} whole onWhole={null} onRewrite={null} onUndo={null} box={a.box} />;
 }
 
 /** A step in a row: its number, a tick once it went; what it is, a press where it opens; and what it is doing for them. */

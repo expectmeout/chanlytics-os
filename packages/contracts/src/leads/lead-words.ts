@@ -408,8 +408,8 @@ export function leadAnd(items: readonly string[]): string {
  * it too, and a search the source could not start was drawn as done (29 Oct 2026).
  */
 export function leadEndingFound(ending: LeadRoundEnding, f: Pick<LeadEndingFacts, "counted">): boolean {
-  if (ending === "target_reached" || ending === "few_new_matches") return true;
-  return ending === "searched_everything" && f.counted > 0;
+  if (ending === "target_reached") return true;
+  return (ending === "searched_everything" || ending === "few_new_matches") && f.counted > 0;
 }
 
 /**
@@ -465,9 +465,13 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
     case "few_new_matches":
       return {
         mark,
-        // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
-        title: `Found all ${plural(f.seen, one, f.name)} in ${f.area}`,
-        parts: [yours, ...(f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : [])],
+        // What it found of what was asked, and where. "Found all" said the area had run dry, and this ending means only
+        // that the round stopped short: five of ten salons in a city of hundreds said it (5 Nov 2026).
+        title: `Found ${f.counted} of ${f.target} ${f.name} in ${f.area}`,
+        parts: [
+          ...(f.counted > 0 ? [yours] : []),
+          ...(f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : []),
+        ],
         // One word (Ruben, 25 Sep): the line before it says what was found and where; the parts say where next.
         step: f.nearby.length ? { id: "look_further", label: "Widen" } : null,
       };

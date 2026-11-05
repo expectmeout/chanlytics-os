@@ -79,8 +79,6 @@ export const LEAD_WORDS_BOX = {
   stay: "Keep editing",
   drop: "Put them back",
   cantGo: "These words can't go as they are.",
-  /** Where the line is not written yet: its check, now. */
-  writeNow: "Write it now",
   /** A step opened on the Sequence line that went: what it said, once read. */
   reading: "Reading what went",
   unread: "What went couldn't be read. It's in their conversation.",
