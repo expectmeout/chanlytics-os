@@ -3,19 +3,19 @@
  * decides, lib/model.ts asks here, the port sends it).
  *
  *   ANTHROPIC_PROFILES not 'on'  no read and no create: the request goes as it always has. Merged dark.
- *   a profile, unrestricted      its id.
- *   a profile, anything else     held: no call. A paused subject is never sent on with no id, or under another's.
+ *   a profile, banned            held: no call. A banned subject is never sent on with no id, or under another's.
+ *   a profile, anything else     its id. A restricted subject "may still be served in part", so Anthropic decides, call by
+ *                                call; what it refuses fails as any refusal does, and the receptionist hands it to a person.
  *   none yet                     made now, once, inside a short bound, so a new sign-up's first words are not the
  *                                organization's. A create that fails goes unattributed and is logged, as every call went
  *                                before this: a customer's reply is not refused for a registration, and the sweep makes it.
  *   a read that failed           the last we saw, or held: "we could not check" is not "yes", and an unread status must not
- *                                strip a paused subject's id (mayUseModelFor's rule).
+ *                                strip a banned subject's id (mayUseModelFor's rule).
  *
  * The row is kept a minute per instance, as Ask's day is: a turn is several calls, and each would be a read before the model
  * was even asked. A status Anthropic changes reaches here within the sweep's half hour and that minute; in between, the API
  * refuses what it refuses, under the right id.
  */
-import { createHash } from "node:crypto";
 import {
   anthropicPaused,
   MIN_MS,
@@ -47,10 +47,6 @@ const NO_PROFILE: AttributionAnswer = { attribution: { profileId: null } };
 /** The switch: profiles are made and named on calls. Deleting one whose subject went does not wait on it. */
 export const anthropicProfilesOn = (): boolean => env.ANTHROPIC_PROFILES === "on";
 
-/** The address as Anthropic's page asks: one function and one normalization for every profile, so equal addresses match. */
-const emailHashOf = (email: string | null): string | null =>
-  email ? createHash("sha256").update(email.trim().toLowerCase()).digest("hex") : null;
-
 /**
  * One profile made, for the subject whose claim this call won; its id, or null when there is none to use.
  *
@@ -69,11 +65,7 @@ export async function makeAnthropicProfile(
   if (!claim) return null;
   const made = await createUserProfile(
     key,
-    profileDetailsOf(subject.kind, {
-      referenceId: claim.referenceId,
-      onboardedAt: claim.onboardedAt,
-      emailHash: emailHashOf(claim.email),
-    }),
+    profileDetailsOf(subject.kind, { referenceId: claim.referenceId, onboardedAt: claim.onboardedAt }),
     deps,
   );
   if (made.outcome === "ok") {

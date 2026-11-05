@@ -1,12 +1,12 @@
 /**
- * Whom a model call is for (decision 0097): every path to Anthropic says, and a paused person or workspace does not go out
+ * Whom a model call is for (decision 0097): every path to Anthropic says, and a banned person or workspace does not go out
  * at all. The real lib/model.ts over a database in memory and a scripted API.
  *
  * What it holds: every purpose has made the decision, and the compiler and the port both refuse a request that has not. The
  * switch off is today, to the byte: no read, no create, no header. With it on, each purpose sends its own subject's profile,
  * on the fallback's try too; a subject with none has one made once, however many calls ask at the same moment, and an answer
- * that never came is never answered with a second create; a paused subject's traffic never leaves, not with no profile and
- * not under another's.
+ * that never came is never answered with a second create; a restricted subject's traffic goes under its own id, for Anthropic
+ * to serve what it still serves; a banned subject's never leaves, not with no profile and not under another's.
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -15,10 +15,12 @@ import ts from "typescript";
 import {
   MODEL_PURPOSES,
   MODEL_ROUTES,
+  anthropicActed,
   anthropicPaused,
   enforcementActionsOf,
   enforcementStatusOf,
   enforcementWords,
+  modelStandingOf,
   modelSubjectOf,
 } from "@chanlytics/contracts";
 import { askModel, resetBreakers, streamModel } from "@chanlytics/channels";
@@ -236,27 +238,49 @@ test("askJson and Ask's stream go by the same door, and the fallback's try carri
   });
 });
 
-test("a paused subject's calls do not leave: not with no profile, and not under another's", async () => {
-  for (const status of ["restricted", "pending", "banned"]) {
+test("a restricted subject's calls go under its own id: Anthropic may still serve them in part, and it decides", async () => {
+  for (const status of ["restricted", "pending"]) {
     forgetAnthropicProfiles();
     world([row(), person({ enforcement_status: status })]);
     const net = api();
     await withEnv(ON, async () => {
-      assert.deepEqual(await callModel({ purpose: "ask", body }, FOR), { outcome: "held", why: "paused" }, status);
-      assert.deepEqual(
-        await streamModelCall({ purpose: "ask", body }, FOR),
-        { outcome: "held", why: "paused" },
-        status,
-      );
-      assert.equal(net.model.calls.length, 0, `${status}: the person's traffic left`);
-      // The workspace's own traffic is its own: one person's pause stops one person.
-      assert.equal((await callModel({ purpose: "receptionist", body }, FOR)).outcome, "ok");
-      assert.equal(net.model.calls[0].headers["anthropic-user-profile-id"], WORKSPACE_PROFILE);
+      assert.equal((await callModel({ purpose: "ask", body }, FOR)).outcome, "ok", status);
+      assert.equal(net.model.calls[0].headers["anthropic-user-profile-id"], PERSON_PROFILE, status);
+      const flow = scripted(streamed("Hi."));
+      setModelFetch(flow.fetch);
+      assert.equal((await streamModelCall({ purpose: "ask", body }, FOR)).outcome, "ok", status);
+      assert.equal(flow.calls[0].headers["anthropic-user-profile-id"], PERSON_PROFILE, status);
     });
   }
 });
 
-test("a paused workspace holds its receptionist and leaves the person's Ask, and every other workspace, alone", async () => {
+test("a call Anthropic refuses fails as any refusal does, and the next account's call goes", async () => {
+  world([row(), person({ enforcement_status: "restricted" })]);
+  const net = api({ messages: [status(403, "This profile is restricted."), said('{"ok":true}')] });
+  await withEnv(ON, async () => {
+    assert.equal((await callModel({ purpose: "ask", body }, FOR)).outcome, "rejected");
+    assert.equal((await callModel({ purpose: "receptionist", body }, { tenantId: T })).outcome, "ok");
+    assert.deepEqual(
+      net.model.calls.map((c) => c.headers["anthropic-user-profile-id"]),
+      [PERSON_PROFILE, WORKSPACE_PROFILE],
+    );
+  });
+});
+
+test("a banned subject's calls do not leave: not with no profile, and not under another's", async () => {
+  world([row(), person({ enforcement_status: "banned" })]);
+  const net = api();
+  await withEnv(ON, async () => {
+    assert.deepEqual(await callModel({ purpose: "ask", body }, FOR), { outcome: "held", why: "paused" });
+    assert.deepEqual(await streamModelCall({ purpose: "ask", body }, FOR), { outcome: "held", why: "paused" });
+    assert.equal(net.model.calls.length, 0, "the person's traffic left");
+    // The workspace's own traffic is its own: one person's ban stops one person.
+    assert.equal((await callModel({ purpose: "receptionist", body }, FOR)).outcome, "ok");
+    assert.equal(net.model.calls[0].headers["anthropic-user-profile-id"], WORKSPACE_PROFILE);
+  });
+});
+
+test("a banned workspace holds its receptionist and leaves the person's Ask, and every other workspace, alone", async () => {
   const other = "aaaaaaaa-0000-4000-8000-000000000002";
   world([
     row({ enforcement_status: "banned" }),
@@ -329,7 +353,7 @@ test("a subject with none has one made once, and the call goes under it", async 
   assert.equal(tables.anthropic_profiles[0].profile_id, "uprof_made");
 });
 
-test("what a create says: ours, stable, and no name, no address and no words", async () => {
+test("what a create says: ours, stable, and no name, no address, no hash of one and no words", async () => {
   world();
   const net = api();
   await withEnv(ON, () => callModel({ purpose: "ask", body }, FOR));
@@ -340,10 +364,9 @@ test("what a create says: ours, stable, and no name, no address and no words", a
       reference_id: `person:${U}`,
       entity_type: "individual",
       onboarded_at: "2026-10-01T12:00:00.000Z",
-      email_hash: crypto.createHash("sha256").update("owner@example.com").digest("hex"),
     },
   });
-  assert.ok(!JSON.stringify(sent).includes("example.com"), "the address itself never leaves");
+  assert.ok(!JSON.stringify(sent).includes("example.com"), "the address never leaves");
   assert.ok(!("anthropic-beta" in headers), "a user-profiles beta would leave out the enforcement fields");
 
   forgetAnthropicProfiles();
@@ -403,8 +426,20 @@ test("Anthropic's word: an unknown value is a restriction, and no value at all s
   // An answer that left the field out must not pause every customer on the platform.
   assert.equal(enforcementStatusOf(undefined), null);
   assert.equal(enforcementStatusOf(null), null);
-  assert.equal(anthropicPaused("unrestricted"), false);
-  for (const s of ["pending", "restricted", "banned"]) assert.equal(anthropicPaused(s), true, s);
+  // A ban alone stops a call here; every open action is told to the platform; a member reads one of two words.
+  assert.deepEqual(
+    ["unrestricted", "pending", "restricted", "banned"].map((s) => [
+      anthropicPaused(s),
+      anthropicActed(s),
+      modelStandingOf(s),
+    ]),
+    [
+      [false, false, null],
+      [false, true, "limited"],
+      [false, true, "limited"],
+      [true, true, "paused"],
+    ],
+  );
 
   const [a, b] = enforcementActionsOf([
     {

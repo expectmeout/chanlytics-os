@@ -5,8 +5,13 @@
  * the edge; nothing here knows it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { callSecondsSince, workspaceAnthropicPaused, type Database } from "@chanlytics/db";
-import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
+import { callSecondsSince, workspaceModelStanding, type Database } from "@chanlytics/db";
+import {
+  billingAccountDto,
+  type BillingAccountDto,
+  type BillingPriceDto,
+  type ModelStanding,
+} from "@chanlytics/contracts";
 import { deployment } from "../env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 import { log } from "@/server/log";
@@ -42,17 +47,17 @@ export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantI
 }
 
 /**
- * Whether Anthropic has paused this workspace's profile (decision 0097): the service role's table, read for the shell's
- * line. False when it could not be read: the line is said on the row's word alone. Never throws.
+ * What Anthropic has said of this workspace's profile (decision 0097): the service role's table, read for the shell's line.
+ * Null when it could not be read: the line is said on the row's word alone. Never throws.
  */
-export async function modelPausedFor(tenantId: string): Promise<boolean> {
+export async function modelStandingFor(tenantId: string): Promise<ModelStanding | null> {
   const db = serviceDbIfConfigured();
-  if (!db) return false;
+  if (!db) return null;
   try {
-    return await workspaceAnthropicPaused(db, tenantId);
+    return await workspaceModelStanding(db, tenantId);
   } catch (e) {
     log.warn("billing_model_paused_unread", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
-    return false;
+    return null;
   }
 }
 

@@ -4,6 +4,7 @@
  * and the Setup row. No Stripe client, no network: the edge applies what
  * planBilling decides, and the tests read the same functions.
  */
+import type { ModelStanding } from "../ai/anthropic-enforcement";
 import { callerSentence, WORKSPACE_PAUSED } from "../lines/caller-gets";
 import { usableZone } from "../calendar/zone-math";
 import { agoWords, DAY_MS, dateFormat, numberFormat } from "../shared/time";
@@ -84,11 +85,8 @@ export interface BillingDto {
    * decision 0092): what the voice provider is paid for. Null when the read failed; absent from an older route.
    */
   call_minutes_month?: number | null;
-  /**
-   * Anthropic has paused this workspace's profile (decision 0097): the shell's line says so, and its receptionist holds
-   * every message for a person. Absent from an older route.
-   */
-  model_paused?: boolean;
+  /** What Anthropic has said of this workspace's profile, for the shell's line (decision 0097). Null when nothing is open. */
+  model_standing?: ModelStanding | null;
 }
 
 /** The month's call minutes, said: none yet, one, or how many. Null when they could not be read. */

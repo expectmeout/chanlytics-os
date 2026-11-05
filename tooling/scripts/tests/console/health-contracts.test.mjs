@@ -507,8 +507,8 @@ test("the tiles judge each part by the platform's own targets, and a part that c
   assert.deepEqual([late.state, late.line], ["missed", "3 jobs late"]);
 });
 
-test("an account Anthropic paused needs a look, says why and where, and names no person", () => {
-  const paused = (id, over) => ({
+test("an account Anthropic limited or paused needs a look, says why and where, and names no person", () => {
+  const actedOn = (id, over) => ({
     id,
     kind: "workspace",
     tenant_id: C,
@@ -523,10 +523,10 @@ test("an account Anthropic paused needs a look, says why and where, and names no
       kept: 12,
       waiting: 2,
       leaving: 1,
-      paused: [
-        paused("p1"),
-        paused("p2", { tenant_id: O }),
-        paused("p3", {
+      acted_on: [
+        actedOn("p1"),
+        actedOn("p2", { tenant_id: O }),
+        actedOn("p3", {
           kind: "person",
           tenant_id: null,
           user_id: "11111111-1111-4111-8111-111111111111",
@@ -537,13 +537,16 @@ test("an account Anthropic paused needs a look, says why and where, and names no
     },
   });
   const rows = (scope) => healthLooksOf(h, scope, NOW).filter((r) => r.key.startsWith("anthropic:"));
-  const [business] = rows("customers");
-  assert.equal(business.severity, "red");
+  const business = rows("customers").find((r) => r.key === "anthropic:p1");
+  assert.equal(business.severity, "amber", "a restriction may still be served in part");
+  assert.equal(business.what, "Anthropic has limited one account's model calls");
   assert.equal(business.where, "Bloom Studio");
   assert.equal(business.why, "Restricted: fraud or abuse. They can clear it with an identity check.");
   assert.deepEqual(business.act, { kind: "open", tab: "model" });
   assert.equal(business.tenantId, C);
   const person = rows("customers").find((r) => r.key === "anthropic:p3");
+  assert.equal(person.severity, "red");
+  assert.equal(person.what, "Anthropic has paused one account's model calls");
   assert.equal(person.where, "One person");
   assert.ok(!JSON.stringify(person).includes("11111111"), "a person is not named on Health's front");
   assert.deepEqual(
@@ -552,7 +555,7 @@ test("an account Anthropic paused needs a look, says why and where, and names no
     "our own apart",
   );
 
-  for (const none of [undefined, null, { kept: 0, waiting: 0, leaving: 0, paused: [] }])
+  for (const none of [undefined, null, { kept: 0, waiting: 0, leaving: 0, acted_on: [] }])
     assert.deepEqual(
       healthLooksOf(healthOf({ anthropic_profiles: none }), "all", NOW).filter((r) => r.key.startsWith("anthropic:")),
       [],
