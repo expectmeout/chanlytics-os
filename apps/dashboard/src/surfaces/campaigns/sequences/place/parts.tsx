@@ -28,6 +28,12 @@ export function PlaceWord(p: {
   );
 }
 
+/** One lead's own emails (GET leads/:id/emails): read as its place is. A read that failed leaves a row of History out, nothing more. */
+export function useLeadEmails(leadId: string | null, again: number) {
+  const read = useSequenceRead(leadId, verbs.leadEmails, verbs.peekLeadEmails, { again });
+  return { read: read.state !== "reading", list: read.state === "read" ? read.data : [] };
+}
+
 /** One lead's place (GET leads/:id/place): painted from the last answer this tab holds, read again behind, and after a press. */
 export function useLeadPlace(leadId: string | null, again: number) {
   const read = useSequenceRead(leadId, verbs.place, verbs.peekPlace, { again });

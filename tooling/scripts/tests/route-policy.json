@@ -1022,6 +1022,13 @@
       "rate": "lead_draft",
       "spend": false
     },
+    "POST leads/[id]/send": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_send",
+      "spend": false
+    },
     "POST leads/[id]/exclude": {
       "kind": "write",
       "scope": "workspace",
@@ -1041,6 +1048,13 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "lead_member",
+      "spend": false
+    },
+    "GET leads/[id]/emails": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "GET leads/[id]/place": {

@@ -1431,8 +1431,9 @@ button.ld-slot-btn { cursor: pointer; }
    Take out's Never write to them again the same. */
 .lw-approve-read, .lw-leave-never { display: block; }
 /* Write to them: the email as it will go, its lines kept where they were broken, and Shorter and Warmer under it. */
-.lw-write-mail { display: flex; flex-direction: column; gap: 4px; }
-.lw-write-body p { white-space: pre-line; }
+.lw-write-mail { display: flex; flex-direction: column; gap: var(--space-2); }
+.lw-write-foot { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-write-foot p { margin: 0; white-space: pre-line; }
 .lw-write-tones { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink-muted); }
 /* A held email's choices, in the dock's place: whose email it is, under the question. */
 /* What a held email's check flagged, before its choices. */

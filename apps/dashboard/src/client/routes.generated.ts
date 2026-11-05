@@ -68,6 +68,7 @@ export const ROUTES = {
   "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
+  "GET leads/[id]/emails": { method: "GET", path: "/api/v1/leads/[id]/emails" },
   "GET leads/[id]/place": { method: "GET", path: "/api/v1/leads/[id]/place" },
   "GET leads/[id]/preview": { method: "GET", path: "/api/v1/leads/[id]/preview" },
   "GET leads/back": { method: "GET", path: "/api/v1/leads/back" },
@@ -223,6 +224,7 @@ export const ROUTES = {
   "POST leads/[id]/later": { method: "POST", path: "/api/v1/leads/[id]/later" },
   "POST leads/[id]/preview": { method: "POST", path: "/api/v1/leads/[id]/preview" },
   "POST leads/[id]/put-back": { method: "POST", path: "/api/v1/leads/[id]/put-back" },
+  "POST leads/[id]/send": { method: "POST", path: "/api/v1/leads/[id]/send" },
   "POST leads/[id]/stage": { method: "POST", path: "/api/v1/leads/[id]/stage" },
   "POST leads/bulk": { method: "POST", path: "/api/v1/leads/bulk" },
   "POST leads/check-again": { method: "POST", path: "/api/v1/leads/check-again" },
@@ -425,6 +427,7 @@ export type Routes = {
   "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
+  "GET leads/[id]/emails": typeof import("../../app/api/v1/leads/[id]/emails/route").GET;
   "GET leads/[id]/place": typeof import("../../app/api/v1/leads/[id]/place/route").GET;
   "GET leads/[id]/preview": typeof import("../../app/api/v1/leads/[id]/preview/route").GET;
   "GET leads/back": typeof import("../../app/api/v1/leads/back/route").GET;
@@ -580,6 +583,7 @@ export type Routes = {
   "POST leads/[id]/later": typeof import("../../app/api/v1/leads/[id]/later/route").POST;
   "POST leads/[id]/preview": typeof import("../../app/api/v1/leads/[id]/preview/route").POST;
   "POST leads/[id]/put-back": typeof import("../../app/api/v1/leads/[id]/put-back/route").POST;
+  "POST leads/[id]/send": typeof import("../../app/api/v1/leads/[id]/send/route").POST;
   "POST leads/[id]/stage": typeof import("../../app/api/v1/leads/[id]/stage/route").POST;
   "POST leads/bulk": typeof import("../../app/api/v1/leads/bulk/route").POST;
   "POST leads/check-again": typeof import("../../app/api/v1/leads/check-again/route").POST;

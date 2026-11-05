@@ -235,6 +235,11 @@
     "fresh": "Read as a draft's step sheet previews a lead in it, one lead at a time as ‹ › reaches it, and kept for the tab.",
     "why": "Preview shows a step as that lead gets it, filled from the lead's own record; a lead's name, city and listing change seldom, and the send itself fills each email from the record as it stands when it goes, never from this read."
   },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/emails": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "The lead's own emails, for its History: read as its place is, on the lead sheet, and again after a press."
+  },
   "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/place": {
     "kind": "on-open",
     "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
