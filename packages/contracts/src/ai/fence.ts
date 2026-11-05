@@ -3,13 +3,14 @@
  * fence, and every system prompt that is shown such text says, in one line, that what is inside is data.
  *
  * Someone else's words are a customer's message, a call's transcript, a WhatsApp profile name, a Google review, a
- * lead's listing, a person's notes, a reply to a reach-out. The receptionist, Ask, the review reply, the reply reader,
- * the reach-out writer, the note sweep and the lead judge each read some of them. Before this, five fenced theirs in
- * tags of their own and three did not: the receptionist had no rule line and took the profile name uncapped into a
- * system block, and the review reply quoted the review bare (the scorecard, 29 September).
+ * lead's listing, a person's notes, a reply to a reach-out, a website's pages. The receptionist, Ask, the review reply,
+ * the reply reader, the reach-out writer, the note sweep, the lead judge and the website read each read some of them.
+ * Before this, five fenced theirs in tags of their own and three did not: the receptionist had no rule line and took the
+ * profile name uncapped into a system block, and the review reply quoted the review bare (the scorecard, 29 September).
  *
  * A fence is a tag the text cannot close: any tag-like run inside it (`<`, `>`) is neutralised before it is wrapped,
- * so a planted `</review>` ends nothing. The rule line names no tag, so one line serves every prompt.
+ * so a planted `</review>` ends nothing, and what a reader cannot see is taken out, so nothing in it speaks to the model
+ * alone. The rule line names no tag, so one line serves every prompt.
  */
 
 import type { SystemOneQuestion } from "./system-one";
@@ -39,19 +40,41 @@ export function injectionQuestion(): SystemOneQuestion {
 
 /** The tags someone else's words are fenced in. Five were in use before this module; it names them once. */
 export type FenceTag =
-  "customer" | "profile_name" | "transcript" | "review" | "reply" | "record" | "conversation" | "places" | "note";
+  | "customer"
+  | "profile_name"
+  | "transcript"
+  | "review"
+  | "reply"
+  | "record"
+  | "conversation"
+  | "places"
+  | "note"
+  | "page";
 
 /**
- * A tag-like run neutralised: the angle brackets become their look-alikes, so nothing inside can open or close a tag.
- * Exported for a prompt that builds its own tags around someone else's words (the journal's <day> and <log>).
+ * What a reader cannot see and a model can read: every format character (Unicode's Cf), which is the zero-width ones,
+ * the bidi controls, the soft hyphen and the tag block, which spells plain text out of sight. Only the joiner inside an
+ * emoji stays, captured to be put back: two joined are one emoji, and a rewrite of the words must keep them so.
+ */
+const UNSEEN = /(\p{Extended_Pictographic}[\p{Emoji_Modifier}\uFE0F]?\u200D)(?=\p{Extended_Pictographic})|\p{Cf}/gu;
+
+/** The angle brackets become their look-alikes, so nothing inside can open or close a tag. */
+const withoutTags = (text: string): string => text.replace(/</g, "‹").replace(/>/g, "›");
+
+/**
+ * Someone else's words as a fence holds them: no tag-like run, and nothing a reader cannot see. Exported for a prompt
+ * that builds its own tags around someone else's words (the journal's <day> and <log>).
  */
 export function defang(text: string): string {
-  return text.replace(/</g, "‹").replace(/>/g, "›");
+  return withoutTags(text).replace(UNSEEN, "$1");
 }
 
-/** Whether the fence had anything to do to these words: a tag-like run it neutralised. The fence's verdict on them. */
+/**
+ * Whether the fence neutralised a tag-like run in these words: its verdict on them. What it takes out unseen is no
+ * verdict, since a right-to-left mark or a soft hyphen comes with ordinary words.
+ */
 export function fenceActed(text: string): boolean {
-  return defang(text) !== text;
+  return withoutTags(text) !== text;
 }
 
 /** Someone else's words, fenced: `<tag>` … `</tag>`, the words unable to close it. */
