@@ -260,7 +260,8 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["preview_id"],
     never: [],
   },
-  // An erasure a press left unfinished (00501): the person stays blocked, never live, until the owner presses again.
+  // An erasure a press left unfinished (00501), or one a press of many handed over: the person stays blocked, never live,
+  // until it is done or the owner presses again.
   erasure_finish: {
     speaks: false,
     retryWaitsMs: SLOW_TWICE,

@@ -3,7 +3,9 @@
  * programs and pitches as people before it judged its senders (decision 0080), and an owner's five erasures an hour made
  * clearing them a day of taps. The owner's alone; fifty at a press, as every act of the bar; the count typed, as the
  * person page types the name. Two acts, as the person page has: Not a person (their address said automated first, by
- * address alone) and Delete. Whoever a press could not delete stays selected, and the toast says why. Drawn in the kit's
+ * address alone) and Delete. The press hands them to the ledger and answers, so the sheet closes and they leave the list
+ * at once, the erasing behind it (5 Nov 2026: erasing inside the press outran the browser's wait, and left the sheet up
+ * saying it took too long). Whoever could not be handed over stays selected, and the toast says why. Drawn in the kit's
  * sheet, a side pane on a desk and from the foot on a phone, as Delete person is: the title, who goes under it, and the
  * question in the foot; no paragraph and no switch (Ruben, 3 Nov 2026: "overly wordy and cluttered"; a switch also
  * brought the kit's Switch into People's graph, and the bundler moved 11.8 KB of shared parts into Settings' first
@@ -33,13 +35,13 @@ export const DELETE_MANY_WORDS = {
   busy: "Deleting…",
   cancel: "Cancel",
   failed: "Could not delete these people.",
-  /** What a press did: who went, who did not and why, who was gone already, and who is still selected for the next. */
+  /** What a press did: who is going, who is not and why, who was gone already, and who is still selected for the next. */
   said: (r: DeletedMany, more: number) =>
     [
-      r.erased.length ? `${howManyPeople(r.erased.length)} deleted` : "Nobody deleted",
+      r.going.length ? `Deleting ${howManyPeople(r.going.length)}` : "Nobody deleted",
       r.failed.length ? `${r.failed.length} not deleted — ${r.failed.at(0)?.message ?? ""}` : null,
       r.skipped.length ? `${r.skipped.length} already gone` : null,
-      r.left.length + more ? `${r.left.length + more} still selected — press Delete again` : null,
+      more ? `${more} still selected — press Delete again` : null,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -72,8 +74,8 @@ export function deleteManyActs(b: BulkCtx) {
     }
     setDel(DELETE_MANY_CLOSED);
     flash({ tone: r.failed.length ? "danger" : "ok", msg: <>{DELETE_MANY_WORDS.said(r, rest.length)}</> });
-    // Who could not go, and who the press had no time for, stay selected beside the rest of the selection.
-    const keep = [...r.failed.map((f) => f.id), ...r.left, ...rest];
+    // Who could not go stay selected beside the rest of the selection.
+    const keep = [...r.failed.map((f) => f.id), ...rest];
     if (keep.length) onKeep(keep);
     else onClear();
   };

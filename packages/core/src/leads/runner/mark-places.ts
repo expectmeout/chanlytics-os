@@ -7,8 +7,9 @@
 
 import { leadMarksFrom } from "../mark";
 import { markImageFrom, MARK_MAX_BYTES } from "../mark-image";
+import { eachAtOnce } from "../../each-at-once";
 import type { LeadColumns, LeadPorts } from "../ports";
-import { eachAtOnce, SITES_AT_ONCE, type SiteReads } from "./site-reads";
+import { SITES_AT_ONCE, type SiteReads } from "./site-reads";
 
 /**
  * The business's own mark (D6), for the places given (a left-out place stores none of the rest, §0.4, and is its caller's
