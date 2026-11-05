@@ -144,7 +144,6 @@ export {
   sequencePersonWhyOf,
   theirsOf,
   waitingAnswersOf,
-  wroteLineWords,
 } from "./sequence-held";
 export type { HeldAnswer, HeldChoice, MarkedOpening, RewriteStep, RewroteOpening } from "./sequence-held";
 export {
@@ -192,6 +191,7 @@ export type { SequenceSort, SequenceType } from "./sequence-list";
 export {
   PLACE_RAIL_WORDS,
   PLACE_WORDS,
+  placeLineWriting,
   placeRailOf,
   placeSpanOf,
   placeStands,

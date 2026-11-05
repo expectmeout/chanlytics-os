@@ -59,6 +59,8 @@ export interface SequencePlaceRowDto {
   checked?: boolean;
   /** Beside them: its lead has words of their own at its step, holding no line, so those are what it goes with (decision 0096). */
   own?: boolean;
+  /** Beside them: the check put it off until then, where it did (its day's share, a model's bad hour). */
+  check_after?: string | null;
 }
 
 /**
@@ -153,6 +155,16 @@ export const placeToneOf = (g: SequencePeopleGroup): PlaceTone =>
 
 /** What a place is read from: its row (a People row, a places_of row, sequence_place's row). */
 type PlaceRow = Pick<SequencePlaceRowDto, "group" | "place" | "at" | "why">;
+
+/**
+ * Whether the check is at an email's line now (decision 0098): it comes to every planned email within minutes, whatever
+ * its day, unless its sequence is not on or it was put off. What holds no line is the caller's to know.
+ */
+export const placeLineWriting = (
+  r: { checked?: boolean; check_after?: string | null },
+  seq: { state: SequenceState },
+  nowMs: number,
+): boolean => r.checked === false && seq.state === "on" && !(r.check_after && Date.parse(r.check_after) > nowMs);
 
 /** Where a lead added and not yet planned stands, by the sequence's own state. */
 const queuedLine = (state: SequenceState): string =>
