@@ -78,7 +78,7 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
     for (const [i, row] of due.entries()) {
       if (overBudget("listings", due.length - i)) break;
       try {
-        const r = await checkListing(db, row, zones.get(row.tenant_id) ?? DEFAULT_TIMEZONE, "keep", now);
+        const r = await checkListing(db, row, zones.get(row.tenant_id) ?? DEFAULT_TIMEZONE, { now });
         if (r.ok) {
           out.listings_read += 1;
           out.fresh += r.fresh;

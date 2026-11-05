@@ -156,7 +156,7 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ claimAndWrite } = await import(at("apps/edge/lib/reach-out/sender.ts")));
-  ({ checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts")));
+  ({ checkedWordsOf } = await import("@chanlytics/channels"));
   ({ sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts")));
   ({ logger: log } = await import(at("apps/edge/lib/log.ts")));
   A = await workspace(`sender-a-${stamp}`, "Harbor Moving Co");

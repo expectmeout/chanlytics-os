@@ -86,6 +86,14 @@ export const LeadOneQuerySchema = z.object({ search: z.string().uuid().optional(
 /** The view a bulk act names when the owner chose "Select all N that match" (S13): the same keys GET leads takes. */
 export const LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
 
+/** POST leads/[id]/send (decision 0094): the words as the member last read them, without the foot the send adds. */
+export const LeadEmailWordsSchema = z.object({
+  subject: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(4000),
+});
+
+export type LeadEmailWords = z.infer<typeof LeadEmailWordsSchema>;
+
 /** POST leads/[id]/stage, the page's five acts made exclusive. */
 export const LeadStageInputSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("stage"), stage: z.enum(["ready", "nurture", "converted"]) }),
@@ -98,8 +106,8 @@ export const LeadStageInputSchema = z.discriminatedUnion("kind", [
     /** Who the call reached (0052): Interested names the person it makes, or a stand-in still named for the business. */
     spoke_with: z.string().trim().max(80).optional(),
   }),
-  /** "Did you send it?" Yes. */
-  z.object({ kind: z.literal("emailed") }),
+  /** "Did you send it?" Yes, with the words it went with: an email of your own keeps a row (decision 0094). */
+  z.object({ kind: z.literal("emailed"), words: LeadEmailWordsSchema.optional() }),
 ]);
 
 export type LeadStageInput = z.infer<typeof LeadStageInputSchema>;
@@ -169,7 +177,14 @@ export const ProposeLeadSearchSchema = z.object({
     .default(null),
   contact: z.enum(["phone", "email"]),
   criteria: z
-    .array(z.object({ text: planChip(120), standard: z.enum(["likely", "seen"]), required: z.boolean() }))
+    .array(
+      z.object({
+        text: planChip(120),
+        standard: z.enum(["likely", "seen"]),
+        required: z.boolean(),
+        on_site: z.boolean().optional(),
+      }),
+    )
     .max(6)
     .default([]),
   leave_out: z
@@ -415,6 +430,7 @@ export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
       text: c.text,
       standard: c.standard,
       required: c.required,
+      ...(c.on_site ? { on_site: true } : {}),
     })),
     exclusions: input.leave_out.map((l, i) => ({
       key: planKey(l.words, `x${i + 1}`, taken),

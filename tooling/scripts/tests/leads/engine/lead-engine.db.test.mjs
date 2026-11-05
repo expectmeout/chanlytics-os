@@ -22,7 +22,7 @@ import { createClient } from "@supabase/supabase-js";
 import { takeLock } from "../../_file-lock.mjs";
 import { ROLE_PERMS, leadMonth, legacyLeadSuppressionHash } from "@chanlytics/contracts";
 import { at } from "../../_cron-doors-world.mjs";
-import { sha256, webhookToken } from "../../_lead-world.mjs";
+import { sha256, siteReaderOver, webhookToken } from "../../_lead-world.mjs";
 import { fakeApify, fakeJudge, checkerItem, probeItems } from "../../_lead-fixtures.mjs";
 import { startRound } from "../../../../../packages/core/src/leads/runner/start.ts";
 import { collect } from "../../../../../packages/core/src/leads/runner/collect.ts";
@@ -240,7 +240,7 @@ function a2World(base) {
     now: () => new Date(),
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,
-    fetchText: async (url) => pages[url] ?? null,
+    readSite: siteReaderOver(pages),
     schedule: async (kind, payload, secs) => {
       await scheduleJobOnce(db, { tenantId: A, kind, dueAt: new Date(Date.now() + secs * 1000), payload });
     },

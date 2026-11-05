@@ -1302,7 +1302,15 @@ test("the mark: a lead keeps the logo its own site declares, a left-out place ke
   const { w: w2, p: p2 } = await probed();
   w2.pages["https://place0001.example"] = `<head><link rel="icon" href="/i.svg"></head>`;
   // Enough time for the page and the judge, and none for the marks: the last thing the collect does is the first it gives up.
-  const tight = { ...p2("c2"), deadline: w2.clock.ms + JUDGE_MARGIN_MS + 100 };
+  const asked = w2.judge.judge;
+  const slow = {
+    ...w2.judge,
+    judge: async (...a) => {
+      w2.clock.ms += JUDGE_MARGIN_MS;
+      return asked(...a);
+    },
+  };
+  const tight = { ...p2("c2"), judge: slow, deadline: w2.clock.ms + JUDGE_MARGIN_MS + 100 };
   const done = await collect(tight, w2.runs()[0].id, "p0", "c2");
   assert.equal(done.kind, "committed", JSON.stringify(done));
   assert.equal(
@@ -1316,11 +1324,12 @@ test("the mark: a lead keeps the logo its own site declares, a left-out place ke
 test("the mark: a page that does not answer, or answers something that is not a page, leaves the lead unmarked", async () => {
   const { w, p } = await probed();
   w.pages["https://place0001.example"] = "<html><body>no head here</body></html>";
-  w.wires.fetchText = async (url) => {
-    if (url === "https://place0002.example") throw new Error("refused");
-    return w.pages[url] ?? null;
+  const read = w.wires.readSite;
+  w.wires.readSite = async (host) => {
+    if (host === "place0002.example") throw new Error("refused");
+    return read(host);
   };
-  const ports = { ...p("c1"), fetchText: w.wires.fetchText };
+  const ports = { ...p("c1"), readSite: w.wires.readSite };
   const out = await collect(ports, w.runs()[0].id, "p0", "c1");
   assert.equal(out.kind, "committed", JSON.stringify(out));
   const markOf = (n) => (w.T.leads.find((l) => l.place_id === `ChIJfixture000${n}`) || {}).logo_url;

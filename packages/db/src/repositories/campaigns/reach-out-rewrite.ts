@@ -78,7 +78,7 @@ export async function sendOpeningsOf(db: Db, p: { tenantId: string; sendIds: str
     if (!r) return [];
     const asked = r.rewrite_asked;
     const was = asked && typeof asked === "object" && !Array.isArray(asked) ? (asked as { was?: unknown }).was : null;
-    const paused = !(r.step_id && running.has(r.step_id) && running.has(r.sequence_id));
+    const paused = !(r.step_id && r.sequence_id && running.has(r.step_id) && running.has(r.sequence_id));
     return [
       {
         send_id: id,

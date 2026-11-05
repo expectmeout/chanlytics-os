@@ -8437,7 +8437,7 @@ CREATE FUNCTION public.lead_chain_of(p_tenant_id uuid, p_lead_id uuid) RETURNS u
     AS $$
   select coalesce(
     (select s.sequence_id as root_id from public.sequence_sends s
-      where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+      where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
         and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))
       order by s.created_at desc
       limit 1),
@@ -9322,10 +9322,10 @@ CREATE FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_ter
     SET search_path TO 'public'
     AS $$
 declare
-  -- The card's prices a place (contracts LEAD_CARDS, local_businesses): discovery, contacts, the judge and the mailbox
-  -- check, the dearest standard's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN); the actor's floor on
-  -- a run's cap (core MAPS_CAP_FLOOR_USD).
-  v_place  numeric := 0.003 + 0.002 + 0.0023 + 0.00089;
+  -- The card's prices a place (contracts LEAD_CARDS, local_businesses): discovery, contacts, the judge, the mailbox check
+  -- and reading its own site (00541), the dearest plan's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN);
+  -- the actor's floor on a run's cap (core MAPS_CAP_FLOOR_USD).
+  v_place  numeric := 0.003 + 0.002 + 0.0023 + 0.00089 + 0.005;
   v_check  numeric := 0.00089;
   v_start  numeric := 0.00005;
   v_margin numeric := 1.3;
@@ -9361,7 +9361,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474, 00541). search: ceil(((25 + least(1000, 2 x count)) x $0.01319 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
 
 --
@@ -12025,6 +12025,40 @@ CREATE FUNCTION public.lead_site_key(p_host text) RETURNS text
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$ select nullif(regexp_replace(lower(btrim(coalesce(p_host, ''))), '^www\.', ''), '') $$;
+
+
+--
+-- Name: lead_site_reads_spent(uuid, integer, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid DEFAULT NULL::uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  r public.lead_rounds;
+begin
+  if coalesce(p_reads, 0) <= 0 or coalesce(p_usd, 0) <= 0 then return; end if;
+  if p_round_id is not null then
+    select * into r from public.lead_rounds where id = p_round_id and tenant_id = p_tenant_id for update;
+  end if;
+  if r.id is not null and r.state <> 'ended' then
+    perform public.lead_settle_usage(r.tenant_id, r.month, r.day, r.platform_day, p_usd, r.cost_reserved_usd - r.cost_usd);
+    update public.lead_rounds set site_reads = site_reads + p_reads, cost_usd = cost_usd + p_usd where id = r.id;
+    return;
+  end if;
+  -- No round, or one that ended (its trigger refuses a change): this month's budget and today's two days, reserved from
+  -- nothing, as a re-check after its round is settled (lead_collect_commit).
+  perform public.lead_settle_usage(p_tenant_id, public.lead_month(p_tenant_id, now()), public.lead_day(p_tenant_id, now()),
+    to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), p_usd, 0);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) IS 'What reading businesses'' own sites cost, spent when read (00541): p_reads credits at the card''s price p_usd, whatever each read answered. Against a round that still lives: its count, its cost, and the month''s and both days'' counters out of what it has reserved. With no round, or one ended: this month''s and today''s, reserved from nothing, as a re-check after its round is. The service role''s: the collect, the re-judge and the leads sweep''s second try at a mark.';
 
 
 --
@@ -22371,7 +22405,7 @@ begin
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at
         from public.sequence_sends s
         left join public.messages m on m.id = s.message_id
-       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id is not null
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     period as (
@@ -22881,7 +22915,7 @@ begin
     return null;
   end if;
   select s.sequence_id as root_id into v_root from public.sequence_sends s
-   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
      and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back', 'moved')))
    order by s.created_at desc
    limit 1;
@@ -24341,7 +24375,7 @@ begin
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
         from public.sequence_sends s
         left join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id is not null
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     sent as (
@@ -25390,7 +25424,7 @@ CREATE FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_
         then 'suppressed'
       -- Never twice by the workspace: a send of any reach-out, bar one in a run its owner skipped or one taken back.
       when exists (select 1 from public.sequence_sends ro
-                    where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id
+                    where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id and ro.sequence_id is not null
                       and not (ro.state = 'skipped' and ro.reason in ('run_canceled', 'owner_took_back', 'moved'))))
         then 'written'
       -- One business written to once: the finder saw it share a number, an own-domain address or a site with another.
@@ -27997,9 +28031,9 @@ end $$;
 CREATE TABLE public.sequence_sends (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
-    sequence_id uuid NOT NULL,
+    sequence_id uuid,
     step_id uuid,
-    batch_id uuid NOT NULL,
+    batch_id uuid,
     contact_id uuid,
     lead_id uuid,
     state text NOT NULL,
@@ -28039,6 +28073,7 @@ CREATE TABLE public.sequence_sends (
     CONSTRAINT sequence_sends_drafted_is_whole CHECK ((((state <> 'drafted'::text) OR ((drafted_at IS NOT NULL) AND (draft IS NOT NULL))) AND ((draft IS NULL) OR ((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 16000))))),
     CONSTRAINT sequence_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
     CONSTRAINT sequence_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
+    CONSTRAINT sequence_sends_own_is_a_leads CHECK ((((sequence_id IS NOT NULL) AND (batch_id IS NOT NULL)) OR ((sequence_id IS NULL) AND (batch_id IS NULL) AND (step_id IS NULL) AND (lead_id IS NOT NULL)))),
     CONSTRAINT sequence_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
     CONSTRAINT sequence_sends_reason_check CHECK (((lead_id IS NULL) OR (reason IS NULL) OR (char_length(reason) <= 60))),
     CONSTRAINT sequence_sends_rewrite_asked_shape CHECK (((rewrite_asked IS NULL) OR ((jsonb_typeof(rewrite_asked) = 'object'::text) AND (((rewrite_asked -> 'change'::text) IS NULL) OR (jsonb_typeof((rewrite_asked -> 'change'::text)) = 'null'::text) OR ((char_length((rewrite_asked ->> 'change'::text)) >= 1) AND (char_length((rewrite_asked ->> 'change'::text)) <= 280))) AND (octet_length((rewrite_asked)::text) <= 4000)))),
@@ -28053,7 +28088,7 @@ CREATE TABLE public.sequence_sends (
 -- Name: TABLE sequence_sends; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.';
+COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team. A lead''s own email (00540) has no sequence, batch or step: a member pressed Send, or said they sent it; it is born queued or sent, the mailbox''s day counts it and a reply finds it.';
 
 
 --
@@ -28997,7 +29032,7 @@ begin
   end if;
   -- One business gets one sequence: a lead written to, or handed an email to send, stays where it is.
   if exists (select 1 from public.sequence_sends s
-              where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+              where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
                 and s.state in ('claimed', 'queued', 'sent', 'handed', 'drafted')) then
     raise exception 'They were written to already: a business gets one sequence.' using errcode = '23505';
   end if;
@@ -35629,6 +35664,7 @@ CREATE TABLE public.lead_rounds (
     nearby jsonb DEFAULT '[]'::jsonb NOT NULL,
     state_since timestamp with time zone DEFAULT now() NOT NULL,
     judge_usd numeric(10,4) DEFAULT 0 NOT NULL,
+    site_reads integer DEFAULT 0 NOT NULL,
     CONSTRAINT lead_rounds_allowance_reserved_check CHECK ((allowance_reserved >= 0)),
     CONSTRAINT lead_rounds_allowance_used_check CHECK ((allowance_used >= 0)),
     CONSTRAINT lead_rounds_answered_check CHECK ((answered = ANY (ARRAY['keep'::text, 'include'::text, 'stop'::text]))),
@@ -35688,6 +35724,13 @@ COMMENT ON COLUMN public.lead_rounds.state_since IS 'When the round last moved (
 --
 
 COMMENT ON COLUMN public.lead_rounds.judge_usd IS 'What judging the round cost (00506): the usage ledger''s lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month''s budget and both days.';
+
+
+--
+-- Name: COLUMN lead_rounds.site_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.site_reads IS 'The businesses'' own sites this round read (00541), each one credit with the page''s reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd.';
 
 
 --
@@ -41589,6 +41632,13 @@ CREATE UNIQUE INDEX sequence_sends_one_first ON public.sequence_sends USING btre
 --
 
 CREATE INDEX sequence_sends_open ON public.sequence_sends USING btree (tenant_id, state) WHERE (state = ANY (ARRAY['claimed'::text, 'queued'::text]));
+
+
+--
+-- Name: sequence_sends_own_once; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX sequence_sends_own_once ON public.sequence_sends USING btree (tenant_id, lead_id) WHERE ((sequence_id IS NULL) AND (state = 'queued'::text));
 
 
 --
@@ -49074,6 +49124,14 @@ GRANT ALL ON FUNCTION public.lead_settle_usage(p_tenant_id uuid, p_month text, p
 
 REVOKE ALL ON FUNCTION public.lead_site_key(p_host text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_site_key(p_host text) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) TO service_role;
 
 
 --

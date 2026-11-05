@@ -1,8 +1,9 @@
 /**
- * Which of a business's own pages its home page points to for what Check asks (decision 0073, R10): its services and
- * prices, and what it says of itself and its rules. This file is the reading, and nothing else: given a page's text and
- * the address it came from, it answers up to `max` addresses on the same site, chosen by what their links say, the
- * services' and prices' first. It makes no request -- the edge reads the pages (apps/edge/lib/imports/website-read.ts).
+ * Which of a business's own pages to read for what Check asks (decision 0073, R10): its services and prices, and what it
+ * says of itself and its rules. This file is the reading, and nothing else: given what a home page links to, or what the
+ * reader's map knows of the site, it answers up to `max` addresses on the same site, the services' and prices' first,
+ * those whose words say so ahead of those only their address says it of. It makes no request -- the edge reads the pages
+ * (apps/edge/lib/imports/website-read.ts).
  */
 import { attrsOf, decodeEntities } from "./html";
 
@@ -16,6 +17,8 @@ const SAYS_ABOUT = /\b(about|faq|faqs|questions|policy|policies|info|nosotros|pr
 const TAG_MAX = 2_000;
 const WORDS_MAX = 300;
 const LINKS_MAX = 400;
+/** An address says what its page is only near the site's root: "/hair-services", never a post at "/blog/2024/our-menu". */
+const PATH_SAYS_DEPTH = 2;
 
 /** An address on the same site as `home` (its host, with or without www), in https or http, without its fragment. */
 function sameSite(href: string, home: URL): string | null {
@@ -32,20 +35,49 @@ function sameSite(href: string, home: URL): string | null {
   return u.toString();
 }
 
+/** What an address says of its page, in words: its path's, near the root of the site; nothing deeper. */
+function pathWordsOf(page: string): string {
+  const parts = new URL(page).pathname.split("/").filter(Boolean);
+  return parts.length > PATH_SAYS_DEPTH ? "" : parts.join(" ").replace(/[-_.]+/g, " ");
+}
+
+/** A page chosen by what is said of it: `words`, what the link or the page's head says, ahead of its address. */
+function pagesPicker(pageUrl: string): {
+  add: (href: string, words: string) => void;
+  picked: (max: number) => string[];
+} | null {
+  let home: URL;
+  try {
+    home = new URL(pageUrl);
+  } catch {
+    return null;
+  }
+  const self = sameSite(pageUrl, home);
+  const by = { services: [] as string[], servicesAt: [] as string[], about: [] as string[], aboutAt: [] as string[] };
+  return {
+    add(href, words) {
+      const page = sameSite(href, home);
+      if (!page || page === self) return;
+      if (SAYS_SERVICES.test(words)) by.services.push(page);
+      else if (SAYS_ABOUT.test(words)) by.about.push(page);
+      else {
+        const at = pathWordsOf(page);
+        if (SAYS_SERVICES.test(at)) by.servicesAt.push(page);
+        else if (SAYS_ABOUT.test(at)) by.aboutAt.push(page);
+      }
+    },
+    picked: (max) =>
+      [...new Set([...by.services, ...by.servicesAt, ...by.about, ...by.aboutAt])].slice(0, Math.max(0, max)),
+  };
+}
+
 /**
  * Up to `max` of the site's own pages the home page links to for the services and prices, then for what it says of
  * itself and its rules, each once, never the home page again. Read in one pass, each link within a bound.
  */
 export function sitePagesLinkedFrom(html: string, pageUrl: string, max = 2): string[] {
-  let home: URL;
-  try {
-    home = new URL(pageUrl);
-  } catch {
-    return [];
-  }
-  const services: string[] = [];
-  const about: string[] = [];
-  const self = sameSite(pageUrl, home);
+  const picker = pagesPicker(pageUrl);
+  if (!picker) return [];
   const start = /<a[\s>]/gi;
   for (let at = 0, n = 0; n < LINKS_MAX; n++) {
     start.lastIndex = at;
@@ -66,10 +98,19 @@ export function sitePagesLinkedFrom(html: string, pageUrl: string, max = 2): str
         attrs.title ?? "",
       ].join(" "),
     );
-    const page = sameSite(attrs.href, home);
-    if (!page || page === self || services.includes(page) || about.includes(page)) continue;
-    if (SAYS_SERVICES.test(words)) services.push(page);
-    else if (SAYS_ABOUT.test(words)) about.push(page);
+    picker.add(attrs.href, words);
   }
-  return [...services, ...about].slice(0, Math.max(0, max));
+  return picker.picked(max);
+}
+
+/** Up to `max` of the pages a site's map names, by the same reading: what each page's head calls it, then its address. */
+export function sitePagesNamed(
+  links: readonly { url: string; title: string | null }[],
+  pageUrl: string,
+  max = 2,
+): string[] {
+  const picker = pagesPicker(pageUrl);
+  if (!picker) return [];
+  for (const l of links) picker.add(l.url, l.title ?? "");
+  return picker.picked(max);
 }

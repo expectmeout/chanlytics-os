@@ -1698,6 +1698,7 @@ The unit of execution and of money: the probe (seq 1), each top-up and each Find
 | `nearby` | jsonb | no | `'[]'::jsonb` | Where to look next when the round ran dry (00145): the nearest ZIP centres past its area, as the plan's area rows, nearest first; [] when it found what it asked for. |
 | `state_since` | timestamp with time zone | no | `now()` | When the round last moved (00506): set by lead_rounds_guard on every change of state. The lead sweep carries a round quiet since then on (core nextStepOf), and ends one nothing can carry on through lead_round_end_stuck. |
 | `judge_usd` | numeric(10,4) | no | `0` | What judging the round cost (00506): the usage ledger's lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month's budget and both days. |
+| `site_reads` | integer | no | `0` | The businesses' own sites this round read (00541), each one credit with the page's reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd. |
 
 Foreign keys:
 
@@ -3240,7 +3241,7 @@ Foreign keys:
 
 ### sequence_sends
 
-Decision 0060: one message of a sequence to one person. A customer's (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead's (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox's day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.
+Decision 0060: one message of a sequence to one person. A customer's (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead's (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox's day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team. A lead's own email (00540) has no sequence, batch or step: a member pressed Send, or said they sent it; it is born queued or sent, the mailbox's day counts it and a reply finds it.
 
 - Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
@@ -3250,9 +3251,9 @@ Decision 0060: one message of a sequence to one person. A customer's (contact_id
 | --- | --- | --- | --- | --- |
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
-| `sequence_id` | uuid | no |  |  |
+| `sequence_id` | uuid | yes |  |  |
 | `step_id` | uuid | yes |  |  |
-| `batch_id` | uuid | no |  |  |
+| `batch_id` | uuid | yes |  |  |
 | `contact_id` | uuid | yes |  |  |
 | `lead_id` | uuid | yes |  |  |
 | `state` | text | no |  |  |

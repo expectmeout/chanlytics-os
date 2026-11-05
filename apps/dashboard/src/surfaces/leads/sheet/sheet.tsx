@@ -5,7 +5,7 @@
  * lead (Fit, Contact, Company or About, Sequence, History), nothing behind a tab. On a desk a panel beside the rows; on a
  * phone the kit's sheet with two rests, the lines under the card at half, so half is never empty, and opening one raises
  * it. The dock at its foot holds only what to press: what needs you, else the quiet ways on (Take out, asked first; your
- * call; Write to them, a step of the card sent from your own mail app), and no foot where nothing is left. It draws once:
+ * call; Write to them, a step of the card sent from a mailbox or your own mail app), and no foot where nothing is left. It draws once:
  * who they are at the press, and all the rest together when the reads that decide it are in (facts.ts
  * sheetStillReading).
  *
@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { useLeadPlace } from "../../campaigns/sequences/place/parts";
+import { useLeadEmails, useLeadPlace } from "../../campaigns/sequences/place/parts";
 import { useSequenceRead } from "../../campaigns/sequences/use-record";
 import { pressed, sequenceVerbs as verbs } from "../../campaigns/sequences/verbs";
 import { Button } from "../../kit/button/button";
@@ -401,15 +401,23 @@ function sheetStepOf(d: SheetDraw) {
 
 /* --------------------------------------------------------------------------------------------- the asks and dock -- */
 
+/** What an email of your own sets off: Take out asked while their sequence stands, its Undo taking that back. */
+const wroteOf = (d: SheetDraw) => ({
+  stands: !!standing(d.facts),
+  ask: () => d.sheet.put({ ask: "leave", wrote: true }),
+  unask: () => d.sheet.put({ ask: null, wrote: false }),
+  moved: d.moved,
+});
+
 /**
  * What the sheet asks over the card: whether to erase, how the call went, whether the draft was sent. An email sent then
  * asks Take out where a sequence would write on (wroteActsOf).
  */
 function asksOf(d: SheetDraw) {
-  const { p, vm, facts, sheet } = d;
+  const { p, vm } = d;
   if (!vm || !p.on) return null;
   const a = p.armed;
-  const on = wroteActsOf(p.on, { stands: !!standing(facts), ask: () => sheet.put({ ask: "leave", wrote: true }) });
+  const on = wroteActsOf(p.on, wroteOf(d));
   const ask =
     p.mode === "erase" || p.mode === "erasing" ? (
       <LeadPeekAsk vm={vm} mode={p.mode} busy={p.busy} on={on} />
@@ -441,7 +449,8 @@ function dockOf(d: SheetDraw, desk: boolean) {
   const pile = p.pile ? p.pile.pile : null;
   const busy = p.busy || d.busy.on || !!(pile && pile.busy);
   if (!vm || !facts || sheet.ui.step !== "card") return null;
-  if (p.mode === "draft" && p.on) return <SheetWriteDock vm={vm} draft={p.draft} busy={busy} on={p.on} />;
+  if (p.mode === "draft" && p.on)
+    return <SheetWriteDock vm={vm} draft={p.draft} busy={busy} on={wroteActsOf(p.on, wroteOf(d))} />;
   const stands = standing(facts);
   if (sheet.ui.ask === "leave" && stands)
     return (
@@ -696,6 +705,7 @@ export function LeadSheet(p: LeadSheetProps) {
   const [again, setAgain] = useState(0);
   const moved = () => setAgain((n) => n + 1);
   const place = useLeadPlace(leadId, again);
+  const emails = useLeadEmails(leadId, again);
   const sheet = useSheetUi(leadId);
   const [busyOn, setBusy] = useState(false);
   const aim = p.aim;
@@ -716,6 +726,7 @@ export function LeadSheet(p: LeadSheetProps) {
           tz: p.tz,
           aim,
           place,
+          emails,
           railRecord,
           railReading: !!railId && rec.state === "reading",
           waiting: waitingOf(railRecord, place.place ? place.place.place.batch_id : null),

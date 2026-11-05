@@ -4,7 +4,14 @@
  * acts `LeadPeekActions` builds from the page's setters, so these are the shapes that cross between the two.
  */
 import type { ReactNode } from "react";
-import type { leadPeekMenu, LeadCallOutcome, LeadNotAFitWhy, LeadPeekVM, LeadStageInput } from "@chanlytics/contracts";
+import type {
+  leadPeekMenu,
+  LeadCallOutcome,
+  LeadEmailWords,
+  LeadNotAFitWhy,
+  LeadPeekVM,
+  LeadStageInput,
+} from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { useLegacyToast } from "../../legacy-verbs";
 
@@ -37,6 +44,16 @@ export interface DraftState {
   body?: string;
   mailto?: string | null;
   refusal?: string | null;
+  /** The words alone, as changed: what Send takes, and what "Did you send it?" keeps. */
+  words?: string;
+  /** What their own mail app's road puts under the words. */
+  mailFoot?: string;
+  /** The mailbox it would leave from, and what goes under the words there; why the mail app, where it is none. */
+  from?: string | null;
+  foot?: string | null;
+  whyNot?: string | null;
+  /** Send is out. */
+  sending?: boolean;
 }
 
 /** One lead at a time on a phone (D5): where you are in the pile, and the two ways through it. */
@@ -65,11 +82,16 @@ export interface StageData {
 }
 
 /** What asking for the draft answers, and what it is asked with. */
-interface DraftData {
+export interface DraftData {
   to: string;
   subject: string;
   body: string;
   mailto: string;
+  words: string;
+  mail_foot: string;
+  from: string | null;
+  why_not: string | null;
+  foot: string | null;
 }
 interface DraftInput {
   tone: "first" | "shorter" | "warmer";
@@ -82,6 +104,10 @@ export interface LeadCourier {
   __leadUndo: (opId: string, version: number) => Promise<ApiResult<unknown>>;
   __leadDraft: (id: string, input: DraftInput) => Promise<ApiResult<DraftData>>;
   __leadErase: (id: string) => Promise<ApiResult<unknown>>;
+  /** Send, from the mailbox the draft named (decision 0094). */
+  __leadSend: (id: string, words: LeadEmailWords) => Promise<ApiResult<{ message_id: string; from: string }>>;
+  /** Undo, inside its grace (POST messages/:id/cancel-send). */
+  __leadCallBack: (messageId: string) => Promise<ApiResult<unknown>>;
 }
 
 /** The acts the peek's panes call by name (`on.<name>`): what `LeadPeekActions` returns. */
@@ -116,6 +142,13 @@ export interface PeekActs {
   onTone: (tone: "shorter" | "warmer") => Promise<void>;
   onOpenMail: () => void;
   onCopyDraft: () => Promise<void>;
+  /** Their words changed: the subject, or the email itself. */
+  onWords: (patch: { subject?: string; words?: string }) => void;
+  /**
+   * Send, from the mailbox; true once it is on its way (the lead sheet then asks whether their sequence goes on).
+   * `undone` is said if its Undo takes it back.
+   */
+  onSend: (undone?: () => void) => Promise<boolean>;
   /** "Did you send it?" answered yes; true once the door kept it (the lead sheet then asks whether their sequence goes on). */
   onSaidSent: () => Promise<boolean>;
   onNotYet: () => void;

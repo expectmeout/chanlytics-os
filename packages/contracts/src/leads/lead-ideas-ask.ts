@@ -170,11 +170,12 @@ export function ideaJsonSchema(p: IdeaPacket): Record<string, unknown> {
               items: {
                 type: "object",
                 additionalProperties: false,
-                required: ["text", "standard", "required"],
+                required: ["text", "standard", "required", "on_site"],
                 properties: {
                   text: words,
                   standard: { type: "string", enum: ["likely", "seen"] },
                   required: { type: "boolean" },
+                  on_site: { type: "boolean" },
                 },
               },
             },
@@ -230,7 +231,7 @@ export const LEAD_IDEAS_SYSTEM = [
   `- keywords, for people: one to ${PEOPLE_KEYWORDS_MAX} words the companies' own websites use for what they do ("plumbing", "HVAC", "roofing"), so a kind the directory files under a broad industry is found by its work: home service companies are filed under Construction with roofers and builders. For places, none.`,
   "- count: one of the sizes given: smaller for a kind not tried, larger for one that worked. For people it is how many companies.",
   "- contact: for places, email when the business writes first or replies came by email, phone when most of a kind's leads list only a phone; for people, email.",
-  "- criteria, for places: at most three. seen only for what a listing shows (a website, a rating, reviews, open or closed); what a business is or does is likely. required only when the owner would turn a place down without it. For people, none.",
+  "- criteria, for places: at most three. seen only for what a listing shows (a website, a rating, reviews, open or closed); what a business is or does is likely. on_site true, with seen, only where the idea turns on what its own home page must say it offers, sells or how it books: each place's site is then read, which costs more, so most are false. required only when the owner would turn a place down without it. For people, none.",
   '- leave_out, for places: short chips in plain words ("chains"), from what was left out or not a fit before. For people, none.',
   `- line: the business as its owner would say it, from everything above: what it sells, who buys it, and where. One to three sentences, at most ${IDEA_LENGTHS.line} characters, in plain words with no slogan.`,
   "",

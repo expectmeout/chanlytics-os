@@ -95,7 +95,8 @@ export async function reachOutSendRefOf(
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`cannot read the email: ${error.message}`);
-  return data;
+  // A lead's own email (00540) has no run, and no To send names it.
+  return data?.broadcast_id ? { ...data, broadcast_id: data.broadcast_id } : null;
 }
 
 /**
@@ -418,7 +419,7 @@ export async function runWaitingCounts(
 ): Promise<Map<string, { held: number; drafted: number }>> {
   const out = new Map<string, { held: number; drafted: number }>();
   if (p.runIds.length === 0) return out;
-  const rows = await readAllRows<{ broadcast_id: string; state: string }>(
+  const rows = await readAllRows<{ broadcast_id: string | null; state: string }>(
     "cannot count the runs' waiting emails",
     (from, to) =>
       db
@@ -431,6 +432,7 @@ export async function runWaitingCounts(
         .range(from, to),
   );
   for (const r of rows) {
+    if (!r.broadcast_id) continue;
     const c = out.get(r.broadcast_id) ?? { held: 0, drafted: 0 };
     if (r.state === "held") c.held += 1;
     else c.drafted += 1;

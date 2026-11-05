@@ -8,7 +8,6 @@ export {
   onDomain,
 } from "./booking-page";
 export {
-  bookingPageKept,
   bookingPageOffered,
   checkedWords,
   connectionWords,

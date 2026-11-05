@@ -6,12 +6,13 @@ import {
   addressOf,
   leadsRoute,
   personName,
+  type LeadEmailDto,
   type LeadsQuery,
   type PersonAtLeadDto,
   type PreviewTriedDto,
   type SequencePlaceDto,
 } from "@chanlytics/contracts";
-import { peopleAtLead, previewsTriedSince, sequencePlaceOf } from "@chanlytics/db";
+import { leadEmailsOf, peopleAtLead, previewsTriedSince, sequencePlaceOf } from "@chanlytics/db";
 import { leadOne, leadsPage } from "../leads/lead-page";
 import { stamp, type Reader } from "./index";
 
@@ -97,6 +98,14 @@ export const previewsTried: Reader<undefined, { previews: PreviewTriedDto[] }> =
  * reply is learned of. Null for a lead in no sequence. What the lead sheet's Sequence section draws, and what Ask reads
  * of one lead's place, so both say what the record says. The sequence is the row a citation names.
  */
+/** One lead's own emails (decision 0094), oldest first: the rows of its History no sequence wrote. */
+export const leadEmails: Reader<{ id: string }, LeadEmailDto[]> = {
+  name: "lead_emails",
+  async read(rc, { id }) {
+    return { data: await leadEmailsOf(rc.ctx.supabase, rc.tenantId, id), rows: [], stamp: stamp() };
+  },
+};
+
 export const leadPlace: Reader<{ id: string }, SequencePlaceDto | null> = {
   name: "lead_place",
   async read(rc, { id }) {

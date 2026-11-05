@@ -61,7 +61,8 @@ export interface LeadClassification {
  * exclusion: every exclusion is required) gates the class: a required fail
  * excludes, with that key as the reason; a required criterion answered
  * `unknown`, or a required seen criterion only read (no fact cited beyond the
- * name or category, which are descriptions, not evidence), sends the place to
+ * name or category, which are descriptions, not evidence; for what only a website
+ * can show, on_site, whatever its standard, no citing of the site), sends the place to
  * review. An optional criterion never excludes and never sends a place to
  * review by itself — it only softens the fit band. A place with no location
  * or one outside the area, or one with no verified way to reach it, also sends it to review. Everything else
@@ -86,6 +87,7 @@ export function classify(
   if (facts.phone_matches_site === null && facts.emails.length === 0)
     return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons: string[] = [];
+  const onSite = new Set(plan.criteria.filter((c) => c.on_site).map((c) => c.key));
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely" as const, required: true },
     ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely" as const, required: true })),
@@ -97,7 +99,9 @@ export function classify(
   for (const r of rubric) {
     const a = answer.criteria.find((x) => x.key === r.key);
     const verdict = a?.answer ?? "unknown";
-    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
+    const readOnly = onSite.has(r.key)
+      ? !a?.facts.includes("site")
+      : r.standard === "seen" && a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
     if (verdict === "fail") {
       if (r.required) {
         excludedBy = excludedBy ?? r.key;
@@ -112,7 +116,7 @@ export function classify(
       } else {
         softFail = true;
       }
-    } else if (r.standard === "seen" && readOnly) {
+    } else if (readOnly) {
       if (r.required) {
         unknown = true;
         reasons.push(`inferred:${r.key}`);

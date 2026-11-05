@@ -25,6 +25,7 @@ import {
   type LeadCardCheck,
   type LeadCardPart,
   type LeadCardStepVM,
+  type LeadEmailDto,
   type LeadHistoryRowVM,
   type LeadLineVM,
   type LeadNowVM,
@@ -63,6 +64,8 @@ interface SheetInputs {
   aim: LeadAim;
   /** Their place (GET leads/:id/place), whether it has been read, and why it could not be: none is told apart from not yet. */
   place: { read: boolean; failed: string | null; place: SequencePlaceDto | null };
+  /** Their own emails (GET leads/:id/emails), for History; none where the read failed, which only leaves a row out. */
+  emails: { read: boolean; list: readonly LeadEmailDto[] };
   /**
    * The record of the sequence the rail draws (its steps and words): the one their place stands in, else the pick's. Null
    * while it is read.
@@ -350,7 +353,7 @@ function mailOf(p: { now: LeadNowVM; i: SheetInputs; card: LeadCardFacts; rail: 
  */
 function sheetStillReading(i: SheetInputs, state: LeadSheetState): boolean {
   if (i.place.failed !== null) return false;
-  if (!i.place.read || i.railReading) return true;
+  if (!i.place.read || !i.emails.read || i.railReading) return true;
   if (i.place.place || state === "closed") return false;
   return i.aim.reading || i.aim.checking(i.vm.id);
 }
@@ -406,7 +409,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     tz: i.tz,
     nowMs,
   });
-  const history = leadHistoryOf({ vm: i.vm, place, tz: i.tz, nowMs });
+  const history = leadHistoryOf({ vm: i.vm, place, emails: i.emails.list, tz: i.tz, nowMs });
   return {
     reading,
     unread,

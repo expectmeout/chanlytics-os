@@ -4,7 +4,7 @@
  * Part 2.5), which re-exports it. The routes' inputs, and the plan made from an ask, are lead-plan-schema.ts's.
  */
 import type { LeadPlanFacts } from "./lead-dtos";
-import type { LeadArea, LeadSearchPlan } from "./search/plan";
+import { planReadsSites, type LeadArea, type LeadSearchPlan } from "./search/plan";
 import type { LeadPeoplePlan } from "./search/people-plan";
 import { planWho } from "./search/sentence";
 import { planMinutes } from "./search/cards";
@@ -284,6 +284,7 @@ export function leadPlanFactLine(plan: LeadSearchPlan, facts: LeadPlanFacts | nu
     ...(facts
       ? [`uses ${Math.max(0, Math.min(plan.count, facts.leadsLeft))} of your ${facts.leadsLeft} leads this month`]
       : []),
+    ...(planReadsSites(plan) ? ["reads each one's website"] : []),
     "skips leads you have",
   ].join(" · ");
 }

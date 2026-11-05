@@ -1,13 +1,15 @@
 /**
- * Write to them, a step of the same sheet (the review of 4 Nov 2026: the lead's own draft had no way to it left): one
- * email, written for them by the route (POST leads/:id/draft, its foot the law's) and sent from the owner's own mail app.
- * The email as it will go, Shorter and Warmer to ask again; at the foot their mail app, with Gmail, Outlook and Copy
- * under its caret (contracts composeLinksOf, as To send opens one). Opening or copying it arms "Did you send it?", asked
- * once they are back at the tab (peek/acts.tsx), and a yes there marks them contacted. ‹ Back returns to the card.
+ * Write to them, a step of the same sheet (the review of 4 Nov 2026; decision 0094): one email, written for them by the
+ * route (POST leads/:id/draft) and theirs to change. With a mailbox that can send it, Send leaves from there, through the
+ * one send door, with Undo for its grace; the mail apps stay under its caret. With none, their mail app is the primary,
+ * with Gmail, Outlook and Copy under its caret (contracts composeLinksOf, as To send opens one): opening or copying it
+ * arms "Did you send it?", asked once they are back at the tab (peek/acts.tsx). A yes there marks them contacted, and
+ * either way the email keeps a row in History. ‹ Back returns to the card.
  *
  * Hookless.
  */
 import {
+  LEAD_OWN_EMAIL_WORDS as OW,
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS as LW,
   REACH_OUT_TO_SEND_LABELS as L,
@@ -15,6 +17,7 @@ import {
   type LeadPeekVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Panel } from "../../kit/panel/panel";
@@ -29,10 +32,10 @@ interface WriteProps {
   on: PeekActs;
 }
 
-/** The draft's words in paragraphs, each line kept where the route broke it. */
-const paragraphsOf = (body: string) => body.split(/\n\s*\n/).filter((p) => p.trim());
+/** How many lines the box of words stands. */
+const WORD_ROWS = 8;
 
-/** The doors into a mail client for the draft, once it is written (contracts composeLinksOf); none while it is not. */
+/** The doors into a mail client for the email as it now reads, once it is written (contracts composeLinksOf). */
 const linksOf = (vm: LeadPeekVM, d: DraftState) =>
   d.body && d.subject && !d.busy
     ? composeLinksOf({ to: d.to || vm.reach.email.address || "", subject: d.subject, text: d.body })
@@ -41,9 +44,13 @@ const linksOf = (vm: LeadPeekVM, d: DraftState) =>
 /** The route said no before a word was written (no business address, they asked not to be written to): nothing to send. */
 const refusedOutright = (d: DraftState) => !!d.refusal && !d.body;
 
+/** What goes under the words, as the road it takes lays it. */
+const footWordsOf = (d: DraftState) => (d.from ? d.foot : d.mailFoot?.trim()) || null;
+
 /**
- * The email, as it will go: to whom, its subject and its words; "Writing it…" while the route writes it. A link too long
- * to carry the words says that they are copied as it opens. Refused outright, why and the way back alone.
+ * The email, as it will go: to whom, its subject and its words to change, and what is added under them; "Writing it…"
+ * while the route writes it. Why it goes from the mail app, where a mailbox can't send it. A link too long to carry the
+ * words says that they are copied as it opens. Refused outright, why and the way back alone.
  */
 export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
   const d: DraftState = draft || {};
@@ -61,26 +68,51 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
     );
   const writing = !!d.busy;
   const links = linksOf(vm, d);
+  const foot = footWordsOf(d);
   return (
     <div className="lw-step" data-testid="lead-sheet-write">
-      {stepHead(W.write.title(vm.short), on.onBack, W.write.sub)}
+      {stepHead(W.write.title(vm.short), on.onBack, d.from ? OW.sub : W.write.sub)}
       {refusal}
       <Panel variant="inset" size="sm" className="lw-write-mail" aria-busy={writing || undefined}>
         <p className="lw-now-to" data-testid="peek-draft-to">
           {W.mail.to(d.to || vm.reach.email.address || vm.reach.email.value)}
         </p>
-        {d.subject && !writing ? (
-          <p className="lw-now-subj" data-testid="peek-draft-subject">
-            {d.subject}
+        {d.from ? (
+          <p className="lw-now-to" data-testid="lead-sheet-write-from">
+            {OW.from(d.from)}
           </p>
         ) : null}
-        <div className="lw-now-body lw-write-body" data-testid="peek-draft-body">
-          {writing || !d.body ? (
-            <p>{writing ? LW.draftWriting : ""}</p>
-          ) : (
-            paragraphsOf(d.body).map((para, at) => <p key={at}>{para}</p>)
-          )}
-        </div>
+        {writing ? (
+          <div className="lw-now-body" data-testid="peek-draft-body">
+            <p>{LW.draftWriting}</p>
+          </div>
+        ) : (
+          <>
+            <Field
+              label={OW.subject}
+              value={d.subject ?? ""}
+              onValueChange={(subject) => on.onWords({ subject })}
+              maxLength={200}
+              readOnly={busy || !!d.sending}
+              data-testid="peek-draft-subject"
+            />
+            <Field
+              label={OW.words}
+              rows={WORD_ROWS}
+              value={d.words ?? ""}
+              onValueChange={(words) => on.onWords({ words })}
+              maxLength={4000}
+              readOnly={busy || !!d.sending}
+              data-testid="peek-draft-body"
+            />
+            {foot ? (
+              <div className="lw-write-foot" data-testid="lead-sheet-write-foot">
+                <span>{OW.foot}</span>
+                <p>{foot}</p>
+              </div>
+            ) : null}
+          </>
+        )}
       </Panel>
       <div className="lw-write-tones" role="group" aria-label={LW.draftRewrite}>
         <span>{LW.draftRewrite}</span>
@@ -90,7 +122,7 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
             size="sm"
             variant="secondary"
             aria-pressed={d.tone === t.id}
-            disabled={busy || writing || !d.body}
+            disabled={busy || writing || !!d.sending || !d.body}
             onClick={() => void on.onTone(t.id)}
             data-testid={`peek-tone-${t.id}`}
           >
@@ -98,10 +130,12 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
           </Button>
         ))}
       </div>
-      <p className="lw-mail-n" data-testid="peek-draft-note">
-        {LW.draftNote}
-      </p>
-      {links && !links.bodyInLinks ? (
+      {!d.from && d.whyNot ? (
+        <p className="lw-mail-n" data-testid="lead-sheet-write-why">
+          {d.whyNot}
+        </p>
+      ) : null}
+      {!d.from && links && !links.bodyInLinks ? (
         <p className="lw-mail-n" data-testid="lead-sheet-write-paste">
           {L.pasteNote}
         </p>
@@ -111,8 +145,9 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
 }
 
 /**
- * The foot while it is written: their mail app, the primary, with Gmail, Outlook and Copy under its caret. A link too
- * long to carry the words leaves them to the clipboard, copied as it opens (the step above says so).
+ * The foot while it is written. From a mailbox: Send, the primary, with their mail apps and Copy under its caret. From
+ * their mail app: that, the primary, with Gmail, Outlook and Copy under its caret. A link too long to carry the words
+ * leaves them to the clipboard, copied as it opens (the step above says so).
  */
 export function SheetWriteDock({ vm, draft, busy, on }: WriteProps) {
   const d: DraftState = draft || {};
@@ -129,14 +164,37 @@ export function SheetWriteDock({ vm, draft, busy, on }: WriteProps) {
   };
   const words = (
     <>
-      <Icon name="mail" size={14} />
-      <span className="lw-dock-w">{L.app}</span>
+      <Icon name={d.from ? "send" : "mail"} size={14} />
+      <span className="lw-dock-w">{d.from ? OW.send : L.app}</span>
     </>
   );
+  const appItem = links
+    ? [
+        {
+          label: L.app,
+          glyph: <Icon name="mail" size={13} />,
+          onSelect: () => {
+            opening();
+            window.location.assign(links.mailto);
+          },
+        },
+      ]
+    : [];
+  const canSend = !!(d.from && links && d.words?.trim() && !d.sending);
   return (
     <div className="lw-dock" data-busy={busy || d.busy ? "true" : undefined} data-testid="lead-sheet-dock">
       <span className="lw-split">
-        {links ? (
+        {d.from ? (
+          <Button
+            variant="primary"
+            className="lw-dock-b"
+            disabled={!canSend}
+            onClick={() => void on.onSend()}
+            data-testid="lead-sheet-write-send"
+          >
+            {words}
+          </Button>
+        ) : links ? (
           <Button
             variant="primary"
             className="lw-dock-b"
@@ -171,6 +229,7 @@ export function SheetWriteDock({ vm, draft, busy, on }: WriteProps) {
               header: onAPhone() ? vm.name : undefined,
               items: links
                 ? [
+                    ...(d.from ? appItem : []),
                     { label: L.gmail, glyph: <Icon name="external" size={13} />, onSelect: onWeb(links.gmail) },
                     { label: L.outlook, glyph: <Icon name="external" size={13} />, onSelect: onWeb(links.outlook) },
                     { label: L.copy, glyph: <Icon name="copy" size={13} />, onSelect: () => void on.onCopyDraft() },

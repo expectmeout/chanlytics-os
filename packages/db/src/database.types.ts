@@ -3630,6 +3630,7 @@ export type Database = {
           question: Json | null
           search_id: string
           seq: number
+          site_reads: number
           started_at: string | null
           state: string
           state_since: string
@@ -3661,6 +3662,7 @@ export type Database = {
           question?: Json | null
           search_id: string
           seq: number
+          site_reads?: number
           started_at?: string | null
           state?: string
           state_since?: string
@@ -3692,6 +3694,7 @@ export type Database = {
           question?: Json | null
           search_id?: string
           seq?: number
+          site_reads?: number
           started_at?: string | null
           state?: string
           state_since?: string
@@ -6641,7 +6644,7 @@ export type Database = {
         Row: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -6670,7 +6673,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -6680,7 +6683,7 @@ export type Database = {
         Insert: {
           angle?: string | null
           attempts?: number
-          batch_id: string
+          batch_id?: string | null
           channel?: string | null
           check_after?: string | null
           check_first_at?: string | null
@@ -6709,7 +6712,7 @@ export type Database = {
           said_by?: string | null
           send_at?: string | null
           sent_at?: string | null
-          sequence_id: string
+          sequence_id?: string | null
           state: string
           step_id?: string | null
           tenant_id: string
@@ -6719,7 +6722,7 @@ export type Database = {
         Update: {
           angle?: string | null
           attempts?: number
-          batch_id?: string
+          batch_id?: string | null
           channel?: string | null
           check_after?: string | null
           check_first_at?: string | null
@@ -6748,7 +6751,7 @@ export type Database = {
           said_by?: string | null
           send_at?: string | null
           sent_at?: string | null
-          sequence_id?: string
+          sequence_id?: string | null
           state?: string
           step_id?: string | null
           tenant_id?: string
@@ -8808,6 +8811,15 @@ export type Database = {
         Returns: undefined
       }
       lead_site_key: { Args: { p_host: string }; Returns: string }
+      lead_site_reads_spent: {
+        Args: {
+          p_reads: number
+          p_round_id?: string
+          p_tenant_id: string
+          p_usd: number
+        }
+        Returns: undefined
+      }
       lead_spend_refusal: { Args: { p_tenant_id: string }; Returns: Json }
       lead_spend_room: {
         Args: { p_tenant_id: string; p_usd: number }
@@ -10550,7 +10562,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10579,7 +10591,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -10603,7 +10615,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10632,7 +10644,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -10729,7 +10741,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10758,7 +10770,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string
@@ -10899,7 +10911,7 @@ export type Database = {
         Returns: {
           angle: string | null
           attempts: number
-          batch_id: string
+          batch_id: string | null
           channel: string | null
           check_after: string | null
           check_first_at: string | null
@@ -10928,7 +10940,7 @@ export type Database = {
           said_by: string | null
           send_at: string | null
           sent_at: string | null
-          sequence_id: string
+          sequence_id: string | null
           state: string
           step_id: string | null
           tenant_id: string

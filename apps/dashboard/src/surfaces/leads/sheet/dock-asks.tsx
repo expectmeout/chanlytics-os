@@ -125,21 +125,33 @@ export function SheetRewrite(p: {
 }
 
 /**
- * The acts the sheet's questions press, where "Did you send it?" answered yes brings the card back from the draft and,
- * while a sequence they stand in would write on, asks Take out next. A call asks nothing: one that reached them moves the
- * lead past what the send door writes to (contracts outreachRefusalOf), and the rest leave its sequence running.
+ * The acts the sheet's questions press, where an email of your own, sent from the mailbox or said sent, brings the card
+ * back from the draft, reads their History again and, while a sequence they stand in would write on, asks Take out next.
+ * Its Undo takes the question back with it. A call asks nothing: one that reached them moves the lead past what the send
+ * door writes to (contracts outreachRefusalOf), and the rest leave its sequence running.
  */
-export function wroteActsOf(on: PeekActs, p: { stands: boolean; ask: () => void }): PeekActs {
+export function wroteActsOf(
+  on: PeekActs,
+  p: { stands: boolean; ask: () => void; unask: () => void; moved: () => void },
+): PeekActs {
+  const afterwards = (kept: boolean) => {
+    if (kept) {
+      on.onBack();
+      p.moved();
+      if (p.stands) p.ask();
+    }
+    return kept;
+  };
   return {
     ...on,
-    onSaidSent: () =>
-      on.onSaidSent().then((kept) => {
-        if (kept) {
-          on.onBack();
-          if (p.stands) p.ask();
-        }
-        return kept;
-      }),
+    onSaidSent: () => on.onSaidSent().then(afterwards),
+    onSend: () =>
+      on
+        .onSend(() => {
+          p.unask();
+          p.moved();
+        })
+        .then(afterwards),
   };
 }
 

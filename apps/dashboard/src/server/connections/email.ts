@@ -196,7 +196,7 @@ export function replyFromOf(r: Awaited<ReturnType<typeof replyIdentityOf>>): Rep
 }
 
 /** A request rides in the row's Json as it is (channels email.ts): one shape, written as JSON. */
-const requestJson = (r: EmailRequest): Json => r as unknown as Json;
+export const requestJson = (r: EmailRequest): Json => r as unknown as Json;
 
 /**
  * A person's own reply, as the request it leaves as. A reply from a mailbox the

@@ -1,4 +1,6 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+export { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./email/cold-request";
+export type { RequestRefusal } from "./email/cold-request";
 export { fetchMailDomains, fetchReceivedEmail, SEND_DEADLINE_MS, SEND_MIN_MS, sendEmail } from "./email/email-resend";
 export type { ResendAnswer, ResendConfig, SendEmailOptions } from "./email/email-resend";
 export { emailPlainText } from "./email/email-text";
@@ -407,13 +409,24 @@ export {
 } from "./public-fetch";
 export type { PublicFetchDeps, Resolve, Resolved } from "./public-fetch";
 export {
+  FIRECRAWL_CREDITS,
+  FIRECRAWL_MAP,
   FIRECRAWL_SCRAPE,
+  firecrawlCredits,
+  firecrawlMapper,
   firecrawlReader,
   imageBytes,
+  setSiteMapper,
   setSitePageReader,
+  type SiteBrand,
+  type SiteLink,
+  type SiteMapper,
+  siteMapper,
   type SitePage,
   type SitePageReader,
   sitePageReader,
+  type SiteReaderCredits,
+  type SiteReadOptions,
 } from "./site-reads";
 export { CONFIRM_PATH, confirmUrl, signConfirmToken, verifyConfirmToken } from "./tokens/confirm-token";
 export type { ConfirmClaims } from "./tokens/confirm-token";

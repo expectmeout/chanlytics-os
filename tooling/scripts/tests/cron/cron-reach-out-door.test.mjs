@@ -17,7 +17,7 @@ import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "../_cron-do
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/reach-out.ts"));
 const { sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts"));
-const { checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts"));
+const { checkedWordsOf } = await import("@chanlytics/channels");
 const { emailWordsOf } = await import("@chanlytics/db");
 const { parseTenantConfig } = await import("@chanlytics/contracts");
 after(() => setPg(null));

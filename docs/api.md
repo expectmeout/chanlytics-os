@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-353 handlers in 56 domains.
+355 handlers in 56 domains.
 
 ## activity
 
@@ -1217,6 +1217,12 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `tone` | one of `"first"`, `"shorter"`, `"warmer"` | no |  |
 | `previous` | object | no |  |
 
+### `GET /api/v1/leads/[id]/emails`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/emails/route.ts`).
+
 ### `POST /api/v1/leads/[id]/exclude`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lead_member` rate; spends nothing.
@@ -1267,6 +1273,15 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `search_id` | string (uuid) | yes |  |
 
+### `POST /api/v1/leads/[id]/send`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_send` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `subject` | string | yes | at least 1 characters; at most 200 characters |
+| `body` | string | yes | at least 1 characters; at most 4000 characters |
+
 ### `POST /api/v1/leads/[id]/stage`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
@@ -1307,6 +1322,7 @@ Body 5:
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `kind` | `"emailed"` | yes |  |
+| `words` | object | no |  |
 
 ### `GET /api/v1/leads/back`
 

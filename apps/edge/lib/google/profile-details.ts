@@ -7,20 +7,15 @@
  * website is read too (website-read.ts). A read that fails is logged and costs only these offers: the connection stands.
  */
 import { readLocationDetails, type GbpLocationDetails, type PlacesHttp } from "../packages/channels.js";
-import { bookingPageKept, listingFactsOf, normalizePhone } from "../packages/contracts.js";
-import { keepBusinessRead, listingFactsStored, type Json } from "../packages/db.js";
-import { keepListing } from "./listing-check.js";
+import { listingFactsOf, normalizePhone } from "../packages/contracts.js";
+import { keepBusinessRead, listingFactsStored, patchListing, type Json } from "../packages/db.js";
 import { errField, logger } from "../log.js";
 import { http } from "./places.js";
 import { tokenFor } from "./profile-credentials.js";
 import type { ConnectionRow, Db } from "./google-rows.js";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 
-/**
- * The listing's facts with what the owner's own listing says, where it says it; everything else as it was. The booking
- * page the link found stays while the website is the one it was found on (contracts bookingPageKept), as a later read of
- * the public listing keeps it.
- */
+/** The listing's facts with what the owner's own listing says, where it says it; everything else as it was. */
 function factsWith(stored: unknown, d: GbpLocationDetails): Json {
   const was = listingFactsOf(stored);
   const phone = d.phone ? normalizePhone(d.phone) : null;
@@ -37,7 +32,6 @@ function factsWith(stored: unknown, d: GbpLocationDetails): Json {
     primary_type_label: d.category ?? was?.primary_type_label ?? null,
     service_area_only: was?.service_area_only ?? false,
     time_zone: was?.time_zone ?? null,
-    booking_page: bookingPageKept(was, website),
   };
 }
 
@@ -54,7 +48,7 @@ export async function readProfileDetails(
     if (!t.ok) return;
     const d = await readLocationDetails(net, t.token, conn.location_name);
     const stored = await listingFactsStored(db, conn.tenant_id);
-    if (stored !== null) await keepListing(db, conn.tenant_id, { facts: factsWith(stored, d) });
+    if (stored !== null) await patchListing(db, conn.tenant_id, { facts: factsWith(stored, d) });
     await keepBusinessRead(db, {
       tenantId: conn.tenant_id,
       source: "google_profile",

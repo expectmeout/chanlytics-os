@@ -128,8 +128,6 @@ export const LEAD_SOURCE_WORD = "Google Maps listing";
 export const LEAD_LOCKED_LINE =
   "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
 
-export const LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
-
 /** An address on the never-again list: no email is written to it here, as no sequence writes to it. */
 export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no email is written here.";
 
@@ -143,12 +141,13 @@ export const LEAD_CONSENT_REFUSAL =
 /* --------------------------------------------- release B, tasks 12-15 ---- */
 
 /**
- * Who read a check that was read, as a lead's checks say it: the judge, Claude, from a place's listing; or Chanlytics
- * AI, which is the screen before the judge (decision 0085), from a place's listing, and a people search's company judge,
- * from the directory.
+ * Who read a check that was read, as a lead's checks say it: the judge, Claude, from a place's listing or its own website;
+ * or Chanlytics AI, which is the screen before the judge (decision 0085), from a place's listing, and a people search's
+ * company judge, from the directory.
  */
 export const LEAD_READ_SOURCES = {
   judge: "Claude · the listing",
+  site: "Claude · their website",
   screen: "Chanlytics AI · the listing",
   company: "Chanlytics AI · the directory",
 } as const;
