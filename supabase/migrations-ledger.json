@@ -549,6 +549,7 @@
     "00544_anthropic_is_told_whom_a_call_is_for.sql": "c6635a48db48a9124b2cd7639378378ed787f157536f25e5df7b37bab03588c3",
     "00545_a_lead_s_email_can_be_its_own.sql": "d98746519b03d97ed408456bdee425c41f172ca4bc476be0c6ca76083fd5ae7d",
     "00546_a_line_is_written_when_its_email_is_planned.sql": "6dd93c882d2cdb4267f92a54bc9474983ee85412a0f62e48b9bb8376b0d5e16e",
-    "00547_a_press_of_delete_is_one_write.sql": "34e6e29f9268da383c09f598dbd0faf90743b97a8bb521f2db1f81f6464c54fa"
+    "00547_a_press_of_delete_is_one_write.sql": "34e6e29f9268da383c09f598dbd0faf90743b97a8bb521f2db1f81f6464c54fa",
+    "00548_an_erased_person_leaves_their_sequences.sql": "5510e945dac23bfd8e1626f5f93244dd0a4d02c5828ae421a3193dec36ee7a32"
   }
 }
