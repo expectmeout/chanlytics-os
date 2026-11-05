@@ -5,9 +5,15 @@
 import type { LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
-import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./search/class";
+import { LEAD_KIND_KEY, LEAD_NO_SITE_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./search/class";
 import { LEAD_REACH_FILTERS, type LeadReachFilter } from "./search/sets";
-import { LEAD_CHECK_WORDS, LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
+import {
+  LEAD_CHECK_WORDS,
+  LEAD_LEFT_OUT_WORD,
+  LEAD_MAILBOX_WORDS,
+  LEAD_NO_SITE_WORD,
+  LEAD_UNREACHABLE_WORD,
+} from "./lead-words";
 import { weekdayNamed } from "../calendar/day-keys";
 import { clockInZone, dayInZone, dayPlusInZone } from "../calendar/zone-math";
 import { DAY_MS } from "../shared/time";
@@ -108,6 +114,7 @@ export function leadExclusionWord(search: LeadSearchDto | null, key: string | nu
   const plan = search?.plan;
   if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
   if (key === LEAD_UNREACHABLE_KEY) return LEAD_UNREACHABLE_WORD;
+  if (key === LEAD_NO_SITE_KEY) return LEAD_NO_SITE_WORD;
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return ex.text;
   const cr = plan?.criteria.find((c) => c.key === key);

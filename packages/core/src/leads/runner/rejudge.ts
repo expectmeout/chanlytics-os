@@ -4,6 +4,7 @@
  */
 
 import {
+  planNeedsASite,
   LEAD_KIND_KEY,
   judgeBatchPlaces,
   planReadsSites,
@@ -27,6 +28,7 @@ import {
   markUntil,
   outOfTime,
   wasJudged,
+  wasWeighed,
 } from "./rules";
 import { readSitesBeforeJudge, settleSiteReads, siteFactOf, siteReadsOf, type SiteReads } from "./site-reads";
 
@@ -76,8 +78,10 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
   const plan = round.plan;
   const card = CARDS[plan.card];
   const members = await p.db.membersOfRound(round.id);
+  // A place code left out for having no site to read is judged again only where the plan no longer needs one.
+  const looked = planNeedsASite(plan) ? wasJudged : wasWeighed;
   const pending = members.filter(
-    (m) => wasJudged(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version,
+    (m) => looked(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version,
   );
   if (!pending.length) return out;
 
@@ -181,7 +185,7 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
       const hosts = batch.flatMap((x) => (x.clean.host ? [x.clean.host] : []));
       await readSitesBeforeJudge(p, sites, hosts, JUDGE_MARGIN_MS);
       if (hosts.some((h) => !sites.asked(h))) throw new LeadRetry("out of time reading the first places' sites again");
-      await Promise.all(batch.map(async (x) => site.set(x, await siteFactOf(sites, x.clean.host))));
+      await Promise.all(batch.map(async (x) => site.set(x, await siteFactOf(sites, x.clean))));
     }
     // In the calls the judge can answer in time, side by side (judgeInCalls), each kept by the places it asked about.
     const calls = await judgeInCalls(

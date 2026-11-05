@@ -2123,7 +2123,7 @@ async function turnAgrees(why) {
   let turn = null;
   for (let i = 0; i < 3; i += 1) {
     turn = await turnTheClock(why);
-    if (turn.asked === (turn.open > 0 || turn.live > 0)) return turn;
+    if (turn.asked === (turn.open > 0 || turn.live > 0 || turn.unmarked > 0)) return turn;
   }
   return assert.fail(`${why}: the clock and the database disagreed three turns running: ${JSON.stringify(turn)}`);
 }
@@ -2139,6 +2139,19 @@ async function turnTheClock(why) {
     .select("id", { count: "exact", head: true })
     .in("state", ["claimed", "starting", "running", "unknown"]);
   assert.equal(live.error, null, live.error?.message);
+  const unmarked = await db
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .gte("found_at", new Date(Date.now() - 11 * 60_000).toISOString())
+    .eq("stage", "ready")
+    .is("contact_id", null)
+    .is("contacted_at", null)
+    .is("exported_at", null)
+    .is("erased_at", null)
+    .is("blanked_at", null)
+    .not("website_host", "is", null)
+    .is("mark_path", null);
+  assert.equal(unmarked.error, null, unmarked.error?.message);
   const returned = ok(await db.rpc("trigger_leads_sweep"));
   const now = ok(await db.from("sweep_status").select("note, requested_at").eq("sweep", "leads").single());
   ok(await db.from("sweep_status").update({ note: was.note }).eq("sweep", "leads"));
@@ -2146,7 +2159,7 @@ async function turnTheClock(why) {
   assert.equal(returned, null, `${why}: on a database with no edge to ask, either branch answers null`);
   if (asked) assert.equal(now.note, NO_EDGE, `${why}: the ask reached request_sweep`);
   else assert.notEqual(now.requested_at, was.requested_at, `${why}: a look is a look only once it is stamped`);
-  return { asked, open: open.count, live: live.count };
+  return { asked, open: open.count, live: live.count, unmarked: unmarked.count };
 }
 
 test(
@@ -2192,6 +2205,30 @@ test(
     const turn = await turnAgrees("a round of this suite's own, queued, with no run");
     assert.ok(turn.open >= 1, "this suite's own round is open");
     assert.equal(turn.asked, true, "a round that has not ended is work, whether or not anything has run for it");
+  },
+);
+
+test(
+  "the clock asks too for a lead just found with a site and no mark: its round is over by the time the second try reaches it",
+  { skip },
+  async () => {
+    const lead = ok(
+      await db
+        .from("leads")
+        .insert({
+          tenant_id: A,
+          place_id: `ChIJfixtureClock${Date.now()}`,
+          business_name: "Fixture Clock Studio",
+          website_host: "clock-studio.example",
+          stage: "ready",
+        })
+        .select("id")
+        .single(),
+    );
+    const turn = await turnAgrees("a lead of this suite's own, just found, with a site and no mark");
+    assert.ok(turn.unmarked >= 1, "this suite's own lead is waiting");
+    assert.equal(turn.asked, true, "a mark the sweep owes is work, with no round open");
+    ok(await db.from("leads").delete().eq("id", lead.id));
   },
 );
 

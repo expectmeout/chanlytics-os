@@ -198,6 +198,7 @@ export {
   LEAD_NO_ADDRESS,
   LEAD_NO_CARD_LINE,
   LEAD_NO_EMAIL_LINE,
+  LEAD_NO_SITE_WORD,
   LEAD_NOT_A_FIT_ASK,
   LEAD_NOT_A_FIT_TITLE,
   LEAD_NOT_A_FIT_WHYS,
@@ -372,7 +373,14 @@ export {
   planMinutes,
 } from "./search/cards";
 export type { LeadCardBrief } from "./search/cards";
-export { classify, LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord, leadPhoneState } from "./search/class";
+export {
+  classify,
+  LEAD_KIND_KEY,
+  LEAD_NO_SITE_KEY,
+  LEAD_UNREACHABLE_KEY,
+  leadKindWord,
+  leadPhoneState,
+} from "./search/class";
 export type { LeadClassification, LeadPhoneState } from "./search/class";
 export {
   cleanEmailCandidates,
@@ -438,7 +446,7 @@ export type {
 } from "./search/people-plan";
 export { LeadPeoplePlanSchema, LeadPeopleSearchSchema } from "./search/people-plan-schema";
 export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
-export { planReadsSites, planVersionOf } from "./search/plan";
+export { planNeedsASite, planReadsSites, planVersionOf } from "./search/plan";
 export type {
   LeadArea,
   LeadContactStandard,
