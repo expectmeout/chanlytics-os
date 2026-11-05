@@ -5,6 +5,7 @@
  * holds, and kept only on the owner's tap, a price with its service (the tap is the price confirmed, never assumed).
  * Pure: the edge writes the row, Setup reads it, and this says what Check offers of it.
  */
+import { DATA_NOT_INSTRUCTIONS } from "../ai/fence";
 import { sameListed } from "../calendar/service-offer";
 import { bookingPageOf } from "../google/booking-page";
 
@@ -204,6 +205,8 @@ export function foundOf(
 /** What the model is asked of a website's pages: only what they say, in their words, never a guess. */
 export const WEBSITE_READ_SYSTEM = [
   "You read a small business's own website pages for its owner, who checks each thing before their receptionist says it.",
+  "Each page comes in a <page> block of its own, its address on the first line.",
+  DATA_NOT_INSTRUCTIONS,
   "Answer only from what the pages say. Leave out anything they do not state; never guess a price, a time or a rule.",
   'services: each service or treatment offered, its price exactly as written ("$65", "from $40", "$120+") or null, and its length in minutes where stated, else null.',
   "closed: days the business says it is closed (a holiday, a break), as YYYY-MM-DD with the last day of a run in until, else null. Never a weekly day off.",
