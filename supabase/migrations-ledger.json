@@ -60,8 +60,8 @@
     "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
-    "00540": "claimed by cm-lead-send (#2092, leads/a-one-off-leaves-from-the-mailbox, a lead's own email), open and not on main when a partner's password alone learns no lead's why took 00542: it renumbers above the head if it lands second",
-    "00541": "claimed by cm-site-reads (#2089, edge/website-reads-get-their-time, what a search reads of a site), open and not on main when a partner's password alone learns no lead's why took 00542: it renumbers above the head if it lands second"
+    "00540": "claimed by cm-lead-send (#2092), not yet on main when a partner's password alone learns no lead's why took 00542",
+    "00541": "claimed by cm-site-reads (#2089, edge/website-reads-get-their-time, what a search reads of a site), on production and not yet on main when a partner's password alone learns no lead's why took 00542; this one merges after it, so it never falls below the head"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
