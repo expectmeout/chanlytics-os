@@ -37,6 +37,7 @@ import type {
   TENANT_STATUSES,
 } from "./enums";
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
+import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
 import type { MODEL_PORTS, MODEL_PURPOSES } from "../ai/models";
 import type { SENDER_KINDS } from "../email/sender-reading";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
@@ -133,6 +134,10 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof MODEL_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
   Holds<Exactly<Of<typeof MODEL_CALL_OUTCOMES>, SchemaSet<"ai_usage.outcome">>>,
   Holds<Exactly<Of<typeof MODEL_PORTS>, SchemaSet<"ai_usage.port">>>,
+
+  // Whom Anthropic is told a call is for (00544, decision 0097).
+  Holds<Exactly<Of<typeof ANTHROPIC_PROFILE_KINDS>, SchemaSet<"anthropic_profiles.kind">>>,
+  Holds<Exactly<Of<typeof ANTHROPIC_ENFORCEMENT_STATUSES>, SchemaSet<"anthropic_profiles.enforcement_status">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

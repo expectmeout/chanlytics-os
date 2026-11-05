@@ -68,6 +68,7 @@ export const EDGE_ERROR_CODES = [
   "meta_refused",
   "mock_registration",
   "model_failed",
+  "model_paused",
   "model_unavailable",
   "model_unreachable",
   "no_account",

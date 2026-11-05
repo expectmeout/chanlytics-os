@@ -22,6 +22,7 @@ import type { ZodType } from "zod";
 import {
   AppError,
   MIN_MS,
+  MODEL_PAUSED_WORDS,
   MODEL_ROUTES,
   SKILL_CRAFT_PURPOSES,
   type ModelEffort,
@@ -113,6 +114,7 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, wha
         throw new AppError("rate_limited", `Today's assistant budget is spent, so the ${what} waits until tomorrow.`);
       if (e.refusal.kind === "paused")
         throw new AppError("payment_required", `The ${what} waits while this workspace is paused.`);
+      if (e.refusal.kind === "model_paused") throw new AppError("payment_required", MODEL_PAUSED_WORDS.draft(what));
       throw new AppError("upstream_anthropic", `The ${what} is not available here right now.`, 503);
     }
     throw e;

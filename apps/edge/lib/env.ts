@@ -275,6 +275,11 @@ export const env = {
   get ELEVENLABS_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.ELEVENLABS_WEBHOOK_SECRET);
   },
+  /** Switch: 'on' makes a profile for each signed-up person and workspace and names it on every model call (decision 0097);
+   * anything else sends none and creates none. Listed in contracts ai/flags.ts with its sunset. */
+  get ANTHROPIC_PROFILES() {
+    return trimmedEnv(process.env.ANTHROPIC_PROFILES);
+  },
   /** Switch: the lead judge's screen (decision 0085), the second model asked first and a place it is sure is left out
    * never judged ('1' for every workspace, or a comma-separated list of workspace ids), with its key set; anything else
    * asks the judge everything, as before. Listed in contracts ai/flags.ts with its sunset (00506). */

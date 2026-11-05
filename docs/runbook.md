@@ -989,6 +989,38 @@ update public.lead_platform set cards_on = array['local_businesses', 'people_at_
 Find people appears on Leads at its next read, and Ask proposes people searches. Off again is the same update with the
 card left out; a search already running finishes.
 
+## Turn on Anthropic's user profiles
+
+Without a profile on a request, one customer's flagged traffic can restrict the whole organization (decision 0097). They are
+off until `ANTHROPIC_PROFILES=on` is set on the edge's Vercel project, and each step here is Ruben's word.
+
+Before the switch: 00544 on production, the letter in `Claude Video/docs/2026-11-04-anthropic-user-profiles-letter.md` answered,
+and one read with the production key, which creates nothing and proves the key, the endpoint and the shape:
+
+```bash
+curl -s "https://api.anthropic.com/v1/user_profiles?limit=1" -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2026-10-21"
+```
+
+After the switch and a redeploy, each person and workspace has a profile by their first call, and the health sweep (:13 and :43)
+makes five more a tick. Read these:
+
+- Console › Health › Model calls, "Anthropic profiles": how many are kept, wait to be made and wait to be deleted, and who is paused.
+- `model_call_no_profile` in the logs: a call that went without one, because its create failed or is in flight. It should go quiet.
+- `anthropic_profile_not_made`, `anthropic_profile_not_deleted` and `anthropic_profiles_unlisted`: what Anthropic refused or did not answer.
+- `anthropic_profile_twice`: two profiles found for one reference. The sweep kept the oldest and left the other at Anthropic.
+
+A profile works only under the organization that made it: anything else is a 400, on that person's or workspace's every
+call. So `ANTHROPIC_API_KEY` stays in this organization. A key from another one, the second organization for our own use above
+all, would refuse every stored id.
+
+Off again is the variable unset: requests go with no profile and none is made. Profiles already made stay at Anthropic, and those
+whose person or workspace goes are still deleted.
+
+**When Anthropic pauses an account,** the platform is paged once and its calls stop here: Ask says it is paused, and the
+receptionist sends its holding reply and hands each message to a person. Everyone else goes on. Read why on Health. Never clear
+`enforcement_status` by hand, and never delete a row to get a paused account a new profile: that is evading a safety action,
+and the next listing would say the same of the old id anyway. It lifts when Anthropic's list says it has.
+
 ## Turn on push
 
 The phone app is told through Expo's push service (`apps/edge/lib/ops/push.ts`, PR 0 and PR 2 of the phone app).
