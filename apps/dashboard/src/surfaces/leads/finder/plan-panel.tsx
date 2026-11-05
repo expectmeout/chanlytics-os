@@ -23,6 +23,8 @@ interface PlanPanelProps {
   proposal: FinderProposal | null;
   plan?: LeadSearchPlan | null;
   facts?: LeadPlanFacts | null;
+  /** The version the plan's "changed" counts from (page/props.tsx finderBaseVersionOf). */
+  baseVersion: number;
   refusal: string | null;
   busy: boolean;
   trace: string | null;
@@ -92,7 +94,7 @@ const answerRow = (p: PlanPanelProps, composing: boolean, thinking: boolean) => 
 
 /** The card the plan is drawn in, while there is one. */
 const planCardOf = (props: PlanPanelProps) => {
-  const { stage, proposal, plan = null, facts = null, refusal, busy, pick = null, answering } = props;
+  const { stage, proposal, plan = null, facts = null, baseVersion, refusal, busy, pick = null, answering } = props;
   const { onChangePlan = () => undefined, onApprove, onBack, onPick = () => undefined } = props;
   const card: LeadSearchCardPayload = proposal && proposal.payload ? proposal.payload : {};
   const shown = plan || card.plan || null;
@@ -103,7 +105,7 @@ const planCardOf = (props: PlanPanelProps) => {
       plan={shown}
       view={card.view || null}
       facts={card.facts || facts || null}
-      baseVersion={(card.plan && card.plan.version) || 1}
+      baseVersion={baseVersion}
       busy={starting}
       refusal={refusal}
       pick={pick}
