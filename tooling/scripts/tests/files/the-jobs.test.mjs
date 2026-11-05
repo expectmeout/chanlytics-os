@@ -634,8 +634,8 @@ test("a listing brings only what the business itself put there, to the Inbox, si
 
 test("a batch's key is what it holds, so the same pictures found again are no second job", async () => {
   const w = world({ files: [] });
-  await askForFoundFiles(w.db, T, "website", fetched(2));
-  await askForFoundFiles(w.db, T, "website", fetched(2).reverse());
+  await askForFoundFiles(w.db, T, { source: "website", items: fetched(2) });
+  await askForFoundFiles(w.db, T, { source: "website", items: fetched(2).reverse() });
   const jobs = w.tables.jobs.filter((j) => j.kind === "file_fetch");
   assert.equal(jobs[0].payload.batch, jobs.at(-1).payload.batch);
 });

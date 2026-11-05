@@ -24,7 +24,7 @@ import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels";
 import { imageHeaderOf } from "@chanlytics/core";
 import { fileFound, fileStart } from "@chanlytics/db";
 import { log } from "@/server/log";
-import { type Member } from "@/server/route";
+import type { Member } from "@/server/route";
 import { serviceDb } from "@/server/service-db";
 import type { RouteContext } from "@/server/with-route";
 import { bucket, doorRefusal } from "./file";

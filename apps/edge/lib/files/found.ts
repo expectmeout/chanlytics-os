@@ -202,7 +202,7 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
     );
   }
   if (!full && at < items.length) {
-    await askForFoundFiles(db, job.tenant_id, source, items.slice(at), { rang: rang || kept > 0 });
+    await askForFoundFiles(db, job.tenant_id, { source, items: items.slice(at), rang: rang || kept > 0 });
   }
   logger({ tenant_id: job.tenant_id }).info("file_fetch_done", { source, asked: items.length, kept, failed, full });
   if (failed > 0) throw new Error(`file_fetch: ${failed} of ${items.length} could not be kept`);
@@ -212,9 +212,7 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
 export async function askForFoundFiles(
   db: Db,
   tenantId: string,
-  source: string,
-  items: readonly FoundFile[],
-  { rang = false }: { rang?: boolean } = {},
+  { source, items, rang = false }: { source: string; items: readonly FoundFile[]; rang?: boolean },
 ): Promise<void> {
   if (items.length === 0) return;
   const batch = createHash("sha256")
@@ -247,10 +245,8 @@ const sameNameOf = (name: string): string => fileNameOf(name.normalize("NFKD").r
 export async function askForListingPhotos(db: Db, tenantId: string, place: PlaceDetails): Promise<void> {
   const own = sameNameOf(place.name);
   const theirs = place.photos.filter((p) => p.author && sameNameOf(p.author) === own);
-  await askForFoundFiles(
-    db,
-    tenantId,
-    "google_listing",
-    theirs.map((p) => ({ url: p.name, ref: p.name })),
-  );
+  await askForFoundFiles(db, tenantId, {
+    source: "google_listing",
+    items: theirs.map((p) => ({ url: p.name, ref: p.name })),
+  });
 }

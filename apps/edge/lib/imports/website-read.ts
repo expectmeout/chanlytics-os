@@ -127,7 +127,7 @@ export async function readWebsite(
   if (photos) {
     // A booking platform's pictures are its own, not the business's.
     const own = pages.filter((p) => !p.booking).map((p) => p.page);
-    await askForFoundFiles(db, tenantId, "website", sitePhotosOf(own)).catch((e: unknown) =>
+    await askForFoundFiles(db, tenantId, { source: "website", items: sitePhotosOf(own) }).catch((e: unknown) =>
       L.warn("file_fetch_failed", { source: "website", error: errField(e) }),
     );
   }
