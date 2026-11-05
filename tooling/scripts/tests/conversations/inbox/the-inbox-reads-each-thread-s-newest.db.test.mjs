@@ -338,7 +338,7 @@ test(
     assert.equal(m.error, null, m.error?.message);
     const h = await db
       .from("escalations")
-      .insert({ tenant_id: A, conversation_id: leaving, reason: "question", state: "open" })
+      .insert({ tenant_id: A, conversation_id: leaving, reason: "manual", state: "open" })
       .select("id")
       .single();
     assert.equal(h.error, null, h.error?.message);

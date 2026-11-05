@@ -62,7 +62,7 @@ const hold = (id, conversation_id, who, over = {}) => ({
   id,
   tenant_id: A,
   conversation_id,
-  reason: "question",
+  reason: "manual",
   details: null,
   state: "open",
   created_at: ago(HOUR),
@@ -128,7 +128,7 @@ test("a hold of someone being erased no longer waits on anyone, and its row carr
       hold("e-here", "c-here", here),
       hold("e-going", "c-going", going),
       hold("e-stopped", "c-stopped", stopped),
-      hold("e-going-stop", "c-going", going, { reason: "customer_stop" }),
+      hold("e-going-stop", "c-going", going, { reason: "opt_out" }),
     ],
   });
   const { data } = await kernel.load(turn(ctx), escalations, { state: "open" });
