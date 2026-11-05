@@ -609,9 +609,7 @@ function anthropicLooks({ h, ours, nowMs, nameOf, sinceWords }: LookCtx): Health
     return look({
       key: `anthropic:${p.id}`,
       severity: paused ? "red" : "amber",
-      what: paused
-        ? "Anthropic has paused one account's model calls"
-        : "Anthropic has limited one account's model calls",
+      what: `Anthropic has ${paused ? "paused" : "limited"} one account's model calls`,
       why: enforcementWords(p.status, p.actions),
       where: actedOnProfileWho(p, nameOf),
       ours: !!p.tenant_id && ours.has(p.tenant_id),

@@ -85,11 +85,7 @@ export interface BillingDto {
    * decision 0092): what the voice provider is paid for. Null when the read failed; absent from an older route.
    */
   call_minutes_month?: number | null;
-  /**
-   * What Anthropic has said of this workspace's profile (decision 0097), which the shell's line says: "paused", and its
-   * receptionist holds every message for a person; "limited", and it holds those Anthropic refuses. Null when nothing is open;
-   * absent from an older route.
-   */
+  /** What Anthropic has said of this workspace's profile, for the shell's line (decision 0097). Null when nothing is open. */
   model_standing?: ModelStanding | null;
 }
 
