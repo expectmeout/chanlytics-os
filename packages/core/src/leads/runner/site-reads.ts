@@ -7,6 +7,7 @@
  */
 import { LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD } from "@chanlytics/contracts";
 import { errField, logger, type SitePage } from "@chanlytics/channels";
+import { eachAtOnce } from "../../each-at-once";
 import { siteWordsOf } from "../../site-words";
 import type { LeadPorts } from "../ports";
 import { LeadRetry } from "./rules";
@@ -56,20 +57,6 @@ export function siteReadsOf(p: Pick<LeadPorts, "readSite">): SiteReads {
     asked: (host) => pages.has(host),
     count: () => (p.readSite ? pages.size : 0),
   };
-}
-
-/** `work` over `items`, `atOnce` at a time, each taking the next as it finishes; none begun once `goOn` says no. */
-export async function eachAtOnce<T>(
-  items: readonly T[],
-  atOnce: number,
-  goOn: () => boolean,
-  work: (item: T) => Promise<void>,
-): Promise<void> {
-  const left = items.values();
-  const worker = async () => {
-    for (let n = left.next(); !n.done && goOn(); n = left.next()) await work(n.value);
-  };
-  await Promise.all(Array.from({ length: Math.min(atOnce, items.length) }, worker));
 }
 
 /**

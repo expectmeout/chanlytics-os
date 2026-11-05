@@ -89,6 +89,21 @@ an owner's press wrote and for nobody else, and the ledger's row then says the s
 as before, in the body, from `auth.uid()`. The finish is a net under the erasure, never a leg of it: a ledger that would
 not take it (a database before 00501) is logged, and the press goes on.
 
+A press of many hands everyone to that same job (People's Delete…, `POST contacts/erase`; 5 November 2026). It writes
+each person's block and their finish, due now, naming who pressed, and answers in under a second; the ledger erases them
+behind it, three side by side, in the same order and through the same legs as one person's press, and tries again by its
+own waits. That is the shape the press has because of what the first shape did on production on 5 November: erased inside
+the request, fifty people at 0.8 s each (twenty round trips, seven of them scrubs asked twice, at about 37 ms) could not
+answer inside the browser's 30 s wait, and one person with 44 calls took 40 s alone at the provider. The press answered
+nobody; the sheet said it took too long with the same fifty still selected, some of them already gone; and the press that
+followed ran beside the first on the person it was still erasing. A press of one still runs the legs itself: its answer says what
+went, and only a person with a great many calls comes near the wait, now that the provider is asked about five at a time.
+The ledger's row for a press of many is the system's, as a finish's is (`erase_contact` reads the owner from `auth.uid()`,
+and the job has none), and carries who pressed as `legs.by`, which the activity log reads as the hand that did it. They
+leave People in the tab that pressed as the door answers (`peopleGoing`) and everywhere else as the ledger reaches each;
+someone blocked is refused by the wire from the moment of the press. A job that fails for good rings the owner's bell
+("Erasing a person stopped partway: delete them again"), and a press pressed again starts nothing beside one that waits.
+
 ## Steps
 
 1. **The registry and its ratchet**, seeded with what the legs reach today: `erase_contact`'s tables, the tombstone's

@@ -46,8 +46,8 @@ export const ReceptionistModeBody = z.object({ mode: MODE });
 export const ReceptionistManyBody = z.object({ ids: SOME_PEOPLE, mode: MODE });
 
 /**
- * Many people deleted at one press (POST contacts/erase), each as Delete person deletes one; with `not_a_person`, each
- * one's address said automated first, so their mail stays in the mailbox from now on.
+ * Many people deleted at one press (POST contacts/erase), each handed to the ledger, which erases them as Delete person
+ * erases one; with `not_a_person`, each one's address said automated first, so their mail stays in the mailbox from now on.
  */
 export const EraseManyBody = z.object({
   ids: SOME_PEOPLE,

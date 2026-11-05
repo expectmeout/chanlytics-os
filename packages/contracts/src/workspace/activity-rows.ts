@@ -87,8 +87,25 @@ export interface ActivityEventRow {
   created_at: string;
 }
 
+/** The member a record's own words name (`by`, contracts event-data.ts), where they name one. */
+function activityEventBy(data: unknown): string | null {
+  const by = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>).by : null;
+  return typeof by === "string" && isUuid(by) ? by : null;
+}
+
+/**
+ * The member a decision of the system's was made on the word of, where its ledger row names one: an erasure a press of
+ * many handed the ledger (jobs erasure.ts), whose row keeps who pressed among what its legs did.
+ */
+function activityDecisionBy(payload: unknown): string | null {
+  const legs =
+    payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as { legs?: unknown }).legs : null;
+  return activityEventBy(legs);
+}
+
 /** A decision as a row of the log: what a person (or the receptionist, or the system) did, in its sentence. */
 export function activityRowOfDecision(d: ActivityDecisionRow): ActivityRowDto {
+  const by = d.actor_user_id ? null : activityDecisionBy(d.payload);
   return {
     id: `d-${d.id}`,
     at: d.created_at,
@@ -96,17 +113,11 @@ export function activityRowOfDecision(d: ActivityDecisionRow): ActivityRowDto {
     kind: d.verb,
     subject_type: d.subject_type,
     subject_id: d.subject_id,
-    actor_user_id: d.actor_user_id,
-    actor_type: d.actor_type,
+    actor_user_id: by ?? d.actor_user_id,
+    actor_type: by ? "user" : d.actor_type,
     text: activityWords(d.verb, d.payload),
     category: null,
   };
-}
-
-/** The member an event's own data names (`by`, contracts event-data.ts), where it names one. */
-function activityEventBy(data: unknown): string | null {
-  const by = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>).by : null;
-  return typeof by === "string" && isUuid(by) ? by : null;
 }
 
 /**

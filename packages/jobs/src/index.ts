@@ -1,6 +1,6 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
 export type { ReplyDraftEdge } from "./context";
-export { eraseOrRedrive } from "./erasure";
+export { eraseByTheLedger, eraseOrRedrive } from "./erasure";
 export { dispatchJob, incomingEmailOf, upsertEscalation } from "./handlers";
 export type { ClaimedJob, EscalationOutcome, JobContext, PushPort, PushReceipt } from "./handlers";
 export { KIND_POLICY, kindPolicyOf } from "./kinds";

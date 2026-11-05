@@ -1,8 +1,9 @@
 /**
  * People's Delete for a selection (bulk/delete-many.tsx), drawn on the stub React: an owner's menu on the desk's bar
  * (Not a person…, Delete…) and two rows of the phone's More; its sheet names who goes and asks the count typed, Not a
- * person saying in one line what it does beside the delete; a press sends the batch through POST contacts/erase and says
- * what it did, keeping selected whoever it could not delete or had no time for.
+ * person saying in one line what it does beside the delete; a press sends the batch through POST contacts/erase, closes
+ * as the server answers (the ledger erases them, behind it), says what it did, and keeps selected whoever it could not
+ * hand over.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -89,7 +90,19 @@ test("Delete…'s sheet is its title, who goes, and the count typed: nothing mor
   assert.equal(ask.danger, true);
 });
 
-test("Not a person… sends the batch with its address said, says what it did, and keeps selected whoever it could not delete or had no time for", async () => {
+/** What the server answers a press, for POST contacts/erase; every read behind it stays unanswered unless `reads` says. */
+function answering(data, sent = [], reads = () => new Promise(() => {})) {
+  return async (url, init = {}) => {
+    if (init.method !== "POST") return reads(url, init);
+    sent.push([init.method, new URL(String(url), "https://app.example").pathname, JSON.parse(init.body)]);
+    return new Response(JSON.stringify({ ok: true, data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+}
+
+test("Not a person… sends the batch with its address said, says what it did, and keeps selected whoever it could not hand over", async () => {
   const b = bar("owner");
   await sheetIn(b);
   chooseIn(b.redraw(), DELETE_MANY_WORDS.notAPerson);
@@ -100,35 +113,60 @@ test("Not a person… sends the batch with its address said, says what it did, a
   tree = b.redraw();
   const sent = [];
   const was = W.fetch;
-  W.fetch = async (url, init = {}) => {
-    sent.push([init.method, new URL(String(url), "https://app.example").pathname, JSON.parse(init.body)]);
-    const data = {
-      erased: ["p1"],
-      failed: [{ id: "p2", message: "Could not delete them." }],
-      skipped: [],
-      left: ["p3"],
-    };
-    return new Response(JSON.stringify({ ok: true, data }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  };
+  W.fetch = answering(
+    { going: ["p1", "p3"], failed: [{ id: "p2", message: "Could not delete them." }], skipped: [] },
+    sent,
+  );
   try {
     sheetOf(tree).props.foot.props.onYes();
-    // The bar says what it did once the bridge has read its refresh map for the write: a wait for the toast itself.
     await until(() => b.seen.toasts.length > 0, "the press's toast");
   } finally {
     W.fetch = was;
   }
   assert.deepEqual(sent, [["POST", "/api/v1/contacts/erase", { ids: ["p1", "p2", "p3"], not_a_person: true }]]);
   assert.equal(b.seen.toasts.length, 1);
-  assert.equal(b.seen.toasts[0].tone, "danger", "someone was not deleted");
-  assert.equal(
-    textOf(b.seen.toasts[0].msg),
-    "1 person deleted · 1 not deleted — Could not delete them. · 1 still selected — press Delete again",
-  );
-  assert.deepEqual(b.seen.kept, ["p2", "p3"], "who could not go, and who it had no time for");
+  assert.equal(b.seen.toasts[0].tone, "danger", "someone was not handed over");
+  assert.equal(textOf(b.seen.toasts[0].msg), "Deleting 2 people · 1 not deleted — Could not delete them.");
+  assert.deepEqual(b.seen.kept, ["p2"], "who could not go");
   assert.equal(sheetOf(b.redraw()).props.open, false, "the question is closed");
+});
+
+test("REGRESSION: a press closes as the server answers, whatever the page is still reading behind it, and everyone going leaves the selection (5 Nov 2026: the sheet sat over a press for 30 s and said it took too long)", async () => {
+  const b = bar("owner");
+  await sheetIn(b);
+  chooseIn(b.redraw(), DELETE_MANY_WORDS.delete);
+  sheetOf(b.redraw()).props.foot.props.onType("3");
+  const was = W.fetch;
+  // Every read the refresh map asks for stays unanswered: a press that waited for them would never say anything.
+  W.fetch = answering({ going: ["p1", "p2", "p3"], failed: [], skipped: [] });
+  try {
+    sheetOf(b.redraw()).props.foot.props.onYes();
+    await until(() => b.seen.toasts.length > 0, "the press's toast, with its reads still out");
+  } finally {
+    W.fetch = was;
+  }
+  assert.equal(b.seen.toasts[0].tone, "ok");
+  assert.equal(textOf(b.seen.toasts[0].msg), "Deleting 3 people");
+  assert.equal(b.seen.cleared, 1, "the selection is done");
+  assert.equal(b.seen.kept, null);
+  assert.equal(sheetOf(b.redraw()).props.open, false);
+});
+
+test("who was already going or gone is said in the toast and leaves the selection", async () => {
+  const b = bar("owner");
+  await sheetIn(b);
+  chooseIn(b.redraw(), DELETE_MANY_WORDS.delete);
+  sheetOf(b.redraw()).props.foot.props.onType("3");
+  const was = W.fetch;
+  W.fetch = answering({ going: ["p1"], failed: [], skipped: ["p2", "p3"] });
+  try {
+    sheetOf(b.redraw()).props.foot.props.onYes();
+    await until(() => b.seen.toasts.length > 0, "the press's toast");
+  } finally {
+    W.fetch = was;
+  }
+  assert.equal(textOf(b.seen.toasts[0].msg), "Deleting 1 person · 2 already gone");
+  assert.equal(b.seen.cleared, 1);
 });
 
 test("the phone's More holds Not a person… and Delete… for an owner, and nobody else's does", () => {
