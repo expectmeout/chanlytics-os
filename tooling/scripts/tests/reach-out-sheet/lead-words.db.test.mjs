@@ -1,5 +1,5 @@
 /**
- * A lead's own words at one step (00543, decision 0096), on a real database, as the service role and as a signed-in
+ * A lead's own words at one step (00545, decision 0096), on a real database, as the service role and as a signed-in
  * member: the door is a member's who may act, for a lead of its own workspace; the table is read by members and written by
  * the door alone; a body saves and none puts the step's words back, each answering what stood; the words are kept for the
  * lead and the step, not one send, so a send taken away and made again finds them; saving moves no state, a check under way

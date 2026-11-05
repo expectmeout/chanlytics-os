@@ -1,4 +1,4 @@
--- 00543 · A lead's email can be its own (decision 0096; 4 Nov 2026: "click to begin editing this specific email within the
+-- 00545 · A lead's email can be its own (decision 0096; 4 Nov 2026: "click to begin editing this specific email within the
 -- sequence", Claude Video's docs/2026-11-04-edit-a-lead-s-email-in-place.md).
 --
 -- A send has only ever held the line written for it: the rest of its email is its step's words, read as it goes. Now a
@@ -130,7 +130,7 @@ begin
 end $$;
 
 comment on function public.sequence_lead_words_set(uuid, uuid, text, text, text, boolean) is
-  'One lead''s own words at one step of a sequence (00543, decision 0096), typed on the lead''s sheet: a body saves them, none puts the step''s words back. Refused once that email has gone or is its owner''s to send. Moves no send''s state. Answers what stood before, for Undo.';
+  'One lead''s own words at one step of a sequence (00545, decision 0096), typed on the lead''s sheet: a body saves them, none puts the step''s words back. Refused once that email has gone or is its owner''s to send. Moves no send''s state. Answers what stood before, for Undo.';
 
 revoke execute on function public.sequence_lead_words_set(uuid, uuid, text, text, text, boolean) from public, anon;
 grant execute on function public.sequence_lead_words_set(uuid, uuid, text, text, text, boolean) to authenticated, service_role;
@@ -183,7 +183,7 @@ begin
       if public.reach_out_given_up(v_send.created_at) then
         raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
       end if;
-      -- Words typed for this lead that hold no line have no opening to write: they are the member's (00543).
+      -- Words typed for this lead that hold no line have no opening to write: they are the member's (00545).
       if exists (select 1 from public.sequence_lead_words w
                   where w.step_id = v_send.step_id and w.lead_id = v_send.lead_id
                     and w.body !~* '\{\{\s*opening\s*\}\}') then
@@ -253,7 +253,7 @@ begin
    where sequence_sends.lead_id is not null and ( tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null or rewrite_asked is not null
           or website_says is not null));
-  -- The words a member typed for this lead at a step (00543): the lead's, and they go with its details.
+  -- The words a member typed for this lead at a step (00545): the lead's, and they go with its details.
   delete from public.sequence_lead_words where tenant_id = v_tenant and lead_id = p_lead_id;
   -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
@@ -292,7 +292,7 @@ begin
          reason = case when state = 'drafted' then 'lead_gone' else reason end,
          draft = null
    where sequence_sends.lead_id is not null and ( tenant_id = p_tenant_id and draft is not null and lower(btrim(coalesce(draft->>'to', ''))) = v_e);
-  -- The words a member typed for a company that names this person may name them (00543).
+  -- The words a member typed for a company that names this person may name them (00545).
   delete from public.sequence_lead_words w
    using public.leads l
    where l.id = w.lead_id and w.tenant_id = p_tenant_id and l.tenant_id = p_tenant_id and l.kind = 'company'
@@ -331,7 +331,7 @@ create or replace function public.lead_person_leg(p_lead_id uuid, p_email text, 
 as $$
 begin
   -- What a lead holds of one person (0052): their address, as its own or among its others, their number, and the note of
-  -- the call, and the words a member typed for this lead, which may name them (00543). The place, its name and the
+  -- the call, and the words a member typed for this lead, which may name them (00545). The place, its name and the
   -- others' are kept; nothing is banned.
   delete from public.sequence_lead_words where lead_id = p_lead_id;
   update public.leads l

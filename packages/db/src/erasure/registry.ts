@@ -118,6 +118,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(byAge("ask_voice_sessions"), "context", "scope", "token_cipher"),
     ...all(NOT_PERSONAL, "id", "conversation_id", "surface", "turn_key"),
   },
+  // Whom Anthropic is told a call is for (00544): ids and Anthropic's own words, nothing a person wrote.
+  anthropic_profiles: all(NOT_PERSONAL, "reference_id", "profile_id", "enforcement_actions"),
   // The workspace's account with Stripe: its payer's card, and Stripe's ids and price.
   billing_accounts: {
     ...all(WITH_WORKSPACE, "card_brand", "card_last4"),
@@ -516,7 +518,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     // What became of the signer's name, and the source it replaced: closed words, never the name.
     ...all(NOT_PERSONAL, "signer_state", "signer_was"),
   },
-  // The words a member typed for a lead at a step (00543): lead_blank deletes them with the lead's details.
+  // The words a member typed for a lead at a step (00545): lead_blank deletes them with the lead's details.
   sequence_lead_words: all(scrubbedBy("leads_trigger"), "subject", "body"),
   sequence_sends: {
     // A customer's send: the words its batch kept for them.

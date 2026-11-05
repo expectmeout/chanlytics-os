@@ -18,8 +18,9 @@
  * and a misspelt name is answered by the route's own, said in the log as ask_gateway_fell_back). An answer that never came is this door's own refusal, `model_unreachable` at 503, so
  * the dashboard says the model could not be reached, never that it refused; the API's refusal of the request itself
  * (a 400) is forwarded in its own shape, which the dashboard reads to drop what the model would not take. A workspace
- * paused, ended or unbilled spends nothing (402 payment_required), and a day that could not be counted holds the turn
- * (503 read_failed). Every round is written to the usage ledger with the model that answered and its dollars.
+ * paused, ended or unbilled spends nothing (402 payment_required), a person or workspace Anthropic has paused spends nothing
+ * either (403 model_paused, decision 0097), and a day that could not be counted holds the turn (503 read_failed). Every
+ * round is written to the usage ledger with the model that answered and its dollars.
  *
  * A request may ask for fast mode (`speed: "fast"`, Ask's default on a model that runs it: ask-model.ts). Fast mode's
  * own limit refusing it (a 429) is no failure: the port asks the same model again at standard speed, said in the log as
@@ -34,7 +35,15 @@ import { json, refuse } from "../http.js";
 import { readBody } from "../admin-door.js";
 import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
-import { ASK_TOKENS_DAY, MIN_MS, MODEL_ROUTES, NO_USAGE, usageOf, UUID } from "../packages/contracts.js";
+import {
+  ASK_TOKENS_DAY,
+  MIN_MS,
+  MODEL_PAUSED_WORDS,
+  MODEL_ROUTES,
+  NO_USAGE,
+  usageOf,
+  UUID,
+} from "../packages/contracts.js";
 import {
   GATEWAY_MAX_BODY,
   GATEWAY_PURPOSES,
@@ -108,14 +117,21 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   const gatewayMs = t0 - tIn;
   const { model: asked, betas, ...rest } = v.request;
   // The whole call, the fallback's try included, inside the function's sixty seconds (vercel.json).
-  const up = await streamModelCall({
-    purpose: modelPurpose,
-    model: asked,
-    body: rest,
-    ...(betas ? { betas } : {}),
-    deadlineMs: MODEL_ROUTES[modelPurpose].timeoutMs,
-  });
+  const up = await streamModelCall(
+    {
+      purpose: modelPurpose,
+      model: asked,
+      body: rest,
+      ...(betas ? { betas } : {}),
+      deadlineMs: MODEL_ROUTES[modelPurpose].timeoutMs,
+    },
+    { tenantId, userId },
+  );
   if (!up) return refuse(503, "no_model_key");
+  if (up.outcome === "held")
+    return up.why === "paused"
+      ? refuse(403, "model_paused", MODEL_PAUSED_WORDS.edge)
+      : refuse(503, "read_failed", "Whom this call is for could not be read just now.");
   if (up.outcome !== "ok") {
     const forWhom = { tenantId, userId };
     await recordCall(

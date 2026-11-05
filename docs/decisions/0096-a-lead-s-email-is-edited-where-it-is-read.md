@@ -2,7 +2,7 @@
 
 **Status:** decided by Ruben on 4 November 2026 ("yes build it end to end", on the full scope written for him that day).
 Built on the lane
-`leads/a-lead-s-email-is-edited-where-it-is-read` from main's `7c5d69e499`, not merged: migration 00543 (not applied), the
+`leads/a-lead-s-email-is-edited-where-it-is-read` from main's `7c5d69e499`, not merged: migration 00545 (not applied), the
 door, the sender and the check, the box on the sheet. Where this note and the code disagree, the code wins.
 
 **Decision:** tap the email on a lead's sheet and type. What is typed is this lead's at this step, kept in a table of its
@@ -52,7 +52,7 @@ stands, and a one-off email had labelled boxes. "Change it for everyone" had no 
   which saves first.
 - A toast says Saved for the lead with Undo (ten minutes), which puts back what stood.
 
-### The door (00543)
+### The door (00545)
 
 `sequence_lead_words_set`: an acting member, an email step, a lead of the workspace not erased. It locks the latest send at
 the step. Claimed, queued, sent or handed: "That email has gone." Drafted: it is the owner's to send, and they change it in
@@ -104,7 +104,7 @@ it cannot see.
 
 ## Consequences
 
-- One migration: a table, a door, and three doors re-created. **Apply 00543 before the merge.** Both apps read the table
+- One migration: a table, a door, and three doors re-created. **Apply 00545 before the merge.** Both apps read the table
   (the sender and the check through the service role, the dashboard on the session), and every read of it throws where it
   is missing, so a build ahead of the migration would hold sends rather than send the wrong words.
 - An edit saved in the minute the two hosts differ, on an email claimed in that same minute, could go with the earlier

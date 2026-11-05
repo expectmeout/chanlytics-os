@@ -1,6 +1,6 @@
 /**
  * A lead's own words at one step (decision 0096), through the dashboard's routes: judged by the rules a step's words are
- * held to before the door is asked; what reaches the door (00543 sequence_lead_words_set), the mark above all, which is
+ * held to before the door is asked; what reaches the door (00545 sequence_lead_words_set), the mark above all, which is
  * the one the sender compares; the door's refusals said as it says them; and the event, which never carries the words.
  * Run through route() over a database in memory. The door itself is proved on a stack (lead-words.db.test.mjs).
  */

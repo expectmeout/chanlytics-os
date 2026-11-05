@@ -1,5 +1,5 @@
 /**
- * A lead's own words at one step of a sequence (00543 sequence_lead_words, decision 0096): what that lead gets there in
+ * A lead's own words at one step of a sequence (00545 sequence_lead_words, decision 0096): what that lead gets there in
  * place of the step's words. The door is the member's, on their session, checked in SQL, and answers its refusal with its
  * SQLSTATE and its own words (DoorResult). The reads are the sender's and the check's, on the service role, and a member's
  * under row security. A read that fails throws: an email never falls back to the step's words because a read did not land.

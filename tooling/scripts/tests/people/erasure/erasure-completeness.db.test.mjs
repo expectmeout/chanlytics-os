@@ -495,7 +495,7 @@ async function seed() {
     state: "running",
     signed_by: "Sam",
   });
-  // What a member typed for the lead at this step (00543): it may name them, and goes with their details.
+  // What a member typed for the lead at this step (00545): it may name them, and goes with their details.
   ok(
     await db
       .from("sequence_lead_words")

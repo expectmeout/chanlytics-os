@@ -71,6 +71,8 @@ export type GatewayRefusal =
   | { kind: "no_key" }
   /** The workspace is paused, ended or its plan is over: the edge spends nothing (402 payment_required). */
   | { kind: "paused" }
+  /** Anthropic has paused this person or workspace, decision 0097: nothing left for it (403 model_paused). */
+  | { kind: "model_paused" }
   | { kind: "bad_request"; message: string }
   | { kind: "unreachable"; message: string };
 
@@ -123,6 +125,7 @@ async function gatewayRefusalOf(res: Response): Promise<GatewayRefusal> {
   if (res.status === 429 && j.error === "ask_budget") return { kind: "budget", used: j.used ?? 0, cap: j.cap ?? 0 };
   if (res.status === 503 && j.error === "no_model_key") return { kind: "no_key" };
   if (res.status === 402) return { kind: "paused" };
+  if (res.status === 403 && j.error === "model_paused") return { kind: "model_paused" };
   const err =
     typeof j.detail === "string"
       ? j.detail

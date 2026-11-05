@@ -94,7 +94,7 @@ export const REACH_OUT_REFUSALS = {
   onlyRewriteWords: "Only a rewrite takes words.",
   changeLong: "Say it in 280 characters or fewer.",
   nothingToUndo: "There is no earlier opening to put back.",
-  /** 00543 sequence_lead_words_set and reach_out_send_decide: a lead's own words at a step, and Rewrite under them. */
+  /** 00545 sequence_lead_words_set and reach_out_send_decide: a lead's own words at a step, and Rewrite under them. */
   stepGone: "That step has gone.",
   onlyEmailWords: "Only an email takes words.",
   yoursToSend: "It's yours to send now: change it in your mail app.",

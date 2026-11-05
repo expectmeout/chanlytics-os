@@ -486,6 +486,20 @@
     },
     {
       "kind": "unfed",
+      "why": "Whether Anthropic has paused this workspace (decision 0097, workspaceAnthropicPaused over anthropic_profiles), read with the billing row for the shell's line. The health sweep writes it at most twice an hour and the feed does not tell it: it is the service role's table, and no member's press moves it. The line says so at the next read of Billing.",
+      "reads": {
+        "billing": [
+          "anthropic_profiles"
+        ]
+      },
+      "heardWith": {
+        "billing": [
+          "billing_accounts"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "why": "The previews a lead tried (previewsTriedSince over lead_previews, decision 0079), Today's tried row, in a workspace of ours alone. The feed does not tell lead_previews: what moves it is the business texting or calling its preview, in the preview's own workspace, which this workspace's topic cannot carry. Today reads it with its other reads each time it hears its own records (heardWith), and a lead who tried theirs stays named three days, so the row is a read behind at most.",
       "reads": {
         "today": [

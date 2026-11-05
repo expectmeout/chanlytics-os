@@ -47,7 +47,7 @@ export interface LeadEmailPiece {
   slot?: string;
 }
 
-/** One lead's own words at one step (GET leads/:id/emails `words`, 00543 sequence_lead_words). */
+/** One lead's own words at one step (GET leads/:id/emails `words`, 00545 sequence_lead_words). */
 export interface LeadStepWordsDto extends LeadEmailText {
   step_id: string;
   /** When they were last typed. */

@@ -202,7 +202,7 @@ export async function checkOne(
   i: CheckInput,
   ask: AskModel,
   budget: CheckBudget,
-  forWhom: ModelCallFor = { tenantId: null },
+  forWhom: ModelCallFor,
 ): Promise<CheckOutcome> {
   const tokens: Tokens = { input: 0, output: 0 };
   let calls = 0;

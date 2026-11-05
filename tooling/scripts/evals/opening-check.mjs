@@ -143,6 +143,9 @@ function spent(spend, r) {
   if (r.outcome !== "ok" && creditRanOut({ type: r.errorType, message: r.error })) spend.stopped = r.error;
 }
 
+/** Our own use, on the eval key, for no customer: no profile, by decision (decision 0097). */
+const OURS = { profileId: null };
+
 /**
  * The check's model, asked as the edge asks it (apps/edge/lib/model.ts askJson under check-one.ts askReachOutModel):
  * the reach_out_check route through the platform's port, the answer in its schema, a refused schema asked again for
@@ -151,7 +154,11 @@ function spent(spend, r) {
  */
 export function askCheckModel(key, deps = {}, spend = newSpend()) {
   const once = async (body, signal) => {
-    const r = await askModel(key, { purpose: "reach_out_check", timeoutMs: edge.CHECK_CALL_MS, signal, body }, deps);
+    const r = await askModel(
+      key,
+      { purpose: "reach_out_check", attribution: OURS, timeoutMs: edge.CHECK_CALL_MS, signal, body },
+      deps,
+    );
     spent(spend, r);
     return r;
   };
@@ -290,6 +297,7 @@ async function gradeOne(key, id, record, openings, deps, spend) {
     key,
     {
       purpose: "lead_judge",
+      attribution: OURS,
       model: GRADER_MODEL,
       timeoutMs: GRADE_TRY_MS,
       retries: 1,

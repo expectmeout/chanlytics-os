@@ -8,7 +8,13 @@
  * budget is the sync's: the hourly sweep answers at most a handful per
  * workspace, and a draft asked for from Reports has a person waiting.
  */
-import { cleanDraft, reviewReplyPrompt, type ReviewReplyFacts, type ReviewToAnswer } from "../packages/contracts.js";
+import {
+  cleanDraft,
+  MODEL_PAUSED_WORDS,
+  reviewReplyPrompt,
+  type ReviewReplyFacts,
+  type ReviewToAnswer,
+} from "../packages/contracts.js";
 import { callModel } from "../model.js";
 
 type DraftResult =
@@ -36,7 +42,11 @@ export async function draftReviewReply(
   );
   if (!r) return { ok: false, error: "no_model_key" };
   if (r.outcome === "held")
-    return { ok: false, error: "payment_required", detail: "This workspace is paused or its plan has ended." };
+    return {
+      ok: false,
+      error: "payment_required",
+      detail: r.why === "unpaid" ? "This workspace is paused or its plan has ended." : MODEL_PAUSED_WORDS.reviewReply,
+    };
   if (r.outcome !== "ok") return { ok: false, error: "model_failed", detail: `${r.status} ${r.error}` };
   const text = cleanDraft(r.text);
   if (!text) return { ok: false, error: "empty_draft" };

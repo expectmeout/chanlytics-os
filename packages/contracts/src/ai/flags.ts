@@ -181,6 +181,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "ANTHROPIC_PROFILES",
+    mechanism: "edge_env",
+    does: "'on' makes a profile for each signed-up person and workspace and names it on every model call, so one customer's flagged traffic cannot restrict the whole organization (decision 0097); anything else sends none and creates none, as before. Deleting a profile whose person or workspace went runs either way.",
+    owner: "Ruben",
+    sunset: "2027-03-31",
+  },
+  {
     name: "TYPESAFE_SHADOW",
     mechanism: "edge_env",
     does: "'1' (every workspace) or a list of workspace ids (a pilot), with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",

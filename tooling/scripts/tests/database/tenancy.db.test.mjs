@@ -183,6 +183,8 @@ before(async () => {
     verb: "archive",
   });
   await seed("events", { tenant_id: A, kind: "message.received" });
+  // Whom Anthropic is told a call is for (00544, decision 0097): the service role's alone.
+  await seed("anthropic_profiles", { kind: "workspace", tenant_id: A, reference_id: `workspace:${A}` }, null);
   // One model call kept in dollars (00273): the service role's model port writes it, a member of the workspace reads it.
   await seed(
     "ai_usage",
@@ -411,7 +413,7 @@ before(async () => {
     },
     null,
   );
-  // A lead's own words at a step (00543): its door writes them, members read them.
+  // A lead's own words at a step (00545): its door writes them, members read them.
   await seed(
     "sequence_lead_words",
     { tenant_id: A, step_id: ctx.reachRoot, lead_id: ctx.lead, subject: "Tenancy", body: "Tenancy words" },
@@ -820,6 +822,7 @@ const TENANT_TABLES = {
     "none",
     () => ({ tenant_id: A, version: 900_000 + Math.floor(Math.random() * 99_999), config: {} }),
   ],
+  anthropic_profiles: ["none", () => ({ kind: "workspace", tenant_id: A, reference_id: "workspace:stranger" })],
   billing_accounts: ["member", () => ({ tenant_id: A })],
   billing_events: ["none", () => ({ id: `evt_stranger_${Date.now()}`, type: "invoice.paid", tenant_id: A })],
   business_records: [
