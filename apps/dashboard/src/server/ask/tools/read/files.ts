@@ -33,7 +33,7 @@ const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>
   (await load(t.rc, filesForAsk, undefined)).data.files;
 
 /** The named files, by the words either of them uses for one: what is typed is cleaned as a name is. */
-function named(files: readonly FileForAsk[], names: readonly string[]) {
+function filesNamed(files: readonly FileForAsk[], names: readonly string[]) {
   const byName = new Map(files.map((f) => [f.name, f]));
   const found: FileForAsk[] = [];
   const missing: string[] = [];
@@ -46,8 +46,8 @@ function named(files: readonly FileForAsk[], names: readonly string[]) {
 }
 
 /** A picture opened, and what is known of it beside it, or why it could not be. */
-async function opened(t: ToolContext, names: readonly string[]) {
-  const { found, missing } = named(await filesOfTurn(t), names);
+async function picturesOpened(t: ToolContext, names: readonly string[]) {
+  const { found, missing } = filesNamed(await filesOfTurn(t), names);
   // What the model refused is not sent again, and is not the owner's to wait for: it is said.
   const copies = await fileCopiesOf(
     { tenantId: t.tenantId, userId: t.ctx.userId },
@@ -66,7 +66,11 @@ async function opened(t: ToolContext, names: readonly string[]) {
 }
 
 /** One shape for both actions that open pictures, as a field a tool's actions share must have (registry.ts flatten). */
-const NAMES = z.array(z.string().min(1).max(120)).min(1).max(VIEW_MAX).describe(`Up to ${VIEW_MAX} names, from list.`);
+const FILE_NAMES_ASKED = z
+  .array(z.string().min(1).max(120))
+  .min(1)
+  .max(VIEW_MAX)
+  .describe(`Up to ${VIEW_MAX} names, from list.`);
 
 export const filesTool = defineActions({
   name: "files",
@@ -110,9 +114,9 @@ export const filesTool = defineActions({
       label: "Reading what a photo shows",
       words: "Action get answers what the look wrote of one file: a note, not the picture.",
       async run(t, input) {
-        const { found, missing } = named(await filesOfTurn(t), [input.name]);
-        const [f] = found;
-        if (!f) return { error: `no file named ${missing[0]}; names come from files with action list` };
+        const { found, missing } = filesNamed(await filesOfTurn(t), [input.name]);
+        const f = found.at(0);
+        if (!f) return { error: `no file named ${missing.at(0)}; names come from files with action list` };
         return {
           name: f.name,
           shelf: fileShelfSaid(f),
@@ -133,19 +137,19 @@ export const filesTool = defineActions({
       },
     }),
     view: readAction({
-      input: z.object({ names: NAMES }),
+      input: z.object({ names: FILE_NAMES_ASKED }),
       examples: [{ names: ["storefront-dusk-street", "wash-bar-empty"] }],
       label: "Looking at your photos",
       words: `Action view opens up to ${VIEW_MAX} pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one.`,
-      run: (t, input) => opened(t, input.names),
+      run: (t, input) => picturesOpened(t, input.names),
     }),
     compare: readAction({
-      input: z.object({ names: NAMES }),
+      input: z.object({ names: FILE_NAMES_ASKED }),
       examples: [{ names: ["storefront-dusk-street", "storefront-day"] }],
       label: "Comparing two photos",
       words: "Action compare opens two pictures side by side, for which is better for something: name exactly two.",
       run: (t, input) =>
-        input.names.length === 2 ? opened(t, input.names) : { error: "name exactly two files to compare" },
+        input.names.length === 2 ? picturesOpened(t, input.names) : { error: "name exactly two files to compare" },
     }),
   },
 });

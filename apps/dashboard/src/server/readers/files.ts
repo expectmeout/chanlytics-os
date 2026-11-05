@@ -33,7 +33,7 @@ function fileDtoOf(r: FileMemberRow): FileDto {
   };
 }
 
-const wordsIn = (raw: unknown): string[] =>
+const lookWordsOf = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.filter((w): w is string => typeof w === "string") : [];
 const qualityWord = (raw: unknown): FileForAsk["quality"]["sharp"] =>
   raw === "good" || raw === "ok" || raw === "poor" ? raw : null;
@@ -45,9 +45,9 @@ function fileForAskOf(r: FileMemberRow): FileForAsk {
   const subject = Array.isArray(look?.subject) && look.subject.length === 4 ? look.subject : null;
   return {
     ...fileDtoOf(r),
-    text_seen: wordsIn(look?.text_seen),
+    text_seen: lookWordsOf(look?.text_seen),
     quality: { sharp: qualityWord(quality?.sharp), light: qualityWord(quality?.light) },
-    colors: wordsIn(look?.colors),
+    colors: lookWordsOf(look?.colors),
     subject: subject as FileForAsk["subject"],
   };
 }
