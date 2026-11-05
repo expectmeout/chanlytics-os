@@ -1086,6 +1086,11 @@ const openPlanFrom = (name = "Personal trainers · Austin") => {
     .onClick();
   draw();
 };
+/** What the open plan says of itself: a desk card's tag, and the flag a phone's sheet builds its title from. */
+const planChanged = (props) => {
+  const tree = draw(props);
+  return [!!byTestId(tree, "plan-changed"), find(tree, (n) => "finderChanged" in (n.props ?? {})).props.finderChanged];
+};
 
 test("Leads draws every row of a list on its first draw where its box cannot be watched", async () => {
   // The window of a long list's rows (kit/rows/shown-rows.ts) is drawn only where the browser can watch the list's box;
@@ -3435,7 +3440,7 @@ test("a kept search's menu says what was asked and when, and offers Rename, Find
 test("Search again, changed opens the plan with what was asked; Rename renames through its route; Remove is asked first, keeps the worked leads, and says so", async () => {
   const near = { kind: "zip", label: "near 78660", state: "TX", center: null, radius_m: 8_000, query: "78660" };
   const dry = search({ round: { ...search().round, ending: "searched_everything", nearby: [near] } });
-  await fresh({ leads: { searches: [dry] } });
+  await fresh({ leads: { searches: [{ ...dry, plan: { ...PLAN, version: 3 } }] } });
   openPlanFrom();
   const again = panels.at(-1);
   assert.deepEqual(
@@ -3444,6 +3449,13 @@ test("Search again, changed opens the plan with what was asked; Rename renames t
   );
   assert.equal(again.plan, again.proposal.plan, "the card draws this search's plan, not an earlier one's");
   assert.deepEqual(again.facts.nearby, [near], "and offers where that search's last round said to look next");
+  // However far along the search is, its plan opens unchanged, and says changed once the owner changes something.
+  assert.deepEqual(planChanged(), [false, false], "at version 3, and nothing on the card has moved it");
+  again.onChangePlan({ ...again.plan, version: 4 });
+  assert.deepEqual(planChanged(), [true, true]);
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  strips.at(-1).onAction("nearby", { ...again.plan, area: near });
+  assert.deepEqual(planChanged({ leadsRoute: `leads:s-${SEARCH_A}` }), [false, false], "a strip's next step, the same");
   // Rename happens where the search is: the rail's row becomes the box.
   await fresh();
   draw();
@@ -3906,6 +3918,7 @@ test("Include opens the plan with that exclusion taken back and starts nothing; 
   assert.equal(f.stage, "plan");
   assert.deepEqual(f.plan.exclusions, [], "the thing it asked about is taken out of the plan");
   assert.equal(f.plan.version, 2, "which is a new version, and that is the one the route is given");
+  assert.deepEqual(planChanged({ leadsRoute: `leads:s-${SEARCH_B}` }), [true, true], "it does change what runs");
   assert.equal(f.words, "", "the answer row under it starts empty: the owner's answer, not what they first asked");
   await f.onApprove(f.plan);
   await settle();
@@ -3975,6 +3988,7 @@ test("Change what I asked opens the answer row under the question, and approving
   assert.equal(sent[0].surface, "leads", "the amend turn is on the Leads surface (spec F5)");
   const shown = panels.at(-1);
   assert.deepEqual([shown.stage, shown.plan.version, shown.plan.count], ["plan", 2, 200], "the card's own plan");
+  assert.deepEqual(planChanged({ leadsRoute: `leads:s-${SEARCH_B}` }), [false, false], "Ask's card counts from itself");
   await shown.onApprove(shown.plan);
   await settle();
   assert.equal(committed.length, 1, "the card commits through Ask's door");
