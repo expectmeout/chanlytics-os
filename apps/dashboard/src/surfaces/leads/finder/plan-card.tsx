@@ -201,7 +201,7 @@ interface PlanCardProps {
   facts: LeadPlanFacts | null;
   busy: boolean;
   refusal: string | null;
-  baseVersion?: number;
+  baseVersion: number;
   pick?: string | null;
   onPick?: (pick: string | null) => void;
   onChange: (plan: LeadSearchPlan) => void;
@@ -218,7 +218,7 @@ export const LeadPlanCard = ({
   facts,
   busy,
   refusal,
-  baseVersion = 1,
+  baseVersion,
   pick = null,
   onPick = () => undefined,
   onChange,

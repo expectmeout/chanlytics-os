@@ -176,6 +176,7 @@ const planPanelOf = (p: P, phone: boolean) => {
       proposal={p.finderProposal}
       plan={p.finderPlan}
       facts={p.finderFacts}
+      baseVersion={p.finderBaseVersion}
       trace={p.finderTrace}
       pick={p.finderPick}
       refusal={p.finderRefusal}

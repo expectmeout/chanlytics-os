@@ -224,6 +224,7 @@ const drawFinder = (st, over = {}) => {
     proposal: st.proposal,
     plan: st.plan,
     facts: null,
+    baseVersion: 1,
     refusal: st.refusal,
     busy: false,
     trace: st.trace,
