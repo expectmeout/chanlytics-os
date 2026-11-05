@@ -631,16 +631,16 @@ test("a term the sizing gives nothing to is never started: no row, no provider c
   };
   const before = w.apify.calls.filter((c) => c.op === "startRun").length;
   const out = await startRound(p("job-3"), round.id, "job-3", true);
-  assert.deepEqual([out.phase, out.runs.map((r) => r.term)], ["main", ["personal trainer", "strength coach"]]);
+  assert.deepEqual([out.phase, out.runs.map((r) => r.term)], ["main", ["kettlebell class", "personal trainer"]]);
   assert.equal(
     w.apify.calls.filter((c) => c.op === "startRun").length,
     before + 2,
-    "the third term reached the provider not at all",
+    "the third term reached the provider not again",
   );
   assert.equal(
-    w.runs().filter((r) => r.term === "kettlebell class").length,
-    0,
-    "and it has no row to claim, lease or collect",
+    w.runs().filter((r) => r.term === "strength coach").length,
+    1,
+    "and it has no row to claim, lease or collect but its probe's",
   );
 });
 

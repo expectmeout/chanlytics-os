@@ -223,7 +223,7 @@ export { LEAD_ASKED_NOT_WRITTEN, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORD
 export { LEAD_PRIOR_MIN, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_UNAVAILABLE, LEAD_WORDS, leadReachLine } from "./leads/leads";
 export { leadCalledByOf } from "./leads/search/called-by";
 export { BUSINESS_LINE_MAX, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_DAY_CAP_USD, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_JUDGE_BATCH, LEAD_MAX_PLACES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_REASON_MAX_WORDS, LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD, LEAD_TRIAL_ALLOWANCE, leadAllowanceFor, leadMonth } from "./leads/search/caps";
-export { estimateRoundUsd, LEAD_CARDS, LEAD_COUNT_CHOICES, placesToAsk, planCeiling, planMinutes } from "./leads/search/cards";
+export { estimateRoundUsd, LEAD_CARDS, LEAD_COUNT_CHOICES, placesPastRead, placesToAsk, planCeiling, planMinutes } from "./leads/search/cards";
 export { classify, LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord, leadPhoneState } from "./leads/search/class";
 export { cleanEmailCandidates, isSiteRoot, LEAD_JUNK_EMAIL_DOMAINS, LEAD_PLACEHOLDER_LOCALS, LEAD_PLATFORM_HOSTS, LEAD_ROLE_LOCALS, leadKindKey, siteHost, stateCode, usPhone } from "./leads/search/clean";
 export { endingOfRound, LEAD_ENDING_WORDS } from "./leads/search/endings";
