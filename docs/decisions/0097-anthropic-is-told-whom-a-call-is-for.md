@@ -85,7 +85,7 @@ those two reach `askModel` and `streamModel`, so the change has one place to sta
 
 Each is Ruben's word, in this order.
 
-1. Apply 00544 and merge. Nothing changes for anyone: the switch is off.
+1. Merge, then apply 00544. Nothing changes for anyone: the switch is off, and it stays off until 00544 is on.
 2. Send the letter. Its page asks to hear before a customer base is registered. On 4 November that base is 8 people and 6
    workspaces, 14 profiles, so this is a courtesy more than a queue, but the answer to its first question can change the
    receptionist's shape, and that is cheapest to change before any exist.

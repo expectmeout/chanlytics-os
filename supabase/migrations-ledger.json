@@ -60,7 +60,7 @@
     "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
-    "00543": "#2099 holds this number, a lead's email edited where it is read; it goes when that lands"
+    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
