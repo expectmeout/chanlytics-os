@@ -237,6 +237,24 @@ test("a plan that reads no sites shows the judge what it always did, and reads a
   assert.equal(w.siteSpends[0].reads, new Set(r.asked.map((a) => a.host)).size, "and those are paid for too");
 });
 
+test("no more sites are read at once than the reader's plan renders, for the judge or for the marks: a sixth would wait in its queue with its own timeout running", async () => {
+  for (const plan of [READING, PLAN]) {
+    const { w, p } = await started(plan);
+    w.pages["https://place0001.example"] = "<title>Rock Gym</title>";
+    const read = w.wires.readSite;
+    let open = 0;
+    let most = 0;
+    const readSite = async (host) => {
+      most = Math.max(most, ++open);
+      const page = await read(host);
+      open -= 1;
+      return page;
+    };
+    await collect(p("c1", { readSite }), w.runs()[0].id, "p0", "c1");
+    assert.equal(most, 5, planReadsSites(plan) ? "reading for the judge" : "reading for the marks alone");
+  }
+});
+
 test("a reader that answers none of a batch's sites is the reader, not the sites: the job is tried again, nothing judged and nothing committed", async () => {
   const { w, p, shown } = await started();
   const before = w.runs()[0].read_offset;

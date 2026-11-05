@@ -35,7 +35,7 @@ bound behind the page's last batch, where no judge follows, and an edge without 
    Needs review, which is free.
 3. **A second model never sees a page's words.** They can name people. The shadow and the screen get the place without them,
    and are not asked what only a site can answer.
-4. **No place is judged blind for want of time.** Sites are read after the screen and before the judge, six at once, in what the
+4. **No place is judged blind for want of time.** Sites are read after the screen and before the judge, five at once, in what the
    judge's bound leaves, each given at least four seconds. The batch stops at the first place whose site could not be asked for:
    what precedes it is judged and committed, and the rest is the next job's, whole, so a slow search is a slow search and never
    a lot of "unknown". A batch that moved nothing waits fifteen seconds under a job name of its own, because this job already

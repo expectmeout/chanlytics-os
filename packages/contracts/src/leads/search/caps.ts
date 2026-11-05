@@ -36,9 +36,9 @@ export const LEAD_FACT_MAX = 120;
 /** What a place's own website says is cut to this, where a plan reads sites: its title, description and first words. */
 export const LEAD_SITE_FACT_MAX = 2_000;
 /**
- * What reading one business's home page costs: one credit with the page's reader, whatever it answers, at the dearest plan
- * we would be on (Firecrawl's Hobby: $16 for 3,000). What a card reserves for a search that reads sites, and what every
- * read of a search is settled at (00541 lead_site_reads_spent).
+ * What reading one business's home page costs: one credit with the page's reader, whatever it answers, at the dearest
+ * we would pay on the plan we are on (Firecrawl's Hobby: 5,000 a month for $19, then $5 for 1,000 more). What a card
+ * reserves for a search that reads sites, and what every read of a search is settled at (00541 lead_site_reads_spent).
  */
 export const LEAD_SITE_READ_USD = 0.005;
 /**
