@@ -60,7 +60,8 @@
     "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
-    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544"
+    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544",
+    "00549": "claimed by cm-erasure-feed (#2112, a stream of erasures is read less), open and not on main when the leads clock's 00550 was recorded. It takes a number above the head if this lands first."
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -550,6 +551,7 @@
     "00545_a_lead_s_email_can_be_its_own.sql": "d98746519b03d97ed408456bdee425c41f172ca4bc476be0c6ca76083fd5ae7d",
     "00546_a_line_is_written_when_its_email_is_planned.sql": "6dd93c882d2cdb4267f92a54bc9474983ee85412a0f62e48b9bb8376b0d5e16e",
     "00547_a_press_of_delete_is_one_write.sql": "34e6e29f9268da383c09f598dbd0faf90743b97a8bb521f2db1f81f6464c54fa",
-    "00548_an_erased_person_leaves_their_sequences.sql": "5510e945dac23bfd8e1626f5f93244dd0a4d02c5828ae421a3193dec36ee7a32"
+    "00548_an_erased_person_leaves_their_sequences.sql": "5510e945dac23bfd8e1626f5f93244dd0a4d02c5828ae421a3193dec36ee7a32",
+    "00550_the_leads_clock_asks_for_a_mark_it_owes.sql": "7471b5b560d76d7b1daffbf243ed7f7c38dbff0eba60eee5e9d7818f4f1f109d"
   }
 }
