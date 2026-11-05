@@ -1,4 +1,4 @@
--- 00546 · An erased person leaves their sequences (decision 0036; 5 Nov 2026: eleven people found by lead search were
+-- 00548 · An erased person leaves their sequences (decision 0036; 5 Nov 2026: eleven people found by lead search were
 -- erased, and ten of their places in a sequence still said "in").
 --
 -- An erasure ended no place. A lead's later step finds whom it writes to by the email its step before sent
@@ -42,7 +42,7 @@ begin
 end $$;
 
 comment on function public.sequence_enrollments_on_erase() is
-  'When a person or a lead is erased, each place of theirs that still stands in a sequence leaves as erased (sequence_enrollments_leave), and a send of theirs not yet gone is skipped with it (00546). A person''s own places are a customer''s; a lead''s go when the lead is erased.';
+  'When a person or a lead is erased, each place of theirs that still stands in a sequence leaves as erased (sequence_enrollments_leave), and a send of theirs not yet gone is skipped with it (00548). A person''s own places are a customer''s; a lead''s go when the lead is erased.';
 
 drop trigger if exists contacts_erase_leaves_sequences on public.contacts;
 create trigger contacts_erase_leaves_sequences after update of erased_at on public.contacts

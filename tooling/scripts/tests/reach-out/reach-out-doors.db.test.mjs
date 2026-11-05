@@ -738,7 +738,7 @@ test(
 );
 
 test(
-  "an erased person's lead leaves its sequence: its place ends as erased, an email not yet gone is skipped with it, and the next step has nobody to follow (00546)",
+  "an erased person's lead leaves its sequence: its place ends as erased, an email not yet gone is skipped with it, and the next step has nobody to follow (00548)",
   { skip },
   async () => {
     const d = await mailboxRow();

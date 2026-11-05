@@ -28717,7 +28717,7 @@ end $$;
 -- Name: FUNCTION sequence_enrollments_on_erase(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_enrollments_on_erase() IS 'When a person or a lead is erased, each place of theirs that still stands in a sequence leaves as erased (sequence_enrollments_leave), and a send of theirs not yet gone is skipped with it (00546). A person''s own places are a customer''s; a lead''s go when the lead is erased.';
+COMMENT ON FUNCTION public.sequence_enrollments_on_erase() IS 'When a person or a lead is erased, each place of theirs that still stands in a sequence leaves as erased (sequence_enrollments_leave), and a send of theirs not yet gone is skipped with it (00548). A person''s own places are a customer''s; a lead''s go when the lead is erased.';
 
 
 --

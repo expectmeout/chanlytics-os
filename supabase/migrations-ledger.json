@@ -60,7 +60,9 @@
     "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
-    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544"
+    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544",
+    "00546": "claimed by cm-lead-own-words (#2106, a line is written when its email is planned), open and not on main when an erased person leaves their sequences took 00548 above it",
+    "00547": "held by cm-delete-many (#2107, a press of Delete is one write), open and not on main when an erased person leaves their sequences took 00548 above it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -548,6 +550,6 @@
     "00542_a_partner_s_password_alone_learns_no_lead_s_why.sql": "0adf961282d15d75b0cb8769e38c0692b97ed729a3f95b49aff23a0f82d467d0",
     "00544_anthropic_is_told_whom_a_call_is_for.sql": "c6635a48db48a9124b2cd7639378378ed787f157536f25e5df7b37bab03588c3",
     "00545_a_lead_s_email_can_be_its_own.sql": "d98746519b03d97ed408456bdee425c41f172ca4bc476be0c6ca76083fd5ae7d",
-    "00546_an_erased_person_leaves_their_sequences.sql": "213da0b191eaf5419561a0723405f93a780db955c83bd17ce0501dd1ef60e065"
+    "00548_an_erased_person_leaves_their_sequences.sql": "5510e945dac23bfd8e1626f5f93244dd0a4d02c5828ae421a3193dec36ee7a32"
   }
 }

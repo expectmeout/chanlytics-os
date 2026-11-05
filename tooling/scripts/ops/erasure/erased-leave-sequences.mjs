@@ -2,11 +2,11 @@
  * End the places an erasure left standing in a sequence (prod-script bar): dry-run DEFAULT, a JSONL backup of every row
  * it will change before any write, idempotent, --apply to execute.
  *
- * Until 00546 an erasure ended no place. A person erased while they, or their lead, were in a sequence stayed counted
+ * Until 00548 an erasure ended no place. A person erased while they, or their lead, were in a sequence stayed counted
  * among its people: a lead's later step finds whom it writes to by the email its step before sent, erase_contact
  * deletes that email, and so the step never saw them again to pass them over. An email still planned for them stayed
  * planned. Nothing was sent to anyone (there is no address left to send to); the sequence's counts were wrong, and the
- * places would have stood for good. 00546 ends them as the erasure commits. This ends the ones from before it.
+ * places would have stood for good. 00548 ends them as the erasure commits. This ends the ones from before it.
  *
  * It reads every place still `in`, and takes the ones whose lead is erased (a lead's place) or whose person is (a
  * customer's place, one with no lead). Each leaves through the door every leave goes through
@@ -17,7 +17,7 @@
  * A dry run changes nothing: it lists each place (ids only: the people are erased, and nothing names them) and each
  * send the door would skip. An apply writes every place and send it will change, as they stand, to
  * tooling/backups/erased-leave-sequences-<stamp>.jsonl (one {table, row} per line), asks the door a workspace at a
- * time, then reads again: none it planned may still stand. A second apply finds nothing. Runs before or after 00546:
+ * time, then reads again: none it planned may still stand. A second apply finds nothing. Runs before or after 00548:
  * the door is 00441's.
  *
  * The backup is the record of what stood. A place can be put back from it (state `in`, why, ended_at and left_by

@@ -345,7 +345,7 @@ test(
 );
 
 test(
-  "a person erased leaves their sequences: a place still standing ends as erased, a send not yet gone is skipped with it, and the step after never finds them (00546)",
+  "a person erased leaves their sequences: a place still standing ends as erased, a send not yet gone is skipped with it, and the step after never finds them (00548)",
   { skip },
   async () => {
     const root = await firstStep({ name: "Erased" });

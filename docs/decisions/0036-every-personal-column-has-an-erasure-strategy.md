@@ -138,7 +138,7 @@ someone blocked is refused by the wire from the moment of the press. A job that 
    scrubs that were already there), the order and its logging to `packages/jobs` (`erasure.ts`), the route keeping its
    hand on it (its session's client for the key reads, the Ask scrub, the policy delete and `erase_contact`; the service
    role's for the rest; its own ledger row for a late leg).
-5. **An erased person leaves their sequences** (5 November 2026, 00546). An erasure ended no place. A lead's later
+5. **An erased person leaves their sequences** (5 November 2026, 00548). An erasure ended no place. A lead's later
    step finds whom it writes to by the email its step before sent, and `erase_contact` deletes that email with the
    person: the step never saw them again, so it never passed them over (00455), and their place stood for good,
    counted among the sequence's people. Nothing was sent, there being no address left; the count was wrong, and an
@@ -146,7 +146,7 @@ someone blocked is refused by the wire from the moment of the press. A job that 
    as `erased` in the erasure's own transaction (`sequence_enrollments_on_erase`, a trigger on `contacts` for a
    customer's places and on `leads` for a lead's, through `sequence_enrollments_leave`, the door every leave goes
    through), and a send of theirs not yet gone is skipped with the same word. A lead someone else at the business
-   stands in for is not erased, and keeps its place. The places an erasure before 00546 left standing are ended by
+   stands in for is not erased, and keeps its place. The places an erasure before 00548 left standing are ended by
    `tooling/scripts/ops/erasure/erased-leave-sequences.mjs`, dry run first.
 
 ## What stays, by design

@@ -348,7 +348,7 @@ test(
 );
 
 test(
-  "a lead its owner erases on Leads leaves its sequence: its place ends as erased and its planned email is skipped with it (00546)",
+  "a lead its owner erases on Leads leaves its sequence: its place ends as erased and its planned email is skipped with it (00548)",
   { skip },
   async () => {
     const [standing] = await placeOf(W.planned);

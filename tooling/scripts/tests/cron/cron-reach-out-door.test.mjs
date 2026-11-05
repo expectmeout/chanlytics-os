@@ -1206,7 +1206,7 @@ test("a step's send answers its lead's email before (D19): Re: its subject, and 
   assert.equal(m.body, "Just following up, Fixture Movers.");
 });
 
-test("an erased person's planned email is never written: its lead blank and the email before it gone, the sender skips it (its place's end is the database's, 00546)", async () => {
+test("an erased person's planned email is never written: its lead blank and the email before it gone, the sender skips it (its place's end is the database's, 00548)", async () => {
   const { w, nudge } = await stepWorld();
   // As erase_contact and lead_blank leave them: their emails deleted, each send's link to one cleared, the lead blank.
   w.tables.messages.length = 0;
