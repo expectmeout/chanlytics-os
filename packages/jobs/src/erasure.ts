@@ -111,12 +111,17 @@ export async function eraseOrRedrive(clients: ErasureClients, contact: ErasurePe
  * request outran the browser's wait (5 Nov 2026). Someone going already keeps their one finish (its key), so a press
  * pressed again starts nothing beside it. Here the finish is the erasure, so a ledger that will not take it stops this
  * person and says so, where a press that runs the legs itself logs it and goes on (scheduleFinish). The block is written
- * by then, and a second press finds it and asks again.
+ * by then, and a second press finds it and asks again. Both are written on the clients' service role, as a press of
+ * one writes them (erasePerson).
  */
-export async function eraseByTheLedger(db: Db, contact: ErasurePerson, by: string): Promise<void> {
-  await blockErasure(db, contact);
+export async function eraseByTheLedger(
+  clients: Pick<ErasureClients, "service">,
+  contact: ErasurePerson,
+  by: string,
+): Promise<void> {
+  await blockErasure(clients.service, contact);
   try {
-    await scheduleJobOnce(db, {
+    await scheduleJobOnce(clients.service, {
       tenantId: contact.tenant_id,
       kind: "erasure_finish",
       dueAt: new Date(),

@@ -1,11 +1,10 @@
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
 import { eachAtOnce } from "@chanlytics/core";
 import { setPersonReplyMode } from "@chanlytics/db";
-import { eraseByTheLedger } from "@chanlytics/jobs";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
 import { sayNotAPerson } from "@/server/connections/mailbox-senders";
-import { serviceDb } from "@/server/service-db";
+import { eraseContactByTheLedger } from "@/server/people/erase-contact";
 
 /**
  * The same change for many people at once, through the door each would go
@@ -129,7 +128,7 @@ interface ErasedMany {
 
 /**
  * Many people deleted at one press (People's Delete…): each taken out of reach and handed to the ledger, which erases
- * them as Delete person erases one, and answered (jobs erasure.ts eraseByTheLedger). The press does none of the erasing,
+ * them as Delete person erases one, and answered (erase-contact.ts eraseContactByTheLedger). The press does no erasing,
  * so it cannot outrun anyone's wait, a tab closed behind it loses nothing, and a press pressed again starts nothing
  * beside the first. With `notAPersonToo`, each one's address is said automated first, as the person page's switch says it
  * (mailbox-senders.ts sayNotAPerson), the address alone: a selection is many senders, and a domain is many people's. A
@@ -152,7 +151,6 @@ export async function eraseMany(
   }>(ctx, tenantId, uniq, "id, tenant_id, phone_e164, email, erased_at");
   const picked = uniq.flatMap((id) => rows.filter((c) => c.id === id));
   const refused = new Map<string, string>();
-  const service = serviceDb();
   await eachAtOnce(
     picked,
     ERASE_MANY_AT_ONCE,
@@ -160,7 +158,7 @@ export async function eraseMany(
     async (c) => {
       try {
         if (notAPersonToo) await sayNotAPerson(ctx, c, "address");
-        await eraseByTheLedger(service, c, ctx.userId);
+        await eraseContactByTheLedger(ctx, c);
       } catch (e) {
         refused.set(c.id, e instanceof Error ? e.message : String(e));
       }
