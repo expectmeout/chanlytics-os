@@ -14,6 +14,8 @@ export const SCHEMA_SETS = {
     "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest", "ask_journal",
     "receptionist_review", "fix_route", "website_read", "sender_read",
   ],
+  "anthropic_profiles.enforcement_status": ["unrestricted", "pending", "restricted", "banned"],
+  "anthropic_profiles.kind": ["person", "workspace"],
   "appointment_notices.hold_reason": [
     "no_model", "may_not_spend", "unreadable", "not_a_booking", "no_time", "no_client", "gone",
   ],

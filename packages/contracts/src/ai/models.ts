@@ -152,6 +152,11 @@ export type ModelPort = (typeof MODEL_PORTS)[number];
 export type ShadowPort = Exclude<ModelPort, "anthropic">;
 
 export interface ModelRoute {
+  /**
+   * Whom its traffic is for, as Anthropic is told (decision 0097; ai/anthropic-profiles.ts modelSubjectOf): `person`, someone
+   * signed in asked for it; `workspace`, nobody signed in did. Required, so a purpose cannot arrive without the decision.
+   */
+  attributed: "person" | "workspace";
   model: ModelId;
   /** Asked once when the model's answer never came (529, 5xx, a timeout); null when the purpose waits instead. */
   fallback: ModelId | null;
@@ -251,6 +256,7 @@ const WEBSITE_READ_TRY_MS = 25_000;
 export const MODEL_ROUTES = {
   // Its intent, the class that intent falls under, and whether the customer asked to stop, are closed sets.
   receptionist: {
+    attributed: "workspace",
     model: OPUS_5_5,
     fallback: SONNET_5_5,
     timeoutMs: RECEPTIONIST_TRY_MS,
@@ -258,10 +264,25 @@ export const MODEL_ROUTES = {
     maxTokens: 900,
     shadow: "typesafe",
   },
-  reply_draft: { model: OPUS_5_5, fallback: SONNET_5_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
-  ask: { model: OPUS_5_5, fallback: SONNET_5_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4000 },
+  reply_draft: {
+    attributed: "workspace",
+    model: OPUS_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: RECEPTIONIST_TRY_MS,
+    retries: 1,
+    maxTokens: 900,
+  },
+  ask: {
+    attributed: "person",
+    model: OPUS_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: ASK_TRY_MS,
+    retries: 0,
+    maxTokens: 4000,
+  },
   // The dashboard's small drafts (a lead's email, a person's message, a list, a sequence), each a record at low effort.
   lead_json: {
+    attributed: "person",
     model: SONNET_5_5,
     fallback: SONNET_5,
     timeoutMs: DRAFT_TRY_MS,
@@ -272,8 +293,16 @@ export const MODEL_ROUTES = {
   // Its model is the template drafter's (campaigns/templates.ts DRAFT_MODEL), which asks as Ask's round and names its
   // own thinking off (thinkingOffOf). What is asked as this purpose is a skill's craft call on Ask's model at high
   // effort, whose fallback is this model: that one keeps its thinking, so the route leaves thinking alone.
-  template_draft: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
+  template_draft: {
+    attributed: "person",
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: DRAFT_TRY_MS,
+    retries: 0,
+    maxTokens: 900,
+  },
   review_reply: {
+    attributed: "workspace",
     model: SONNET_5_5,
     fallback: SONNET_5,
     timeoutMs: REVIEW_TRY_MS,
@@ -285,6 +314,7 @@ export const MODEL_ROUTES = {
   // Opus 5.5 answers a call in 9 seconds where Opus 5 took 12, and reads a website or an email the listing does not show
   // as missing (fail), where Opus 5 said it could not tell (Ruben, 30 Oct 2026: missing).
   lead_judge: {
+    attributed: "workspace",
     model: OPUS_5_5,
     fallback: null,
     timeoutMs: JUDGE_TRY_MS,
@@ -296,6 +326,7 @@ export const MODEL_ROUTES = {
   },
   // The small reads, each a short answer into a fixed shape: the smallest model, with its thinking off.
   note_suggest: {
+    attributed: "workspace",
     model: HAIKU_5_5,
     fallback: SONNET_5_5,
     timeoutMs: NOTE_TRY_MS,
@@ -304,6 +335,7 @@ export const MODEL_ROUTES = {
     thinking: "off",
   },
   reach_out_check: {
+    attributed: "workspace",
     model: HAIKU_5_5,
     fallback: SONNET_5_5,
     timeoutMs: READ_TRY_MS,
@@ -312,6 +344,7 @@ export const MODEL_ROUTES = {
     thinking: "off",
   },
   reply_read: {
+    attributed: "workspace",
     model: HAIKU_5_5,
     fallback: SONNET_5_5,
     timeoutMs: READ_TRY_MS,
@@ -325,6 +358,7 @@ export const MODEL_ROUTES = {
   // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
   // email into a fixed shape, as the reply's reading is; an overload is the ledger's retry, as there.
   booking_read: {
+    attributed: "workspace",
     model: HAIKU_5_5,
     fallback: SONNET_5_5,
     timeoutMs: READ_TRY_MS,
@@ -334,14 +368,29 @@ export const MODEL_ROUTES = {
   },
   // The ideas for a new search (00398): four ready plans written from what a workspace's searches found, a page waiting
   // on them (Ruben, 11 Oct 2026: Sonnet 5.5 for now). The fallback is the small drafts' own model.
-  lead_suggest: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 1800 },
+  lead_suggest: {
+    attributed: "person",
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: DRAFT_TRY_MS,
+    retries: 0,
+    maxTokens: 1800,
+  },
   // Ask's journal (decision 0070): a workspace's day, written in a few sentences from its ledgers' lines, by the note
   // sweep inside its minute, asked at low effort (its thinking counts against the tokens). No retry: a day not written
   // in time is let go as failed, never asked twice.
-  ask_journal: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 0, maxTokens: 1500 },
+  ask_journal: {
+    attributed: "workspace",
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: NOTE_TRY_MS,
+    retries: 0,
+    maxTokens: 1500,
+  },
   // A rehearsal's review (decision 0069, D3): every answer of a conversation judged against what it was told, Sonnet
   // 5.5 for the judgement; and the owner's correction routed to its field, the smallest model, its answer checked in code.
   receptionist_review: {
+    attributed: "person",
     model: SONNET_5_5,
     fallback: SONNET_5,
     timeoutMs: REVIEW_CONVERSATION_TRY_MS,
@@ -349,6 +398,7 @@ export const MODEL_ROUTES = {
     maxTokens: 4000,
   },
   fix_route: {
+    attributed: "person",
     model: HAIKU_5_5,
     fallback: SONNET_5_5,
     timeoutMs: FIX_ROUTE_TRY_MS,
@@ -360,6 +410,7 @@ export const MODEL_ROUTES = {
   // answer checked in code (contracts businessReadFactsOf) and every price confirmed by the owner's tap. Its thinking
   // off: thinking as it did by default, it spent the whole cap on a customer's pages and found nothing (29 Oct 2026).
   website_read: {
+    attributed: "workspace",
     model: HAIKU_5_5,
     fallback: SONNET_5_5,
     timeoutMs: WEBSITE_READ_TRY_MS,
@@ -371,6 +422,7 @@ export const MODEL_ROUTES = {
   // fixed shape, inside a sync's or an import part's minute. Nothing waits on it: no answer leaves the email to the
   // rules, and the next email from the sender is read again.
   sender_read: {
+    attributed: "workspace",
     model: HAIKU_5_5,
     fallback: SONNET_5_5,
     timeoutMs: READ_TRY_MS,

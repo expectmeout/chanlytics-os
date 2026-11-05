@@ -17,6 +17,7 @@ what the script writes.
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
+| [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/anthropic-profiles.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
 | [`appointments`](#appointments) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
@@ -180,6 +181,32 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `ai_usage_member_select` | select | authenticated | `((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))))` |  |
+
+### anthropic_profiles
+
+Who Anthropic is told a model call is for (decision 0097): one row a signed-up person, one a workspace. A row whose subject went (both ids null) is the health sweep's to delete at Anthropic, then here.
+
+- Owned by: `packages/db/src/anthropic-profiles.ts`
+- Primary key: `id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `kind` | text | no |  |  |
+| `user_id` | uuid | yes |  |  |
+| `tenant_id` | uuid | yes |  |  |
+| `reference_id` | text | no |  | What the profile was created with as its reference_id (person:<id>, workspace:<id>): how a create whose answer was lost is found again. |
+| `profile_id` | text | yes |  | Anthropic's uprof_ id. Null while a create is in flight, or its answer was lost: the sweep adopts or lets go such a claim, and nothing creates a second. |
+| `claimed_at` | timestamp with time zone | no | `now()` |  |
+| `enforcement_status` | text | no | `'unrestricted'::text` | What Anthropic last said (contracts enforcementStatusOf: a value it does not know reads restricted). Anything but unrestricted pauses the subject's model calls. |
+| `enforcement_actions` | jsonb | no | `'[]'::jsonb` | The open actions as Anthropic listed them: type, id, reason, action, opened_at, expires_at. No words of anyone's. |
+| `enforcement_at` | timestamp with time zone | yes |  | When this platform last saw the status change. |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete set null
+- `user_id` → `auth.users` (`id`), on delete set null
 
 ### appointment_notices
 

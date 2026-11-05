@@ -22,6 +22,7 @@ import {
   healthLedgerNow,
   healthPages,
   healthDraftUses,
+  healthAnthropicProfiles,
   healthParts,
   healthSweeps,
   healthWorkspaces,
@@ -206,20 +207,33 @@ async function clientErrorsRead(office: BackOffice, sinceIso: string): Promise<C
  */
 export async function consoleHealth(office: BackOffice, days: HealthWindow, now = Date.now()): Promise<HealthDto> {
   const sinceIso = new Date(now - days * DAY_MS).toISOString();
-  const [workspaces, clocks, backlog, failedJobs, ledger, pages, dayRows, parts, clientErrors, vitals, speed] =
-    await Promise.all([
-      side("health_workspaces", () => workspacesRead(office)),
-      side("health_clocks", () => clocksRead(office, days)),
-      side("health_backlog", () => backlogRead(office)),
-      side("health_failed_jobs", () => failedJobsRead(office, sinceIso)),
-      side("health_ledger", () => ledgerRead(office)),
-      side("health_pages", () => pagesRead(office)),
-      platformDays(office, days),
-      side("health_parts", () => partsRead(office, days)),
-      side("health_client_errors", () => clientErrorsRead(office, sinceIso)),
-      platformVitals(office),
-      platformSpeed(office),
-    ]);
+  const [
+    workspaces,
+    clocks,
+    backlog,
+    failedJobs,
+    ledger,
+    pages,
+    dayRows,
+    parts,
+    clientErrors,
+    vitals,
+    speed,
+    profiles,
+  ] = await Promise.all([
+    side("health_workspaces", () => workspacesRead(office)),
+    side("health_clocks", () => clocksRead(office, days)),
+    side("health_backlog", () => backlogRead(office)),
+    side("health_failed_jobs", () => failedJobsRead(office, sinceIso)),
+    side("health_ledger", () => ledgerRead(office)),
+    side("health_pages", () => pagesRead(office)),
+    platformDays(office, days),
+    side("health_parts", () => partsRead(office, days)),
+    side("health_client_errors", () => clientErrorsRead(office, sinceIso)),
+    platformVitals(office),
+    platformSpeed(office),
+    side("health_anthropic_profiles", () => healthAnthropicProfiles(office.db)),
+  ]);
   return {
     days,
     checked_at: new Date(now).toISOString(),
@@ -234,6 +248,7 @@ export async function consoleHealth(office: BackOffice, days: HealthWindow, now 
     client_errors: clientErrors,
     vitals,
     speed,
+    anthropic_profiles: profiles,
   };
 }
 
