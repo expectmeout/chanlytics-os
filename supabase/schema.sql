@@ -30763,21 +30763,24 @@ end $$;
 -- Name: sequence_unchecked(integer, integer, integer, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid DEFAULT NULL::uuid, p_send_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(send jsonb, check_gen integer, template_id uuid, template_language text, signed_by text, included_for text[], business_name text, category text, city text, region text, rating numeric, reviews integer, website_host text, hours jsonb, about text, email text, why_it_fits text, what_you_asked text, site_listings integer, name_listings integer, email_domain_shared boolean, reviews_dist jsonb, claimed boolean)
+CREATE FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid DEFAULT NULL::uuid, p_send_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(send jsonb, check_gen integer, template_id uuid, template_language text, signed_by text, included_for text[], business_name text, category text, city text, region text, rating numeric, reviews integer, website_host text, hours jsonb, about text, email text, why_it_fits text, what_you_asked text, site_listings integer, name_listings integer, email_domain_shared boolean, reviews_dist jsonb, claimed boolean, due_soon boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 #variable_conflict use_column
 declare
   v_ids uuid[];
+  v_soon timestamptz := now() + make_interval(mins => greatest(coalesce(p_ahead_minutes, 0), 0));
 begin
   if coalesce(p_limit, 0) <= 0 or coalesce(p_per_workspace, 0) <= 0 then
     return;
   end if;
   with candidates as (
     select s.id,
+           -- Those due soon first (decision 0098): an email days off never keeps one due today waiting.
            row_number() over (partition by s.tenant_id
-                              order by coalesce(s.check_after, s.created_at), s.send_at, s.id) as turn,
+                              order by (b.state = 'pending_approval' or s.send_at <= v_soon) desc,
+                                       coalesce(s.check_after, s.created_at), s.send_at, s.id) as turn,
            coalesce(s.check_after, s.created_at) as waiting_since
       from public.sequence_sends s
       join public.sequence_batches b on b.id = s.batch_id
@@ -30787,9 +30790,6 @@ begin
        and b.state in ('pending_approval', 'scheduled', 'sending') and p.state = 'running' and r.state = 'running'
        and (s.check_after is null or s.check_after <= now())
        and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-       -- A send a person pressed is checked now, whatever its day (00505); the clock's own wait for its day otherwise.
-       and (p_send_ids is not null or b.state = 'pending_approval'
-            or s.send_at <= now() + make_interval(mins => greatest(coalesce(p_ahead_minutes, 0), 0)))
        and (p_tenant_id is null or s.tenant_id = p_tenant_id)
        and (p_send_ids is null or s.id = any (p_send_ids))
   ), picked as (
@@ -30819,8 +30819,10 @@ begin
                 order by x),
          rec.business_name, rec.category, rec.city, rec.region, rec.rating, rec.reviews, rec.website_host,
          rec.hours, rec.about, rec.email, rec.why_it_fits, rec.what_you_asked,
-         rec.site_listings, rec.name_listings, rec.email_domain_shared, rec.reviews_dist, rec.claimed
+         rec.site_listings, rec.name_listings, rec.email_domain_shared, rec.reviews_dist, rec.claimed,
+         (b.state = 'pending_approval' or s.send_at <= v_soon)
     from public.sequence_sends s
+    join public.sequence_batches b on b.id = s.batch_id
     join public.sequence_steps p on p.id = s.step_id
     join public.sequence_steps r on r.id = s.sequence_id
     cross join lateral public.reach_out_record(s.tenant_id, r.lead_search_id, s.lead_id) rec
@@ -30833,7 +30835,7 @@ end $$;
 -- Name: FUNCTION sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) IS 'The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, each with its words'' step, the name its sequence signs with, the holds its owner included it past and its business''s record (00197 reach_out_unchecked over sequence_sends); with p_send_ids, those sends alone and whatever their day (00505: the check of a pressed rewrite). Service role only (0060).';
+COMMENT ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) IS 'The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, every planned send whatever its day (decision 0098): those waiting for their owner or due within p_ahead_minutes first, and saying so (due_soon), each with its words'' step, the name its sequence signs with, the holds its owner included it past and its business''s record (00197 reach_out_unchecked over sequence_sends); with p_send_ids, those sends alone (00505: the check of a pressed rewrite). Service role only (0060).';
 
 
 --
@@ -33581,8 +33583,7 @@ begin
         where s.lead_id is not null and ( s.state = 'planned' and s.checked_at is null
           and b.state in ('pending_approval', 'scheduled', 'sending') and p.state = 'running' and r.state = 'running'
           and (s.check_after is null or s.check_after <= now())
-          and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-          and (b.state = 'pending_approval' or s.send_at <= now() + interval '2 hours')))
+          and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')))
      or exists (select 1 from public.sequence_sends
                  where sequence_sends.lead_id is not null and ( state = 'held' and reason = 'check_unavailable' and hold_detail is null
                    and updated_at < now() - interval '1 hour')) then
@@ -33598,7 +33599,7 @@ end $$;
 -- Name: FUNCTION trigger_reach_out_check_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_reach_out_check_sweep() IS 'The reach-out check clock (Reach out, Part 4). Calls the edge only when a send waits to be checked within the horizon, or a check_unavailable hold is an hour old; otherwise records that it looked.';
+COMMENT ON FUNCTION public.trigger_reach_out_check_sweep() IS 'The reach-out check clock (Reach out, Part 4). Calls the edge only when a send waits to be checked, whatever its day (decision 0098), or a check_unavailable hold is an hour old; otherwise records that it looked.';
 
 
 --

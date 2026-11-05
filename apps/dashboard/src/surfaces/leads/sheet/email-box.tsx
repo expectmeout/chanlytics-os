@@ -29,13 +29,11 @@ import {
   leadWordsFromBox,
   leadWordsInBox,
   leadWordsProblem,
-  wroteLineWords,
   type LeadEmailPiece,
   type LeadEmailText,
   type LeadStepWordsDto,
 } from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
-import { checkOpeningNow } from "@/legacy-bridge/verbs/openings";
 import { undoRewrite, type RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
 import { pressed, sequenceVerbs } from "../../campaigns/sequences/verbs";
 import { Button } from "../../kit/button/button";
@@ -153,24 +151,9 @@ export function useSaidWords<R extends { words: readonly LeadStepWordsDto[] }>(l
   };
 }
 
-/** Write it now: the check of this email, as Rewrite's own press asks it (00505), what came of it said, and read back. */
-function writeLineNow(
-  sendId: string,
-  name: string,
-  p: { busy: (on: boolean) => void; flash: Flash; moved: () => void },
-): void {
-  p.busy(true);
-  void checkOpeningNow(sendId, () => {}).then((after) => {
-    p.busy(false);
-    p.flash({ tone: after && after.written ? "ok" : "warn", msg: wroteLineWords(name, after) });
-    p.moved();
-  });
-}
-
 /**
  * The card's email and its presses (00505): Rewrite the opening, asked in the dock's place first; the email said as being
- * written while it is; the Undo a landed rewrite keeps beside it while that email is on the card; Write it now, where its
- * check has not come to it yet; and its box.
+ * written while it is; the Undo a landed rewrite keeps beside it while that email is on the card; and its box.
  */
 export function emailActsOf(d: {
   run: SheetRun | null;
@@ -181,10 +164,7 @@ export function emailActsOf(d: {
   box: EmailBox;
 }) {
   const { run, facts, sheet } = d;
-  const mail =
-    facts && facts.mail && sheet.ui.writing
-      ? { ...facts.mail, writing: true, rewrite: false, writeNow: null }
-      : facts?.mail;
+  const mail = facts && facts.mail && sheet.ui.writing ? { ...facts.mail, writing: true, rewrite: false } : facts?.mail;
   const undo = sheet.ui.undo;
   const sendId = facts && facts.place ? facts.place.place.send_id : null;
   const undoNow = (kept: RewriteUndo) => {
@@ -195,15 +175,6 @@ export function emailActsOf(d: {
     mail: mail ?? null,
     onRewrite: run && mail && mail.rewrite ? () => sheet.put({ whole: false, ask: "rewrite" }) : null,
     onUndo: undo && undo.sendId === sendId ? () => undoNow(undo.kept) : null,
-    onWriteNow:
-      mail && mail.writeNow
-        ? () =>
-            writeLineNow(mail.writeNow ?? "", mail.edit?.name ?? run?.name ?? "", {
-              busy: (writing) => sheet.put({ writing }),
-              flash: d.flash,
-              moved: d.moved,
-            })
-        : null,
     box: d.box,
   };
 }
@@ -237,12 +208,11 @@ export function SentEmail({ leadId, sendId, box }: { leadId: string; sendId: str
     opening: null,
     writing: false,
     rewrite: false,
-    writeNow: null,
     tall: false,
     edit: null,
     wordsUnread: false,
   };
-  return <SheetEmail mail={mail} whole onWhole={null} onRewrite={null} onUndo={null} onWriteNow={null} box={box} />;
+  return <SheetEmail mail={mail} whole onWhole={null} onRewrite={null} onUndo={null} box={box} />;
 }
 
 interface EmailBoxOf {
@@ -461,11 +431,17 @@ function tapToType(box: EmailBox, edit: SheetMailEdit, part: BoxPart) {
   };
 }
 
-/** One piece of the email as it reads: the line written for them, what is still to come, or words. */
+/** One piece of the email as it reads: the line written for them, that it is being written, what is still to come, or words. */
 function PieceOf({ piece, mail }: { piece: LeadEmailPiece; mail: SheetMail }) {
   if (piece.kind === "words") return <span data-at={piece.at}>{piece.text}</span>;
-  if (piece.kind === "mark") {
-    const line = piece.slot === "opening";
+  const line = piece.kind === "line" || piece.slot === "opening";
+  if (line && mail.writing)
+    return (
+      <span className="lw-open" data-at={piece.at} data-testid="lead-card-opening">
+        {W.mail.writing}
+      </span>
+    );
+  if (piece.kind === "mark")
     return (
       <span
         className={line ? "lw-open" : "lw-hole"}
@@ -473,13 +449,6 @@ function PieceOf({ piece, mail }: { piece: LeadEmailPiece; mail: SheetMail }) {
         data-testid={line ? "lead-card-opening" : "lead-card-gap"}
       >
         {line ? LEAD_CARD_WORDS.opening : piece.text}
-      </span>
-    );
-  }
-  if (mail.writing)
-    return (
-      <span className="lw-open" data-at={piece.at} data-testid="lead-card-opening">
-        {W.mail.writing}
       </span>
     );
   const o = mail.opening;
@@ -563,7 +532,6 @@ export function SheetEmail(p: {
   onWhole: (() => void) | null;
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
-  onWriteNow: (() => void) | null;
   box: EmailBox;
 }) {
   const { mail, box } = p;
@@ -625,16 +593,6 @@ export function SheetEmail(p: {
         ) : (
           <span />
         )}
-        {p.onWriteNow ? (
-          <LinkButton
-            className="lw-link q"
-            onClick={p.onWriteNow}
-            data-testid="lead-sheet-write-now"
-            {...gate("approve", "write this line")}
-          >
-            {B.writeNow}
-          </LinkButton>
-        ) : null}
         {p.onRewrite ? (
           <LinkButton
             className="lw-link q"

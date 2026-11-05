@@ -1532,7 +1532,7 @@ html.legacy-on .lw .lw-now-edit, .lw .lw-now-edit { position: relative; flex: no
 .lw-now-body.is-clipped { max-height: 7.1em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
 .lw-phone .lw-now-body.is-clipped { max-height: 6em; }
 .lw-now-body.is-clipped.is-tall, .lw-phone .lw-now-body.is-clipped.is-tall { max-height: 9em; }
-.lw-opening { padding: 1px 0; border-radius: var(--radius-xs); background: var(--selected-fill); color: var(--ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lw-opening { padding: 1px 0; border-radius: var(--radius-xs); background: var(--slot-soft); color: var(--slot); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-refused { padding: 1px 3px; border-radius: var(--radius-xs); background: var(--warn-soft); color: var(--warn-ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-now-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 3px; font-size: var(--text-sm); }
 /* The sheet's links, underlined in a quiet line: words that act, set among other words. */

@@ -24,8 +24,9 @@ stands, and a one-off email had labelled boxes. "Change it for everyone" had no 
 3. **The sender and the check compare a mark.** `checkedWordsOf(words, signedBy, hasBookingLink)` is stamped by the check
    and compared by the sender, and a send whose mark differs goes back to be checked (R5). The door stamps the new words'
    mark on a checked send, made the way those two make it, or every save would mean a second check.
-4. **The check writes a line within two hours of sending,** unless its batch waits for an OK (`sequence_unchecked`). So an
-   email due tomorrow may have no line yet.
+4. **The check wrote a line within two hours of sending,** unless its batch waited for an OK (`sequence_unchecked`), so an
+   email due tomorrow could have no line yet. [Decision 0098](0098-a-line-is-written-when-its-email-is-planned.md) has it
+   written when the email is planned.
 5. **A touch that starts in a text box is refused by the sheet's gestures** (`swipeOwnDrag`), and the email is most of the
    card. So it is read text at rest, and the box is drawn on the tap (`drawnNow`, or iOS raises no keyboard).
 

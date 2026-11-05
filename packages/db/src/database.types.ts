@@ -11153,6 +11153,7 @@ export type Database = {
           check_gen: number
           city: string
           claimed: boolean
+          due_soon: boolean
           email: string
           email_domain_shared: boolean
           hours: Json

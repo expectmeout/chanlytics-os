@@ -22,6 +22,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../../_file-lock.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -49,8 +50,12 @@ const ok = (r, what) => {
   return r.data;
 };
 
+// An outbound_send due now is a row of the one queue, and a suite claiming beside this one would carry it off
+// (_file-lock.mjs), so this file runs apart from them.
+let releaseLedger;
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   core = await import(at("packages/core/src/index.ts"));
   ports = await import(at("apps/dashboard/src/server/ports/core-ports.ts"));
@@ -59,11 +64,15 @@ before(async () => {
 
 after(async () => {
   if (skip) return;
-  for (const id of made.tenants) {
-    await db.from("events").delete().eq("tenant_id", id);
-    await db.from("tenants").delete().eq("id", id);
+  try {
+    for (const id of made.tenants) {
+      await db.from("events").delete().eq("tenant_id", id);
+      await db.from("tenants").delete().eq("id", id);
+    }
+    for (const id of made.users) await db.auth.admin.deleteUser(id).catch(() => undefined);
+  } finally {
+    await releaseLedger?.();
   }
-  for (const id of made.users) await db.auth.admin.deleteUser(id).catch(() => undefined);
 });
 
 /** A real account, made with the admin API. */

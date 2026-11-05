@@ -1,7 +1,8 @@
 /**
  * The check before each send (Reach out, Part 4; spec §4.4; F2–F6, R1–R7, R12), the work of its own clock
  * (api/cron/reach-out-check.ts). Every planned send not yet checked, in a run that goes ahead or waits for its owner,
- * is checked once before the claim may take it. A lead's own words at its step (decision 0096) are its words here: with
+ * is checked once before the claim may take it, as soon as it is planned and whatever its day (decision 0098), so its line
+ * can be read and changed before it goes. A lead's own words at its step (decision 0096) are its words here: with
  * no {{opening}} in them nothing is asked of the model, and what holds a send for its business still does.
  * How one send is checked (the opening written and read, the code holds,
  * a business hold its owner included past never made again while a word hold's Include covers one email, R7) is
@@ -10,11 +11,13 @@
  * What passes is marked checked, with the words it was checked against (checked_words, R5), and stays planned: the claim
  * takes it when it is due. What is held waits for its owner. A model that fails (it throws, runs past its deadline,
  * says nothing, or says it in no shape) is tried again later, backing off, and only an hour of failures holds the send
- * as check_unavailable (R4); such a hold is put back to be checked an hour on.
+ * as check_unavailable (R4); such a hold is put back to be checked an hour on. One not due soon has days to spare, and no
+ * model's bad hour holds it (failedCheck).
  *
  * What the model costs is bounded where it is spent (R2, R12): a few sends of each workspace a tick, only a workspace
  * that may spend and has room in its month, at most REACH_OUT_CHECKS_PER_DAY attempts a UTC day (00197
- * reach_out_check_spend, taken before each attempt that asks the model, so no reset gives one back), and never a call
+ * reach_out_check_spend, taken before each attempt that asks the model, so no reset gives one back), the last of them kept
+ * for what is due soon (REACH_OUT_CHECKS_AHEAD_PER_DAY), and never a call
  * after the tick's budget. The sends are leased (00197 reach_out_unchecked), and a check writes only onto the send and the words'
  * version it read (R3, R5), so two ticks never pay for one send and a check never stamps words that changed under it.
  *
@@ -29,6 +32,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   OPENING_CHARS_MAX,
+  REACH_OUT_CHECKS_AHEAD_PER_DAY,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
   openingAskedOf,
@@ -88,7 +92,10 @@ type Db = SupabaseClient<Database>;
 /** How many sends one tick reads to check, and how many of one workspace (R2): round-robin, so none waits on another. */
 export const CHECK_PER_TICK = 40;
 export const CHECK_PER_WORKSPACE_PER_TICK = 20;
-/** How far ahead a send due is checked: a run waiting for its owner is checked whatever its day (R2). */
+/**
+ * How near its time a send is due soon: taken before those further off, and the only kind a model's bad hour holds. A run
+ * waiting for its owner is due soon whatever its day, since they may be reading it now. No send waits for this (decision 0098).
+ */
 export const CHECK_AHEAD_MS = 2 * 3_600_000;
 /** Sends asked about at once. */
 const CHECK_AT_ONCE = 4;
@@ -117,6 +124,10 @@ function stored(o: WrittenOpening | null): Pick<ReachOutSendRow, "opening" | "an
     return null;
   return { opening, angle, facts_used: o.facts_used };
 }
+
+/** How much of the workspace's day a send may spend: all of it where it is due soon or a person is waiting (decision 0098). */
+const dayShareOf = (u: UncheckedSend, pressed: boolean): number =>
+  pressed || u.due_soon ? REACH_OUT_CHECKS_PER_DAY : REACH_OUT_CHECKS_AHEAD_PER_DAY;
 
 /** How long a send waits after its nth failed try (R4). */
 export function backoffMs(tries: number): number {
@@ -152,9 +163,18 @@ export interface CheckCounts {
   tokens: Tokens;
 }
 
-/** A check that failed: asked again after its backoff, or, a day of tries on, held for its owner (R4). */
-function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
+/**
+ * A check that failed: asked again after its backoff, or, an hour of tries on, held for its owner (R4). One not due soon is
+ * only asked again (decision 0098): no model's bad hour holds an email due next week, so its hour starts once it is due
+ * soon, and past the last backoff it is asked hourly, so one that never answers does not spend the day on itself.
+ */
+function failedCheck(s: ReachOutSendRow, now: Date, at: string, dueSoon: boolean) {
   const tries = Math.min((s.check_tries ?? 0) + 1, 100);
+  if (!dueSoon) {
+    const wait = tries > CHECK_BACKOFF_MINUTES.length ? CHECK_GATE_WAIT_MS : backoffMs(tries);
+    const after = new Date(now.getTime() + wait).toISOString();
+    return { gaveUp: false, tries, patch: { check_tries: tries, check_after: after } };
+  }
   const first = s.check_first_at ?? at;
   if (now.getTime() - Date.parse(first) < CHECK_GIVE_UP_MS) {
     const after = new Date(now.getTime() + backoffMs(tries)).toISOString();
@@ -349,7 +369,7 @@ export async function checkSends(p: {
       const input = sendInputOf(u, w, ws, country, p.onStep && ((step) => p.onStep?.(s.id, step)));
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
-      const cap = REACH_OUT_CHECKS_PER_DAY;
+      const cap = dayShareOf(u, pressed);
       if (input.needsOpening && !(await takeCheckAttempt(db, { tenantId: s.tenant_id, cap, at: now }))) {
         await gate(u, "day_spent");
         return;
@@ -362,7 +382,7 @@ export async function checkSends(p: {
         return;
       }
       const failed = async (why: string) => {
-        const f = failedCheck(s, now, at);
+        const f = failedCheck(s, now, at, u.due_soon);
         if (!(await write(u, f.patch))) return;
         if (!f.gaveUp) return void (out.failed += 1);
         out.gave_up += 1;

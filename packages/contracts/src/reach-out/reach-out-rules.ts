@@ -20,7 +20,8 @@
  *                       says. The send, the owner's draft, the preview and the test all end by it; coldSignedOff puts
  *                       the name under the words.
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
- *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12).
+ *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12), and
+ *   REACH_OUT_CHECKS_AHEAD_PER_DAY how much of it may go on emails not due soon (decision 0098).
  */
 import type { DeliveryRefusal } from "../consent/consent";
 import { renderOwnVersion } from "../templates/message-versions";
@@ -121,6 +122,12 @@ export function draftRefusalOf(f: DraftLeadFacts | null): string | null {
  * run's size nor a reset of a send's check lets it spend more.
  */
 export const REACH_OUT_CHECKS_PER_DAY = 400;
+
+/**
+ * How many of them may go on emails not due soon (decision 0098): the rest are kept for those that are, so a week's emails
+ * planned at once, or words saved twice over a full batch, never leave one due today unable to go.
+ */
+export const REACH_OUT_CHECKS_AHEAD_PER_DAY = 300;
 
 /**
  * Whether a broadcasts row is a reach-out step's run (its audience says so, runReachOut): its sends are reach_out_sends
