@@ -201,13 +201,6 @@ export function rewroteWords(name: string, o: RewroteOpening | null): string {
   return `${theirsOf(name)} opening is being written again`;
 }
 
-/** What Write it now did on a lead's sheet (decision 0096), said as a rewrite is: written, held, waiting, or on its way. */
-export function wroteLineWords(name: string, o: RewroteOpening | null): string {
-  if (o && o.written) return `${theirsOf(name)} line is written${o.held ? ", and the check held it" : ""}`;
-  if (o && o.paused) return `${theirsOf(name)} line is written once its sequence runs`;
-  return `${theirsOf(name)} line is still being written`;
-}
-
 /**
  * Ask's card for an answer to a held email (the dashboard's ask/tools/act/sequence.ts): its title, and what follows
  * it. A rewrite is written at once and undone; an email let go may be on its way.

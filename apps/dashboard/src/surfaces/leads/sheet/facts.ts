@@ -27,6 +27,7 @@ import {
   leadWordsPieces,
   markedOpeningOf,
   placeRailOf,
+  placeLineWriting,
   placeStands,
   type LeadCardCheck,
   type LeadCardLead,
@@ -150,8 +151,6 @@ export interface SheetMail {
   writing: boolean;
   /** Rewrite the opening stands under it: its opening written, and the email not yet gone. */
   rewrite: boolean;
-  /** Its line is not written yet, and a press can have it written now: its send. */
-  writeNow: string | null;
   /** Held: what it was held for stays in sight, whatever the width. */
   tall: boolean;
   /** It can be typed in; null where it has gone, or is its owner's to send, or their words could not be read. */
@@ -399,23 +398,22 @@ function firstMailOf(i: SheetInputs, card: LeadCardFacts): SheetMail | null {
     opening: markedOpeningOf(line, { reason: null, detail: null }),
     writing: false,
     rewrite: false,
-    writeNow: null,
     tall: false,
   };
 }
 
 /**
  * The email their step holds, its opening as it goes: read before an OK, marked where the check refused it, or the one
- * up next, on its day. One the check has not come to says the sentence the listing would give it, else that it is to come.
+ * up next, on its day. One the check is at says so (decision 0098: it comes to every planned email within minutes); one
+ * put off, or in a sequence that is not on, says the sentence the listing would give it, else that it is to come.
  */
-function stepMailOf(i: SheetInputs, place: SequencePlaceDto, rail: SheetRail | null): SheetMail | null {
+function stepMailOf(i: SheetInputs, place: SequencePlaceDto, rail: SheetRail | null, nowMs: number): SheetMail | null {
   const row = place.place;
   const step = rail ? rail.steps.get(row.place ?? 1) : null;
   if (!step || !rail || !rail.chain) return null;
   const hasLine = step.body.some((x) => x.kind === "opening");
   const unread = row.checked === false;
-  // Waiting for an OK or held, the check is at it; up next and days off, the check has not come to it yet (2 hours before).
-  const writing = hasLine && unread && row.group !== "next";
+  const writing = hasLine && placeLineWriting(row, place.sequence, nowMs);
   const line = hasLine ? (row.opening ?? (unread ? factLineOf(i.vm.id) : null)) : null;
   const words = stepWordsOf(i, { step, chain: rail.chain, line });
   if (!words) return null;
@@ -425,7 +423,6 @@ function stepMailOf(i: SheetInputs, place: SequencePlaceDto, rail: SheetRail | n
     opening: markedOpeningOf(line, { reason: row.why, detail: row.hold_detail }),
     writing,
     rewrite: (row.group === "waiting" || row.group === "next") && !writing && hasLine && !!row.opening,
-    writeNow: row.group === "next" && hasLine && unread ? row.send_id : null,
     tall: row.group === "held",
   };
 }
@@ -442,7 +439,6 @@ function draftMailOf(vm: LeadPeekVM, place: SequencePlaceDto): SheetMail | null 
     opening: null,
     writing: false,
     rewrite: false,
-    writeNow: null,
     tall: false,
     edit: null,
     wordsUnread: false,
@@ -457,6 +453,7 @@ export function railMailOf(
   i: Pick<SheetInputs, "vm" | "emails" | "place">,
   rail: SheetRail,
   at: number,
+  nowMs: number,
 ): (SheetMail & { sent: string | null }) | null {
   const step = rail.steps.get(at);
   if (!step || !rail.chain) return null;
@@ -466,7 +463,8 @@ export function railMailOf(
   const went = send && (send.state === "sent" || send.state === "handed") ? send.id : null;
   const row = place ? place.place : null;
   const hasLine = step.body.some((x) => x.kind === "opening");
-  const line = hasLine ? (row && send && row.send_id === send.id ? (row.opening ?? null) : factLineOf(i.vm.id)) : null;
+  const theirs = row && send && row.send_id === send.id ? row : null;
+  const line = hasLine ? (theirs ? (theirs.opening ?? null) : factLineOf(i.vm.id)) : null;
   const words = stepWordsOf(i, { step, chain: rail.chain, line });
   if (!words) return null;
   return {
@@ -474,19 +472,24 @@ export function railMailOf(
     ...words,
     edit: open ? words.edit : null,
     opening: markedOpeningOf(line, { reason: null, detail: null }),
-    writing: false,
+    writing: !!place && !!theirs && hasLine && placeLineWriting(theirs, place.sequence, nowMs),
     rewrite: false,
-    writeNow: null,
     tall: false,
     sent: went,
   };
 }
 
 /** The email the card says it carries. */
-function mailOf(p: { now: LeadNowVM; i: SheetInputs; card: LeadCardFacts; rail: SheetRail | null }): SheetMail | null {
+function mailOf(p: {
+  now: LeadNowVM;
+  i: SheetInputs;
+  card: LeadCardFacts;
+  rail: SheetRail | null;
+  nowMs: number;
+}): SheetMail | null {
   const place = p.i.place.place;
   if (p.now.mail === "first") return firstMailOf(p.i, p.card);
-  if (p.now.mail === "step" && place) return stepMailOf(p.i, place, p.rail);
+  if (p.now.mail === "step" && place) return stepMailOf(p.i, place, p.rail, p.nowMs);
   if (p.now.mail === "draft" && place) return draftMailOf(p.i.vm, place);
   return null;
 }
@@ -568,7 +571,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     email,
     why: leadSheetWhyOf(i.vm),
     now,
-    mail: mailOf({ now, i, card: c.card, rail }),
+    mail: mailOf({ now, i, card: c.card, rail, nowMs }),
     lines: leadLinesOf({
       vm: i.vm,
       checks,
@@ -585,7 +588,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     canWrite,
     dock,
     rail,
-    railMail: (at) => (rail ? railMailOf(i, rail, at) : null),
+    railMail: (at) => (rail ? railMailOf(i, rail, at, nowMs) : null),
     waiting: i.waiting ?? null,
   };
 }

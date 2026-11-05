@@ -77,7 +77,6 @@ const sent = [];
 const door = {
   refuse: null,
   was: null,
-  check: null,
   sent: { ok: true, data: { subject: "What went", body: "It went." } },
 };
 const kept = new Map();
@@ -110,13 +109,6 @@ globalThis.window = {
       if (door.refuse) return json(422, { ok: false, error: { code: "validation", message: door.refuse } });
       return json(200, { ok: true, data: { step_id: STEP, lead_id: LEAD, send_id: SEND, was: door.was } });
     }
-    if (/\/check$/.test(pathname))
-      return door.check
-        ? new Response(`${JSON.stringify({ t: "done", sends: [{ send_id: SEND, ...door.check }] })}\n`, {
-            status: 200,
-            headers: { "content-type": "application/x-ndjson" },
-          })
-        : new Response("", { status: 503 });
     return json(200, { ok: true, data: {} });
   },
 };
@@ -126,7 +118,13 @@ installFrameGlobals();
 const box = await import("../../../../apps/dashboard/src/surfaces/leads/sheet/email-box.tsx");
 const { GRAB_AT } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
-const { LEAD_WORDS_BOX: B, leadWordsPieces } = await import("@chanlytics/contracts");
+const {
+  LEAD_CARD_WORDS,
+  LEAD_SHEET_WORDS,
+  LEAD_WORDS_BOX: B,
+  leadWordsPieces,
+  placeLineWriting,
+} = await import("@chanlytics/contracts");
 
 const inTree = (node, test_) => {
   if (!node || typeof node !== "object") return null;
@@ -179,7 +177,6 @@ const mailOf = (edit = editOf(), over = {}) => ({
   opening: null,
   writing: false,
   rewrite: false,
-  writeNow: null,
   tall: false,
   edit,
   wordsUnread: false,
@@ -207,7 +204,6 @@ function sheetOf(mail = mailOf()) {
         onWhole: null,
         onRewrite: null,
         onUndo: null,
-        onWriteNow: null,
         box: held.box,
       }),
       globalThis.React.createElement(box.SheetBoxDock, {
@@ -237,7 +233,6 @@ beforeEach(() => {
   sent.length = 0;
   door.refuse = null;
   door.was = null;
-  door.check = null;
   door.sent = { ok: true, data: { subject: "What went", body: "It went." } };
   kept.clear();
   cells = {};
@@ -607,53 +602,55 @@ test("a step that went and could not be read says where it is", async () => {
   await until(() => textOf(byId(draw(), "lead-sheet-sent-note")) === B.unread, "the refusal landing");
 });
 
-test("Write it now: its check asked of this send alone, the email said as being written, what came of it said, and read back", async () => {
-  const puts = [];
-  const flashes = [];
-  let moved = 0;
-  const acts = box.emailActsOf({
-    run: null,
-    facts: { mail: mailOf(editOf(), { writeNow: SEND }), place: null },
-    sheet: { ui: { writing: false, undo: null }, put: (x) => puts.push(x) },
-    flash: (f) => flashes.push(f),
-    moved: () => (moved += 1),
-    box: { typing: null },
-  });
-  acts.onWriteNow();
-  await until(() => moved === 1, "the read after it");
-  assert.deepEqual(puts, [{ writing: true }, { writing: false }]);
-  assert.deepEqual(sent, [["POST", "/api/v1/reach-out-sends/check", { send_ids: [SEND], stream: true }]]);
-  assert.deepEqual(
-    flashes.at(-1),
-    { tone: "warn", msg: "Luxe Lane's line is still being written" },
-    "the edge could not",
-  );
-  // Written, held by the check, and a paused sequence's: each says so.
-  for (const [check, tone, msg] of [
-    [{ written: true, held: null, paused: false }, "ok", "Luxe Lane's line is written"],
-    [
-      { written: true, held: "unbacked_fact", paused: false },
-      "ok",
-      "Luxe Lane's line is written, and the check held it",
-    ],
-    [{ written: false, held: null, paused: true }, "warn", "Luxe Lane's line is written once its sequence runs"],
-  ]) {
-    door.check = check;
-    const before = moved;
-    acts.onWriteNow();
-    await until(() => moved === before + 1, "the read after it");
-    assert.deepEqual(flashes.at(-1), { tone, msg });
-  }
-  // While it is being written it says so, and offers neither again.
+test("a rewrite under way says the email is being written, and offers no second one", () => {
   const writing = box.emailActsOf({
-    run: null,
-    facts: { mail: mailOf(editOf(), { writeNow: SEND, rewrite: true }), place: null },
+    run: { name: "Luxe Lane" },
+    facts: { mail: mailOf(editOf(), { rewrite: true }), place: null },
     sheet: { ui: { writing: true, undo: null }, put: () => {} },
     flash: () => {},
     moved: () => {},
     box: { typing: null },
   });
-  assert.deepEqual([writing.mail.writing, writing.onWriteNow, writing.onRewrite], [true, null, null]);
+  assert.deepEqual([writing.mail.writing, writing.onRewrite], [true, null]);
+});
+
+test("the line as the sheet reads it: written for them in its own colour, being written, or still to come (decision 0098)", () => {
+  // Written: its words, marked as what is written for them, and a press on it puts the caret in it.
+  const written = byId(sheetOf(mailOf()).draw(), "lead-card-opening");
+  assert.equal(written.props.className, "lw-opening");
+  assert.equal(textOf(written), OPENING);
+  assert.equal(written.props["data-at"], 0);
+  // The check is at it: said so, whether the listing gave a sentence to stand in or nothing does.
+  const unwritten = editOf({ opening: null });
+  for (const [why, mail] of [
+    ["a sentence the listing gives", mailOf(editOf(), { writing: true })],
+    ["no sentence", mailOf(unwritten, { writing: true })],
+  ]) {
+    const being = byId(sheetOf(mail).draw(), "lead-card-opening");
+    assert.equal(being.props.className, "lw-open", why);
+    assert.equal(textOf(being), LEAD_SHEET_WORDS.mail.writing, why);
+  }
+  // Put off, or a sequence not on: nothing is writing it, and it says only what stays true.
+  const still = byId(sheetOf(mailOf(unwritten)).draw(), "lead-card-opening");
+  assert.equal(still.props.className, "lw-open");
+  assert.equal(textOf(still), LEAD_CARD_WORDS.opening);
+});
+
+test("whether the check is at a line: only a line unread, in a sequence that is on, and not put off (decision 0098)", () => {
+  const NOW = Date.parse("2026-11-05T15:00:00Z");
+  const on = { state: "on" };
+  assert.equal(placeLineWriting({ checked: false }, on, NOW), true);
+  assert.equal(placeLineWriting({ checked: false, check_after: null }, on, NOW), true);
+  assert.equal(
+    placeLineWriting({ checked: false, check_after: "2026-11-05T14:59:00Z" }, on, NOW),
+    true,
+    "its wait is over",
+  );
+  assert.equal(placeLineWriting({ checked: false, check_after: "2026-11-05T16:00:00Z" }, on, NOW), false, "put off");
+  assert.equal(placeLineWriting({ checked: true }, on, NOW), false, "read");
+  assert.equal(placeLineWriting({}, on, NOW), false, "a row that says nothing of its line");
+  for (const state of ["paused", "draft", "ended"])
+    assert.equal(placeLineWriting({ checked: false }, { state }, NOW), false, state);
 });
 
 test("what a save took stands on the sheet until the read after it says the same; another lead's save stands for nobody", () => {

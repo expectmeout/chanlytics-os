@@ -22,7 +22,7 @@ const { checkOne, checkSends, checkBudget, backoffMs, CHECK_CALLS_UNTIL_MS, CHEC
   await import(at("apps/edge/lib/reach-out/check.ts"));
 const { hoursLine, checkInputOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
 const { checkedWordsOf } = await import("@chanlytics/channels");
-const { REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
+const { REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -583,6 +583,7 @@ function world({
           template_language: "en",
           signed_by: "Sam",
           included_for: s.included_for,
+          due_soon: s.due_soon !== false,
           ...(records[s.lead_id] ?? record(`Fixture Movers ${s.lead_id}`)),
         }));
       },
@@ -721,6 +722,73 @@ test("a failed try backs off and ends its lease; an hour of them holds the send 
   // updated_at on every write, which this double does not).
   h.updated_at = new Date().toISOString();
   assert.deepEqual([(await tick(w, async () => null)).read, w.row(hour.id).state], [0, "held"]);
+});
+
+test("an email days off is never held by a model's bad hour: it backs off, then is asked hourly, and its hour waits (decision 0098)", async () => {
+  const days = ahead(5 * DAY);
+  const fresh = send({ lead_id: "far-fresh", due_soon: false, send_at: days });
+  // Past the last backoff, and failing for far longer than an hour.
+  const long = send({ lead_id: "far-long", due_soon: false, send_at: days, check_tries: 9, updated_at: ago(3 * DAY) });
+  const w = world({ sends: [fresh, long] });
+  const log = fakeLog();
+  const before = Date.now();
+  const out = await tick(w, async () => null, { log });
+  assert.deepEqual([out.failed, out.gave_up, out.calls_failed], [2, 0, 2]);
+  const f = w.row(fresh.id);
+  assert.deepEqual([f.state, f.reason, f.checked_at, f.check_tries], ["planned", null, null, 1]);
+  assert.ok(Math.abs(Date.parse(f.check_after) - (before + MIN)) < 5_000, "a minute on, as any first failure");
+  assert.equal(f.check_first_at, null, "the hour that holds an email has not started");
+  const l = w.row(long.id);
+  assert.deepEqual([l.state, l.reason, l.check_first_at, l.check_tries], ["planned", null, null, 10]);
+  assert.ok(Math.abs(Date.parse(l.check_after) - (before + 60 * MIN)) < 5_000, "past the last backoff, hourly");
+  assert.deepEqual(
+    log.lines.filter((x) => x.event === "reach_out_check_held"),
+    [],
+  );
+  // Due soon at last, its hour starts then: still not held on the first failure there.
+  Object.assign(w.row(long.id), {
+    due_soon: true,
+    check_after: null,
+    check_started_at: null,
+    send_at: ahead(HOUR_AGO),
+  });
+  Object.assign(w.row(fresh.id), { check_after: ahead(HOUR_AGO) });
+  const near = await tick(w, async () => null);
+  assert.deepEqual([near.failed, near.gave_up], [1, 0]);
+  const now = w.row(long.id);
+  assert.equal(now.state, "planned");
+  assert.ok(Math.abs(Date.parse(now.check_first_at) - Date.now()) < 5_000, "its hour starts now");
+});
+
+test("what is not due soon leaves the day's last attempts to what is; a press is a person waiting (decision 0098)", async () => {
+  const pass = async (system) => ({
+    answer: system.includes("You write") ? WROTE("A 4.9 says it.") : READ(),
+    tokens: { input: 1, output: 1 },
+  });
+  assert.ok(REACH_OUT_CHECKS_AHEAD_PER_DAY < REACH_OUT_CHECKS_PER_DAY, "some of the day is kept");
+  const far = send({ lead_id: "far", due_soon: false, send_at: ahead(5 * DAY) });
+  const soon = send({ lead_id: "soon" });
+  const w = world({ sends: [far, soon], spentToday: REACH_OUT_CHECKS_AHEAD_PER_DAY });
+  const log = fakeLog();
+  const out = await tick(w, pass, { log });
+  assert.deepEqual([out.checked, out.gated], [1, 1], JSON.stringify(out));
+  assert.equal(w.row(soon.id).opening, "A 4.9 says it.", "due soon takes from what was kept");
+  const put = w.row(far.id);
+  assert.deepEqual([put.state, put.checked_at, put.check_started_at], ["planned", null, null]);
+  assert.ok(Date.parse(put.check_after) > Date.now() + 59 * MIN, "asked again an hour on");
+  assert.deepEqual(
+    log.lines.filter((l) => l.event === "reach_out_check_gated").map((l) => l.reason),
+    ["day_spent"],
+  );
+  // Below the share an email days off is written as any is.
+  const room = send({ lead_id: "room", due_soon: false, send_at: ahead(5 * DAY) });
+  const w2 = world({ sends: [room], spentToday: REACH_OUT_CHECKS_AHEAD_PER_DAY - 1 });
+  assert.equal((await tick(w2, pass)).checked, 1);
+  assert.equal(w2.row(room.id).opening, "A 4.9 says it.");
+  // A person pressed it: they are waiting, whatever its day.
+  const pressed = send({ lead_id: "pressed", due_soon: false, send_at: ahead(5 * DAY) });
+  const w3 = world({ sends: [pressed], spentToday: REACH_OUT_CHECKS_AHEAD_PER_DAY });
+  assert.equal((await tick(w3, pass, { tenantId: T, sendIds: [pressed.id] })).checked, 1);
 });
 
 /* ------------------------------------------------------------------ a lead's own words (decision 0096) -- */

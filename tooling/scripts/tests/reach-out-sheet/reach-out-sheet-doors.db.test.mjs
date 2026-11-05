@@ -427,11 +427,7 @@ test(
     assert.equal(r.rewrite_asked.was.opening, "Fixture Movers has 201 reviews, so you handle real volume.");
     assert.equal(r.rewrite_asked.change, undefined, "no words this time: none kept");
 
-    // The press's own check: its send alone, whatever its day; the clock's call would not take it.
-    const clock = ok(
-      await db.rpc("sequence_unchecked", { p_limit: 40, p_per_workspace: 20, p_ahead_minutes: 120, p_tenant_id: A }),
-    );
-    assert.ok(!clock.some((x) => x.send.id === send), "a week off: not the clock's yet");
+    // The press's own check: its send alone, whatever its day.
     const now = ok(
       await db.rpc("sequence_unchecked", {
         p_limit: 40,
