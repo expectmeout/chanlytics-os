@@ -87,24 +87,24 @@ export async function makeAnthropicProfile(
   return null;
 }
 
-const seen = new Map<string, { at: number; row: AnthropicProfileHeld | null }>();
+const heldLately = new Map<string, { at: number; row: AnthropicProfileHeld | null }>();
 
 /** Everything kept let go: for a test, which must not inherit the last test's profile. */
 export function forgetAnthropicProfiles(): void {
-  seen.clear();
+  heldLately.clear();
 }
 
 /** A subject's row, kept a minute; a read that fails answers the last one, or "unread". */
-async function heldOf(
+async function profileHeldOf(
   db: SupabaseClient<Database>,
   subject: ProfiledSubject,
 ): Promise<AnthropicProfileHeld | null | "unread"> {
   const ref = profileReferenceOf(subject);
-  const had = seen.get(ref);
+  const had = heldLately.get(ref);
   if (had && Date.now() - had.at < MIN_MS) return had.row;
   try {
     const row = await anthropicProfileOf(db, subject);
-    seen.set(ref, { at: Date.now(), row });
+    heldLately.set(ref, { at: Date.now(), row });
     return row;
   } catch (e) {
     logger().error("anthropic_profile_unread", { kind: subject.kind, error: errField(e) });
@@ -128,7 +128,7 @@ export async function attributionFor(
   }
   const db = pg();
   if (!db) return NO_PROFILE;
-  const held = await heldOf(db, subject);
+  const held = await profileHeldOf(db, subject);
   if (held === "unread") return { held: "unread" };
   if (held && anthropicPaused(held.enforcement_status)) {
     L.warn("model_call_paused", { purpose, kind: subject.kind });
@@ -137,7 +137,7 @@ export async function attributionFor(
   if (held?.profile_id) return { attribution: { profileId: held.profile_id } };
   const made = held ? null : await makeAnthropicProfile(db, subject, key, deps).catch(madeNothing);
   if (made) {
-    seen.set(profileReferenceOf(subject), {
+    heldLately.set(profileReferenceOf(subject), {
       at: Date.now(),
       row: { profile_id: made, enforcement_status: "unrestricted" },
     });

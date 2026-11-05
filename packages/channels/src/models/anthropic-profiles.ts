@@ -34,7 +34,7 @@ export interface AnthropicProfile {
   actions: EnforcementAction[];
 }
 
-function profileOf(raw: unknown): AnthropicProfile | null {
+function profileFromAnswer(raw: unknown): AnthropicProfile | null {
   const p = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
   if (!p || typeof p.id !== "string" || !p.id.startsWith("uprof_")) return null;
   const details = p.external_user_details as { reference_id?: unknown } | null | undefined;
@@ -47,13 +47,13 @@ function profileOf(raw: unknown): AnthropicProfile | null {
   };
 }
 
-const headersOf = (key: string): Record<string, string> => ({
+const profileHeaders = (key: string): Record<string, string> => ({
   "content-type": "application/json",
   "x-api-key": key,
   "anthropic-version": USER_PROFILES_VERSION,
 });
 
-const wordsOf = (a: ProviderReply): string => a.error ?? `status ${a.status}`;
+const profileFailureWords = (a: ProviderReply): string => a.error ?? `status ${a.status}`;
 
 export type ProfileCreated =
   { outcome: "ok"; profile: AnthropicProfile } | { outcome: Exclude<SendOutcome, "ok">; error: string };
@@ -69,14 +69,14 @@ export async function createUserProfile(
     USER_PROFILES_URL,
     {
       method: "POST",
-      headers: headersOf(key),
+      headers: profileHeaders(key),
       body: JSON.stringify({ external_user_details: details }),
       timeoutMs: PROFILE_TRY_MS,
     },
     deps,
   );
-  if (a.outcome !== "ok") return { outcome: a.outcome, error: wordsOf(a) };
-  const profile = profileOf(a.json);
+  if (a.outcome !== "ok") return { outcome: a.outcome, error: profileFailureWords(a) };
+  const profile = profileFromAnswer(a.json);
   return profile ? { outcome: "ok", profile } : { outcome: "unknown", error: "the answer named no profile" };
 }
 
@@ -85,7 +85,7 @@ export async function deleteUserProfile(key: string, id: string, deps: ModelDeps
   const a = await providerFetch(
     "anthropic",
     `${USER_PROFILES_URL}/${encodeURIComponent(id)}`,
-    { method: "DELETE", headers: headersOf(key), timeoutMs: PROFILE_TRY_MS, idempotent: true, tries: 2 },
+    { method: "DELETE", headers: profileHeaders(key), timeoutMs: PROFILE_TRY_MS, idempotent: true, tries: 2 },
     deps,
   );
   return a.outcome === "ok" || a.status === 404;
@@ -100,14 +100,14 @@ export async function listUserProfiles(key: string, page: string | null, deps: M
   const a = await providerFetch(
     "anthropic",
     `${USER_PROFILES_URL}?${query}`,
-    { method: "GET", headers: headersOf(key), timeoutMs: LIST_TRY_MS, idempotent: true, tries: 2 },
+    { method: "GET", headers: profileHeaders(key), timeoutMs: LIST_TRY_MS, idempotent: true, tries: 2 },
     deps,
   );
   const j = a.outcome === "ok" ? answerObject(a) : null;
-  if (!j || !Array.isArray(j.data)) return { ok: false, error: wordsOf(a) };
+  if (!j || !Array.isArray(j.data)) return { ok: false, error: profileFailureWords(a) };
   return {
     ok: true,
-    profiles: j.data.map(profileOf).filter((p): p is AnthropicProfile => p !== null),
+    profiles: j.data.map(profileFromAnswer).filter((p): p is AnthropicProfile => p !== null),
     next: typeof j.next_page === "string" && j.next_page ? j.next_page : null,
   };
 }

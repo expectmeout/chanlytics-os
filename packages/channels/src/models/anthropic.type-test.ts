@@ -15,7 +15,7 @@ export const attributed: ModelAsk = { purpose: "ask", attribution: { profileId: 
 // @ts-expect-error a request has to say whom it is for
 export const unsaid: ModelAsk = { purpose: "ask", body };
 
-export const asked = () => [
+export const bothDoorsRefuse = () => [
   // @ts-expect-error neither door takes one that has not
   askModel(key, { purpose: "ask", body }),
   // @ts-expect-error neither door takes one that has not

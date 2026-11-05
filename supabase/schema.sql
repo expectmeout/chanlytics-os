@@ -441,22 +441,6 @@ end $$;
 
 
 --
--- Name: FUNCTION anthropic_profile_claim(p_kind text, p_subject uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) TO service_role;
-
-
---
--- Name: FUNCTION anthropic_profiles_waiting(p_limit integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) TO service_role;
-
-
---
 -- Name: FUNCTION appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -47346,6 +47330,22 @@ GRANT ALL ON FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) TO s
 
 REVOKE ALL ON FUNCTION public.ai_usage_purge(p_keep interval) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION anthropic_profile_claim(p_kind text, p_subject uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION anthropic_profiles_waiting(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) TO service_role;
 
 
 --

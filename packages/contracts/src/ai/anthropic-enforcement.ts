@@ -49,7 +49,7 @@ export type EnforcementAction = {
   expires_at: string | null;
 };
 
-const textOrNull = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+const filledOrNull = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
 /** The open actions in the words we know: an unknown type reads restriction, a reason unspecified, a next step none. */
 export function enforcementActionsOf(raw: unknown): EnforcementAction[] {
@@ -58,13 +58,13 @@ export function enforcementActionsOf(raw: unknown): EnforcementAction[] {
     .filter((a): a is Record<string, unknown> => !!a && typeof a === "object")
     .map((a) => ({
       type: a.type === "ban" ? "ban" : "restriction",
-      id: textOrNull(a.id),
+      id: filledOrNull(a.id),
       reason: (ENFORCEMENT_REASONS as readonly unknown[]).includes(a.reason)
         ? (a.reason as EnforcementReason)
         : "unspecified",
       action: a.action === "verify" ? "verify" : null,
-      opened_at: textOrNull(a.opened_at),
-      expires_at: textOrNull(a.expires_at),
+      opened_at: filledOrNull(a.opened_at),
+      expires_at: filledOrNull(a.expires_at),
     }));
 }
 

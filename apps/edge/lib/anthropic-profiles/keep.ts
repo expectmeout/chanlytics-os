@@ -49,7 +49,7 @@ interface ProfilesKept {
   made: number;
 }
 
-const NONE: ProfilesKept = { paused: 0, cleared: 0, adopted: 0, deleted: 0, made: 0 };
+const NOTHING_KEPT: ProfilesKept = { paused: 0, cleared: 0, adopted: 0, deleted: 0, made: 0 };
 
 /** What one tick works with: its clients, the end of its share of the sweep's minute, and the counts it moves. */
 interface KeepTick {
@@ -60,16 +60,16 @@ interface KeepTick {
   kept: ProfilesKept;
 }
 
-const L = () => logger({ sweep: "health" });
+const sweepLog = () => logger({ sweep: "health" });
 
 /** Every profile, as far as the time allows, and whether that was all of them. */
-async function listed({ key, until }: KeepTick): Promise<{ profiles: AnthropicProfile[]; whole: boolean }> {
+async function listedProfiles({ key, until }: KeepTick): Promise<{ profiles: AnthropicProfile[]; whole: boolean }> {
   const profiles: AnthropicProfile[] = [];
   let page: string | null = null;
   for (let n = 0; n < LIST_PAGES && Date.now() < until; n++) {
     const p = await listUserProfiles(key, page, modelDeps());
     if (!p.ok) {
-      L().error("anthropic_profiles_unlisted", { error: p.error.slice(0, 200) });
+      sweepLog().error("anthropic_profiles_unlisted", { error: p.error.slice(0, 200) });
       return { profiles, whole: false };
     }
     profiles.push(...p.profiles);
@@ -97,7 +97,7 @@ function pauseWords(r: AnthropicProfileRow, said: string): { subject: string; bo
  * One row against what the listing said of it. The status is written first: the hold matters more than the page, and a page
  * that cannot be sent is logged, with Health still showing it. A row on its way out is not paged: there is nobody left to help.
  */
-async function readOne(t: KeepTick, r: AnthropicProfileRow, said: AnthropicProfile): Promise<void> {
+async function readProfile(t: KeepTick, r: AnthropicProfileRow, said: AnthropicProfile): Promise<void> {
   if (!said.status) return;
   if (said.status === r.enforcement_status && sameActions(said.actions, r.enforcement_actions)) return;
   await setAnthropicEnforcement(t.db, r.id, said.status, said.actions, new Date().toISOString());
@@ -109,7 +109,7 @@ async function readOne(t: KeepTick, r: AnthropicProfileRow, said: AnthropicProfi
   if (r.leaving) return;
   const words = pauseWords(r, enforcementWords(said.status, said.actions));
   await pageOperator({ db: t.db, ...t.pager }, `anthropic_profile:${r.id}`, words.subject, words.body).catch(
-    (e: unknown) => L().error("anthropic_profile_unpageable", { row: r.id, error: errField(e) }),
+    (e: unknown) => sweepLog().error("anthropic_profile_unpageable", { row: r.id, error: errField(e) }),
   );
 }
 
@@ -128,7 +128,11 @@ async function settleClaim(t: KeepTick, r: AnthropicProfileRow, l: Listing): Pro
   const first = found[0];
   if (first) {
     if (found.length > 1)
-      L().error("anthropic_profile_twice", { row: r.id, kept: first.id, others: found.slice(1).map((p) => p.id) });
+      sweepLog().error("anthropic_profile_twice", {
+        row: r.id,
+        kept: first.id,
+        others: found.slice(1).map((p) => p.id),
+      });
     await keepAnthropicProfileId(t.db, r.id, first.id);
     t.kept.adopted += 1;
     return { ...r, profile_id: first.id };
@@ -139,7 +143,7 @@ async function settleClaim(t: KeepTick, r: AnthropicProfileRow, l: Listing): Pro
 
 /** What Anthropic now says, written row by row; the rows as they then stand. */
 async function readEnforcement(t: KeepTick, rows: AnthropicProfileRow[]): Promise<AnthropicProfileRow[]> {
-  const { profiles, whole } = await listed(t);
+  const { profiles, whole } = await listedProfiles(t);
   const listing: Listing = { byId: new Map(profiles.map((p) => [p.id, p])), byReference: new Map(), whole };
   for (const p of profiles)
     if (p.referenceId) listing.byReference.set(p.referenceId, [...(listing.byReference.get(p.referenceId) ?? []), p]);
@@ -151,7 +155,7 @@ async function readEnforcement(t: KeepTick, rows: AnthropicProfileRow[]): Promis
     if (!r) continue;
     out.push(r);
     const said = r.profile_id ? listing.byId.get(r.profile_id) : undefined;
-    if (said) await readOne(t, r, said);
+    if (said) await readProfile(t, r, said);
   }
   return out;
 }
@@ -164,7 +168,7 @@ async function deleteLeaving(t: KeepTick, rows: AnthropicProfileRow[]): Promise<
       await dropAnthropicProfile(t.db, r.id);
       t.kept.deleted += 1;
     } else {
-      L().error("anthropic_profile_not_deleted", { row: r.id });
+      sweepLog().error("anthropic_profile_not_deleted", { row: r.id });
     }
   }
 }
@@ -175,8 +179,8 @@ export async function keepAnthropicProfiles(
   pager: Omit<PagePorts, "db"> = {},
 ): Promise<ProfilesKept> {
   const key = env.ANTHROPIC_API_KEY;
-  if (!key) return NONE;
-  const t: KeepTick = { db, key, pager, until: Date.now() + KEEP_MS, kept: { ...NONE } };
+  if (!key) return NOTHING_KEPT;
+  const t: KeepTick = { db, key, pager, until: Date.now() + KEEP_MS, kept: { ...NOTHING_KEPT } };
   try {
     const rows = await anthropicProfileRows(db);
     if (rows.length) await deleteLeaving(t, await readEnforcement(t, rows));
@@ -186,7 +190,7 @@ export async function keepAnthropicProfiles(
         if (await makeAnthropicProfile(db, subject, key, modelDeps())) t.kept.made += 1;
       }
   } catch (e) {
-    L().error("anthropic_profiles_unkept", { error: errField(e) });
+    sweepLog().error("anthropic_profiles_unkept", { error: errField(e) });
   }
   return t.kept;
 }
