@@ -54298,7 +54298,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_enrollments TO servic
 --
 
 GRANT SELECT ON TABLE public.sequence_lead_words TO authenticated;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_lead_words TO service_role;
+GRANT ALL ON TABLE public.sequence_lead_words TO service_role;
 
 
 --

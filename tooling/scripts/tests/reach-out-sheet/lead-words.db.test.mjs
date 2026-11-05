@@ -39,6 +39,7 @@ let n = 0;
 let root;
 let nudge;
 let run;
+let template;
 const ok = (res) => {
   assert.equal(res.error, null, res.error?.message);
   return res.data;
@@ -76,6 +77,21 @@ const lead = (tenant = A) => {
     }),
   );
 };
+const runFor = (day) =>
+  one(
+    db.from("sequence_batches").insert({
+      tenant_id: A,
+      name: "Movers",
+      template_id: template,
+      template_name: "reach_words",
+      template_language: "en",
+      audience: { kind: "reach_out", root_id: root, step_id: root },
+      state: "scheduled",
+      scheduled_for: iso(Date.now()),
+      step_id: root,
+      run_for: day,
+    }),
+  );
 const sendFor = async (leadId, over = {}, step = root) => {
   const id = crypto.randomUUID();
   ok(
@@ -143,21 +159,8 @@ before(async () => {
   );
   root = saved.root_id;
   nudge = saved.step_ids.find((id) => id !== root);
-  const { template_id } = ok(await db.from("sequence_steps").select("template_id").eq("id", root).single());
-  run = await one(
-    db.from("sequence_batches").insert({
-      tenant_id: A,
-      name: "Movers",
-      template_id,
-      template_name: "reach_words",
-      template_language: "en",
-      audience: { kind: "reach_out", root_id: root, step_id: root },
-      state: "scheduled",
-      scheduled_for: iso(Date.now()),
-      step_id: root,
-      run_for: "2098-01-01",
-    }),
-  );
+  ({ template_id: template } = ok(await db.from("sequence_steps").select("template_id").eq("id", root).single()));
+  run = await runFor("2098-01-01");
 });
 after(async () => {
   if (skip) return;
@@ -351,10 +354,10 @@ test(
     );
     refusedWith(await set(hers, OWN), "22023", REACH_OUT_REFUSALS.yoursToSend);
 
-    // The latest send at the step decides: one skipped and a new one planned takes them again.
+    // The latest send at the step decides: one its canceled run skipped, and the next run's planned, takes them again.
     const back = await lead();
-    await sendFor(back, { state: "skipped", reason: "owner_skipped", created_at: iso(Date.now() - 60 * MIN) });
-    const fresh = await sendFor(back);
+    await sendFor(back, { state: "skipped", reason: "run_canceled", created_at: iso(Date.now() - 60 * MIN) });
+    const fresh = await sendFor(back, { batch_id: await runFor("2098-01-02") });
     assert.equal(ok(await set(back, OWN)).send_id, fresh);
   },
 );

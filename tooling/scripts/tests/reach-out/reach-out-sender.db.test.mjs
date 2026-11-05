@@ -732,7 +732,7 @@ test(
       assert.equal((m.body.match(/\bSam\b/g) ?? []).length, 1, "one sign-off");
       assert.equal(m.body.includes("Hi Fixture"), false, "none of the step's words");
       assert.match(m.meta.email.request.text, /100 Example St, Austin, TX 78701/, "the foot stays");
-      assert.match(m.meta.email.request.text, /[Uu]nsubscribe/);
+      assert.match(m.meta.email.request.text, /Reply "no thanks" and I won't write again\./);
 
       const back = await row(staleSend);
       assert.deepEqual(
