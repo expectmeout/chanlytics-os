@@ -12,8 +12,8 @@ import {
   answerFromV1,
   bookingToolName,
   clip as answerClip,
+  defang,
   describeNow,
-  fenceActed,
   fencedInline,
   guardrailsInForce,
   hoursRuns,
@@ -700,7 +700,7 @@ const linePart = (s: string | null | undefined, n: number): string => answerClip
  * A card's title as history replays it. A title is the product's own words around a name someone else chose ("Reply
  * to Rosa"), so it keeps its length; only a title the fence would act on is made a safe name, as a row's label is.
  */
-const historyName = (title: string): string | null => (fenceActed(title) ? promptSafeName(title) : title);
+const historyName = (title: string): string | null => (defang(title) === title ? title : promptSafeName(title));
 /** What the person did with a card, as a rebuilt line says it: theirs, and never "done". */
 const DID_WORD: Record<AskProposalOutcome["state"], string> = {
   done: "approved",
