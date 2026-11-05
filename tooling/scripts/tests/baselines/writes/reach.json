@@ -1,7 +1,7 @@
 {
-  "rows": 165,
+  "rows": 166,
   "same": 11,
-  "differ": 154,
+  "differ": 155,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -775,6 +775,31 @@
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
         "today": "every page"
+      }
+    },
+    "POST contacts/erase": {
+      "changes": "contacts UPDATE · mailbox_senders INSERT UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "people": "clients/person"
+      },
+      "missing": {
+        "audiences": "broadcasts",
+        "calendar": "every page",
+        "leads": "clients/leads, leads",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "playbooks": "campaigns/sequences/new, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns/messages, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
+        "setup": "admin/integrations, admin/receptionist, start, today",
+        "today_pins": "today"
       }
     },
     "POST contacts/import": {

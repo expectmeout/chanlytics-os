@@ -9,7 +9,14 @@ import {
   type MessageDto,
 } from "@chanlytics/contracts";
 import { failedMessageErrors, lastClosedHolds, searchMessages } from "@chanlytics/db";
-import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
+import {
+  CONVERSATION_COLUMNS,
+  LISTED_CONVERSATION_COLUMNS,
+  groupMessages,
+  messageRowsOf,
+  toConversationDto,
+} from "../dto";
+import { stillListed } from "../people/going";
 import { seenOfPeople } from "../people/person-seen";
 import { stamp, type Reader, type ReaderContext, type RowRef } from "./index";
 
@@ -42,7 +49,9 @@ async function threadsSaying(rc: ReaderContext, words: string): Promise<string[]
  * route), or the ones whose messages say `said`. A thread's messages are its
  * newest LIST_MESSAGES_EACH: a thread opened reads the rest (GET
  * conversations/:id). Each is a thread a citation may name, called what the
- * Inbox calls it.
+ * Inbox calls it. A list, the newest or what a search found, leaves out whoever
+ * is being erased (people/going.ts), before it is cut to its hundred; a thread
+ * named by its id is one record, and still reads.
  */
 export const conversations: Reader<
   { ids: string[] | null; said?: string | null },
@@ -54,10 +63,17 @@ export const conversations: Reader<
     const { tenantId, userId } = rc;
     const asked = said ? await threadsSaying(rc, said) : named;
     if (asked && !asked.length) return { data: { conversations: [] }, rows: [], stamp: stamp() };
-    const base = supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId);
-    const { data: convs, error } = await (asked
-      ? base.in("id", asked)
-      : base.order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
+    const threads = () => supabase.from("conversations");
+    const listed = () =>
+      threads()
+        .select(LISTED_CONVERSATION_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .or(stillListed(rc.now.getTime()), { referencedTable: "contacts" });
+    const { data: convs, error } = await (said && asked
+      ? listed().in("id", asked)
+      : asked
+        ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", asked)
+        : listed().order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
     if (error) throw new Error(error.message);
     const ids = (convs ?? []).map((c) => c.id);
     const messagesOf = async (): Promise<Map<string, MessageDto[]>> => {

@@ -103,7 +103,7 @@ test("every list endpoint filters by tenant, not by RLS alone", async () => {
       assignee_user_id: null,
       last_wa_inbound_at: null,
       last_message_at: "2026-09-10T10:00:00Z",
-      contacts: null,
+      contacts: { id: `k${i}` },
     })),
     messages: [],
     calls: both.map((tenant_id, i) => ({

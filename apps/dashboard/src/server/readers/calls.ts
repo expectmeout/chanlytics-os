@@ -2,6 +2,7 @@ import "server-only";
 import { addressOf, callerName, type CallDto } from "@chanlytics/contracts";
 import { CALL_COLUMNS, listedCall, toCallDto } from "../dto";
 import { stamp, type Reader, type RowRef } from "./index";
+import { isGoing } from "../people/going";
 
 /** A search's words as an ILIKE pattern that matches them anywhere, its own wildcards taken as the characters they are. */
 const anywhere = (words: string): string => `%${words.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
@@ -36,7 +37,11 @@ export const calls: Reader<
     if (words) q = q.ilike("transcript", anywhere(words));
     const { data, error } = await q;
     if (error) throw new Error(error.message);
-    const whole: CallDto[] = (data ?? []).map(toCallDto);
+    // A list leaves out whoever is being erased (people/going.ts); a thread's own calls, and a call by its id, still read.
+    const now = rc.now.getTime();
+    const shown =
+      conversationId || ids ? (data ?? []) : (data ?? []).filter((c) => !isGoing(c.contacts?.erasing_since, now));
+    const whole: CallDto[] = shown.map(toCallDto);
     const calls = listed ? whole.map(listedCall) : whole;
     return {
       data: { calls },

@@ -239,6 +239,14 @@ function embedTarget(schema, table, name, hint) {
 const EMBED = /^(\.\.\.)?(?:([\w$]+):)?([\w$]+)((?:![\w$]+)*)\s*\(([\s\S]*)\)$/;
 
 /** The keys a select's embeds are drawn under (an alias, else the relation's name): what a filter on an embed names. */
+/** The embeds a select joins with `!inner`: a row with none of the embed left is no row (PostgREST's inner join). */
+export function innerEmbedsOf(columns) {
+  return splitTop(columns == null ? "*" : String(columns)).flatMap((item) => {
+    const e = EMBED.exec(item);
+    return e && /!inner\b/.test(e[4] ?? "") ? [e[2] ?? e[3]] : [];
+  });
+}
+
 export function embedsOf(columns) {
   return splitTop(columns == null ? "*" : String(columns)).flatMap((item) => {
     const e = EMBED.exec(item);
@@ -516,6 +524,7 @@ export function requestLine(table, q) {
   const listed = (vals) => vals.map((v) => (typeof v === "string" && /[,()]/.test(v) ? `"${v}"` : lit(v))).join(",");
   for (const [op, col, val] of q.filters) {
     if (op === "or") params.append("or", `(${val})`);
+    else if (op === "orOf") params.append(`${col}.or`, `(${val})`);
     else if (op === "in") params.append(col, `in.(${listed([...new Set(val)])})`);
     else if (op === "not") params.append(col, `not.${val[0]}.${lit(val[1])}`);
     else if (op === "contains") params.append(col, `cs.${lit(val)}`);

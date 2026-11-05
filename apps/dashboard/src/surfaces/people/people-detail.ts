@@ -296,12 +296,12 @@ export interface DeletedMany {
  * Many people deleted at one press (People's Delete…), however many: the server hands them to the ledger and answers,
  * and they leave People here as it does (peopleGoing), the erasing behind it; with `notAPersonToo`, each one's address
  * said automated first, as notAPerson says it. Owner-only on the server, on a fresh session, and never undone. The
- * press reads nothing again (refresh-map.ts REFRESHES_NOTHING): nobody is erased yet, so there is nothing for a read to
- * show. Pressing again after a refused press is safe: whoever is going already has their one erasure.
+ * threads are read again behind the press, for it has taken them out of those lists too (server people/going.ts), and
+ * the sheet does not wait on that. Pressing again after a refused press is safe: whoever is going has their one erasure.
  */
 export async function deletePeopleMany(ids: string[], notAPersonToo: boolean): Promise<DeletedMany> {
   const take = [...new Set(ids)];
-  const r = await api()("POST contacts/erase", { body: { ids: take, not_a_person: notAPersonToo } });
+  const r = await api()("POST contacts/erase", { body: { ids: take, not_a_person: notAPersonToo }, refresh: "behind" });
   if (!r.ok) return { ok: false, going: [], failed: [], skipped: [], message: r.message };
   for (const id of r.data.going) {
     people().forget(id);

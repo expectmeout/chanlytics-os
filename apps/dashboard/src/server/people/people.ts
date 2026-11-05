@@ -1,4 +1,4 @@
-import { DAY_MS, isUuid, type PersonRowDto } from "@chanlytics/contracts";
+import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
 import {
   PEOPLE_PAGE,
   addPersonByHand,
@@ -12,6 +12,7 @@ import {
 } from "@chanlytics/db";
 import { dbRefusal, type RouteContext } from "../with-route";
 import { log } from "@/server/log";
+import { stillListed } from "./going";
 
 /**
  * Everyone who has written to or phoned a workspace, with the reply mode in
@@ -186,8 +187,8 @@ export async function countPeople(
     .eq("tenant_id", tenantId)
     .is("erased_at", null)
     .is("merged_into_contact_id", null)
-    // Who people_page lists (00547): someone being erased has left, and a day on it is an erasure that stopped.
-    .or(`erasing_since.is.null,erasing_since.lt.${new Date(Date.now() - DAY_MS).toISOString()}`);
+    // Who people_page lists (00547).
+    .or(stillListed(Date.now()));
   const needle = searchNeedle(q);
   if (needle) {
     const digits = needle.replace(/\D/g, "");
