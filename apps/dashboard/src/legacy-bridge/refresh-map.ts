@@ -303,7 +303,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/cancel-send": thread,
   // People.
   "DELETE contacts/[id]": erased,
-  // Not a person (00483): an address said automated moves nothing, then the person as above (Delete… for many: REFRESHES_NOTHING).
+  "POST contacts/erase": () => [...peopleIfDrawn(), inboxOverride, conversationsOverride, todayOverride],
+  // Not a person (00483): an address said automated moves nothing, then the person as above (Delete… for many: the row above, ahead of its erasures).
   "POST contacts/[id]/not-a-person": erased,
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
@@ -658,7 +659,6 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
-  "POST contacts/erase": "handed to the ledger, none erased yet: People drops them, the rest is read once gone",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",

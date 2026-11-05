@@ -319,6 +319,73 @@ const history = (a, b) => `
            generate_series(${a}, ${b}) k
      order by k desc, c.n;`;
 
+test(
+  "REGRESSION: whoever is being erased leaves the reader's list, their holds and their calls at the press, a thread named by its id still reads, and a stopped erasure shows again a day on (5 Nov 2026)",
+  { skip },
+  async () => {
+    const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
+    const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
+    const rc = () =>
+      kernel.readerContext(
+        { supabase: member, userId: memberId, email: null, params: {} },
+        { tenantId: A, role: "viewer" },
+        new Date(),
+      );
+    const going = await thread(A);
+    const leaving = going.id;
+    const contact = going.contact;
+    const m = await db.from("messages").insert(written(A, going, 1, 0));
+    assert.equal(m.error, null, m.error?.message);
+    const h = await db
+      .from("escalations")
+      .insert({ tenant_id: A, conversation_id: leaving, reason: "question", state: "open" })
+      .select("id")
+      .single();
+    assert.equal(h.error, null, h.error?.message);
+    const k = await db
+      .from("calls")
+      .insert({
+        tenant_id: A,
+        retell_call_id: `going-${Date.now()}`,
+        direction: "inbound",
+        status: "ended",
+        contact_id: contact,
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    assert.equal(k.error, null, k.error?.message);
+
+    const inList = async () =>
+      (await kernel.load(rc(), conversations, { ids: null })).data.conversations.map((c) => c.id);
+    const inHolds = async () =>
+      (await kernel.load(rc(), escalations, { state: "open" })).data.escalations.map((e) => e.id);
+    const inCalls = async () => (await kernel.load(rc(), calls, {})).data.calls.map((c) => c.id);
+    assert.ok((await inList()).includes(leaving), "listed before the press");
+    assert.ok((await inHolds()).includes(h.data.id));
+    assert.ok((await inCalls()).includes(k.data.id));
+
+    const blocked = await db.from("contacts").update({ erasing_since: new Date().toISOString() }).eq("id", contact);
+    assert.equal(blocked.error, null, blocked.error?.message);
+    assert.ok(!(await inList()).includes(leaving), "out of the list from the press");
+    assert.ok(!(await inHolds()).includes(h.data.id), "and the holds");
+    assert.ok(!(await inCalls()).includes(k.data.id), "and the calls");
+    const named = await kernel.load(rc(), conversations, { ids: [leaving] });
+    assert.deepEqual(
+      named.data.conversations.map((c) => c.id),
+      [leaving],
+      "a thread named by its id still reads",
+    );
+
+    const dayAgo = new Date(Date.now() - 25 * 3_600_000).toISOString();
+    const stopped = await db.from("contacts").update({ erasing_since: dayAgo }).eq("id", contact);
+    assert.equal(stopped.error, null, stopped.error?.message);
+    assert.ok((await inList()).includes(leaving), "still blocked a day on: shown again, to be pressed again");
+    assert.ok((await inHolds()).includes(h.data.id));
+    assert.ok((await inCalls()).includes(k.data.id));
+  },
+);
+
 test("newest_messages reads the same blocks of messages however long each thread's history is", { skip }, () => {
   const { cost, held, same } = rolledBack(`
       declare

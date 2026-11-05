@@ -23,14 +23,19 @@ import {
  * Instagram clock is its own accessor's, last_inbound_on_instagram (00486, step 8), read as last_ig_inbound_at.
  */
 
-export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, set_aside_at, set_aside_why, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
+const THREAD_COLUMNS =
+  "id, state, paused_until, snooze_until, set_aside_at, set_aside_why, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at";
+const THREAD_PERSON_COLUMNS =
+  "id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason";
+export const CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts (${THREAD_PERSON_COLUMNS})` as const;
+/** The same, for a list: only the threads whose person passes what the read asks of `contacts` (PostgREST's inner embed). */
+export const LISTED_CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts!inner (${THREAD_PERSON_COLUMNS})` as const;
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
 
 export const CALL_COLUMNS =
-  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164, consent, dnc)";
+  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164, consent, dnc, erasing_since)";
 
 interface ConversationRow {
   id: string;

@@ -40,6 +40,7 @@ import {
   unknownColumn,
   selectOf,
   embedsOf,
+  innerEmbedsOf,
   asSent,
   onTheWire,
   refusedRow,
@@ -1844,7 +1845,20 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         if (Array.isArray(v)) out[key] = v.filter((e) => matches(e, [[op, inner, val]]));
         else if (v && typeof v === "object" && !matches(v, [[op, inner, val]])) out[key] = null;
       }
-      for (const [op, col, val] of q.filters.filter(([op, col]) => onEmbed(op, col) && !col.includes("."))) {
+      // `.or(clauses, { referencedTable })`: what it names of the embed, as `embed.col` above.
+      for (const [, col, val] of q.filters.filter(([op]) => op === "orOf")) {
+        const v = out[col];
+        const kept = (e) => matches(e, [["or", null, val]]);
+        if (Array.isArray(v)) out[col] = v.filter(kept);
+        else if (v && typeof v === "object" && !kept(v)) out[col] = null;
+      }
+      for (const key of innerEmbedsOf(q.columns)) {
+        const v = out[key];
+        if (Array.isArray(v) ? !v.length : v == null) return null;
+      }
+      for (const [op, col, val] of q.filters.filter(
+        ([op, col]) => op !== "orOf" && onEmbed(op, col) && !col.includes("."),
+      )) {
         if (op !== "is" || val !== null) throw new Error(`fakeDb: ${op}(${col}) on an embed is not modelled`);
         const v = out[col];
         if (Array.isArray(v) ? v.length : v != null) return null;
@@ -2101,8 +2115,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         q.filters.push(["lte", col, sent(val)]);
         return proxy;
       },
-      or(expr) {
-        q.filters.push(["or", null, expr]);
+      or(expr, opts) {
+        q.filters.push(opts?.referencedTable ? ["orOf", opts.referencedTable, expr] : ["or", null, expr]);
         return proxy;
       },
       not(col, operator, val) {
