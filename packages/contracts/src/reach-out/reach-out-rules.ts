@@ -181,7 +181,11 @@ export interface SlotWorkspace {
  * addressee's (00430): {{first name}} greets with its fallback where nobody is named, and {{title}} and {{role}}, which
  * claim something of a person, are holes there.
  */
-function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: string | null): Array<string | undefined> {
+export function reachOutValues(
+  lead: SlotLead,
+  workspace: SlotWorkspace,
+  opening: string | null,
+): Array<string | undefined> {
   const who = leadAddresseeOf(lead);
   const calledBy = leadCalledByOf(lead);
   return slotValues(REACH_OUT_SLOT_SET, {

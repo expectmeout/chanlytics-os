@@ -75,5 +75,7 @@ Decided by Ruben on 3 November 2026 ("Yes, build step 1", then "Yes, add both"),
 - A paste is one model call. An opening with a fact is one call where it was two to four, and cannot be held for a
   guess.
 - Step 2 adds no migration, table, sweep or page: the pair rides the ledger's row, the morning's card is Today's.
+- What a member types for one lead is decision 0096's: the model does not read it, and a check of it asks nothing of the
+  model unless the words keep their line.
 - Not in this version: Gmail's sent mail, a voice per member, a sentence joining each kind of fact to the words, facts
   ranked by their replies (worth building at about twenty replies in a workspace).

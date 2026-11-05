@@ -1,7 +1,9 @@
 /**
  * The check before each send (Reach out, Part 4; spec §4.4; F2–F6, R1–R7, R12), the work of its own clock
  * (api/cron/reach-out-check.ts). Every planned send not yet checked, in a run that goes ahead or waits for its owner,
- * is checked once before the claim may take it. How one send is checked (the opening written and read, the code holds,
+ * is checked once before the claim may take it. A lead's own words at its step (decision 0096) are its words here: with
+ * no {{opening}} in them nothing is asked of the model, and what holds a send for its business still does.
+ * How one send is checked (the opening written and read, the code holds,
  * a business hold its owner included past never made again while a word hold's Include covers one email, R7) is
  * check-one.ts's.
  *
@@ -37,6 +39,8 @@ import {
 import {
   emailWordsOf,
   leadCountriesOf,
+  leadStepKey,
+  leadWordsOfLeads,
   monthSent,
   recordCheck,
   releaseUnavailableHolds,
@@ -298,6 +302,17 @@ export async function checkSends(p: {
     return new Map<string, string | null>();
   });
 
+  /* the words typed for these leads (decision 0096): nothing is checked against the step's where a lead has its own */
+  const ownWords = await leadWordsOfLeads(
+    db,
+    go.map((u) => u.send.lead_id),
+  ).catch((e: unknown) => {
+    // As the countries: the leases lapse in two minutes, and the next tick asks again.
+    error("reach_out_check_error", { stage: "own_words" }, e);
+    go.length = 0;
+    return new Map<string, { subject: string | null; body: string }>();
+  });
+
   /* each send's check, a few at once */
   const words = new Map<string, Promise<{ subject: string | null; body: string } | null>>();
   const workspaces = new Map<string, Promise<CheckWorkspace>>();
@@ -323,7 +338,8 @@ export async function checkSends(p: {
           out.skipped += 1;
         return;
       }
-      const w = await once(words, u.template_id, () => emailWordsOf(db, s.tenant_id, u.template_id));
+      const own = s.step_id ? (ownWords.get(leadStepKey(s.step_id, s.lead_id)) ?? null) : null;
+      const w = own ?? (await once(words, u.template_id, () => emailWordsOf(db, s.tenant_id, u.template_id)));
       // No words to check: marked checked, so the sender holds it as it always has (no_template).
       if (!w) {
         if (await write(u, { checked_at: at, checked_words: null, check_after: null })) out.checked += 1;
@@ -364,9 +380,11 @@ export async function checkSends(p: {
         await failed("unstorable");
         return;
       }
+      // Words of the lead's own that hold no line write none: the one the send has stands, for the step's words coming back.
+      const line = own && !input.needsOpening ? {} : (keep ?? { opening: null, angle: null, facts_used: [] });
       const patch: Partial<ReachOutSendRow> = {
         checked_at: at,
-        ...(keep ?? { opening: null, angle: null, facts_used: [] }),
+        ...line,
         hold_detail: c.detail ? c.detail.slice(0, 120) : null,
         // What the site said, kept for the next time this email's opening is written (00505).
         ...(c.site && c.site !== s.website_says ? { website_says: c.site.slice(0, WEBSITE_SAYS_KEPT_MAX) } : {}),

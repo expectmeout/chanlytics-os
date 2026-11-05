@@ -12,7 +12,7 @@
  *   leadLeaveAskOf      what Take out asks, and what the sheet asks once you wrote to them yourself
  */
 import { runApproveWords } from "../../shell/campaign-rooms";
-import { heldAnswersOf, waitingAnswersOf, type HeldAnswer } from "../../sequences/sequence-held";
+import { heldAnswersOf, heldOwnWordsOf, waitingAnswersOf, type HeldAnswer } from "../../sequences/sequence-held";
 import type { SequencePlaceDto } from "../../sequences/sequence-place";
 import type { SequenceState } from "../../sequences/sequence";
 import {
@@ -149,8 +149,9 @@ const leavesOut = (a: HeldAnswer) => a.door === "take_out" || a.door === "skip";
  * leaves it out stands beside it, and the rest are under the caret.
  */
 function heldDock(place: SequencePlaceDto): LeadSheetDockVM {
-  const { why, hold_detail: detail, place: at } = place.place;
-  const answers = heldAnswersOf({ reason: why, detail }, at);
+  const { why, hold_detail: detail, place: at, own } = place.place;
+  const asked = heldAnswersOf({ reason: why, detail }, at);
+  const answers = own ? heldOwnWordsOf({ why: "", answers: asked }).answers : asked;
   const [first, ...rest] = answers.filter((a) => !leavesOut(a));
   return dock({
     others: answers.filter(leavesOut).map(answerSlot),
@@ -161,9 +162,9 @@ function heldDock(place: SequencePlaceDto): LeadSheetDockVM {
 
 /** An email waiting for your OK: leaving this one out, and Approve, which sends every email an OK sends. */
 function waitingDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDockVM {
-  const { place: at, checked } = place.place;
+  const { place: at, checked, own } = place.place;
   const no = waitingAnswersOf({ opening: null, checking: false }, at).filter(leavesOut);
-  const writing = checked === false;
+  const writing = checked === false && !own;
   return dock({
     others: no.map(answerSlot),
     primary: slot("approve", D.approve(f.batch ?? 1), "check", "a", { off: writing ? D.writing : null }),

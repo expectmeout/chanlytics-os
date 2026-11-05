@@ -152,6 +152,8 @@ interface TableData {
   "policy.changed": { class: string; mode: string; fields: string[]; by: string; via?: string };
   "reach_out.lead_stopped": { by: string };
   "reach_out.send_decided": { decision: string; by: string };
+  /** A lead's own email typed on their sheet, or the step's words put back (decision 0096): who, never the words. */
+  "reach_out.lead_words_changed": { step_id: string; kept: boolean; by: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
   /** A rename of the workspace keeps the names it changed from and to (00439, X4-5): the one setting the ledger says in full. */
   "settings.changed": {
@@ -249,6 +251,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "policy.veto_window_skipped": { category: "policy", version: 1 },
   "reach_out.lead_stopped": { category: "lead", version: 1 },
   "reach_out.send_decided": { category: "lead", version: 1 },
+  "reach_out.lead_words_changed": { category: "lead", version: 1 },
   "settings.changed": { category: "system", version: 1 },
   "template.removed": { category: "message", version: 1 },
   "template.submitted": { category: "message", version: 1 },

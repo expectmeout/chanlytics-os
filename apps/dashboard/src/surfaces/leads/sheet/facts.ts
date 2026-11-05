@@ -5,13 +5,17 @@
  * as they would get them. Every rule is contracts'; this only gathers their inputs from the reads.
  */
 import {
+  chainFirstSender,
   chainPaceOf,
+  coldEndingOf,
   LEAD_SHEET_WORDS as W,
   leadCardStepsOf,
   leadDockOf,
   leadHistoryOf,
   leadLinesOf,
   leadNowOf,
+  leadOpeningOf,
+  leadOwnWordsOf,
   leadSheetChecksLineOf,
   leadSheetClosedOf,
   leadSheetEmailLineOf,
@@ -19,13 +23,19 @@ import {
   leadSheetSubOf,
   leadSheetWhyOf,
   leadVerdictOf,
+  leadWordsInBox,
+  leadWordsPieces,
   markedOpeningOf,
   placeRailOf,
   placeStands,
   type LeadCardCheck,
-  type LeadCardPart,
+  type LeadCardLead,
   type LeadCardStepVM,
   type LeadEmailDto,
+  type LeadEmailPiece,
+  type LeadEmailText,
+  type LeadOwnWords,
+  type LeadStepWordsDto,
   type LeadHistoryRowVM,
   type LeadLineVM,
   type LeadNowVM,
@@ -45,8 +55,10 @@ import {
   type SequencePlaceDto,
   type SequenceRecordDto,
   type SequenceState,
+  type SlotWorkspace,
 } from "@chanlytics/contracts";
 import { subjectWords } from "../../campaigns/sequences/place/email-as";
+import { businessAddressOf } from "../../campaigns/sequences/leads/reads";
 import { leadCardFor, leadCardLeadOf, leadCardWorkspace, type LeadCardFacts } from "../pile/card";
 import { leadDtoFor } from "../surface";
 import type { LeadAim } from "./use-aim";
@@ -64,8 +76,11 @@ interface SheetInputs {
   aim: LeadAim;
   /** Their place (GET leads/:id/place), whether it has been read, and why it could not be: none is told apart from not yet. */
   place: { read: boolean; failed: string | null; place: SequencePlaceDto | null };
-  /** Their own emails (GET leads/:id/emails), for History; none where the read failed, which only leaves a row out. */
-  emails: { read: boolean; list: readonly LeadEmailDto[] };
+  /**
+   * Their own emails (GET leads/:id/emails), for History, none where the read failed, which only leaves a row out; and
+   * their own words at each step (decision 0096), which nothing edits where they could not be read.
+   */
+  emails: { read: boolean; list: readonly LeadEmailDto[]; words: readonly LeadStepWordsDto[]; wordsRead: boolean };
   /**
    * The record of the sequence the rail draws (its steps and words): the one their place stands in, else the pick's. Null
    * while it is read.
@@ -101,21 +116,48 @@ export interface SheetRail {
   vm: PlaceRailVM;
   /** Each email of the sequence for this lead, by its place: what a step opened shows. */
   steps: ReadonlyMap<number, LeadCardStepVM>;
+  /** The sequence's chain, which how an email ends and what fills it read; null while it is read. */
+  chain: ReachOutChainDto | null;
 }
 
-/** The email the card carries: who it goes to, its words in parts, and what its opening says. */
+/** What an email needs to become a box (decision 0096): whose it is, its words as written, and what fills them. */
+export interface SheetMailEdit {
+  sequenceId: string;
+  stepId: string;
+  leadId: string;
+  name: string;
+  /** A first email, with its subject; a later one answers it. */
+  first: boolean;
+  /** These words are this lead's own. */
+  own: boolean;
+  written: LeadEmailText;
+  stepWritten: LeadEmailText;
+  lead: LeadCardLead;
+  workspace: SlotWorkspace;
+  opening: string | null;
+}
+
+/** An email as the sheet reads it: who it goes to, its words in pieces, how it ends, and what may be done about it. */
 export interface SheetMail {
   to: string;
-  subject: readonly LeadCardPart[] | null;
-  body: readonly LeadCardPart[];
+  subject: string | null;
+  pieces: readonly LeadEmailPiece[];
+  /** The name or the signature it ends with under the words, as the send ends it. */
+  ending: string | null;
   /** What the check refused marked in its opening, where it is read before it goes. */
   opening: MarkedOpening | null;
   /** Its opening is still being written. */
   writing: boolean;
-  /** Rewrite the opening stands under it: an email waiting for an OK, its opening written. */
+  /** Rewrite the opening stands under it: its opening written, and the email not yet gone. */
   rewrite: boolean;
+  /** Its line is not written yet, and a press can have it written now: its send. */
+  writeNow: string | null;
   /** Held: what it was held for stays in sight, whatever the width. */
   tall: boolean;
+  /** It can be typed in; null where it has gone, or is its owner's to send, or their words could not be read. */
+  edit: SheetMailEdit | null;
+  /** Their own words could not be read: these are the step's, and may not be what goes. */
+  wordsUnread: boolean;
 }
 
 export interface SheetFacts {
@@ -145,6 +187,8 @@ export interface SheetFacts {
   /** Only what to press; null where nothing is left to press, and the sheet draws no foot. */
   dock: LeadSheetDockVM | null;
   rail: SheetRail | null;
+  /** An email of the Sequence line, opened by its place (railMailOf). */
+  railMail: (at: number) => ReturnType<typeof railMailOf>;
   /** The batch their step waits in, which Approve asks about. */
   waiting: SheetWaiting | null;
 }
@@ -192,12 +236,12 @@ const railRecordOf = (i: SheetInputs, id: string): SequenceRecordDto | null =>
 function stepsByPlace(
   chain: ReachOutChainDto | null,
   steps: SequenceRecordDto["steps"],
-  leadId: string,
+  who: { leadId: string; own: LeadOwnWords },
 ): Map<number, LeadCardStepVM> {
-  const lead = leadCardLeadOf(leadId);
+  const lead = leadCardLeadOf(who.leadId);
   const out = new Map<number, LeadCardStepVM>();
   if (!chain || !lead) return out;
-  for (const s of leadCardStepsOf({ chain, lead, workspace: leadCardWorkspace() })) {
+  for (const s of leadCardStepsOf({ chain, lead, workspace: leadCardWorkspace(), own: who.own })) {
     const step = steps.find((x) => x.id === s.id);
     if (step) out.set(step.place, s);
   }
@@ -223,12 +267,14 @@ function railOf(i: SheetInputs, state: LeadSheetState, nowMs: number): SheetRail
   if (!i.place.read) return null;
   const clock = { tz: i.tz, nowMs };
   const place = i.place.place;
+  const who = { leadId: i.vm.id, own: leadOwnWordsOf(i.emails.words) };
   if (place) {
     const rec = railRecordOf(i, place.sequence.id);
     if (!rec) return null;
-    const steps = stepsByPlace(rec.chain ?? null, rec.steps, i.vm.id);
+    const steps = stepsByPlace(rec.chain ?? null, rec.steps, who);
     return {
       lens: "one",
+      chain: rec.chain ?? null,
       sequence: place.sequence,
       vm: placeRailOf({
         lens: "one",
@@ -247,9 +293,10 @@ function railOf(i: SheetInputs, state: LeadSheetState, nowMs: number): SheetRail
   const rec = railRecordOf(i, pick.rootId);
   if (!rec) return null;
   const recSteps = rec.steps;
-  const steps = stepsByPlace(rec.chain ?? pick.chain, recSteps, i.vm.id);
+  const steps = stepsByPlace(rec.chain ?? pick.chain, recSteps, who);
   return {
     lens: "preview",
+    chain: rec.chain ?? pick.chain,
     sequence: { id: pick.rootId, name: pick.name, state: pick.row.state },
     vm: placeRailOf({
       lens: "preview",
@@ -268,7 +315,7 @@ function railOf(i: SheetInputs, state: LeadSheetState, nowMs: number): SheetRail
 function cardStateOf(i: SheetInputs) {
   const pick = i.aim.target;
   const check = pick ? i.aim.checkOf(i.vm.id) : undefined;
-  const card = leadCardFor(i.vm.id, pick ? pick.chain : null, i.tz, check);
+  const card = leadCardFor(i.vm.id, pick ? pick.chain : null, i.tz, { check, own: leadOwnWordsOf(i.emails.words) });
   const lead = sheetLeadOf(i.vm);
   const state = leadSheetStateOf({ lead, place: i.place.place, check, email: card.email });
   const blocked = card.email ? card.email.blocked : null;
@@ -286,62 +333,160 @@ function addresseeOf(vm: LeadPeekVM, address: string): string {
   return person ? `${person.name} · ${address}` : address;
 }
 
-/** The first email they would get from the pick. */
-function firstMailOf(vm: LeadPeekVM, card: LeadCardFacts): SheetMail | null {
-  const email = card.email;
-  if (!email) return null;
+/** The sentence the listing says for this lead (contracts leadFactOf), which the check offers its reader first. */
+function factLineOf(leadId: string): string | null {
+  const dto = leadDtoFor(leadId);
+  if (!dto) return null;
+  const { business_name, city, hours, rating, reviews } = dto;
+  return leadOpeningOf(null, { business_name, city, hours: hours ?? null, rating, reviews });
+}
+
+/** The words of one step for this lead, as they read and as they end, and what it takes to type them. */
+function stepWordsOf(
+  i: Pick<SheetInputs, "vm" | "emails">,
+  on: { step: LeadCardStepVM; chain: ReachOutChainDto; line: string | null },
+): Pick<SheetMail, "subject" | "pieces" | "ending" | "edit" | "wordsUnread"> | null {
+  const { step, chain, line } = on;
+  const lead = leadCardLeadOf(i.vm.id);
+  if (!lead) return null;
+  const workspace = { ...leadCardWorkspace(), yourName: chain.signed_by };
+  const box = leadWordsInBox({ words: step.written, lead, workspace, opening: line });
+  const first = step.stepWritten.subject !== null;
+  const ending = coldEndingOf({
+    signsWith: chain.signs_with ?? "name",
+    signedBy: chain.signed_by,
+    // An email its owner sends ends with the name alone: their mail app adds their signature.
+    signature: chain.owner_sends ? null : (chainFirstSender(chain)?.signature?.words ?? null),
+    first,
+    body: step.written.body,
+    address: businessAddressOf(),
+  });
   return {
-    to: W.mail.ifAdded(email.to ?? vm.reach.email.value),
-    subject: email.subject,
-    body: email.body,
-    opening: null,
+    subject: box.subject,
+    pieces: leadWordsPieces({ body: step.written.body, lead, workspace, opening: line }),
+    ending: ending.signature ?? ending.signOff,
+    wordsUnread: !i.emails.wordsRead,
+    edit: i.emails.wordsRead
+      ? {
+          sequenceId: chain.root_id,
+          stepId: step.id,
+          leadId: i.vm.id,
+          name: i.vm.short,
+          first,
+          own: step.own,
+          written: step.written,
+          stepWritten: step.stepWritten,
+          lead,
+          workspace,
+          opening: line,
+        }
+      : null,
+  };
+}
+
+/** The first email they would get from the pick. */
+function firstMailOf(i: SheetInputs, card: LeadCardFacts): SheetMail | null {
+  const email = card.email;
+  const step = card.steps[0];
+  const chain = i.aim.target ? i.aim.target.chain : null;
+  if (!email || !step || !chain) return null;
+  const line = step.body.some((x) => x.kind === "opening") ? factLineOf(i.vm.id) : null;
+  const words = stepWordsOf(i, { step, chain, line });
+  if (!words) return null;
+  return {
+    to: W.mail.ifAdded(email.to ?? i.vm.reach.email.value),
+    ...words,
+    opening: markedOpeningOf(line, { reason: null, detail: null }),
     writing: false,
     rewrite: false,
+    writeNow: null,
     tall: false,
   };
 }
 
 /**
  * The email their step holds, its opening as it goes: read before an OK, marked where the check refused it, or the one
- * up next, approved and on its day. Only one waiting for an OK is written again.
+ * up next, on its day. One the check has not come to says the sentence the listing would give it, else that it is to come.
  */
-function stepMailOf(vm: LeadPeekVM, place: SequencePlaceDto, rail: SheetRail | null): SheetMail | null {
+function stepMailOf(i: SheetInputs, place: SequencePlaceDto, rail: SheetRail | null): SheetMail | null {
   const row = place.place;
   const step = rail ? rail.steps.get(row.place ?? 1) : null;
-  if (!step) return null;
-  const writing = row.checked === false;
-  const held = row.group === "held";
+  if (!step || !rail || !rail.chain) return null;
+  const hasLine = step.body.some((x) => x.kind === "opening");
+  const unread = row.checked === false;
+  // Waiting for an OK or held, the check is at it; up next and days off, the check has not come to it yet (2 hours before).
+  const writing = hasLine && unread && row.group !== "next";
+  const line = hasLine ? (row.opening ?? (unread ? factLineOf(i.vm.id) : null)) : null;
+  const words = stepWordsOf(i, { step, chain: rail.chain, line });
+  if (!words) return null;
   return {
-    to: W.mail.to(addresseeOf(vm, vm.reach.email.value)),
-    subject: step.subject,
-    body: step.body,
-    opening: markedOpeningOf(row.opening, { reason: row.why, detail: row.hold_detail }),
+    to: W.mail.to(addresseeOf(i.vm, i.vm.reach.email.value)),
+    ...words,
+    opening: markedOpeningOf(line, { reason: row.why, detail: row.hold_detail }),
     writing,
-    rewrite: row.group === "waiting" && !writing && !!row.opening,
-    tall: held,
+    rewrite: (row.group === "waiting" || row.group === "next") && !writing && hasLine && !!row.opening,
+    writeNow: row.group === "next" && hasLine && unread ? row.send_id : null,
+    tall: row.group === "held",
   };
 }
 
-/** The email handed to you, as it reads. */
+/** The email handed to you, as it reads: yours to change in your mail app. */
 function draftMailOf(vm: LeadPeekVM, place: SequencePlaceDto): SheetMail | null {
   const draft = place.place.draft;
   if (!draft) return null;
   return {
     to: W.mail.to(addresseeOf(vm, draft.to)),
-    subject: [{ kind: "text", text: draft.subject }],
-    body: [{ kind: "text", text: draft.text }],
+    subject: draft.subject,
+    pieces: [{ at: 0, kind: "words", text: draft.text }],
+    ending: null,
     opening: null,
     writing: false,
     rewrite: false,
+    writeNow: null,
     tall: false,
+    edit: null,
+    wordsUnread: false,
+  };
+}
+
+/**
+ * An email of the sequence opened on the Sequence line, by its place: as they get it, typed in where it has not gone. One
+ * that went is read from what went, by its send (`sent`), and none is offered to type.
+ */
+export function railMailOf(
+  i: Pick<SheetInputs, "vm" | "emails" | "place">,
+  rail: SheetRail,
+  at: number,
+): (SheetMail & { sent: string | null }) | null {
+  const step = rail.steps.get(at);
+  if (!step || !rail.chain) return null;
+  const place = i.place.place;
+  const send = place ? (place.sends.filter((s) => s.step_id === step.id).at(-1) ?? null) : null;
+  const open = !send || send.state === "planned" || send.state === "held" || send.state === "skipped";
+  const went = send && (send.state === "sent" || send.state === "handed") ? send.id : null;
+  const row = place ? place.place : null;
+  const hasLine = step.body.some((x) => x.kind === "opening");
+  const line = hasLine ? (row && send && row.send_id === send.id ? (row.opening ?? null) : factLineOf(i.vm.id)) : null;
+  const words = stepWordsOf(i, { step, chain: rail.chain, line });
+  if (!words) return null;
+  return {
+    to: "",
+    ...words,
+    edit: open ? words.edit : null,
+    opening: markedOpeningOf(line, { reason: null, detail: null }),
+    writing: false,
+    rewrite: false,
+    writeNow: null,
+    tall: false,
+    sent: went,
   };
 }
 
 /** The email the card says it carries. */
 function mailOf(p: { now: LeadNowVM; i: SheetInputs; card: LeadCardFacts; rail: SheetRail | null }): SheetMail | null {
   const place = p.i.place.place;
-  if (p.now.mail === "first") return firstMailOf(p.i.vm, p.card);
-  if (p.now.mail === "step" && place) return stepMailOf(p.i.vm, place, p.rail);
+  if (p.now.mail === "first") return firstMailOf(p.i, p.card);
+  if (p.now.mail === "step" && place) return stepMailOf(p.i, place, p.rail);
   if (p.now.mail === "draft" && place) return draftMailOf(p.i.vm, place);
   return null;
 }
@@ -440,6 +585,7 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     canWrite,
     dock,
     rail,
+    railMail: (at) => (rail ? railMailOf(i, rail, at) : null),
     waiting: i.waiting ?? null,
   };
 }

@@ -510,7 +510,15 @@ const record = (name, over = {}) => ({
  * minutes; stamped as it is handed over, with its step, its chain's name and its record. The SQL's round-robin, its
  * horizon and its joins are proved on a stack (reach-out-checked.db.test.mjs).
  */
-function world({ sends = [], records = {}, billing = "active", monthSent = 0, spentToday = 0, body = WORDS } = {}) {
+function world({
+  sends = [],
+  records = {},
+  billing = "active",
+  monthSent = 0,
+  spentToday = 0,
+  body = WORDS,
+  own = [],
+} = {}) {
   const tables = {
     tenants: [
       { id: T, name: "Harbor Moving Co", status: "active" },
@@ -532,6 +540,7 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
       },
     ],
     reach_out_sends: sends,
+    sequence_lead_words: own,
     // What the workspace's model attempts spent this UTC day (00197), counted against its ceiling.
     reach_out_check_spend: [{ tenant_id: T, day: new Date().toISOString().slice(0, 10), attempts: spentToday }],
   };
@@ -712,6 +721,75 @@ test("a failed try backs off and ends its lease; an hour of them holds the send 
   // updated_at on every write, which this double does not).
   h.updated_at = new Date().toISOString();
   assert.deepEqual([(await tick(w, async () => null)).read, w.row(hour.id).state], [0, "held"]);
+});
+
+/* ------------------------------------------------------------------ a lead's own words (decision 0096) -- */
+
+const OWN = { subject: "Your weekend chair", body: "Saw the chair is booked out.\n\nWorth a word? {{your name}}" };
+const ownFor = (lead_id, words = OWN, step_id = "root-1") => ({ step_id, lead_id, ...words });
+
+test("a lead's own words with no line cost no call: checked against them, and the line it had is left for the step's words coming back", async () => {
+  const s = send({ lead_id: "mine", opening: "A line from before.", angle: "their reviews" });
+  const w = world({ sends: [s], records: { mine: record("Mine Movers") }, own: [ownFor("mine")] });
+  const m = byBusiness({});
+  const out = await tick(w, m.ask);
+  assert.deepEqual([out.read, out.checked, out.held, out.calls, m.calls.length], [1, 1, 0, 0, 0]);
+  const r = w.row(s.id);
+  assert.deepEqual(
+    [r.state, r.opening, r.angle, !!r.checked_at, r.check_started_at],
+    ["planned", "A line from before.", "their reviews", true, null],
+  );
+  assert.equal(r.checked_words, checkedWordsOf(OWN, "Sam", false), "the sender's mark for these words, not the step's");
+  assert.notEqual(r.checked_words, checkedWordsOf(WORDS, "Sam", false));
+});
+
+test("a lead's own words hold nothing back about the business: what holds a send for who it is to still does", async () => {
+  const s = send({ lead_id: "customer" });
+  const w = world({
+    sends: [s],
+    records: { customer: record("Customer Movers", { email_domain_shared: true }) },
+    own: [ownFor("customer")],
+  });
+  const m = byBusiness({});
+  const out = await tick(w, m.ask);
+  assert.deepEqual([out.held, out.calls, m.calls.length], [1, 0, 0]);
+  assert.deepEqual([w.row(s.id).state, w.row(s.id).reason], ["held", "customer_domain"]);
+});
+
+test("a lead's own words that keep their line have it written, and another step's words are not this step's", async () => {
+  const kept = send({ lead_id: "kept" });
+  const other = send({ lead_id: "other" });
+  const keptWords = { subject: "Mine", body: "{{opening}}\n\nMy own words. {{your name}}" };
+  const w = world({
+    sends: [kept, other],
+    records: { kept: record("Kept Movers"), other: record("Other Movers") },
+    own: [ownFor("kept", keptWords), ownFor("other", OWN, "step-2")],
+  });
+  const m = byBusiness({
+    "Kept Movers": [WROTE("A 4.9 says it."), READ()],
+    "Other Movers": [WROTE("16 reviews say it."), READ()],
+  });
+  await tick(w, m.ask);
+  assert.deepEqual([w.row(kept.id).opening, w.row(other.id).opening], ["A 4.9 says it.", "16 reviews say it."]);
+  assert.equal(w.row(kept.id).checked_words, checkedWordsOf(keptWords, "Sam", false));
+  assert.equal(w.row(other.id).checked_words, checkedWordsOf(WORDS, "Sam", false), "its own words are at another step");
+});
+
+test("own words that cannot be read check nothing this tick: never the step's words over what a member typed", async () => {
+  const s = send({ lead_id: "mine" });
+  const w = world({ sends: [s], records: { mine: record("Mine Movers") }, own: [ownFor("mine")] });
+  const down = Object.create(w.db);
+  const refused = {
+    select: () => refused,
+    in: () => refused,
+    order: () => refused,
+    range: async () => ({ data: null, error: { message: "down" } }),
+  };
+  down.from = (table) => (table === "sequence_lead_words" ? refused : w.db.from(table));
+  const m = byBusiness({ "Mine Movers": [WROTE("A 4.9 says it."), READ()] });
+  const out = await tick({ ...w, db: down }, m.ask);
+  assert.deepEqual([out.checked, out.calls, m.calls.length, w.row(s.id).checked_at], [0, 0, 0, null]);
+  assert.equal(w.row(s.id).opening, null);
 });
 
 test("a check never writes onto words that changed under it (R3, R5)", async () => {

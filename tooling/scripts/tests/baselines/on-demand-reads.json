@@ -240,6 +240,16 @@
     "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
     "why": "The lead's own emails, for its History: read as its place is, on the lead sheet, and again after a press."
   },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/sent/[send]": {
+    "kind": "on-open",
+    "fresh": "Read as a step that went is opened on the lead sheet; what went does not change.",
+    "why": "What one send of a lead's said as it went, read from the email itself, for the step it is."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/words": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "The lead's own words at each step that has some, for the email the sheet draws: read as its place is, and a save is said at once by the door's answer."
+  },
   "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/place": {
     "kind": "on-open",
     "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",

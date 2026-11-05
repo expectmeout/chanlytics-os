@@ -254,6 +254,16 @@ export type {
   PreviewRefusal,
 } from "./repositories/campaigns/lead-previews";
 export {
+  leadSentEmailOf,
+  leadStepKey,
+  leadStepWordsOf,
+  leadWordsOf,
+  leadWordsOfLeads,
+  ownWordsAtSteps,
+  setLeadWords,
+} from "./repositories/campaigns/lead-words";
+export type { LeadWordsAnswer } from "./repositories/campaigns/lead-words";
+export {
   offersAnswerOf,
   recordCarrierOptOut,
   recordLateCarrierOptOut,

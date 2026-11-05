@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-355 handlers in 56 domains.
+358 handlers in 56 domains.
 
 ## activity
 
@@ -1282,6 +1282,12 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `subject` | string | yes | at least 1 characters; at most 200 characters |
 | `body` | string | yes | at least 1 characters; at most 4000 characters |
 
+### `GET /api/v1/leads/[id]/sent/[send]`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/sent/[send]/route.ts`).
+
 ### `POST /api/v1/leads/[id]/stage`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
@@ -1323,6 +1329,12 @@ Body 5:
 | --- | --- | --- | --- |
 | `kind` | `"emailed"` | yes |  |
 | `words` | object | no |  |
+
+### `GET /api/v1/leads/[id]/words`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/words/route.ts`).
 
 ### `GET /api/v1/leads/back`
 
@@ -2723,6 +2735,15 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/steps/[step]/route.ts`).
+
+### `POST /api/v1/sequences/[id]/steps/[step]/lead-words`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `words` | object or null | yes |  |
 
 ### `POST /api/v1/sequences/[id]/steps/[step]/test`
 

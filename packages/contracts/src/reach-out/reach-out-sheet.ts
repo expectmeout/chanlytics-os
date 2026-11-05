@@ -21,7 +21,7 @@ import { REACH_OUT_DRAFTS_PER_DAY } from "./reach-out-rules";
 import { SEND_DAY_FRAME } from "./reach-out-timetable";
 import type { HandKind } from "./reach-out-hand";
 import { pct } from "../shared/numbers";
-import { heldAnswersOf, heldWhyOf, markedOpeningOf } from "../sequences/sequence-held";
+import { heldAnswersOf, heldOwnWordsOf, heldWhyOf, markedOpeningOf } from "../sequences/sequence-held";
 import { dateFormat } from "../shared/time";
 
 // Each sentence says what an owner acts on, once, and stops (Ruben, 10 Oct 2026: the sheet said each thing at length,
@@ -94,6 +94,11 @@ export const REACH_OUT_REFUSALS = {
   onlyRewriteWords: "Only a rewrite takes words.",
   changeLong: "Say it in 280 characters or fewer.",
   nothingToUndo: "There is no earlier opening to put back.",
+  /** 00545 sequence_lead_words_set and reach_out_send_decide: a lead's own words at a step, and Rewrite under them. */
+  stepGone: "That step has gone.",
+  onlyEmailWords: "Only an email takes words.",
+  yoursToSend: "It's yours to send now: change it in your mail app.",
+  youWroteIt: "You wrote this email. Use the sequence's words first.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
   unsaved: "That sequence could not be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
@@ -487,19 +492,22 @@ export function approvalWordsOf(
       gated: `${held === 1 ? "It waits" : "Each waits"} for an owner's or operator's say.`,
     },
     recheck: unrun > 0 ? { said: `The check couldn't run for ${unrun}`, act: REACH_OUT_SHEET_WORDS.recheck } : null,
-    held: r.held.map((h) => ({
-      id: h.send_id,
-      name: h.business_name,
-      // Its lead's id, which the sheet's name opens over the page; none from a read before the lead was carried.
-      leadId: h.lead_id || null,
-      why: heldWhyOf(h.reason, h.detail),
-      // The opening it would send, what the check refused marked in it: read before the say (30 Oct 2026).
-      opening: markedOpeningOf(h.opening, { reason: h.reason, detail: h.detail }),
-      // Take out is the leave verb, which names the lead: a read from before the lead was carried has none to take out.
-      answers: heldAnswersOf({ reason: h.reason, detail: h.detail }, place).filter(
-        (a) => a.door !== "take_out" || !!h.lead_id,
-      ),
-    })),
+    held: r.held.map((h) => {
+      const row = {
+        id: h.send_id,
+        name: h.business_name,
+        // Its lead's id, which the sheet's name opens over the page; none from a read before the lead was carried.
+        leadId: h.lead_id || null,
+        why: heldWhyOf(h.reason, h.detail),
+        // The opening it would send, what the check refused marked in it: read before the say (30 Oct 2026).
+        opening: markedOpeningOf(h.opening, { reason: h.reason, detail: h.detail }),
+        // Take out is the leave verb, which names the lead: a read from before the lead was carried has none to take out.
+        answers: heldAnswersOf({ reason: h.reason, detail: h.detail }, place).filter(
+          (a) => a.door !== "take_out" || !!h.lead_id,
+        ),
+      };
+      return h.own ? { ...heldOwnWordsOf(row), opening: null } : row;
+    }),
     dock: runDockOf(r, { ready, from, state }),
     // The count it releases ("Approve all 30"); when it goes is the foot's line beside it, never in it.
     approve: waiting ? runApproveWords(n) : null,

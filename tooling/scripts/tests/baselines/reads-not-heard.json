@@ -532,6 +532,20 @@
     },
     {
       "kind": "unfed",
+      "rereadAfter": {
+        "reach_outs": [
+          "POST sequences/[id]/steps/[step]/lead-words"
+        ]
+      },
+      "why": "Whether a chain's waiting and held rows go with a lead's own words (ownWordsAtSteps, decision 0096): the feed does not tell the table. The door that writes them re-reads the chains (the refresh map); a teammate's save shows on the pane's next read, and the send itself reads the words as it goes.",
+      "reads": {
+        "reach_outs": [
+          "sequence_lead_words"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "finding": "S1-1",
       "why": "The email a reply answered, from the sends' rows (answeredReachOutEmail over reach_out_sends), which the feed never tells. The strip reads again when the reply itself moves (heardWith).",
       "reads": {

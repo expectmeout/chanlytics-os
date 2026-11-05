@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { useLeadEmails, useLeadPlace } from "../../campaigns/sequences/place/parts";
+import { useLeadEmails, useLeadPlace, useLeadWords } from "../../campaigns/sequences/place/parts";
 import { useSequenceRead } from "../../campaigns/sequences/use-record";
 import { pressed, sequenceVerbs as verbs } from "../../campaigns/sequences/verbs";
 import { Button } from "../../kit/button/button";
@@ -45,9 +45,9 @@ import type { Armed, Deck, DraftState, Flash, PeekActs, PeekMode } from "../peek
 import { PileBulk, type PileBulkFacts } from "../pile/bulk";
 import { keepPileForTheWayBack, type LeadPile } from "../pile/use-pile";
 import { stopWritingTo } from "../reach-out/lines";
-import { undoRewrite, type RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
 import { useSheetUi } from "./sheet-ui";
 import { SheetDock } from "./dock";
+import { emailActsOf, SheetBoxDock, useEmailBox, useSaidWords, type EmailBox } from "./email-box";
 import { SheetApproveAsk, SheetLeaveAsk, SheetRewrite, SheetSaidAsk, SheetToSend, wroteActsOf } from "./dock-asks";
 import { railSequenceOf, sheetFactsOf, waitingOf, type SheetFacts, type SheetPileFacts } from "./facts";
 import { holdSheetKeys } from "./keys";
@@ -106,6 +106,7 @@ interface SheetDraw {
   /** The sequences the picker offers, the pick first. */
   pickRows: LeadPickerRowVM[] | null;
   moved: () => void;
+  box: EmailBox;
 }
 
 /* ---------------------------------------------------------------------------------------------------- the head -- */
@@ -158,7 +159,7 @@ function sheetWhoOf(d: SheetDraw, desk: boolean) {
             className="lw-close"
             id="lead-peek-close"
             aria-label={W.close}
-            onClick={p.onClose}
+            onClick={() => void d.box.leave(p.onClose)}
             data-testid="peek-close"
           >
             <Icon name="x" size={13} />
@@ -170,26 +171,6 @@ function sheetWhoOf(d: SheetDraw, desk: boolean) {
 }
 
 /* ------------------------------------------------------------------------------------------- the card and the lines -- */
-
-/**
- * The card's email and its presses (00505): Rewrite the opening, asked in the dock's place first; the email said as being
- * written while it is; and the Undo a landed rewrite keeps beside it while that email is on the card.
- */
-function emailActsOf(d: SheetDraw) {
-  const { run, facts, sheet, p } = d;
-  const mail = facts && facts.mail && sheet.ui.writing ? { ...facts.mail, writing: true, rewrite: false } : facts?.mail;
-  const undo = sheet.ui.undo;
-  const sendId = facts && facts.place ? facts.place.place.send_id : null;
-  const undoNow = (kept: RewriteUndo) => {
-    sheet.put({ undo: null });
-    void undoRewrite(kept, p.flash).then(d.moved);
-  };
-  return {
-    mail: mail ?? null,
-    onRewrite: run && mail && mail.rewrite ? () => sheet.put({ whole: false, ask: "rewrite" }) : null,
-    onUndo: undo && undo.sendId === sendId ? () => undoNow(undo.kept) : null,
-  };
-}
 
 /** All of the sheet stands on its reads: until they land it says who they are and this, after a beat, or what failed. */
 const sheetHeldBy = (f: SheetFacts, retry: () => void) =>
@@ -223,7 +204,7 @@ function topOf(d: SheetDraw, desk: boolean) {
             now={facts.now}
             whole={sheet.ui.whole}
             onWhole={() => sheet.put({ whole: !sheet.ui.whole })}
-            {...emailActsOf(d)}
+            {...emailActsOf({ run: d.run, facts, sheet, flash: p.flash, moved: d.moved, box: d.box })}
           />
         </div>
       )}
@@ -248,6 +229,7 @@ function sheetLines(d: SheetDraw) {
         onTakeOut: facts.place && run ? run.askLeave : null,
         onOpenStep: (place) => sheet.put({ openStep: sheet.ui.openStep === place ? null : place }),
         openStep: sheet.ui.openStep,
+        box: d.box,
         busy: d.busy.on,
       }}
     />
@@ -449,6 +431,7 @@ function dockOf(d: SheetDraw, desk: boolean) {
   const pile = p.pile ? p.pile.pile : null;
   const busy = p.busy || d.busy.on || !!(pile && pile.busy);
   if (!vm || !facts || sheet.ui.step !== "card") return null;
+  if (d.box.typing) return <SheetBoxDock box={d.box} run={d.run} flash={p.flash} moved={d.moved} />;
   if (p.mode === "draft" && p.on)
     return <SheetWriteDock vm={vm} draft={p.draft} busy={busy} on={wroteActsOf(p.on, wroteOf(d))} />;
   const stands = standing(facts);
@@ -646,11 +629,13 @@ function phoneOf(d: SheetDraw) {
   // Out of a pile a sideways swipe walks the rows; in one, it walks the pile (the canvas: ‹ › became a swipe).
   const walk = p.deck && !p.pile ? p.deck : null;
   const pileRow = p.pile && p.row ? p.row : null;
-  const swipe = walk
-    ? touchSwipe({ onLeft: walk.onNext, onRight: walk.onPrev, onDown: null })
-    : pileRow && p.pile
-      ? touchSwipe({ onLeft: () => p.pile && p.pile.pile.skip(pileRow), onRight: null, onDown: null })
-      : {};
+  const swipe = d.box.typing
+    ? {}
+    : walk
+      ? touchSwipe({ onLeft: walk.onNext, onRight: walk.onPrev, onDown: null })
+      : pileRow && p.pile
+        ? touchSwipe({ onLeft: () => p.pile && p.pile.pile.skip(pileRow), onRight: null, onDown: null })
+        : {};
   // A line opened raises the sheet, as a step does and an email being written; let down to half, what was open shuts.
   const raised = !!vm && (sheet.ui.full || sheet.ui.step !== "card" || p.mode === "draft" || d.line.open !== null);
   const foot = footOf(d, false);
@@ -661,7 +646,7 @@ function phoneOf(d: SheetDraw) {
   return (
     <Sheet
       open
-      onClose={p.onClose}
+      onClose={() => void d.box.leave(p.onClose)}
       title={p.pile ? p.pile.searchName : p.row ? p.row.searchName : W.label}
       kicker
       close={{ label: W.close, glyph: <Icon name="x" size={13} /> }}
@@ -705,8 +690,22 @@ export function LeadSheet(p: LeadSheetProps) {
   const [again, setAgain] = useState(0);
   const moved = () => setAgain((n) => n + 1);
   const place = useLeadPlace(leadId, again);
-  const emails = useLeadEmails(leadId, again);
+  const written = useLeadEmails(leadId, again);
+  const ownWords = useLeadWords(leadId, again);
+  const { emails, say } = useSaidWords(leadId, {
+    read: written.read && ownWords.read,
+    list: written.list,
+    words: ownWords.words,
+    wordsRead: ownWords.wordsRead,
+  });
   const sheet = useSheetUi(leadId);
+  const box = useEmailBox({
+    leadId,
+    flash: p.flash,
+    moved,
+    open: () => sheet.put({ whole: true, full: true }),
+    said: say,
+  });
   const [busyOn, setBusy] = useState(false);
   const aim = p.aim;
   const railId = railSequenceOf({ place, aim });
@@ -762,7 +761,7 @@ export function LeadSheet(p: LeadSheetProps) {
     : null;
   const pickRows = aim.targets ? leadPickerRowsOf(aim.targets, pickId) : null;
   const line = useLine(facts);
-  const d: SheetDraw = { p, vm, facts, sheet, line, run, busy: { on: busyOn, set: setBusy }, pickRows, moved };
+  const d: SheetDraw = { p, vm, facts, sheet, line, run, busy: { on: busyOn, set: setBusy }, pickRows, moved, box };
   // The dock's keys in a pile: a key does what the press in that place does; ⇧A opens the picker.
   useEffect(() => {
     const dock = facts ? facts.dock : null;

@@ -195,6 +195,7 @@ const WORDS: Record<string, string> = {
   "member.left": "Left the workspace",
   "reach_out.lead_stopped": "A sequence stopped writing to a lead",
   "reach_out.send_decided": "A held email to a lead was decided",
+  "reach_out.lead_words_changed": "An email to a lead was changed for that lead",
   "reach_out.lead_added": "Leads were added to a sequence",
   "reach_out.lead_taken_back": "Leads were taken back from a sequence",
   "lead.kept": "A lead was kept from Needs review",
@@ -607,6 +608,10 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["remove_member", (p, base) => (p.left === true ? "Left the team" : base)],
   ["call.recorded", callRecordedWords],
   ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
+  [
+    "reach_out.lead_words_changed",
+    (p, base) => (p.kept === false ? "An email to a lead went back to the sequence's words" : base),
+  ],
   ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
   ["lead.search_removed", searchRemovedWords],
   ["line.forwarding_set", (p, base) => joinBits(base, [wordOf(FORWARDING_WORDS, textAt(p, "mode"))])],

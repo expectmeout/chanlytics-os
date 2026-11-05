@@ -12,7 +12,7 @@ import { capitalize, plural } from "../../shared/words";
 import { runApproveWords } from "../../shell/campaign-rooms";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../../reach-out/reach-out-replies";
 import { isReachOutHold } from "../../reach-out/reach-out-words";
-import { heldWhyOf } from "../../sequences/sequence-held";
+import { heldAnswersOf, heldOwnWordsOf, heldWhyOf } from "../../sequences/sequence-held";
 import {
   PLACE_NOT_PLANNED_WORD,
   PLACE_WORDS,
@@ -195,7 +195,7 @@ export function leadApproveAskOf(p: {
 
 /** Waits for your OK: how big its batch is and since when, or that its opening is still being written. */
 function waitingCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
-  const writing = place.place.checked === false;
+  const writing = place.place.checked === false && !place.place.own;
   const batch = batchWordsOf(f);
   return card({
     word: PLACE_WORDS.waiting,
@@ -209,13 +209,16 @@ function waitingCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
 
 /** Held: why, in the words every held row says it. */
 function heldCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
-  const { why, hold_detail: detail } = place.place;
+  const { why, hold_detail: detail, own } = place.place;
+  // Words of the lead's own: what the check refused of its opening is gone, and it waits for Include (heldOwnWordsOf).
+  const held = isReachOutHold(why) ? `${heldWhyOf(why, detail)}.` : NW.heldElse;
+  const say = own ? heldOwnWordsOf({ why: held, answers: heldAnswersOf({ reason: why, detail }, null) }).why : held;
   return card({
     word: NW.held,
     tone: "warn",
     need: true,
     end: placeStep(place, f),
-    say: isReachOutHold(why) ? `${heldWhyOf(why, detail)}.` : NW.heldElse,
+    say,
     mail: "step",
   });
 }

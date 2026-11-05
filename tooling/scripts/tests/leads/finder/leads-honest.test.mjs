@@ -772,6 +772,7 @@ const serveRead = (path, query) => {
   // A lead's place in a sequence (00459 sequence_place, the lead sheet's one reader): none of these leads is in one.
   if (/^\/api\/v1\/leads\/[^/]+\/place$/.test(path)) return reply(200, { ok: true, data: null });
   if (/^\/api\/v1\/leads\/[^/]+\/emails$/.test(path)) return reply(200, { ok: true, data: [] });
+  if (/^\/api\/v1\/leads\/[^/]+\/words$/.test(path)) return reply(200, { ok: true, data: [] });
   // A lead's own preview (decision 0079, the sheet's Their preview): this workspace makes none, so the sheet draws nothing.
   if (/^\/api\/v1\/leads\/[^/]+\/preview$/.test(path))
     return reply(200, { ok: true, data: { preview: null, makes: false } });

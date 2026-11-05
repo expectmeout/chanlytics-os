@@ -73,6 +73,28 @@ export function waitingAnswersOf(e: { opening: string | null; checking: boolean 
   return [...rewrite, ...no];
 }
 
+/** What a row says of an email whose words are its lead's own (decision 0096), where it would quote the opening. */
+export const OWN_WORDS_SAID = {
+  yours: "Your words",
+  held: "You changed its words. Press Send anyway and it goes.",
+} as const;
+
+/**
+ * A held email whose lead has words of their own holding no line: what the check refused of its opening is gone, so its
+ * reason is the member's to answer with Include, and there is nothing to rewrite. A hold about the business stands as it is,
+ * and so does one the check could not run for, which it runs again by itself.
+ */
+export function heldOwnWordsOf<H extends { why: string; answers: readonly HeldAnswer[] }>(h: H): H {
+  const words = h.answers.some((a) => a.door === "rewrite") && h.answers.some((a) => a.door === "include");
+  return {
+    ...h,
+    why: words ? OWN_WORDS_SAID.held : h.why,
+    answers: h.answers
+      .filter((a) => a.door !== "rewrite")
+      .map((a) => (words && a.door === "include" ? { ...a, lead: true } : a)),
+  };
+}
+
 /** A held email's opening as its row draws it: the words before what the check refused, those words, and the rest. */
 export interface MarkedOpening {
   before: string;
@@ -177,6 +199,13 @@ export function rewroteWords(name: string, o: RewroteOpening | null): string {
   if (o && o.written) return `${theirsOf(name)} new opening is written${o.held ? ", and the check held it" : ""}`;
   if (o && o.paused) return `${theirsOf(name)} opening is written again once its sequence runs`;
   return `${theirsOf(name)} opening is being written again`;
+}
+
+/** What Write it now did on a lead's sheet (decision 0096), said as a rewrite is: written, held, waiting, or on its way. */
+export function wroteLineWords(name: string, o: RewroteOpening | null): string {
+  if (o && o.written) return `${theirsOf(name)} line is written${o.held ? ", and the check held it" : ""}`;
+  if (o && o.paused) return `${theirsOf(name)} line is written once its sequence runs`;
+  return `${theirsOf(name)} line is still being written`;
 }
 
 /**

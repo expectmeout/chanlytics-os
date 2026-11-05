@@ -210,6 +210,31 @@ test("a step's new words say whether they wait for WhatsApp, and the undo gives 
   assert.deepEqual(s.undo.call(kept, TAB).body, { template_id: "old", params: [] });
 });
 
+test("a lead's own words: one lead at one step, the receipt its name, and the undo gives back what stood or the step's", () => {
+  const s = verbSpec("sequence_lead_words");
+  const LEAD = "5e000000-0000-4000-8000-0000000000ff";
+  const words = { subject: "Your chair", body: "Mine." };
+  const of = (w) =>
+    card("sequence_lead_words", { sequence_id: SEQ, step_id: STEP, lead_id: LEAD, name: "Luxe Lane", words: w });
+  const c = of(words);
+  assert.deepEqual(s.commit(c.card, TAB), {
+    route: "POST sequences/[id]/steps/[step]/lead-words",
+    params: { id: SEQ, step: STEP },
+    body: { lead_id: LEAD, words },
+  });
+  assert.equal(s.receipt(c.card, {}), "Saved for Luxe Lane");
+  assert.equal(s.receipt(of(null).card, {}), "Luxe Lane gets the sequence's words");
+  const was = { subject: "Before", body: "What stood" };
+  const kept = s.undo.record(c.card, { was }, TAB);
+  assert.deepEqual(s.undo.call(kept, TAB).body, { lead_id: LEAD, words: was });
+  assert.equal(s.undo.receipt({}, kept), "Luxe Lane gets the words you had before");
+  const none = s.undo.record(c.card, { was: null }, TAB);
+  assert.deepEqual(s.undo.call(none, TAB).body, { lead_id: LEAD, words: null });
+  assert.equal(s.undo.receipt({}, none), "Luxe Lane gets the sequence's words");
+  // A card that does not say which lead, or which step, is never sent.
+  assert.ok(s.commit(card("sequence_lead_words", { sequence_id: SEQ, step_id: STEP, words }).card, TAB).refused);
+});
+
 test("a draft is asked for, never made; keeping it makes the sequence whole, and its undo takes it away again", () => {
   assert.deepEqual(commit("sequence_draft", { words: "Thank them", previous: { name: "Win-back", steps: 2 } }), {
     route: "POST sequences/draft",

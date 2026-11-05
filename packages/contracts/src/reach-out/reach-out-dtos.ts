@@ -19,6 +19,8 @@ export interface ReachOutStepDto {
   body: string;
   template_id: string | null;
   state: "running" | "paused";
+  /** How many leads keep words of their own here (decision 0096): a change to these words reaches them not. */
+  own_words?: number;
   /** A call or a note for the team (Part 5, G20): the chain's last step, with no words to send. Null for an email. */
   hand: StepHand | null;
 }
@@ -228,6 +230,8 @@ export interface ReachOutHeldSend {
   angle: string | null;
   /** When it was planned: past fourteen days it is given up, and Include is refused (R10). */
   planned_at: string;
+  /** Its lead has words of their own at its step, holding no line (decision 0096): absent where it has none. */
+  own?: boolean;
 }
 
 /** A reach-out run, as its approval sheet reads it (F13, R20–R22). */
@@ -260,6 +264,8 @@ export interface ReachOutRunDto {
     checked: boolean;
     /** The opening it goes with, read before the batch is approved (30 Oct 2026); absent from a server before it. */
     opening?: string | null;
+    /** Its lead has words of their own at its step, holding no line (decision 0096): absent where it has none. */
+    own?: boolean;
   }>;
   /** Skipped at planning or by the check, by reason (closed_every_day, missing_value, owner_skipped, …). */
   skipped: Record<string, number>;

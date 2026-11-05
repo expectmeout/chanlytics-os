@@ -71,6 +71,8 @@ export const ROUTES = {
   "GET leads/[id]/emails": { method: "GET", path: "/api/v1/leads/[id]/emails" },
   "GET leads/[id]/place": { method: "GET", path: "/api/v1/leads/[id]/place" },
   "GET leads/[id]/preview": { method: "GET", path: "/api/v1/leads/[id]/preview" },
+  "GET leads/[id]/sent/[send]": { method: "GET", path: "/api/v1/leads/[id]/sent/[send]" },
+  "GET leads/[id]/words": { method: "GET", path: "/api/v1/leads/[id]/words" },
   "GET leads/back": { method: "GET", path: "/api/v1/leads/back" },
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
   "GET mailbox-connections/callback": { method: "GET", path: "/api/v1/mailbox-connections/callback" },
@@ -306,6 +308,7 @@ export const ROUTES = {
   "POST sequences/[id]/return": { method: "POST", path: "/api/v1/sequences/[id]/return" },
   "POST sequences/[id]/rewrite": { method: "POST", path: "/api/v1/sequences/[id]/rewrite" },
   "POST sequences/[id]/steps": { method: "POST", path: "/api/v1/sequences/[id]/steps" },
+  "POST sequences/[id]/steps/[step]/lead-words": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/lead-words" },
   "POST sequences/[id]/steps/[step]/test": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/test" },
   "POST sequences/[id]/steps/[step]/words": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/words" },
   "POST sequences/draft": { method: "POST", path: "/api/v1/sequences/draft" },
@@ -430,6 +433,8 @@ export type Routes = {
   "GET leads/[id]/emails": typeof import("../../app/api/v1/leads/[id]/emails/route").GET;
   "GET leads/[id]/place": typeof import("../../app/api/v1/leads/[id]/place/route").GET;
   "GET leads/[id]/preview": typeof import("../../app/api/v1/leads/[id]/preview/route").GET;
+  "GET leads/[id]/sent/[send]": typeof import("../../app/api/v1/leads/[id]/sent/[send]/route").GET;
+  "GET leads/[id]/words": typeof import("../../app/api/v1/leads/[id]/words/route").GET;
   "GET leads/back": typeof import("../../app/api/v1/leads/back/route").GET;
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
   "GET mailbox-connections/callback": typeof import("../../app/api/v1/mailbox-connections/callback/route").GET;
@@ -665,6 +670,7 @@ export type Routes = {
   "POST sequences/[id]/return": typeof import("../../app/api/v1/sequences/[id]/return/route").POST;
   "POST sequences/[id]/rewrite": typeof import("../../app/api/v1/sequences/[id]/rewrite/route").POST;
   "POST sequences/[id]/steps": typeof import("../../app/api/v1/sequences/[id]/steps/route").POST;
+  "POST sequences/[id]/steps/[step]/lead-words": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/lead-words/route").POST;
   "POST sequences/[id]/steps/[step]/test": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/test/route").POST;
   "POST sequences/[id]/steps/[step]/words": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/words/route").POST;
   "POST sequences/draft": typeof import("../../app/api/v1/sequences/draft/route").POST;

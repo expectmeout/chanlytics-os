@@ -17,6 +17,8 @@ import { api } from "@/legacy-bridge/api";
 import { workspaceName } from "../../../people/person-verbs";
 import { tplOwn } from "../../templates/words";
 import { sequenceVerbs as verbs } from "../verbs";
+import { surfaceValue } from "../../../surface-values";
+import { brainOf } from "../../templates/words";
 import { useSequenceRead } from "../use-record";
 
 /** A lead in it, as the preview steps through them. */
@@ -44,6 +46,12 @@ export function usePreviewLeads(rec: SequenceRecordDto): PreviewLead[] {
     out.push({ id: r.lead_id, name: r.name ?? "", written: opening && r.place ? { place: r.place, opening } : null });
   }
   return out;
+}
+
+/** The business's postal address as Settings holds it, which the foot says; "" while it is not set. */
+export function businessAddressOf(): string {
+  const brain = brainOf(surfaceValue("settings")?.settings);
+  return typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
 }
 
 /** Each lead's row as its page read it, for the tab. */

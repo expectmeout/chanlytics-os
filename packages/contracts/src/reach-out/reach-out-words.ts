@@ -305,6 +305,18 @@ export interface ChainIssue {
 }
 
 /**
+ * A first email to a business that never heard of you carries no link (decision 0056, 7): a link in a first touch from
+ * a mailbox is what spam filters weigh most. The booking link goes in the nudge. Their preview is a link like any other,
+ * said in its own words: it goes in a later step (decision 0079).
+ */
+export function firstEmailLinkProblem(w: { subject: string | null; body: string }): ChainIssue["problem"] | null {
+  if (slotCount(w.body, "their preview") > 0) return "first_has_their_preview";
+  return linksIn(`${w.subject ?? ""}\n${w.body}`).length > 0 || slotCount(w.body, "booking link") > 0
+    ? "first_has_a_link"
+    : null;
+}
+
+/**
  * A chain, whole: each step's words, the first on day one and each after it waiting its days, and what the words ask
  * the workspace to have. {{your name}} needs a name to sign with. {{booking link}} needs the workspace's link: a chain
  * that names one the workspace does not have would hold every email it writes.
@@ -316,17 +328,8 @@ export function validateReachOutChain(c: ReachOutChainInput, has: { bookingLink:
     else
       for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
-    // A first email to a business that never heard of you carries no link (decision 0056, 7): a link in a first touch
-    // from a mailbox is what spam filters weigh most. The booking link goes in the nudge. Their preview is a link like
-    // any other, said in its own words: it goes in a later step (decision 0079).
-    if (i === 0 && !s.hand && slotCount(s.body, "their preview") > 0)
-      out.push({ step: 0, field: "body", problem: "first_has_their_preview" });
-    else if (
-      i === 0 &&
-      !s.hand &&
-      (linksIn(`${s.subject ?? ""}\n${s.body}`).length > 0 || slotCount(s.body, "booking link") > 0)
-    )
-      out.push({ step: 0, field: "body", problem: "first_has_a_link" });
+    const link = i === 0 && !s.hand ? firstEmailLinkProblem(s) : null;
+    if (link) out.push({ step: 0, field: "body", problem: link });
     if (i > 0 && s.after_days === null) out.push({ step: i, field: "after_days", problem: "step_needs_a_delay" });
   });
   // Only the emails' words are sent: a call's or a note's are the team's own, and name no slot.

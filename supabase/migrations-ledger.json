@@ -546,6 +546,7 @@
     "00540_a_lead_s_own_email_is_a_send_with_no_sequence.sql": "fe88d924b17f0ca1fd13626e3ffb82ef0acdb20347caa97d008635016958ae02",
     "00541_what_a_search_reads_of_a_site_it_pays_for.sql": "38a20b2372e40b584793f8ba177df9c668d6df3fd801334329d9db40f5782fc6",
     "00542_a_partner_s_password_alone_learns_no_lead_s_why.sql": "0adf961282d15d75b0cb8769e38c0692b97ed729a3f95b49aff23a0f82d467d0",
-    "00544_anthropic_is_told_whom_a_call_is_for.sql": "c6635a48db48a9124b2cd7639378378ed787f157536f25e5df7b37bab03588c3"
+    "00544_anthropic_is_told_whom_a_call_is_for.sql": "c6635a48db48a9124b2cd7639378378ed787f157536f25e5df7b37bab03588c3",
+    "00545_a_lead_s_email_can_be_its_own.sql": "d98746519b03d97ed408456bdee425c41f172ca4bc476be0c6ca76083fd5ae7d"
   }
 }

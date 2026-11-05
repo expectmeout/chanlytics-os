@@ -7,12 +7,21 @@ import {
   leadsRoute,
   personName,
   type LeadEmailDto,
+  type LeadEmailText,
+  type LeadStepWordsDto,
   type LeadsQuery,
   type PersonAtLeadDto,
   type PreviewTriedDto,
   type SequencePlaceDto,
 } from "@chanlytics/contracts";
-import { leadEmailsOf, peopleAtLead, previewsTriedSince, sequencePlaceOf } from "@chanlytics/db";
+import {
+  leadEmailsOf,
+  leadSentEmailOf,
+  leadWordsOf,
+  peopleAtLead,
+  previewsTriedSince,
+  sequencePlaceOf,
+} from "@chanlytics/db";
 import { leadOne, leadsPage } from "../leads/lead-page";
 import { stamp, type Reader } from "./index";
 
@@ -103,6 +112,23 @@ export const leadEmails: Reader<{ id: string }, LeadEmailDto[]> = {
   name: "lead_emails",
   async read(rc, { id }) {
     return { data: await leadEmailsOf(rc.ctx.supabase, rc.tenantId, id), rows: [], stamp: stamp() };
+  },
+};
+
+/** One lead's own words at each step that has some (decision 0096): what the sheet's email says in place of the step's. */
+export const leadWords: Reader<{ id: string }, LeadStepWordsDto[]> = {
+  name: "lead_words",
+  async read(rc, { id }) {
+    return { data: await leadWordsOf(rc.ctx.supabase, rc.tenantId, id), rows: [], stamp: stamp() };
+  },
+};
+
+/** What one send of a lead's said as it went (decision 0096): what a step that went shows on the sheet. */
+export const leadSent: Reader<{ id: string; send: string }, LeadEmailText | null> = {
+  name: "lead_sent",
+  async read(rc, { id, send }) {
+    const data = await leadSentEmailOf(rc.ctx.supabase, { tenantId: rc.tenantId, leadId: id, sendId: send });
+    return { data, rows: [], stamp: stamp() };
   },
 };
 

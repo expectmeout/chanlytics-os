@@ -15,7 +15,7 @@
  */
 import { Fragment, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { REACH_OUT_SHEET_WORDS, WHO_GETS_IT_WORDS } from "@chanlytics/contracts";
+import { OWN_WORDS_SAID, REACH_OUT_SHEET_WORDS, WHO_GETS_IT_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, HeldChoice, RunPartVM } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
@@ -343,6 +343,10 @@ function RoRunList({
                     <q className="ro-whor-opening" data-testid="ro-person-opening">
                       {x.opening}
                     </q>
+                  ) : x.own ? (
+                    <span className="ro-whor-opening" data-testid="ro-person-own">
+                      {OWN_WORDS_SAID.yours}
+                    </span>
                   ) : null}
                   {doors.askOf(x.id, x.name)}
                   {may && doors.asking !== x.id && x.answers.length > 0 ? (

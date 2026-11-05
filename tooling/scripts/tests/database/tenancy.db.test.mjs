@@ -413,6 +413,12 @@ before(async () => {
     },
     null,
   );
+  // A lead's own words at a step (00545): its door writes them, members read them.
+  await seed(
+    "sequence_lead_words",
+    { tenant_id: A, step_id: ctx.reachRoot, lead_id: ctx.lead, subject: "Tenancy", body: "Tenancy words" },
+    null,
+  );
   // A reply's reading (00222): the service role's doors write it, members read it.
   await seed(
     "sequence_replies",
@@ -946,6 +952,10 @@ const TENANT_TABLES = {
   lead_judgments: ["none", () => ({ tenant_id: A, round_id: ctx.leadRound, op_id: "stranger", answer: {} })],
   leads: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger0001", business_name: "Stranger" })],
   lead_places: ["member", () => ({ tenant_id: A, lead_id: ctx.lead, place_id: "ChIJstranger0002" })],
+  sequence_lead_words: [
+    "member",
+    () => ({ tenant_id: A, step_id: ctx.reachRoot, lead_id: ctx.lead, body: "Stranger" }),
+  ],
   lead_previews: ["member", () => ({ tenant_id: A, lead_id: ctx.lead, token: "strangerStrangerStran1" })],
   lead_search_members: [
     "member",

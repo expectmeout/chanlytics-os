@@ -1057,6 +1057,20 @@
       "rate": null,
       "spend": false
     },
+    "GET leads/[id]/sent/[send]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET leads/[id]/words": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET leads/[id]/place": {
       "kind": "read",
       "scope": "workspace",
@@ -2193,6 +2207,13 @@
       "scope": "row",
       "role": "operator",
       "rate": "step_test",
+      "spend": false
+    },
+    "POST sequences/[id]/steps/[step]/lead-words": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
       "spend": false
     },
     "POST sequences/[id]/steps/[step]/words": {

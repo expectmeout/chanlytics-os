@@ -10,6 +10,7 @@
 import {
   LEAD_CARD_WORDS,
   leadCardStepsOf,
+  type LeadOwnWords,
   type LeadCardChain,
   type LeadCardEmailVM,
   type LeadCardLead,
@@ -49,6 +50,10 @@ export interface LeadRewriteDto {
 
 /** The record's words for a sequence to leads, said once. */
 export const LEAD_BUILD_WORDS = {
+  /** Beside a step's words: who a change to them does not reach (decision 0096). */
+  keepOwn: (n: number) => `${plural(n, "lead keeps", "leads keep")} their own words.`,
+  /** Beside a lead previewed who has them. */
+  ownWords: "They have their own words here.",
   /** The Start row: who joins, then the line under it. */
   startAdd: "When you add a lead",
   startFound: "When a lead is ready in ",
@@ -486,6 +491,8 @@ export function leadPreviewEmailOf(p: {
   lead: LeadCardLead;
   workspace: SlotWorkspace;
   place: number;
+  /** The lead's own words at each step (decision 0096): the email as this lead gets it. */
+  own?: LeadOwnWords;
 }): LeadCardEmailVM | null {
   const steps = leadCardStepsOf(p);
   const step = steps[p.place - 1];

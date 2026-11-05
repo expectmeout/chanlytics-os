@@ -6522,6 +6522,58 @@ export type Database = {
           },
         ]
       }
+      sequence_lead_words: {
+        Row: {
+          body: string
+          lead_id: string
+          step_id: string
+          subject: string | null
+          tenant_id: string
+          written_at: string
+          written_by: string | null
+        }
+        Insert: {
+          body: string
+          lead_id: string
+          step_id: string
+          subject?: string | null
+          tenant_id: string
+          written_at?: string
+          written_by?: string | null
+        }
+        Update: {
+          body?: string
+          lead_id?: string
+          step_id?: string
+          subject?: string | null
+          tenant_id?: string
+          written_at?: string
+          written_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_lead_words_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "sequence_lead_words_step_id_same_workspace"
+            columns: ["tenant_id", "step_id"]
+            isOneToOne: false
+            referencedRelation: "sequence_steps"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "sequence_lead_words_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sequence_replies: {
         Row: {
           answered_message_id: string | null
@@ -10848,6 +10900,17 @@ export type Database = {
           p_limit?: number
           p_sequence_id: string
           p_tenant_id: string
+        }
+        Returns: Json
+      }
+      sequence_lead_words_set: {
+        Args: {
+          p_body?: string
+          p_checked_words?: string
+          p_lead_id: string
+          p_needs_line?: boolean
+          p_step_id: string
+          p_subject?: string
         }
         Returns: Json
       }

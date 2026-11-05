@@ -8263,6 +8263,8 @@ begin
    where sequence_sends.lead_id is not null and ( tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null or rewrite_asked is not null
           or website_says is not null));
+  -- The words a member typed for this lead at a step (00545): the lead's, and they go with its details.
+  delete from public.sequence_lead_words where tenant_id = v_tenant and lead_id = p_lead_id;
   -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
   update public.sequence_sends
@@ -10049,6 +10051,12 @@ begin
          reason = case when state = 'drafted' then 'lead_gone' else reason end,
          draft = null
    where sequence_sends.lead_id is not null and ( tenant_id = p_tenant_id and draft is not null and lower(btrim(coalesce(draft->>'to', ''))) = v_e);
+  -- The words a member typed for a company that names this person may name them (00545).
+  delete from public.sequence_lead_words w
+   using public.leads l
+   where l.id = w.lead_id and w.tenant_id = p_tenant_id and l.tenant_id = p_tenant_id and l.kind = 'company'
+     and exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) p
+                  where lower(btrim(coalesce(p->>'email', ''))) = v_e);
   update public.leads l
      set facts = jsonb_set(jsonb_set(l.facts, '{people}', (
                    select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
@@ -10092,7 +10100,9 @@ CREATE FUNCTION public.lead_person_leg(p_lead_id uuid, p_email text, p_phone tex
     AS $$
 begin
   -- What a lead holds of one person (0052): their address, as its own or among its others, their number, and the note of
-  -- the call. The place, its name and the others' are kept; nothing is banned.
+  -- the call, and the words a member typed for this lead, which may name them (00545). The place, its name and the
+  -- others' are kept; nothing is banned.
+  delete from public.sequence_lead_words where lead_id = p_lead_id;
   update public.leads l
      set email = case when p_email is not null and lower(l.email) = lower(p_email) then null else l.email end,
          email_state = case when p_email is not null and lower(l.email) = lower(p_email) then 'none' else l.email_state end,
@@ -25153,6 +25163,12 @@ begin
       if public.reach_out_given_up(v_send.created_at) then
         raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
       end if;
+      -- Words typed for this lead that hold no line have no opening to write: they are the member's (00545).
+      if exists (select 1 from public.sequence_lead_words w
+                  where w.step_id = v_send.step_id and w.lead_id = v_send.lead_id
+                    and w.body !~* '\{\{\s*opening\s*\}\}') then
+        raise exception 'You wrote this email. Use the sequence''s words first.' using errcode = '22023';
+      end if;
       -- The opening it replaces, as it stood, kept once: a second press while the first is written undoes to the first.
       v_was := case
         when v_send.opening is null and v_send.rewrite_asked ? 'was' then v_send.rewrite_asked->'was'
@@ -28904,6 +28920,85 @@ $$;
 --
 
 COMMENT ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid, p_before timestamp with time zone, p_limit integer) IS 'What a sequence sent (0060), a batch a row, newest first, p_limit (1 to 100, 30) of them before p_before: when, its state, its step''s place, its people and what became of its sends (sequence_batch_counts), and whether there is more. Under the caller''s row security.';
+
+
+--
+-- Name: sequence_lead_words_set(uuid, uuid, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text DEFAULT NULL::text, p_body text DEFAULT NULL::text, p_checked_words text DEFAULT NULL::text, p_needs_line boolean DEFAULT false) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_step public.sequence_steps%rowtype;
+  v_send public.sequence_sends%rowtype;
+  v_was  public.sequence_lead_words%rowtype;
+begin
+  if v_user is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
+  select * into v_step from public.sequence_steps where id = p_step_id;
+  if not found or not public.is_acting_member(v_step.tenant_id) then
+    raise exception 'That step has gone.' using errcode = 'P0002';
+  end if;
+  if v_step.kind <> 'reach_out' or v_step.hand is not null then
+    raise exception 'Only an email takes words.' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.leads l
+                  where l.id = p_lead_id and l.tenant_id = v_step.tenant_id
+                    and l.erased_at is null and l.blanked_at is null) then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  -- The lead's latest send at this step, held against a claim while its words change: a claim waits, or finds them.
+  select * into v_send from public.sequence_sends s
+   where s.tenant_id = v_step.tenant_id and s.lead_id = p_lead_id and s.step_id = p_step_id
+   order by s.created_at desc, s.id desc
+   limit 1
+   for update;
+  if v_send.state in ('claimed', 'queued', 'sent', 'handed') then
+    raise exception 'That email has gone.' using errcode = '22023';
+  end if;
+  if v_send.state = 'drafted' then
+    raise exception 'It''s yours to send now: change it in your mail app.' using errcode = '22023';
+  end if;
+  select * into v_was from public.sequence_lead_words w
+   where w.step_id = p_step_id and w.lead_id = p_lead_id
+   for update;
+  if p_body is null then
+    delete from public.sequence_lead_words w where w.step_id = p_step_id and w.lead_id = p_lead_id;
+  else
+    insert into public.sequence_lead_words as w (tenant_id, step_id, lead_id, subject, body, written_by)
+    values (v_step.tenant_id, p_step_id, p_lead_id, p_subject, p_body, v_user)
+    on conflict (step_id, lead_id) do update
+      set subject = excluded.subject, body = excluded.body, written_by = excluded.written_by, written_at = now();
+  end if;
+  if v_send.state in ('planned', 'held') then
+    if p_needs_line and v_send.opening is null and v_send.checked_at is not null then
+      -- Checked with no line, and these words name one: back to be checked, as words changed always are (R5).
+      perform public.reach_out_recheck(array[v_send.id], v_step.tenant_id);
+    else
+      -- A check under way read other words, and writes nothing now. One done stands: what it held about the business still
+      -- holds, and a held email stays held for its owner's answer. Its mark is of these words, so the sender sends them.
+      update public.sequence_sends s
+         set check_gen = s.check_gen + 1, check_started_at = null,
+             checked_words = case when s.checked_at is not null then p_checked_words else s.checked_words end
+       where s.id = v_send.id;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'step_id', p_step_id,
+    'lead_id', p_lead_id,
+    'send_id', v_send.id,
+    'was', case when v_was.step_id is null then null
+                else jsonb_build_object('subject', v_was.subject, 'body', v_was.body) end);
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) IS 'One lead''s own words at one step of a sequence (00545, decision 0096), typed on the lead''s sheet: a body saves them, none puts the step''s words back. Refused once that email has gone or is its owner''s to send. Moves no send''s state. Answers what stood before, for Undo.';
 
 
 --
@@ -38232,6 +38327,30 @@ COMMENT ON COLUMN public.sequence_enrollments.next_at IS 'A customer''s sequence
 
 
 --
+-- Name: sequence_lead_words; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_lead_words (
+    tenant_id uuid NOT NULL,
+    step_id uuid NOT NULL,
+    lead_id uuid NOT NULL,
+    subject text,
+    body text NOT NULL,
+    written_by uuid,
+    written_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT sequence_lead_words_body_check CHECK (((char_length(body) >= 1) AND (char_length(body) <= 1200))),
+    CONSTRAINT sequence_lead_words_subject_check CHECK (((subject IS NULL) OR ((char_length(subject) >= 1) AND (char_length(subject) <= 80))))
+);
+
+
+--
+-- Name: TABLE sequence_lead_words; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_lead_words IS 'Decision 0096: one lead''s own words at one step of a sequence, typed on the lead''s sheet: what that lead gets there in place of the step''s words. Kept for the lead and the step, not for one send, so they stand through Take out and Put back and a run canceled, before the lead is added, and for a step not planned yet. Written as a step''s words are, its slots kept. lead_blank deletes them.';
+
+
+--
 -- Name: sequence_replies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -40034,6 +40153,14 @@ ALTER TABLE ONLY public.sequence_enrollments
 
 
 --
+-- Name: sequence_lead_words sequence_lead_words_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_pkey PRIMARY KEY (step_id, lead_id);
+
+
+--
 -- Name: sequence_replies sequence_replies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41667,6 +41794,13 @@ CREATE UNIQUE INDEX sequence_enrollments_one_in_lead ON public.sequence_enrollme
 --
 
 CREATE INDEX sequence_enrollments_person ON public.sequence_enrollments USING btree (tenant_id, contact_id);
+
+
+--
+-- Name: sequence_lead_words_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_lead_words_lead ON public.sequence_lead_words USING btree (tenant_id, lead_id);
 
 
 --
@@ -45274,6 +45408,30 @@ ALTER TABLE ONLY public.sequence_enrollments
 
 
 --
+-- Name: sequence_lead_words sequence_lead_words_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: sequence_lead_words sequence_lead_words_step_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_step_id_same_workspace FOREIGN KEY (tenant_id, step_id) REFERENCES public.sequence_steps(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: sequence_lead_words sequence_lead_words_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: sequence_replies sequence_replies_answered_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -47042,6 +47200,21 @@ ALTER TABLE public.sequence_enrollments ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY sequence_enrollments_member_select ON public.sequence_enrollments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: sequence_lead_words; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.sequence_lead_words ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: sequence_lead_words sequence_lead_words_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY sequence_lead_words_member_select ON public.sequence_lead_words FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -51860,6 +52033,15 @@ GRANT ALL ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uu
 
 
 --
+-- Name: FUNCTION sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_leads_leave(p_tenant_id uuid, p_sequence_id uuid, p_leads jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -54321,6 +54503,14 @@ GRANT ALL ON TABLE public.sequence_batches TO service_role;
 
 GRANT SELECT ON TABLE public.sequence_enrollments TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_enrollments TO service_role;
+
+
+--
+-- Name: TABLE sequence_lead_words; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.sequence_lead_words TO authenticated;
+GRANT ALL ON TABLE public.sequence_lead_words TO service_role;
 
 
 --

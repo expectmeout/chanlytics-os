@@ -468,6 +468,8 @@ export const EVENT_KINDS = [
   /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
   "reach_out.lead_stopped",
   "reach_out.send_decided",
+  /** A lead's own email typed on their sheet, or the step's words put back (decision 0096; { step_id, kept, by }). */
+  "reach_out.lead_words_changed",
   /**
    * Leads added to a list-fed reach-out ({ search_id, n, by }), and an add taken back ({ search_id, taken, leaving,
    * sent, by }), on the reach-out (00426).

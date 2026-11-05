@@ -1,7 +1,7 @@
 {
-  "rows": 160,
+  "rows": 161,
   "same": 7,
-  "differ": 153,
+  "differ": 154,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -80,7 +80,7 @@
       }
     },
     "DELETE leads/[id]": {
-      "changes": "contacts UPDATE · lead_places DELETE · lead_preferences UPDATE · lead_search_members UPDATE · lead_suppressions INSERT · leads UPDATE · notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE",
+      "changes": "contacts UPDATE · lead_places DELETE · lead_preferences UPDATE · lead_search_members UPDATE · lead_suppressions INSERT · leads UPDATE · notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_lead_words DELETE · sequence_sends UPDATE · sequences UPDATE",
       "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -2172,6 +2172,28 @@
         "reach_out_replies": "inbox, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "start, today"
+      }
+    },
+    "POST sequences/[id]/steps/[step]/lead-words": {
+      "changes": "notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_lead_words DELETE INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE",
+      "tells": "notifications",
+      "missing": {
+        "ask_morning": "today",
+        "audiences": "broadcasts",
+        "broadcasts": "every page",
+        "calendar": "admin/hours, admin/workspace, calendar, today",
+        "calendar_runs": "calendar",
+        "leads": "clients/leads, leads",
+        "notifications": "every page",
+        "people": "clients, clients/get-yes, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "every page",
+        "reach_out_replies": "inbox, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "sequences": "every page",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
+        "setup": "admin/integrations, admin/receptionist, start, today",
+        "today": "every page"
       }
     },
     "POST sequences/[id]/steps/[step]/words": {

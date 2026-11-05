@@ -8,6 +8,8 @@ import {
   HELD_REWRITE_ADVICE,
   HELD_TAKE_OUT,
   heldAnswersOf,
+  heldOwnWordsOf,
+  OWN_WORDS_SAID,
   heldCauseOf,
   heldWhyOf,
   markedOpeningOf,
@@ -177,20 +179,19 @@ export function peopleNeedsOf(
   const held = rows.flatMap((r): SequenceHeldVM[] => {
     const reason = r.why;
     if (r.group !== "held" || !r.send_id || !isReachOutHold(reason)) return [];
-    return [
-      {
-        id: r.send_id,
-        name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
-        leadId: r.lead_id,
-        place: r.place,
-        why: heldWhyOf(reason, r.hold_detail),
-        opening: markedOpeningOf(r.opening, { reason, detail: r.hold_detail }),
-        reason,
-        // Its answers as a run's screen offers them, one rule (contracts heldAnswersOf): Take out at step 1.
-        answers: heldAnswersOf({ reason, detail: r.hold_detail }, r.place),
-        batchId: r.batch_id,
-      },
-    ];
+    const row: SequenceHeldVM = {
+      id: r.send_id,
+      name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+      leadId: r.lead_id,
+      place: r.place,
+      why: heldWhyOf(reason, r.hold_detail),
+      opening: markedOpeningOf(r.opening, { reason, detail: r.hold_detail }),
+      reason,
+      // Its answers as a run's screen offers them, one rule (contracts heldAnswersOf): Take out at step 1.
+      answers: heldAnswersOf({ reason, detail: r.hold_detail }, r.place),
+      batchId: r.batch_id,
+    };
+    return [r.own ? { ...heldOwnWordsOf(row), opening: null } : row];
   });
   const handed = rows.filter((r) => r.group === "to_send" && r.send_id && r.lead_id);
   const toSend = handed.flatMap((r) =>
@@ -294,6 +295,8 @@ export interface SequenceWaitingEmailVM {
   opening: string | null;
   /** Its opening is being written: no rewrite is asked while it is. */
   checking: boolean;
+  /** Its lead has words of their own at its step, holding no line (decision 0096): `opening` says so, unquoted. */
+  own: boolean;
   answers: HeldAnswer[];
 }
 
@@ -320,16 +323,24 @@ export function personWhenWords(group: SequencePeopleGroup, atMs: number, tz: st
 export function waitingEmailsOf(rows: readonly SequencePersonDto[]): SequenceWaitingEmailVM[] {
   return rows.flatMap((r): SequenceWaitingEmailVM[] => {
     if (r.group !== "waiting" || !r.send_id || r.checked === undefined || r.opening === undefined) return [];
-    const opening = r.opening?.trim() || null;
-    const checking = !r.checked;
+    const own = r.own === true;
+    const opening = own ? null : r.opening?.trim() || null;
+    const checking = !own && !r.checked;
     return [
       {
         id: r.send_id,
         batchId: r.batch_id,
         leadId: r.lead_id,
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
-        opening: checking ? SEQUENCE_PEOPLE_WORDS.writing : opening ? `“${opening}”` : null,
+        opening: own
+          ? OWN_WORDS_SAID.yours
+          : checking
+            ? SEQUENCE_PEOPLE_WORDS.writing
+            : opening
+              ? `“${opening}”`
+              : null,
         checking,
+        own,
         answers: waitingAnswersOf({ opening, checking }, r.place),
       },
     ];

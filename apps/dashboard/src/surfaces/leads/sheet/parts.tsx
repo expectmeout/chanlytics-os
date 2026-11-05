@@ -10,18 +10,14 @@
  */
 import type { ReactNode } from "react";
 import {
-  LEAD_CARD_WORDS,
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS,
-  REWRITE_WORDS,
-  type LeadCardPart,
   type LeadNowFactVM,
   type LeadNowVM,
   type LeadPeekVM,
   type LeadPileEndVM,
   type LeadRowVM,
 } from "@chanlytics/contracts";
-import { EmailParts, emailParagraphs } from "../../campaigns/sequences/place/email-as";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -32,6 +28,7 @@ import { gate } from "../../legacy-verbs";
 import { MenuInPlace, menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { LeadTile } from "../cells/tile";
 import type { Flash, PeekActs } from "../peek/types";
+import { SheetEmail, type EmailBox } from "./email-box";
 import type { SheetMail } from "./facts";
 
 /* ------------------------------------------------------------------------------------------------------- who -- */
@@ -210,102 +207,6 @@ export function SheetMore(p: {
   );
 }
 
-/* --------------------------------------------------------------------------------------------------- the email -- */
-
-/** The opening as it goes: still being written, the words the check refused marked, or its words as they stand. */
-function OpeningOf({ mail, part }: { mail: SheetMail; part: Extract<LeadCardPart, { kind: "opening" }> }) {
-  if (mail.writing)
-    return (
-      <span className="lw-open" data-testid="lead-card-opening">
-        {W.mail.writing}
-      </span>
-    );
-  const o = mail.opening;
-  if (!o)
-    return (
-      <span className={part.text ? "lw-opening" : "lw-open"} data-testid="lead-card-opening">
-        {part.text ?? LEAD_CARD_WORDS.opening}
-      </span>
-    );
-  return (
-    <span className="lw-opening" data-testid="lead-card-opening">
-      {o.before}
-      {o.said ? (
-        <mark className="lw-refused" data-testid="lead-card-refused">
-          {o.said}
-        </mark>
-      ) : null}
-      {o.after}
-    </span>
-  );
-}
-
-/** A paragraph of the email: its opening as it goes, and the rest in plain words, a slot with no value as the hole it is. */
-const mailParagraph = (mail: SheetMail, para: readonly LeadCardPart[], at: number) => {
-  const opening = para.find((x) => x.kind === "opening");
-  return (
-    <p key={at}>
-      {opening && opening.kind === "opening" ? (
-        <OpeningOf mail={mail} part={opening} />
-      ) : (
-        <EmailParts parts={para} plain />
-      )}
-    </p>
-  );
-};
-
-/** The email on the card: as it goes, a few lines of it until it is asked for whole. */
-function SheetEmail(p: {
-  mail: SheetMail;
-  whole: boolean;
-  onWhole: () => void;
-  onRewrite: (() => void) | null;
-  onUndo: (() => void) | null;
-}) {
-  const { mail } = p;
-  const clip = p.whole ? "" : mail.tall ? " is-clipped is-tall" : " is-clipped";
-  return (
-    <div className="lw-now-mail" data-testid="lead-card-email">
-      <p className="lw-now-to" data-testid="lead-card-to">
-        {mail.to}
-      </p>
-      {mail.subject ? (
-        <p className="lw-now-subj" data-testid="lead-card-subject">
-          <EmailParts parts={mail.subject} plain />
-        </p>
-      ) : null}
-      <div className={`lw-now-body${clip}`} data-testid="lead-card-body">
-        {emailParagraphs(mail.body).map((para, at) => mailParagraph(mail, para, at))}
-      </div>
-      <div className="lw-now-acts">
-        <LinkButton className="lw-link" onClick={p.onWhole} data-testid="lead-sheet-read-all">
-          {p.whole ? W.mail.less : W.mail.readAll}
-        </LinkButton>
-        {p.onRewrite ? (
-          <LinkButton
-            className="lw-link q"
-            onClick={p.onRewrite}
-            data-testid="lead-sheet-rewrite"
-            {...gate("approve", "rewrite the opening")}
-          >
-            {W.mail.rewrite}
-          </LinkButton>
-        ) : null}
-        {p.onUndo ? (
-          <LinkButton
-            className="lw-link q"
-            onClick={p.onUndo}
-            data-testid="lead-sheet-rewrite-undo"
-            {...gate("approve", "put the earlier opening back")}
-          >
-            {REWRITE_WORDS.undo}
-          </LinkButton>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 /* ---------------------------------------------------------------------------------------------------- the card -- */
 
 /** A way to reach them, where it decides what happens next. */
@@ -332,6 +233,8 @@ export const SheetNow = (p: {
   onWhole: () => void;
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
+  onWriteNow: (() => void) | null;
+  box: EmailBox;
 }) => {
   const { now } = p;
   return (
@@ -359,7 +262,15 @@ export const SheetNow = (p: {
       ) : null}
       {now.facts.map(factRow)}
       {p.mail ? (
-        <SheetEmail mail={p.mail} whole={p.whole} onWhole={p.onWhole} onRewrite={p.onRewrite} onUndo={p.onUndo} />
+        <SheetEmail
+          mail={p.mail}
+          whole={p.whole}
+          onWhole={p.onWhole}
+          onRewrite={p.onRewrite}
+          onUndo={p.onUndo}
+          onWriteNow={p.onWriteNow}
+          box={p.box}
+        />
       ) : null}
     </section>
   );
