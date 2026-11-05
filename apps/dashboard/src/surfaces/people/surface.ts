@@ -12,6 +12,7 @@ import {
   dealPaceOf,
   isAppointmentWord,
   MIN_MS,
+  SECOND_MS,
   type AppointmentWord,
   type DealPaceVM,
   type PersonRowVM,
@@ -181,6 +182,66 @@ function peopleValidUntil(): number | null {
   return Number.isFinite(first) ? Math.max(first, peopleLoaded.readAt + PEOPLE_STANDS_MS) : null;
 }
 
+/** Who this tab handed the ledger to erase (peopleGoing): the server lists them until the ledger reaches each. */
+const goingHere = new Set<string>();
+
+/** The people, without who this tab handed the ledger. */
+const staying = <T extends { id: string }>(people: T[]): T[] =>
+  goingHere.size ? people.filter((p) => !goingHere.has(p.id)) : people;
+
+/** The page's count, less those of its rows who are going: the server counts them until the ledger reaches each. */
+const pageLess = (page: PeopleSurface["page"], going: number): PeopleSurface["page"] =>
+  page && going ? { ...page, total: page.total - going } : page;
+
+/** How long after the server last listed fewer of those going their erasure is said: once for a press, not once a person. */
+const GONE_QUIET_MS = 1.5 * SECOND_MS;
+
+/** Those going the server listed at its last read, what to do once it lists fewer (peopleGoing's `gone`), and the wait for it. */
+const awaited: { ids: Set<string>; gone: (() => void) | null; timer: ReturnType<typeof setTimeout> | null } = {
+  ids: new Set(),
+  gone: null,
+  timer: null,
+};
+
+/**
+ * A read of everyone, looked through for who is going: once the server lists fewer of them the ledger has erased some, and
+ * what an erasure moves beside People (their threads, the counts made of their messages, which the feed is not told of) is
+ * read again when that has stopped (`gone`). One reading for a press: erased one after another over a minute, each
+ * erasure's notice had the app read its screens again, some eighty requests a person (5 Nov 2026).
+ */
+function heardGone(listed: readonly { id: string }[]): void {
+  if (!awaited.ids.size) return;
+  const still = new Set(listed.filter((p) => awaited.ids.has(p.id)).map((p) => p.id));
+  if (still.size === awaited.ids.size) return;
+  awaited.ids = still;
+  if (awaited.timer) clearTimeout(awaited.timer);
+  awaited.timer = setTimeout(() => {
+    awaited.timer = null;
+    awaited.gone?.();
+  }, GONE_QUIET_MS);
+}
+
+/**
+ * Whoever a press of Delete… handed the ledger leaves the rows and the count as the door answers, as placeDeal lays on a
+ * move: the erasing takes a few seconds behind it, and each read in that time (a teammate's change, the live feed's)
+ * leaves them out here, so nobody comes back to be taken away again one at a time. Another tab sees each go as the ledger
+ * reaches them; a reload reads what the server says. `gone` is asked once they have left the server's list too (heardGone).
+ */
+export function peopleGoing(ids: readonly string[], gone: () => void): void {
+  if (!ids.length) return;
+  for (const id of ids) {
+    goingHere.add(id);
+    awaited.ids.add(id);
+  }
+  awaited.gone = gone;
+  if (!peopleLoaded) return;
+  const rows = staying(peopleLoaded.people);
+  peopleLoaded.page = pageLess(peopleLoaded.page, peopleLoaded.people.length - rows.length);
+  peopleLoaded.people = rows;
+  publishPeople();
+  window.dispatchEvent(new CustomEvent("surface:clients"));
+}
+
 /** The views this tab has saved (the latest by page), how many saves it has made, and how many still wait on their reply. */
 const keptViews = { views: {} as Record<string, Record<string, unknown>>, made: 0, waiting: 0 };
 
@@ -227,7 +288,7 @@ export async function peopleMore(): Promise<void> {
     query: nextPageQuery(peopleLoaded.people.length, peopleLoaded.page),
   });
   const seen = new Set(peopleLoaded.people.map((p) => p.id));
-  peopleLoaded.people = [...peopleLoaded.people, ...next.people.filter((p) => !seen.has(p.id))];
+  peopleLoaded.people = [...peopleLoaded.people, ...staying(next.people).filter((p) => !seen.has(p.id))];
   peopleLoaded.page = next.page;
   publishPeople();
   window.dispatchEvent(new CustomEvent("surface:clients"));
@@ -306,7 +367,7 @@ export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; mo
   const [r, tz, m] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone(), peopleMap()]);
   const now = new Date();
   return {
-    rows: r.people.map((p) =>
+    rows: staying(r.people).map((p) =>
       // What the workspace can send on is the first page's (readers/people.ts): a search's rows are judged against it too.
       m.personRowOf(p, {
         tz,
@@ -479,10 +540,12 @@ export const peopleOverride: SurfaceOverride = {
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
     // Every page, so a list, a count and a search cover everyone, and a refresh keeps them.
     const everyone = await everyPerson(data);
+    heardGone(everyone.people);
+    const rows = staying(everyone.people);
     peopleLoaded = {
       tz,
-      people: everyone.people,
-      page: everyone.page,
+      people: rows,
+      page: pageLess(everyone.page, everyone.people.length - rows.length),
       saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,

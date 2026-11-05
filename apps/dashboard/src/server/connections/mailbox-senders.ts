@@ -67,16 +67,12 @@ export async function sortSender(
   return { sender, verdict: input.verdict, kept };
 }
 
-/**
- * "Not a person" on a person: their address, or every address at their domain where that is offered, said to be
- * automated, then the person deleted as Delete person deletes (erase-contact.ts). The saying comes first, so an erasure
- * that has to be asked again finds it said, and the next email from them stays in the mailbox.
- */
-export async function notAPerson(
+/** A person's address, or every address at their domain where that is offered, said to be automated. */
+export async function sayNotAPerson(
   ctx: RouteContext,
-  contact: Awaited<ReturnType<typeof erasureScope.load>>,
+  contact: Pick<Awaited<ReturnType<typeof erasureScope.load>>, "email" | "tenant_id">,
   scope: "address" | "domain",
-) {
+): Promise<void> {
   const address = normalizeEmail(contact.email);
   if (!address) throw new AppError("validation", "This person has no email address to sort.");
   const domain = scope === "domain" ? senderDomainOffered(address, await ownHosts(ctx, contact.tenant_id)) : null;
@@ -86,5 +82,18 @@ export async function notAPerson(
     sender: domain ?? address,
     verdict: "automated",
   }).catch(sortRefused);
+}
+
+/**
+ * "Not a person" on a person: said to be automated (sayNotAPerson), then deleted as Delete person deletes
+ * (erase-contact.ts). The saying comes first, so an erasure that has to be asked again finds it said, and the next email
+ * from them stays in the mailbox.
+ */
+export async function notAPerson(
+  ctx: RouteContext,
+  contact: Awaited<ReturnType<typeof erasureScope.load>>,
+  scope: "address" | "domain",
+) {
+  await sayNotAPerson(ctx, contact, scope);
   return eraseContact(ctx, contact);
 }

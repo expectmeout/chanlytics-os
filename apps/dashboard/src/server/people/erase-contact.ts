@@ -41,6 +41,7 @@ export function eraseContact(ctx: RouteContext, contact: ErasedContact) {
       },
     },
     contact,
-    { finishLater: true },
+    // Its ledger row says who pressed by itself: erase_contact reads them off the session.
+    { finishLater: true, by: null },
   );
 }

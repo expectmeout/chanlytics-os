@@ -303,9 +303,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/cancel-send": thread,
   // People.
   "DELETE contacts/[id]": erased,
-  // Not a person (00483) and Delete… for many: an address said automated moves nothing, then each person as above.
+  // Not a person (00483): an address said automated moves nothing, then the person as above. Delete… for many erases nobody
+  // itself (REFRESHES_NOTHING): what its people's erasure moves is read through this row, once the ledger has made it.
   "POST contacts/[id]/not-a-person": erased,
-  "POST contacts/erase": erased,
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
   // now name the kept one (their address moves; the feed is told of a line's arrival, not of its change).
@@ -657,6 +657,12 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  // Delete… for many (5 Nov 2026): the press hands each person to the ledger and erases nobody. The block it writes is a stamp
+  // no page draws (packages/db realtime.ts: the feed is told of neither erasing_since nor the digests), the tab takes them off
+  // People itself (surfaces/people/surface.ts peopleGoing), and what their erasure moves is read once the ledger has made it,
+  // as Delete person's own row reads it (people-detail.ts erasedBehind).
+  "POST contacts/erase":
+    "the people are handed to the ledger and none is erased yet: People drops them itself, and what an erasure moves is read once they are gone",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",

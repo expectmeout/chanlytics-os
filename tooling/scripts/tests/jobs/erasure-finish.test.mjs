@@ -19,6 +19,7 @@ import { LEASE_SECONDS, MAX_ATTEMPTS, RETRY_WAITS_MS } from "../../../../package
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const P1 = "11111111-1111-4111-8111-111111111111";
+const OWNER = "99999999-9999-4999-8999-999999999999";
 
 /** A scrub the database refused. */
 const refused = () => {
@@ -93,6 +94,20 @@ test("a person a press left blocked is erased by the finish, in the design's ord
   assert.ok(!steps.includes("jobs.insert"), "the finish schedules no finish of its own: its tries are the ledger's");
   assert.equal(tables.policies.length, 0);
   assert.equal(tables.jobs[0].payload.reason, "contact erased");
+});
+
+test("the ledger's row says who pressed, when the press named them: the row is the system's, on an owner's word", async () => {
+  const legs = [];
+  const erase_contact = (a) => {
+    legs.push(a.p_legs);
+    return { counts: { calls: 0 }, storage_paths: [], jobs_canceled: 0 };
+  };
+  const pressed = await finish({ contact: blocked(), payload: { contact_id: P1, by: OWNER }, rpcs: { erase_contact } });
+  assert.equal(pressed.error, undefined, pressed.error?.message);
+  const stopped = await finish({ contact: blocked(), rpcs: { erase_contact } });
+  assert.equal(stopped.error, undefined, stopped.error?.message);
+  assert.equal(legs[0].by, OWNER, "a press of many names who pressed");
+  assert.equal("by" in legs[1], false, "a finish of a press that stopped names nobody: its row is the system's alone");
 });
 
 test("a person already erased has the id-keyed legs run again, and nothing destroyed twice", async () => {

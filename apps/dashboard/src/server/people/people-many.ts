@@ -1,9 +1,11 @@
-import { NOTE_LINE_MAX, NOTE_REFUSALS, SECOND_MS, type PersonReceptionistMode } from "@chanlytics/contracts";
+import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
+import { eachAtOnce } from "@chanlytics/core";
 import { setPersonReplyMode } from "@chanlytics/db";
+import { eraseByTheLedger } from "@chanlytics/jobs";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
-import { notAPerson } from "@/server/connections/mailbox-senders";
-import { eraseContact } from "@/server/people/erase-contact";
+import { sayNotAPerson } from "@/server/connections/mailbox-senders";
+import { serviceDb } from "@/server/service-db";
 
 /**
  * The same change for many people at once, through the door each would go
@@ -113,36 +115,34 @@ export async function appendNotesMany(
 }
 
 /**
- * How long a press of Delete… starts erasures for: each person's erasure is a few round trips, so most presses of fifty
- * end well inside it, and one that does not hands back who is left before its host ends the function (erase-contact.ts:
- * "within minutes"), never mid-person.
+ * How many people a press hands the ledger side by side. A person is three round trips here, about a tenth of a second,
+ * so a press of fifty answers in under a second.
  */
-const ERASE_MANY_MS = 40 * SECOND_MS;
+const ERASE_MANY_AT_ONCE = 8;
 
-/** Who a press deleted, who it could not and why, who was not ours to delete, and who is left for the next press. */
+/** Who a press handed the ledger, who it could not and why, and who was not ours to delete. */
 interface ErasedMany {
-  erased: string[];
+  going: string[];
   failed: { id: string; message: string }[];
   skipped: string[];
-  left: string[];
 }
 
 /**
- * Many people deleted at once (People's Delete…), each as Delete person deletes one (erase-contact.ts), in the order
- * they were picked. With `notAPersonToo`, each one's address is said automated first, as the person page's switch says
- * it (mailbox-senders.ts notAPerson), the address alone: a selection is many senders, and a domain is many people's. A
- * person whose erasure fails is said and the others still go; an erased one, or another workspace's, is skipped. The
- * first person always goes; past `budgetMs`, no other starts, and the rest come back as left, for the next press.
+ * Many people deleted at one press (People's Delete…): each taken out of reach and handed to the ledger, which erases
+ * them as Delete person erases one, and answered (jobs erasure.ts eraseByTheLedger). The press does none of the erasing,
+ * so it cannot outrun anyone's wait, a tab closed behind it loses nothing, and a press pressed again starts nothing
+ * beside the first. With `notAPersonToo`, each one's address is said automated first, as the person page's switch says it
+ * (mailbox-senders.ts sayNotAPerson), the address alone: a selection is many senders, and a domain is many people's. A
+ * person who could not be handed over is said and the others still go; an erased one, or another workspace's, is skipped.
+ * Each list in the order they were picked.
  */
 export async function eraseMany(
   ctx: RouteContext,
   tenantId: string,
   ids: string[],
   notAPersonToo: boolean,
-  budgetMs = ERASE_MANY_MS,
 ): Promise<ErasedMany> {
   const uniq = [...new Set(ids)];
-  const until = Date.now() + budgetMs;
   const { rows, skipped } = await ours<{
     id: string;
     tenant_id: string;
@@ -151,18 +151,27 @@ export async function eraseMany(
     erased_at: string | null;
   }>(ctx, tenantId, uniq, "id, tenant_id, phone_e164, email, erased_at");
   const picked = uniq.flatMap((id) => rows.filter((c) => c.id === id));
-  const out: ErasedMany = { erased: [], failed: [], skipped, left: [] };
-  for (const [i, c] of picked.entries()) {
-    if (i > 0 && Date.now() >= until) {
-      out.left = picked.slice(i).map((p) => p.id);
-      break;
-    }
-    try {
-      await (notAPersonToo ? notAPerson(ctx, c, "address") : eraseContact(ctx, c));
-      out.erased.push(c.id);
-    } catch (e) {
-      out.failed.push({ id: c.id, message: e instanceof Error ? e.message : String(e) });
-    }
-  }
-  return out;
+  const refused = new Map<string, string>();
+  const service = serviceDb();
+  await eachAtOnce(
+    picked,
+    ERASE_MANY_AT_ONCE,
+    () => true,
+    async (c) => {
+      try {
+        if (notAPersonToo) await sayNotAPerson(ctx, c, "address");
+        await eraseByTheLedger(service, c, ctx.userId);
+      } catch (e) {
+        refused.set(c.id, e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+  return {
+    going: picked.filter((c) => !refused.has(c.id)).map((c) => c.id),
+    failed: picked.flatMap((c) => {
+      const message = refused.get(c.id);
+      return message === undefined ? [] : [{ id: c.id, message }];
+    }),
+    skipped,
+  };
 }
