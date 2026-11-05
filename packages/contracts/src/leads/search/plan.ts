@@ -27,6 +27,11 @@ export interface LeadCriterion {
   text: string;
   standard: LeadCriterionStandard;
   required: boolean;
+  /**
+   * What only the business's own website can show (what it offers, sells or how it books; a listing cannot): the search
+   * then reads each place's home page before the judge asks (planReadsSites). Absent on a plan made before it was asked.
+   */
+  on_site?: boolean;
 }
 /** A "Leaving out" chip. The judge answers it as a required criterion: `fail` means the place is what is left out. */
 export interface LeadExclusion {
@@ -125,6 +130,10 @@ export const US_STATES: Record<string, string> = {
   wyoming: "WY",
 };
 export const US_CODES = new Set(Object.values(US_STATES));
+
+/** Whether a search reads each place's own website before its judge asks: a criterion only a website can show. */
+export const planReadsSites = (plan: Pick<LeadSearchPlan, "criteria">): boolean =>
+  plan.criteria.some((c) => c.on_site === true);
 
 export const KEY = /^[a-z][a-z0-9_]{0,39}$/;
 // Control/format characters (bidi overrides, tag characters) and newlines are stripped from every

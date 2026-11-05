@@ -6,6 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  bookingPageRead,
   FOUND_WORDS,
   PROFILE_LIMITS,
   WEBSITE_READ_SCHEMA,
@@ -60,12 +61,75 @@ test("a read's facts are taken for what each is: a field of the wrong kind is no
       description: "Family movers in Brooklyn since 1998.",
       look: null,
       booking_page: null,
+      booking_read: false,
     },
   );
-  const none = { services: [], closed: [], rules: [], answers: [], description: null, look: null, booking_page: null };
+  const none = {
+    services: [],
+    closed: [],
+    rules: [],
+    answers: [],
+    description: null,
+    look: null,
+    booking_page: null,
+    booking_read: false,
+  };
   assert.deepEqual(businessReadFactsOf(null), none);
   assert.deepEqual(businessReadFactsOf(["services"]), none);
   assert.deepEqual(businessReadFactsOf({ services: "Local moves", description: 12 }), none);
+});
+
+test("where the site says customers book, read for what it is, and whether that page was read too", () => {
+  const PAGE = "https://calendly.com/harbor-moving-example/estimate";
+  const read = (o) => businessReadFactsOf(o);
+  assert.deepEqual(
+    [
+      read({ booking_page: PAGE, booking_read: false }).booking_page,
+      read({ booking_page: PAGE, booking_read: false }).booking_read,
+    ],
+    [PAGE, false],
+    "named, and not read",
+  );
+  assert.equal(read({ booking_page: PAGE, booking_read: true }).booking_read, true);
+  assert.equal(
+    read({ booking_page: PAGE }).booking_read,
+    true,
+    "a row from before the two were told apart named what it read",
+  );
+  assert.equal(
+    read({ booking_page: "javascript:alert(1)" }).booking_page,
+    null,
+    "the column is jsonb: read for what it is",
+  );
+  assert.equal(
+    read({ booking_page: "https://harbor.example.com/book" }).booking_page,
+    null,
+    "no platform's page, no booking page",
+  );
+  const of = (facts, source = "website") => ({
+    source,
+    facts: read(facts),
+    read_from: null,
+    read_at: "2026-11-04T00:00:00Z",
+    error: null,
+  });
+  assert.equal(bookingPageRead([of({ booking_page: PAGE })]), PAGE);
+  assert.equal(
+    bookingPageRead([of({ booking_page: PAGE }, "google_profile")]),
+    null,
+    "the website's, no other source's",
+  );
+  assert.equal(bookingPageRead([]), null);
+  assert.equal(bookingPageRead(null), null);
+  const empty = { services: [], closures: [], notes: [], description: null };
+  const withService = { services: [{ name: "Local moves", price_note: null, duration_min: null }] };
+  const fromOf = (facts) => foundOf([of({ ...withService, ...facts })], empty).services[0].from;
+  assert.equal(fromOf({ booking_page: PAGE, booking_read: true }), FOUND_WORDS.fromWithBooking);
+  assert.equal(
+    fromOf({ booking_page: PAGE, booking_read: false }),
+    FOUND_WORDS.from.website,
+    "a page named, not read, is not said to be",
+  );
 });
 
 test("the website's reading answers in the shape the facts are read in: every field asked for, nothing else", () => {

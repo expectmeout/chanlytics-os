@@ -1265,7 +1265,7 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
             judgment: judged([
               { key: "kind", answer: "pass", facts: ["name", "category"] },
               { key: "open_weekends", answer: "unknown", facts: [] },
-              { key: "chains", answer: "fail", facts: ["name"] },
+              { key: "chains", answer: "fail", facts: ["name", "site"] },
               // Answered from the listing's own numbers: a fact the listing shows, seen there, never Claude's read.
               { key: "rated_low", answer: "pass", facts: ["rating", "reviews"] },
               // A key that shares a seen check's name is measured, never read: it is not said twice.
@@ -1282,7 +1282,7 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
     [
       ["kind", "yes", "Claude · the listing", "open Saturdays, per the listing"],
       ["open_weekends", "unknown", "Claude · the listing", "open Saturdays, per the listing"],
-      ["chains", "no", "Claude · the listing", "open Saturdays, per the listing"],
+      ["chains", "no", "Claude · their website", "open Saturdays, per the listing"],
     ],
     "every criterion the judge answered, under the plan's key: only LEAD_CHECK_KEYS were, and no plan's keys were those",
   );

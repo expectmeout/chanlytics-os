@@ -46,7 +46,7 @@ import { errField, logger } from "../log.js";
 type Db = SupabaseClient<Database>;
 
 /** The website's reader, as a port: the real one, or a test's. */
-type SiteReader = (db: Db, tenantId: string, url: string, deadline: number) => Promise<WebsiteReadKept>;
+type SiteReader = (db: Db, tenantId: string, url: string, o: { deadline: number }) => Promise<WebsiteReadKept>;
 
 /** The receptionist from the lead's listing, with what its site said worn; null where the lead gives it no name. */
 async function receptionistFromListing(
@@ -62,7 +62,7 @@ async function receptionistFromListing(
   if (!brain) return "no_name";
   const site = listing.facts?.website ?? null;
   if (!site) return brain;
-  const kept = await read(db, p.preview_tenant_id, site, deadline).catch((e: unknown) => {
+  const kept = await read(db, p.preview_tenant_id, site, { deadline }).catch((e: unknown) => {
     logger({ tenant_id: p.tenant_id }).warn("preview_build_failed", {
       preview_id: p.id,
       step: "site",

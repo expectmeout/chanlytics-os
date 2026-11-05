@@ -354,6 +354,8 @@ export {
   LEAD_QUESTION_MIN_EVIDENCE,
   LEAD_QUESTION_THRESHOLD,
   LEAD_REASON_MAX_WORDS,
+  LEAD_SITE_FACT_MAX,
+  LEAD_SITE_READ_USD,
   LEAD_TRIAL_ALLOWANCE,
   leadAllowanceFor,
   leadMonth,
@@ -433,7 +435,7 @@ export type {
 } from "./search/people-plan";
 export { LeadPeoplePlanSchema, LeadPeopleSearchSchema } from "./search/people-plan-schema";
 export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
-export { planVersionOf } from "./search/plan";
+export { planReadsSites, planVersionOf } from "./search/plan";
 export type {
   LeadArea,
   LeadContactStandard,

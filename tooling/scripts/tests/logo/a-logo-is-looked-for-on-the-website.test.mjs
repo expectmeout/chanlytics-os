@@ -137,6 +137,30 @@ test("the look reads the owner's website, finds what it declares as its logo, an
   );
 });
 
+test("at the owner's press the site is read as it stands now, and the mark its reader saw goes first, by the same rules", async () => {
+  const mark = "https://cdn.example.net/seen.png";
+  const reads = [];
+  web({ images: { [mark]: pngHead(400, 300) } });
+  setSitePageReader(async (url, o) => {
+    reads.push(o);
+    return {
+      url,
+      html: '<html><head><link rel="apple-touch-icon" href="/touch.png"></head></html>',
+      markdown: "",
+      title: null,
+      description: null,
+      brand: { logo: mark, colour: null },
+    };
+  });
+  const out = await lookFor({ own: "https://bellastudio.example.com/", google: null });
+  assert.equal(out.outcome, "found");
+  assert.deepEqual(Buffer.from(out.image.base64, "base64"), pngHead(400, 300));
+  assert.deepEqual(
+    reads.map((o) => [o.fresh, o.brand]),
+    [[true, true]],
+  );
+});
+
 test("a website that is a page on another service is not looked at: its logo would be the service's", async () => {
   const asked = web();
   assert.deepEqual(

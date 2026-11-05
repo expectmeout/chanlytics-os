@@ -36,7 +36,18 @@ setSitePageReader(async (url, o) => {
       }
       if (!res.ok || !(res.headers.get("content-type") ?? "").toLowerCase().includes("html")) return null;
       const html = await res.text();
-      return html ? { url: at, html, markdown: emailPlainText({ text: null, html }) ?? "" } : null;
+      if (!html) return null;
+      const title = /<title[^>]*>([\s\S]*?)<\/title\s*>/i.exec(html)?.[1]?.trim() || null;
+      const description =
+        /<meta\b[^>]*name=["']?description["']?[^>]*content=["']([^"']*)["']/i.exec(html)?.[1] || null;
+      return {
+        url: at,
+        html,
+        markdown: emailPlainText({ text: null, html }) ?? "",
+        title,
+        description,
+        brand: null,
+      };
     }
     return null;
   } catch {

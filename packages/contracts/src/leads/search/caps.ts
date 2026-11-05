@@ -33,6 +33,14 @@ export const LEAD_JUDGE_BATCH = 25;
 export const LEAD_MAX_PLACES = 1000;
 /** Every fact a place gives the judge is cut to this many characters (§7.1). */
 export const LEAD_FACT_MAX = 120;
+/** What a place's own website says is cut to this, where a plan reads sites: its title, description and first words. */
+export const LEAD_SITE_FACT_MAX = 2_000;
+/**
+ * What reading one business's home page costs: one credit with the page's reader, whatever it answers, at the dearest plan
+ * we would be on (Firecrawl's Hobby: $16 for 3,000). What a card reserves for a search that reads sites, and what every
+ * read of a search is settled at (00541 lead_site_reads_spent).
+ */
+export const LEAD_SITE_READ_USD = 0.005;
 /**
  * How long the business line the ideas are written from may be (00473): a few sentences, what the business sells and who
  * buys it. It was one sentence of 160, which said too little for the ideas to be written from (Ruben, 22 Oct 2026).

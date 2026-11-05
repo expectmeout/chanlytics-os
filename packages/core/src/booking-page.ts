@@ -1,7 +1,8 @@
 /**
  * The booking page a business's website names (the first run's Check, 3c-4). This file is the reading, and nothing
  * else: given the text of a page and the address it came from, it answers the booking page the page links to as the
- * way to book, or none. It makes no request -- the edge reads the page when a listing is linked (apps/edge/lib/google).
+ * way to book, or none. It makes no request -- the edge's read of the website hands it the home page it holds
+ * (apps/edge/lib/imports/website-read.ts), and keeps what it answers with the read.
  */
 import { bookingPageOf } from "@chanlytics/contracts";
 import { attrsOf, decodeEntities } from "./html";
@@ -55,4 +56,12 @@ export function bookingPageLinkedFrom(html: string, pageUrl: string): string | n
     const page = bookingPageOf(resolved);
     if (page) return page;
   }
+}
+
+/**
+ * Where a website says its customers book: the website itself, or where it landed, when that is a business's own page
+ * on a booking platform (read off the address), else the booking page its home page links to. Null where it says none.
+ */
+export function bookingPageOfSite(website: string, home: { html: string; url: string }): string | null {
+  return bookingPageOf(website) ?? bookingPageOf(home.url) ?? bookingPageLinkedFrom(home.html, home.url);
 }

@@ -419,6 +419,8 @@ test("the route: refused without the key; with it, the rows are read, each actio
     rounds_ended: 0,
     carried_on: 1,
     given_up: 0,
+    marks_due: 0,
+    marks_kept: 0,
     failed: 0,
     source: "off",
   });

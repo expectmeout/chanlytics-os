@@ -6,7 +6,7 @@
  * by the edge where the keys are (apps/edge/lib/leads/lead-wires.ts). Every verb
  * here runs over fakes in a test: no network, no database.
  */
-import type { ApifyClient, LeadJudge } from "@chanlytics/channels";
+import type { ApifyClient, LeadJudge, SitePage } from "@chanlytics/channels";
 import type { MarkImage } from "./mark-image";
 import type {
   CompanyFitAnswer,
@@ -309,6 +309,11 @@ export interface LeadDb {
   ): Promise<{ ok: boolean }>;
   roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
   /**
+   * What reading businesses' sites cost (lead_site_reads_spent): against the round while it lives, else the month and the
+   * day it was read in. `roundId` null is a read no round asked for (the leads sweep's second try at a mark).
+   */
+  siteReadsSpent(tenantId: string, roundId: string | null, reads: number, usd: number): Promise<void>;
+  /**
    * A people run's page of companies (00430 lead_company_upsert), before its own commit moves the run: a lead each, or
    * the people a company already held gains. Idempotent, so a page read twice keeps each company once.
    */
@@ -380,11 +385,12 @@ export interface LeadPorts {
     runAfterSeconds: number,
   ): Promise<void>;
   /**
-   * One GET of a page as text, for the engine's own reading -- today the business's home page, for its mark (D6).
-   * Answers null rather than throwing on anything that is not a page we can read. Absent in a runtime that has no
-   * business fetching (a test world that models none): the collect then simply marks nothing.
+   * A business's home page by its website's host, as the platform's page reader draws it, for the engine's own reading:
+   * its mark (D6), and what the judge reads where a plan asks what only a website shows. A credit a read: site-reads.ts
+   * reads each host once. Answers null rather than throwing on anything that is not a page we can read. Absent in a
+   * runtime that has no business reading (a test world that models none): the collect then simply marks nothing.
    */
-  fetchText?(url: string, timeoutMs: number): Promise<string | null>;
+  readSite?(host: string, timeoutMs: number): Promise<SitePage | null>;
   /**
    * One GET of an image's bytes (00161): at most `maxBytes`, null on anything else -- a refusal, a timeout, a body
    * that runs longer. What the bytes are is the engine's to judge (mark-image.ts), never the server's word for them.
