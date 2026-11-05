@@ -77,15 +77,24 @@ what a page shows them. So a picture needs one place, one name and a written rec
 The migration first, on Ruben's word, then the code. The job kinds and the door only exist once the migration has run; nothing
 starts them until the code is deployed. A dashboard ahead of the edge shows the tab, and a photo added waits for its look.
 
+## What the first real upload proved
+
+On production, 5 November 2026, through real Storage and the deployed edge, in the test workspace. Each look cost about $0.0005.
+
+- A portrait JPEG and a portrait HEIC stored on their side with an orientation flag came back upright, so the look's box is right.
+- A signed upload address used twice answers HTTP 400 with `"statusCode":"409"` in its body, so a retry that goes on to the proof is
+  right, and Try again signing a fresh one is too.
+- A file Storage cannot decode answers 500 in the status and the body, the same as an outage, so it is kept: its tile says its name,
+  its look fails, and its owner can delete it. Refusing on a 500 would refuse every HEIC while Storage was down.
+- A repeat view of a resized picture is a CDN hit, which is what the week-long address is for. No browser cache header comes back on
+  it, so the browser asks the CDN again and the redirect is what it keeps.
+- Storage's client encodes a download's name twice, so it is put on the address in the code, encoded once.
+
 ## What is left to prove
 
-- A real upload through a signed address, once 00551 is on production, and a real retry: nothing documents whether a signed upload
-  address can be used twice. It fails safe, since a refused one is a failed tile and Try again signs a new one.
-- What Storage answers a resize it refuses with. `file_decoder_answered` logs it on the first upload whose head can't say.
-- One portrait JPEG and one portrait HEIC come back upright. Storage's page does not say, and a copy that came back sideways would
-  make the look's box wrong.
-- That a real phone reuses the cached redirect, and that a transformed response carries the object's cache lifetime.
-- A download named in another language. If Storage balks, the download alone takes an ASCII form.
+- A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line.
+- That a real phone reuses the cached redirect.
+- The file_purge a start leaves itself, a day on: `file_never_filed` in the logs for bytes that never became a file.
 - A real Google profile's media list and a real listing's photos, on the first real connection. Whether Places names the business
   as the author of the owner's own photos is unverified: where it does not, a listing brings nothing, and a connected profile still
   brings them all.

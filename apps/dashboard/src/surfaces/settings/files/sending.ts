@@ -39,8 +39,8 @@ const sendingListeners = new Set<() => void>();
 let nextKey = 1;
 let senders = 0;
 let flashing: (f: LegacyFlash) => void = () => {};
-// What this run of work came to, told once at its end.
-let run = { kept: 0, twins: 0 };
+// What this run of work came to, told once at its end. A photo that failed in an earlier run is not this run's to count.
+let run = { kept: 0, twins: 0, failed: 0 };
 
 function set(change: Partial<Sending>): void {
   now = { ...now, ...change };
@@ -112,6 +112,7 @@ async function sender(): Promise<void> {
     swap(key, { state: "sending", picture: pictureOf(file) });
     const said = await fileVerbs.add(file).catch((): AddSaid => ({ kept: false, message: W.notSaved }));
     if (!said.kept) {
+      run.failed++;
       swap(key, { state: "failed", message: said.message });
       continue;
     }
@@ -125,9 +126,8 @@ async function sender(): Promise<void> {
 
 /** The end of a run: the list read, and how it came out said in a toast that outlives this tab. */
 function ended(): void {
-  const failed = now.photos.length;
-  const { kept, twins } = run;
-  run = { kept: 0, twins: 0 };
+  const { kept, twins, failed } = run;
+  run = { kept: 0, twins: 0, failed: 0 };
   sleepAgain();
   set({ finished: 0 });
   void refreshSurface("files");

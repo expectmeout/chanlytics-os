@@ -70,8 +70,9 @@ async function firstBytesOf(path: string): Promise<{ head: Uint8Array; size: num
 /**
  * Where the head can't say (a HEIC keeps its size deep inside it, a JPEG can carry more metadata than was read), Storage's own
  * decoder is asked for a small copy. Only its plain no refuses: Storage answers HTTP 400 for many things, and the true status
- * is in the body, where "400" is a source it could not read. Anything else, a timeout included, is no answer about the
- * photo, so the file is kept and the look tries it. What it said is logged: the first real upload is what proves this.
+ * is in the body. Anything else, a timeout included, is no answer about the photo, so the file is kept and the look tries it.
+ * A file Storage can't decode at all answers 500 in both places (real upload, 5 Nov 2026), the same as an outage, so it is
+ * kept too: one tile that says its name, which its owner can delete, against refusing every HEIC while Storage is down.
  */
 async function decoderRefuses(path: string, tenantId: string, mime: FileMime, size: number): Promise<boolean> {
   const say = (status: string) => log.info("file_decoder_answered", { tenant_id: tenantId, status, mime, bytes: size });
