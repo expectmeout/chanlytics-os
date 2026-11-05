@@ -442,8 +442,7 @@ const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
 
 /**
  * Every way the record's numbers may be written: a rating 4.9 or 5.0 and its scale ("4.9 out of 5"), a count 1,204
- * or 1204, a year in the about, each as the writer is shown it (fenceLine). What the owner searched for is not the
- * business's, so its numbers back nothing.
+ * or 1204, a year in the about. What the owner searched for is not the business's, so its numbers back nothing.
  */
 function recordNumbers(r: OpeningRecord): Set<string> {
   const out = new Set<string>();
@@ -562,10 +561,8 @@ export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProble
   // ("fixit.co Repairs"); anything else shaped like an address, or an email address, is a link (a business's own host
   // is one to a spam filter too).
   let unnamed = text;
-  for (const own of [r.business_name, leadCalledByOf(r), r.city]) {
-    const shown = defang(own ?? "").trim();
-    if (shown) unnamed = unnamed.split(shown).join(" ");
-  }
+  for (const own of [r.business_name, leadCalledByOf(r), r.city].map((name) => defang(name ?? "").trim()))
+    if (own) unnamed = unnamed.split(own).join(" ");
   if (linksIn(unnamed).length > 0 || /@/.test(unnamed)) return "link";
   if (/\{\{|\}\}/.test(text)) return "brace";
   if (shoutingLine(text)) return "shouting";
