@@ -126,6 +126,53 @@ export type Database = {
           },
         ]
       }
+      anthropic_profiles: {
+        Row: {
+          claimed_at: string
+          enforcement_actions: Json
+          enforcement_at: string | null
+          enforcement_status: string
+          id: string
+          kind: string
+          profile_id: string | null
+          reference_id: string
+          tenant_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          claimed_at?: string
+          enforcement_actions?: Json
+          enforcement_at?: string | null
+          enforcement_status?: string
+          id?: string
+          kind: string
+          profile_id?: string | null
+          reference_id: string
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          claimed_at?: string
+          enforcement_actions?: Json
+          enforcement_at?: string | null
+          enforcement_status?: string
+          id?: string
+          kind?: string
+          profile_id?: string | null
+          reference_id?: string
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anthropic_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_notices: {
         Row: {
           appointment_id: string | null
@@ -7683,6 +7730,17 @@ export type Database = {
         }[]
       }
       ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
+      anthropic_profile_claim: {
+        Args: { p_kind: string; p_subject: string }
+        Returns: Json
+      }
+      anthropic_profiles_waiting: {
+        Args: { p_limit: number }
+        Returns: {
+          kind: string
+          subject: string
+        }[]
+      }
       appointments_feed_sync: {
         Args: {
           p_from: string

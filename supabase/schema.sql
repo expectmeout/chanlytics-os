@@ -219,6 +219,80 @@ COMMENT ON FUNCTION public.ai_usage_purge(p_keep interval) IS 'Drops ledger rows
 
 
 --
+-- Name: anthropic_profile_claim(text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ref   text := p_kind || ':' || p_subject;
+  v_at    timestamptz;
+  v_email text;
+  v_id    uuid;
+begin
+  if p_kind = 'person' then
+    select u.created_at, u.email into v_at, v_email from auth.users u where u.id = p_subject;
+    if not found then return null; end if;
+    insert into public.anthropic_profiles (kind, user_id, reference_id)
+    values ('person', p_subject, v_ref)
+    on conflict (user_id) where user_id is not null do nothing
+    returning id into v_id;
+  elsif p_kind = 'workspace' then
+    select t.created_at into v_at from public.tenants t where t.id = p_subject and t.left_empty_at is null;
+    if not found then return null; end if;
+    insert into public.anthropic_profiles (kind, tenant_id, reference_id)
+    values ('workspace', p_subject, v_ref)
+    on conflict (tenant_id) where tenant_id is not null do nothing
+    returning id into v_id;
+  else
+    raise exception 'anthropic_profile_claim: % is no kind', p_kind using errcode = '22023';
+  end if;
+  if v_id is null then return null; end if;
+  return jsonb_build_object('id', v_id, 'reference_id', v_ref, 'onboarded_at', v_at, 'email', v_email);
+end $$;
+
+
+--
+-- Name: FUNCTION anthropic_profile_claim(p_kind text, p_subject uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) IS 'The one way a profile begins (decision 0097): the row made, once a person or a workspace. Answers what the create needs to the call that made it, and null to any other, or for a subject that is gone.';
+
+
+--
+-- Name: anthropic_profiles_waiting(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.anthropic_profiles_waiting(p_limit integer) RETURNS TABLE(kind text, subject uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select w.kind, w.subject
+    from (
+      select 'person'::text as kind, m.user_id as subject
+        from (select distinct user_id from public.memberships) m
+       where not exists (select 1 from public.anthropic_profiles p where p.user_id = m.user_id)
+      union all
+      select 'workspace'::text, t.id
+        from public.tenants t
+       where t.left_empty_at is null
+         and t.status <> 'preview'
+         and not exists (select 1 from public.anthropic_profiles p where p.tenant_id = t.id)
+    ) w
+   limit greatest(coalesce(p_limit, 0), 0);
+$$;
+
+
+--
+-- Name: FUNCTION anthropic_profiles_waiting(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) IS 'Who has no profile yet: a person with a seat, a live workspace but a preview (a preview is registered by its first call).';
+
+
+--
 -- Name: appointments_feed_sync(uuid, text, jsonb, timestamp with time zone, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -364,6 +438,22 @@ begin
   return jsonb_build_object('added', v_added, 'moved', v_moved, 'back', v_back, 'vanished', v_vanished,
                             'seen', cardinality(v_seen), 'stale', false, 'first', v_first);
 end $$;
+
+
+--
+-- Name: FUNCTION anthropic_profile_claim(p_kind text, p_subject uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION anthropic_profiles_waiting(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) TO service_role;
 
 
 --
@@ -34036,6 +34126,69 @@ ALTER TABLE public.ai_usage ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: anthropic_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.anthropic_profiles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    kind text NOT NULL,
+    user_id uuid,
+    tenant_id uuid,
+    reference_id text NOT NULL,
+    profile_id text,
+    claimed_at timestamp with time zone DEFAULT now() NOT NULL,
+    enforcement_status text DEFAULT 'unrestricted'::text NOT NULL,
+    enforcement_actions jsonb DEFAULT '[]'::jsonb NOT NULL,
+    enforcement_at timestamp with time zone,
+    CONSTRAINT anthropic_profiles_enforcement_status_check CHECK ((enforcement_status = ANY (ARRAY['unrestricted'::text, 'pending'::text, 'restricted'::text, 'banned'::text]))),
+    CONSTRAINT anthropic_profiles_kind_check CHECK ((kind = ANY (ARRAY['person'::text, 'workspace'::text]))),
+    CONSTRAINT anthropic_profiles_one_subject CHECK ((((kind = 'person'::text) AND (tenant_id IS NULL)) OR ((kind = 'workspace'::text) AND (user_id IS NULL))))
+);
+
+
+--
+-- Name: TABLE anthropic_profiles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.anthropic_profiles IS 'Who Anthropic is told a model call is for (decision 0097): one row a signed-up person, one a workspace. A row whose subject went (both ids null) is the health sweep''s to delete at Anthropic, then here.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.reference_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.reference_id IS 'What the profile was created with as its reference_id (person:<id>, workspace:<id>): how a create whose answer was lost is found again.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.profile_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.profile_id IS 'Anthropic''s uprof_ id. Null while a create is in flight, or its answer was lost: the sweep adopts or lets go such a claim, and nothing creates a second.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.enforcement_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.enforcement_status IS 'What Anthropic last said (contracts enforcementStatusOf: a value it does not know reads restricted). Anything but unrestricted pauses the subject''s model calls.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.enforcement_actions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.enforcement_actions IS 'The open actions as Anthropic listed them: type, id, reason, action, opened_at, expires_at. No words of anyone''s.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.enforcement_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.enforcement_at IS 'When this platform last saw the status change.';
+
+
+--
 -- Name: appointment_notices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -38793,6 +38946,22 @@ ALTER TABLE ONLY public.ai_usage
 
 
 --
+-- Name: anthropic_profiles anthropic_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: anthropic_profiles anthropic_profiles_profile_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_profile_id_key UNIQUE (profile_id);
+
+
+--
 -- Name: appointment_notices appointment_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -40114,6 +40283,20 @@ CREATE INDEX ai_usage_shadow_at ON public.ai_usage USING btree (created_at) WHER
 --
 
 CREATE INDEX ai_usage_tenant_at ON public.ai_usage USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: anthropic_profiles_person; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX anthropic_profiles_person ON public.anthropic_profiles USING btree (user_id) WHERE (user_id IS NOT NULL);
+
+
+--
+-- Name: anthropic_profiles_workspace; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX anthropic_profiles_workspace ON public.anthropic_profiles USING btree (tenant_id) WHERE (tenant_id IS NOT NULL);
 
 
 --
@@ -43563,6 +43746,22 @@ ALTER TABLE ONLY public.ai_usage
 
 
 --
+-- Name: anthropic_profiles anthropic_profiles_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: anthropic_profiles anthropic_profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: appointment_notices appointment_notices_appointment_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -45440,6 +45639,12 @@ CREATE POLICY ai_usage_member_select ON public.ai_usage FOR SELECT TO authentica
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid))))));
 
+
+--
+-- Name: anthropic_profiles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.anthropic_profiles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: appointment_notices; Type: ROW SECURITY; Schema: public; Owner: -
@@ -52618,6 +52823,13 @@ GRANT SELECT ON TABLE public.ai_usage TO authenticated;
 
 GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO service_role;
+
+
+--
+-- Name: TABLE anthropic_profiles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.anthropic_profiles TO service_role;
 
 
 --

@@ -4,11 +4,54 @@
  * answer, the API's own reason beside it (kept since 00469; none before). A key out of credit is said as such, since it
  * stops every call. Every word is contracts' (modelCallsOf).
  */
-import { dollarsWords, draftUsesOf, modelCallsOf, workspaceNamer, type HealthScope } from "@chanlytics/contracts";
+import {
+  dollarsWords,
+  draftUsesOf,
+  enforcementWords,
+  modelCallsOf,
+  pausedProfileWho,
+  workspaceNamer,
+  type HealthScope,
+} from "@chanlytics/contracts";
 import { Figure } from "../../kit/figure/figure";
 import { NoneRow, ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
 import { HealthRow, HealthRows, healthCount as n, utcWords as when } from "./line";
+
+/** Whom Anthropic is told a call is for (decision 0097): how far that has come, and whom it has paused. */
+function ProfilesSection({ h }: { h: ConsoleHealth }) {
+  const p = h.anthropic_profiles;
+  if (p === undefined) return null;
+  if (p === null)
+    return (
+      <ScreenSection title="Anthropic profiles" testid="console-health-model-profiles">
+        <NoneRow words="The profiles could not be read just now." />
+      </ScreenSection>
+    );
+  const nameOf = workspaceNamer(h.workspaces);
+  return (
+    <ScreenSection
+      title="Anthropic profiles"
+      sub={`${n(p.kept)} kept · ${n(p.waiting)} waiting to be made · ${n(p.leaving)} waiting to be deleted`}
+      testid="console-health-model-profiles"
+    >
+      {p.paused.length === 0 ? (
+        <NoneRow words="Anthropic has paused nobody." />
+      ) : (
+        <HealthRows head={["What Anthropic said", "Who"]} label="Paused by Anthropic">
+          {p.paused.map((row) => (
+            <HealthRow
+              key={row.id}
+              title={enforcementWords(row.status, row.actions)}
+              cells={[{ v: pausedProfileWho(row, nameOf) }]}
+              testid={`console-health-model-paused-${row.id}`}
+            />
+          ))}
+        </HealthRows>
+      )}
+    </ScreenSection>
+  );
+}
 
 export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
   if (h.parts === null)
@@ -23,6 +66,7 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
   const credit = m.failureGroups.some((g) => g.credit);
   return (
     <>
+      <ProfilesSection h={h} />
       <dl className="cs-h-figures" data-testid="console-health-model-figures">
         <Figure label="Model calls" value={n(m.total)} meta={`in ${h.days} days`} />
         <Figure

@@ -96,6 +96,7 @@ export {
   healthSentence,
   healthTabOf,
   healthTilesOf,
+  pausedProfileWho,
   secondsWords,
 } from "./health";
 export type {

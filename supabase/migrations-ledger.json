@@ -59,7 +59,8 @@
     "00534": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
-    "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them"
+    "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
+    "00543": "#2099 holds this number, a lead's email edited where it is read; it goes when that lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -544,6 +545,7 @@
     "00539_a_thread_not_a_customers_is_set_aside.sql": "ed8f905391eca8bbd7fff50db6469862ed7c45dc1935c51df00a04626b08b418",
     "00540_a_lead_s_own_email_is_a_send_with_no_sequence.sql": "fe88d924b17f0ca1fd13626e3ffb82ef0acdb20347caa97d008635016958ae02",
     "00541_what_a_search_reads_of_a_site_it_pays_for.sql": "38a20b2372e40b584793f8ba177df9c668d6df3fd801334329d9db40f5782fc6",
-    "00542_a_partner_s_password_alone_learns_no_lead_s_why.sql": "0adf961282d15d75b0cb8769e38c0692b97ed729a3f95b49aff23a0f82d467d0"
+    "00542_a_partner_s_password_alone_learns_no_lead_s_why.sql": "0adf961282d15d75b0cb8769e38c0692b97ed729a3f95b49aff23a0f82d467d0",
+    "00544_anthropic_is_told_whom_a_call_is_for.sql": "c6635a48db48a9124b2cd7639378378ed787f157536f25e5df7b37bab03588c3"
   }
 }

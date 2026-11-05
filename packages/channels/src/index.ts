@@ -388,6 +388,7 @@ export { META_SIGNATURE_HEADER, metaSignatureValid } from "./meta-signature";
 export { askModel, formatRejected, resetFastHolds, streamModel, tryBound } from "./models/anthropic";
 export type {
   ModelAsk,
+  ModelAttribution,
   ModelBlock,
   ModelDeps,
   ModelMessage,
@@ -395,6 +396,8 @@ export type {
   ModelReply,
   ModelStreamReply,
 } from "./models/anthropic";
+export { createUserProfile, deleteUserProfile, listUserProfiles } from "./models/anthropic-profiles";
+export type { AnthropicProfile, ProfileCreated, ProfilesPage } from "./models/anthropic-profiles";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
 export { answerObject, breakerOf, breakerStates, providerFetch, resetBreakers } from "./provider-fetch";

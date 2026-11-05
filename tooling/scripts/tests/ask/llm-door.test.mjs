@@ -95,6 +95,7 @@ const {
   askTokensLast24h,
 } = await import(at("apps/edge/lib/ask-gateway.ts"));
 const door = await import(at("apps/edge/api/admin/llm.ts"));
+const { forgetAnthropicProfiles } = await import(at("apps/edge/lib/anthropic-profiles/attribution.ts"));
 after(() => setPg(null));
 
 const AUD = "/api/admin/llm";
@@ -709,6 +710,36 @@ test("the API's refusal of the request is forwarded in its own shape; a model th
     ],
     "the ledger keeps what each did not come to",
   );
+});
+
+test("the signed-in person's profile rides the turn, and one Anthropic has paused spends nothing (403 model_paused)", async () => {
+  const profile = (over) => ({
+    kind: "person",
+    user_id: U,
+    tenant_id: null,
+    reference_id: `person:${U}`,
+    profile_id: "uprof_person",
+    enforcement_status: "unrestricted",
+    ...over,
+  });
+  await withEnv({ ANTHROPIC_PROFILES: "on" }, async () => {
+    use({ events: [], anthropic_profiles: [profile()] });
+    const net = model();
+    assert.equal((await knock(T(6), turn())).status, 200);
+    assert.equal(net.calls[0].headers["anthropic-user-profile-id"], "uprof_person");
+
+    forgetAnthropicProfiles();
+    const tables = { events: [], anthropic_profiles: [profile({ enforcement_status: "banned" })] };
+    use(tables);
+    const quiet = silent("a paused person's turn must not reach the model");
+    assert.deepEqual(await answer(await knock(T(6), turn())), [
+      403,
+      { ok: false, error: "model_paused", detail: "The model is paused for this account." },
+    ]);
+    assert.equal(quiet.calls.length, 0);
+    assert.equal(tables.ai_usage.length, 0, "and no round was written");
+    forgetAnthropicProfiles();
+  });
 });
 
 test("a count that cannot be read holds the turn (503 read_failed): the platform's key is not spent on a day nobody could count, and it is not counted as zero", async () => {

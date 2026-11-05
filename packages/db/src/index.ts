@@ -13,6 +13,18 @@ export {
 } from "./ai-usage";
 export type { AiFailures, ModelTurnKept } from "./ai-usage";
 export {
+  anthropicProfileOf,
+  anthropicProfileRows,
+  anthropicProfilesWaiting,
+  claimAnthropicProfile,
+  dropAnthropicProfile,
+  healthAnthropicProfiles,
+  keepAnthropicProfileId,
+  setAnthropicEnforcement,
+  workspaceAnthropicPaused,
+} from "./anthropic-profiles";
+export type { AnthropicProfileClaim, AnthropicProfileHeld, AnthropicProfileRow } from "./anthropic-profiles";
+export {
   claimVoiceTurn,
   endVoiceSession,
   insertVoiceSession,

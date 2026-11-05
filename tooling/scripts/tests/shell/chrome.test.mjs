@@ -77,6 +77,14 @@ test("typing: a field being typed in keeps its keys", () => {
 test("the shell's one line: a newer build outranks stale surfaces, and nothing is nothing", () => {
   // Every state's words, and the order between them, run in shell-status.test.mjs.
   assert.equal(shellStatusLine(null), null);
+  // Anthropic has paused the workspace (decision 0097): the same plain state, with no press, since Billing mends nothing.
+  const modelPaused = shellStatusLine({ stale: false, degraded: [], modelPaused: true });
+  assert.deepEqual(
+    [modelPaused.kind, modelPaused.tone, modelPaused.text, modelPaused.action, modelPaused.cta],
+    ["paused", "danger", "Your receptionist is paused", null, null],
+  );
+  assert.ok(!/anthropic|safety|violation|banned/i.test(modelPaused.detail), "no reason reaches a member");
+  assert.equal(shellStatusLine({ stale: false, degraded: [], modelPaused: true, paused: true }).action, "billing");
   assert.equal(shellStatusLine({ stale: false, degraded: [] }), null);
   assert.equal(shellStatusLine({ stale: true, degraded: ["Inbox"] }).text, "A newer version is ready");
   assert.equal(shellStatusLine({ stale: true, degraded: ["Inbox"] }).action, "reload");
