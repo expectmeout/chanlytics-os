@@ -4,7 +4,8 @@
  * file itself, the rules and ratchets always, and never past the budget (Ruben, 10 Oct 2026: under ten minutes). The
  * graph (checks/test-reach.mjs) is proved on a small tree of its own, then on the repository's: the five tests main left
  * red on 28 Oct 2026, and the links the hand-kept TESTED_IN said before it. Executed over the real folder names, so a
- * folder renamed under tests is seen here.
+ * folder renamed under tests is seen here. A migration's own text reaches the database suites that read what it changes,
+ * proved on the migrations behind main's Database reds of 3 to 5 Nov 2026.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,14 +17,18 @@ import {
   BUDGET,
   READ_BY,
   changeTargets,
+  databaseRunOf,
   databaseSuitesOf,
+  namesWrittenIn,
   holds,
   isDatabaseSuite,
+  migrationReaders,
   partsOf,
   testTargets,
+  walksTheCatalog,
   withReached,
 } from "../../../checks/changed-tests.mjs";
-import { reachOf } from "../../../checks/test-reach.mjs";
+import { isTest, reachOf } from "../../../checks/test-reach.mjs";
 import { ROOT } from "../../_source.mjs";
 
 const FOLDERS = new Set(
@@ -376,4 +381,323 @@ test("--db runs the database suites that lie where the change names, and nothing
   );
   const one = "tooling/scripts/tests/reports/report-series.db.test.mjs";
   assert.deepEqual(databaseSuitesOf([one, "tooling/scripts/tests/reports/reports-vm.test.mjs"], suites), [one]);
+});
+
+/* ---- What a migration reaches: the suites outside its folders that read what it changes (5 Nov 2026) ---- */
+
+const SUITES = TRACKED.filter((f) => isTest(f) && isDatabaseSuite(f));
+/** The repository's files as they stand, and a migration that is not one of them. */
+const readWith = (written) => (f) =>
+  written[f] ?? (fs.existsSync(path.join(ROOT, f)) ? fs.readFileSync(path.join(ROOT, f), "utf8") : "");
+const MIGRATION = "supabase/migrations/00900_a_change.sql";
+/** What `--db` runs for a pull request that adds this one migration, as its paths and its text say. */
+const dbRun = (sql) => databaseRunOf([MIGRATION], run(MIGRATION), SUITES, readWith({ [MIGRATION]: sql }));
+const recreates = (fn) =>
+  `create or replace function public.${fn}(p_id uuid) returns void language sql as $$ select 1 $$;`;
+const CATALOG_WALK = `${T}/partners/second-factor-catalog.db.test.mjs`;
+
+test("a migration that adds a definer door runs the catalog's walk, which no path of its names", () => {
+  const door = `create function public.a_new_door(p_tenant uuid) returns boolean language plpgsql security definer as $$
+begin
+  return exists (select 1 from public.memberships m where m.tenant_id = p_tenant and m.user_id = auth.uid());
+end $$;
+grant execute on function public.a_new_door(uuid) to authenticated;`;
+  assert.ok(!databaseSuitesOf(run(MIGRATION), SUITES).includes(CATALOG_WALK), "its path names tests/database alone");
+  const { targets, readers } = dbRun(door);
+  assert.ok(targets.includes(CATALOG_WALK));
+  assert.match(readers.get(CATALOG_WALK), /walks the catalog/);
+});
+
+test("a migration that re-creates a pinned function runs the suite that pins it, by body or by signature", () => {
+  const PINNED = {
+    // liveBody("lead_rounds_notify") against the migration that last wrote it
+    lead_rounds_notify: `${T}/lead-lists/lead-lists.db.test.mjs`,
+    // "sequence_unchecked(integer, integer, integer, uuid, uuid[])", asked of has_function_privilege
+    sequence_unchecked: `${T}/lead-workbench/reach-out-add.db.test.mjs`,
+    // md5(pg_get_functiondef('public.change_playbook(…)'::regprocedure))
+    change_playbook: `${T}/playbooks/change/change-playbook-keys.db.test.mjs`,
+  };
+  for (const [fn, suite] of Object.entries(PINNED)) {
+    assert.ok(!databaseSuitesOf(run(MIGRATION), SUITES).includes(suite), `${suite}: no path of the migration names it`);
+    const { targets, readers } = dbRun(recreates(fn));
+    assert.ok(targets.includes(suite), `${fn}: ${suite}`);
+    assert.match(readers.get(suite), new RegExp(`says ${fn}`), suite);
+  }
+});
+
+test("a migration that drops a function, or the signature a suite names, runs that suite", () => {
+  const { targets } = dbRun("drop function if exists public.sequence_unchecked(integer, integer, integer, uuid);");
+  assert.ok(targets.includes(`${T}/lead-workbench/reach-out-add.db.test.mjs`));
+});
+
+test("a migration that adds a clock runs the suite that holds the register, which no function of its names", () => {
+  // ops/sweep-registry holds every row of sweep_status as a closed list, and a clock is a row a migration writes.
+  const clock = `select cron.schedule('a-new-clock', '*/5 * * * *', $$select 1$$);
+insert into public.sweep_status (sweep, jobname, judged_by, max_silence)
+values ('a_new', 'a-new-clock', 'run', interval '1 hour') on conflict (sweep) do nothing;`;
+  const suite = `${T}/ops/sweep-registry.db.test.mjs`;
+  assert.ok(!databaseSuitesOf(run(MIGRATION), SUITES).includes(suite), "no path of the migration names it");
+  const { targets, readers } = dbRun(clock);
+  assert.ok(targets.includes(suite));
+  assert.match(readers.get(suite), /says sweep_status/);
+  // 00538 did this for the drafts' clock, and a job kind's row beside it.
+  const real = "supabase/migrations/00538_a_reply_is_drafted_when_it_is_owed.sql";
+  const reached = databaseRunOf([real], run(real), SUITES, readWith({})).targets;
+  assert.ok(reached.includes(suite), "00538's clock");
+  assert.ok(reached.includes(`${T}/jobs/the-ledger-holds-its-rules.db.test.mjs`), "00538's job kind");
+});
+
+test("the rows a migration adds or removes name their table; a backfill's update and a function's own body do not", () => {
+  const named = (sql) => [...namesWrittenIn(sql).names].sort();
+  assert.deepEqual(named("insert into public.job_kinds (kind) values ('a_kind');"), ["job_kinds"]);
+  assert.deepEqual(named("delete from public.sweep_status where sweep = 'gone';"), ["sweep_status"]);
+  assert.deepEqual(named("do $$ begin insert into public.event_subscriptions (a) values (1); end $$;"), [
+    "event_subscriptions",
+  ]);
+  assert.deepEqual(
+    named("update public.contacts set consent = 'unknown' where consent is null;"),
+    [],
+    "a backfill's update would reach every suite that says the table",
+  );
+  assert.deepEqual(
+    named("create function public.a() returns void language sql as $$ insert into public.b (c) values (1) $$;"),
+    ["a"],
+    "a body runs when it is called",
+  );
+  assert.deepEqual(named("insert into vault.secrets (name) values ('a');"), [], "another schema's");
+  assert.deepEqual(
+    named("insert into public.decisions (a) select a from public.b; delete from public.events where a;"),
+    [],
+    "a table of one word cannot be told from the word: 00532's rows would run every suite that says `decisions`",
+  );
+  assert.deepEqual(
+    named("create function public.merge() returns void language sql as $$ select 1 $$;"),
+    ["merge"],
+    "a function of one word stays: too many suites cost minutes on one pull request, a pin missed turns main red",
+  );
+});
+
+test("REGRESSION: each migration behind main's Database reds of 3 to 5 Nov 2026 runs the suite it turned red", () => {
+  // Of main's 60 runs in those days 38 were red, and 33 held one of the first three suites here. Each stood in no folder
+  // its pull request's paths named, so each pull request's own Database job was green.
+  const RED = {
+    // dropped sequence_unchecked(integer, integer, integer, uuid), made again with p_send_ids: 31 red runs
+    "00505_an_opening_is_written_again_as_its_owner_says.sql": ["lead-workbench/reach-out-add"],
+    // sequence_queued_why_not, a door that reads the seat: 16 red runs, ended by 00542
+    "00533_a_lead_on_a_list_says_why_no_batch_takes_it.sql": ["partners/second-factor-catalog"],
+    // people_erase_begin, the same: #2107
+    "00547_a_press_of_delete_is_one_write.sql": ["partners/second-factor-catalog"],
+    // reach_out_lead_timeline again: the body lead-lists pins, 4 red runs
+    "00540_a_lead_s_own_email_is_a_send_with_no_sequence.sql": ["lead-lists/lead-lists"],
+    // claim_due_jobs again, and a kind's check becomes a key: 3 and 1 red runs
+    "00526_the_ledger_knows_its_kinds.sql": [
+      "broadcasts/a-broadcast-runs-to-its-end-through-both-guards",
+      "lines/line-provision",
+    ],
+    // ingest_call again: the body never-again pins, 3 red runs
+    "00530_a_call_tells_its_owner_once_and_keeps_only_what_it_needs.sql": ["reach-out-replies/never-again"],
+  };
+  for (const [file, suites] of Object.entries(RED)) {
+    const migration = `supabase/migrations/${file}`;
+    assert.ok(TRACKED.includes(migration), `${file} is no migration: name it as the folder does`);
+    const named = databaseSuitesOf(run(migration), SUITES);
+    const { targets } = databaseRunOf([migration], run(migration), SUITES, readWith({}));
+    for (const suite of suites) {
+      const f = `${T}/${suite}.db.test.mjs`;
+      assert.ok(!named.includes(f), `${file}: its paths never named ${suite}`);
+      assert.ok(targets.includes(f), `${file}: ${suite}`);
+    }
+  }
+});
+
+test("a suite runs for the function it says as a word, in a key or a comment too: a longer name is another function, and a suite naming none stays out", () => {
+  const TINY = {
+    "supabase/migrations/00901_the_rule.sql": recreates("the_rule"),
+    [`${T}/rules/body.db.test.mjs`]: 'assert.equal(liveBody("the_rule"), bodyIn(migration("00800"), HEADER));',
+    [`${T}/rules/call.integration.test.mjs`]: 'await db.rpc("the_rule", { p_id });',
+    // As never-again holds its bodies: by the function's name, with no string that says it.
+    [`${T}/rules/key.db.test.mjs`]: 'const LATER = { the_rule: "00800" };',
+    // As the broadcast's walk runs claim_due_jobs: through the package that calls it, saying so in a comment alone.
+    [`${T}/rules/said.db.test.mjs`]: "// the_rule runs when the tick does.\nawait tick();",
+    [`${T}/rules/longer.db.test.mjs`]: 'await db.rpc("the_rule_again"); await db.rpc("not_the_rule");',
+    [`${T}/rules/other.db.test.mjs`]: 'await db.rpc("another_rule");',
+  };
+  const suites = Object.keys(TINY).filter(isDatabaseSuite);
+  assert.deepEqual(
+    [...migrationReaders(["supabase/migrations/00901_the_rule.sql"], suites, (f) => TINY[f]).keys()],
+    [
+      `${T}/rules/body.db.test.mjs`,
+      `${T}/rules/call.integration.test.mjs`,
+      `${T}/rules/key.db.test.mjs`,
+      `${T}/rules/said.db.test.mjs`,
+    ],
+  );
+});
+
+test("a real migration runs the suites that pin what it wrote, however they hold the pin", () => {
+  const PINS = {
+    // never-again holds its bodies in a table, by the function's name as a key.
+    "00484_a_thread_keeps_when_each_wire_last_heard_from_its_person.sql": "reach-out-replies/never-again",
+    // lead_rounds_notify's body, the pin of the first such red (13 Oct 2026, #1581).
+    "00506_a_search_never_stalls_and_every_spend_is_counted.sql": "lead-lists/lead-lists",
+    // Dropped and made again, under the signature reach-out-add names.
+    "00546_a_line_is_written_when_its_email_is_planned.sql": "lead-workbench/reach-out-add",
+  };
+  for (const [file, suite] of Object.entries(PINS)) {
+    const migration = `supabase/migrations/${file}`;
+    assert.ok(TRACKED.includes(migration), `${file} is no migration: name it as the folder does`);
+    const { targets } = databaseRunOf([migration], run(migration), SUITES, readWith({}));
+    assert.ok(targets.includes(`${T}/${suite}.db.test.mjs`), `${file}: ${suite}`);
+  }
+});
+
+test("a change with no migration in it reaches no suite this way: a doc, the seed, the snapshot, a suite, the ledger", () => {
+  for (const f of [
+    "docs/runbook.md",
+    "supabase/seed.sql",
+    "supabase/config.toml",
+    "supabase/schema.sql",
+    "supabase/migrations-ledger.json",
+    CATALOG_WALK,
+    "packages/db/src/repositories/calls.ts",
+  ])
+    assert.equal(migrationReaders([f], SUITES, readWith({})).size, 0, f);
+});
+
+test("a suite its folder already runs is not said twice", () => {
+  const suite = `${T}/database/privileges.db.test.mjs`;
+  const { targets, readers } = dbRun(recreates("a_rule"));
+  assert.equal(targets.filter((t) => t === suite).length, 1);
+  assert.ok(!readers.has(suite), "tests/database is what the path names");
+});
+
+test("the suites that walk the catalog outside tests/database are these: each runs on every migration's pull request", () => {
+  const walks = SUITES.filter((f) => !f.startsWith(`${T}/database/`) && walksTheCatalog(readWith({})(f), f));
+  assert.deepEqual(
+    walks,
+    [
+      `${T}/consent/consent-paths.db.test.mjs`,
+      `${T}/inbound/a-reply-window-reads-its-own-wire.db.test.mjs`,
+      CATALOG_WALK,
+    ],
+    "a suite that asks the catalog of everything runs on every migration's pull request: if this one should, keep it quick and name it here; if it asks of one object, name the object in its query",
+  );
+});
+
+test("a query that walks the catalog names nothing; one that names what it asks of, or only mentions pg_proc, does not walk", () => {
+  const WALKS = [
+    "query(`select p.oid::regprocedure::text as fn from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef`)",
+    "query(`select p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosrc ~ 'x'`)",
+    "query(\"select policyname from pg_policies where schemaname = 'public'\")",
+    "query(`select viewname as name from pg_views where schemaname = 'public' and definition ~ 'x'`)",
+    "query(`select c.relname from pg_class c where c.relkind = 'r'`)",
+    "query(`select column_name from information_schema.columns where table_schema = 'public'`)",
+    // One part of a union walks, whatever another names.
+    "query(`select 1 from pg_proc p where p.proname = 'a' union all select 2 from pg_proc p where p.prosecdef`)",
+    // Leaving a few out by name is still a walk of the rest.
+    "query(`select p.proname from pg_proc p where p.proname not in ('a', 'b')`)",
+  ];
+  const NOT = [
+    "query(`select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`)",
+    "query(`select prosrc from pg_proc where oid = '${signature}'::regprocedure`)",
+    "query(`select p.prosecdef from pg_proc p where p.oid = f::regprocedure`)",
+    "query(\"select p.proname from pg_proc p where p.proname in ('a', 'b')\")",
+    "query(`select 1 from pg_proc p where p.oid in ('public.a(uuid)'::regprocedure, 'public.b()'::regprocedure)`)",
+    "query(\"select cmd from pg_policies where schemaname = 'public' and tablename = 'contacts'\")",
+    "query(\"select polname from pg_policy where polrelid = 'public.sequence_replies'::regclass\")",
+    "query(\"select column_name from information_schema.columns where table_name = 'x'\")",
+    // Said, not asked.
+    "/** One SQL read, for what PostgREST does not serve (from pg_proc). */ const a = 1;",
+    'assert.equal(a, b, "and pg_proc runs what 00451 wrote");',
+    "query(`select pg_stat_get_xact_function_calls('public.a()'::regprocedure)`)",
+  ];
+  for (const text of WALKS) assert.equal(walksTheCatalog(text, "w.db.test.mjs"), true, text);
+  for (const text of NOT) assert.equal(walksTheCatalog(text, "n.db.test.mjs"), false, text);
+});
+
+test("a migration's functions are read from its statements, whatever they do to one", () => {
+  const named = (sql) => [...namesWrittenIn(sql).names].sort();
+  assert.deepEqual(named("create or replace function public.a(p uuid) returns void as $$ select 1 $$ language sql;"), [
+    "a",
+  ]);
+  assert.deepEqual(named('CREATE FUNCTION "b"() RETURNS void AS $x$ select 1 $x$ LANGUAGE sql;'), ["b"]);
+  assert.deepEqual(named("create function c() returns void as 'select 1' language sql;"), ["c"]);
+  assert.deepEqual(named("create or replace procedure public.d() language sql as $$ select 1 $$;"), ["d"]);
+  assert.deepEqual(named("drop function if exists public.e(integer), public.f(uuid) cascade;"), ["e", "f"]);
+  assert.deepEqual(named("drop function public.g;"), ["g"]);
+  assert.deepEqual(named("alter function public.h(uuid) rename to h_again;"), ["h"]);
+  assert.deepEqual(named("alter function public.i() set search_path = '';"), ["i"]);
+  assert.deepEqual(named("grant execute on function public.j(uuid) to authenticated;"), ["j"]);
+  assert.deepEqual(named("revoke all on function public.k() from public, anon;"), ["k"]);
+  assert.deepEqual(named("comment on function public.l() is 'what it does';"), ["l"]);
+  assert.deepEqual(
+    named("create trigger t after insert on public.x for each row execute function public.m();"),
+    ["m"],
+    "a new trigger changes what runs it",
+  );
+});
+
+test("what a `do` block does to a function is read too; a function's own body and a comment are not", () => {
+  const named = (sql) => [...namesWrittenIn(sql).names].sort();
+  assert.deepEqual(named("do $$ begin if true then drop function public.a(); end if; end $$;"), ["a"]);
+  assert.deepEqual(named("do $$ begin execute 'drop function public.b()'; end $$;"), ["b"]);
+  assert.deepEqual(named("do language plpgsql $body$ begin revoke all on function public.c() from anon; end $body$;"), [
+    "c",
+  ]);
+  assert.deepEqual(
+    named(`create function public.d() returns void language plpgsql as $$
+      begin execute 'drop function public.not_at_this_migration()'; end $$;`),
+    ["d"],
+    "a body runs when it is called, not when the migration does",
+  );
+  assert.deepEqual(named("-- drop function public.e();\n/* drop function public.f(); */ select 1;"), []);
+  assert.deepEqual(
+    named("create trigger t after insert on public.x execute function extensions.moddatetime();"),
+    [],
+    "another schema's",
+  );
+  assert.deepEqual(named("alter default privileges in schema public revoke execute on functions from anon;"), []);
+});
+
+test("a migration that names a function only at run time cannot be read, so every database suite runs for it, as on main", () => {
+  const dynamic = `do $$ declare f record; begin
+    for f in select p.oid from pg_proc p loop execute format('drop function %s', f.oid::regprocedure); end loop;
+  end $$;`;
+  assert.equal(namesWrittenIn(dynamic).unread, true);
+  assert.equal(namesWrittenIn("do $$ begin execute 'drop function ' || v_sig; end $$;").unread, true);
+  assert.equal(namesWrittenIn(recreates("a_rule")).unread, false);
+  assert.equal(namesWrittenIn("comment on table public.x is 'the function that writes it';").unread, false, "words");
+  assert.equal(namesWrittenIn("do $$ begin raise notice 'no such function'; end $$;").unread, false, "words");
+  const { targets } = dbRun(dynamic);
+  assert.deepEqual([...targets].sort(), [...SUITES].sort(), "the only answer to a function that cannot be named");
+});
+
+test("the repository's migrations read as functions, every statement a plain search finds among them", () => {
+  // A reader that finds nothing would pass every test above that asks for less.
+  const dir = "supabase/migrations";
+  const sqlOf = (f) =>
+    fs
+      .readFileSync(path.join(ROOT, dir, f), "utf8")
+      .split("\r\n")
+      .join("\n");
+  const migrations = fs.readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith(".sql"));
+  assert.ok(migrations.length > 400, `only ${migrations.length} migrations`);
+  const unread = [];
+  const missed = [];
+  let found = 0;
+  for (const f of migrations) {
+    const sql = sqlOf(f);
+    const read = namesWrittenIn(sql);
+    found += read.names.size;
+    if (read.unread) unread.push(f.slice(0, 5));
+    // Each statement at the head of a line, as the migrations write them: a body's lines are indented.
+    for (const [, name] of sql.matchAll(
+      /^(?:create(?: or replace)?|drop|alter|grant [a-z, ]+ on|revoke [a-z, ]+ on|comment on) function (?:if exists )?public\.([a-z0-9_]+)/gim,
+    ))
+      if (!read.names.has(name.toLowerCase())) missed.push(`${f.slice(0, 5)}: ${name}`);
+  }
+  assert.ok(found > 1000, `only ${found} functions named across the migrations`);
+  assert.deepEqual(missed, [], "a statement about a function the reader did not see");
+  assert.ok(unread.includes("00440"), "00440 drops functions by the oids a loop finds");
+  assert.ok(unread.length < 5, `${unread.join(" ")}: a migration that cannot be read runs every database suite`);
 });

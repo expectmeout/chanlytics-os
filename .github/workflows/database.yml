@@ -128,9 +128,11 @@ jobs:
           echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
           echo "SUPABASE_ANON_KEY=$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
       # Every database suite on a push to main (and a merge queue's commit); on a pull request, the ones that lie where
-      # its changes name (tooling/scripts/checks/changed-tests.mjs --db: a migration names tests/database). The whole
-      # set took ten of the replay's thirteen minutes on 10 Oct 2026, and Ruben's line is under ten for a push; main
-      # runs them all after the merge, and the nightly every night (nightly-database.yml).
+      # its changes name and that read what its migrations change (tooling/scripts/checks/changed-tests.mjs --db: a
+      # migration names tests/database, and its text the suites that walk the catalog or say a function it writes or a
+      # table whose rows it adds or removes). The whole set took ten of the replay's thirteen minutes on 10 Oct 2026, and
+      # Ruben's line is under ten for a push; main runs them all after the merge, and the nightly every night
+      # (nightly-database.yml).
       - if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request'
         run: pnpm test:db
       - name: The database suites of what the pull request changed
