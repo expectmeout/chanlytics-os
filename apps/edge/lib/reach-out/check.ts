@@ -125,6 +125,10 @@ function stored(o: WrittenOpening | null): Pick<ReachOutSendRow, "opening" | "an
   return { opening, angle, facts_used: o.facts_used };
 }
 
+/** How much of the workspace's day a send may spend: all of it where it is due soon or a person is waiting (decision 0098). */
+const dayShareOf = (u: UncheckedSend, pressed: boolean): number =>
+  pressed || u.due_soon ? REACH_OUT_CHECKS_PER_DAY : REACH_OUT_CHECKS_AHEAD_PER_DAY;
+
 /** How long a send waits after its nth failed try (R4). */
 export function backoffMs(tries: number): number {
   const i = Math.min(Math.max(tries, 1), CHECK_BACKOFF_MINUTES.length) - 1;
@@ -365,7 +369,7 @@ export async function checkSends(p: {
       const input = sendInputOf(u, w, ws, country, p.onStep && ((step) => p.onStep?.(s.id, step)));
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
-      const cap = pressed || u.due_soon ? REACH_OUT_CHECKS_PER_DAY : REACH_OUT_CHECKS_AHEAD_PER_DAY;
+      const cap = dayShareOf(u, pressed);
       if (input.needsOpening && !(await takeCheckAttempt(db, { tenantId: s.tenant_id, cap, at: now }))) {
         await gate(u, "day_spent");
         return;
