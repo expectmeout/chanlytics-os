@@ -27,7 +27,14 @@ import type {
 import type { Database, Json } from "../../database.types";
 import { readAllRows } from "../../paged";
 import { answer, type DoorResult } from "./reach-out-leads";
-import { putBackOf, withListedWhyNot, withOpenings, withPlaceWhyNot, withReadyCounts } from "./sequence-waiting";
+import {
+  putBackOf,
+  withListedWhyNot,
+  withOneLeadsOpening,
+  withOpenings,
+  withPlaceWhyNot,
+  withReadyCounts,
+} from "./sequence-waiting";
 
 type Db = SupabaseClient<Database>;
 
@@ -534,7 +541,7 @@ export async function sequencePlaceOf(db: Db, tenantId: string, leadId: string):
   const got = data as SequencePlaceDto | null;
   if (!got || !got.sequence || !got.place) return null;
   const place = { ...got, sends: Array.isArray(got.sends) ? got.sends : [] };
-  const [row] = await withOpenings(db, tenantId, [await withPlaceWhyNot(db, tenantId, leadId, place)]);
+  const [row] = await withOneLeadsOpening(db, tenantId, await withPlaceWhyNot(db, tenantId, leadId, place));
   return { ...place, place: row ?? place.place, put_back: await putBackOf(db, tenantId, place) };
 }
 

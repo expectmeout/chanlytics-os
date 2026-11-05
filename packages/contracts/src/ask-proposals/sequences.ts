@@ -16,6 +16,7 @@ import { leadsRoute } from "../leads/lead-plan";
 import { handOf } from "../reach-out/reach-out-hand";
 import { SEQUENCE_FLOW_WORDS } from "../sequences/sequence-words";
 import { REWRITE_WORDS, rewroteWords, theirsOf, type RewroteOpening } from "../sequences/sequence-held";
+import { LEAD_WORDS_BOX, type LeadEmailText } from "../leads/sheet/lead-sheet-words";
 import {
   asText,
   decisionOf,
@@ -49,6 +50,63 @@ function stepFieldsOf(pl: Record<string, unknown>): Record<string, unknown> {
 const openSequence = ({ payload }: { payload: Record<string, unknown> }): string | null => {
   const id = idIn(payload, "sequence_id");
   return id ? sequenceRoute(id) : null;
+};
+
+/** The words a payload keeps for a lead: a body, with its subject or none; none at all puts the step's back. */
+const leadWordsIn = (v: unknown): LeadEmailText | null => {
+  const w = rec(v);
+  return typeof w.body === "string"
+    ? { subject: typeof w.subject === "string" ? w.subject : null, body: w.body }
+    : null;
+};
+
+/**
+ * A lead's own email at a step (decision 0096), typed on their sheet, or the step's words put back. The undo puts back
+ * what the door found when it wrote (its `was`): the words before, or the step's.
+ */
+export const sequenceLeadWordsSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const step = idIn(pl, "step_id");
+    const lead = idIn(pl, "lead_id");
+    return id && step && lead
+      ? {
+          route: "POST sequences/[id]/steps/[step]/lead-words",
+          params: { id, step },
+          body: { lead_id: lead, words: leadWordsIn(pl.words) },
+        }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) =>
+    leadWordsIn(pl.words) ? LEAD_WORDS_BOX.saved(asText(pl.name)) : LEAD_WORDS_BOX.backAgain(asText(pl.name)),
+  undo: {
+    label: () => LEAD_WORDS_BOX.undo,
+    window: "ten_minutes",
+    record: ({ payload: pl }, data) => ({
+      sequence_id: pl.sequence_id,
+      step_id: pl.step_id,
+      lead_id: pl.lead_id,
+      name: asText(pl.name),
+      words: leadWordsIn(rec(data).was),
+    }),
+    call: (u) => {
+      const id = asText(u.sequence_id);
+      const step = asText(u.step_id);
+      const lead = asText(u.lead_id);
+      return id && step && lead
+        ? {
+            route: "POST sequences/[id]/steps/[step]/lead-words",
+            params: { id, step },
+            body: { lead_id: lead, words: leadWordsIn(u.words) },
+          }
+        : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: (_data, u) =>
+      leadWordsIn(u.words) ? LEAD_WORDS_BOX.undone(asText(u.name)) : LEAD_WORDS_BOX.backAgain(asText(u.name)),
+  },
+  open: openSequence,
 };
 
 /**

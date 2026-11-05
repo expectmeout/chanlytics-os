@@ -2590,6 +2590,21 @@
       }
     },
     {
+      "table": "sequence_lead_words",
+      "name": "sequence_lead_words_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "step_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "sequence_replies",
       "name": "sequence_replies_pkey",
       "primary": true,

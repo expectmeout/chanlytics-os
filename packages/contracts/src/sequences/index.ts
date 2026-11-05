@@ -133,8 +133,10 @@ export {
   HELD_DECIDE_CARD,
   HELD_TAKE_OUT,
   heldAnswersOf,
+  heldOwnWordsOf,
   heldWhyOf,
   markedOpeningOf,
+  OWN_WORDS_SAID,
   REWRITE_NOW_MAX,
   REWRITE_STEPS,
   REWRITE_WORDS,
@@ -142,6 +144,7 @@ export {
   sequencePersonWhyOf,
   theirsOf,
   waitingAnswersOf,
+  wroteLineWords,
 } from "./sequence-held";
 export type { HeldAnswer, HeldChoice, MarkedOpening, RewriteStep, RewroteOpening } from "./sequence-held";
 export {

@@ -205,7 +205,7 @@ export { broughtInCardOf, broughtInShown, HISTORY_BACK_DAYS, IMPORT_SOURCES, IMP
 export { APPOINTMENT_WORD_REFUSAL, APPOINTMENT_WORDS, appointmentWordOf, appointmentWords, appointmentWordSaved, appointmentWordVM, isAppointmentWord } from "./journey/appointment-word";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey";
 export { journeyGuide } from "./journey/journey-guide";
-export { LEAD_CARD_MARKS_MAX, LEAD_CARD_TABS, LEAD_CARD_WORDS, leadCardBulkDoorOf, leadCardBulkOf, leadCardEmailOf, leadCardMarksOf, leadCardPartsOf, leadCardReasonOf, leadCardSlotsOf, leadCardStepsOf } from "./leads/lead-card";
+export { LEAD_CARD_MARKS_MAX, LEAD_CARD_TABS, LEAD_CARD_WORDS, leadCardBulkDoorOf, leadCardBulkOf, leadCardEmailOf, leadCardMarksOf, leadCardPartsOf, leadCardReasonOf, leadCardSlotsOf, leadCardStepsOf, leadOwnWordsOf } from "./leads/lead-card";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
 export { LEAD_REACH_WORDS, LEAD_SLOT_WORDS, LEAD_TILE_PX, LEAD_UNDO_MS, leadCheckWord, leadExclusionWord, leadHoursShort, leadReachOf, leadReachWord, leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWhere } from "./leads/lead-facts";
 export { ideaBasisOf, ideaCustomersOf, ideaHistoryOf, ideaPacket, ideaPassed, ideaPassedOf, ideaWhere, LEAD_IDEAS_MAX, LEAD_SUGGEST_RETRY_MS } from "./leads/lead-ideas";
@@ -237,6 +237,7 @@ export { dockSlotsOf, LEAD_DOCK_WORDS, LEAD_LEAVE_WORDS, leadDockOf, leadLeaveAs
 export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusalOf } from "./leads/sheet/lead-sheet-email";
 export { leadHistoryOf, leadLinesOf } from "./leads/sheet/lead-sheet-lines";
 export { LEAD_NOW_WORDS, leadApproveAskOf, leadNowOf } from "./leads/sheet/lead-sheet-now";
+export { LEAD_WORDS_BOX, leadWordsFromBox, leadWordsInBox, leadWordsPieces, leadWordsProblem } from "./leads/sheet/lead-sheet-words";
 export { BUSINESS_INDUSTRIES, BUSINESS_TYPES, businessTypeOf, COMPANY_TYPES, companyTypeOf, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, industryOf, industryWords } from "./lines/a2p-enums";
 export { businessPageMetadata, businessPageVM, dataSentences, publishesBusinessPage, registrationPreflight, SMS_CLAUSES, smsConsentSentence, textingTermsMetadata, textingTermsVM } from "./lines/business-page";
 export { ABOUT_MAX, ABOUT_MIN, businessFieldsFor, businessGroupWordsFor, businessRecordForPath, businessRecordLine, businessRecordProblems, emptyBusinessRecord } from "./lines/business-record";
@@ -396,7 +397,7 @@ export { isSequencesParam, isToSendParam, messageOfRoute, messageRoute, newForLe
 export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS } from "./sequences/sequence-draft";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequences/sequence-evidence";
-export { HELD_DECIDE_CARD, HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, markedOpeningOf, REWRITE_NOW_MAX, REWRITE_STEPS, REWRITE_WORDS, rewroteWords, sequencePersonWhyOf, theirsOf, waitingAnswersOf } from "./sequences/sequence-held";
+export { HELD_DECIDE_CARD, HELD_TAKE_OUT, heldAnswersOf, heldOwnWordsOf, heldWhyOf, markedOpeningOf, OWN_WORDS_SAID, REWRITE_NOW_MAX, REWRITE_STEPS, REWRITE_WORDS, rewroteWords, sequencePersonWhyOf, theirsOf, waitingAnswersOf, wroteLineWords } from "./sequences/sequence-held";
 export { LEAD_BUILD_WORDS, LEAD_REWRITE_CHANGE_MAX, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadPreviewOfferOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep, withOpeningSaid } from "./sequences/sequence-lead-build";
 export { batchOkSendsNothing, heldByCheckWords, needsCount, needsWords, SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequences/sequence-list";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf } from "./sequences/sequence-place";

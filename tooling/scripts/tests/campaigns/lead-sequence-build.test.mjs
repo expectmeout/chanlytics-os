@@ -432,7 +432,10 @@ test("a lead whose listing says a fact is previewed with that fact as its openin
     reviews: 66,
     hours: days.map((day, i) => ({ day, hours: i < 5 ? "8 AM to 5 PM" : "Closed" })),
   };
-  answer = ([m, p]) => (m === "GET" && p === "leads/lead-1" ? { ok: true, data: { row } } : { ok: true, data: {} });
+  answer = ([m, p]) =>
+    m === "GET" && p === "leads/lead-1"
+      ? { ok: true, data: { row } }
+      : { ok: true, data: p === "leads/lead-1/words" ? [] : {} };
   const draw = () => {
     let tree = null;
     again(() => {
@@ -469,8 +472,8 @@ test("a lead whose listing says a fact is previewed with that fact as its openin
   );
   assert.deepEqual(
     wire.map(([m, p]) => `${m} ${p}`),
-    ["GET leads/lead-1"],
-    "the fact is read off the lead's row: no call writes it",
+    ["GET leads/lead-1", "GET leads/lead-1/words"],
+    "the fact is read off the lead's row, beside any words of their own: no call writes it",
   );
 });
 
@@ -489,7 +492,10 @@ test("a lead whose email at this step has its opening written is previewed with 
     reviews: 66,
     hours: [],
   };
-  answer = ([m, p]) => (m === "GET" && p === "leads/lead-2" ? { ok: true, data: { row } } : { ok: true, data: {} });
+  answer = ([m, p]) =>
+    m === "GET" && p === "leads/lead-2"
+      ? { ok: true, data: { row } }
+      : { ok: true, data: p === "leads/lead-2/words" ? [] : {} };
   const WRITTEN = "Lakeview Plumbing answers its phone around the clock.";
   const draw = (writtenAt) => {
     let tree = null;

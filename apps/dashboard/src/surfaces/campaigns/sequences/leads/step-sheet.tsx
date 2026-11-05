@@ -68,6 +68,7 @@ function EmailWrite({ sequenceId, lc, place, step, lead, flash, onPreview }: Wri
   const box = { slots: REACH_OUT_SLOT_SET, readOnly: rewrite.asking, seats };
   const [inserting, setInserting] = useState(false);
   const [rewriting, setRewriting] = useState(false);
+  const keepOwn = lc.chain.steps.find((s) => s.id === step.id)?.own_words ?? 0;
   const row = useLeadRow(lead?.id ?? null);
   const slotLead = row ? cardLeadOf(row) : lead ? null : exampleCardLead();
   return (
@@ -94,6 +95,11 @@ function EmailWrite({ sequenceId, lc, place, step, lead, flash, onPreview }: Wri
         onType={(words) => set({ body: words })}
         testid="ld-body"
       />
+      {keepOwn > 0 ? (
+        <p className="ld-note" data-testid="ld-keep-own">
+          {W.keepOwn(keepOwn)}
+        </p>
+      ) : null}
       <div className="ld-write-acts">
         <Button
           size="sm"

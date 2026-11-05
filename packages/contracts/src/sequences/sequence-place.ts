@@ -52,11 +52,13 @@ export interface SequencePlaceRowDto {
   draft: SequencePersonDraftDto | null;
   reply: SequencePersonReplyDto | null;
   /**
-   * On an email waiting for an OK or held, the opening it goes with (null while the check writes it, or where its step's
+   * On an email waiting for an OK, held or up next, the opening it goes with (null until the check writes it, or where its
    * words have none) and whether the check has read it. Absent on every other row, as People's read has them.
    */
   opening?: string | null;
   checked?: boolean;
+  /** Beside them: its lead has words of their own at its step, holding no line, so those are what it goes with (decision 0096). */
+  own?: boolean;
 }
 
 /**

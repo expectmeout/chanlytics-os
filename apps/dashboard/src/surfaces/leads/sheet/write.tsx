@@ -17,12 +17,12 @@ import {
   type LeadPeekVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
-import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Panel } from "../../kit/panel/panel";
 import { onAPhone } from "../../legacy-verbs";
 import type { DraftState, PeekActs } from "../peek/types";
+import { WordsBox } from "./email-box";
 import { stepHead } from "./picker";
 
 interface WriteProps {
@@ -33,7 +33,6 @@ interface WriteProps {
 }
 
 /** How many lines the box of words stands. */
-const WORD_ROWS = 8;
 
 /** The doors into a mail client for the email as it now reads, once it is written (contracts composeLinksOf). */
 const linksOf = (vm: LeadPeekVM, d: DraftState) =>
@@ -88,23 +87,26 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
           </div>
         ) : (
           <>
-            <Field
-              label={OW.subject}
-              value={d.subject ?? ""}
-              onValueChange={(subject) => on.onWords({ subject })}
-              maxLength={200}
-              readOnly={busy || !!d.sending}
-              data-testid="peek-draft-subject"
-            />
-            <Field
-              label={OW.words}
-              rows={WORD_ROWS}
-              value={d.words ?? ""}
-              onValueChange={(words) => on.onWords({ words })}
-              maxLength={4000}
-              readOnly={busy || !!d.sending}
-              data-testid="peek-draft-body"
-            />
+            <div className="lw-now-subj">
+              <WordsBox
+                label={OW.subject}
+                value={d.subject ?? ""}
+                onChange={(subject) => on.onWords({ subject: subject.replace(/\r?\n/g, " ") })}
+                max={200}
+                readOnly={busy || !!d.sending}
+                testid="peek-draft-subject"
+              />
+            </div>
+            <div className="lw-now-body">
+              <WordsBox
+                label={OW.words}
+                value={d.words ?? ""}
+                onChange={(words) => on.onWords({ words })}
+                max={4000}
+                readOnly={busy || !!d.sending}
+                testid="peek-draft-body"
+              />
+            </div>
             {foot ? (
               <div className="lw-write-foot" data-testid="lead-sheet-write-foot">
                 <span>{OW.foot}</span>

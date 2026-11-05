@@ -17,6 +17,7 @@ import {
   type LeadCardReasonVM,
   type LeadCardSlotVM,
   type LeadCardStepVM,
+  type LeadOwnWords,
   type LeadPeekVM,
   type LeadRowVM,
   type ReachOutChainDto,
@@ -70,7 +71,7 @@ export function leadCardFor(
   leadId: string,
   chain: ReachOutChainDto | null,
   tz: string,
-  check: LeadCardCheck | undefined,
+  { check, own }: { check: LeadCardCheck | undefined; own: LeadOwnWords },
 ): LeadCardFacts {
   const peek = peekVMFor(leadId);
   const lead = leadCardLeadOf(leadId);
@@ -79,8 +80,8 @@ export function leadCardFor(
     peek,
     reason: peek ? leadCardReasonOf(peek) : null,
     marks: peek ? leadCardMarksOf(peek) : [],
-    email: chain && lead ? leadCardEmailOf({ chain, lead, workspace, nowMs: Date.now(), tz, check }) : null,
-    steps: chain && lead ? leadCardStepsOf({ chain, lead, workspace }) : [],
+    email: chain && lead ? leadCardEmailOf({ chain, lead, workspace, nowMs: Date.now(), tz, check, own }) : null,
+    steps: chain && lead ? leadCardStepsOf({ chain, lead, workspace, own }) : [],
     slots: chain && lead ? leadCardSlotsOf({ chain, lead, workspace }) : [],
     firstPile: !chain,
   };

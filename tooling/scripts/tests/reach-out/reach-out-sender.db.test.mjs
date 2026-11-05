@@ -635,3 +635,116 @@ test(
     }
   },
 );
+
+test(
+  "a lead's own words are what goes (decision 0096): its subject, its words, its one sign-off and the foot; words it was not checked against go back",
+  { skip },
+  async () => {
+    const C = await workspace(`sender-c-${stamp}`, "Harbor Moving Co");
+    try {
+      ok(
+        await db.from("tenant_config").upsert({
+          tenant_id: C,
+          config: {
+            brain: {
+              business_name: "Harbor Moving Co",
+              system_prompt: "You answer for Harbor Moving Co, a moving company in Austin, Texas.",
+              fallbacks: { greeting: "g", error: "e", non_text: "n" },
+              profile: { address: "100 Example St, Austin, TX 78701" },
+            },
+          },
+        }),
+      );
+      const own = await one(
+        db.from("templates").insert({
+          tenant_id: C,
+          channel: "email",
+          source: "chanlytics",
+          name: `reach_sender_own_${stamp}`,
+          language: "en",
+          category: "marketing",
+          meta_status: "approved",
+          components: [
+            { type: "HEADER", format: "TEXT", text: WORDS.subject },
+            { type: "BODY", text: WORDS.body },
+          ],
+        }),
+      );
+      const root = await chain(C, "running", own);
+      ok(await db.from("sequence_steps").update({ signed_by: "Sam" }).eq("id", root));
+      const runId = await one(
+        db.from("sequence_batches").insert({
+          tenant_id: C,
+          name: "Movers · own",
+          template_id: own,
+          template_name: `reach_sender_own_${stamp}`,
+          template_language: "en",
+          audience: { kind: "reach_out", root_id: root, step_id: root },
+          state: "scheduled",
+          scheduled_for: iso(Date.now()),
+          step_id: root,
+          run_for: "2098-02-01",
+        }),
+      );
+      const [mine, stale, others] = await leads(C, 3);
+      const OWN = {
+        subject: "Your weekend chair",
+        body: "Saw the chair is booked out.\n\nWorth a word?\n\n{{your name}}",
+      };
+      for (const lead of [mine, stale])
+        ok(
+          await db
+            .from("sequence_lead_words")
+            .insert({ tenant_id: C, step_id: root, lead_id: lead, subject: OWN.subject, body: OWN.body }),
+        );
+      const due = Date.now() - MIN;
+      const [mineSend] = await planned(C, runId, root, await mailbox(C), [mine], due, {
+        checked_words: checkedWordsOf(OWN, "Sam", false),
+      });
+      // Checked against the step's words, and the lead has their own now: they are read again before it goes (R5).
+      const [staleSend] = await planned(C, runId, root, await mailbox(C), [stale], due, {
+        checked_words: checkedWordsOf(WORDS, "Sam", false),
+      });
+      // Nobody typed for this one: the step's words, as ever.
+      const [othersSend] = await planned(C, runId, root, await mailbox(C), [others], due, {
+        checked_words: checkedWordsOf(WORDS, "Sam", false),
+      });
+      const lane = {
+        unsubscribeSecret: "unsubscribe-seal-for-this-suite",
+        unsubscribeOrigin: "https://app.chanlytics.com",
+      };
+      await claimAndWrite({
+        db,
+        now: new Date(),
+        started: Date.now(),
+        lane,
+        log: log({ suite: "reach_out_sender" }),
+        tenantId: C,
+      });
+      const row = async (id) => ok(await db.from("sequence_sends").select("*").eq("id", id).single());
+      const written = async (id) => {
+        const s = await row(id);
+        return ok(await db.from("messages").select("*").eq("id", s.message_id).single());
+      };
+      const m = await written(mineSend);
+      assert.equal(m.meta.email.subject, OWN.subject, "their subject");
+      assert.match(m.body, /^Saw the chair is booked out\.\n\nWorth a word\?\n\nSam/);
+      assert.equal((m.body.match(/\bSam\b/g) ?? []).length, 1, "one sign-off");
+      assert.equal(m.body.includes("Hi Fixture"), false, "none of the step's words");
+      assert.match(m.meta.email.request.text, /100 Example St, Austin, TX 78701/, "the foot stays");
+      assert.match(m.meta.email.request.text, /[Uu]nsubscribe/);
+
+      const back = await row(staleSend);
+      assert.deepEqual(
+        [back.state, back.checked_at, back.checked_words, back.message_id],
+        ["planned", null, null, null],
+      );
+
+      const theirs = await written(othersSend);
+      assert.equal(theirs.meta.email.subject.startsWith("A quote for"), true, "the step's words for anyone else");
+      ok(await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", C).eq("state", "scheduled"));
+    } finally {
+      ok(await db.from("tenants").delete().eq("id", C));
+    }
+  },
+);

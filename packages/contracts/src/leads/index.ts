@@ -11,6 +11,7 @@ export {
   leadCardReasonOf,
   leadCardSlotsOf,
   leadCardStepsOf,
+  leadOwnWordsOf,
 } from "./lead-card";
 export type {
   LeadCardBulkLead,
@@ -26,6 +27,7 @@ export type {
   LeadCardSlotVM,
   LeadCardStepVM,
   LeadCardTab,
+  LeadOwnWords,
 } from "./lead-card";
 export {
   ideaBasisOf,
@@ -530,3 +532,11 @@ export { leadHistoryOf, leadLinesOf } from "./sheet/lead-sheet-lines";
 export type { LeadHistoryRowVM, LeadLineId, LeadLineVM } from "./sheet/lead-sheet-lines";
 export { LEAD_NOW_WORDS, leadApproveAskOf, type LeadApproveAskVM, leadNowOf } from "./sheet/lead-sheet-now";
 export type { LeadNowFactVM, LeadNowVM } from "./sheet/lead-sheet-now";
+export {
+  LEAD_WORDS_BOX,
+  leadWordsFromBox,
+  leadWordsInBox,
+  leadWordsPieces,
+  leadWordsProblem,
+} from "./sheet/lead-sheet-words";
+export type { LeadEmailPiece, LeadEmailText, LeadStepWordsDto } from "./sheet/lead-sheet-words";

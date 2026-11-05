@@ -246,10 +246,10 @@ function WaitingEmails({ rows, emails, rec, flash, moved, lit }: WaitingProps) {
                   {r ? personLineOf(r, rec.timezone, nowMs) : null}
                   {e.opening ? (
                     <q
-                      className={e.checking ? "sq-waiting-opening sq-waiting-writing" : "sq-waiting-opening"}
+                      className={e.checking || e.own ? "sq-waiting-opening sq-waiting-writing" : "sq-waiting-opening"}
                       data-testid="sq-waiting-opening"
                     >
-                      {e.checking ? e.opening : e.opening.slice(1, -1)}
+                      {e.checking || e.own ? e.opening : e.opening.slice(1, -1)}
                     </q>
                   ) : null}
                 </div>

@@ -107,6 +107,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "lead.search_renamed": "pencil",
   "reach_out.lead_stopped": "ban",
   "reach_out.send_decided": "mail",
+  "reach_out.lead_words_changed": "pencil",
   "line.forwarding_set": "phone",
   "billing.payment_failed": "alert",
   "appointment.cancelled": "x",

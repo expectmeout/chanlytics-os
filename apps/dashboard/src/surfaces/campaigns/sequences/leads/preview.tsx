@@ -13,6 +13,7 @@ import {
   emailFoot,
   leadDraftChainOf,
   leadOpeningOf,
+  leadOwnWordsOf,
   leadPreviewEmailOf,
   sequenceRoute,
   whyFrom,
@@ -24,10 +25,17 @@ import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { navigate } from "../../../legacy-verbs";
-import { surfaceValue } from "../../../surface-values";
-import { brainOf } from "../../templates/words";
 import { EmailAs } from "../place/email-as";
-import { cardLeadOf, exampleCardLead, useLeadRow, usePreviewName, workspaceOf, type PreviewLead } from "./reads";
+import { useLeadWords } from "../place/parts";
+import {
+  businessAddressOf,
+  cardLeadOf,
+  exampleCardLead,
+  useLeadRow,
+  usePreviewName,
+  workspaceOf,
+  type PreviewLead,
+} from "./reads";
 import type { LeadChain } from "./use-chain";
 
 interface PreviewProps {
@@ -67,12 +75,6 @@ function endingOf(lc: LeadChain, place: number): string | null {
   return e.signature ?? e.signOff;
 }
 
-/** The business's postal address as Settings holds it, which the foot says; "" while it is not set. */
-function businessAddressOf(): string {
-  const brain = brainOf(surfaceValue("settings")?.settings);
-  return typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
-}
-
 /**
  * The foot the send writes under this lead's email (the edge's request builder: why they hear from you by how they were
  * found, your business and address, how to stop), or none while the address is not set: the send refuses then, and How
@@ -110,8 +112,12 @@ export function LeadPreview({ rec, lc, place, leads, at, onAt }: PreviewProps) {
         reviews: row.reviews,
       })
     : null;
+  // Their own words at this step, where they have some (decision 0096): the preview reads as the send sends.
+  const own = leadOwnWordsOf(useLeadWords(one?.id ?? null, 0).words);
+  const stepId = lc.chain.steps[place - 1]?.id ?? null;
+  const theirOwn = !!stepId && own.has(stepId);
   const drafted = lead
-    ? leadPreviewEmailOf({ chain: leadDraftChainOf(lc.chain, lc.draft), lead, workspace, place })
+    ? leadPreviewEmailOf({ chain: leadDraftChainOf(lc.chain, lc.draft), lead, workspace, place, own })
     : null;
   const email = drafted ? withOpeningSaid(drafted, opening) : null;
   const name = usePreviewName(one);
@@ -152,6 +158,11 @@ export function LeadPreview({ rec, lc, place, leads, at, onAt }: PreviewProps) {
         ) : null}
       </div>
       {one ? null : <p className="ld-note">{W.example}</p>}
+      {theirOwn ? (
+        <p className="ld-note" data-testid="ld-preview-own">
+          {W.ownWords}
+        </p>
+      ) : null}
       {email && lead ? (
         <EmailAs
           email={email}

@@ -80,7 +80,7 @@ what the script writes.
 | [`mailbox_senders`](#mailbox_senders) | `packages/db/src/repositories/mailboxes/senders.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notices/member-alerts.ts` | on, 2 policies |
-| [`messages`](#messages) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
+| [`messages`](#messages) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
 | [`notification_marks`](#notification_marks) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
@@ -114,8 +114,9 @@ what the script writes.
 | [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 4 policies |
 | [`sequence_batches`](#sequence_batches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`sequence_enrollments`](#sequence_enrollments) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
+| [`sequence_lead_words`](#sequence_lead_words) | `packages/db/src/repositories/campaigns/lead-words.ts` | on, 1 policy |
 | [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
+| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`sequence_steps`](#sequence_steps) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 2 policies |
 | [`setup_choices`](#setup_choices) | `packages/db/src/repositories/control-plane.ts` | on, 1 policy |
@@ -2208,7 +2209,7 @@ Foreign keys:
 
 ### messages
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -3178,6 +3179,34 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `sequence_enrollments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### sequence_lead_words
+
+Decision 0096: one lead's own words at one step of a sequence, typed on the lead's sheet: what that lead gets there in place of the step's words. Kept for the lead and the step, not for one send, so they stand through Take out and Put back and a run canceled, before the lead is added, and for a step not planned yet. Written as a step's words are, its slots kept. lead_blank deletes them.
+
+- Owned by: `packages/db/src/repositories/campaigns/lead-words.ts`
+- Primary key: `step_id`, `lead_id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `step_id` | uuid | no |  |  |
+| `lead_id` | uuid | no |  |  |
+| `subject` | text | yes |  |  |
+| `body` | text | no |  |  |
+| `written_by` | uuid | yes |  |  |
+| `written_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `step_id` → [`sequence_steps`](#sequence_steps) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `sequence_lead_words_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### sequence_replies
 
 Decision 0060: one reading of one reply to a sequence's send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.
@@ -3243,7 +3272,7 @@ Foreign keys:
 
 Decision 0060: one message of a sequence to one person. A customer's (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead's (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox's day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team. A lead's own email (00540) has no sequence, batch or step: a member pressed Send, or said they sent it; it is born queued or sent, the mailbox's day counts it and a reply finds it.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

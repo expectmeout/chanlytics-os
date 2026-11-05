@@ -43,6 +43,20 @@ const PARAMS = z.array(z.unknown()).max(20);
 /** An id, as every route reads one (contracts UUID). */
 const anId = (words: string) => z.string().regex(UUID, words);
 /**
+ * One lead's own email at a step (decision 0096): the words as they are kept, or none to put the step's back. Their shape
+ * alone: what they say is the door's to judge, by the rules a step's words are held to (contracts leadWordsProblem).
+ */
+export const LEAD_WORDS_BODY = z.strictObject({
+  lead_id: anId("Name the lead."),
+  words: z
+    .strictObject({
+      subject: z.string().trim().max(REACH_OUT_SUBJECT_MAX).nullable(),
+      body: z.string().trim().min(1).max(REACH_OUT_BODY_MAX),
+    })
+    .nullable(),
+});
+
+/**
  * What Ask drafted for a sequence to leads (contracts AsDrafted, decision 0078 step 2): the owner's line and each step's
  * email as Ask wrote it, null for a call or a note, each within what a step takes. Kept with the make's decision.
  */

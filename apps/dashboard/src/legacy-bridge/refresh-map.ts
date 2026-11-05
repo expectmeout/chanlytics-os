@@ -404,6 +404,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT sequences/[id]/steps/[step]": () => [...savedAndChains(), sequencesOverride],
   "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
   "POST sequences/[id]/steps/[step]/words": () => [...savedAndChains(), sequencesOverride, ...templates()],
+  // A lead's own words (decision 0096): what a chain's waiting and held rows say of them, and nothing else on a page.
+  "POST sequences/[id]/steps/[step]/lead-words": () => [reachOutsOverride],
   "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
   // Put back reads what taking them out read: a person's place returns and the clock writes their next (00450), and a lead
   // nothing reached goes back on its list with its skipped email freed (00502).

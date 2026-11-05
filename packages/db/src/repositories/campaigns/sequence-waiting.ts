@@ -5,8 +5,10 @@
  * security, as sequences.ts's readers are.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { wordsNeedOpening } from "@chanlytics/contracts";
 import type { SequencePlaceDto, SequencePlaceOfDto, SequencePlaceRowDto, SequenceRowDto } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
+import { leadStepKey, leadWordsOfLeads } from "./lead-words";
 
 type Db = SupabaseClient<Database>;
 
@@ -67,34 +69,63 @@ export async function withReadyCounts(db: Db, tenantId: string, rows: SequenceRo
 /** The rows whose email is read before it goes: waiting for an OK, or held by the check. */
 const READ_BEFORE_IT_GOES: ReadonlySet<string> = new Set(["waiting", "held"]);
 
+/** One lead's row shows the email up next too, on its day: its card says the line it goes with, never a stand-in. */
+const ON_ONE_LEAD: ReadonlySet<string> = new Set([...READ_BEFORE_IT_GOES, "next"]);
+
 /**
- * Each email waiting for an OK or held, with the opening its send goes with and whether the check has read it (30 Oct
- * 2026: an OK sent openings its owner never read): read off the sends, this workspace's alone. One the read cannot find
- * is said as not written yet, never as another's words.
+ * Each email waiting for an OK or held (or those of `groups`), with the opening its send goes with and whether the check
+ * has read it (30 Oct 2026: an OK sent openings its owner never read): read off the sends, this workspace's alone. One the
+ * read cannot find is said as not written yet, never as another's words. `own`: its lead has words of their own at its
+ * step (decision 0096) that hold no line, so what it goes with is those, and no opening is quoted or written again.
  */
 export async function withOpenings<R extends { group: string; send_id: string | null }>(
   db: Db,
   tenantId: string,
   rows: R[],
+  groups: ReadonlySet<string> = READ_BEFORE_IT_GOES,
 ): Promise<R[]> {
-  const ids = rows.filter((r) => READ_BEFORE_IT_GOES.has(r.group) && r.send_id).map((r) => r.send_id ?? "");
+  const ids = rows.filter((r) => groups.has(r.group) && r.send_id).map((r) => r.send_id ?? "");
   if (ids.length === 0) return rows;
-  const found = new Map<string, { opening: string | null; checked: boolean }>();
+  const sent: Array<{
+    id: string;
+    opening: string | null;
+    checked_at: string | null;
+    step_id: string | null;
+    lead_id: string | null;
+  }> = [];
   for (let j = 0; j < ids.length; j += SENDS_IN_CHUNK) {
     const sends = await db
       .from("sequence_sends")
-      .select("id, opening, checked_at")
+      .select("id, opening, checked_at, step_id, lead_id")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(j, j + SENDS_IN_CHUNK));
     if (sends.error) throw new Error(`cannot read the emails' openings: ${sends.error.message}`);
-    for (const s of sends.data ?? []) found.set(s.id, { opening: s.opening, checked: s.checked_at !== null });
+    sent.push(...(sends.data ?? []));
   }
+  const words = await leadWordsOfLeads(
+    db,
+    sent.flatMap((s) => (s.lead_id ? [s.lead_id] : [])),
+  );
+  const found = new Map(
+    sent.map((s) => {
+      const typed = s.step_id && s.lead_id ? words.get(leadStepKey(s.step_id, s.lead_id)) : null;
+      const own = !!typed && !wordsNeedOpening(typed);
+      return [s.id, { opening: s.opening, checked: s.checked_at !== null, own }];
+    }),
+  );
   return rows.map((r) =>
-    READ_BEFORE_IT_GOES.has(r.group) && r.send_id
-      ? { ...r, ...(found.get(r.send_id) ?? { opening: null, checked: false }) }
+    groups.has(r.group) && r.send_id
+      ? { ...r, ...(found.get(r.send_id) ?? { opening: null, checked: false, own: false }) }
       : r,
   );
 }
+
+/** One lead's row with what its email goes with, the email up next among them. */
+export const withOneLeadsOpening = <R extends { group: string; send_id: string | null }>(
+  db: Db,
+  tenantId: string,
+  row: R,
+): Promise<R[]> => withOpenings(db, tenantId, [row], ON_ONE_LEAD);
 
 /**
  * The leave Put back would undo for one lead (00450 sequence_return): the latest of its sequence that names their place,

@@ -37,6 +37,8 @@ const WHY = {
   learned:
     "a note the owner's correction suggested is kept beside what they wrote, on Settings › Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
+  leadWords:
+    "a member types one lead's email in place on their sheet, reading it as it goes, and Ask writes none for them",
   voice:
     "it reads an email the owner pastes under New's draft to leads; told in a conversation how they write, Ask keeps a line of memory with its own card",
   add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
@@ -141,6 +143,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "sequence_step",
       "sequence_step_remove",
       "sequence_words",
+      "sequence_lead_words",
       "sequence_start",
       "playbook_run",
       "sequence_leave",
@@ -161,6 +164,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
       { what: "Keep or start what New drafted", why: WHY.made },
       { what: "Send yourself a test of a step's message", why: WHY.test },
+      { what: "Type one lead's own email on their sheet", why: WHY.leadWords },
       { what: "Paste an email you've sent, so Ask writes the way you do", why: WHY.voice },
     ],
   },
@@ -205,6 +209,7 @@ export const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>> = {
   sequence_new: WHY.made,
   fact_suggestion: WHY.learned,
   sequence_test: WHY.test,
+  sequence_lead_words: WHY.leadWords,
   sequence_voice: WHY.voice,
   sequence_add: WHY.add,
   sequence_move: WHY.add,

@@ -1515,12 +1515,24 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-now-mail { display: flex; flex-direction: column; gap: 4px; padding-top: 9px; border-top: 1px solid var(--line); }
 .lw-now-to { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
 .lw-now-subj { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: var(--leading-normal); color: var(--ink); overflow-wrap: anywhere; }
-.lw-now-body { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); overflow-wrap: anywhere; }
-.lw-now-body p { margin: 0; }
+.lw-now-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; min-height: 21px; }
+/* Its press area grows, never the row: the row stands as tall read as it does typed, so the words do not move. */
+html.legacy-on .lw .lw-now-edit, .lw .lw-now-edit { position: relative; flex: none; min-height: 0; height: auto; gap: 4px; padding: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+.lw .lw-now-edit::after { content: ""; position: absolute; inset: -14px -10px; }
+.lw-now-end-words { margin: 6px 0 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); white-space: pre-line; }
+.lw-now-own { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-now-body { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); overflow-wrap: anywhere; }
+.is-typable { cursor: text; }
+/* Typed where it is read: the same type and leading, so the first key moves nothing. A phone types at 16px or it zooms, so
+   its email reads at 16px too. */
+.lw-now-mail.is-typing { border-top-color: transparent; border-radius: var(--radius-xs); outline: 1px solid var(--line-strong); outline-offset: 6px; }
+@media (pointer: coarse) {
+  .lw-now-subj, .lw-now-body { font-size: var(--field-text-touch); }
+}
 .lw-now-body.is-clipped { max-height: 7.1em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
 .lw-phone .lw-now-body.is-clipped { max-height: 6em; }
 .lw-now-body.is-clipped.is-tall, .lw-phone .lw-now-body.is-clipped.is-tall { max-height: 9em; }
-.lw-opening { padding: 1px 3px; border-radius: var(--radius-xs); background: var(--selected-fill); color: var(--ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lw-opening { padding: 1px 0; border-radius: var(--radius-xs); background: var(--selected-fill); color: var(--ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-refused { padding: 1px 3px; border-radius: var(--radius-xs); background: var(--warn-soft); color: var(--warn-ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-now-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 3px; font-size: var(--text-sm); }
 /* The sheet's links, underlined in a quiet line: words that act, set among other words. */

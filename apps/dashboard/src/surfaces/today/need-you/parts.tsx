@@ -6,14 +6,12 @@
  */
 import {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -24,6 +22,7 @@ import {
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { Button, Field, Menu, Meter, Panel } from "../../kit";
+import { useGrowAsTyped } from "../../kit/field/grow-as-typed";
 import { Icon } from "../../kit/icon/icon";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 import { useTodayOnPhone } from "../phone";
@@ -122,19 +121,6 @@ function Signature({ signed, onSigned }: { signed: string; onSigned: (() => void
 
 /** A press beside words being typed answers its click without taking the keys from them first. */
 const keepKeys = (event: MouseEvent) => event.preventDefault();
-
-/**
- * Where the browser cannot size a box by its words (kit.css .rec-input-words, `field-sizing`), the box grows as they are
- * typed, so nothing scrolls inside it.
- */
-function useGrowAsTyped(box: RefObject<HTMLTextAreaElement | null>, text: string) {
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el || typeof CSS === "undefined" || CSS.supports("field-sizing", "content")) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [box, text]);
-}
 
 /**
  * Whose a row's words are, and the way back to the drafted ones, from what was drafted and what the member has typed:

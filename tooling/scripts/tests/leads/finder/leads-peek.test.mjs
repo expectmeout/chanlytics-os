@@ -105,6 +105,9 @@ let placeFails = false;
 let doorRefuses = false;
 let sequencesListed = [];
 const placed = {};
+// A lead's own words at each step they have some (decision 0096), by lead; and that read refusing.
+const ownWords = {};
+let wordsFail = false;
 let recorded = null;
 const READ_REFUSED = { ok: false, error: { code: "internal", message: "It did not answer." } };
 const json = (status, body) =>
@@ -128,6 +131,10 @@ globalThis.window = {
     if (/^\/api\/v1\/reach-outs\/leads\?/.test(String(url)))
       return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
     if (/^\/api\/v1\/leads\/[^/]+\/emails\?/.test(String(url))) return json(200, { ok: true, data: [] });
+    if (/^\/api\/v1\/leads\/[^/]+\/words\?/.test(String(url)))
+      return wordsFail
+        ? json(500, READ_REFUSED)
+        : json(200, { ok: true, data: ownWords[String(url).split("/")[4]] ?? [] });
     if (/^\/api\/v1\/leads\/[^/]+\/place\?/.test(String(url)))
       return placeFails
         ? json(500, READ_REFUSED)
@@ -529,7 +536,7 @@ const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 /* ==================================================== the one draw ==== */
 
 // Where this lead stands, read: the sheet the rest of this file draws is the one whose reads are in.
-await Promise.all([sequenceVerbs.place(LEAD), sequenceVerbs.leadEmails(LEAD)]);
+await Promise.all([sequenceVerbs.place(LEAD), sequenceVerbs.leadEmails(LEAD), sequenceVerbs.leadWords(LEAD)]);
 
 const saysReading = (tree) => byTestId(tree, "lead-sheet-reading") !== null;
 /** What only a read can say: drawn before it lands, these are a guess the next read takes back. */

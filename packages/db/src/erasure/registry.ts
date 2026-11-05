@@ -516,6 +516,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     // What became of the signer's name, and the source it replaced: closed words, never the name.
     ...all(NOT_PERSONAL, "signer_state", "signer_was"),
   },
+  // The words a member typed for a lead at a step (00543): lead_blank deletes them with the lead's details.
+  sequence_lead_words: all(scrubbedBy("leads_trigger"), "subject", "body"),
   sequence_sends: {
     // A customer's send: the words its batch kept for them.
     facts: scrubbedBy("recipients_trigger"),
