@@ -3,7 +3,7 @@
  * how. The database tells each workspace what changed (00265): a notice on the private topic `workspace:<id>:changes`
  * when a statement on a watched table changes its rows, once a transaction for each table and event, naming the table
  * and the event, the statuses a call's or a message update's statement left, and the clock when it was told (`at`,
- * 00408): its transaction's commit, since 00507, when the notice goes. It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
+ * 00408): its transaction's commit, since 00507, when the notice goes, and whether that transaction erased someone (00549). It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
  * topics (the one policy on realtime.messages) and lets nobody speak on them. The session token is pushed to Realtime
  * EXPLICITLY before the channel joins: relying on supabase-js's auth-listener propagation races the join, and a private
  * channel that joins as `anon` is refused.
@@ -239,11 +239,12 @@ export function watchedEvents(): Array<{ table: string; events: Event[] }> {
 }
 
 /**
- * What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. And, as the
- * fourth argument, the clock the database told it by (`at`, ISO 8601 in UTC): absent from a notice sent before 00408.
+ * What a surface hears of a change: the workspace, a call's or a message update's status, and whether its transaction erased
+ * someone (`erasure`, 00549). Never the row. And, as the fourth argument, the clock the database told it by (`at`, ISO 8601 in
+ * UTC): absent from a notice sent before 00408.
  */
 type OnChange = (
-  row: { tenant_id: string; status?: string },
+  row: { tenant_id: string; status?: string; erasure?: true },
   table: string,
   event: string,
   at?: string,
@@ -358,17 +359,24 @@ function report(listener: Listener, topic: string, status: string): void {
  * left, and each is a change of its own, so a rule that reads a status reads every one; they share the notice's clock.
  */
 function tell(hearing: Hearing, tenantId: string, message: { event?: string; payload?: unknown }): void {
-  const notice = (message.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown; threads?: unknown };
+  const notice = (message.payload ?? {}) as {
+    table?: unknown;
+    statuses?: unknown;
+    at?: unknown;
+    threads?: unknown;
+    erasure?: unknown;
+  };
   if (typeof notice.table !== "string") return;
   const table = notice.table;
   const event = message.event ?? "*";
   const at = typeof notice.at === "string" ? notice.at : undefined;
   const statuses = Array.isArray(notice.statuses) ? notice.statuses : [undefined];
   const threads = threadsOf(notice.threads);
+  const erasure = notice.erasure === true ? ({ erasure: true } as const) : {};
   for (const listener of [...hearing.listeners])
     for (const status of statuses)
       listener.onChange(
-        { tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}) },
+        { tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}), ...erasure },
         table,
         event,
         at,

@@ -5,7 +5,8 @@
 note as Built says. Step 4, a replay on a join and a rejoin, is built by the page-open PRD (3 November 2026, L5), with a
 notice's clock moved to its transaction's commit beside it (L3), and a thread's notice (messages, conversations,
 escalations, calls) names the threads it touched, at most 50, which the Inbox reads by id in place of its list (L13,
-00510): an id, never a row. One thing step 3 leaves owed, Ruben's: "Allow public
+00510): an id, never a row. A transaction that makes a person a tombstone says so on each of its notices (`erasure`,
+00549), so a tab can wait out a stream of erasures and nothing else (Built, below). One thing step 3 leaves owed, Ruben's: "Allow public
 access" turned off in Realtime's settings; production smoke asks that an anonymous join is refused.
 Written against commit `0c8225d5` (main, 28 September 2026, after
 #1242 merged), and every file and line below was read at it. What Realtime does is quoted from Supabase's own guides
@@ -319,3 +320,30 @@ put `broadcasts` in the publication beside its triggers; the walk takes it out w
 29 September, with the migration applied, a member's tab still heard every change within half a second and a
 stranger's join was still refused. Then "Allow public access" is turned off in Realtime's settings: the one channel the
 apps open is private (`packages/db/src/realtime.ts`).
+
+### A stream of erasures (5 November 2026, 00549)
+
+Delete… for many hands its people to the ledger (decision 0036), which erases them one after another. Each erasure tells the
+workspace a thread gone and a tombstone (`conversations DELETE`, `contacts UPDATE`; more where the person had a lead, a call or
+a hold). The press of fifty, read off production for 14:50:47Z to 14:51:04Z: 100 notices in 15.4 s; a third of the gaps between
+erasures outlasted the runner's 400 ms; 2,504 requests to Supabase, 1,167 of them a member's. A tab on People read five surfaces
+(`conversations`, `inbox`, `people`, `calendar`, `today`) 75 times between them, about 15 requests a read. Paced 300 ms apart, a
+press of 5,000 is 25 minutes of that.
+
+- **Telling the feed less would not help.** The reads follow the waits, not the count of notices: half the notices is the same
+  reads. All of them is another tab that never hears a person go.
+- **A tab cannot tell by what it hears.** An erasure's `contacts UPDATE` is word for word a teammate's rename. Pairing it with a
+  `conversations DELETE` a few milliseconds away was weighed: it misjudges a rename that lands beside an erasure, and gives a
+  person with no thread nothing. So the database says: `workspace_notices_on_erase` marks the transaction as the row becomes a
+  tombstone, and `workspace_tell_at_commit` puts `erasure: true` on each notice it sends at the commit, whichever statement kept
+  it. The legs an erasure commits on its own (a visit's scrub, other people's notes) are not marked and are read as any write is:
+  2 of the 149 people erased in the two days to 5 November had a visit, and none a note.
+- **What a tab does** (`surface-realtime.ts refreshWait`): a read asked for by nothing but erasure notices, once they have run on
+  for a second, waits for five seconds of quiet and at most thirty from the first, or the surface's own wait where that is longer.
+  One notice of anything else among them puts the read back on the surface's own pace. So one person erased, and a press of two,
+  are read in 400 ms as ever; a customer's message or a teammate's rename in a stream is never later than it is today.
+- **What a member sees late:** in a tab other than the one that pressed (or that tab's other pages), during a long press, the people
+  going leave the lists and counts half a minute at a time, not every few seconds, and the last of them five seconds after the last
+  erasure, not 400 ms. The tab that pressed hides them from People at once, as before.
+- **Measured on the real runner** (`shell/feed/a-stream-of-erasures-is-read-less.test.mjs`, the same notices with and without the
+  word): the press of fifty on People, 75 reads to 10; on Today, 80 to 13; on the Inbox, 58 to 8. A press of 5,000 on People, 2,125 reads to 250. Either deploy order works: a database with no word and a dashboard that does not read it each read as before.
