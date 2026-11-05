@@ -116,6 +116,7 @@ const NOT_A_SEATS_DOOR = {
   "erase_contact(uuid,jsonb)": "the owner role only: a partner's seat is not an owner's",
   "lead_erase(uuid)": "the owner role only: a partner's seat is not an owner's",
   "merge_people(uuid,uuid)": "the owner role only: a partner's seat is not an owner's",
+  "people_erase_begin(uuid,uuid[],boolean)": "the owner role only: a partner's seat is not an owner's",
   "scrub_ask_for_contact(uuid,uuid,text[])": "the owner role only: a partner's seat is not an owner's",
   "handover_accept(uuid)": "answers the person a workspace is handed to, by their proved address, never a seat",
   "handover_decline(uuid)": "answers the person a workspace is handed to, by their proved address, never a seat",
