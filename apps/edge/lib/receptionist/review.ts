@@ -41,6 +41,7 @@ import {
 import {
   checkFixRoute,
   checkReview,
+  defang,
   exchangesOf,
   fixField,
   fixLine,
@@ -88,8 +89,8 @@ function typedTurnsOf(raw: unknown): RehearsalTurn[] | null {
   return out;
 }
 
-/** Where in the instructions a quote of them is: the block's own name (prompt-blocks.ts), or null. */
-function blockFinder(instructions: string, channel: "whatsapp" | "voice", brain: TenantRuntime["brain"]) {
+/** Where in the instructions a quote of them is, read as the model was shown them: the block's own name (prompt-blocks.ts), or null. */
+export function blockFinder(instructions: string, channel: "whatsapp" | "voice", brain: TenantRuntime["brain"]) {
   let blocks: ReturnType<typeof promptBlocks> = [];
   try {
     blocks = promptBlocks(
@@ -100,7 +101,7 @@ function blockFinder(instructions: string, channel: "whatsapp" | "voice", brain:
   } catch {
     blocks = [];
   }
-  const w = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const w = (s: string) => defang(s).toLowerCase().replace(/\s+/g, " ").trim();
   return (quote: string) => blocks.find((b) => w(b.text).includes(w(quote)))?.label ?? null;
 }
 
