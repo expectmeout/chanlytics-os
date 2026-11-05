@@ -346,3 +346,29 @@ test(
     assert.equal(after.rows.filter((r) => r.lead_id === W.planned).length, 1, "back where their place stands");
   },
 );
+
+test(
+  "a lead its owner erases on Leads leaves its sequence: its place ends as erased and its planned email is skipped with it (00546)",
+  { skip },
+  async () => {
+    const [standing] = await placeOf(W.planned);
+    assert.equal(standing.state, "in", "its place stands, its first email planned");
+    const send = ok(
+      await db.from("sequence_sends").select("id, state").eq("batch_id", W.run).eq("lead_id", W.planned).single(),
+    );
+    assert.equal(send.state, "planned");
+    assert.equal(ok(await as.owner.c.rpc("lead_erase", { p_lead_id: W.planned })).erased, true);
+    const [place] = await placeOf(W.planned);
+    assert.deepEqual([place.state, place.why], ["left", "erased"]);
+    assert.deepEqual(ok(await db.from("sequence_sends").select("state, reason").eq("id", send.id).single()), {
+      state: "skipped",
+      reason: "erased",
+    });
+    // People says them where they are: never among those the sequence still writes to.
+    const people = ok(await as.operator.c.rpc("sequence_people", { p_tenant_id: A, p_sequence_id: W.R }));
+    assert.ok(
+      people.rows.filter((r) => r.lead_id === W.planned).every((r) => r.group === "left"),
+      "nowhere but left",
+    );
+  },
+);
