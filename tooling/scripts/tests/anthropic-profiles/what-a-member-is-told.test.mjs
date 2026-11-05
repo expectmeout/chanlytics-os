@@ -19,7 +19,7 @@ process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 const { streamModel, GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { refusalSaid } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { askForJson } = await import(at("apps/dashboard/src/server/model-json.ts"));
-const { workspaceAnthropicPaused } = await import(at("packages/db/src/anthropic-profiles.ts"));
+const { workspaceModelStanding } = await import(at("packages/db/src/anthropic-profiles.ts"));
 
 const T = "aaaaaaaa-0000-4000-8000-000000000001";
 const said = (status, body) =>
@@ -87,7 +87,7 @@ test("a draft waits in its own words, and is no billing pause's", async () => {
   }
 });
 
-test("a workspace's pause is read off its own row: none is not paused, and only its own counts", async () => {
+test("a workspace's standing is read off its own row: none says nothing, and only its own counts", async () => {
   const other = "aaaaaaaa-0000-4000-8000-000000000002";
   const row = (tenant_id, enforcement_status) => ({
     kind: "workspace",
@@ -96,13 +96,13 @@ test("a workspace's pause is read off its own row: none is not paused, and only 
     reference_id: `workspace:${tenant_id}`,
     enforcement_status,
   });
-  assert.equal(await workspaceAnthropicPaused(fakeDb({ anthropic_profiles: [] }), T), false);
-  assert.equal(await workspaceAnthropicPaused(fakeDb({ anthropic_profiles: [row(other, "banned")] }), T), false);
-  for (const [status, paused] of [
-    ["unrestricted", false],
-    ["pending", true],
-    ["restricted", true],
-    ["banned", true],
+  assert.equal(await workspaceModelStanding(fakeDb({ anthropic_profiles: [] }), T), null);
+  assert.equal(await workspaceModelStanding(fakeDb({ anthropic_profiles: [row(other, "banned")] }), T), null);
+  for (const [status, standing] of [
+    ["unrestricted", null],
+    ["pending", "limited"],
+    ["restricted", "limited"],
+    ["banned", "paused"],
   ])
-    assert.equal(await workspaceAnthropicPaused(fakeDb({ anthropic_profiles: [row(T, status)] }), T), paused, status);
+    assert.equal(await workspaceModelStanding(fakeDb({ anthropic_profiles: [row(T, status)] }), T), standing, status);
 });

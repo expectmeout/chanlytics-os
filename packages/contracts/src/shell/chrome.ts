@@ -4,6 +4,7 @@
  * and the shortcuts sheet. Pure, so the sidebar, the shell and a test read the
  * same thing.
  */
+import type { ModelStanding } from "../ai/anthropic-enforcement";
 import { WORKSPACE_PAUSED } from "../lines/caller-gets";
 import { PAUSED_WORDS } from "../workspace/billing";
 import { roleSays } from "../config/workspace-config/role-perms";
@@ -310,8 +311,11 @@ export interface ShellStatus {
   degraded: string[];
   /** The workspace is paused (billing stopped): a call is answered only to take a message and every other message waits in the Inbox (PAUSED_WORDS), until Billing resumes it. */
   paused?: boolean;
-  /** Anthropic has paused this workspace's profile (decision 0097): its receptionist holds every message for a person. */
-  modelPaused?: boolean;
+  /**
+   * What Anthropic has said of this workspace's profile (decision 0097): "paused", and its receptionist holds every message
+   * for a person; "limited", and it holds those Anthropic refuses.
+   */
+  modelStanding?: ModelStanding | null;
   /** This device has no connection: nothing on screen is kept current, and nothing pressed reaches the workspace. */
   offline?: boolean;
   /** The live feed dropped and did not come back within its grace: the page is current only as of its last read. */
@@ -370,13 +374,24 @@ export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusL
       cta: "Billing",
       busy: null,
     };
-  if (s.modelPaused)
+  if (s.modelStanding === "paused")
     return {
       kind: "paused",
       tone: WORKSPACE_PAUSED.tone,
       text: "Your receptionist is paused",
       detail:
         "It sends a holding reply and hands each new message to you in the Inbox. Write to support and we'll sort it out.",
+      action: null,
+      cta: null,
+      busy: null,
+    };
+  if (s.modelStanding === "limited")
+    return {
+      kind: "degraded",
+      tone: "warn",
+      text: "Your receptionist is limited",
+      detail:
+        "It may send a holding reply and hand some messages to you in the Inbox. Write to support and we'll sort it out.",
       action: null,
       cta: null,
       busy: null,

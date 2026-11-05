@@ -113,7 +113,7 @@ function world(rows, waiting = [], faults = {}) {
 
 const ADDRESSED = { ...ON, LEAD_TO: "ops@example.com", LEAD_FROM: "alerts@example.com" };
 
-test("what Anthropic says is written where it changed, and the platform told once of a new pause", async () => {
+test("what Anthropic says is written where it changed, and the platform told once of a new action", async () => {
   const quiet = row({ profile_id: "uprof_b", tenant_id: "aaaaaaaa-0000-4000-8000-000000000002" });
   const w = world([row(), quiet]);
   const list = anthropic({
@@ -128,25 +128,39 @@ test("what Anthropic says is written where it changed, and the platform told onc
   });
   const p = pager();
   const kept = await withEnv(ADDRESSED, () => keepAnthropicProfiles(w.db, p));
-  assert.equal(kept.paused, 1);
+  assert.equal(kept.acted, 1);
   const [a, b] = w.tables.anthropic_profiles;
   assert.equal(a.enforcement_status, "restricted");
   assert.equal(a.enforcement_actions[0].reason, "fraud_or_abuse");
   assert.ok(a.enforcement_at, "and when we saw it");
   assert.equal(b.enforcement_at, null, "a profile with nothing new is not written");
   assert.equal(p.sent.length, 1);
-  assert.match(p.sent[0].subject, /Anthropic has paused one account's model calls/);
+  assert.match(p.sent[0].subject, /Anthropic has limited one account's model calls/);
   assert.ok(p.sent[0].body.includes(`Workspace ${T}`));
   assert.ok(p.sent[0].body.includes("Restricted: fraud or abuse. They can clear it with an identity check."));
+  assert.ok(p.sent[0].body.includes("Its calls still go"));
 
   const again = await withEnv(ADDRESSED, () => keepAnthropicProfiles(w.db, p));
-  assert.equal(again.paused, 0);
-  assert.equal(p.sent.length, 1, "a pause already told is not told every half hour");
+  assert.equal(again.acted, 0);
+  assert.equal(p.sent.length, 1, "an action already told is not told every half hour");
   assert.ok(!list.some((c) => "anthropic-beta" in c.headers), "a user-profiles beta would hide the very fields read");
   assert.ok(
     list.every((c) => !c.query.includes("enforcement_status")),
     "unfiltered: a filter would miss a new value",
   );
+});
+
+test("a restriction that becomes a ban is told again, because that is when its calls stop", async () => {
+  const w = world([row({ enforcement_status: "restricted", enforcement_actions: [ACTION] })]);
+  anthropic({
+    pages: [{ data: [remote("uprof_a", { enforcement_status: "banned", enforcement_actions: [ACTION] })] }],
+  });
+  const p = pager();
+  const kept = await withEnv(ADDRESSED, () => keepAnthropicProfiles(w.db, p));
+  assert.equal(kept.acted, 1);
+  assert.equal(p.sent.length, 1);
+  assert.match(p.sent[0].subject, /Anthropic has paused one account's model calls/);
+  assert.ok(p.sent[0].body.includes("Its calls are held here"));
 });
 
 test("every page is read: a status on the last one counts", async () => {
@@ -289,5 +303,5 @@ test("no key reads nothing, and a database that fails is logged and never thrown
 
   const down = world([], [], { "anthropic_profiles.select": { message: "down" } });
   const out = await keepAnthropicProfiles(down.db, pager());
-  assert.deepEqual(out, { paused: 0, cleared: 0, adopted: 0, deleted: 0, made: 0 });
+  assert.deepEqual(out, { acted: 0, cleared: 0, adopted: 0, deleted: 0, made: 0 });
 });

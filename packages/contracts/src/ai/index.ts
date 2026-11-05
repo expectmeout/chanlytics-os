@@ -2,18 +2,21 @@
 export {
   ANTHROPIC_ENFORCEMENT_STATUSES,
   ANTHROPIC_PROFILE_KINDS,
+  anthropicActed,
   anthropicPaused,
   enforcementActionsOf,
   enforcementStatusOf,
   enforcementWords,
   MODEL_PAUSED_WORDS,
+  modelStandingOf,
 } from "./anthropic-enforcement";
 export type {
   AnthropicEnforcementStatus,
   AnthropicProfileKind,
   EnforcementAction,
+  HealthActedOnProfileDto,
   HealthAnthropicProfilesDto,
-  HealthPausedProfileDto,
+  ModelStanding,
 } from "./anthropic-enforcement";
 export { modelSubjectOf, profileDetailsOf, profileReferenceOf, subjectIdOf } from "./anthropic-profiles";
 export type { ModelSubject, ProfiledSubject } from "./anthropic-profiles";

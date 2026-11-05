@@ -187,7 +187,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     past_targets: pastTargets,
     model_failures_paged: models.paged,
     ai_usage_purged: models.purged,
-    anthropic_profiles_paused: profiles.paused,
+    anthropic_profiles_acted_on: profiles.acted,
     anthropic_profiles_cleared: profiles.cleared,
     anthropic_profiles_adopted: profiles.adopted,
     anthropic_profiles_deleted: profiles.deleted,

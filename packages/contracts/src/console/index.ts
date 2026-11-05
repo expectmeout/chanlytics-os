@@ -83,6 +83,7 @@ export {
 } from "./console-schema";
 export type { ConsoleWhyInput } from "./console-schema";
 export {
+  actedOnProfileWho,
   dollarsWords,
   HEALTH_STATE_WORDS,
   HEALTH_TAB_WORDS,
@@ -96,7 +97,6 @@ export {
   healthSentence,
   healthTabOf,
   healthTilesOf,
-  pausedProfileWho,
   secondsWords,
 } from "./health";
 export type {

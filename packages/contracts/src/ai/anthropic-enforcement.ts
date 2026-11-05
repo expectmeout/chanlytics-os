@@ -14,8 +14,21 @@ export type AnthropicProfileKind = (typeof ANTHROPIC_PROFILE_KINDS)[number];
 export const ANTHROPIC_ENFORCEMENT_STATUSES = ["unrestricted", "pending", "restricted", "banned"] as const;
 export type AnthropicEnforcementStatus = (typeof ANTHROPIC_ENFORCEMENT_STATUSES)[number];
 
-/** Whether this status pauses the subject's calls. */
-export const anthropicPaused = (status: AnthropicEnforcementStatus): boolean => status !== "unrestricted";
+/**
+ * Whether this status stops the subject's calls here: a ban alone, which Anthropic "does not plan" to lift. A restriction, or
+ * an identity check under review, goes on under its own id: "the end user may still be served in part", and Anthropic refuses
+ * what it refuses, call by call, with nothing here to go stale.
+ */
+export const anthropicPaused = (status: AnthropicEnforcementStatus): boolean => status === "banned";
+
+/** Whether Anthropic has any action open on the subject: what the platform is told, and Health lists. */
+export const anthropicActed = (status: AnthropicEnforcementStatus): boolean => status !== "unrestricted";
+
+/** What a workspace's members are told of it: "limited" while Anthropic may still serve it in part, "paused" once it won't. */
+export type ModelStanding = "limited" | "paused";
+
+export const modelStandingOf = (status: AnthropicEnforcementStatus): ModelStanding | null =>
+  anthropicPaused(status) ? "paused" : anthropicActed(status) ? "limited" : null;
 
 /**
  * What Anthropic's word comes to. A value we do not know reads restricted, as its page asks. No value at all is null, and
@@ -77,7 +90,7 @@ const REASON_WORDS: Record<EnforcementReason, string> = {
   unspecified: "no reason given",
 };
 
-/** What Anthropic said of a paused profile, as the platform reads it (Health, and the page): never a customer's words. */
+/** What Anthropic said of a profile it acted on, as the platform reads it (Health, and the page): never a customer's words. */
 export function enforcementWords(status: AnthropicEnforcementStatus, actions: EnforcementAction[]): string {
   const said = status === "banned" ? "Banned" : status === "pending" ? "Identity check under review" : "Restricted";
   const why = [...new Set(actions.map((a) => REASON_WORDS[a.reason]))].join(", ") || REASON_WORDS.unspecified;
@@ -85,7 +98,7 @@ export function enforcementWords(status: AnthropicEnforcementStatus, actions: En
   return `${said}: ${why}.${next}`;
 }
 
-/** What a member reads while a profile is paused. Plain, and no reason: the reason is the platform's to say to them. */
+/** What a member reads while a banned profile's calls are held. Plain, and no reason: the reason is the platform's to say. */
 export const MODEL_PAUSED_WORDS = {
   ask: {
     en: "Ask is paused on your account. Your pages still work. Write to support and we'll sort it out.",
@@ -96,8 +109,8 @@ export const MODEL_PAUSED_WORDS = {
   reviewReply: "The model is paused for this workspace.",
 } as const;
 
-/** A paused profile as Health shows it. */
-export interface HealthPausedProfileDto {
+/** A profile Anthropic acted on, as Health shows it. */
+export interface HealthActedOnProfileDto {
   id: string;
   kind: AnthropicProfileKind;
   tenant_id: string | null;
@@ -107,10 +120,10 @@ export interface HealthPausedProfileDto {
   at: string | null;
 }
 
-/** The profiles as Health reads them: how many are kept, wait to be made, wait to be deleted, and which are paused. */
+/** The profiles as Health reads them: how many are kept, wait to be made, wait to be deleted, and which Anthropic acted on. */
 export interface HealthAnthropicProfilesDto {
   kept: number;
   waiting: number;
   leaving: number;
-  paused: HealthPausedProfileDto[];
+  acted_on: HealthActedOnProfileDto[];
 }

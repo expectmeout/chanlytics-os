@@ -8,9 +8,10 @@
  * are counted apart, so the nightly suite's numbers never read as a customer's. Pure: the reader hands it rows.
  */
 import {
+  anthropicPaused,
   enforcementWords,
+  type HealthActedOnProfileDto,
   type HealthAnthropicProfilesDto,
-  type HealthPausedProfileDto,
 } from "../ai/anthropic-enforcement";
 import type { Tone } from "../shell/tone";
 import type { PageVitalsRowDto } from "../shell/vitals";
@@ -596,20 +597,23 @@ function modelLooks({ h, nameOf, sinceWords }: LookCtx): HealthLookVM[] {
   );
 }
 
-/** Whom a paused profile stands for, as a row names them: a workspace by name, a person by no more than that. */
-export const pausedProfileWho = (p: HealthPausedProfileDto, nameOf: (id: string | null) => string): string =>
+/** Whom a profile Anthropic acted on stands for, as a row names them: a workspace by name, a person by no more than that. */
+export const actedOnProfileWho = (p: HealthActedOnProfileDto, nameOf: (id: string | null) => string): string =>
   p.kind === "workspace" ? nameOf(p.tenant_id) : "One person";
 
-/** What Anthropic has paused: that account's model calls have stopped, and only that account's. */
+/** What Anthropic has acted on: that account's model calls have stopped or may be refused, and only that account's. */
 function anthropicLooks({ h, ours, nowMs, nameOf, sinceWords }: LookCtx): HealthLookVM[] {
-  return (h.anthropic_profiles?.paused ?? []).map((p) => {
+  return (h.anthropic_profiles?.acted_on ?? []).map((p) => {
     const atMs = p.at ? Date.parse(p.at) : nowMs;
+    const paused = anthropicPaused(p.status);
     return look({
       key: `anthropic:${p.id}`,
-      severity: "red",
-      what: "Anthropic has paused one account's model calls",
+      severity: paused ? "red" : "amber",
+      what: paused
+        ? "Anthropic has paused one account's model calls"
+        : "Anthropic has limited one account's model calls",
       why: enforcementWords(p.status, p.actions),
-      where: pausedProfileWho(p, nameOf),
+      where: actedOnProfileWho(p, nameOf),
       ours: !!p.tenant_id && ours.has(p.tenant_id),
       sinceMs: atMs,
       since: sinceWords(atMs),
@@ -686,7 +690,7 @@ const LOOK_SOURCES = [
 
 /**
  * Everything that needs a person, worst first then newest: a clock not running, the ledger backing up, a model key out
- * of credit, a promise missed for customers, failed jobs, failing deliveries, what paged us, an account Anthropic paused, sends and calls failing on
+ * of credit, a promise missed for customers, failed jobs, failing deliveries, what paged us, an account Anthropic acted on, sends and calls failing on
  * a provider's word, model calls with no answer, and connections that are not healthy. Each names its workspace.
  */
 export function healthLooksOf(h: HealthDto, scope: HealthScope, nowMs: number): HealthLookVM[] {

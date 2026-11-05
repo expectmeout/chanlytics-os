@@ -21,7 +21,7 @@ export {
   healthAnthropicProfiles,
   keepAnthropicProfileId,
   setAnthropicEnforcement,
-  workspaceAnthropicPaused,
+  workspaceModelStanding,
 } from "./anthropic-profiles";
 export type { AnthropicProfileClaim, AnthropicProfileHeld, AnthropicProfileRow } from "./anthropic-profiles";
 export {
