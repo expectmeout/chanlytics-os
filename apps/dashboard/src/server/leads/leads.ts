@@ -2,6 +2,7 @@ export { answerOf, refusalOf, estimateForRound } from "./lead-answers";
 export {
   searchRow,
   answerPlanOf,
+  morePlanOf,
   leadScope,
   leadSearchScope,
   waitingQuestionOf,

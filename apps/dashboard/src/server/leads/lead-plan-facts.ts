@@ -5,13 +5,7 @@
  * Cross-workspace: the niche's prior is platform-wide by design: counts per kind of business, aggregates only, which
  * name no workspace and no place (lead_niche_priors, 00140). Nothing else here reads past the workspace.
  */
-import {
-  LEAD_MONTHLY_BUDGET_USD,
-  type LeadArea,
-  leadMonth,
-  type LeadNichePrior,
-  type LeadPlanFacts,
-} from "@chanlytics/contracts";
+import { LEAD_MONTHLY_BUDGET_USD, leadMonth, type LeadNichePrior, type LeadPlanFacts } from "@chanlytics/contracts";
 import { monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
 import { tenantFacts } from "../tenant";
@@ -40,7 +34,7 @@ export async function nichePrior(
 export async function planFacts(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  opts: { categoryKey?: string | null; nearby?: LeadArea[]; now?: Date } = {},
+  opts: { categoryKey?: string | null; now?: Date } = {},
 ): Promise<LeadPlanFacts> {
   // The month, and the day it renews, are the BUSINESS's (lead_month): a turn
   // that carries its own moment hands it in rather than reading the server's.
@@ -79,6 +73,7 @@ export async function planFacts(
     prior,
     priorOf: prior ? (opts.categoryKey ?? null) : null,
     renewsOn: renewsOnOf(timezone, now),
-    nearby: opts.nearby ?? [],
+    // Where to look next is a round's that ran dry (contracts leadMonthPlanFacts): a card Ask makes has none to offer.
+    nearby: [],
   };
 }

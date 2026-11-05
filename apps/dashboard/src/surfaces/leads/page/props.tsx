@@ -470,7 +470,9 @@ const searchedAlready = (idea: LeadIdeaDto, searches: LeadSearchDto[]): boolean 
 const monthFactsOf = (p: LeadsPage) => {
   const { finder, leads } = p;
   if (!finder.plan || !leads.month) return null;
-  const id = finder.more ? finder.more.searchId : null;
+  const { more, proposal } = finder;
+  // Which search: the round a strip's next step was opened under, or its own plan run again (Search again, changed).
+  const id = more ? more.searchId : proposal && "searchId" in proposal ? proposal.searchId : null;
   const s = id ? leads.searches.find((x) => x.id === id) || null : null;
   return leadMonthPlanFacts(leads.month, finder.plan.count, (s && s.round && s.round.nearby) || [], null);
 };
