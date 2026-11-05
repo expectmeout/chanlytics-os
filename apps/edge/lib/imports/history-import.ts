@@ -45,6 +45,7 @@ import { errField, logger, type Logger } from "../log.js";
 import { mailHistoryPart } from "./mail-history.js";
 import { contactsPart } from "./mail-people.js";
 import { calendarPart } from "./calendar-part.js";
+import { googlePhotosPart } from "./google-photos.js";
 import { HISTORY_PARTS, SETTLE_AFTER_MS, whatsappContactsPart, whatsappHistoryPart } from "./whatsapp-history.js";
 
 type Db = SupabaseClient<Database>;
@@ -80,6 +81,7 @@ const RUNNERS: Readonly<Partial<Record<ImportSource, Runner>>> = {
   mailbox: mailHistoryPart,
   contacts: contactsPart,
   calendar: calendarPart,
+  google_photos: googlePhotosPart,
   whatsapp_contacts: whatsappContactsPart,
   whatsapp_history: whatsappHistoryPart,
 };

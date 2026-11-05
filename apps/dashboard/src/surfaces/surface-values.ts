@@ -18,6 +18,7 @@
 import type { ReportsSurface } from "./reports/surface";
 import type { AskMorningSurface } from "./today/ask-morning-surface";
 import type { AskMemorySurface } from "./settings/memory/surface";
+import type { FilesSurface } from "./settings/files/surface";
 import type { ReviewsSurface } from "./reports/reviews-surface";
 import type { ReceptionistSurface } from "./reports/receptionist-surface";
 import type { PeopleSurface as ReportsPeopleSurface } from "./reports/people-surface";
@@ -85,6 +86,8 @@ export interface SurfaceValues {
   reply_drafts: ReplyDraftsSurface;
   /** What Ask remembers, read where Settings › Memory is drawn (settings/memory/surface.ts; decision 0070); null when it failed. */
   ask_memory: AskMemorySurface | null;
+  /** What the workspace keeps, read where Settings › Files is drawn (settings/files/surface.ts); null when the read failed. */
+  files: FilesSurface | null;
   leads: LeadsSurface;
   /** Undefined until read; null when the read failed, so a page shows a retry rather than "Reading…" for ever. */
   setup: SetupSurface | null;
@@ -258,6 +261,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   ask_morning: true,
   reply_drafts: true,
   ask_memory: true,
+  files: true,
   leads: true,
   setup: true,
   billing: true,

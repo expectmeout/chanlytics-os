@@ -169,7 +169,7 @@ function bodyText(body: NonNullable<RequestInit["body"]>): string {
 }
 
 /** The most a response may say once decoded: a page, a feed or a listing, never what a small file inflates to. */
-const RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+export const RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
 
 /** A stage that passes bytes through and fails the stream past `limit`; the pipeline drops the socket behind it. */
 function capped(limit: number): Transform {

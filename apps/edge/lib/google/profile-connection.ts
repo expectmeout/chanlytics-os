@@ -33,6 +33,8 @@ import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
 import { syncMended } from "./sync-notice.js";
 import { readProfileDetails } from "./profile-details.js";
+import { startHistory } from "../imports/history-import.js";
+import { errField, logger } from "../log.js";
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 
@@ -277,6 +279,16 @@ export async function bindLocation(
   const read = await syncProfile(db, saved.data, tz, now, net);
   // Its hours, services and prices, days closed and words, for Check (decision 0073, R17); its website read after.
   await readProfileDetails(db, saved.data, now, net);
+  // Its photos, into Files (decision 0099). Nothing here undoes a connect that stands: Connections offers Try again.
+  await startHistory(db, {
+    tenantId: conn.tenant_id,
+    source: "google_photos",
+    connectionId: null,
+    via: "google",
+    again: false,
+  }).catch((e: unknown) =>
+    logger({ tenant_id: conn.tenant_id }).warn("file_fetch_failed", { source: "google_profile", error: errField(e) }),
+  );
   const after = await db.from("google_connections").select("*").eq("tenant_id", conn.tenant_id).single();
   return { ok: true, connection: after.data ?? saved.data, read };
 }

@@ -321,6 +321,7 @@ const PURPOSE_WORDS: Record<ModelPurpose | "ask_warm", string> = {
   fix_route: "Finding where a fix goes",
   website_read: "Reading websites",
   sender_read: "Sorting mailbox senders",
+  file_look: "Looking at files",
 };
 
 function purposeWords(purpose: string): string {

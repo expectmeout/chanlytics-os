@@ -157,6 +157,10 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A form sent on the website is told once; the person is in People, and what they asked waits on their page.",
   },
+  files_waiting: {
+    ends: "news",
+    why: "Found photos are told once; they wait in Files' Inbox, which the page opens on while anything is there.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

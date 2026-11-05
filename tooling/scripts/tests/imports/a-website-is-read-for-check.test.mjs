@@ -165,6 +165,24 @@ const BOOK = "https://calendly.com/harbor-moving-example/estimate";
 const BOOKING_HOME = `<html><body><h1>Harbor Moving</h1><nav><a href="${BOOK}">Book an estimate</a></nav></body></html>`;
 const BOOKING_PAGE = "<html><body><h2>Estimate visit</h2><p>Thirty minutes, free.</p></body></html>";
 
+test("the job's read asks for the photographs its pages show; a lead's preview, on the same reader, asks for none", async () => {
+  const pictured = `<html><body><h1>Harbor Moving</h1><p>Family movers in Brooklyn.</p><img src="/van.jpg"></body></html>`;
+  const fetches = (w) => w.tables.jobs.filter((j) => j.kind === "file_fetch");
+  const job = world();
+  const net = web({ [`${SITE}/`]: pictured }, READ);
+  try {
+    await read(job);
+    assert.deepEqual(fetches(job)[0].payload.items, [{ url: `${SITE}/van.jpg`, ref: `${SITE}/van.jpg` }]);
+    assert.equal(fetches(job)[0].payload.source, "website");
+    // previews/build.ts calls readWebsite with no more than this: a stranger's site, in a workspace nobody is a member of.
+    const preview = world();
+    await readWebsite(preview.db, A, SITE, { deadline: Date.now() + 30_000 });
+    assert.deepEqual(fetches(preview), []);
+  } finally {
+    net.restore();
+  }
+});
+
 test("where the home page says customers book is kept with the read, listing or no listing, and that page is read beside the site for the model", async () => {
   const w = world({ website: SITE });
   const net = web({ [`${SITE}/`]: BOOKING_HOME, [BOOK]: BOOKING_PAGE }, READ);

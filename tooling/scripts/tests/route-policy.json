@@ -2551,6 +2551,55 @@
       "role": "partner",
       "rate": null,
       "spend": false
+    },
+    "POST files/[id]/done": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "file_upload",
+      "spend": false
+    },
+    "PATCH files/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE files/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET files/[id]/view": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST files/keep": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET files": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST files/start": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "file_upload",
+      "spend": false
     }
   }
 }

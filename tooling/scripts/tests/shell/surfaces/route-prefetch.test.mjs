@@ -188,6 +188,7 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["settings/integrations/left", "admin/integrations"],
     ["settings/billing", "admin/billing"],
     ["settings/memory", "admin/memory"],
+    ["settings/files", "admin/files"],
     ["settings/activity", "admin/activity"],
     ["settings/profile", "admin/profile"],
     ["settings/notifications", "admin/notifications"],
@@ -761,6 +762,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
       (await importSrc(`${S}/surfaces/settings/notifications/surface.ts`)).alertsOverride,
       (await importSrc(`${S}/surfaces/settings/memory/surface.ts`)).askMemoryOverride,
+      (await importSrc(`${S}/surfaces/settings/files/surface.ts`)).filesOverride,
     ].map((o) => [o.key, o]),
   );
   // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first
@@ -820,6 +822,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     "admin/integrations": ["partner", "channels", "google", "setup"],
     "admin/billing": ["partner", "billing"],
     "admin/memory": ["partner", "ask_memory"],
+    "admin/files": ["partner", "files"],
     "admin/activity": ["partner"],
   };
   // What a page reads itself beside its surfaces, started by the head with them: New's searches whose leads are ready, one of

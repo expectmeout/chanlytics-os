@@ -164,6 +164,19 @@ export const JOB_KINDS = [
    * work written to be run again: a second run finds the draft and pays nothing.
    */
   "reply_draft",
+  /**
+   * One file read by the small model (00551, decision 0099): payload { file_id, edition }, once a file and an edition
+   * while one waits, in the bulk lane, since 200 from an import must not hold a customer's send, and paced when an import
+   * brought it. A lone upload still starts at once, a workspace with nothing running going first. Written to be run again.
+   */
+  "file_look",
+  /**
+   * Pictures an import found on the business's website or its public listing, fetched and kept (00551): payload
+   * { source, batch, items }, each kept once ever by its fingerprint, so a second run keeps nothing twice.
+   */
+  "file_fetch",
+  /** A removed file's bytes and Anthropic's copy of it let go (00551): payload { file_id }. */
+  "file_purge",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
@@ -280,6 +293,11 @@ export const EVENT_KINDS = [
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
+  "file.added",
+  "file.changed",
+  "file.kept",
+  "file.removed",
+  "file.set_aside",
   /**
    * A note for the receptionist suggested from an owner's correction, and the member's answer (00448, decision 0063):
    * { suggestion_id, source }, never the words; a Keep's note is the settings.changed beside it.

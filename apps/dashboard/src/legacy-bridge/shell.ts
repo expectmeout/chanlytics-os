@@ -217,6 +217,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   ask_morning: "Ask's morning",
   reply_drafts: "Ask's drafts",
   ask_memory: "What Ask remembers",
+  files: "Files",
   notifications: "Notifications",
   setup: "Setup",
   google: "Google",

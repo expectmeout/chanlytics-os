@@ -272,6 +272,41 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["contact_id"],
     never: [],
   },
+  // A file read by the small model (00551): no answer leaves the file usable under its own name, and its row stops saying
+  // Looking (settle.ts), for the sweep to try again. Safe to repeat: a failed try leaves a good look as it was.
+  file_look: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 30 * SECOND_MS,
+    ids: ["file_id"],
+    never: [],
+  },
+  // Pictures from the business's website or listing, kept once by their fingerprint, so a repeat keeps nothing twice.
+  file_fetch: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 10 * SECOND_MS,
+    ids: ["source", "batch"],
+    never: [],
+  },
+  // A removed file's bytes, Anthropic's copy and its row let go, or bytes that never became a file. The owner sees it gone
+  // already, so a failure is ours: Health counts it, and the sweep asks again for a week.
+  file_purge: {
+    speaks: false,
+    retryWaitsMs: SLOW_TWICE,
+    told: "elsewhere",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 10 * SECOND_MS,
+    ids: ["file_id"],
+    never: [],
+  },
   // The ledger's own proof that it runs (00526): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,

@@ -37,6 +37,7 @@ import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { keepAnthropicProfiles } from "../anthropic-profiles/keep.js";
+import { keepFilesMoving } from "../files/upkeep.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
 import { pausedJobKinds } from "../packages/db.js";
@@ -166,6 +167,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const models = await watchModels(db);
   // Whom Anthropic is told a call is for (decision 0097): what it now says of each, and the profiles made and deleted.
   const profiles = await keepAnthropicProfiles(db);
+  // A business's files (decision 0099): a look worth trying again, and a removal that has not finished.
+  const files = await keepFilesMoving(db);
   // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
   // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
   const pinsGone = await watchLeadPins(db, leadSourceClient());
@@ -192,6 +195,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     anthropic_profiles_adopted: profiles.adopted,
     anthropic_profiles_deleted: profiles.deleted,
     anthropic_profiles_made: profiles.made,
+    files_looked_again: files.looks,
+    files_purged_again: files.purges,
     lead_pins_gone: pinsGone,
     lead_prices_paged: pricesPaged,
     site_credits: siteCredits,

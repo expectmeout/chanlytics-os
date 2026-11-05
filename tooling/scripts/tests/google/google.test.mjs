@@ -96,7 +96,9 @@ test("Place Details asks by id with the reviews in the mask, the id encoded, the
     assert.ok(PLACES_DETAILS_MASK.split(",").includes(f), f);
   // F7: what the listing says beyond its name, for the first run to offer. Each name as Google's Place reference
   // spells it (checked 24 Sep 2026): one wrong name and Google refuses the whole read, reviews and all.
-  assert.deepEqual(PLACES_DETAILS_MASK.split(",").slice(-8), [
+  // The photos at its end are what Files brings in (decision 0099).
+  assert.equal(PLACES_DETAILS_MASK.split(",").at(-1), "photos");
+  assert.deepEqual(PLACES_DETAILS_MASK.split(",").slice(-9, -1), [
     "regularOpeningHours",
     "internationalPhoneNumber",
     "nationalPhoneNumber",

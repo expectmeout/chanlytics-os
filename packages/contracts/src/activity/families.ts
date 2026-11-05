@@ -142,6 +142,8 @@ const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   partner: "partner",
   // What Ask remembers is kept on Settings › Memory (decision 0070); its journal and mornings are noise, never shown.
   ask: "settings",
+  // A business's files are kept on Settings › Files (decision 0099).
+  file: "settings",
   usage: "records",
   webhook: "records",
   ingest: "records",

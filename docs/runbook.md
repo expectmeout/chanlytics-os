@@ -989,6 +989,20 @@ update public.lead_platform set cards_on = array['local_businesses', 'people_at_
 Find people appears on Leads at its next read, and Ask proposes people searches. Off again is the same update with the
 card left out; a search already running finishes.
 
+## A business's files
+
+Settings › Files holds every picture a workspace keeps (decision 0099), each read once by the `file_look` job. Its doors are
+in 00551, and nothing is on a switch: the tab is there once the migration and the code are. To see one file as the server has
+it, read its row through the service role, never its `claude_copy` in a log or a message: that id opens the picture to any key
+in Anthropic's workspace. A look that keeps failing shows on Health under its job, and the file stays usable under the name it
+came with. The roads an import takes are `file_fetch` (a website, a listing) and `history_import` with `google_photos` (a
+connected profile), whose stopped line has Try again where a stopped import is drawn. `file_purge` lets a removed file's bytes go and takes
+its row, and `files_let_go` keeps only its fingerprint, so an import does not bring it back. It also comes a day after every upload starts:
+`file_never_filed` in the logs is an upload that arrived and was never told done. The health sweep (:13 and :43) tries again a look that
+failed or was lost, a day on and for a week, reads again what a lower `FILE_LOOK_EDITION` read, and asks again for a removal that has not
+finished: `files_looked_again` and `files_purged_again` on `sweep_health_checked`, and `files_sweep_failed` if it could not. Where an upload's
+head can't say its size, `file_decoder_answered` logs what Storage's decoder answered.
+
 ## Turn on Anthropic's user profiles
 
 Without a profile on a request, one customer's flagged traffic can restrict the whole organization (decision 0097). They are

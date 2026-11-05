@@ -20,6 +20,7 @@ export const IMPORT_SOURCES = [
   "contacts",
   "whatsapp_contacts",
   "whatsapp_history",
+  "google_photos",
 ] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
@@ -45,6 +46,10 @@ export const IMPORT_STOPPED_WORDS = {
   /** Meta offers the kept app's contacts and chats once, while the number connects (decision 0073, R21). */
   offeredOnce: "Meta offers it once, while the number connects. To bring it, connect WhatsApp again from Settings.",
   numberGone: "That WhatsApp number is no longer connected, so nothing more comes from it.",
+  googleSignedOut: "Your Google profile signed out. Connect it again in Connections, then Try again.",
+  /** Files holds as many as it can: what came in is kept, and room makes Try again worth pressing. */
+  filesFull: "Your Files are full. Remove some, then Try again.",
+  googleGone: "That Google profile is no longer connected, so nothing more comes from it.",
   /** Stopped on Connections by someone who may change the settings (0086): Resume picks it up where it stopped. */
   byYou: "Stopped. What came in is kept.",
 } as const;
@@ -71,6 +76,8 @@ export interface ImportCounts {
   past?: number;
   coming?: number;
   reviews?: number;
+  /** Photos brought in from the business's own Google profile. */
+  photos?: number;
   /** Reviews that wait for a reply. */
   unanswered?: number;
   /** Rows of a file that had neither a number nor an address; emails the mailbox refused to hand over. */
@@ -127,6 +134,7 @@ const IMPORT_DOORS: Readonly<Record<ImportSource, string>> = {
   contacts: "clients",
   whatsapp_contacts: "clients",
   whatsapp_history: "inbox",
+  google_photos: "admin/files",
 };
 
 /** The row of Connections a mailbox's "Left in your mailbox" is, as Settings' address names it (settings/frame/tabs.ts). */
@@ -143,6 +151,7 @@ export const IMPORT_WORDS = {
     contacts: "Your contacts",
     whatsapp_contacts: "WhatsApp contacts",
     whatsapp_history: "WhatsApp chats",
+    google_photos: "Your Google photos",
   } as Record<ImportSource, string>,
   in: "In",
   stopped: "Stopped",
@@ -219,6 +228,8 @@ function saysOf(r: ImportRowDto, tz: string): string {
       return c.people === undefined ? "Reading them" : joined(countOfPeople(c.people), via);
     case "mailbox":
       return mailSaysOf(r, tz);
+    case "google_photos":
+      return c.photos === undefined ? "Reading them" : groupedPlural(c.photos, "photo");
     case "whatsapp_contacts":
       return c.people === undefined ? "Reading them" : countOfPeople(c.people);
     case "whatsapp_history":
@@ -230,6 +241,7 @@ function saysOf(r: ImportRowDto, tz: string): string {
 function stoppedKept(r: ImportRowDto): string | null {
   const c = r.counts;
   if (r.source === "mailbox") return c.messages ? groupedPlural(c.messages, "email") : null;
+  if (c.photos) return groupedPlural(c.photos, "photo");
   if (c.people) return countOfPeople(c.people);
   if (c.reviews) return groupedPlural(c.reviews, "review");
   return c.past ? groupedPlural(c.past, "past appointment") : null;
@@ -276,6 +288,7 @@ function leadCountOf(r: ImportRowDto): number | null {
   if (r.state === "failed") return null;
   if (r.source === "mailbox") return c.messages || null;
   if (r.source === "google_reviews") return c.reviews || null;
+  if (r.source === "google_photos") return c.photos || null;
   if (r.source === "calendar") return c.past || null;
   return r.source === "whatsapp_history" ? null : (c.people ?? null);
 }
@@ -425,6 +438,7 @@ export function sourceRowsOf(rows: readonly ImportRowDto[] | null | undefined): 
 /** Sources in the order they are said: what came first, then what is still coming. */
 const SAID_ORDER: readonly ImportSource[] = [
   "google_reviews",
+  "google_photos",
   "calendar",
   "clients_file",
   "contacts",

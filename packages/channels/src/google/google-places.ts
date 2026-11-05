@@ -41,7 +41,7 @@ export const PLACES_SEARCH_MASK =
 export const PLACES_DETAILS_MASK =
   "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews," +
   "regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName," +
-  "pureServiceAreaBusiness,timeZone";
+  "pureServiceAreaBusiness,timeZone,photos";
 /** Candidates shown to the owner: a handful, never a page of twenty. */
 export const PLACES_SEARCH_LIMIT = 5;
 export const PLACES_TIMEOUT_MS = 10_000;
@@ -99,6 +99,34 @@ export interface PlaceDetails {
   reviews: PlaceReview[];
   /** What the listing says beyond its name and address, for the owner to check. */
   facts: GoogleListingFacts;
+  /** The photos it shows (ten at most), and who each says it is by: a customer's as often as the business's. */
+  photos: PlacePhoto[];
+}
+
+export interface PlacePhoto {
+  name: string;
+  author: string | null;
+}
+
+/** The long side a listing's photo is asked for at. */
+const PLACE_PHOTO_SIDE = 2400;
+
+/** Where a photo can be read just now, asked of Google and answered, since its address does not last (photos/media). */
+function placePhotoRequest(key: string, name: string): PlacesRequest {
+  const q = new URLSearchParams({ maxWidthPx: String(PLACE_PHOTO_SIDE), skipHttpRedirect: "true" });
+  return { url: `${PLACES_BASE}/${name}/media?${q.toString()}`, method: "GET", headers: { "X-Goog-Api-Key": key } };
+}
+
+/** The photos a place's answer lists, each named, none without one. */
+function placePhotosOf(raw: unknown): PlacePhoto[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((p): PlacePhoto[] => {
+    const o = recordOrNull(p);
+    const name = nonBlankOrNull(o?.name);
+    if (!name) return [];
+    const by = Array.isArray(o?.authorAttributions) ? recordOrNull(o.authorAttributions[0]) : null;
+    return [{ name, author: nonBlankOrNull(by?.displayName) }];
+  });
 }
 
 function headers(key: string, mask: string, json = false): Record<string, string> {
@@ -255,6 +283,7 @@ export function parsePlaceDetails(json: unknown): PlaceDetails {
     review_count: finiteOrNull(p.userRatingCount),
     reviews,
     facts: listingFactsOf(p),
+    photos: placePhotosOf(p.photos),
   };
 }
 
@@ -304,6 +333,11 @@ export async function getPlace(
  * The real port: providerFetch with a timeout, the body as text whatever the status. A call that got no answer throws
  * the network's words, as the bare fetch it replaces did; a read (a GET) is asked twice first.
  */
+/** Where one of a place's photos can be read now; null where Google names nowhere. */
+export async function placePhotoUri(http: PlacesHttp, key: string, name: string): Promise<string | null> {
+  return nonBlankOrNull(recordOrNull(await call(http, placePhotoRequest(key, name)))?.photoUri);
+}
+
 export function placesFetch(fetchImpl: typeof fetch = fetch, timeoutMs = PLACES_TIMEOUT_MS): PlacesHttp {
   return async (req) => {
     const a = await providerFetch(

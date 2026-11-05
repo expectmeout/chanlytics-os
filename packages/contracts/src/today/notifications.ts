@@ -302,6 +302,8 @@ export const SERVER_NOTIFICATION_KINDS = [
   "ask_cards",
   // Someone used a form on the business's website (00488): the row opens their page; mailed as chosen, the phone told.
   "website_form",
+  // Photos an import found wait in Files' Inbox for a person's word (00551): the row opens that page.
+  "files_waiting",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -430,6 +432,12 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   website_read: { stopped: "Your website could not be read", to: "admin/receptionist" },
   preview_build: { stopped: "A lead's preview could not be made", to: "clients/leads" },
   erasure_finish: { stopped: "Erasing a person stopped partway: delete them again", to: "clients" },
+  // A file's look. Not sent (packages/jobs TOLD_ELSEWHERE): its row says it could not be read, on the page that holds it.
+  file_look: { stopped: "A photo could not be looked at", to: "admin/files" },
+  // Not sent: Inbox simply holds what came, and nothing an owner did is waiting on it.
+  file_fetch: { stopped: "Photos from your website could not all be brought in", to: "admin/files" },
+  // Not sent: a removed file already looks gone, and nothing is the owner's to do. Health counts it.
+  file_purge: { stopped: "A removed photo could not be let go", to: "admin/files" },
   canary: { stopped: "The background work's own check did not finish", to: "today" },
 };
 
@@ -566,6 +574,7 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
+  files_waiting: { icon: "image", tone: "", action: "Open Files", to: "admin/files" },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };

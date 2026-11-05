@@ -68,6 +68,7 @@ const PANE_RECORDS: ReadonlyMap<string, RecordRef> = new Map<string, RecordRef>(
   ["integrations", { kind: "channel" }],
   ["team", { kind: "team" }],
   ["billing", { kind: "billing" }],
+  ["files", { kind: "file" }],
 ]);
 
 /** A page that is only itself: the route alone opens it, and no param does. */

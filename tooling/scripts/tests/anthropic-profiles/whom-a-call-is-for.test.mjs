@@ -125,7 +125,7 @@ test("every purpose has said whom its traffic is for", () => {
   // What nobody signed in asks for is the business's, and it is the traffic the docs do not name: the receptionist above all.
   for (const p of ["receptionist", "reply_draft", "lead_judge", "reply_read", "note_suggest", "sender_read"])
     assert.equal(MODEL_ROUTES[p].attributed, "workspace", p);
-  for (const p of ["ask", "lead_json", "template_draft", "receptionist_review", "fix_route"])
+  for (const p of ["ask", "lead_json", "template_draft", "receptionist_review", "fix_route", "file_look"])
     assert.equal(MODEL_ROUTES[p].attributed, "person", p);
 });
 
@@ -175,8 +175,12 @@ test("no way round the door: only lib/model.ts asks the port, and only the port 
   });
   assert.deepEqual(
     naming.sort(),
-    ["packages/channels/src/models/anthropic-profiles.ts", "packages/channels/src/models/anthropic.ts"],
-    "only the port's two modules reach Anthropic",
+    [
+      "packages/channels/src/models/anthropic-files.ts",
+      "packages/channels/src/models/anthropic-profiles.ts",
+      "packages/channels/src/models/anthropic.ts",
+    ],
+    "only the port's modules reach Anthropic: a call, a profile, and a file (an upload is no inference, so it names no one)",
   );
 
   const sdk = files.filter((f) => importsOf(parse(f)).some((i) => !i.typeOnly && i.specifier === "@anthropic-ai/sdk"));

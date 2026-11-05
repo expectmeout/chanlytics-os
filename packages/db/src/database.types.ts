@@ -2742,6 +2742,121 @@ export type Database = {
           },
         ]
       }
+      files: {
+        Row: {
+          bytes: number
+          claude_copy: Json | null
+          created_at: string
+          created_by: string | null
+          fingerprint: string
+          height: number | null
+          id: string
+          look: Json | null
+          look_edition: number | null
+          look_status: string
+          looked_at: string
+          mime: string
+          name: string
+          owner_named: boolean
+          owner_shelved: boolean
+          removed_at: string | null
+          shows: string | null
+          source: string
+          source_ref: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          who_in_it: string
+          width: number | null
+        }
+        Insert: {
+          bytes: number
+          claude_copy?: Json | null
+          created_at?: string
+          created_by?: string | null
+          fingerprint: string
+          height?: number | null
+          id?: string
+          look?: Json | null
+          look_edition?: number | null
+          look_status?: string
+          looked_at?: string
+          mime: string
+          name: string
+          owner_named?: boolean
+          owner_shelved?: boolean
+          removed_at?: string | null
+          shows?: string | null
+          source: string
+          source_ref?: string | null
+          status: string
+          tenant_id: string
+          updated_at?: string
+          who_in_it?: string
+          width?: number | null
+        }
+        Update: {
+          bytes?: number
+          claude_copy?: Json | null
+          created_at?: string
+          created_by?: string | null
+          fingerprint?: string
+          height?: number | null
+          id?: string
+          look?: Json | null
+          look_edition?: number | null
+          look_status?: string
+          looked_at?: string
+          mime?: string
+          name?: string
+          owner_named?: boolean
+          owner_shelved?: boolean
+          removed_at?: string | null
+          shows?: string | null
+          source?: string
+          source_ref?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          who_in_it?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      files_let_go: {
+        Row: {
+          fingerprint: string
+          let_go_at: string
+          tenant_id: string
+        }
+        Insert: {
+          fingerprint: string
+          let_go_at?: string
+          tenant_id: string
+        }
+        Update: {
+          fingerprint?: string
+          let_go_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_let_go_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           account_name: string
@@ -8377,6 +8492,69 @@ export type Database = {
       fact_suggestion_answer: {
         Args: { p_config_version?: number; p_id: string; p_keep: boolean }
         Returns: Json
+      }
+      file_change: {
+        Args: {
+          p_id: string
+          p_name?: string
+          p_shows?: string
+          p_status?: string
+          p_tenant_id: string
+          p_who_in_it?: string
+        }
+        Returns: undefined
+      }
+      file_found: {
+        Args: {
+          p_actor?: string
+          p_bytes: number
+          p_edition: number
+          p_fingerprint: string
+          p_height: number
+          p_id: string
+          p_mime: string
+          p_name: string
+          p_shows: string
+          p_source: string
+          p_source_ref: string
+          p_status: string
+          p_tenant_id: string
+          p_width: number
+        }
+        Returns: Json
+      }
+      file_free_name: {
+        Args: { p_base: string; p_self?: string; p_tenant_id: string }
+        Returns: string
+      }
+      file_keep_many: {
+        Args: { p_ids: string[]; p_tenant_id: string }
+        Returns: number
+      }
+      file_listing_aside: { Args: { p_tenant_id: string }; Returns: number }
+      file_look_keep: {
+        Args: {
+          p_edition: number
+          p_id: string
+          p_look: Json
+          p_name: string
+          p_shows: string
+          p_status: string
+          p_tenant_id: string
+        }
+        Returns: undefined
+      }
+      file_purged: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      file_remove: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      file_start: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: undefined
       }
       finish_broadcast: {
         Args: { p_event: Json; p_id: string; p_tenant_id: string }

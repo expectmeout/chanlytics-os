@@ -106,6 +106,7 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "start",
   "admin/workspace",
   "admin/hours",
+  "admin/files",
   "admin/receptionist",
   "admin/team",
   "admin/autonomy",

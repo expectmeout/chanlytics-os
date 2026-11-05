@@ -39,6 +39,14 @@ import type {
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
 import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
 import type { MODEL_PORTS, MODEL_PURPOSES } from "../ai/models";
+import type {
+  FILE_LOOK_STATUSES,
+  FILE_MIMES,
+  FILE_SHOWS,
+  FILE_SOURCES,
+  FILE_STATUSES,
+  FILE_WHO_IN_IT,
+} from "../files/files";
 import type { SENDER_KINDS } from "../email/sender-reading";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
@@ -138,6 +146,14 @@ export type SchemaAgreement = [
   // Whom Anthropic is told a call is for (00544, decision 0097).
   Holds<Exactly<Of<typeof ANTHROPIC_PROFILE_KINDS>, SchemaSet<"anthropic_profiles.kind">>>,
   Holds<Exactly<Of<typeof ANTHROPIC_ENFORCEMENT_STATUSES>, SchemaSet<"anthropic_profiles.enforcement_status">>>,
+
+  // A business's files (00551, decision 0099).
+  Holds<Exactly<Of<typeof FILE_LOOK_STATUSES>, SchemaSet<"files.look_status">>>,
+  Holds<Exactly<Of<typeof FILE_MIMES>, SchemaSet<"files.mime">>>,
+  Holds<Exactly<Of<typeof FILE_SHOWS>, SchemaSet<"files.shows">>>,
+  Holds<Exactly<Of<typeof FILE_SOURCES>, SchemaSet<"files.source">>>,
+  Holds<Exactly<Of<typeof FILE_STATUSES>, SchemaSet<"files.status">>>,
+  Holds<Exactly<Of<typeof FILE_WHO_IN_IT>, SchemaSet<"files.who_in_it">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

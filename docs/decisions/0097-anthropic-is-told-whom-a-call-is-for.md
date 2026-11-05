@@ -23,7 +23,7 @@ those two reach `askModel` and `streamModel`, so the change has one place to sta
 
    | Traffic                                                                                          | Subject              | Profile                                                          |
    | ------------------------------------------------------------------------------------------------ | -------------------- | ---------------------------------------------------------------- |
-   | Ask, the drafts a member presses, a rehearsal's review, the fix router                           | the person signed in | one per signed-up user, `application`, `entity_type: individual` |
+   | Ask, the drafts a member presses, a rehearsal's review, the fix router, an upload's look (0099)  | the person signed in | one per signed-up user, `application`, `entity_type: individual` |
    | The receptionist, reply drafts, the lead judge, notes, a reach-out's check, every read and sweep | the workspace        | one per workspace, `application`, `entity_type: business`        |
    | A call with no workspace and nobody                                                              | ours                 | none, by decision                                                |
 

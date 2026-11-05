@@ -41,7 +41,7 @@ export async function importAgain(
   const source = body.source;
   if (typeof source !== "string" || !(IMPORT_SOURCES as readonly string[]).includes(source))
     return refuse(400, "bad_request", "source is one of the imports ledger's sources");
-  if (!THROUGH_A_MAILBOX.includes(source as ImportSource))
+  if (source !== "google_photos" && !THROUGH_A_MAILBOX.includes(source as ImportSource))
     return refuse(409, "unavailable", "this source is brought in again where it was first brought in");
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -49,6 +49,12 @@ export async function importAgain(
   try {
     const rows = (await importsOf(db, tenantId)).filter((r) => r.source === source);
     if (!rows.length) return refuse(404, "not_found", "nothing of this source was brought in");
+    // A profile's photos come through the connection the workspace has, and read on from where they stopped. Its part stops
+    // with its own words if that connection has gone.
+    if (source === "google_photos") {
+      await startHistory(db, { tenantId, source, connectionId: null, via: "google", again: true });
+      return json(200, { ok: true });
+    }
     const stopped = rows.filter((r) => r.state === "failed");
     const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);
     const live = (await mailboxConnectionsOf(db, tenantId)).filter((m) => m.state !== "removed");

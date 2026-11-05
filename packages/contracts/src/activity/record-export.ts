@@ -99,6 +99,12 @@ export const EXPORT_OF = {
       why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section; the rest is a progress record and a copy of what is public.",
     },
   },
+  file: {
+    not_exported: {
+      what: "Your photos",
+      why: "They are files, not rows: each one downloads from Settings › Files.",
+    },
+  },
   draft: {
     not_exported: {
       what: "The replies Ask drafted and you did not send",

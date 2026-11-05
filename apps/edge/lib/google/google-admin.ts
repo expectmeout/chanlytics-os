@@ -32,17 +32,24 @@
 import { json, refuse } from "../http.js";
 import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { respond, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
-import { emitEvent, type Database } from "../packages/db.js";
+import { emitEvent, fileListingAside, linkedPlaceOf, type Database } from "../packages/db.js";
 import { DEFAULT_TIMEZONE, UUID } from "../packages/contracts.js";
 import type { PlaceDetails } from "../packages/channels.js";
 import { googleReadiness, placesKey, profilePublic } from "./google-config.js";
-import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./google-rows.js";
+import {
+  connectionForClient,
+  connectionOf,
+  listingForClient,
+  type ConnectionRow,
+  type ListingRow,
+} from "./google-rows.js";
 import { findPlaces, readPlace } from "./places.js";
 import { checkListing } from "./listing-check.js";
 import { draftFor, holdReviewReply, replyOnProfile, reviewReplyMode } from "./review-answers.js";
 import { bindLocation, connectProfile, disconnectProfile, locationsFor } from "./profile-connection.js";
 import { syncProfile } from "./profile-sync.js";
-import { logger, type Logger } from "../log.js";
+import { errField, logger, type Logger } from "../log.js";
+import { askForListingPhotos } from "../files/found.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   UNKNOWN_GOOGLE_OP,
@@ -167,6 +174,7 @@ async function link(c: GoogleCall): Promise<Response> {
   } catch (e) {
     return respond(unreadablePlaceAnswer(e));
   }
+  const before = await linkedPlaceOf(c.db, c.tenantId).catch(() => null);
   const saved = await c.db
     .from("google_listings")
     .upsert(linkRow(details, c.tenantId, c.userId, new Date()), { onConflict: "tenant_id" })
@@ -178,6 +186,14 @@ async function link(c: GoogleCall): Promise<Response> {
   await c.db.from("google_listing_days").delete().eq("tenant_id", c.tenantId);
   // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
   const read = await checkListing(c.db, saved.data, c.tz, { askWebsite: true });
+  // A place that changed: what the last one offered and nobody kept leaves the Inbox, as it may be another business's. The
+  // photos the business put on this one come to the Inbox (decision 0099), unless its own profile brings better. Nothing
+  // here undoes a link that stands.
+  if (before !== details.place_id) {
+    await listingPhotosMoved(c, details).catch((e: unknown) =>
+      c.L.warn("file_fetch_failed", { source: "google_listing", error: errField(e) }),
+    );
+  }
   await emitEvent(c.db, c.tenantId, "google.linked", "listing", null, {
     place_id: details.place_id,
     name: details.name,
@@ -186,6 +202,13 @@ async function link(c: GoogleCall): Promise<Response> {
   }).catch(() => {});
   c.L.info("google_linked", { place_id: details.place_id, read: read.ok });
   return respond(linkedAnswer(await listingNow(c), saved.data, read));
+}
+
+/** What a listing that changed does to Files: its old photos set aside, its new ones asked for where no profile is bound. */
+async function listingPhotosMoved(c: GoogleCall, details: PlaceDetails): Promise<void> {
+  await fileListingAside(c.db, c.tenantId);
+  const bound = await connectionOf(c.db, c.tenantId);
+  if (!bound?.location_name) await askForListingPhotos(c.db, c.tenantId, details);
 }
 
 /* --------------------------------------------------------------- connect */

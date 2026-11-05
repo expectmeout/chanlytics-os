@@ -16,6 +16,7 @@ apps/edge/lib/
   calendar/
   drafts/
   email/
+  files/
   google/
   imports/
   instagram/
@@ -66,6 +67,7 @@ apps/dashboard/src/server/
   connections/
   conversations/
   export/
+  files/
   leads/
   metrics/
   new-conversation/
@@ -121,6 +123,7 @@ packages/contracts/src/
   conversations/
   deals/
   email/
+  files/
   google/
   imports/
   journey/

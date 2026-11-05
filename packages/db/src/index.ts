@@ -583,6 +583,28 @@ export {
 } from "./repositories/facts/rehearsals";
 export type { RehearsalRow } from "./repositories/facts/rehearsals";
 export {
+  fileChange,
+  fileFound,
+  fileKeepMany,
+  fileListingAside,
+  fileLookKeep,
+  filePurged,
+  fileRemove,
+  fileStart,
+} from "./repositories/files/doors";
+export type { FileFate } from "./repositories/files/doors";
+export {
+  fileForWork,
+  fileOf,
+  filesBucket,
+  fileSeen,
+  filesOf,
+  filesToLookAgain,
+  filesToPurgeAgain,
+  keepClaudeCopy,
+} from "./repositories/files/files";
+export type { FileMemberRow, FileRow } from "./repositories/files/files";
+export {
   claimIdempotencyKey,
   keepIdempotencyReceipt,
   releaseIdempotencyKey,

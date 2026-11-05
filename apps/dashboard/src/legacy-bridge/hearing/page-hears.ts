@@ -130,6 +130,7 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   "admin/integrations": { settings: true, workspace: true, setup: ["facts", "visit"] },
   "admin/billing": { settings: true, workspace: true },
   "admin/memory": { settings: true, workspace: true },
+  "admin/files": { settings: true, workspace: true, files: true },
   "admin/activity": { settings: true, workspace: true },
   "admin/platform": { settings: true, workspace: true },
   "admin/partner": { settings: true, workspace: true },

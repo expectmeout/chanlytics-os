@@ -174,6 +174,7 @@ export function askCheckModel(key, deps = {}, spend = newSpend()) {
     return {
       answer: stop === "refusal" || stop === "max_tokens" ? null : firstJson(r.text),
       tokens: { input: r.usage.input, output: r.usage.output },
+      ...(stop === "refusal" ? { refused: true } : {}),
     };
   };
 }

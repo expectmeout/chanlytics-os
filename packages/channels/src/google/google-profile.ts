@@ -62,6 +62,17 @@ export function reviewsRequest(token: string, parent: string, pageToken?: string
   return { url: `${GBP_V4_BASE}/${parent}/reviews?${q.toString()}`, method: "GET", headers: bearer(token, true) };
 }
 
+/** A profile's photos, a page at a time: few, since each is then read whole. Customers' are a list of their own. */
+const GBP_MEDIA_PAGE = 12;
+/** The long side a photo is asked for at: Google's address takes it after a last "=". */
+const GBP_PHOTO_SIDE = 2400;
+
+function mediaRequest(token: string, parent: string, pageToken?: string | null): PlacesRequest {
+  const q = new URLSearchParams({ pageSize: String(GBP_MEDIA_PAGE) });
+  if (pageToken) q.set("pageToken", pageToken);
+  return { url: `${GBP_V4_BASE}/${parent}/media?${q.toString()}`, method: "GET", headers: bearer(token, true) };
+}
+
 export function replyRequest(token: string, reviewName: string, comment: string): PlacesRequest {
   return {
     url: `${GBP_V4_BASE}/${reviewName}/reply`,
@@ -281,6 +292,42 @@ export async function listReviews(
     if (!page) break;
   }
   return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };
+}
+
+/** One photo a profile holds: Google's name for it, where to read it now, and what Google files it under. */
+export interface GbpPhoto {
+  name: string;
+  url: string;
+  category: string | null;
+}
+
+/** A photo's address at the size asked for, in place of whatever size it came with. */
+function photoAtSize(url: string): string {
+  const at = url.lastIndexOf("=");
+  const base = at > url.lastIndexOf("/") ? url.slice(0, at) : url;
+  return `${base}=s${GBP_PHOTO_SIDE}`;
+}
+
+function parseMediaPage(json: unknown): { photos: GbpPhoto[]; next_page_token: string | null } {
+  const o = recordOrNull(json);
+  const items = Array.isArray(o?.mediaItems) ? o.mediaItems : [];
+  const photos = items.flatMap((raw): GbpPhoto[] => {
+    const m = recordOrNull(raw);
+    const name = nonBlankOrNull(m?.name);
+    const url = nonBlankOrNull(m?.googleUrl);
+    if (!name || !url || m?.mediaFormat !== "PHOTO") return [];
+    return [{ name, url: photoAtSize(url), category: nonBlankOrNull(recordOrNull(m.locationAssociation)?.category) }];
+  });
+  return { photos, next_page_token: nonBlankOrNull(o?.nextPageToken) };
+}
+
+export async function listMedia(
+  http: PlacesHttp,
+  token: string,
+  parent: string,
+  pageToken: string | null,
+): Promise<{ photos: GbpPhoto[]; next_page_token: string | null }> {
+  return parseMediaPage(await callProfileApi(http, mediaRequest(token, parent, pageToken)));
 }
 
 export async function replyToReview(

@@ -6,6 +6,7 @@ export const ROUTES = {
   "DELETE ask/threads/[id]": { method: "DELETE", path: "/api/v1/ask/threads/[id]" },
   "DELETE capabilities/[kind]": { method: "DELETE", path: "/api/v1/capabilities/[kind]" },
   "DELETE contacts/[id]": { method: "DELETE", path: "/api/v1/contacts/[id]" },
+  "DELETE files/[id]": { method: "DELETE", path: "/api/v1/files/[id]" },
   "DELETE google/connection": { method: "DELETE", path: "/api/v1/google/connection" },
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
   "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
@@ -59,6 +60,8 @@ export const ROUTES = {
   "GET conversations/drafts": { method: "GET", path: "/api/v1/conversations/drafts" },
   "GET escalations": { method: "GET", path: "/api/v1/escalations" },
   "GET export": { method: "GET", path: "/api/v1/export" },
+  "GET files": { method: "GET", path: "/api/v1/files" },
+  "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
@@ -133,6 +136,7 @@ export const ROUTES = {
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH ask/memory/[id]": { method: "PATCH", path: "/api/v1/ask/memory/[id]" },
+  "PATCH files/[id]": { method: "PATCH", path: "/api/v1/files/[id]" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
   "PATCH mailbox-connections/[id]": { method: "PATCH", path: "/api/v1/mailbox-connections/[id]" },
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
@@ -198,6 +202,9 @@ export const ROUTES = {
   "POST conversations/[id]/wake": { method: "POST", path: "/api/v1/conversations/[id]/wake" },
   "POST escalations/[id]/resolve": { method: "POST", path: "/api/v1/escalations/[id]/resolve" },
   "POST fact-suggestions/[id]": { method: "POST", path: "/api/v1/fact-suggestions/[id]" },
+  "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
+  "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
+  "POST files/start": { method: "POST", path: "/api/v1/files/start" },
   "POST google/link": { method: "POST", path: "/api/v1/google/link" },
   "POST google/locations": { method: "POST", path: "/api/v1/google/locations" },
   "POST google/refresh": { method: "POST", path: "/api/v1/google/refresh" },
@@ -368,6 +375,7 @@ export type Routes = {
   "DELETE ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").DELETE;
   "DELETE capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").DELETE;
   "DELETE contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").DELETE;
+  "DELETE files/[id]": typeof import("../../app/api/v1/files/[id]/route").DELETE;
   "DELETE google/connection": typeof import("../../app/api/v1/google/connection/route").DELETE;
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
   "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
@@ -421,6 +429,8 @@ export type Routes = {
   "GET conversations/drafts": typeof import("../../app/api/v1/conversations/drafts/route").GET;
   "GET escalations": typeof import("../../app/api/v1/escalations/route").GET;
   "GET export": typeof import("../../app/api/v1/export/route").GET;
+  "GET files": typeof import("../../app/api/v1/files/route").GET;
+  "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
@@ -495,6 +505,7 @@ export type Routes = {
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH ask/memory/[id]": typeof import("../../app/api/v1/ask/memory/[id]/route").PATCH;
+  "PATCH files/[id]": typeof import("../../app/api/v1/files/[id]/route").PATCH;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
   "PATCH mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").PATCH;
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
@@ -560,6 +571,9 @@ export type Routes = {
   "POST conversations/[id]/wake": typeof import("../../app/api/v1/conversations/[id]/wake/route").POST;
   "POST escalations/[id]/resolve": typeof import("../../app/api/v1/escalations/[id]/resolve/route").POST;
   "POST fact-suggestions/[id]": typeof import("../../app/api/v1/fact-suggestions/[id]/route").POST;
+  "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
+  "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;
+  "POST files/start": typeof import("../../app/api/v1/files/start/route").POST;
   "POST google/link": typeof import("../../app/api/v1/google/link/route").POST;
   "POST google/locations": typeof import("../../app/api/v1/google/locations/route").POST;
   "POST google/refresh": typeof import("../../app/api/v1/google/refresh/route").POST;

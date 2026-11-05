@@ -68,6 +68,7 @@ import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
+import { filesOverride } from "@/surfaces/settings/files/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -273,6 +274,7 @@ const SURFACES = [
   // Ask's morning, read where Today draws its ideas in Need you, and what Ask remembers, where Settings › Memory is drawn (decision 0070).
   askMorningOverride,
   askMemoryOverride,
+  filesOverride,
   // The drafts Ask kept for the rows of Need you, read with Today's own first reads (surfaces/today/need-you/drafts-surface.ts).
   replyDraftsOverride,
   calendarOverride,

@@ -104,6 +104,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // what the receptionist knows lives (contracts ask-jump.ts).
   "admin/billing": "real",
   "admin/memory": "real",
+  "admin/files": "real",
   "admin/activity": "real", // both ledgers, from GET /activity, owners only
   // The back office (gate 5, #300): every workspace sorted by who needs a
   // person, read from the guarded platform routes. It was never listed here,
@@ -164,6 +165,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/integrations": "workspace",
   "admin/billing": "workspace",
   "admin/memory": "workspace",
+  "admin/files": "workspace",
   "admin/activity": "workspace",
   "admin/platform": "workspace",
 };

@@ -245,6 +245,18 @@ export interface JobContext {
     read: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
+   * A business's files (decision 0099), as the edge holds them: the model's key and the provider's copy live there.
+   * INJECTED like the website reader; a file job in a runtime without it fails loudly.
+   */
+  files?: {
+    /** One file read by the small model and what it saw kept. Throws when a try is worth repeating. */
+    look: (job: ClaimedJob, deadline: number) => Promise<void>;
+    /** Pictures an import found, fetched and kept once each; no fetch starts after `deadline`. */
+    fetch: (job: ClaimedJob, deadline: number) => Promise<void>;
+    /** A removed file's bytes and Anthropic's copy let go. Throws when either could not be. */
+    purge: (job: ClaimedJob) => Promise<void>;
+  };
+  /**
    * A freed time offered to the people who asked and never booked (decision 0082), as the edge holds it: the workspace's
    * run context and its step on `slot_opened` live there. INJECTED like the website reader; a delivery to
    * `freed_time_offer` in a runtime without it fails loudly.

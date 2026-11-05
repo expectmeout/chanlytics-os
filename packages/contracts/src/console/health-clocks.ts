@@ -313,6 +313,9 @@ const JOB_WORDS: Record<JobKind, string> = {
   website_read: "Reading a business's website",
   preview_build: "Making a lead's preview",
   erasure_finish: "Finishing a person's erasure",
+  file_look: "Looking at a file",
+  file_fetch: "Bringing in a business's photos",
+  file_purge: "Letting go of a removed file",
   canary: "The ledger's proof that it runs",
 };
 

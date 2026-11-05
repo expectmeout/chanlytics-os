@@ -243,6 +243,8 @@ const HEARD_BEFORE = {
   ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
   // What Ask remembers (decision 0070): no record the feed carries; read where drawn.
   ask_memory: [],
+  // A business's files (decision 0099): heard where the pane is drawn, so a name the look just gave shows without a press.
+  files: ["files"],
   // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071): written and read by the rows.
   reply_drafts: ["conversation_drafts"],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
@@ -328,6 +330,8 @@ const HEARD_BEFORE = {
  * wherever the tab was. A surface not named here heard every table everywhere.
  */
 const ON_ITS_PAGE_BEFORE = {
+  // A business's files (decision 0099): nothing but Settings › Files draws them.
+  files: ["files"],
   // What Ask noticed and the cards about a batch: heard on Today, the page that draws them (decision 0087).
   ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
   people: [
@@ -442,6 +446,7 @@ const ROUTES = [
  * 2026, G), Campaigns' old address.
  */
 const HOME = {
+  files: "admin/files",
   playbooks: "outbound",
   reports_campaigns: "reports/campaigns",
   settings: "messages",
@@ -483,6 +488,7 @@ test("the kinds name every table the database tells a workspace of, each in exac
     "template",
     "reach_out",
     "draft",
+    "file",
     "review",
     "facts",
     "rules",

@@ -133,6 +133,16 @@ interface TableData {
   "mailbox_connection.held": { address: string; why: string; sent: number; bounced: number; unsubscribed: number };
   "mailbox_connection.resumed": { address: string; why: string | null; by: string };
   "mailbox_connection.paused": { address: string; by: string };
+  "file.added": { file_id: string; source: string; by?: string };
+  /** What was said, and by whom: "they agreed" is a word someone gave, on a day. */
+  "file.changed": {
+    file_id: string;
+    by: string;
+    said: { name?: string; shows?: string; who_in_it?: string; status?: string };
+  };
+  "file.kept": { count: number; by: string };
+  "file.removed": { file_id: string; by: string };
+  "file.set_aside": { count: number };
   "mailbox_connection.unpaused": { address: string; by: string };
   "mailbox_connection.removed": { address: string; by: string | null };
   "mailbox_connection.sender_sorted": {
@@ -237,6 +247,11 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "mailbox_connection.held": { category: "setup", version: 1 },
   "mailbox_connection.resumed": { category: "setup", version: 1 },
   "mailbox_connection.paused": { category: "setup", version: 1 },
+  "file.added": { category: "setup", version: 1 },
+  "file.changed": { category: "setup", version: 1 },
+  "file.kept": { category: "setup", version: 1 },
+  "file.removed": { category: "setup", version: 1 },
+  "file.set_aside": { category: "setup", version: 1 },
   "mailbox_connection.unpaused": { category: "setup", version: 1 },
   "mailbox_connection.removed": { category: "setup", version: 1 },
   "mailbox_connection.sender_sorted": { category: "setup", version: 1 },
