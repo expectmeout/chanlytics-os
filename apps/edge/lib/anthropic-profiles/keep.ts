@@ -3,7 +3,7 @@
  * beta and delivers nothing yet, so what it says is read off its list, and three things follow:
  *
  *   read    Every profile listed, whole. Each profile's status and open actions written where they changed, and the platform
- *           paged when one is newly paused. What a listing did not reach stays as it was, so a short listing clears nothing.
+ *           paged when one is newly acted on or banned. What a listing did not reach stays as it was, so a short listing clears nothing.
  *           An answer that names no status changes nothing. A claim whose answer was lost (older than STALE_CLAIM_MS with no
  *           id) takes the profile the listing finds by its reference, or, once a whole listing finds none, is let go.
  *   delete  A profile whose person or workspace went, whichever way (delete_my_account, delete-tenant, a hand in the
@@ -15,7 +15,15 @@
  * Never throws: the sweep it rides on watches everything else.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { anthropicPaused, enforcementWords, MIN_MS, SECOND_MS, type EnforcementAction } from "../packages/contracts.js";
+import {
+  anthropicActed,
+  anthropicPaused,
+  enforcementWords,
+  MIN_MS,
+  SECOND_MS,
+  type AnthropicEnforcementStatus,
+  type EnforcementAction,
+} from "../packages/contracts.js";
 import { deleteUserProfile, listUserProfiles, type AnthropicProfile } from "../packages/channels.js";
 import {
   anthropicProfileRows,
@@ -42,14 +50,14 @@ const KEEP_MS = 20 * SECOND_MS;
 const MADE_A_TICK = 5;
 
 interface ProfilesKept {
-  paused: number;
+  acted: number;
   cleared: number;
   adopted: number;
   deleted: number;
   made: number;
 }
 
-const NOTHING_KEPT: ProfilesKept = { paused: 0, cleared: 0, adopted: 0, deleted: 0, made: 0 };
+const NOTHING_KEPT: ProfilesKept = { acted: 0, cleared: 0, adopted: 0, deleted: 0, made: 0 };
 
 /** What one tick works with: its clients, the end of its share of the sweep's minute, and the counts it moves. */
 interface KeepTick {
@@ -82,34 +90,43 @@ async function listedProfiles({ key, until }: KeepTick): Promise<{ profiles: Ant
 const sameActions = (a: EnforcementAction[], b: EnforcementAction[]): boolean =>
   JSON.stringify(a.map((x) => x.id).sort()) === JSON.stringify(b.map((x) => x.id).sort());
 
-/** The page for a newly paused profile: who, what Anthropic said, what to do. Never a customer's words. */
-function pauseWords(r: AnthropicProfileRow, said: string): { subject: string; body: string } {
+/** The page for a profile Anthropic has newly acted on: who, what it said, what follows. Never a customer's words. */
+function actionWords(
+  r: AnthropicProfileRow,
+  status: AnthropicEnforcementStatus,
+  said: string,
+): { subject: string; body: string } {
   const who = r.kind === "workspace" ? `Workspace ${r.tenant_id ?? "gone"}` : `Person ${r.user_id ?? "gone"}`;
+  const paused = anthropicPaused(status);
   return {
-    subject: "Anthropic has paused one account's model calls",
+    subject: `Anthropic has ${paused ? "paused" : "limited"} one account's model calls`,
     body:
       `${who} (${r.profile_id ?? "no profile"}). ${said}\n` +
-      "Its calls are held here until Anthropic lifts it; every other account goes on. Console › Health › Model calls lists it.\n",
+      (paused
+        ? "Its calls are held here until Anthropic lifts it; "
+        : "Its calls still go, and Anthropic refuses what it refuses; ") +
+      "every other account goes on. Console › Health › Model calls lists it.\n",
   };
 }
 
 /**
- * One row against what the listing said of it. The status is written first: the hold matters more than the page, and a page
+ * One row against what the listing said of it. The status is written first: a ban's hold matters more than the page, and a page
  * that cannot be sent is logged, with Health still showing it. A row on its way out is not paged: there is nobody left to help.
  */
 async function readProfile(t: KeepTick, r: AnthropicProfileRow, said: AnthropicProfile): Promise<void> {
   if (!said.status) return;
   if (said.status === r.enforcement_status && sameActions(said.actions, r.enforcement_actions)) return;
   await setAnthropicEnforcement(t.db, r.id, said.status, said.actions, new Date().toISOString());
-  const was = anthropicPaused(r.enforcement_status);
-  const is = anthropicPaused(said.status);
-  if (was && !is) t.kept.cleared += 1;
-  if (was || !is) return;
-  t.kept.paused += 1;
+  if (anthropicActed(r.enforcement_status) && !anthropicActed(said.status)) t.kept.cleared += 1;
+  const newlyActed = !anthropicActed(r.enforcement_status) && anthropicActed(said.status);
+  const newlyBanned = !anthropicPaused(r.enforcement_status) && anthropicPaused(said.status);
+  if (!newlyActed && !newlyBanned) return;
+  t.kept.acted += 1;
   if (r.leaving) return;
-  const words = pauseWords(r, enforcementWords(said.status, said.actions));
-  await pageOperator({ db: t.db, ...t.pager }, `anthropic_profile:${r.id}`, words.subject, words.body).catch(
-    (e: unknown) => sweepLog().error("anthropic_profile_unpageable", { row: r.id, error: errField(e) }),
+  const words = actionWords(r, said.status, enforcementWords(said.status, said.actions));
+  const key = `anthropic_profile:${r.id}:${newlyBanned ? "banned" : "acted"}`;
+  await pageOperator({ db: t.db, ...t.pager }, key, words.subject, words.body).catch((e: unknown) =>
+    sweepLog().error("anthropic_profile_unpageable", { row: r.id, error: errField(e) }),
   );
 }
 

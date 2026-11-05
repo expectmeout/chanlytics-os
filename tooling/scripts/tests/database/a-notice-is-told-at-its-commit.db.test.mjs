@@ -123,6 +123,41 @@ function seenOnce() {
                              where m.topic = ta and m.payload ->> 'table' = 'messages'),
         'threads_asked', (select jsonb_agg(x order by x) from unnest(array[conv1::text, conv2::text]) x));
 
+      -- An erasure's notices say so (00549), each of them, whichever statement kept it: the thread's gone before the
+      -- tombstone. A person made a tombstone in a savepoint rolled back says nothing, nor does a rename.
+      insert into public.contacts (tenant_id, display_name) values (a, 'Going') returning id into person;
+      insert into public.conversations (tenant_id, contact_id) values (a, person) returning id into conv1;
+      ${COMMIT}
+      perform set_config('chanlytics.workspace_told', '', true);
+      delete from realtime.messages where topic = ta;
+      update public.contacts set display_name = 'Renamed' where id = person;
+      ${COMMIT}
+      perform set_config('chanlytics.workspace_told', '', true);
+      seen := seen || jsonb_build_object(
+        'rename_shape', (select m.payload - 'at' - 'id' from realtime.messages m where m.topic = ta limit 1));
+      delete from realtime.messages where topic = ta;
+      begin
+        update public.contacts set erased_at = now() where id = person;
+        raise exception 'undone';
+      exception when others then
+        null;
+      end;
+      perform set_config('chanlytics.workspace_told', '', true);
+      update public.contacts set display_name = 'Renamed again' where id = person;
+      ${COMMIT}
+      perform set_config('chanlytics.workspace_told', '', true);
+      seen := seen || jsonb_build_object(
+        'after_a_savepoint_shape', (select m.payload - 'at' - 'id' from realtime.messages m where m.topic = ta limit 1));
+      delete from realtime.messages where topic = ta;
+      delete from public.conversations where id = conv1;
+      update public.contacts set erased_at = now() where id = person;
+      ${COMMIT}
+      perform set_config('chanlytics.workspace_told', '', true);
+      seen := seen || jsonb_build_object(
+        'erasure_notices', (select jsonb_agg(m.payload - 'at' - 'id' - 'threads' order by m.payload ->> 'table')
+                              from realtime.messages m where m.topic = ta and m.payload ->> 'table' in ('conversations', 'contacts')));
+      perform set_config('chanlytics.workspace_erasing', '', true);
+
       -- The catch-up: notices since a moment, read back by whom the topic admits.
       insert into auth.users (id) values (member_a), (partner_a), (member_b);
       insert into public.memberships (user_id, tenant_id, role) values
@@ -188,6 +223,24 @@ test("a savepoint rolled back tells nothing of its part, and 500 rows keep one r
   const seen = seenOnce();
   assert.equal(seen.kept_rows, 2, "A's from before, and B's from the 500: the rolled-back savepoint kept none");
   assert.equal(seen.told_b, 1, "B is told once, for the 500, never for the person the savepoint took back");
+});
+
+test("an erasure's notices say so, every one of them, and no other write's does (00549)", { skip }, () => {
+  const seen = seenOnce();
+  assert.deepEqual(
+    seen.erasure_notices,
+    [
+      { table: "contacts", op: "UPDATE", erasure: true },
+      { table: "conversations", op: "DELETE", erasure: true },
+    ],
+    "the thread's notice was kept before the tombstone, and goes with the same word at the commit",
+  );
+  assert.deepEqual(seen.rename_shape, { table: "contacts", op: "UPDATE" }, "a rename reads as it always did");
+  assert.deepEqual(
+    seen.after_a_savepoint_shape,
+    { table: "contacts", op: "UPDATE" },
+    "a savepoint rolled back takes the word back with the tombstone",
+  );
 });
 
 test("a member catches up on their workspace's notices since a moment, and only theirs (00508)", { skip }, () => {

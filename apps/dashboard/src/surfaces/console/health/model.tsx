@@ -5,11 +5,11 @@
  * stops every call. Every word is contracts' (modelCallsOf).
  */
 import {
+  actedOnProfileWho,
   dollarsWords,
   draftUsesOf,
   enforcementWords,
   modelCallsOf,
-  pausedProfileWho,
   workspaceNamer,
   type HealthScope,
 } from "@chanlytics/contracts";
@@ -18,7 +18,7 @@ import { NoneRow, ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
 import { HealthRow, HealthRows, healthCount as n, utcWords as when } from "./line";
 
-/** Whom Anthropic is told a call is for (decision 0097): how far that has come, and whom it has paused. */
+/** Whom Anthropic is told a call is for (decision 0097): how far that has come, and whom it has limited or paused. */
 function ProfilesSection({ h }: { h: ConsoleHealth }) {
   const p = h.anthropic_profiles;
   if (p === undefined) return null;
@@ -35,16 +35,16 @@ function ProfilesSection({ h }: { h: ConsoleHealth }) {
       sub={`${n(p.kept)} kept · ${n(p.waiting)} waiting to be made · ${n(p.leaving)} waiting to be deleted`}
       testid="console-health-model-profiles"
     >
-      {p.paused.length === 0 ? (
-        <NoneRow words="Anthropic has paused nobody." />
+      {p.acted_on.length === 0 ? (
+        <NoneRow words="Anthropic has limited or paused nobody." />
       ) : (
-        <HealthRows head={["What Anthropic said", "Who"]} label="Paused by Anthropic">
-          {p.paused.map((row) => (
+        <HealthRows head={["What Anthropic said", "Who"]} label="Limited or paused by Anthropic">
+          {p.acted_on.map((row) => (
             <HealthRow
               key={row.id}
               title={enforcementWords(row.status, row.actions)}
-              cells={[{ v: pausedProfileWho(row, nameOf) }]}
-              testid={`console-health-model-paused-${row.id}`}
+              cells={[{ v: actedOnProfileWho(row, nameOf) }]}
+              testid={`console-health-model-acted-on-${row.id}`}
             />
           ))}
         </HealthRows>
