@@ -10,6 +10,7 @@ import { errField, logger, type SitePage } from "@chanlytics/channels";
 import { bookingPageOfSite } from "../../booking-page";
 import { eachAtOnce } from "../../each-at-once";
 import { siteWordsOf } from "../../site-words";
+import type { CleanPlace } from "../clean";
 import type { LeadPorts } from "../ports";
 import { LeadRetry } from "./rules";
 
@@ -94,10 +95,13 @@ export async function readSitesBeforeJudge(
  * What a place's site says, as the judge is shown it (contracts PlaceFacts.site): null with no site, or none read. The
  * booking page it links to as the way to book comes first, read off the whole page: its main words leave out the menus
  * and footers a Book button sits in, and stop at the fact's size (5 Nov 2026: a salon that books online read as one
- * that takes calls).
+ * that takes calls). A listing whose website is its booking page says so, with nothing read and no credit spent.
  */
-export async function siteFactOf(sites: SiteReads, host: string | null): Promise<string | null> {
-  if (!host) return null;
+export async function siteFactOf(
+  sites: SiteReads,
+  { host, bookingPage }: Pick<CleanPlace, "host" | "bookingPage">,
+): Promise<string | null> {
+  if (!host) return bookingPage ? `This listing's website is its booking page: ${bookingPage}` : null;
   const page = await sites.read(host, SITE_READ_LEAST_MS);
   if (!page) return null;
   const booking = bookingPageOfSite(`https://${host}/`, page);

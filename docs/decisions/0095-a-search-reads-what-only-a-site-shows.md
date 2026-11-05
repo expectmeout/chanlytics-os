@@ -41,7 +41,10 @@ bound behind the page's last batch, where no judge follows, and an edge without 
    what precedes it is judged and committed, and the rest is the next job's, whole, so a slow search is a slow search and never
    a lot of "unknown". A batch that moved nothing waits fifteen seconds under a job name of its own, because this job already
    holds the name its offset would give. A site that answered nothing is another matter: that is the place's own, and it is
-   judged with `site: null`.
+   judged with `site: null`. A listing with nothing to read, under a plan that requires such a criterion
+   (`planNeedsASite`), is left out by code (`no_site`), no model paid, and still counts in the yield that sizes the next pass;
+   one whose website is its booking page tells the judge so, at no credit, and a plan that also asks for a site of its own
+   still leaves it out, in the judge's words.
 5. **A site is read once.** `siteReadsOf` holds one run of the collect's reads by host: the mark step finds the judge's page in
    hand, and two listings of one site are one read. Apify's contact step still visits the site too; it finds the emails and
    social links, returns no page, and costs less than a read, so it is not a duplicate to remove.

@@ -224,7 +224,7 @@ async function collectHeld(
   let judgeRefused: string | null = null;
 
   do {
-    const batch = takeBatch(card, items, cursor, judgeBatchPlaces(plan));
+    const batch = takeBatch(card, plan, items, cursor, judgeBatchPlaces(plan));
     // Identity, by what the workspace already holds: place ids, suppressions, shared details (decision 25).
     const { rows, toJudge, yoursAt } = await identified(p, round, batch.prepared, geo);
     const { said, judgments, refused, cutAt } = await judgedBatch(p, round, run.id, from, toJudge, sites);
@@ -400,7 +400,7 @@ async function judgedBatch(
   const cutAt = out.cutAt;
   const rest = cutAt === null ? unsaid : unsaid.filter((x) => x.index < cutAt);
   const site = new Map<Prepared, string | null>();
-  if (reads) await Promise.all(rest.map(async (x) => site.set(x, await siteFactOf(sites, x.clean.host))));
+  if (reads) await Promise.all(rest.map(async (x) => site.set(x, await siteFactOf(sites, x.clean))));
   const calls = await judgeInCalls(
     p.judge,
     round.plan,

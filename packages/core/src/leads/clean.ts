@@ -4,7 +4,7 @@
  * the registrable host, the state as its code, and the candidate emails
  * through contracts' cleaner. Nothing here is asked of the model.
  */
-import { cleanEmailCandidates, isSiteRoot, siteHost, stateCode, usPhone } from "@chanlytics/contracts";
+import { bookingPageOf, cleanEmailCandidates, isSiteRoot, siteHost, stateCode, usPhone } from "@chanlytics/contracts";
 import type { MapsPlace } from "./cards";
 
 export interface CleanPlace {
@@ -15,6 +15,8 @@ export interface CleanPlace {
   host: string | null;
   /** Whether the listing's website is that host's root, not a page under it (00237); null without a host. */
   root: boolean | null;
+  /** The page its listing names as its website, where that is its booking page and it has no host of its own. */
+  bookingPage: string | null;
   region: string | null;
   emails: string[];
   dropped: { email: string; why: string }[];
@@ -31,6 +33,7 @@ export function cleanPlace(raw: MapsPlace): CleanPlace {
     phoneSources: phone ? (onSite ? 2 : 1) : 0,
     host,
     root: host ? isSiteRoot(raw.website) : null,
+    bookingPage: host ? null : bookingPageOf(raw.website),
     region: stateCode(raw.state),
     emails: kept.slice(0, 10),
     dropped,
