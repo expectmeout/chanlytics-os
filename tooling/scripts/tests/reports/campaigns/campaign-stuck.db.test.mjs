@@ -8,10 +8,14 @@
  * product's own rule (`standingOfThread`) for every thread it could meet; the third the caps; the fourth what a reach-out
  * step is not, who may read and that nothing a person wrote comes out; the fifth the reply rule and `replied_at`. Each
  * test builds its own workspace; they are removed when the file ends. Runs against the database `supabase start`
- * builds on this machine, never production.
+ * builds on this machine, never production; the caps' test analyzes what it wrote through the CLI, which SUPABASE_CLI
+ * names when `supabase` is not on PATH.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { standingOfThread } from "../../../../../packages/contracts/src/conversations/standing.ts";
@@ -51,6 +55,28 @@ const T0 = Math.floor(Date.now() / 1000) * 1000;
 const STUCK = Number(/^(\d+) days$/.exec(STUCK_DAYS)?.at(1)) * DAY;
 assert.ok(STUCK > 0, `STUCK_DAYS is a whole number of days in words: ${STUCK_DAYS}`);
 const PHONE = "+1 555 0142";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+
+/**
+ * The tables the caps' world is written to and the read plans over, analyzed as their owner (PostgREST serves no
+ * ANALYZE), so the read is planned on statistics that know its rows, as production's are. A vacuum or an analyze that
+ * finds a table with pages and no live rows, as the suites' cleanups leave them, records no rows over those pages, and
+ * the planner then takes the table for empty however much is written after, until autovacuum looks again (a minute at
+ * the soonest). On those statistics the read joined the caps' thousand messages, thousand runs and five hundred sends
+ * in nested loops, one inside the other: a million index scans of the sends and half a billion rows thrown away, until
+ * the service role's 30 seconds canceled it (main's Database job on 2 and 3 Nov 2026, and on 14, 18 and 27 Oct).
+ */
+function analyzeWhatTheCapsWrote() {
+  const tables = ["sequence_batches", "sequence_sends", "messages", "conversations", "templates"];
+  const r = spawnSync(CLI, ["db", "query", "--local", `analyze ${tables.map((t) => `public.${t}`).join(", ")}`], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  assert.equal(r.status, 0, `${CLI} db query: ${[r.stderr, r.stdout].join("\n").trim().slice(-800)}`);
+}
 
 /** A workspace with the message (template) its runs send and the playbook its moments belong to. */
 async function lab(slug) {
@@ -668,6 +694,7 @@ test("each list stops at its cap, the waiting oldest first", { skip }, async () 
   });
   await insert("templates", [...Array.from({ length: 101 }, (_, i) => rejected(i, "en_US")), rejected(99, "es_ES")]);
 
+  analyzeWhatTheCapsWrote();
   const answer = await stuck(l);
   const wantedWaiting = waiting
     .toSorted((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || byId(a, b))
