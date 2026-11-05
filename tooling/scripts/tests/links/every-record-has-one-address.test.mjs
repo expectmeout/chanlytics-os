@@ -88,6 +88,7 @@ const RECORDS = [
   { ref: { kind: "channel" }, route: "admin/integrations" },
   { ref: { kind: "team" }, route: "admin/team" },
   { ref: { kind: "billing" }, route: "admin/billing" },
+  { ref: { kind: "file" }, route: "admin/files" },
 ];
 
 test("every kind of record says where it opens, or why it opens nowhere, and never both", () => {

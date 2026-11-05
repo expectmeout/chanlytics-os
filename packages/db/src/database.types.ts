@@ -8531,10 +8531,7 @@ export type Database = {
         Args: { p_ids: string[]; p_tenant_id: string }
         Returns: number
       }
-      file_listing_aside: {
-        Args: { p_tenant_id: string }
-        Returns: number
-      }
+      file_listing_aside: { Args: { p_tenant_id: string }; Returns: number }
       file_look_keep: {
         Args: {
           p_edition: number

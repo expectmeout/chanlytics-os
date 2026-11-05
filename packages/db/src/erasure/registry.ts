@@ -429,7 +429,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // erasure of a person reaches neither, and the owner deleting that file is the remedy, which blanks all three.
   files: {
     ...all(WITH_WORKSPACE, "look", "name", "source_ref"),
-    ...all(NOT_PERSONAL, "mime", "fingerprint", "claude_copy"),
+    ...all(NOT_PERSONAL, "fingerprint", "claude_copy"),
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },

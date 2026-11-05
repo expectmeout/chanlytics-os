@@ -94,6 +94,13 @@ export const ASK_PAGES: JumpEntry[] = [
     also: ["hours", "booking link", "booking tool"],
   },
   {
+    label: "Files",
+    to: "admin/files",
+    kind: "page",
+    sub: "every photo the business keeps",
+    also: ["photos", "pictures", "images"],
+  },
+  {
     label: "How it answers",
     to: "admin/receptionist",
     kind: "page",
