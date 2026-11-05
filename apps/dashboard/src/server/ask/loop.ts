@@ -544,7 +544,7 @@ async function readCall(turn: TurnState, b: RoundBlock) {
   return timed(turn, calledName(b.name, args), async () => {
     const out = await ports.tool(tc, { name: b.name, input: args });
     if (!out.isError) turn.reads++;
-    return { result: out.result, isError: out.isError };
+    return { result: out.result, isError: out.isError, ...(out.pictures ? { pictures: out.pictures } : {}) };
   });
 }
 

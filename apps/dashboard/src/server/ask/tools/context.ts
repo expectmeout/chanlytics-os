@@ -104,12 +104,26 @@ export interface ToolContext {
   endsAt?: number;
 }
 
+/** A picture a read opens, as the request carries it: what it is called, and the id only the edge's copy has. */
+export interface ToolPicture {
+  name: string;
+  fileId: string;
+}
+
+/**
+ * Where a read's handler says which pictures it opened, beside the words it answers. A symbol, so what the model reads as the
+ * result's JSON can never hold an id: the ids go only into the request's image blocks (round.ts resultBlocks).
+ */
+export const PICTURES = Symbol("pictures");
+
 export interface ToolOutcome {
   /** What the model sees. */
   result: string;
   isError: boolean;
   /** For the palette's trace line. */
   label: string;
+  /** What it sees beside those words. */
+  pictures?: readonly ToolPicture[];
 }
 
 export interface ProposalOutcome {

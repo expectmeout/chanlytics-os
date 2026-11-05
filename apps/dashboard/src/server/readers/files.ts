@@ -1,5 +1,5 @@
 import "server-only";
-import { recordOrNull, type FileDto, type FilePeople, type FilesPageDto } from "@chanlytics/contracts";
+import { recordOrNull, type FileDto, type FileForAsk, type FilePeople, type FilesPageDto } from "@chanlytics/contracts";
 import { filesOf, type FileMemberRow } from "@chanlytics/db";
 import { stamp, type Reader } from "./index";
 
@@ -32,6 +32,34 @@ function fileDtoOf(r: FileMemberRow): FileDto {
     created_at: r.created_at,
   };
 }
+
+const wordsIn = (raw: unknown): string[] =>
+  Array.isArray(raw) ? raw.filter((w): w is string => typeof w === "string") : [];
+const qualityWord = (raw: unknown): FileForAsk["quality"]["sharp"] =>
+  raw === "good" || raw === "ok" || raw === "poor" ? raw : null;
+
+/** A row as Ask reads it: what the page does, and the rest of what the look saw. */
+function fileForAskOf(r: FileMemberRow): FileForAsk {
+  const look = recordOrNull(r.look);
+  const quality = recordOrNull(look?.quality);
+  const subject = Array.isArray(look?.subject) && look.subject.length === 4 ? look.subject : null;
+  return {
+    ...fileDtoOf(r),
+    text_seen: wordsIn(look?.text_seen),
+    quality: { sharp: qualityWord(quality?.sharp), light: qualityWord(quality?.light) },
+    colors: wordsIn(look?.colors),
+    subject: subject as FileForAsk["subject"],
+  };
+}
+
+/** What Ask reads of the workspace's files, its line in the facts and its catalog alike. */
+export const filesForAsk: Reader<undefined, { files: FileForAsk[] }> = {
+  name: "filesForAsk",
+  async read(rc) {
+    const rows = await filesOf(rc.ctx.supabase, rc.tenantId);
+    return { data: { files: rows.map(fileForAskOf) }, rows: [], stamp: stamp() };
+  },
+};
 
 /** GET files, as the route answers it: what the workspace keeps, newest first. */
 export const files: Reader<undefined, FilesPageDto> = {

@@ -5,6 +5,7 @@ import {
   MIN_MS,
   answerText,
   detectLanguage,
+  filesLineOf,
   nextNotAsked,
   policyClassOffered,
   replacedOutcome,
@@ -24,6 +25,7 @@ import type { Member } from "../route";
 import { log } from "@/server/log";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
+import { filesForAsk } from "../readers/files";
 import { memberViews } from "../readers/notifications";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
 import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
@@ -98,7 +100,7 @@ interface PreparedTurn {
  * (warm.ts), so the two write the same block. Kept across turns by the reader's own cache (five minutes).
  */
 export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFacts; timezone: string }> {
-  const [{ name, timezone }, cfg, policies] = await Promise.all([
+  const [{ name, timezone }, cfg, policies, library] = await Promise.all([
     load(rc, readers.facts, undefined).then((r) => r.data),
     load(rc, readers.config, undefined).then((r) => r.data),
     // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
@@ -106,11 +108,17 @@ export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFa
       (r) => r.data,
       () => [],
     ),
+    // What the business's files are, in a line. A read that fails says nothing, and the files read still answers.
+    load(rc, filesForAsk, undefined).then(
+      (r) => r.data.files,
+      () => null,
+    ),
   ]);
   // The rows the pane draws (contracts policyClassOffered).
   const offered = policies.filter((p) => policyClassOffered(p.class));
   // At the turn's clock (rc.now), so the notes Ask is told are the ones the receptionist is told today.
-  return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered), timezone };
+  const facts = workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered);
+  return { facts: { ...facts, filesLine: library ? filesLineOf(library, timezone) : null }, timezone };
 }
 
 /** How long a question waits for the thread's last question to be answered, and how often it looks again. */

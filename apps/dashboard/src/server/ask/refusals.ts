@@ -61,10 +61,12 @@ export const DROP_EVENTS: Record<Dropped, DashboardLogEvent> = {
 
 /**
  * A refusal of a replayed thinking block (D12): its signature invalid, or bound to a different conversation -- the
- * API decides it before any output, so the round is asked again with the words instead.
+ * API decides it before any output, so the round is asked again with the words instead. Or of a picture it replays that
+ * Anthropic no longer holds (a file deleted while the chain was warm): words alone carry its name and what it showed, and Ask
+ * opens it again if it can.
  */
 function replayRefused(message: string): boolean {
-  return /^400\b/.test(message) && /signature|bound to a different conversation/i.test(message);
+  return /^4(00|04)\b/.test(message) && /signature|bound to a different conversation|file.*not found/i.test(message);
 }
 
 /** A refusal of the request for its search_result blocks, or their cache marks (D14). */

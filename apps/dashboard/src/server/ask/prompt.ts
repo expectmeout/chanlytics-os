@@ -259,6 +259,8 @@ export const ASK_EXAMPLES = [
 ] as const;
 
 export interface WorkspaceFacts {
+  /** What the business's files are, in a line (contracts filesLineOf); none where they could not be read. */
+  filesLine?: string | null;
   businessName: string;
   timezone: string;
   hoursLines: string[];
@@ -359,6 +361,7 @@ export function factsBlock(f: WorkspaceFacts): string {
     lines.push(`Notes the receptionist follows: ${f.notes.map(noteAsTold).join(" | ")}.`);
   if (f.bookingNotes.length) lines.push(`Booking notes: ${f.bookingNotes.join("; ")}.`);
   lines.push(calendarFact(f));
+  if (f.filesLine) lines.push(f.filesLine);
   return lines.join("\n");
 }
 

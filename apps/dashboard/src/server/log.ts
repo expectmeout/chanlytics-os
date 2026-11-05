@@ -28,6 +28,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "alert_test_failed",
   "ask_answer_beside_read",
   "ask_answer_beside_refused_card",
+  "ask_file_copies_failed",
   "ask_answer_claimed_write",
   "ask_answer_not_json",
   "ask_answer_tail",
