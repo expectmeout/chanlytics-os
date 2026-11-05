@@ -33,8 +33,11 @@ export const PAGE_READS = {
   logo: { timeoutMs: 10 * SECOND_MS, maxChars: 96_000, fresh: true, brand: true },
   /** A cold email's opening: its head and first words, inside a check's own time. */
   opening: { timeoutMs: 4 * SECOND_MS, maxChars: 200_000 },
-  /** A lead's home page, for its mark and the judge: the head and the first words, in what time its step has left. */
-  lead: { timeoutMs: 10 * SECOND_MS, maxChars: 96_000 },
+  /**
+   * A lead's home page, for its mark and the judge, in what time its step has left: as far down as its links go, since
+   * a site builder's page holds its booking link deep in (a real one, 434,649 characters in, on 5 Nov 2026).
+   */
+  lead: { timeoutMs: 10 * SECOND_MS, maxChars: 1_000_000 },
 } as const satisfies Record<string, PageRead>;
 
 /** Whether a page can be read here at all: a reader stood in, or its key set. Without one every page reads as no page. */
