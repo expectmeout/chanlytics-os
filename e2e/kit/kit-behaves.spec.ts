@@ -129,6 +129,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     ready: "section.sheet.sheet-rests",
   },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
+  { entry: "menu-kit-who", bring: (p) => p.getByTestId("menu-who-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-lines", bring: (p) => p.getByTestId("menu-lines-open").click(), ready: ".more-menu .more-head" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },
