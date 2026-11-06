@@ -187,9 +187,23 @@ const surfaces = {
   "Connections' card": () => AdAccounts({ flash() {} }),
 };
 
+/** Draw with an example kept for the tab: a workspace's page is not about the sample until one is chosen. */
+function keeping(example, draw) {
+  const kept = "ads-mock-scenario";
+  globalThis.sessionStorage.setItem(kept, example);
+  try {
+    return draw();
+  } finally {
+    globalThis.sessionStorage.removeItem(kept);
+  }
+}
+
 for (const [name, draw] of Object.entries(surfaces)) {
   test(`${name} says it is a preview in a workspace, in the words of contracts, and says nothing more in a demo`, () => {
-    const note = byTestId(preview(draw), NOTE);
+    const note = byTestId(
+      keeping("running", () => preview(draw)),
+      NOTE,
+    );
     assert.ok(note, "the note is drawn");
     assert.equal(textOf(note), `${page.EXAMPLE.preview.word} ${page.EXAMPLE.preview.said}`);
     assert.equal(byTestId(demo(draw), NOTE), null);
@@ -199,7 +213,11 @@ for (const [name, draw] of Object.entries(surfaces)) {
 test("Connections' card says it in the note, which a phone draws, and not in its second line, which a phone does not", () => {
   const sub = (tree) => all(tree, (n) => n.type === "span" && classes(n).includes("rec-card-sub"));
   const card = surfaces["Connections' card"];
-  assert.deepEqual(sub(preview(card)), [], "REGRESSION: on a phone the sample accounts said Connected, unlabelled");
+  assert.deepEqual(
+    sub(keeping("running", () => preview(card))),
+    [],
+    "REGRESSION: on a phone the sample accounts said Connected, unlabelled",
+  );
   assert.equal(textOf(sub(demo(card))[0]), page.CONNECT.sub, "a demo's card keeps its line");
 });
 

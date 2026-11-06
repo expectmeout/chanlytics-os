@@ -135,9 +135,12 @@ const FIRST_CAME_WORDS: Words = { ...PERSON_CAME_FROM_WORDS, ad: "An ad", [UNREC
 /** "Not recorded" is a catch-all, so it reads last whatever its count. */
 export const firstCameEntries = (byVia: Counts): MixEntry[] => lastOf(ranked(byVia, FIRST_CAME_WORDS), UNRECORDED);
 
+/** Whether an entry is a way in that was kept. */
+export const firstCameRecorded = (id: string): boolean => id !== UNRECORDED;
+
 /** How many of the entries are a way in that was kept: a person whose way was not is counted in none. */
 export const firstCameKnown = (entries: readonly MixEntry[]): number =>
-  entries.filter(([id]) => id !== UNRECORDED).reduce((n, [, , value]) => n + value, 0);
+  entries.filter(([id]) => firstCameRecorded(id)).reduce((n, [, , value]) => n + value, 0);
 
 export const firstCameLine = (known: number, fresh: number): string =>
   `${known} of ${fresh} new people have a recorded way in.`;

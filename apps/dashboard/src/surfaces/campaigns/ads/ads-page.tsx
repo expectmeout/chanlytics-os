@@ -26,6 +26,7 @@ import { ADS_WORDS, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts"
 import type { AdPlatform, AdsAddress } from "@chanlytics/contracts";
 import {
   CHOOSE,
+  EXAMPLE,
   GATE,
   HEAD,
   NEW_AD,
@@ -51,6 +52,8 @@ import { useCmPhone } from "../parts/split";
 import { AskLine } from "./ask-line";
 import { AdDrawer } from "./drawer/drawer";
 import { Figures } from "./figures";
+import { useFirstTouch } from "./first-touch";
+import type { FirstTouchHere } from "./first-touch";
 import { ChooseCards, NoAdsCard, V0Page } from "./hero";
 import { AdsLedger } from "./ledger/ledger";
 import { AdsPhone } from "./ledger/phone";
@@ -58,7 +61,8 @@ import { NewAd } from "./new/new-ad";
 import { PreviewNote } from "./preview-note";
 import { ResultsSheet } from "./results/results-sheet";
 import { PaneLine, ReadNotes } from "./standing";
-import { tellOf, useAdsStore } from "./store";
+import { adsInPreview } from "./shown";
+import { adsOpening, tellOf, useAdsStore } from "./store";
 import { CameBackBlock, ComingBlock, WaitingBlock } from "./tiles";
 import { useAdsNav, useGroupBy } from "./use-ads";
 
@@ -124,6 +128,8 @@ interface BodyProps {
   /** The row the keys' cursor is on, if any. */
   cursor: string | null;
   acts: PageActs;
+  /** Where the counts of nothing connected stand. */
+  touch: FirstTouchHere;
 }
 
 /** Under the head, on a desk the money-calm line; on a phone the sentence, the muted line, then the money-calm line. */
@@ -180,7 +186,7 @@ function DeskRunning({ vm, ask, arrived, cursor, acts }: BodyProps) {
 /** The page's body: v0, an account to choose, the first ad's card, or the ads. */
 function AdsBody(p: BodyProps) {
   const { vm, phone, ask, arrived, acts } = p;
-  if (vm.v0) return <V0Page v0={vm.v0} />;
+  if (vm.v0) return <V0Page v0={vm.v0} touch={p.touch} />;
   if (vm.noAds) {
     return vm.noAds.choose.length > 0 ? (
       <ChooseCards choose={vm.noAds.choose} onChoose={acts.onChoose} />
@@ -233,15 +239,24 @@ interface AdsPageProps {
   param: string;
 }
 
+/** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
+const openingOf = (address: AdsAddress) =>
+  address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
+
 export function AdsPage({ param }: AdsPageProps) {
   const address = parseAds(param);
   const nav = useAdsNav(address);
-  const { read, config, example, setExample, verbs, readAgain } = useAdsStore();
+  const { read, config, example, setExample, verbs, readAgain } = useAdsStore(openingOf(address));
   const [toastNode, flash] = useLegacyToast();
   const phone = useCmPhone();
   const [groupBy, setGroupBy] = useGroupBy();
   const [hushed, setHushed] = useState<string | null>(null);
-  const vm = useMemo(() => adsModel(read, config, groupBy), [read, config, groupBy]);
+  const today = example === "v0" && adsInPreview();
+  const touch = useFirstTouch(today);
+  const vm = useMemo(
+    () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
+    [read, touch.firstTouch, config, groupBy],
+  );
   const keys = useAdsLedgerKeys(vm, address);
   const ask = vm.ask && askKey(vm.ask) !== hushed ? vm.ask : null;
   const acts: PageActs = {
@@ -295,7 +310,7 @@ export function AdsPage({ param }: AdsPageProps) {
         sub={<HeadSentence head={vm.head} />}
         right={<HeadActs mode={vm.mode} onNew={acts.onNew} />}
       />
-      <PreviewNote />
+      <PreviewNote said={today ? EXAMPLE.preview.today : undefined} />
       <AdsUnder vm={vm} phone={phone} />
       <PaneLine
         said={vm.pane}
@@ -305,7 +320,7 @@ export function AdsPage({ param }: AdsPageProps) {
         onExample={setExample}
       />
       <ReadNotes failed={vm.failed} onAgain={readAgain} />
-      <AdsBody vm={vm} phone={phone} ask={ask} arrived={keys.arrived} cursor={keys.cursor} acts={acts} />
+      <AdsBody vm={vm} phone={phone} ask={ask} arrived={keys.arrived} cursor={keys.cursor} acts={acts} touch={touch} />
       <AdDrawer
         id={address.ad}
         read={read}

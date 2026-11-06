@@ -169,7 +169,7 @@ export type {
   GroupVM,
   HeadVM,
 } from "./page";
-export { eachInTouch, noAdsOf, pageTotals, phoneOf, tilesOf, v0Of } from "./page-parts";
+export { eachInTouch, firstTouchOf, noAdsOf, pageTotals, phoneOf, tilesOf, v0Of } from "./page-parts";
 export type {
   BlockedVM,
   ChooseVM,

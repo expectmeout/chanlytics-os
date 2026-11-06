@@ -5,6 +5,8 @@
  * the rest of the models.
  */
 import { appointmentWords } from "../journey/appointment-word";
+import type { PeopleSeriesDto } from "../reports/people/people-record";
+import { firstCameEntries, firstCameRecorded } from "../reports/people/people-words";
 import { joinWords } from "../shared/words";
 import type { AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "./ads";
 import { addDays, daysBetween } from "./ads";
@@ -359,26 +361,48 @@ export interface V0VM {
   /** The empty workspace's two lines, instead of the lead. */
   empty: { lead: string; line: string } | null;
   /** BarList rows; `own` is the one in ink, the rest in one quiet hue. */
-  rows: { label: string; n: number; own: boolean }[];
+  rows: NonNullable<AdsRead["firstTouch"]>["rows"];
+  /** Said in their place where the counts were read and there is nobody; null while they are not read. */
+  nobodyNew: string | null;
   notes: string[];
   door: DoorVM;
   platforms: { id: AdPlatform; name: string; line: string; word: string }[];
   next: string;
 }
 
+/**
+ * How new people first reached the business, from People's own read of the window: the same counts, in the same words, as Reports ›
+ * People says them, so the page and the report cannot differ. The way in that is an ad is `ad` there too.
+ */
+export function firstTouchOf(
+  series: Pick<PeopleSeriesDto, "first_came" | "today" | "end" | "days">,
+): AdsRead["firstTouch"] {
+  return {
+    since: addDays(series.end ?? series.today, 1 - series.days),
+    rows: firstCameEntries(series.first_came.by_via).map(([id, label, n]) => ({
+      label,
+      n,
+      own: id === "ad",
+      recorded: firstCameRecorded(id),
+    })),
+  };
+}
+
 export function v0Of(read: AdsRead): V0VM {
   const rows = read.firstTouch ? read.firstTouch.rows : [];
-  const unrecorded = rows.at(-1);
-  const recorded = sum(rows.slice(0, -1).map((r) => r.n));
+  const unrecorded = sum(rows.filter((r) => !r.recorded).map((r) => r.n));
+  const recorded = sum(rows.filter((r) => r.recorded).map((r) => r.n));
   const own = sum(rows.filter((r) => r.own).map((r) => r.n));
   const nobody = own === 0;
   return {
     lead: nobody ? null : V0.lead(own, recorded),
-    muted: unrecorded && unrecorded.n > 0 && !nobody ? V0.more(unrecorded.n) : null,
+    muted: unrecorded > 0 && !nobody ? V0.more(unrecorded) : null,
     empty: nobody ? { lead: V0.emptyLead, line: V0.emptyLine } : null,
-    rows: nobody ? [] : rows,
-    notes: V0.notes,
-    door: { words: V0.door, to: ADS_DOORS.people },
+    // How they came is worth saying whether or not an ad brought any of them.
+    rows,
+    nobodyNew: read.firstTouch !== null && rows.length === 0 ? V0.nobodyNew : null,
+    notes: nobody ? V0.emptyNotes : V0.notes,
+    door: { words: rows.length > 0 ? V0.door : V0.doorNobody, to: ADS_DOORS.people },
     platforms: PLATFORMS.map((id) => ({
       id,
       name: PLATFORM_WORD[id],

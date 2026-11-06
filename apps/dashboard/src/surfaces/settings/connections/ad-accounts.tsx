@@ -5,8 +5,9 @@
  * and the presses: Connect (which connects nothing here and says so), Change account, Disconnect, and the owner's setting that
  * pauses ads when the way in closes.
  *
- * The accounts are the Ads page's fixtures (useAdsStore: the example chosen there is the one drawn here, `running` at first),
- * and a press changes a copy held by this card (ad-accounts-mock.ts), never the fixtures and never anything outside the tab.
+ * The accounts are the Ads page's fixtures (useAdsStore: the example chosen there is the one drawn here; in a preview nothing
+ * connected at first, which is what is true), and a press changes a copy held by this card (ad-accounts-mock.ts), never the fixtures
+ * and never anything outside the tab.
  * Disconnect while an ad runs is refused, with a door to Ads (decision 8); with none running it asks first. The words are
  * contracts' (words-connect.ts) and so is the fold that makes the rows (connectModel). Every press is the owner's (the pane's
  * owner gate, `team`): anyone else sees the rows and is told what the press would have done.
@@ -15,7 +16,7 @@ import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 import { ADS_ROUTE } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPlatform } from "@chanlytics/contracts";
-import { CONNECT, connectModel } from "@chanlytics/contracts/ads-page";
+import { CONNECT, EXAMPLE, connectModel } from "@chanlytics/contracts/ads-page";
 import type { ConnectRowVM } from "@chanlytics/contracts/ads-page";
 import { PreviewNote } from "../../campaigns/ads/preview-note";
 import { adsInPreview } from "../../campaigns/ads/shown";
@@ -290,7 +291,7 @@ function pauseRow(on: boolean, set: (on: boolean) => void) {
 }
 
 export function AdAccounts({ flash }: { flash: (f: LegacyFlash) => void }) {
-  const { read } = useAdsStore();
+  const { read, example } = useAdsStore();
   const [mine, setMine] = useState<Partial<Record<AdPlatform, AdAccountRead>>>({});
   const [ask, setAsk] = useState<Ask>(null);
   const [picks, setPicks] = useState<Partial<Record<AdPlatform, string>>>({});
@@ -339,7 +340,7 @@ export function AdAccounts({ flash }: { flash: (f: LegacyFlash) => void }) {
         {/* A card's second line is not drawn on a phone, where sample accounts would say Connected with nothing to say otherwise. */}
         {adsInPreview() ? null : <span className="rec-card-sub">{CONNECT.sub}</span>}
       </div>
-      <PreviewNote className="set-ads-note" />
+      <PreviewNote said={example === "v0" ? EXAMPLE.preview.connectLater : undefined} className="set-ads-note" />
       {rows.map((r) => platformRow(r, ask, picks[r.id], acts))}
       {pauseRow(pauses, setPause)}
     </section>

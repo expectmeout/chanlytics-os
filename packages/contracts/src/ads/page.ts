@@ -608,11 +608,7 @@ export function adsModel(read: AdsRead, config: AdsConfig, by: AdsGroupBy = "doo
   const base: AdsVM = {
     mode,
     head: pageHead(mode, p, read),
-    pane: reading
-      ? HEAD.reading(ownersOf(rv.reading))
-      : mode === "v0" && since !== null
-        ? HEAD.v0Read(since)
-        : HEAD.read(readTime(read)),
+    pane: reading ? HEAD.reading(ownersOf(rv.reading)) : mode === "v0" ? HEAD.v0Read(since) : HEAD.read(readTime(read)),
     standing: pageStanding(read),
     figures: [],
     counted: null,
