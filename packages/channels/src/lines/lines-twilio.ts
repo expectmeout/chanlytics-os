@@ -9,6 +9,7 @@
  * and parameter without a network, and the edge supplies fetch.
  */
 import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
+import { deleteCampaignRequest } from "./a2p/brand-campaign";
 import type { AvailableNumber, LineProvider, ProviderAccount, ReceivedText } from "./lines";
 
 export interface TwilioAnswer {
@@ -323,6 +324,11 @@ async function deleteTrunk(http: TwilioHttp, acct: ProviderAccount, trunkSid: st
   if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
 }
 
+async function deleteCampaign(http: TwilioHttp, acct: ProviderAccount, serviceSid: string, campaignSid: string) {
+  const a = await http(acct, "DELETE", deleteCampaignRequest(serviceSid, campaignSid).url);
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete campaign");
+}
+
 async function createCredentialList(http: TwilioHttp, acct: ProviderAccount, friendlyName: string) {
   const b = need(
     await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
@@ -477,6 +483,7 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     releaseNumber: (acct, numberSid) => releaseNumber(http, acct, numberSid),
     createTrunk: (acct, o) => createTrunk(http, acct, o),
     deleteTrunk: (acct, trunkSid) => deleteTrunk(http, acct, trunkSid),
+    deleteCampaign: (acct, serviceSid, campaignSid) => deleteCampaign(http, acct, serviceSid, campaignSid),
     createCredentialList: (acct, friendlyName) => createCredentialList(http, acct, friendlyName),
     addCredential: (acct, listSid, username, password) => addCredential(http, acct, listSid, username, password),
     attachCredentialList: (acct, trunkSid, listSid) => attachCredentialList(http, acct, trunkSid, listSid),

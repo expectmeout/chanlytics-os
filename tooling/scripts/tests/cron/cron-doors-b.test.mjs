@@ -2686,7 +2686,7 @@ test("lines (A2): a release Retell refuses stops before the carrier, keeps the r
   assert.equal(tables.tenant_channels[0].status, "active");
   assert.deepEqual(
     net.mail().map((m) => [m.to, m.subject]),
-    [[["ops@platform.test"], `A number could not be given back (workspace ${tenant(360)})`]],
+    [[["ops@platform.test"], `[Chanlytics] A number could not be given back (workspace ${tenant(360)})`]],
   );
   assert.match(net.mail()[0].text, /Retell delete-phone-number: HTTP 500/);
 });
