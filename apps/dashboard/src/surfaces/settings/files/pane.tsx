@@ -18,6 +18,8 @@ import {
   fileNameOf,
   fileSaidOf,
   fileViewOf,
+  POST_SHAPES,
+  POST_WORDS,
   filesSayOf,
   inboxCleanOf,
   shelfOf,
@@ -187,11 +189,24 @@ function FileActs({ file, may, busy, say, remove, ask }: SheetPress & { remove: 
         testid="fl-remove-ask"
       />
     );
-  const download = (
-    <Button variant="quiet" href={`${fileViewOf(file.id)}?download`} data-testid="fl-download">
-      {W.download}
-    </Button>
-  );
+  // A post Ask made is kept in a shape each; anything else is the one picture.
+  const download =
+    file.source === "made" ? (
+      POST_SHAPES.map((shape) => (
+        <Button
+          key={shape}
+          variant="quiet"
+          href={`${fileViewOf(file.id)}?download&shape=${shape}`}
+          data-testid={`fl-download-${shape}`}
+        >
+          {POST_WORDS.shapes[shape]}
+        </Button>
+      ))
+    ) : (
+      <Button variant="quiet" href={`${fileViewOf(file.id)}?download`} data-testid="fl-download">
+        {W.download}
+      </Button>
+    );
   const askAboutIt = (
     <Button variant="quiet" onClick={ask} data-testid="fl-ask">
       <Icon name="three" size={13} />

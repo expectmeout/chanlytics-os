@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-365 handlers in 57 domains.
+367 handlers in 57 domains.
 
 ## activity
 
@@ -956,6 +956,39 @@ Writes; for a member of the workspace the request names, partner or above; count
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `ids` | array of string (uuid) | yes | at least 1; at most 1000 |
+
+### `POST /api/v1/files/post`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `file_id` | string (uuid) | yes |  |
+| `line` | string | yes | at least 1 characters; at most 60 characters |
+| `over` | string or null | yes |  |
+| `under` | string or null | yes |  |
+| `book` | boolean | yes |  |
+| `words_at` | one of `"top"`, `"bottom"` | yes |  |
+| `voice` | one of `"classic"`, `"modern"` | yes |  |
+| `language` | one of `"en"`, `"es"` | yes |  |
+| `people_agreed` | boolean | yes |  |
+
+### `POST /api/v1/files/post/preview`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `file_id` | string (uuid) | yes |  |
+| `line` | string | yes | at least 1 characters; at most 60 characters |
+| `over` | string or null | yes |  |
+| `under` | string or null | yes |  |
+| `book` | boolean | yes |  |
+| `words_at` | one of `"top"`, `"bottom"` | yes |  |
+| `voice` | one of `"classic"`, `"modern"` | yes |  |
+| `language` | one of `"en"`, `"es"` | yes |  |
+| `people_agreed` | boolean | yes |  |
+| `shape` | one of `"portrait"`, `"square"`, `"story"` | no |  |
 
 ### `POST /api/v1/files/start`
 

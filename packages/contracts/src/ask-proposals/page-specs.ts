@@ -47,6 +47,7 @@ import {
 } from "./sequences";
 import type { ProposalGate, ProposalSpec } from "./spec";
 import { settingsSpec } from "./workspace";
+import { postSpec } from "./post";
 import { memoryChangeSpec, memoryForgetSpec, memorySpec } from "./memory";
 
 /**
@@ -111,6 +112,7 @@ export const PAGE_SPECS = {
   // What Ask remembers (decision 0070): a line kept by Ask's card or added on Settings › Memory, and the pane's change
   // and forget.
   memory: memorySpec,
+  post: postSpec,
   memory_change: memoryChangeSpec,
   memory_forget: memoryForgetSpec,
 } satisfies Record<Exclude<AskProposal["kind"], AskOnlyKind>, ProposalSpec>;

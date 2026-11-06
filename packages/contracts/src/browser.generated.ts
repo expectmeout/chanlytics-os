@@ -199,6 +199,8 @@ export { SENDER_KINDS, SENDER_READ_MAX_TOKENS, SENDER_READING_SCHEMA, senderLeft
 export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELVES, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, FILE_WORDS, fileFolderOf, fileNameOf, filePathOf, FILES_BUCKET, FILES_MAX, fileSaidOf, filesSayOf, fileViewOf, inboxCleanOf, isFileMime, shelfOf, whoStandsOf } from "./files/files";
 export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached } from "./files/line";
 export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, fileLookAsked, fileLookOf } from "./files/look";
+export { POST_LIMITS, POST_SHAPES, POST_VOICES, POST_WORDS, postPlanOf } from "./files/post";
+export { postBandOf, postPathOf, postPhotoProblem, postPlanProblem, postWordsProblem } from "./files/post-check";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";
 export { bookingPageOffered, checkedWords, connectionWords, gainedOver, GOOGLE_SHOWN_REVIEWS, hoursFromGoogle, listingFactsOf, listingLine, NEW_REVIEW_NEWS, placesQueryOf, ratingWords, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, reviewIsNew, reviewNoticeIsAbout, reviewSnippet, reviewsWords, starsOf, toGoogleReviewVM, toGoogleVM } from "./google/google";

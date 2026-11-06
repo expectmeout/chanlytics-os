@@ -147,6 +147,9 @@ const ASK_TEXT = {
     kStyle: "your answers",
     kBooking: "booking",
     kMemory: "memory",
+    kPost: "post",
+    postDrawing: "Drawing the picture",
+    postShareFailed: "This phone can't share that. Download it instead.",
     kFix: "to fix first",
   },
   es: {
@@ -282,6 +285,9 @@ const ASK_TEXT = {
     kStyle: "tus respuestas",
     kBooking: "reserva",
     kMemory: "memoria",
+    kPost: "publicación",
+    postDrawing: "Dibujando la imagen",
+    postShareFailed: "Este teléfono no puede compartirla. Descárgala.",
     kFix: "por arreglar antes",
   },
 };

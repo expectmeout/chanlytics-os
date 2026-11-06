@@ -31,7 +31,7 @@ export const FILE_NAME_MAX = 60;
 export const FILE_STATUSES = ["inbox", "filed", "set_aside"] as const;
 export type FileStatus = (typeof FILE_STATUSES)[number];
 
-export const FILE_SOURCES = ["upload", "google_profile", "google_listing", "website"] as const;
+export const FILE_SOURCES = ["upload", "google_profile", "google_listing", "website", "made"] as const;
 export type FileSource = (typeof FILE_SOURCES)[number];
 
 export const FILE_SHOWS = [
@@ -168,15 +168,19 @@ export const FILE_SHELVES = [
   "team",
   "products",
   "brand",
+  "made",
   "other",
   "set_aside",
 ] as const;
 export type FileShelf = (typeof FILE_SHELVES)[number];
 
 /** The one shelf a file stands on: its place in the pile first, then what it shows. "all" is no file's own. */
-export function shelfOf(f: Pick<FileDto, "status" | "shows">): Exclude<FileShelf, "all"> {
+export function shelfOf(
+  f: Pick<FileDto, "status" | "shows"> & { source?: FileSource | undefined },
+): Exclude<FileShelf, "all"> {
   if (f.status === "inbox") return "inbox";
   if (f.status === "set_aside") return "set_aside";
+  if (f.source === "made") return "made";
   switch (f.shows) {
     case "storefront":
     case "interior":
@@ -249,6 +253,7 @@ export const FILE_WORDS = {
     team: "Team",
     products: "Products & menus",
     brand: "Logos & graphics",
+    made: "Made by Ask",
     other: "Other",
     set_aside: "Set aside",
   } satisfies Record<FileShelf, string>,
@@ -279,6 +284,7 @@ export const FILE_WORDS = {
     google_profile: "From your Google profile",
     google_listing: "From your Google listing",
     website: "From your website",
+    made: "Made with Ask",
   } satisfies Record<FileSource, string>,
   looking: "Ask is looking at it",
   notRead: "Ask couldn't read this one yet. It's still yours to use.",

@@ -14,7 +14,9 @@ import {
 } from "@chanlytics/contracts";
 import type { AskApi, CommitResult } from "@/legacy-bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
+import { POST_WORDS } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
+import { AskPostCard } from "./card-post";
 import { AskCardActs, AskCardChange, AskCardHead, AskCardReceipt, AskSheet, type CardFold } from "./card-parts";
 import { askCalls, canDo, gate, settingsVersion } from "./shell";
 import type { LineWords } from "./words";
@@ -269,6 +271,8 @@ export const AskCard = ({
       <AskCardHead p={p} t={t} fold={idle ? step.fold : null} />
       {shut || decided ? null : lead ? (
         <AskSearchCard lead={lead} t={t} alike={step.alike} />
+      ) : p.kind === "post" ? (
+        <AskPostCard p={p} t={t} />
       ) : (
         <AskCardChange p={p} t={t} idle={idle} alike={step.alike} more={more} />
       )}
@@ -284,7 +288,7 @@ export const AskCard = ({
           busy={held}
           waits={step.waits}
           hideOpen={hideOpen || !!lead}
-          press={lead ? lead.press : null}
+          press={lead ? lead.press : p.kind === "post" ? { label: POST_WORDS.save, disabled: false } : null}
           onApprove={() => approveWith(lead ? lead.commit : p)}
           onDismiss={dismiss}
           onNav={onNav}
