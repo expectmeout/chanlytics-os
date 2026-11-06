@@ -883,7 +883,15 @@ function withoutStoredWords(old, gotResult, wantResult) {
   const want = parse(wantResult);
   if (!got || !want || got.error || want.error) return [gotResult, wantResult];
   // Ask's thread words (server/ask/thread-state.ts); the others are a page's, which open with a capital.
-  const THREAD_WORDS = ["needs you", "you have it", "a teammate is answering", "snoozed", "opted out", "answering"];
+  const THREAD_WORDS = [
+    "needs you",
+    "you have it",
+    "a teammate is answering",
+    "snoozed",
+    "opted out",
+    "waiting on them",
+    "answering",
+  ];
   const said = {
     last_contact: (v) => typeof v === "string" && (v.includes(" · ") || v === "No contact recorded"),
     consent: (v) => typeof v?.messages === "string" && typeof v?.offers === "string",

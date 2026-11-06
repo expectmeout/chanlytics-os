@@ -225,6 +225,7 @@ test("what changed on the open thread while you had it open, in one line -- and 
     takenOver: false,
     claimedByOther: false,
     archived: false,
+    move: { move: "needs_you", list: "escalated" },
     lastAtMs: 1000,
     timeline: [{ type: "msg", from: "client" }],
   };
@@ -237,8 +238,16 @@ test("what changed on the open thread while you had it open, in one line -- and 
     say(was, { ...was, lastAtMs: 2000, timeline: [...was.timeline, { type: "msg", from: "agent" }] }),
     "The receptionist replied",
   );
-  assert.equal(say(was, { ...was, state: "done" }), "Moved to Handled");
-  assert.equal(say(was, { ...was, state: "done", archived: true }), "Archived");
+  assert.equal(say(was, { ...was, state: "done", move: { move: "answered", list: "done" } }), "Moved to Handled");
+  assert.equal(
+    say(was, { ...was, state: "done", move: { move: "no_reply", list: "waiting" } }),
+    "Moved to Waiting",
+    "the list it stands in, by the rule",
+  );
+  assert.equal(
+    say(was, { ...was, state: "done", archived: true, move: { move: "archived", list: "out" } }),
+    "Archived",
+  );
   assert.equal(say(was, { ...was, state: "snoozed", wake: "Tue 10:00 AM" }), "Snoozed until Tue 10:00 AM");
   assert.equal(say({ ...was, state: "snoozed" }, { ...was }), "Back in Needs you");
   assert.equal(say(was, { ...was, claimedByOther: true }, "Ana García"), "Ana García took this conversation");
@@ -275,7 +284,7 @@ test("REGRESSION: a re-read that moves the open thread out of its bucket keeps i
   };
   // A teammate handed Rosa back: the next read has her in Handled.
   const handBack = () => {
-    inboxWith([other, { ...open, state: "done", needsYou: false }]);
+    inboxWith([other, { ...open, state: "done", needsYou: false, move: { move: "answered", list: "done" } }]);
     landsARead();
   };
 
@@ -313,6 +322,67 @@ test("REGRESSION: a re-read that moves the open thread out of its bucket keeps i
   assert.equal(drawn.at(-1).notice, "Moved to Handled");
 });
 
+test("archived is in no list: a link opens it beside the list the member had, and nobody else's in its place", () => {
+  const nina = threadOf({ id: "th-nina", who: "Nina Park" });
+  const gone = threadOf({
+    id: "th-gone",
+    who: "Rosa Díaz",
+    state: "done",
+    needsYou: false,
+    archived: true,
+    move: { move: "archived", list: "out" },
+  });
+  fresh();
+  inboxWith([nina, gone]);
+  const tree = again(() => Inbox({ initialThreadId: "th-gone", showAgentRail: false }));
+  assert.equal(paneOf(tree).thread.id, "th-gone", "the thread the link names");
+  assert.ok(!listOf(tree).threads.some((x) => x.id === "th-gone"), "and no list holds it");
+  assert.notEqual(listOf(tree).activeBucket, "out", "a tab stays lit: none is called out");
+});
+
+test("the page knows when the next thread's clock runs out, within the hour: nothing else would draw it again", async () => {
+  const { ixNextMoveAt, ixWaitSaid } = await import(`${S}/surfaces/inbox/rules.ts`);
+  const NOW_MS = Date.now();
+  const clocked = (id, inMs) => ({
+    id,
+    real: true,
+    move: {
+      move: "replying",
+      list: "waiting",
+      until: { atMs: NOW_MS + inMs, then: { move: "unanswered", list: "escalated" } },
+    },
+  });
+  const seeded = { id: "s", state: "escalated" };
+  assert.equal(ixNextMoveAt([seeded, { id: "q", real: true, move: { move: "answered", list: "done" } }], NOW_MS), null);
+  assert.equal(ixNextMoveAt([clocked("a", 90_000), clocked("b", 30_000)], NOW_MS), NOW_MS + 30_000, "the soonest");
+  assert.equal(
+    ixNextMoveAt([clocked("far", 86_400_000)], NOW_MS),
+    null,
+    "a wait that goes quiet in a month: a read will say",
+  );
+  // What the bare figure means: someone waiting, or how long ago ours went.
+  assert.equal(ixWaitSaid({ move: "unanswered", list: "escalated" }, "2h"), "Waiting 2h");
+  assert.equal(ixWaitSaid({ move: "theirs", list: "waiting" }, "2h"), "Waiting 2h");
+  assert.equal(ixWaitSaid({ move: "sent", list: "waiting" }, "5h"), "5h ago");
+});
+
+test("a person's row says what is yours to do on their thread, over a call newer than it", async () => {
+  const { cvLeadOf } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
+  const call = { id: "k1", outcome: "handled", standing: "quiet" };
+  const owed = { id: "t1", outcome: "open", standing: "quiet", move: { move: "unanswered", list: "escalated" } };
+  const answered = { id: "t2", outcome: "handled", standing: "quiet", move: { move: "answered", list: "done" } };
+  assert.equal(
+    cvLeadOf({ ...call, parts: [call, owed] }).id,
+    "t1",
+    "REGRESSION: it read Handled over a message nobody answered",
+  );
+  assert.equal(
+    cvLeadOf({ ...call, parts: [call, answered] }).id,
+    "k1",
+    "nothing owed: the newest, the call's own word",
+  );
+});
+
 test("REGRESSION: a thread picked from a search in another bucket opens that thread, with its own bucket -- never the bucket's first customer", () => {
   // Found on the salon's workspace, 22 Sep: searched, clicked Marcus Bell (Handled) from Needs you, and the pane
   // opened Emily Chen -- the search spans every bucket, the pane looked only in the one on screen and fell to its first.
@@ -330,7 +400,14 @@ test("REGRESSION: a thread picked from a search in another bucket opens that thr
     timeline: [],
   };
   const emily = threadOf({ ...base, id: "th-emily", who: "Emily Chen" });
-  const marcus = threadOf({ ...base, id: "th-marcus", who: "Marcus Bell", state: "done", needsYou: false });
+  const marcus = threadOf({
+    ...base,
+    id: "th-marcus",
+    who: "Marcus Bell",
+    state: "done",
+    needsYou: false,
+    move: { move: "answered", list: "done" },
+  });
   fresh();
   inboxWith([emily, marcus]);
   let tree = null;
@@ -443,7 +520,14 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
   };
   const emily = threadOf({ ...base, id: "th-emily", who: "Emily Chen" });
   const zoe = threadOf({ ...base, id: "th-zoe", who: "Zoe Martin" });
-  const marcus = threadOf({ ...base, id: "th-marcus", who: "Marcus Bell", state: "done", needsYou: false });
+  const marcus = threadOf({
+    ...base,
+    id: "th-marcus",
+    who: "Marcus Bell",
+    state: "done",
+    needsYou: false,
+    move: { move: "answered", list: "done" },
+  });
   const drawn = [];
   let tree = null;
   const begin = () => {

@@ -116,7 +116,7 @@ test("a teammate's name on a thread nobody flagged is not a claim: the thread is
     ["", "Great, thanks"],
     "its row says what they wrote last, not 'A teammate is answering this'",
   );
-  assert.equal(vm.summary, "They wrote last — no reply yet.", "and its one sentence is the true one");
+  assert.equal(vm.summary, "They wrote last, and nobody has answered them.", "and its one sentence is the true one");
 
   const flagged = vmOf(
     quiet([wrote("m1", "Can I speak to Marisa?", 40)], {
@@ -137,29 +137,25 @@ test("a quiet thread says who had the last word, in the words Conversations uses
   const word = (messages, over) => vmOf(quiet(messages, over)).lastWord;
   assert.deepEqual(word([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29)]), {
     text: "Answered by the receptionist — no one asked for you.",
-    tone: "ok",
-    short: null,
   });
   assert.deepEqual(word([wrote("m1", "Open Sunday?", 30), ours("m2", "human", "We are closed, sorry!", 20, "read")]), {
     text: "Answered by your team — no one asked for you.",
-    tone: "ok",
-    short: null,
   });
   assert.deepEqual(
     word([ours("m1", "ai", "Welcome back!", 30, "delivered", { source: "broadcast", playbook_name: "Welcome" })]),
-    { text: "Last message: the Welcome campaign — no one asked for you.", tone: "ok", short: null },
+    { text: "Last message: the Welcome campaign — no one asked for you." },
   );
   assert.deepEqual(word([ours("m1", "ai", "Hi", 40), wrote("m2", "Thanks!", 30)]), {
+    text: "They wrote last, and nobody has answered them.",
+  });
+  // A reply still being worked out is not nobody answering them.
+  assert.deepEqual(word([ours("m1", "ai", "Hi", 40), wrote("m2", "Thanks!", 1)]), {
     text: "They wrote last — no reply yet.",
-    tone: "plain",
-    short: null,
   });
   assert.deepEqual(
     word([wrote("m1", "Can I book at 3?", 30), ours("m2", "ai", "3pm works, booked!", 29, "failed")]),
     {
       text: "They wrote last, and the reply from the receptionist didn't send — as far as they know, nobody answered.",
-      tone: "danger",
-      short: "Didn't send",
       at: "9:31 AM",
     },
     "REGRESSION: it read 'Answered by the receptionist — no one asked for you'",
@@ -172,29 +168,23 @@ test("a quiet thread says who had the last word, in the words Conversations uses
     ]),
     {
       text: "Answered by the receptionist — the last message from your team didn't send.",
-      tone: "warn",
-      short: "Didn't send",
       at: "9:50 AM",
     },
     "they were answered; what failed is a later word, and the line says both",
   );
   assert.deepEqual(word([ours("m1", "human", "Hi Rosa", 10, "failed")], { last_wa_inbound_at: null }), {
     text: "Nothing has reached them — the message from your team didn't send.",
-    tone: "danger",
-    short: "Didn't send",
     at: "9:50 AM",
   });
   assert.deepEqual(
     word([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed.", 29, "canceled")]),
-    { text: "They wrote last — no reply yet.", tone: "plain", short: null },
+    { text: "They wrote last, and nobody has answered them." },
     "a reply someone canceled is not a failure: they are simply waiting",
   );
   assert.deepEqual(word([callNote("m1", 30)], { last_wa_inbound_at: null }), {
     text: "The phone receptionist handled their call — no one asked for you.",
-    tone: "ok",
-    short: null,
   });
-  assert.deepEqual(word([]), { text: "No messages yet.", tone: "plain", short: null });
+  assert.deepEqual(word([]), { text: "No messages yet." });
   assert.equal(
     vmOf(quiet([wrote("m1", "hi", 30)], { state: "archived" })).lastWord,
     null,
@@ -331,7 +321,8 @@ const paneOf = (thread) => {
   return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
 };
 
-test("the pane: a quiet thread's state is the row's pill, in its tone; the reply that didn't send says so; a call is a call", () => {
+test("the pane: a quiet thread's state is the row's pill, in its tone; the reply that didn't send says so; a call is a call", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const tree = paneOf(
     vmOf(
       quiet([
@@ -345,8 +336,8 @@ test("the pane: a quiet thread's state is the row's pill, in its tone; the reply
   // there, and said it again over the bubble that says it.
   const standing = find(tree, byTestId("ix-th-standing"));
   assert.ok(standing, "the quiet thread's state, named");
-  const pill = find(standing, (n) => n.props?.kind === "tone");
-  assert.deepEqual([pill?.props.value, pill?.props.label], ["danger", "Didn't send"], "in the tone of what it says");
+  const pill = find(standing, (n) => n.props?.kind === "thread");
+  assert.equal(pill?.props.value, "failed", "in the tone of what it says");
   assert.equal(
     textOf(find(standing, hasClass("ix-th-standing-meta"))),
     "9:31 AM",
@@ -388,9 +379,14 @@ test("the pane: a quiet thread's state is the row's pill, in its tone; the reply
     vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")])),
   );
   const handled = find(answered, byTestId("ix-th-standing"));
-  const handledPill = find(handled, (n) => n.props?.kind === "tone");
-  assert.deepEqual([handledPill?.props.value, handledPill?.props.label], ["ok", "Handled"], "the one word for it");
-  assert.equal(find(handled, hasClass("ix-th-standing-meta")), undefined, "and nothing beside it");
+  const handledPill = find(handled, (n) => n.props?.kind === "thread");
+  assert.equal(handledPill?.props.value, "answered", "the one word for it");
+  assert.equal(stateOf("thread", "answered").tone, "ok", "and green, since something answered them");
+  assert.equal(
+    textOf(find(handled, hasClass("ix-th-standing-meta"))),
+    "by the receptionist",
+    "who gave the last word beside it",
+  );
   assert.ok(!textOf(answered).includes("no one asked for you"));
 });
 

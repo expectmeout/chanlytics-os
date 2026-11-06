@@ -163,6 +163,7 @@ const CvRow = ({ c, active, onSelect, pick, tabStop, onKey, index, measure, coun
             decidedAction={dec ? dec.action : null}
             channel={lead.channel}
             answeredBy={lead.answeredBy}
+            move={lead.move ?? null}
           />
           {/* They asked to stop: said beside the name, as the Inbox's row says it (D1-stop-unseen). */}
           {cvStopped(c) && <StoppedMark testid="cv-row-stopped" />}

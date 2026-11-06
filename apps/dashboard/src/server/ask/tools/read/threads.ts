@@ -44,9 +44,9 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
   const { conversations, escalations } = (await load(t.rc, inbox, undefined)).data;
   const byConv = inboxEscalations(escalations);
   const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
-  // What waits on you as the Inbox counts it (contracts conversationWaitsOnYou, waits.ts threadWait): a hold nobody has
-  // taken, or a reply counting down that can still be stopped. The filter read the holds alone: 4 where the Inbox said
-  // "5 need you" and Ask's Today said 5 (the wiring's second audit, R13 X5-2).
+  // What waits on you as the Inbox counts it (contracts conversationWaitsOnYou, waits.ts threadWait, thread-move.ts): what
+  // the rule puts in Needs you, or a reply counting down that can still be stopped. The filter read the holds alone: 4 where
+  // the Inbox said "5 need you" and Ask's Today said 5 (the wiring's second audit, R13 X5-2).
   const waiting = new Set(
     conversations.filter((c) => conversationWaitsOnYou(c, byConv.get(c.id) ?? null, t.now)).map((c) => c.id),
   );
@@ -58,7 +58,7 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
         // A draft still waiting to send, by the Inbox's rule: one past its deadline is going out, not held.
         return heldDraftWaits(v, t.now.getTime());
       case "waiting":
-        return v.takenOver;
+        return v.move.list === "waiting";
       case "snoozed":
         return v.state === "snoozed";
       default:
@@ -258,7 +258,7 @@ export const inboxTool = defineActions({
       examples: [{ filter: "held" }],
       label: "Reading the Inbox",
       words:
-        "Action list takes filter and finds threads: needs_you (what waits on you, as the Inbox counts it: a hold nobody has taken, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
+        "Action list takes filter and finds threads: needs_you (what waits on you, as the Inbox counts it: someone asked for a person, nobody answered them, a reply that did not send, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (the next move is theirs or a teammate's: threads a person holds, and ones with no reply yet), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
       run: listThreads,
     }),
     thread: readAction({

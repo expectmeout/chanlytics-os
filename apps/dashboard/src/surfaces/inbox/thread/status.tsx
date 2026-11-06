@@ -17,6 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { Notice } from "../../kit/notice/notice";
+import { ixMoveOf } from "../rules";
 import { gate, navigate, useToast } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
@@ -624,13 +625,13 @@ function escalatedBar(p: DockProps) {
 }
 
 /**
- * A thread left with no answer (contracts unansweredOf): what the hold noted of their ask, when it closed, and the two
- * ways to settle it besides the reply box under it -- a call, or saying no reply is needed, which archives the thread
- * (a new message brings it back). The bar names it, amber, with how long they have waited.
+ * A thread left with no answer, by the rule at this moment (contracts thread-move.ts): what a hold on it noted of their ask and
+ * when it closed, and the two ways to settle it besides the reply box under it -- a call, or saying no reply is needed, which
+ * archives the thread (a new message brings it back). The bar names it, amber, with how long they have waited.
  */
 function unansweredDock(p: StatusProps, thread: Thread) {
   const u = thread.unanswered;
-  if (!u) return null;
+  if (!u || !thread.real || ixMoveOf(thread).move !== "unanswered") return null;
   const W = THREAD_PANE_WORDS;
   const mayCall = !!thread.phone && !thread.dnc && !thread.optedOut;
   const acts =
@@ -654,7 +655,7 @@ function unansweredDock(p: StatusProps, thread: Thread) {
         )}
       </>
     ) : null;
-  return <Dock testid="ix-unanswered" label={u.line} fact={u.line} source={u.closed} acts={acts} />;
+  return <Dock testid="ix-unanswered" label={u.line} fact={u.line} source={u.closed || null} acts={acts} />;
 }
 
 /**
@@ -668,8 +669,7 @@ function handledBar(p: StatusProps) {
     return (
       <Dock testid="ix-archived" label="Archived" fact="Their request is closed. If they write again, it comes back." />
     );
-  // A draft still waiting to go out is the thread's state, said by its countdown.
-  return thread.veto ? null : unansweredDock(p, thread);
+  return unansweredDock(p, thread);
 }
 
 /** A thread you have: what it means for the receptionist, and the way to hand it back, on one line. */

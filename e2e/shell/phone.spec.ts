@@ -249,7 +249,7 @@ test.describe("Phone shell on a real workspace", () => {
     // A bucket is a list, never a conversation. Picking Handled or Snoozed opened that bucket's first thread over
     // the rows -- the list gone, a customer nobody asked for on the phone -- and a bucket with nothing in it left
     // neither on the screen.
-    for (const name of ["Handled", "Snoozed"]) {
+    for (const name of ["Waiting", "Handled", "Snoozed"]) {
       const chip = page.locator(".subtab", { hasText: name }).first();
       if ((await chip.count()) === 0) continue;
       await chip.click();

@@ -43,8 +43,8 @@ import { surfaceValue } from "./surface-values";
  * A thread as the count reads it: a real one by the Inbox's own rule, with the hold this tab has made; a seeded one (a
  * demo session's) by the mockup's, less the decisions the session has made on it.
  */
-function waitingThread(t: Thread): WaitingThread {
-  return t.real ? ixWaiting(t) : { needsYou: ixWaitsOnYou(t) && !IX_STORE.get(t.id) };
+function waitingThread(t: Thread, nowMs: number): WaitingThread {
+  return t.real ? ixWaiting(t, nowMs) : { needsYou: ixWaitsOnYou(t) && !IX_STORE.get(t.id) };
 }
 
 /** The runs the campaigns surface holds that wait for a word an approval can still send: none until it is read. */
@@ -66,7 +66,7 @@ export function needsYouParts(nowMs: number = Date.now()): Waits | null {
   if (!inbox) return null;
   const rows = surfaceValue("broadcasts")?.rows ?? [];
   const parts = waitsOf({
-    threads: inbox.THREADS.map(waitingThread),
+    threads: inbox.THREADS.map((t) => waitingThread(t, nowMs)),
     // The holds whose thread the Inbox could not read, each a customer who may be waiting (a STOP's is not counted).
     unreadHolds: inbox.UNREAD_HOLDS ?? 0,
     runs: rows,
