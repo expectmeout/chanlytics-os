@@ -11,6 +11,7 @@ import {
   again,
   all,
   byTestId,
+  classes,
   find,
   redrawWanted,
   textOf,
@@ -39,6 +40,7 @@ const { AdsLens } = await import(`${S}/surfaces/reports/lenses/ads.tsx`);
 const { useAdsLens } = await import(`${S}/surfaces/reports/lenses/ads-load.ts`);
 const { PeopleLens } = await import(`${S}/surfaces/reports/lenses/people.tsx`);
 const { peopleSample, reportsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { AdAccounts } = await import(`${S}/surfaces/settings/connections/ad-accounts.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
 /** Saturday 15 March 2031, 10:05 AM in New York: no date a fixture holds can be mistaken for it. */
@@ -182,6 +184,7 @@ const surfaces = {
     }),
   "the Results sheet": () => ResultsSheet({ open: true, read, config: CONFIG, onClose() {} }),
   "Reports' lens": () => AdsLens({ fold, onScope() {} }),
+  "Connections' card": () => AdAccounts({ flash() {} }),
 };
 
 for (const [name, draw] of Object.entries(surfaces)) {
@@ -192,6 +195,13 @@ for (const [name, draw] of Object.entries(surfaces)) {
     assert.equal(byTestId(demo(draw), NOTE), null);
   });
 }
+
+test("Connections' card says it in the note, which a phone draws, and not in its second line, which a phone does not", () => {
+  const sub = (tree) => all(tree, (n) => n.type === "span" && classes(n).includes("rec-card-sub"));
+  const card = surfaces["Connections' card"];
+  assert.deepEqual(sub(preview(card)), [], "REGRESSION: on a phone the sample accounts said Connected, unlabelled");
+  assert.equal(textOf(sub(demo(card))[0]), page.CONNECT.sub, "a demo's card keeps its line");
+});
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Its people open nothing
