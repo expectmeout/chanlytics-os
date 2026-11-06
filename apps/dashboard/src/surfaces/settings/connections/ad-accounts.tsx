@@ -1,8 +1,8 @@
 /**
- * Settings › Connections, "Ad accounts" (MOCKUP, drawn in a demo session only; decisions 7, 8 and 9 of 11 Oct 2026): a row for
- * Facebook and Instagram, Google and TikTok, drawn as the pane's other rows are (a face with no brand colour, the kit's state
- * pill, the acts in the group's column and, on a phone, behind the row), with what the account is, what is ready on it, and
- * the presses: Connect (which connects nothing here and says so), Change account, Disconnect, and the owner's setting that
+ * Settings › Connections, "Ad accounts" (MOCKUP, drawn in a demo session or a workspace's preview; decisions 7, 8 and 9 of 11 Oct
+ * 2026): a row for Facebook and Instagram, Google and TikTok, drawn as the pane's other rows are (a face with no brand colour, the
+ * kit's state pill, the acts in the group's column and, on a phone, behind the row), with what the account is, what is ready on it,
+ * and the presses: Connect (which connects nothing here and says so), Change account, Disconnect, and the owner's setting that
  * pauses ads when the way in closes.
  *
  * The accounts are the Ads page's fixtures (useAdsStore: the example chosen there is the one drawn here, `running` at first),
@@ -17,6 +17,8 @@ import { ADS_ROUTE } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPlatform } from "@chanlytics/contracts";
 import { CONNECT, connectModel } from "@chanlytics/contracts/ads-page";
 import type { ConnectRowVM } from "@chanlytics/contracts/ads-page";
+import { PreviewNote } from "../../campaigns/ads/preview-note";
+import { adsInPreview } from "../../campaigns/ads/shown";
 import { useAdsStore } from "../../campaigns/ads/store";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -334,8 +336,10 @@ export function AdAccounts({ flash }: { flash: (f: LegacyFlash) => void }) {
         <h2 className="rec-card-title" id="connections-ads-title">
           {CONNECT.title}
         </h2>
-        <span className="rec-card-sub">{CONNECT.sub}</span>
+        {/* A card's second line is not drawn on a phone, where sample accounts would say Connected with nothing to say otherwise. */}
+        {adsInPreview() ? null : <span className="rec-card-sub">{CONNECT.sub}</span>}
       </div>
+      <PreviewNote className="set-ads-note" />
       {rows.map((r) => platformRow(r, ask, picks[r.id], acts))}
       {pauseRow(pauses, setPause)}
     </section>
