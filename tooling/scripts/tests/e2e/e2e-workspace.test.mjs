@@ -1509,7 +1509,7 @@ test("verify() names an open escalation, a queued message, a missed call that co
 });
 
 test("the eval's Win-back (the moment spec, A8): written only under --seed-win-back, which the nightly does not pass; then one campaign on silence, paused so no sweep runs it, on a message of its own, written once however often the workspace converges", async () => {
-  // The script's arguments: the nightly's own (.github/workflows/nightly-e2e.yml, 09:00 UTC) are --apply alone.
+  // The script's arguments: the nightly's own (.github/workflows/nightly-e2e.yml) are --apply alone.
   assert.deepEqual(runOptions(["node", "e2e-workspace.mjs", "--apply"]), { apply: true, seedWinBack: false });
   assert.deepEqual(runOptions(["node", "e2e-workspace.mjs", "--apply", "--seed-win-back"]), {
     apply: true,
