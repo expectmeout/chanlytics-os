@@ -36,13 +36,6 @@ import { rememberedRun } from "./broadcasts/run-names";
 /** A crumb: its words, and where it goes. */
 type Crumb = string | { label: string; to: string };
 
-/**
- * Whether Ads is drawn: a demo session, or a workspace whose Ads preview is on (ads/shown.ts), from a sample, so nothing of it
- * (its strip, its chrome, its page) reaches any other workspace. The frame draws a chrome in the browser, but a test reads one
- * with no window.
- */
-const inDemo = (): boolean => adsShown();
-
 /** Campaigns, the first crumb of every address under it: the way back to Sequences' list, Campaigns' first view. */
 const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
 
@@ -52,7 +45,7 @@ const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
  * who don't have your number.
  */
 function campaignsViews(picked: "sequences" | "messages" | "ads"): SurfaceViews {
-  const ads = inDemo() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
+  const ads = adsShown() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
   return {
     name: "campaigns",
     label: ADS_WORDS.viewsLabel,
@@ -158,7 +151,7 @@ function messagesViewChrome(): { crumbs: Crumb[]; mount: string; act: null; view
 }
 
 /**
- * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (a demo session's), Messages' for
+ * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (ads/shown.ts), Messages' for
  * `campaigns/messages`, and Sequences' for every other address, the sheets Campaigns opens over it among them. Every
  * address is one mount, the page's own.
  */
@@ -169,7 +162,7 @@ export function campaignsChrome({ param }: { param: string | null }): {
   views?: SurfaceViews;
   pane?: boolean;
 } {
-  if (inDemo() && param && isAdsParam(param)) return adsChrome(param);
+  if (adsShown() && param && isAdsParam(param)) return adsChrome(param);
   if (isMessagesParam(param)) return messagesViewChrome();
   return sequencesChrome();
 }

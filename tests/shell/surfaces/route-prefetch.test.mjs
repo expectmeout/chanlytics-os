@@ -176,6 +176,11 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["templates", "messages"],
     // Messages as the view of Campaigns it is (19 Oct 2026), opening on what the Library did.
     ["campaigns/messages", "campaigns/messages"],
+    // Ads as the view of Campaigns it is, on every address of it: the settings read, and nothing of Sequences.
+    ["campaigns/ads", "campaigns/ads"],
+    ["campaigns/ads:new", "campaigns/ads"],
+    ["campaigns/ads:results", "campaigns/ads"],
+    [`campaigns/ads:ad:${ID}`, "campaigns/ads"],
     // Settings opens on its own read, and a pane its address names on that pane's (the Settings load review, 28 Oct 2026): a
     // pane drawn from the settings read on it and what it draws beside it, a pane drawn from none of it on its own alone. A
     // pane that names none (Autonomy), a row after a pane, and the bare address open as their pane or Settings does.
