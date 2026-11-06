@@ -60,13 +60,19 @@ search whose plan changed, or a new minute.
 
 ## The gate
 
-The first page and its counts each answer within 300 ms at the ceiling above. `leads-at-volume.db.test.mjs` seeds that workspace on CI's
-database, reads every sort and the counts as a member, logs each read's time and fails at one second, so a slow runner does not flake it.
+The first page and its counts each aim to answer within 300 ms at the ceiling above. `leads-at-volume.db.test.mjs` seeds that workspace on
+CI's database, reads every sort and the counts as a member, logs each read's time and blocks, and fails at two seconds or past its block
+budget, so a slow runner does not flake it and a read gone quadratic still shows, which moved no blocks when one did.
+
+Read at 60f6c43d05 on a quiet runner: Found, Fit, Rated and Business 232 to 283 ms, one search's queue 167, counts 405, the queue 641. Each
+is good to about half again between runners.
 
 ## What it costs
 
-A whole-view read of the queue still reads every open place of the workspace. If it misses the gate and the other sorts hold it, the
-default goes back to Best fit, one value in four places, and the queue stays one press away; storing the status is then priced on its own.
+A whole-view read of the queue reads every open place of the workspace, and a first page waits on counts that read the same. That is the 405
+and the 641, and what is left of them is the status being computed. The way to the gate from here is storing it, which puts a write on every
+send, enrollment and reply, and a fact that can drift. The default going back to Best fit is one value in four places, and the first page
+would still wait on the counts unless those stop reading status until a heading's menu asks.
 
 ## What this does not do
 
