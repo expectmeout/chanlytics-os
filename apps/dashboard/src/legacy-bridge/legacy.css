@@ -27,6 +27,7 @@
 @import "../legacy/styles/mobile.css";
 @import "../surfaces/today/zones/zones.css";
 @import "../surfaces/ask/ask.css";
+@import "../surfaces/files/post.css";
 @import "../surfaces/frame/outline.css";
 
 /* Chanlytics.html's inline viewport rules, scoped so they only apply while

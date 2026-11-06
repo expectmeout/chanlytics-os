@@ -11,7 +11,7 @@ import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
 import { read } from "@/legacy-bridge/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
-import { setSurfaceValue, surfaceValue } from "../../surface-values";
+import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 /**
  * How quiet the feed must be before the whole list is read again. An import tells a notice a second or two, which beats the
