@@ -354,8 +354,8 @@ const keptCard = () =>
 
 /** Runs with this device: whether it takes files in its sheet, and whether it is held by a finger. */
 function onDevice({ canShare, touch = false }, run) {
-  const media = window.matchMedia;
-  window.matchMedia = (q) => ({
+  const media = globalThis.window.matchMedia;
+  globalThis.window.matchMedia = (q) => ({
     matches: q.includes("coarse") && touch,
     addEventListener() {},
     removeEventListener() {},
@@ -364,7 +364,7 @@ function onDevice({ canShare, touch = false }, run) {
   try {
     return run();
   } finally {
-    window.matchMedia = media;
+    globalThis.window.matchMedia = media;
     delete navigator.canShare;
   }
 }
@@ -456,10 +456,10 @@ test("the picture for the sheet comes once a tab under a name a person can read,
 });
 
 test("a shape's bytes come from its own address, and a read that failed is nothing", async () => {
-  const realFetch = window.fetch;
+  const realFetch = globalThis.window.fetch;
   const asked = [];
   let answer = async () => new Response("jpeg");
-  window.fetch = (address) => {
+  globalThis.window.fetch = (address) => {
     asked.push(address);
     return answer();
   };
@@ -473,7 +473,7 @@ test("a shape's bytes come from its own address, and a read that failed is nothi
     };
     assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
   } finally {
-    window.fetch = realFetch;
+    globalThis.window.fetch = realFetch;
   }
 });
 
