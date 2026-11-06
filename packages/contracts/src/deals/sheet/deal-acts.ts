@@ -12,7 +12,7 @@ import { consultationHappened, consultServiceOf, noProposalSince } from "../deal
 import { EMAIL_CANT_REACH, mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
 import type { ReplyVia } from "../../people/person-words";
 import type { PersonNoteVM } from "../../notes/person-notes";
-import type { FollowUpStand } from "../../playbooks/playbooks";
+import type { FollowUpStand } from "../../campaigns/playbooks/playbooks";
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */
 export const DEAL_SHEET_MODES = ["propose", "edit", "again", "won", "lost", "ended"] as const;

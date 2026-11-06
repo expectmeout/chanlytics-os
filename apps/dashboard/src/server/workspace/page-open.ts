@@ -1,6 +1,6 @@
 import "server-only";
 import { ok, openReads } from "@chanlytics/contracts";
-import { answerOfThrow, shareMembership, type RouteContext } from "@/server/with-route";
+import { answerOfThrow, shareMembership, type RouteContext } from "@/server/shared/with-route";
 import { shareTurn } from "@/server/readers";
 
 /**

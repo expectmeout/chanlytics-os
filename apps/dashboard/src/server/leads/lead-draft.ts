@@ -18,9 +18,9 @@ import { addressesSuppressed } from "@chanlytics/db";
 import { workspaceOffer } from "./lead-helpers";
 import { leadEmailOfferOf, type LeadEmailOffer } from "./lead-send";
 import type { LeadRow } from "./lead-searches";
-import { askForJson } from "../model-json";
-import { serviceDb } from "../service-db";
-import type { RouteContext } from "../with-route";
+import { askForJson } from "../shared/model-json";
+import { serviceDb } from "../shared/service-db";
+import type { RouteContext } from "../shared/with-route";
 
 /* -------------------------------------------------------------- the draft */
 

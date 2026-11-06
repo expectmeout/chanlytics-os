@@ -5,8 +5,8 @@
  * 2026): a day of History that went opens here, over that day. Pure: the page reads the batches and hands them over.
  */
 import { shiftKey } from "../calendar/day-keys";
-import { sequenceRoute } from "../sequences/sequence-address";
-import { SEQUENCE_WORDS } from "../sequences/sequence-words";
+import { sequenceRoute } from "../campaigns/sequences/sequence-address";
+import { SEQUENCE_WORDS } from "../campaigns/sequences/sequence-words";
 import {
   SEQUENCE_HISTORY_WORDS,
   batchWent,
@@ -14,8 +14,8 @@ import {
   historyFigures,
   historyStamp,
   type SequenceHistoryFigure,
-} from "../sequences/sequence-tab-words";
-import type { SequenceBatchDto, SequenceRowDto } from "../sequences/sequence-dto";
+} from "../campaigns/sequences/sequence-tab-words";
+import type { SequenceBatchDto, SequenceRowDto } from "../campaigns/sequences/sequence-dto";
 import { zoneDayKey } from "../shared/clock";
 import { plural } from "../shared/words";
 import { CAMPAIGN_SCOPE_ALL, campaignScopeKey, type CampaignScope } from "./lenses";

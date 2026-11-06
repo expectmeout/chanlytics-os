@@ -1711,7 +1711,7 @@ function atLocal(day, clock, zone = TIMEZONE) {
  *   - the held replies went out (`delivered`) and the others were cancelled, so the booking-link note (a trigger on a
  *     `sent` row) does not run and no hold is waiting; the call is a dial that never connected, with no recording, no
  *     thread and its post-call mail already sent, which the calls sweep and the note sweep both leave alone;
- *   - the blocked send is an event on the ledger, of the kind and the data packages/core/src/deliver.ts files
+ *   - the blocked send is an event on the ledger, of the kind and the data packages/core/src/deliver/deliver.ts files
  *     (message.send_blocked, through emitEvent), about Sam's thread since the message it would be about is not one of the
  *     seed's; nothing reads it but the lens. A run deletes the workspace's blocked sends before it files its own: the
  *     messages they were about are the ones the specs and this seed clear.

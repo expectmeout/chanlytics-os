@@ -74,14 +74,14 @@ import {
   whatsappChannelFacts,
 } from "@chanlytics/db";
 import { templateValuePorts } from "@/server/ports/campaign-ports";
-import { jsonBody } from "@/server/request-guards";
+import { jsonBody } from "@/server/shared/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
 import { checkPlaybookMomentInput } from "@/server/campaigns/playbooks";
 import { fileStarterVersions, startersFiled, type StarterVersionResult } from "@/server/campaigns/template-versions";
 import type { ZoneAndSettings } from "@/server/calendar/people-visits";
 import { appointmentWordRead } from "@/server/people/deals";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 type Outcome = "submitted" | "exists" | "synced" | "failed" | "skipped";
 

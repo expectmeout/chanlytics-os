@@ -5,7 +5,7 @@
  * once the request has said which (`tenant_id`), then the line's own fields, each redacted by its key (redact.ts).
  * Vercel keeps stdout per invocation, so the line is the whole transport: no dependency, no shipping, no sampling.
  *
- * It was two copies and a third way. The edge's logger (apps/edge/lib/log.ts, 21 September) and the dashboard's
+ * It was two copies and a third way. The edge's logger (apps/edge/lib/shared/log.ts, 21 September) and the dashboard's
  * (#1332) had one shape and two stores; core, jobs and db wrote positional console lines no query could read and no
  * request could be found in. The apps now re-export this module, each with its own closed set of names (the edge's
  * LOG_EVENTS, the dashboard's DASHBOARD_LOG_EVENTS); the packages log through it, db through the port it is handed.

@@ -5,7 +5,7 @@
  * became: one of contracts' four `Handled` words. This is the one rule that picks the word, from the two facts a way out has, whether
  * a person was asked and what became of the receptionist's own reply. The twenty-two ways out call it, and none of them
  * words the rule itself: a second implementation, even one that agrees, is how a stamp comes to say `handoff` for a
- * message nobody was asked about. The executed test (tooling/scripts/tests/whatsapp/inbound-executed.test.mjs) holds
+ * message nobody was asked about. The executed test (tests/whatsapp/inbound-executed.test.mjs) holds
  * the rule over every way out, in both directions.
  *
  * A handoff is an escalation that LANDED: the sink wrote one (opened, changed or refreshed it). A write the database

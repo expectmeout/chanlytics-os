@@ -1,6 +1,6 @@
 import { ReachOutChainSchema } from "@chanlytics/contracts";
-import { read, write } from "@/server/route";
-import { reachOutScope } from "@/server/verbs";
+import { read, write } from "@/server/shared/route";
+import { reachOutScope } from "@/server/shared/verbs";
 import { chainReportOf, reachOf, removeChain, saveChain } from "@/server/campaigns/reach-outs";
 
 /**

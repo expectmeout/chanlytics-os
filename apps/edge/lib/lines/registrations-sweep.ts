@@ -14,11 +14,11 @@
  *
  * Cross-workspace: the registration sweep asks after every workspace's waiting lines; each write is keyed by the line's own row.
  */
-import { json, refuse } from "../http.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { json, refuse } from "../shared/http.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { registerLine } from "./a2p-register.js";
 import { filingPages, sweepFilingHold } from "./line-ops.js";
-import { workspaceOpenToCustomers } from "../packages/db.js";
+import { workspaceOpenToCustomers } from "@chanlytics/db";
 import { syncRegistration } from "./a2p-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 

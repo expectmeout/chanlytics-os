@@ -5,7 +5,7 @@
  * The door names the request (log.ts `door`) and calls receiveWebsiteForm in lib/website/form-door.ts, which holds
  * everything the request does: the shape, the key, the person, the note on their page and the owner's notice.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { receiveWebsiteForm } from "../lib/website/form-door.js";
 
 export const POST = door(receiveWebsiteForm);

@@ -25,9 +25,9 @@ import { configRowOf } from "@/server/workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 import { feedVisibleTo, knownFacts, withHiddenFeed } from "@/server/readers/settings";
 import { renameWorkspace } from "@/server/workspace/workspace-list";
-import { log } from "@/server/log";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import { log } from "@/server/shared/log";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 export async function saveSettings(ctx: RouteContext, req: Request, member: Member) {
   const body = (await req.json().catch(() => null)) as { config?: unknown; version?: number } | null;

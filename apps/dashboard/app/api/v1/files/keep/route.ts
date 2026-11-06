@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FILES_MAX } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { keepFiles } from "@/server/files/file";
 
 /**

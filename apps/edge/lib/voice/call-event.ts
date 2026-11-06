@@ -26,9 +26,9 @@
  * this instance has already corrected the receptionist on this call, and
  * whether it holds the provider's key.
  */
-import type { IngestCallResult } from "../packages/db.js";
-import type { NormalizedCall, RetellCall } from "../packages/channels.js";
-import { callSummaryLine } from "../packages/channels.js";
+import type { IngestCallResult } from "@chanlytics/db";
+import type { NormalizedCall, RetellCall } from "@chanlytics/channels";
+import { callSummaryLine } from "@chanlytics/channels";
 import {
   addressOf,
   callAttemptWords,
@@ -41,7 +41,7 @@ import {
   missedCall,
   neverConnected,
   unansweredCallTodo,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import type { NotifyMessage } from "../ops/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
 import type { CallForActivity } from "./call-activity.js";

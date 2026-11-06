@@ -7,8 +7,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto } from "@chanlytics/contracts";
-import { callEdge, edgeConfigured, type EdgeAnswer } from "../edge";
-import { deployment } from "../env";
+import { callEdge, edgeConfigured, type EdgeAnswer } from "../shared/edge";
+import { deployment } from "../shared/env";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
 const LINE_COLUMNS =

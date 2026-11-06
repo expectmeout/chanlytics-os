@@ -17,7 +17,7 @@ import { HOUR_MS, emailWires, holdOf, replyHoldDtoOf, type MetricsSummaryDto } f
 import { firstReplies, type Database } from "@chanlytics/db";
 import { emailLineFor } from "../connections/email";
 import { bookedSince, bookingsLately } from "./bookings";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /** The window the day's replies are read over: Today's one day. A longer window carries none (a period's replies are Reports', report_series). */
 const REPLIES_WINDOW_DAYS = 1;

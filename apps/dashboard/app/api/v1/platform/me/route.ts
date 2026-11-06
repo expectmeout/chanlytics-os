@@ -1,5 +1,5 @@
-import { read, platform } from "@/server/route";
-import { consoleMe } from "@/server/platform/console";
+import { read, platform } from "@/server/shared/route";
+import { consoleMe } from "@/server/console/console";
 
 /**
  * GET /api/v1/platform/me — who is asking, to the Console (decision 0066): their name, address and role, which the

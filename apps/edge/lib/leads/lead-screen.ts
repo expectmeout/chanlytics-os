@@ -10,7 +10,7 @@
  * model's port and no shadow (its answer is used, never compared), paid in the round the judge's own rows name. Nothing
  * here throws to the collect.
  */
-import { askSystemOne, type LeadJudge, type LeadScreen, type SystemOneReply } from "../packages/channels.js";
+import { askSystemOne, type LeadJudge, type LeadScreen, type SystemOneReply } from "@chanlytics/channels";
 import {
   LEAD_SCREEN_BOUND_MS,
   SHADOW_TIMEOUT_MS,
@@ -24,12 +24,12 @@ import {
   type AiUsageBody,
   type LeadSearchPlan,
   type PlaceFacts,
-} from "../packages/contracts.js";
-import { recordModelUsage } from "../packages/db.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
-import { modelDeps } from "../model.js";
-import { pg } from "../pg.js";
+} from "@chanlytics/contracts";
+import { recordModelUsage } from "@chanlytics/db";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
+import { modelDeps } from "../ai/model.js";
+import { pg } from "../shared/pg.js";
 
 /** How many places are asked at once: TypeSafe's rate is the account's, shared by every search running. */
 const IN_FLIGHT = 8;

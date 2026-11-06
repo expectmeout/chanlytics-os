@@ -7,8 +7,8 @@ import "server-only";
 import { AppError } from "@chanlytics/contracts";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { appointmentNoticeById, dismissAppointmentNotice, mailboxOfTenant } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { serviceDb } from "@/server/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
+import { serviceDb } from "@/server/shared/service-db";
 
 /** The held notice this workspace holds under `id`; refused when there is none, or it is not held any more. */
 async function heldNotice(ctx: RouteContext, tenantId: string, id: string) {

@@ -1,5 +1,5 @@
 import type { TodayReadDto } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { appointmentWord } from "@/server/readers/facts";
 import { doneToday, sinceYouLooked, today } from "@/server/readers/today";

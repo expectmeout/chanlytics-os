@@ -4,7 +4,7 @@
  * workspace's word. One module for the three ways a card is made: on a message the workspace holds, on a starter its
  * Approve adds, and on the message an earlier step of Ask's plan writes. Moved whole from act/playbook.ts (11 Oct 2026,
  * which the plan's third way would have taken past 800 lines); who a run reaches is still contracts' one rule
- * (playbooks/playbook-reach.ts playbookRunReach), which this only counts with.
+ * (campaigns/playbooks/playbook-reach.ts playbookRunReach), which this only counts with.
  */
 import "server-only";
 import {

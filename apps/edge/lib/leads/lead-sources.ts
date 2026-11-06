@@ -16,13 +16,13 @@
  * Nothing here is shown to an owner, so the vendor's names are fine in what it says.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepLeadPrices, leadPricesSeen, type Database, type LeadPricesSeen } from "../packages/db.js";
-import { DAY_MS } from "../packages/contracts.js";
-import { apifyClient, type ApifyClient } from "../packages/channels.js";
-import { leadPins } from "../packages/core.js";
+import { keepLeadPrices, leadPricesSeen, type Database, type LeadPricesSeen } from "@chanlytics/db";
+import { DAY_MS } from "@chanlytics/contracts";
+import { apifyClient, type ApifyClient } from "@chanlytics/channels";
+import { leadPins } from "@chanlytics/core";
 import { pageOperator, type PagePorts } from "../ops/page-operator.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

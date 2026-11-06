@@ -19,18 +19,18 @@
  * owner's note, and emailWaitingMessage is that note's words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailboxOfTenant, type Database } from "../packages/db.js";
-import { emailSender, wireUnavailable, type EmailRoute, type Sender, type WireUnavailable } from "../packages/core.js";
-import { fetchReceivedEmail, sendsAs, sendsAsCampaigns } from "../packages/channels.js";
-import { emailDomainOf } from "../packages/contracts.js";
-import type { JobContext } from "../packages/jobs.js";
-import { erasedBeforeEmail } from "../erased.js";
+import { mailboxOfTenant, type Database } from "@chanlytics/db";
+import { emailSender, wireUnavailable, type EmailRoute, type Sender, type WireUnavailable } from "@chanlytics/core";
+import { fetchReceivedEmail, sendsAs, sendsAsCampaigns } from "@chanlytics/channels";
+import { emailDomainOf } from "@chanlytics/contracts";
+import type { JobContext } from "@chanlytics/jobs";
+import { erasedBeforeEmail } from "../shared/erased.js";
 import { notify, type NotifyMessage } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import type { CampaignsBinding, CampaignsLane } from "./campaigns-domain.js";
 import { ownRoutesFor } from "./mailbox/mailbox-wire.js";
-import { logger, errField, type Logger } from "../log.js";
-import { env } from "../env.js";
+import { logger, errField, type Logger } from "../shared/log.js";
+import { env } from "../shared/env.js";
 
 type Db = SupabaseClient<Database>;
 

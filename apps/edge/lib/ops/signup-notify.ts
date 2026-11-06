@@ -14,13 +14,13 @@
  * slug and id, the owner's address or the one it waits for, and the partner's
  * code; no customer content exists yet. Signed admin token only.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
 import { notify } from "./notify.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
-import { getHandoverInvite } from "../packages/db.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
+import { getHandoverInvite } from "@chanlytics/db";
 
 interface Body {
   tenant_id?: string;

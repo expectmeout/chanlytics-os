@@ -11,13 +11,13 @@
  * workspace, and the call must be its). The words and the numbers an operator sends stay out of the log; the outcome
  * and the length are what a search needs.
  */
-import { json, refuse } from "../http.js";
+import { json, refuse } from "../shared/http.js";
 import { refusedCall } from "./live-call-door.js";
-import { stopCall, updateLiveCall } from "../packages/channels.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { frameWhisper, frameHandOver, isE164 } from "../packages/contracts.js";
-import type { Admitted } from "../admin-auth.js";
+import { stopCall, updateLiveCall } from "@chanlytics/channels";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import { frameWhisper, frameHandOver, isE164 } from "@chanlytics/contracts";
+import type { Admitted } from "../shared/admin-auth.js";
 
 /**
  * End a live call from the dashboard.

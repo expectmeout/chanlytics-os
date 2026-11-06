@@ -7,14 +7,14 @@
  * the owner's own words make it a moment of their journey (every workspace has deals, 0008 amended 18 Oct 2026). The
  * words name what they book in the owner's words, say whoever a card reaches nobody of today, and are said in the
  * question's language; the answer leads with what comes first (PlanLead). Its rows are in
- * tooling/scripts/tests/ask/plan/plan-of.test.mjs, beside the offer's.
+ * tests/ask/plan/plan-of.test.mjs, beside the offer's.
  */
 import { clip } from "../ask/ask-answer";
 import type { PlanIntent, PlanStep, PlanWorld } from "../ask/plan";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import { capitalize, joinWords, joinWordsEs, plural } from "../shared/words";
-import { LIVE_VERSION_STATES } from "../templates/message-versions";
-import { languageBase } from "../templates/template-languages";
+import { LIVE_VERSION_STATES } from "../campaigns/templates/message-versions";
+import { languageBase } from "../campaigns/templates/template-languages";
 import { appointmentWords, type AppointmentWord } from "./appointment-word";
 import { JOURNEY_STAGE_IDS, journeyStageOf, type JourneyStageId } from "./journey";
 

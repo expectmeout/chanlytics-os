@@ -9,16 +9,16 @@
  * The job's own id is the owner of every claim and lease it takes, so a job
  * the ledger tries again finds its own claim (core runner/claim.ts).
  */
-import { check, collect, startRound, type LeadPorts } from "../packages/core.js";
-import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
-import type { Json } from "../packages/db.js";
-import { UUID } from "../packages/contracts.js";
+import { check, collect, startRound, type LeadPorts } from "@chanlytics/core";
+import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
+import type { Json } from "@chanlytics/db";
+import { UUID } from "@chanlytics/contracts";
 import { leadDb } from "./lead-db.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
 import { storeLeadMark } from "./lead-marks.js";
 import { tellLeadQuestion } from "./lead-tell.js";
 import { pageSourceRefused } from "./lead-sources.js";
-import { logger } from "../log.js";
+import { logger } from "../shared/log.js";
 
 const SEQ = /^[a-z0-9.]{1,40}$/;
 

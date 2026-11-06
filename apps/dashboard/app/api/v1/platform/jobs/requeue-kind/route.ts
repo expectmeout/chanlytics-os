@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { JobRequeueKindSchema } from "@chanlytics/contracts";
-import { healthRequeueKind } from "@/server/platform/health";
+import { healthRequeueKind } from "@/server/console/health";
 
 /**
  * POST /api/v1/platform/jobs/requeue-kind — {kind, since, why}: every job of one kind that failed for good since a

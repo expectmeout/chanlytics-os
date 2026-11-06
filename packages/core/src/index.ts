@@ -10,15 +10,14 @@
  *
  * Every name is written out. The only export * here is a domain folder's barrel, which itself names what it exports; an
  * export * of a module would add whatever that module exports to the package's surface unseen
- * (tooling/scripts/tests/repo/contracts-barrels.test.mjs holds this for every package). Callers: the dashboard's routes
- * and ports, packages/jobs and the edge import "@chanlytics/core", its sources, and each app bundles them itself (the
- * edge through apps/edge/lib/packages/core.ts). Browser code never imports its values (eslint.config.mjs).
+ * (tests/repo/contracts-barrels.test.mjs holds this for every package). Callers: the dashboard's routes
+ * and ports, packages/jobs and the edge import "@chanlytics/core", its sources, and each app bundles them itself. Browser
+ * code never imports its values (eslint.config.mjs).
  */
-export * from "./appointments";
-export { bookingPageLinkedFrom, bookingPageOfSite } from "./booking-page";
+export * from "./calendar";
 export * from "./campaigns";
 export * from "./conversations";
-export { deliver, deliverSafely, templatePurpose } from "./deliver";
+export { deliver, deliverSafely, templatePurpose } from "./deliver/deliver";
 export type {
   Channel,
   Db,
@@ -31,18 +30,9 @@ export type {
   TemplateSend,
   Wire,
   WirePayload,
-} from "./deliver";
-export { liveHoldOf } from "./deliver-hold";
-export { textRefusal } from "./deliver-text";
-export { eachAtOnce } from "./each-at-once";
-export * from "./inbound";
-export * from "./leads";
-export * from "./look";
-export * from "./messages";
-export { sitePagesLinkedFrom, sitePagesNamed } from "./site-pages";
-export { siteWordsOf } from "./site-words";
-export { SUBSCRIBERS, toldFromItsEvent } from "./subscribers";
-export type { Subscriber, SubscriberPorts } from "./subscribers";
+} from "./deliver/deliver";
+export { liveHoldOf } from "./deliver/deliver-hold";
+export { textRefusal } from "./deliver/deliver-text";
 export {
   emailSender,
   isNotTakenError,
@@ -53,5 +43,15 @@ export {
   whatsappWire,
   wireUnavailable,
   WireUnavailableError,
-} from "./wire-senders";
-export type { CredentialsRead, EmailRoute, WireUnavailable } from "./wire-senders";
+} from "./deliver/wire-senders";
+export type { CredentialsRead, EmailRoute, WireUnavailable } from "./deliver/wire-senders";
+export { SUBSCRIBERS, toldFromItsEvent } from "./events/subscribers";
+export type { Subscriber, SubscriberPorts } from "./events/subscribers";
+export * from "./inbound";
+export * from "./leads";
+export * from "./look";
+export * from "./messages";
+export { eachAtOnce } from "./shared/each-at-once";
+export { bookingPageLinkedFrom, bookingPageOfSite } from "./website/booking-page";
+export { sitePagesLinkedFrom, sitePagesNamed } from "./website/site-pages";
+export { siteWordsOf } from "./website/site-words";

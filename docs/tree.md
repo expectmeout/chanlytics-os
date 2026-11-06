@@ -11,9 +11,10 @@ apps/edge/api/
   jobs/
   mailbox/
 apps/edge/lib/
-  anthropic-profiles/
+  ai/
   billing/
   calendar/
+  campaigns/
   drafts/
   email/
   files/
@@ -23,13 +24,14 @@ apps/edge/lib/
   intake/
   leads/
   lines/
+  notes/
   ops/
-  packages/
   partners/
   previews/
-  reach-out/
   receptionist/
+  shared/
   sms/
+  support/
   voice/
   website/
   whatsapp/
@@ -65,6 +67,7 @@ apps/dashboard/src/server/
   calendar/
   campaigns/
   connections/
+  console/
   conversations/
   export/
   files/
@@ -72,13 +75,12 @@ apps/dashboard/src/server/
   metrics/
   new-conversation/
   people/
-  platform/
   ports/
   previews/
   public/
   readers/
   receptionist/
-  sequences/
+  shared/
   workspace/
 apps/dashboard/src/legacy-bridge/
   ask/
@@ -97,26 +99,27 @@ apps/mobile/src/
   shell/
   widgets/
 packages/channels/src/
+  ai/
   email/
+  files/
   google/
+  inbound/
   instagram/
   leads/
   lines/
   log/
-  mailbox/
-  models/
+  shared/
   tokens/
   voice/
+  website/
+  whatsapp/
 packages/contracts/src/
   activity/
   ads/
   ai/
   ask/
-  ask-memory/
-  ask-proposals/
-  ask-skills/
-  broadcasts/
   calendar/
+  campaigns/
   config/
   consent/
   console/
@@ -137,34 +140,34 @@ packages/contracts/src/
   notes/
   notices/
   people/
-  person-page/
-  playbooks/
   previews/
-  reach-out/
   rehearsal/
   reports/
-  sequences/
   setup/
   shared/
   shell/
-  templates/
   today/
   voice/
   waits/
   workspace/
 packages/core/src/
-  appointments/
+  calendar/
   campaigns/
   conversations/
+  deliver/
+  events/
   inbound/
   leads/
   look/
   messages/
+  shared/
+  website/
 packages/db/src/
-  billing/
-  erasure/
   repositories/
+  shared/
 packages/jobs/src/
+  handlers/
+  runner/
 tooling/scripts/
   checks/
   e2e-harness/
@@ -172,8 +175,77 @@ tooling/scripts/
   gen/
   mobile/
   ops/
-  tests/
   voice/
+tests/
+  ads/
+  ai/
+  ask/
+  auth/
+  billing/
+  broadcasts/
+  calendar/
+  campaigns/
+  checks/
+  clocks/
+  connections/
+  consent/
+  console/
+  conversations/
+  cron/
+  database/
+  deals/
+  docs/
+  doors/
+  e2e/
+  edge/
+  email/
+  events/
+  files/
+  fixtures/
+  google/
+  history/
+  imports/
+  inbound/
+  instagram/
+  intake/
+  jobs/
+  journey/
+  leads/
+  lines/
+  links/
+  logo/
+  look/
+  messages/
+  mobile/
+  need-you/
+  new-conversation/
+  notes/
+  ops/
+  partners/
+  people/
+  playbooks/
+  previews/
+  public/
+  reach-out/
+  reads-never-write/
+  receptionist/
+  repo/
+  reports/
+  routes/
+  sequences/
+  setup/
+  shared/
+  shell/
+  shipping/
+  sms/
+  styles/
+  table/
+  templates/
+  today/
+  types/
+  voice/
+  whatsapp/
+  workspace/
 e2e/
   auth/
   campaigns/

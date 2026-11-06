@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
-import { readAllRows } from "../../paged";
+import { readAllRows } from "../../shared/paged";
 
 type Db = SupabaseClient<Database>;
 

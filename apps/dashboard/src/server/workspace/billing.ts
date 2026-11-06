@@ -12,10 +12,10 @@ import {
   type BillingPriceDto,
   type ModelStanding,
 } from "@chanlytics/contracts";
-import { deployment } from "../env";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { log } from "@/server/log";
-import { serviceDbIfConfigured } from "@/server/service-db";
+import { deployment } from "../shared/env";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../shared/edge";
+import { log } from "@/server/shared/log";
+import { serviceDbIfConfigured } from "@/server/shared/service-db";
 
 export const BILLING_COLUMNS =
   "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";

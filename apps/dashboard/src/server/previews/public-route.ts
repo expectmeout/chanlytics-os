@@ -8,11 +8,11 @@ import "server-only";
  */
 import { NextResponse } from "next/server";
 import { AppError, err, ok } from "@chanlytics/contracts";
-import { isSameOrigin } from "../request-guards";
-import { takeRate, type RateBucket } from "../rate-limit";
-import { refusalHeaders } from "../with-route";
-import { hashKey, ipOf } from "../request-ip";
-import { log } from "../log";
+import { isSameOrigin } from "../shared/request-guards";
+import { takeRate, type RateBucket } from "../shared/rate-limit";
+import { refusalHeaders } from "../shared/with-route";
+import { hashKey, ipOf } from "../shared/request-ip";
+import { log } from "../shared/log";
 
 const PRIVATE = { "cache-control": "private, no-store", "x-robots-tag": "noindex, nofollow" } as const;
 /** The most a body of these doors holds: a message, or a fact and what is right. */

@@ -12,7 +12,7 @@
  * Pure: the caller reads the row, the calendar's facts and what stands on the record now, and hands the clock.
  */
 import type { Closure, Hours } from "../../config/workspace-config/business-profile";
-import { campaignRunsOn } from "../../playbooks/playbook-schedule";
+import { campaignRunsOn } from "../../campaigns/playbooks/playbook-schedule";
 import { clockDate, clockTime, localDaysBetween } from "../../shared/clock";
 import { HOUR_MS, MIN_MS, dateFormat } from "../../shared/time";
 import { plural } from "../../shared/words";

@@ -16,13 +16,13 @@
  * (contracts' support-playbooks.ts), so the mail and Support's panel say the
  * same steps. Signed admin token only.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
 import { notify } from "./notify.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { setupAskMail } from "../packages/contracts.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import { setupAskMail } from "@chanlytics/contracts";
 
 interface Body {
   tenant_id?: string;

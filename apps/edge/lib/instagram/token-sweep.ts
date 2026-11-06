@@ -16,8 +16,8 @@
  * accounts cannot be read. Its lines carry `sweep: "instagram_tokens"`, and the tick ends in one ig_tokens_swept.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS } from "../packages/contracts.js";
-import { instagramCall, instagramErrorOf, instagramRefreshRequest, parseInstagramToken } from "../packages/channels.js";
+import { DAY_MS } from "@chanlytics/contracts";
+import { instagramCall, instagramErrorOf, instagramRefreshRequest, parseInstagramToken } from "@chanlytics/channels";
 import {
   activeInstagramAccounts,
   noteInstagramToken,
@@ -25,10 +25,10 @@ import {
   readChannelSecret,
   type Database,
   type InstagramAccountRow,
-} from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { errField, type Logger } from "../log.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
+} from "@chanlytics/db";
+import { json, refuse } from "../shared/http.js";
+import { errField, type Logger } from "../shared/log.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { notifyOnce } from "../ops/notify.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 import type { InstagramSecret } from "./credentials.js";

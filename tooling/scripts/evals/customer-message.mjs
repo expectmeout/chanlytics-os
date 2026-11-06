@@ -21,7 +21,7 @@
  * 0: a skip is never a pass. It costs money (about $3-4 for the set, twice, with the baseline): run it on Ruben's word.
  * It writes no row and touches no workspace; what it found is written to tooling/backups/ (ignored by git). It lives
  * outside tests/ so `pnpm test` never runs it; its pure parts (loadCases, validateCases, briefOf, patternFailures) are
- * executed by tooling/scripts/tests/ask/skills/customer-message-skill.test.mjs.
+ * executed by tests/ask/skills/customer-message-skill.test.mjs.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -154,7 +154,7 @@ export function patternFailures(c, versions) {
   ];
 }
 
-/** The SDK the edge asks the model through (lib/model.ts), loaded only for a live run, on the eval key. */
+/** The SDK the edge asks the model through (lib/ai/model.ts), loaded only for a live run, on the eval key. */
 async function messagesClient() {
   const require = createRequire(path.join(ROOT, "apps/edge/package.json"));
   const { default: Anthropic } = await import(pathToFileURL(require.resolve("@anthropic-ai/sdk")).href);

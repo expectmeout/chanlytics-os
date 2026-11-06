@@ -1,5 +1,5 @@
 /**
- * The receptionist writing under a Google review: one model call through the model port (lib/model.ts: the registry's
+ * The receptionist writing under a Google review: one model call through the model port (lib/ai/model.ts: the registry's
  * route for review_reply, its fallback on an overload, the call written to the usage ledger), the prompt from contracts
  * (review-reply.ts, the review fenced as someone else's words), the draft cleaned before anyone sees it.
  *
@@ -14,8 +14,8 @@ import {
   reviewReplyPrompt,
   type ReviewReplyFacts,
   type ReviewToAnswer,
-} from "../packages/contracts.js";
-import { callModel } from "../model.js";
+} from "@chanlytics/contracts";
+import { callModel } from "../ai/model.js";
 
 type DraftResult =
   | { ok: true; text: string; usage: { input_tokens: number; output_tokens: number } | null }

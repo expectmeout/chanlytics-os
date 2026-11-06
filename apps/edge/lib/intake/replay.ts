@@ -6,10 +6,10 @@
  * or the door's own refusal. A delivery the ledger no longer holds is 404.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SCHEMA_SETS } from "../packages/contracts.js";
-import { providerEventOf, type Database, type DeliveryProvider } from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { logger } from "../log.js";
+import { SCHEMA_SETS } from "@chanlytics/contracts";
+import { providerEventOf, type Database, type DeliveryProvider } from "@chanlytics/db";
+import { json, refuse } from "../shared/http.js";
+import { logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

@@ -24,10 +24,10 @@
  * said before are not the sweep's fault, and those numbers are read next tick. It answers 503 only when the channels
  * cannot be read. Its lines carry `sweep: "channel_quality"`, and the tick ends in one channel_quality_swept.
  */
-import { json, refuse } from "../../lib/http.js";
-import { authorizeCron } from "../../lib/cron-auth.js";
-import { pg } from "../../lib/pg.js";
-import { logger, errField, door } from "../../lib/log.js";
+import { json, refuse } from "../../lib/shared/http.js";
+import { authorizeCron } from "../../lib/shared/cron-auth.js";
+import { pg } from "../../lib/shared/pg.js";
+import { logger, errField, door } from "../../lib/shared/log.js";
 import { readNumberQualities } from "../../lib/whatsapp/number-quality.js";
 
 /**

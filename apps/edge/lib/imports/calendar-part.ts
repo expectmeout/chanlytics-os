@@ -4,8 +4,8 @@
  * appointments and the ledger), whatever the hour, so the visits are in while the owner goes on.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS, IMPORT_STOPPED_WORDS } from "../packages/contracts.js";
-import { dueCalendars, noteImport, type Database } from "../packages/db.js";
+import { DAY_MS, IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
+import { dueCalendars, noteImport, type Database } from "@chanlytics/db";
 import { readOneCalendar, type Kept } from "../calendar/calendar-sweep.js";
 import type { Part, PartOutcome } from "./history-import.js";
 

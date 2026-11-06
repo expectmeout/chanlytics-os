@@ -1,5 +1,5 @@
-import { write } from "@/server/route";
-import { playbookScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { playbookScope } from "@/server/shared/verbs";
 import { PLAYBOOK_PUT_BODY, changePlaybook, deletePlaybook } from "@/server/campaigns/playbook-row";
 
 /**

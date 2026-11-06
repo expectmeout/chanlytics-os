@@ -10,7 +10,7 @@
  * kit directly is to be taken down with its last reader (decision 0015: "what is shared moves once, published under the old
  * name for the pages still reading it, deleted with the last reader"), and was not: the sweep of 11 October 2026 (O4b)
  * found forty names on this list that no shipped file read. The node tests that still reach a kit part by name get it from
- * tooling/scripts/tests/_legacy-react.mjs (`kitParts`), not from the app's window.
+ * tests/_legacy-react.mjs (`kitParts`), not from the app's window.
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";

@@ -5,7 +5,7 @@
  * glass, and these stand in a sentence or in a line of their own, each with no ground of a button's.
  *
  * Each draws what the gallery's Line family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
- * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together). `className` is for the page's layout, and
+ * tests/styles/kit-components.test.mjs holds the two together). `className` is for the page's layout, and
  * comes last; the ref reaches the element.
  */
 import type { ComponentPropsWithRef } from "react";

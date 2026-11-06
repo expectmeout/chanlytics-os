@@ -5,7 +5,7 @@
  * composes it again and `resubmitRejectedCampaign` (a2p-refile.ts) sends the fields
  * Twilio lets it edit.
  */
-import { CONVERSATIONAL_ASK_TITLE, optInConfirmation, verbalOptInScript } from "../packages/contracts.js";
+import { CONVERSATIONAL_ASK_TITLE, optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 
 /**
  * What the workspace tells a reviewer about the messages it will send.

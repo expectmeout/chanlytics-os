@@ -16,7 +16,7 @@ import {
   filePathOf,
   type FileMime,
   type FileShows,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   FINGERPRINT_BYTES,
   RESPONSE_MAX_BYTES,
@@ -26,14 +26,14 @@ import {
   publicFetcher,
   type PlaceDetails,
   type SitePage,
-} from "../packages/channels.js";
-import { imageHeaderOf, sitePhotosFrom } from "../packages/core.js";
-import { fileForWork, fileFound, fileSeen, filesBucket, type Database } from "../packages/db.js";
-import { scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
+} from "@chanlytics/channels";
+import { imageHeaderOf, sitePhotosFrom } from "@chanlytics/core";
+import { fileForWork, fileFound, fileSeen, filesBucket, type Database } from "@chanlytics/db";
+import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { http } from "../google/places.js";
 import { recordNotification } from "../ops/notify.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

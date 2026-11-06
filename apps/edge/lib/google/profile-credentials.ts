@@ -5,15 +5,15 @@
  * before it expires. The connection that first stores them is
  * profile-connection.ts.
  */
-import type { Json } from "../packages/db.js";
+import type { Json } from "@chanlytics/db";
 import {
   type tokenExchangeRequest,
   tokenRefreshRequest,
   parseTokenResponse,
   type PlacesHttp,
   type TokenGrant,
-} from "../packages/channels.js";
-import { MIN_MS, type EdgeRefusal } from "../packages/contracts.js";
+} from "@chanlytics/channels";
+import { MIN_MS, type EdgeRefusal } from "@chanlytics/contracts";
 import { profileClient } from "./google-config.js";
 import { http } from "./places.js";
 import type { Db } from "./google-rows.js";

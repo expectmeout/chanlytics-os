@@ -33,7 +33,7 @@ import type {
 // inside a verb. That is a port, not a widening (hygiene.test.mjs).
 import type { InboundMessage, WaConfig } from "@chanlytics/channels";
 import type { IngestResult, Json, LeadContext, RoutedChannel } from "@chanlytics/db";
-import type { Delivered, SendKind, Sender, Wire } from "../deliver";
+import type { Delivered, SendKind, Sender, Wire } from "../deliver/deliver";
 import type { ThreadState, ThreadTurn } from "./thread";
 
 /** The written channels a thread is answered on (the edge's alerts.ts says them in an owner's words). */
@@ -80,7 +80,7 @@ export class IngestFailed extends Error {
 
 /**
  * A logger with context bound to it, as the verb uses one: three levels and a
- * JSON-carrying field bag. The edge's lib/log.ts `Logger` is this plus a child;
+ * JSON-carrying field bag. The edge's lib/shared/log.ts `Logger` is this plus a child;
  * the verb binds once and never narrows, so it names only what it uses.
  */
 export interface InboundLog {
@@ -92,7 +92,7 @@ export interface InboundLog {
 /**
  * The control plane's answer for one workspace, as the verb reads it: the
  * persona, the policy, the credentials, the recipients and the facts the
- * prompt states. The shape of `TenantRuntime` in apps/edge/lib/tenant-runtime.ts,
+ * prompt states. The shape of `TenantRuntime` in apps/edge/lib/shared/tenant-runtime.ts,
  * which is the one door that loads it.
  */
 export interface InboundRuntime {
@@ -421,7 +421,7 @@ export interface InboundPorts {
   /**
    * A logger FACTORY, not a logger: the verb binds the tenant once, where it
    * becomes known, and every line beneath it carries it. The edge hands in
-   * `logger` from lib/log.ts, which already has this shape.
+   * `logger` from lib/shared/log.ts, which already has this shape.
    */
   log(base: Record<string, unknown>): InboundLog;
   /**

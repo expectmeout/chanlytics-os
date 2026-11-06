@@ -15,14 +15,14 @@
  * texts to read: each answers an empty list, not an error, and the provider is not asked.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { json, refuse } from "../http.js";
-import { tokenWorkspace, type Admitted } from "../admin-auth.js";
-import { errorMessage } from "../admin-door.js";
-import { pg } from "../pg.js";
-import { errField, logger } from "../log.js";
-import { lineCodesFrom, type ProviderAccount } from "../packages/channels.js";
-import { LINE_CODES_WITHIN_MS, UUID } from "../packages/contracts.js";
-import { ownLineOf, type Database } from "../packages/db.js";
+import { json, refuse } from "../shared/http.js";
+import { tokenWorkspace, type Admitted } from "../shared/admin-auth.js";
+import { errorMessage } from "../shared/admin-door.js";
+import { pg } from "../shared/pg.js";
+import { errField, logger } from "../shared/log.js";
+import { lineCodesFrom, type ProviderAccount } from "@chanlytics/channels";
+import { LINE_CODES_WITHIN_MS, UUID } from "@chanlytics/contracts";
+import { ownLineOf, type Database } from "@chanlytics/db";
 import { lineAccount } from "../sms/sms.js";
 import { lineProviderFromEnv } from "./lines.js";
 

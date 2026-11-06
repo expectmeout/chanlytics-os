@@ -21,9 +21,9 @@ import {
   type AskScope,
   type PageContext,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
-import { log } from "@/server/log";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
+import { log } from "@/server/shared/log";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { filesTallied } from "../readers/files";

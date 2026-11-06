@@ -23,10 +23,10 @@ import {
 import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels";
 import { imageHeaderOf } from "@chanlytics/core";
 import { fileFound, fileStart } from "@chanlytics/db";
-import { log } from "@/server/log";
-import type { Member } from "@/server/route";
-import { serviceDb } from "@/server/service-db";
-import type { RouteContext } from "@/server/with-route";
+import { log } from "@/server/shared/log";
+import type { Member } from "@/server/shared/route";
+import { serviceDb } from "@/server/shared/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
 import { bucket, doorRefusal } from "./file";
 
 /** How long the address of an upload's first bytes is good for, and how long reading them may take. */

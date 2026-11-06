@@ -21,7 +21,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
 import type { PreviewTriedDto } from "../previews/preview-tried";
-import { runDaysAt } from "../playbooks/playbook-approval";
+import { runDaysAt } from "../campaigns/playbooks/playbook-approval";
 import { runsThatWait, type WaitingRun } from "../waits/waits";
 import {
   standingWithRuns,

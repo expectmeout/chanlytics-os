@@ -1,4 +1,4 @@
-import { callEdge, edgeConfigured, READY_TTL_MS } from "../edge";
+import { callEdge, edgeConfigured, READY_TTL_MS } from "../shared/edge";
 
 /**
  * Whether this deployment's email wire can send a campaign, and whether it can send an OFFER, as the edge says it (apps/edge

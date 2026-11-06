@@ -10,11 +10,11 @@
  * Best effort: it never throws. A partner's address is never logged.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { PartnerLetterNewsSchema, partnerLetter } from "../packages/contracts.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import type { Database } from "@chanlytics/db";
+import { PartnerLetterNewsSchema, partnerLetter } from "@chanlytics/contracts";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { platformFrom, post, NOTIFY_TIMEOUT_MS } from "../ops/notify.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

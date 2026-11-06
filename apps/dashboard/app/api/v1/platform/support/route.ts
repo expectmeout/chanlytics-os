@@ -1,6 +1,6 @@
-import { read, platform } from "@/server/route";
+import { read, platform } from "@/server/shared/route";
 import { SupportQuerySchema } from "@chanlytics/contracts";
-import { consoleSupport } from "@/server/platform/support";
+import { consoleSupport } from "@/server/console/support";
 
 /**
  * GET /api/v1/platform/support?view=needs|waiting|done&kind=&topic=&workspace=&q=&page= — Support's queue (decision

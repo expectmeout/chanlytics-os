@@ -1,4 +1,4 @@
-import { read, account } from "@/server/route";
+import { read, account } from "@/server/shared/route";
 import { mailboxCallback } from "@/server/connections/mailbox-connections";
 
 /**

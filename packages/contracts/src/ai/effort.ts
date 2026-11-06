@@ -9,7 +9,7 @@
  * Ask's turn raises its effort this way for a draft and sets it back on the next turn that is none (the dashboard's
  * server/ask/effort.ts); the edge lets the messages through and holds a round to the ceiling its effort earns
  * (ask-gateway.ts, askRoundCap); the port sends them, with their beta, only to a model that takes them, and folds them
- * into the request's own effort for one that does not (channels models/anthropic.ts, MODEL_TAKES.effortMessages).
+ * into the request's own effort for one that does not (channels ai/anthropic.ts, MODEL_TAKES.effortMessages).
  *
  * The API's words, probed 15 Oct 2026: without the beta, "messages.1.output_config: Extra inputs are not permitted";
  * to Sonnet 5, "output_config.effort requires a model that supports per-turn effort; this model does not"; a level it

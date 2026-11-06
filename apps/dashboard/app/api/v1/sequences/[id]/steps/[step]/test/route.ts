@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { STEP_TEST_BODY } from "@/server/sequences/bodies";
-import { sendStepTest } from "@/server/sequences/test-mail";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { STEP_TEST_BODY } from "@/server/campaigns/sequences/bodies";
+import { sendStepTest } from "@/server/campaigns/sequences/test-mail";
 
 /**
  * POST /api/v1/sequences/:id/steps/:step/test — Send me a test: the step's message, filled for an example person (a lead's

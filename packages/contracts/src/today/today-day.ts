@@ -15,10 +15,10 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import { DAY_MS } from "../shared/time";
 import { capitalize } from "../shared/words";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
-import { triggerOf, triggerWords } from "../playbooks/playbook-triggers";
+import { triggerOf, triggerWords } from "../campaigns/playbooks/playbook-triggers";
 import { TODAY_PHONE_WORDS as P } from "./today-bands";
 import { unmarkedVisitsOf } from "./today-to-do";
-import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
+import { SEQUENCES_ROUTE } from "../campaigns/sequences/sequence-address";
 
 /* ------------------------------ the day ---------------------------------- */
 

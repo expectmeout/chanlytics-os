@@ -8,8 +8,8 @@
  */
 import { createPrivateKey, sign as signRaw } from "node:crypto";
 import http2 from "node:http2";
-import { env } from "../env.js";
-import { MIN_MS } from "../packages/contracts.js";
+import { env } from "../shared/env.js";
+import { MIN_MS } from "@chanlytics/contracts";
 
 export interface ApnsPort {
   /**

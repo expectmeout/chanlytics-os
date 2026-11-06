@@ -30,7 +30,7 @@ export async function buildAskStates() {
       react: path.join(DASHBOARD_MODULES, "react"),
       "react-dom": path.join(DASHBOARD_MODULES, "react-dom"),
       "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/src/write-rules.ts"),
-      "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/src/ask-proposals/ask-only.ts"),
+      "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/src/ask/proposals/ask-only.ts"),
       "@chanlytics/contracts/page-specs": CONTRACTS,
       "@chanlytics/contracts": CONTRACTS,
       "@": SRC,

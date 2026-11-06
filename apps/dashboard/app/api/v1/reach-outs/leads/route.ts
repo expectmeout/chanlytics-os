@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { leadLinesOf, leadTimelineOf } from "@/server/campaigns/reach-out-leads";
 
 /**

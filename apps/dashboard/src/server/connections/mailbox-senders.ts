@@ -15,9 +15,9 @@ import {
 } from "@chanlytics/contracts";
 import { mailboxConnectionsOf, mailboxSendersOf, sortMailboxSender } from "@chanlytics/db";
 import { eraseContact } from "@/server/people/erase-contact";
-import type { erasureScope } from "@/server/verbs";
-import type { RouteContext } from "@/server/with-route";
-import { log } from "@/server/log";
+import type { erasureScope } from "@/server/shared/verbs";
+import type { RouteContext } from "@/server/shared/with-route";
+import { log } from "@/server/shared/log";
 import { edgeMailboxes } from "./mailbox-connections";
 
 /** The workspace's own mailboxes' domains: never said to be automated as a whole (contracts senderDomainOffered). */

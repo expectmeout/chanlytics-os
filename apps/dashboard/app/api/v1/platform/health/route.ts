@@ -1,6 +1,6 @@
-import { read, platform } from "@/server/route";
+import { read, platform } from "@/server/shared/route";
 import { HealthQuerySchema } from "@chanlytics/contracts";
-import { consoleHealth } from "@/server/platform/health";
+import { consoleHealth } from "@/server/console/health";
 
 /**
  * GET /api/v1/platform/health?days=7|30 — the Console's Health (decision 0068): every clock beside its runs, the jobs

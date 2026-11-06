@@ -40,7 +40,7 @@ import {
   replyToElsewhere,
   sentByAService,
   type MailboxEmail,
-} from "../../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   isFreeMail,
   normalizeEmail,
@@ -49,7 +49,7 @@ import {
   type MailboxLeftWhy,
   type MailboxSenderVerdict,
   type SenderReading,
-} from "../../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   domainSaidAutomated,
   mailboxConnectionsOf,
@@ -58,9 +58,9 @@ import {
   senderReadingOf,
   talksWith,
   type Database,
-} from "../../packages/db.js";
+} from "@chanlytics/db";
 import { platformFrom } from "../../ops/notify.js";
-import type { Logger } from "../../log.js";
+import type { Logger } from "../../shared/log.js";
 import { answersSomething, senderReaderFor, type SenderReader } from "./mailbox-reader.js";
 
 type Db = SupabaseClient<Database>;

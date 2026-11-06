@@ -12,14 +12,14 @@
  * the member, since the provider key lives here alone: eraseCallsDoor), and the erasure_finish job on this edge, which is
  * handed eraseCallsAtProvider as its port (jobs-tick.ts).
  */
-import { deleteCall } from "../packages/channels.js";
-import { eachAtOnce } from "../packages/core.js";
-import { isWorkspaceCall } from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
+import { deleteCall } from "@chanlytics/channels";
+import { eachAtOnce } from "@chanlytics/core";
+import { isWorkspaceCall } from "@chanlytics/db";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 
 /** The most calls one erasure asks the provider about: a person with more has the rest left to the provider's week. */
 const MAX_CALLS = 200;

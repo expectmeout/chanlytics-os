@@ -681,7 +681,7 @@
      ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
      2026). touch-action is read on what scrolls, so each strip page's phone scroller says it: Reports' body, the
      Inbox's threads, Conversations' rows, People's main, Settings' pane, a person's page (its tabs, and People behind the
-     first), a Campaigns pane open (a sequence's tabs, and its list behind the first; one each, found on the app at 375px; tooling/scripts/tests/styles/swipe-axis.test.mjs holds the list). A touch
+     first), a Campaigns pane open (a sequence's tabs, and its list behind the first; one each, found on the app at 375px; tests/styles/swipe-axis.test.mjs holds the list). A touch
      that began across never scrolls it, as a phone's own pagers hold their axis; one that began down scrolls as before,
      and the reader moves nothing. */
   .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane, .cl-profile, .cm-pane-body { touch-action: pan-y; }
@@ -2793,7 +2793,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   white-space: pre;
 }
 /* A rule with a :has() over the element it styles names that element by its tag or class, never by its place alone
-   (tooling/scripts/tests/styles/has-subjects.test.mjs). The act is a button or a link. The Calendar's act is its bar
+   (tests/styles/has-subjects.test.mjs). The act is a button or a link. The Calendar's act is its bar
    (calendar.css), never an act of the frame's: a demo's Book keeps its place beside it. */
 .pg-slot:not([data-strip="calendar"]) > .pg-act-slot:has(> #pg-act:not(:empty)) > button:not(#pg-act),
 .pg-slot:not([data-strip="calendar"]) > .pg-act-slot:has(> #pg-act:not(:empty)) > a:not(#pg-act) {

@@ -1,12 +1,12 @@
 import { AppError, PeopleExportQuerySchema, parseListToken, type PersonRowDto } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { everyoneOnce } from "@/server/people/people";
-import { tenantFacts } from "@/server/tenant";
+import { tenantFacts } from "@/server/shared/tenant";
 import { audiencePool, poolList } from "@/server/people/audience";
 import { channelsReadyOrNull } from "@/server/campaigns/channels-ready";
 import { attachment, dateTag, peopleCsv, safeName } from "@/server/export/export";
-import { recordDecision } from "@/server/verbs";
-import { log } from "@/server/log";
+import { recordDecision } from "@/server/shared/verbs";
+import { log } from "@/server/shared/log";
 
 /**
  * GET /api/v1/contacts/export — everyone, as a CSV, for the business's own

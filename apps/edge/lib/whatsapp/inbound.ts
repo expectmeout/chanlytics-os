@@ -14,9 +14,9 @@
  * it through recordInboundMessage, and its job answers it through resumeInbound. A WhatsApp message is too, for the
  * workspaces the edge names (Phase 3, lib/whatsapp/answer-later.ts): recordWhatsappInbound, then resumeWhatsappInbound.
  */
-import type { InboundMessage } from "../packages/channels.js";
-import type { IngestResult, RoutedChannel } from "../packages/db.js";
-import { answerInbound, recordInbound, type InboundCarrier } from "../packages/core.js";
+import type { InboundMessage } from "@chanlytics/channels";
+import type { IngestResult, RoutedChannel } from "@chanlytics/db";
+import { answerInbound, recordInbound, type InboundCarrier } from "@chanlytics/core";
 import { corePorts, realPorts, type InboundPorts } from "./ports.js";
 
 /** A WhatsApp message in the one shape, as inboundFromWhatsapp makes it. */

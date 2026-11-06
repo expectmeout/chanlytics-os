@@ -12,7 +12,7 @@
  */
 import type { Tone } from "../shell/tone";
 import { MESSAGES_ROUTE } from "../shell/address";
-import { numberHealth } from "../broadcasts/broadcasts";
+import { numberHealth } from "../campaigns/broadcasts/broadcasts";
 import { PHONE_LINE_OFF } from "../lines/caller-gets";
 import { channelFor, type ChannelVM } from "../lines/channels";
 import type { ConnectionNote } from "../lines/connection-note";

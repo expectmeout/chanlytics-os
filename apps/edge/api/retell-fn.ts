@@ -8,7 +8,7 @@
  * link sent through deliver(); every refusal still answers HTTP 200 with a `result` sentence, because the agent speaks
  * that string.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { sendBookingLinkOnCall } from "../lib/voice/call-booking-link.js";
 
 export const POST = door(sendBookingLinkOnCall);

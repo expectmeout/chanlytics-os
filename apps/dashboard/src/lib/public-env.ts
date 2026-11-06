@@ -1,11 +1,11 @@
 /**
  * The dashboard's public environment: the `NEXT_PUBLIC_*` values Next compiles into every bundle at build, and the
- * build's own `NODE_ENV`. The one module besides `src/server/env.ts` that may read `process.env` in the dashboard
+ * build's own `NODE_ENV`. The one module besides `src/server/shared/env.ts` that may read `process.env` in the dashboard
  * (eslint.config.mjs), and the only one browser code may import.
  *
  * Each value is read by its literal name, because that is the only form Next replaces with the value at build: a
  * read through a variable or a spread would reach the browser as undefined. Blank is unset and whitespace is
- * trimmed, as everywhere else. What these values must be is the server's to say (`src/server/env.ts` checks them at
+ * trimmed, as everywhere else. What these values must be is the server's to say (`src/server/shared/env.ts` checks them at
  * boot, from here); the browser only reads them.
  */
 

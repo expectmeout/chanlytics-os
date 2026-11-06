@@ -13,7 +13,7 @@
  *   leadCompanyOf              a company on its peek: the people named on it, its addressee first, and where it came from
  */
 import { recordOrNull, trimmedOrNull } from "../shared/unknown";
-import { firstNameOf } from "../templates/templates";
+import { firstNameOf } from "../campaigns/templates/templates";
 import { LEAD_CARDS } from "./search/cards";
 
 export const LEAD_KINDS = ["place", "company"] as const;

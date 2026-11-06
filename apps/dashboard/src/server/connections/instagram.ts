@@ -7,11 +7,11 @@
  */
 import { AppError, appLink, ROLE_PERMS } from "@chanlytics/contracts";
 import { instagramAuthorizeUrl, newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { deployment } from "../env";
-import { log } from "../log";
-import { memberContext, type RouteContext } from "../with-route";
-import type { Member } from "../route";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../shared/edge";
+import { deployment } from "../shared/env";
+import { log } from "../shared/log";
+import { memberContext, type RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
 
 /** The provider a state for Instagram names (OAuthState.p): the Google and mailbox callbacks refuse it. */

@@ -7,9 +7,9 @@
  */
 import { LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD } from "@chanlytics/contracts";
 import { errField, logger, type SitePage } from "@chanlytics/channels";
-import { bookingPageOfSite } from "../../booking-page";
-import { eachAtOnce } from "../../each-at-once";
-import { siteWordsOf } from "../../site-words";
+import { bookingPageOfSite } from "../../website/booking-page";
+import { eachAtOnce } from "../../shared/each-at-once";
+import { siteWordsOf } from "../../website/site-words";
 import type { CleanPlace } from "../clean";
 import type { LeadPorts } from "../ports";
 import { LeadRetry } from "./rules";

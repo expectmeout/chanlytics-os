@@ -9,9 +9,9 @@
  */
 import { clockDate } from "../../shared/clock";
 import { capitalize } from "../../shared/words";
-import { REPLY_INTENT_WORDS, isReplyIntent } from "../../reach-out/reach-out-replies";
-import type { SequencePlaceDto } from "../../sequences/sequence-place";
-import { sequenceLeftWords } from "../../sequences/sequence-words";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../../campaigns/reach-out/reach-out-replies";
+import type { SequencePlaceDto } from "../../campaigns/sequences/sequence-place";
+import { sequenceLeftWords } from "../../campaigns/sequences/sequence-words";
 import type { LeadPeekVM } from "../lead-peek";
 import { LEAD_CALL_OUTCOME_WORDS, type LeadCallOutcome } from "../lead-words";
 import { LEAD_SHEET_WORDS as SW } from "./lead-sheet";

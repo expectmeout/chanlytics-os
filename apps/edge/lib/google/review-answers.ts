@@ -6,8 +6,8 @@
  * reply stopped (`holdReviewReply`), and a person's answer posted
  * (`replyOnProfile`). The model's draft itself is review-reply.ts.
  */
-import { emitEvent, listPolicies, subjectsWith, workspaceAnswersOnItsOwn } from "../packages/db.js";
-import { replyToReview, reviewParent, type PlacesHttp } from "../packages/channels.js";
+import { emitEvent, listPolicies, subjectsWith, workspaceAnswersOnItsOwn } from "@chanlytics/db";
+import { replyToReview, reviewParent, type PlacesHttp } from "@chanlytics/channels";
 import {
   autoReplyCandidates,
   autoReplyHold,
@@ -18,9 +18,9 @@ import {
   type EdgeRefusal,
   type ReviewReplyFacts,
   type ReviewReplyMode,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { draftReviewReply } from "./review-reply.js";
-import { logger } from "../log.js";
+import { logger } from "../shared/log.js";
 import { http } from "./places.js";
 import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
 import { tokenFor } from "./profile-credentials.js";

@@ -26,9 +26,9 @@ import {
 import { leadPileCounts, leadViewCounts, readLeadOne, sequencePlacesOf } from "@chanlytics/db";
 import { type DoorArgs, monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
-import { tenantFacts } from "../tenant";
-import type { RouteContext } from "../with-route";
-import { env } from "../env";
+import { tenantFacts } from "../shared/tenant";
+import type { RouteContext } from "../shared/with-route";
+import { env } from "../shared/env";
 
 /* --------------------------------------------------------- a page of rows */
 

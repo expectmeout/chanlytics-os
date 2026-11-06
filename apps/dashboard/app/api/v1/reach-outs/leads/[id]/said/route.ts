@@ -1,5 +1,5 @@
 import { ReachOutReplySaidSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
+import { write } from "@/server/shared/route";
 import { leadScope } from "@/server/leads/leads";
 import { sayReply } from "@/server/campaigns/reach-out-leads";
 

@@ -10,7 +10,7 @@
  * 72-hour free entry point window; charged are marketing templates, and utility and authentication templates outside a window; the
  * rate depends on the recipient's country calling code, the category and the month's volume. NO RATE IS WRITTEN HERE: a rate moves
  * when Meta's does, so the words link Meta's own page for them. A campaign is charged where Meta delivers it, and Meta is not
- * delivering marketing messages to US numbers for now (broadcasts/whatsapp-offers.ts), so the words say "each one Meta delivers".
+ * delivering marketing messages to US numbers for now (campaigns/broadcasts/whatsapp-offers.ts), so the words say "each one Meta delivers".
  */
 import type { ConnectionNote } from "./connection-note";
 

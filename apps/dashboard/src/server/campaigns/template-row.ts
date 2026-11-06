@@ -9,9 +9,9 @@
 import { z } from "zod";
 import { AppError, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
 import { deleteTemplate, templateEvent } from "@/server/campaigns/meta-templates";
-import { serviceDb } from "@/server/service-db";
-import type { RouteContext } from "@/server/with-route";
-import type { templateScope } from "@/server/verbs";
+import { serviceDb } from "@/server/shared/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { templateScope } from "@/server/shared/verbs";
 
 /** The template a templateScope route acts on, as the scope read it. */
 type TemplateRow = Awaited<ReturnType<typeof templateScope.load>>;

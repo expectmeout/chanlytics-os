@@ -8,8 +8,8 @@
  */
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepProviderEvent, type Database, type DeliveryProvider } from "../packages/db.js";
-import { logger } from "../log.js";
+import { keepProviderEvent, type Database, type DeliveryProvider } from "@chanlytics/db";
+import { logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

@@ -4,7 +4,7 @@
  * phase, the term), so two starters of one round make the same row and the
  * second insert meets the first (E1: the row is made once, then claimed once).
  */
-import { uuidV5 } from "../uuid-v5";
+import { uuidV5 } from "../shared/uuid-v5";
 import { utf8Bytes, hexOf } from "@chanlytics/contracts";
 
 export async function sha256Hex(s: string): Promise<string> {

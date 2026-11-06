@@ -5,8 +5,8 @@
  * `Db`, from here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lensRoute, reviewRoute } from "../packages/contracts.js";
-import { reviewRowsByGoogleId, type Database } from "../packages/db.js";
+import { lensRoute, reviewRoute } from "@chanlytics/contracts";
+import { reviewRowsByGoogleId, type Database } from "@chanlytics/db";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];

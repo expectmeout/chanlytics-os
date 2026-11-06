@@ -10,8 +10,8 @@ import {
   type PersonNoteTeamDto,
 } from "@chanlytics/contracts";
 import { logPersonCall, seePersonNote } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
-import { log } from "@/server/log";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import { log } from "@/server/shared/log";
 
 type NoteRow = {
   id: string;

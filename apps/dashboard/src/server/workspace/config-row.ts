@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getTenantConfig, getTenantConfigAsMember, type Database, type TenantConfigRow } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
+import { serviceDb } from "@/server/shared/service-db";
 
 /**
  * The workspace's configuration row, whole, as the server reads it on a member's behalf: the one way the dashboard

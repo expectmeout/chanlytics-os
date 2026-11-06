@@ -29,12 +29,12 @@
  * listing, each read once for the ops past it -- the writes, the log and the
  * shape the dashboard wants back.
  */
-import { json, refuse } from "../http.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { respond, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
-import { emitEvent, fileListingAside, linkedPlaceOf, type Database } from "../packages/db.js";
-import { DEFAULT_TIMEZONE, UUID } from "../packages/contracts.js";
-import type { PlaceDetails } from "../packages/channels.js";
+import { json, refuse } from "../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { respond, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
+import { emitEvent, fileListingAside, linkedPlaceOf, type Database } from "@chanlytics/db";
+import { DEFAULT_TIMEZONE, UUID } from "@chanlytics/contracts";
+import type { PlaceDetails } from "@chanlytics/channels";
 import { googleReadiness, placesKey, profilePublic } from "./google-config.js";
 import {
   connectionForClient,
@@ -48,7 +48,7 @@ import { checkListing } from "./listing-check.js";
 import { draftFor, holdReviewReply, replyOnProfile, reviewReplyMode } from "./review-answers.js";
 import { bindLocation, connectProfile, disconnectProfile, locationsFor } from "./profile-connection.js";
 import { syncProfile } from "./profile-sync.js";
-import { errField, logger, type Logger } from "../log.js";
+import { errField, logger, type Logger } from "../shared/log.js";
 import { askForListingPhotos } from "../files/found.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {

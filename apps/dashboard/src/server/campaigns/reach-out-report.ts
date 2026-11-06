@@ -8,7 +8,7 @@ import "server-only";
  */
 import type { ReachOutReportDto } from "@chanlytics/contracts";
 import { reachOutReport, type ReportWindow } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs";
 import { windowRead } from "@/server/readers/report";
 

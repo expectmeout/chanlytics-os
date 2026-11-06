@@ -1,5 +1,5 @@
 import { ReachOutRepliesQuerySchema } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { listReplies } from "@/server/campaigns/reach-out-replies";
 
 /**

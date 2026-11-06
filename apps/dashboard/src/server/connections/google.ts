@@ -19,8 +19,8 @@ import {
   DAY_MS,
 } from "@chanlytics/contracts";
 
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { deployment, env } from "../env";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../shared/edge";
+import { deployment, env } from "../shared/env";
 
 const LISTING_COLUMNS =
   "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";

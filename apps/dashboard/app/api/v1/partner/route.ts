@@ -1,4 +1,4 @@
-import { read, write, account } from "@/server/route";
+import { read, write, account } from "@/server/shared/route";
 import { PartnerBecomeSchema, PartnerLettersSchema } from "@chanlytics/contracts";
 import { readPartnerAccount, becomeAPartner, setPartnerLettersOf } from "@/server/workspace/partner-account";
 

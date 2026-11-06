@@ -7,7 +7,7 @@
  *
  * What a change runs:
  *   - a changed test file, itself;
- *   - any other changed file, every folder of tooling/scripts/tests named like one of its path's parts
+ *   - any other changed file, every folder of tests named like one of its path's parts
  *     (packages/core/src/leads/cards.ts runs tests/leads; apps/edge/lib/receptionist/steer.ts runs tests/edge and
  *     tests/receptionist); supabase/ runs tests/database, and docs/ tests/history (the decisions' index);
  *   - every test whose imports reach a changed file, read from the syntax tree (test-reach.mjs: through the packages'
@@ -56,7 +56,7 @@ import { SCOPES as TRACED } from "../trace-routes.mjs";
 import { isTest, reachOf } from "./test-reach.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const TESTS = "tooling/scripts/tests";
+const TESTS = "tests";
 
 /** Run on every change: the repository's rules, the ratchets and the docs' truth, where the five reds of 3 Oct were. */
 export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TESTS}/routes/wire-casing.test.mjs`];
@@ -109,7 +109,7 @@ export function holds(read, file) {
 }
 
 /**
- * What to run for a set of changed paths, given the folders of tooling/scripts/tests that hold tests: the files and
+ * What to run for a set of changed paths, given the folders of tests that hold tests: the files and
  * folders to hand the runner, ALWAYS first.
  */
 export function testTargets(changed, testFolders) {
@@ -117,7 +117,7 @@ export function testTargets(changed, testFolders) {
   for (const file of changed) {
     for (const [target, reads] of Object.entries(READ_BY)) if (reads.some((r) => holds(r, file))) targets.add(target);
     if (file.startsWith(`${TESTS}/`)) {
-      const folder = file.split("/")[3];
+      const folder = file.split("/")[1];
       if (/\.test\.mjs$/.test(file)) targets.add(file);
       else if (testFolders.has(folder)) targets.add(`${TESTS}/${folder}`);
       continue;
@@ -306,9 +306,9 @@ export function databaseRunOf(changed, targets, suites, read) {
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 });
 const lines = (text) => text.split("\n").filter(Boolean);
 
-/** The folders under tooling/scripts/tests that hold at least one test, by name. */
+/** The folders under tests that hold at least one test, by name. */
 const foldersWithTests = (files) =>
-  new Set(files.filter((f) => /^tooling\/scripts\/tests\/[^/]+\/.+\.test\.mjs$/.test(f)).map((f) => f.split("/")[3]));
+  new Set(files.filter((f) => /^tests\/[^/]+\/.+\.test\.mjs$/.test(f)).map((f) => f.split("/")[1]));
 
 /** A tracked file's text as the checkout has it; a file the checkout lacks reads as nothing. */
 function readTracked(file) {

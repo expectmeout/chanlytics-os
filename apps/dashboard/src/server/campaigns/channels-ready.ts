@@ -8,9 +8,9 @@ import {
   parseTenantConfig,
 } from "@chanlytics/contracts";
 import { mailboxOfTenant, textLineFacts, whatsappChannelFacts, workspacePaused } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 import { emailWire } from "../connections/email-readiness";
-import { log } from "../log";
+import { log } from "../shared/log";
 import { configRowOf } from "../workspace/config-row";
 
 /**

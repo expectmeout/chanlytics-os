@@ -26,10 +26,10 @@
  *
  * Signed admin token only: the dashboard is the sole caller, as for steer.
  */
-import { json, refuse } from "../http.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { emitEvent, recordActivation, type Json } from "../packages/db.js";
+import { json, refuse } from "../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { emitEvent, recordActivation, type Json } from "@chanlytics/db";
 import {
   alreadyRegistered,
   exchangeCode,
@@ -47,9 +47,9 @@ import {
 } from "./meta-graph.js";
 import { readAndKeepStanding } from "./number-standing.js";
 import { startWhatsappHistory } from "../imports/history-import.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { UUID } from "../packages/contracts.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import { UUID } from "@chanlytics/contracts";
 
 interface ConnectBody {
   tenant_id?: string;

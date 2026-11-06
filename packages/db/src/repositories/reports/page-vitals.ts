@@ -4,7 +4,7 @@
  * cost the most). All are the service role's alone: a row names a page and a number, no person and no workspace.
  *
  * Thin: each answers what the call answered, its rows or its error, and the dashboard's reader
- * (`apps/dashboard/src/server/platform/vitals.ts`) says what an error means. A report that could not be kept is a number
+ * (`apps/dashboard/src/server/console/vitals.ts`) says what an error means. A report that could not be kept is a number
  * lost, never an error for a page that is closing; a read that fails leaves the back office's other cards standing.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";

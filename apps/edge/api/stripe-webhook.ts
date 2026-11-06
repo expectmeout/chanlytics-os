@@ -6,7 +6,7 @@
  * it: the signature is checked against the raw body before anything is read, the event kept by its id under a lease and
  * applied.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { receiveStripeEvent } from "../lib/billing/stripe-event.js";
 
 export const POST = door(receiveStripeEvent);

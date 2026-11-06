@@ -11,7 +11,7 @@
  *   - through a barrel, by name: `import { appLink } from "@chanlytics/contracts"` reaches the barrels on the way and
  *     the module that defines appLink, with that module's own imports, never the other modules the barrels name. A
  *     namespace import (`import * as`), a side-effect import, or `import()` with nothing destructured reaches all of it.
- * In the suite and the scripts it runs (tooling/, apps/mobile/test), a string that names a tracked file reaches it too,
+ * In the suite and the scripts it runs (tests/, tooling/, apps/mobile/test), a string that names a tracked file reaches it too,
  * repo-relative or relative to the file that says it, so `importSrc("apps/…")`, `readCode("apps/…")`, `at("…")` and
  * `path.join(ROOT, "packages/core/dist/index.js")` (a bundle, read as its sources) are seen without naming any helper;
  * a template whose parts are constants of the file is folded first. A test that reads a file's text breaks when the
@@ -32,15 +32,15 @@ const posix = path.posix;
 
 /** The suite's tests: tooling/scripts/checks/test.mjs SUITES.test. */
 export const isTest = (file) =>
-  /^tooling\/scripts\/tests\/.+\.test\.mjs$/.test(file) || /^apps\/mobile\/test\/[^/]+\.test\.mjs$/.test(file);
+  /^tests\/.+\.test\.mjs$/.test(file) || /^apps\/mobile\/test\/[^/]+\.test\.mjs$/.test(file);
 
 /** Code whose strings name what it reads: the suite and the scripts it runs, never the code that ships. */
-const READS_BY_NAME = /^(tooling\/|apps\/mobile\/test\/)/;
+const READS_BY_NAME = /^(tests\/|tooling\/|apps\/mobile\/test\/)/;
 const CODE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 /** A string that may be a path: no space, not a URL, short. */
 const PATHLIKE = /^[\w@.[\]()-][\w@.[\]()/-]*$/;
 /** An unresolved one kept as a name a deleted file may be asked by: a path into the tree, or relative. */
-const INTO_THE_TREE = /^(\.{1,2}\/|apps\/|packages\/|tooling\/|supabase\/|docs\/|e2e\/)/;
+const INTO_THE_TREE = /^(\.{1,2}\/|apps\/|packages\/|tests\/|tooling\/|supabase\/|docs\/|e2e\/)/;
 const EXTENSIONS = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs", ".json"];
 
 const kindOf = (file) =>

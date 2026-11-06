@@ -24,7 +24,7 @@ import { followUpFacts } from "../campaigns/playbooks";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import { everyone } from "./everyone";
 import * as facts from "./facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /** A read started before it is awaited: held from now, so a refusal that lands first is never left unhandled. */
 function early<T>(p: Promise<T>): Promise<T> {

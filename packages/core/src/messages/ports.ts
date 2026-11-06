@@ -1,7 +1,7 @@
 /**
  * The send path's view of the world: what the job verbs need, named for
  * what each means. The adapter that knows the tables and the runtime's
- * services is packages/jobs/src/handlers.ts.
+ * services is packages/jobs/src/handlers/handlers.ts.
  */
 import type {
   AppointmentState,
@@ -14,7 +14,7 @@ import type {
 import type { EmailRequest } from "@chanlytics/channels";
 import type { Json, MessageVersionRow } from "@chanlytics/db";
 import type { CancelBroadcastPorts } from "../campaigns/ports";
-import type { Channel, Delivered, Delivery } from "../deliver";
+import type { Channel, Delivered, Delivery } from "../deliver/deliver";
 
 /** The door, handed in: a verb never builds it, so a test can answer whatever the case needs. */
 export type Door = (d: Delivery) => Promise<Delivered>;

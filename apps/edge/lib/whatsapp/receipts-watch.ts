@@ -25,8 +25,8 @@
  * Cross-workspace: the health sweep reads every workspace's unreceipted WhatsApp sends and only reports them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { HOUR_MS } from "../packages/contracts.js";
+import type { Database } from "@chanlytics/db";
+import { HOUR_MS } from "@chanlytics/contracts";
 
 /** How long a receipt may take before its absence is a condition. */
 const NO_RECEIPT_AFTER_MS = 6 * HOUR_MS;

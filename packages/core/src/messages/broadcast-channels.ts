@@ -43,7 +43,7 @@ import {
   type VersionWords,
 } from "@chanlytics/contracts";
 import { broadcastEmailId } from "../campaigns/reach-out-ids";
-import type { Channel as DoorChannel, Delivery } from "../deliver";
+import type { Channel as DoorChannel, Delivery } from "../deliver/deliver";
 
 /**
  * The wires a broadcast goes out on: every channel of the send door but an Instagram DM, which answers a person and never

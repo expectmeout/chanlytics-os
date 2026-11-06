@@ -21,15 +21,15 @@
  * is read as one written after it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inboundFromWhatsapp, type WaChangeValue, type WaRawMessage } from "../packages/channels.js";
-import { resolveChannelDetailed, type Database, type Json, type RoutedChannel } from "../packages/db.js";
-import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
-import { phoneTail } from "../packages/contracts.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
+import { inboundFromWhatsapp, type WaChangeValue, type WaRawMessage } from "@chanlytics/channels";
+import { resolveChannelDetailed, type Database, type Json, type RoutedChannel } from "@chanlytics/db";
+import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
+import { phoneTail } from "@chanlytics/contracts";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
 import { answerText } from "../sms/inbound-text.js";
 import { answerDm } from "../instagram/dm-answer.js";
-import { pg } from "../pg.js";
+import { pg } from "../shared/pg.js";
 import { handleInbound, recordWhatsappInbound, resumeWhatsappInbound } from "./inbound.js";
 import { realPorts, type InboundPorts } from "./ports.js";
 

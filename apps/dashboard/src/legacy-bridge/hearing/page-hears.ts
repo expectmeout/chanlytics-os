@@ -1,7 +1,7 @@
 /**
  * What each page hears, as a table (decision 0058): the registry's (surface-registry.ts re-exports it, and reads it in
  * ownsTheScreen, ownsTable and drawsTheScreen), kept in a module of its own because it is data a review reads row by row and a
- * change to it is one cell, with the goldens beside it (tooling/scripts/tests/baselines/hearing/).
+ * change to it is one cell, with the goldens beside it (tests/baselines/hearing/).
  */
 import type { RecordKind } from "@chanlytics/contracts";
 
@@ -10,7 +10,7 @@ import type { RecordKind } from "@chanlytics/contracts";
  * change to a record they hear only on their page (`fresh: "its-page"`, onlyOnItsPage) is read there and kept for their page
  * elsewhere. A surface's own kinds (`always`) and a surface that is `live` are heard on every page; this says where the rest are.
  *
- * A page's hearing is a row anyone can read, a change to it is one cell, and the goldens (tooling/scripts/tests/baselines/hearing/)
+ * A page's hearing is a row anyone can read, a change to it is one cell, and the goldens (tests/baselines/hearing/)
  * say what each cell costs in reads for every notice the feed sends. A family is what routeFamilyOf (surface-registry.ts) makes of an address:
  * a person's page is one family whatever the person and the tab, a Reports lens one family over any days, a Settings pane one
  * family with any row after it.

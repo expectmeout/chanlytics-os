@@ -38,8 +38,8 @@
  * runbook's knock) that names no workspace, or the platform key on an edge that holds no secret. A token that names
  * a workspace is a dashboard's, and is refused (`platform_only`), as the pager's door refuses one.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import {
   getAgentRaw,
   getPhoneNumber,
@@ -58,14 +58,14 @@ import {
   newDraftNote,
   voiceNumberBinding,
   type LiveAgentSettings,
-} from "../packages/channels.js";
-import { resolveChannel, voiceAgentsBeforeANumber } from "../packages/db.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
-import { env } from "../env.js";
-import { edgeFnUrl } from "../dashboard-origin.js";
+} from "@chanlytics/channels";
+import { resolveChannel, voiceAgentsBeforeANumber } from "@chanlytics/db";
+import { loadTenantRuntime } from "../shared/tenant-runtime.js";
+import { env } from "../shared/env.js";
+import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { signatureOnly } from "./voice-door-auth.js";
-import { logger } from "../log.js";
-import type { Admitted } from "../admin-auth.js";
+import { logger } from "../shared/log.js";
+import type { Admitted } from "../shared/admin-auth.js";
 
 interface Body {
   agent_id?: string;

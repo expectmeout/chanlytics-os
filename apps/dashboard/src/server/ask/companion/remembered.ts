@@ -9,10 +9,10 @@ import {
   fencedInline,
 } from "@chanlytics/contracts";
 import { askJournalDays, askMemoryLines, keepAskMemory } from "@chanlytics/db";
-import type { RouteContext } from "../../with-route";
+import type { RouteContext } from "../../shared/with-route";
 import { load, stamp, type Reader } from "../../readers";
 import * as facts from "../../readers/facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { clip, oneLine } from "../context/rows";
 
 /**

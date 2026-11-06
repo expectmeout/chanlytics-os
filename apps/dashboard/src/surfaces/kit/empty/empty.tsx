@@ -15,7 +15,7 @@
  * the runner, `onRetry` runs instead, and with neither there is nothing to press (a state support repairs).
  *
  * It draws what the gallery's "Empty state and failed read" family draws, entry for entry
- * (tooling/scripts/e2e-harness/kit-gallery.mjs; tooling/scripts/tests/styles/kit-components.test.mjs holds the two
+ * (tooling/scripts/e2e-harness/kit-gallery.mjs; tests/styles/kit-components.test.mjs holds the two
  * together). Its acts are the house's buttons and links by their classes, as the kit's Button and LinkButton write them.
  */
 import type { ReactNode } from "react";

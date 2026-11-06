@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { LINE_ACTS, LineActSchema } from "@chanlytics/contracts";
-import { platformLineAct } from "@/server/platform/platform";
+import { platformLineAct } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/lines/replace -- delete a refused campaign and file a new one.

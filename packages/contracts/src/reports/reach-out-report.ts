@@ -8,7 +8,7 @@
  * the report, in the businesses it wrote to, is campaigns/reach-out-lens.ts.
  */
 import { isCount, recordOrNull } from "../shared/unknown";
-import type { HandKind } from "../reach-out/reach-out-hand";
+import type { HandKind } from "../campaigns/reach-out/reach-out-hand";
 
 export interface ReachOutReportCounts {
   /** Emails that left (a business with three is three). */

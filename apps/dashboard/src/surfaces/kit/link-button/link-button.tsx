@@ -6,7 +6,7 @@
  * (`<a class="cl-bucket-link">`); the gallery holds the two equal.
  *
  * It draws what the gallery's Link button family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
- * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together). `className` is for the page's layout,
+ * tests/styles/kit-components.test.mjs holds the two together). `className` is for the page's layout,
  * and comes last; the ref reaches the element.
  */
 import type { PressAct, PressDoor } from "../press";

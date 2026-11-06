@@ -24,11 +24,11 @@ import {
   type PoolRecord,
 } from "@chanlytics/contracts";
 import { peopleWithEarlierVisits, recordOver } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { lazily, type Lazy } from "@/server/lazy";
+import type { RouteContext } from "@/server/shared/with-route";
+import { lazily, type Lazy } from "@/server/shared/lazy";
 import { calendarOf } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /* ---- Everyone's appointments, for the list and the report ---- */
 

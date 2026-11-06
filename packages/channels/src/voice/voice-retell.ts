@@ -9,7 +9,7 @@
 import type { SchemaSet } from "@chanlytics/contracts";
 import crypto from "node:crypto";
 import { callOutcomeWords, isE164, MISSED_CALL_LINE, UNCONNECTED_DIAL_LINE } from "@chanlytics/contracts";
-import { answerObject, providerFetch, type ProviderReply } from "../provider-fetch";
+import { answerObject, providerFetch, type ProviderReply } from "../shared/provider-fetch";
 
 const API = "https://api.retellai.com";
 

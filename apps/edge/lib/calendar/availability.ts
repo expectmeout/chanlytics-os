@@ -47,13 +47,13 @@ import {
   BOOKING_DEFAULTS,
   DAY_MS,
   MIN_MS,
-} from "../packages/contracts.js";
-import { publicFetcher } from "../packages/channels.js";
-import { appointmentsBetween, appointmentsForClient, feedWordsOver } from "../packages/db.js";
-import { pg } from "../pg.js";
-import type { TenantRuntime } from "../tenant-runtime.js";
+} from "@chanlytics/contracts";
+import { publicFetcher } from "@chanlytics/channels";
+import { appointmentsBetween, appointmentsForClient, feedWordsOver } from "@chanlytics/db";
+import { pg } from "../shared/pg.js";
+import type { TenantRuntime } from "../shared/tenant-runtime.js";
 import { mailboxCalendarText } from "./mailbox-calendar.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 
 const CACHE_MS = 5 * MIN_MS;
 const FETCH_TIMEOUT_MS = 6000;

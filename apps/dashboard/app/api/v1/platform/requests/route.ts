@@ -1,6 +1,6 @@
-import { read, write, platform } from "@/server/route";
+import { read, write, platform } from "@/server/shared/route";
 import { RequestFileSchema } from "@chanlytics/contracts";
-import { consoleFileRequest, consoleRequests } from "@/server/platform/requests";
+import { consoleFileRequest, consoleRequests } from "@/server/console/requests";
 
 /**
  * GET /api/v1/platform/requests — the requests the data-deletion page promises an answer to (decision 0066), with

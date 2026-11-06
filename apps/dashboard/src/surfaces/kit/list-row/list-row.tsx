@@ -12,7 +12,7 @@
  * row is never put inside a button, which may not hold its lines.
  *
  * It draws what the gallery's List row family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
- * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
+ * tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef, ReactElement, ReactNode } from "react";
 import type { FaceProps } from "../face/face";

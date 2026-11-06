@@ -18,7 +18,7 @@ import {
   spfRecordsOf,
   spfTermsOf,
   type TxtAnswer,
-} from "../../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   SPF_LOOKUPS_MAX,
   SPF_RECORDS_JOIN,
@@ -26,7 +26,7 @@ import {
   type DnsRecordState,
   type MailboxDnsRecord,
   type MailboxProvider,
-} from "../../packages/contracts.js";
+} from "@chanlytics/contracts";
 
 type TxtResolver = (name: string) => Promise<string[][]>;
 type MxResolver = (name: string) => Promise<Array<{ exchange: string; priority: number }>>;

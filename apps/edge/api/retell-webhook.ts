@@ -7,7 +7,7 @@
  * the signature is proved, the delivery read into the shape the row keeps, an erased caller's call refused, the agent
  * routed to its workspace and the ingest run.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { receiveCallEvent } from "../lib/voice/call-webhook.js";
 
 export const POST = door(receiveCallEvent);

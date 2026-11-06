@@ -1,9 +1,9 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { AppError, cleanDisplayName } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
 import { saidLeft, seatsOf } from "@/server/workspace/team";
-import { log } from "@/server/log";
-import { dbRefusal } from "@/server/with-route";
+import { log } from "@/server/shared/log";
+import { dbRefusal } from "@/server/shared/with-route";
 
 /**
  * PUT /api/v1/me — {display_name}: the name you go by. Yours alone to set;

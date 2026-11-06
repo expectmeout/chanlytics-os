@@ -16,9 +16,9 @@
  * nothing rather than throwing, so one odd item never costs a delivery its other messages.
  */
 import { CONVERSATION_OPT_IN_PATTERN } from "@chanlytics/contracts";
-import { asksToStop } from "../stop-request";
-import { storableReferral } from "../whatsapp";
-import type { InboundMessage, LinkedMediaRef } from "../inbound";
+import { asksToStop } from "../inbound/stop-request";
+import { storableReferral } from "../whatsapp/whatsapp";
+import type { InboundMessage, LinkedMediaRef } from "../inbound/inbound";
 
 /** A referral as an Instagram message carries it: a click-to-Instagram ad's id, or an ig.me link's `ref`. */
 export interface IgReferral {

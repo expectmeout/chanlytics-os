@@ -10,8 +10,8 @@ import "server-only";
  */
 import { AppError, type LeadPreviewDto } from "@chanlytics/contracts";
 import { leadPreviewOf, makesPreviews, type LeadPreviewRow } from "@chanlytics/db";
-import { callEdge, edgeRefusalWords } from "../edge";
-import type { RouteContext } from "../with-route";
+import { callEdge, edgeRefusalWords } from "../shared/edge";
+import type { RouteContext } from "../shared/with-route";
 
 type Ctx = Pick<RouteContext, "supabase" | "userId">;
 

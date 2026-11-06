@@ -12,16 +12,16 @@
  * Cross-workspace: only brainSummary with no workspace reads every workspace, for the platform's /api/diag.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent, type Database } from "../packages/db.js";
-import { DAY_MS } from "../packages/contracts.js";
-import { MAX_ROWS } from "../paged.js";
-import { logger, errField } from "../log.js";
+import { emitEvent, type Database } from "@chanlytics/db";
+import { DAY_MS } from "@chanlytics/contracts";
+import { MAX_ROWS } from "../shared/paged.js";
+import { logger, errField } from "../shared/log.js";
 import { finiteOrZero } from "@chanlytics/contracts";
 
 /**
  * One model call's usage (usage.llm_tokens), on the conversation it answered: tokens in and out, and the quality
  * signal beside them. The receptionist's answers (whatsapp/persist.ts) and a reach-out reply's draft
- * (reach-out/reply-draft.ts) both write through here. A write that fails throws; each caller says what that costs.
+ * (campaigns/reach-out/reply-draft.ts) both write through here. A write that fails throws; each caller says what that costs.
  */
 export async function recordTokens(
   db: SupabaseClient<Database>,

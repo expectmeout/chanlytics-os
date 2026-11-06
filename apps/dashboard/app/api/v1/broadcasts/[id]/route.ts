@@ -1,5 +1,5 @@
-import { read, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { read, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { load, readerContext } from "@/server/readers";
 import { broadcast } from "@/server/readers/broadcasts";
 

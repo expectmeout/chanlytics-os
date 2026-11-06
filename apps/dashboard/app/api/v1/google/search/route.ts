@@ -1,4 +1,4 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { searchGoogleFor } from "@/server/connections/google-actions";
 
 /**

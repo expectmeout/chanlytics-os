@@ -13,11 +13,11 @@
  * cannot be read. Its lines carry `sweep: "previews"`, and the tick ends in one previews_swept.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deleteAgent, deleteRetellLlm } from "../packages/channels.js";
-import { endPreview, previewsPastTheirEnd, voiceAgentOf, type Database } from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { env } from "../env.js";
-import { errField, type Logger } from "../log.js";
+import { deleteAgent, deleteRetellLlm } from "@chanlytics/channels";
+import { endPreview, previewsPastTheirEnd, voiceAgentOf, type Database } from "@chanlytics/db";
+import { json, refuse } from "../shared/http.js";
+import { env } from "../shared/env.js";
+import { errField, type Logger } from "../shared/log.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 type Db = SupabaseClient<Database>;

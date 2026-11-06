@@ -21,17 +21,17 @@ import {
 import type { CalendarBlockVM } from "../calendar-vm";
 import { BOOKING_REQUEST_WORDS } from "./booking-request";
 import { leadsRoute } from "../../leads/lead-plan";
-import { sequenceRoute } from "../../sequences/sequence-address";
+import { sequenceRoute } from "../../campaigns/sequences/sequence-address";
 import type { CalendarMomentDto } from "../calendar-runs";
 import { shiftKey } from "../day-keys";
-import { campaignEnded, campaignRunsOn } from "../../playbooks/playbook-schedule";
+import { campaignEnded, campaignRunsOn } from "../../campaigns/playbooks/playbook-schedule";
 import { calendarPersonOf, type CalendarPersonVM } from "./calendar-person-facts";
 import { clockLabel } from "../calendar-words";
 import { calendarPeekDeal } from "../../deals/sheet/deal-acts";
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
-import { UP_NEXT_WORDS } from "../../person-page/next";
-import { PERSON_PEEK_WORDS } from "../../person-page/words";
-import { personTabRoute } from "../../person-page/route";
+import { UP_NEXT_WORDS } from "../../people/person-page/next";
+import { PERSON_PEEK_WORDS } from "../../people/person-page/words";
+import { personTabRoute } from "../../people/person-page/route";
 import { formatPhoneDisplay } from "../../shared/phone";
 import type { PersonState } from "../../people/person-state";
 

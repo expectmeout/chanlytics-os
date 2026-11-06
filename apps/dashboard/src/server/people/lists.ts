@@ -12,8 +12,8 @@ import {
   UUID,
   type ListRule,
 } from "@chanlytics/contracts";
-import { askForJson } from "../model-json";
-import type { RouteContext } from "../with-route";
+import { askForJson } from "../shared/model-json";
+import type { RouteContext } from "../shared/with-route";
 import type { SavedListRow } from "@chanlytics/db";
 
 /**

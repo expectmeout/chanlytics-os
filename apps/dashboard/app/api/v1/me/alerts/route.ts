@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { memberAlerts } from "@/server/readers/notifications";
 import { saveMemberPushOff } from "@/server/workspace/alerts";

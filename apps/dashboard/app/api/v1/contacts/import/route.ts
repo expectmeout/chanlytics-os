@@ -1,4 +1,4 @@
-import { workspace, write } from "@/server/route";
+import { workspace, write } from "@/server/shared/route";
 import { ImportBody, importPeopleRows } from "@/server/people/import-people";
 
 /**

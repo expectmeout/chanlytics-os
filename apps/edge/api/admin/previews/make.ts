@@ -5,9 +5,9 @@
  * The door is the knock (authorizeAdmin) and the body (readBody); makePreviewFor in lib/previews/make.ts is the one way a
  * preview is made, the sender's too (askPreview).
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { makePreviewFor } from "../../../lib/previews/make.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

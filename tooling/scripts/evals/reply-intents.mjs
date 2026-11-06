@@ -77,7 +77,7 @@ export function judgeReading(reply, reading) {
   return { pass: failures.length === 0, failures };
 }
 
-/** The SDK the edge asks the model through (lib/model.ts), loaded only for a live run. */
+/** The SDK the edge asks the model through (lib/ai/model.ts), loaded only for a live run. */
 async function messagesClient() {
   const require = createRequire(path.join(ROOT, "apps/edge/package.json"));
   const { default: Anthropic } = await import(pathToFileURL(require.resolve("@anthropic-ai/sdk")).href);

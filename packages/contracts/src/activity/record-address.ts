@@ -3,9 +3,9 @@ import { pipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelineRowId } from "../deals/pipeline/pipeline-vm";
 import { leadsRoute } from "../leads/lead-plan";
 import { listToken } from "../people/lists/list-token";
-import { personTabRoute, type PersonTab } from "../person-page/route";
+import { personTabRoute, type PersonTab } from "../people/person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
-import { messageRoute, runRoute, sequenceRoute } from "../sequences/sequence-address";
+import { messageRoute, runRoute, sequenceRoute } from "../campaigns/sequences/sequence-address";
 import type { RecordKind } from "./record-kinds";
 
 /**
@@ -99,7 +99,7 @@ const PANE = {
 export function addressOf(ref: RecordRef): string {
   switch (ref.kind) {
     case "person":
-      // Their page, on the tab named (person-page/route.ts personTabRoute, the one writer of a tab's address).
+      // Their page, on the tab named (people/person-page/route.ts personTabRoute, the one writer of a tab's address).
       return personTabRoute(ref.id, ref.tab ?? "overview");
     case "conversation":
       return ref.in === "conversations" ? `conversations/${ref.id}` : `inbox/th-${ref.id}`;

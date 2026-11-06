@@ -1,10 +1,10 @@
 import "server-only";
 import { AppError, parseMemberAlerts, type PushKind } from "@chanlytics/contracts";
 import { setMemberPushOff } from "@chanlytics/db";
-import { deployment } from "../env";
-import { callEdge, edgeConfigured } from "../edge";
-import { log } from "../log";
-import { dbRefusal, type RouteContext } from "../with-route";
+import { deployment } from "../shared/env";
+import { callEdge, edgeConfigured } from "../shared/edge";
+import { log } from "../shared/log";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
 
 /** A test waits this long for the edge to say it was sent: one mail through the provider, whose own bound is ten seconds. */
 const TEST_TIMEOUT_MS = 12_000;

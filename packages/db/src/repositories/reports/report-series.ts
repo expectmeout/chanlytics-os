@@ -16,8 +16,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
-import type { JsonObject } from "../../events";
-import { isMissingDoor } from "../templates";
+import type { JsonObject } from "../events/events";
+import { isMissingDoor } from "../campaigns/templates/templates";
 
 type Db = SupabaseClient<Database>;
 

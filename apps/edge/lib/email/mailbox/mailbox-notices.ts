@@ -4,13 +4,13 @@
  * send or a sweep finds it so. Best effort: the row already says it on Connections, and a notice that could not be sent
  * is logged.
  */
-import { MAILBOX_PROVIDER_WORDS, mailboxHoldFixWords, mailboxHoldWords } from "../../packages/contracts.js";
-import type { MailboxConnectionRow } from "../../packages/db.js";
+import { MAILBOX_PROVIDER_WORDS, mailboxHoldFixWords, mailboxHoldWords } from "@chanlytics/contracts";
+import type { MailboxConnectionRow } from "@chanlytics/db";
 import { notifyOnce } from "../../ops/notify.js";
-import { loadTenantNotifications } from "../../tenant-runtime.js";
-import { errField, type Logger } from "../../log.js";
+import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
+import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../packages/db.js";
+import type { Database } from "@chanlytics/db";
 
 type Db = SupabaseClient<Database>;
 type Row = Pick<MailboxConnectionRow, "id" | "tenant_id" | "address" | "provider">;

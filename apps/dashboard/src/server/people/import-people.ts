@@ -2,9 +2,9 @@ import "server-only";
 import { z } from "zod";
 import { afterPersonRefused, normalizeEmail, normalizePhone, whyNotAPhone, whyNotAnEmail } from "@chanlytics/contracts";
 import { importPerson, noteImport, personBeforeNote } from "@chanlytics/db";
-import { recordDecision } from "../verbs";
-import { log } from "../log";
-import type { RouteContext } from "../with-route";
+import { recordDecision } from "../shared/verbs";
+import { log } from "../shared/log";
+import type { RouteContext } from "../shared/with-route";
 
 /**
  * A part of a business's own client list, brought in (POST contacts/import): each line through `import_person`, what a

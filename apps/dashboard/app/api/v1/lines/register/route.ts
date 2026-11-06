@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { SPEND_TEXTING, AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
-import { edgeRefusalWords } from "@/server/edge";
+import { edgeRefusalWords } from "@/server/shared/edge";
 
 const Body = z.object({
   line_id: z.string().trim().min(1, "Which line?"),

@@ -64,7 +64,7 @@ export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
 
 /**
  * The platforms an ad runs on, in the words the Ads page says them in (ads/words.ts PLATFORM_WORD, which is that page's
- * alone to load: this is People's copy of three words, and tooling/scripts/tests/ads/ads-connect.test.mjs holds the two equal).
+ * alone to load: this is People's copy of three words, and tests/ads/ads-connect.test.mjs holds the two equal).
  */
 export const PERSON_AD_ON: Record<"meta" | "google" | "tiktok", string> = {
   meta: "Facebook and Instagram",

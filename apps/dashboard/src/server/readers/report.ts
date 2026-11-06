@@ -52,7 +52,7 @@ import { load, stamp, type Reader, type ReaderContext } from "./index";
 import { googleReader } from "./connections";
 import { everyone as everyoneRead } from "./everyone";
 import * as facts from "./facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * Everyone in People, as the turn holds them (readers/everyone.ts): the booking line, the deals and the booking link's people

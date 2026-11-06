@@ -5,7 +5,7 @@ import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
 import type { FoldSection } from "@/legacy-bridge/business-tab";
 import type { FocusOn } from "../../../kit/record/focus";
 import { useRecordFold } from "../../../kit/record/hooks";
-import { businessTabSave } from ".././saver";
+import { businessTabSave } from "../saver";
 import {
   type Flash,
   type BtSaver,

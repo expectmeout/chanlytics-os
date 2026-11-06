@@ -21,7 +21,7 @@
  *
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
-import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
+import { BROADCAST_STATE_LABELS } from "../campaigns/broadcasts/broadcasts";
 import { STOP_WORDS } from "../consent/consent";
 import { CALL_OUTCOME_WORDS } from "../conversations/call-dto";
 import { HELD_WORDS, NEEDS_YOU_WORD, THREAD_MOVE_WORDS } from "../conversations/standing";
@@ -42,8 +42,8 @@ import {
   LEAD_STAGE_WORDS,
 } from "../leads/leads";
 import { DEAL_STAGE_WORDS } from "../deals/deal-words";
-import { TEMPLATE_STATUS_WORDS } from "../templates/templates";
-import { REPLY_CHIP_WORDS } from "../reach-out/reach-out-replies";
+import { TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
+import { REPLY_CHIP_WORDS } from "../campaigns/reach-out/reach-out-replies";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -303,7 +303,7 @@ export function stateLabel(kind: StateKind, value: unknown): string {
 
 /**
  * Every word a pill says, by kind and state: the label maps, read whole. The test that holds one word to one state reads it
- * (tooling/scripts/tests/shell/words/one-word-per-state.test.mjs), so a label two states share is a decision someone wrote
+ * (tests/shell/words/one-word-per-state.test.mjs), so a label two states share is a decision someone wrote
  * down, not an accident of two pages.
  */
 export function stateWordList(): Array<{ kind: StateKind; value: string; label: string }> {

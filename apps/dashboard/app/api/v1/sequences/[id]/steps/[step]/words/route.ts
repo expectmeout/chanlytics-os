@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { STEP_WORDS_BODY } from "@/server/sequences/bodies";
-import { changeSequenceWords } from "@/server/sequences/doors";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { STEP_WORDS_BODY } from "@/server/campaigns/sequences/bodies";
+import { changeSequenceWords } from "@/server/campaigns/sequences/doors";
 
 /**
  * POST /api/v1/sequences/:id/steps/:step/words — { template_id, params? }: the message a step sends from now, and the

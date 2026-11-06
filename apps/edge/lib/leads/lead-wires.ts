@@ -27,12 +27,12 @@ import {
   type LeadJudgeAnswer,
   type LeadJudgeClient,
   type SitePage,
-} from "../packages/channels.js";
-import { judgeShadowSpecs, readsAsModel } from "../packages/contracts.js";
-import { env, httpsOriginOf } from "../env.js";
-import { edgeOrigin } from "../dashboard-origin.js";
-import { callModel } from "../model.js";
-import { startShadow } from "../shadow.js";
+} from "@chanlytics/channels";
+import { judgeShadowSpecs, readsAsModel } from "@chanlytics/contracts";
+import { env, httpsOriginOf } from "../shared/env.js";
+import { edgeOrigin } from "../shared/dashboard-origin.js";
+import { callModel } from "../ai/model.js";
+import { startShadow } from "../ai/shadow.js";
 import { imageBytes, leadSitePage } from "./lead-marks.js";
 import { screened } from "./lead-screen.js";
 
@@ -69,7 +69,7 @@ function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): b
 }
 
 /**
- * The judge's client over the model port (lib/model.ts): the registry's route for the judge (its bound, no retry and no
+ * The judge's client over the model port (lib/ai/model.ts): the registry's route for the judge (its bound, no retry and no
  * fallback of its own: a slow or overloaded answer is the jobs ledger's retry to make, inside JUDGE_MARGIN_MS), each call
  * written to the usage ledger for the search's workspace, with the round it was paid in as the row's subject
  * (`subject_id`; `purpose` already says the row is the judge's, and a call that names no round leaves it empty). The

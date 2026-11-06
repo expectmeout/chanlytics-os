@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
-import { tenantDb } from "../../tenant-db";
+import { tenantDb } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;
 

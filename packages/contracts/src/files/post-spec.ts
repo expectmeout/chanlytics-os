@@ -3,7 +3,7 @@
  * file, in a shape each, with an Undo for ten minutes. Its door is the same a photo is added by, in who may press it.
  */
 import { postPlanOf, postWordsIn, type PostLanguage } from "./post";
-import { asText, rec, type ProposalSpecAboveOperator } from "../ask-proposals/spec";
+import { asText, rec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
 
 const FILES_ROUTE = "admin/files";
 

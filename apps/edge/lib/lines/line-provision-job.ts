@@ -16,7 +16,7 @@
  *   gone          released meanwhile; nothing to do
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb, type Database } from "../packages/db.js";
+import { tenantDb, type Database } from "@chanlytics/db";
 import { lineProviderFromEnv, rowToLine, type LineProviderChoice } from "./lines.js";
 import { provisionLine } from "./provision.js";
 import {
@@ -26,7 +26,7 @@ import {
   MAX_AUTOMATIC_RESUMES,
   type ResumedBy,
 } from "./line-resume.js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import { secretToProvision } from "../voice/voice-door-auth.js";
 
 interface LineProvisionOutcome {

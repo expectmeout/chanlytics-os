@@ -237,7 +237,7 @@ test.describe("Consent for one person", () => {
     await expect(card).toBeVisible();
     // The link is changed in the sheet's edit: "Edit proposal" is the next act where there is none, else one of the
     // card's quiet moves. On the person's Overview the next act is Up next's rung, not the card's (person-deal.tsx
-    // `rung`, contracts person-page/next.ts); the card leads with it where no Up next is drawn.
+    // `rung`, contracts people/person-page/next.ts); the card leads with it where no Up next is drawn.
     const edit = async () => {
       await page
         .getByTestId("person-up-next-act")

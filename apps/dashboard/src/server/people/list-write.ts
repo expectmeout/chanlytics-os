@@ -6,7 +6,7 @@
  * who may and how often, and the list is the row (listScope), found under RLS.
  */
 import { AppError, ruleNeedsViewer, asListRule, ruleLists } from "@chanlytics/contracts";
-import { jsonBody } from "@/server/request-guards";
+import { jsonBody } from "@/server/shared/request-guards";
 import {
   createList,
   savedListsFor,
@@ -21,9 +21,9 @@ import {
   type Json,
 } from "@chanlytics/db";
 import { LIST_NAME_TAKEN, cleanListName, cleanListRule, cleanIdList, type SavedListDto } from "@/server/people/lists";
-import { recordDecision, type listScope } from "@/server/verbs";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import { recordDecision, type listScope } from "@/server/shared/verbs";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 /** The saved list a listScope route acts on, as the scope read it (RLS: one the caller cannot see is a 404). */
 type SavedListRow = Awaited<ReturnType<typeof listScope.load>>;

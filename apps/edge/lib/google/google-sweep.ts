@@ -15,8 +15,8 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00069).
  */
-import { DEFAULT_TIMEZONE } from "../packages/contracts.js";
-import { json } from "../http.js";
+import { DEFAULT_TIMEZONE } from "@chanlytics/contracts";
+import { json } from "../shared/http.js";
 import { placesKey, profileClient } from "./google-config.js";
 import { checkListing, connectionsDue, listingsDue } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";

@@ -1,0 +1,885 @@
+/**
+ * Today's queue: everything that asks for a person, in one row grammar —
+ * WhatsApp handoffs, callers who need a call back, reply windows closing,
+ * calls worth an ear — by what each is worth, the longest wait among equals, capped, each with its one verb
+ * and, where the state asks it, a second. The standing line stays above; the
+ * rows live in the queue, drawn by the same component as People's strip.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { toTodayVM, todayBriefWords, QUOTE_MAX, leadQuestionRoute, attentionRow } from "@chanlytics/contracts";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
+import { PLAN } from "../_lead-fixtures.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
+
+// People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
+const { PL_COLUMNS, PL_CARD } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+
+// 10:00 in New York on Sunday 6 September 2026.
+const NOW = new Date("2026-09-06T14:00:00Z");
+
+const metrics = (over = {}) => ({
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: [
+    { kind: "whatsapp", status: "active", number: "+1 305" },
+    { kind: "voice", status: "active", number: "+1 786" },
+  ],
+  window: {
+    days: 1,
+    since: "2026-09-06T04:00:00Z",
+    since_local: "2026-09-06T00:00:00",
+    now_local: "2026-09-06T10:00:00",
+  },
+  now: {
+    escalations_open: 2,
+    oldest_open_escalation_at: "2026-09-06T12:00:00Z",
+    threads_needing_human: 2,
+    threads_snoozed: 0,
+    threads_awaiting_reply: 0,
+    last_inbound_at: "2026-09-06T13:00:00Z",
+    last_outbound_at: "2026-09-06T13:01:00Z",
+  },
+  period: {
+    messages_in: 5,
+    messages_out_ai: 4,
+    messages_out_you: 0,
+    conversations_active: 3,
+    answered_by_ai: 4,
+    answered_by_you: 0,
+    unanswered_in_window: 1,
+    median_reply_seconds_ai: 40,
+    send_failures: 0,
+    escalations_new: 2,
+    escalation_reasons: {},
+    calls: 2,
+    call_seconds: 300,
+    call_sentiments: {},
+    calls_voicemail: 1,
+    new_contacts: 1,
+  },
+  ...over,
+});
+const contact = (id, name, phone) => ({
+  id,
+  display_name: name,
+  wa_profile_name: null,
+  phone_e164: phone,
+  consent: "opted_in",
+  dnc: false,
+});
+const msg = (id, sender, body, at) => ({
+  id,
+  conversation_id: "x",
+  direction: sender === "customer" ? "inbound" : "outbound",
+  sender,
+  type: "text",
+  body,
+  media: null,
+  meta: null,
+  status: sender === "customer" ? "received" : "sent",
+  created_at: at,
+});
+const conversations = [
+  {
+    id: "cv1",
+    state: "needs_human",
+    paused_until: null,
+    last_wa_inbound_at: "2026-09-06T13:00:00Z",
+    last_message_at: "2026-09-06T13:00:00Z",
+    contact: contact("c1", "Daniela R.", "+17865550181"),
+    messages: [msg("m1", "customer", "Can I move Saturday to 11? My sister is coming too", "2026-09-06T13:00:00Z")],
+  },
+  {
+    id: "cv2",
+    state: "needs_human",
+    paused_until: null,
+    last_wa_inbound_at: null,
+    last_message_at: "2026-09-06T13:20:00Z",
+    contact: contact("c2", "Ana", "+13055550134"),
+    messages: [],
+  },
+  {
+    id: "cv3",
+    state: "open",
+    paused_until: null,
+    last_wa_inbound_at: "2026-09-05T19:30:00Z",
+    last_message_at: "2026-09-05T19:30:00Z",
+    contact: contact("c3", null, "+13475550100"),
+    messages: [msg("m3", "customer", "hola, cuánto cuesta el balayage?", "2026-09-05T19:30:00Z")],
+  },
+];
+const escalations = [
+  {
+    id: "e1",
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: "2026-09-06T12:00:00Z",
+    conversation_id: "cv1",
+  },
+  {
+    id: "e2",
+    reason: "callback",
+    details: "Call back to confirm Saturday 10:00.",
+    state: "open",
+    created_at: "2026-09-06T13:30:00Z",
+    conversation_id: "cv2",
+  },
+];
+const call = (id, over = {}) => ({
+  id,
+  retell_call_id: `r-${id}`,
+  direction: "inbound",
+  call_type: "phone_call",
+  status: "ended",
+  from_e164: "+13055550134",
+  from_raw: null,
+  to_e164: null,
+  started_at: "2026-09-06T13:20:00Z",
+  ended_at: "2026-09-06T13:21:35Z",
+  duration_ms: 95_000,
+  disconnection_reason: "user_hangup",
+  sentiment: "Neutral",
+  call_successful: true,
+  in_voicemail: false,
+  summary: "The user called to book a gel manicure.",
+  transcript_object: null,
+  recording: null,
+  conversation_id: "cv2",
+  contact_id: "c2",
+  message_id: null,
+  contact: { display_name: "Ana", wa_profile_name: null, phone_e164: "+13055550134" },
+  wanted: "Asked for a gel manicure Saturday.",
+  outcome: "callback_needed",
+  follow_up: "Call back to confirm Saturday 10:00.",
+  caller_name: "Ana",
+  ...over,
+});
+const calls = [
+  call("k1"),
+  call("k2", {
+    conversation_id: "cv9",
+    contact_id: "c9",
+    from_e164: "+13475550188",
+    contact: { display_name: null, wa_profile_name: null, phone_e164: "+13475550188" },
+    started_at: "2026-09-06T12:40:00Z",
+    ended_at: "2026-09-06T12:40:30Z",
+    duration_ms: 30_000,
+    in_voicemail: true,
+    summary: null,
+    wanted: null,
+    outcome: "voicemail",
+    follow_up: null,
+    caller_name: null,
+  }),
+];
+
+// A lead search as `GET lead-searches` answers it (LeadSearchDto): the plan from the finder's fixtures, its latest round.
+const search = (id, name, round) => ({
+  id,
+  name,
+  asked: PLAN.asked,
+  asked_on: "2026-09-05T15:00:00Z",
+  plan: PLAN,
+  plan_version: 1,
+  round,
+});
+const round = (over = {}) => ({
+  id: "rd1",
+  seq: 1,
+  purpose: "find",
+  state: "running",
+  ending: null,
+  question: null,
+  target: 20,
+  counted: 12,
+  qualified: 12,
+  review: 3,
+  excluded: 0,
+  emails_checked: 0,
+  with_phone: 9,
+  ending_pending: false,
+  waiting_since: null,
+  cost_usd: 1.2,
+  ended_at: null,
+  undo_op_id: null,
+  undo_version: null,
+  nearby: [],
+  ...over,
+});
+const QUESTION = { sentence: "Most of the first 25 are chain gyms. Include them?", criterion_key: "chains" };
+// Stopped to ask at 7:00 in New York, three hours before NOW: longer than the handoff's two.
+const waitingSearch = search(
+  "s-wait",
+  "Personal trainers in Austin",
+  round({ state: "waiting_on_owner", question: QUESTION, waiting_since: "2026-09-06T11:00:00Z", counted: 25 }),
+);
+const runningSearch = search("s-run", "Independent pharmacies near 78704", round());
+
+test("one queue, by what each is worth: the call-back, the handoff, the closing window, the call worth an ear — each in the strip's grammar with its own verb", () => {
+  const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW);
+  const rows = vm.queue.rows;
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    ["callback", "handoff", "window", "call"],
+    "a call back before a reply, whatever the wait (needYouOrder)",
+  );
+  assert.equal(vm.queue.more, 0);
+  assert.equal(vm.queue.windows, 1, "the closing window is said as a window; the call worth an ear is nobody waiting");
+
+  const handoff = rows[1];
+  assert.deepEqual(
+    [handoff.who, handoff.channel, handoff.when, handoff.quoted, handoff.warn],
+    ["Daniela R.", "WhatsApp", "waited 2h", true, true],
+  );
+  assert.equal(handoff.sentence, "Can I move Saturday to 11? My sister is coming too");
+  assert.deepEqual(handoff.status.slice(0, 2), ["Escalated", "asked for a person"]);
+  assert.match(handoff.status[2], /^since 8:00 AM$/, "the salon's clock, whatever clock the reader holds");
+  assert.deepEqual(handoff.cta, { label: "Open and reply", to: "inbox/th-cv1" });
+  assert.deepEqual(handoff.also, { label: "Snooze", verb: "snooze", conversationId: "cv1", escalationId: "e1" });
+
+  const callback = rows[0];
+  assert.deepEqual(
+    [callback.who, callback.channel, callback.quoted, callback.tone],
+    ["Ana", "Phone", false, "escalated"],
+  );
+  assert.equal(callback.sentence, "Call back to confirm Saturday 10:00.", "the to-do the phone receptionist left");
+  assert.deepEqual(callback.status.slice(0, 1), ["Needs a call back"]);
+  assert.deepEqual(
+    callback.cta,
+    { label: "Open the call", to: "conversations/cv-k1" },
+    "straight to the call, its summary and recording",
+  );
+  assert.deepEqual(callback.also, { label: "Done", verb: "resolve", conversationId: "cv2", escalationId: "e2" });
+
+  const window = rows[2];
+  assert.deepEqual(
+    [window.who, window.channel, window.tone, window.quoted],
+    ["+1 (347) 555-0100", "WhatsApp", "warn", true],
+  );
+  assert.match(window.when, /^closes 3:30 PM · in \dh$/);
+  assert.deepEqual(window.cta, { label: "Open thread", to: "inbox/th-cv3" });
+  assert.equal(window.also, null);
+
+  const ear = rows[3];
+  assert.deepEqual(
+    [ear.kind, ear.channel, ear.sentence, ear.cta.label, ear.cta.to],
+    ["call", "Phone", "Reached voicemail", "Open the call", "conversations/cv-k2"],
+  );
+  assert.equal(ear.also, null);
+});
+
+test("each row names the person it is about by their People id, so the page can trail their name with their business (0052); a search names nobody", () => {
+  const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, [waitingSearch]);
+  const of = (kind) => vm.queue.rows.find((r) => r.kind === kind);
+  assert.equal(of("handoff").person_id, "c1", "the thread's person");
+  assert.equal(of("callback").person_id, "c2", "the call-back's thread's person");
+  assert.equal(of("window").person_id, "c3", "the closing window's person, named or not");
+  assert.equal(of("call").person_id, "c9", "the caller People holds");
+  assert.equal(of("search").person_id, null, "a search is a business nobody has met");
+  // A caller People does not hold is nobody's: the same call worth an ear, from a number no person has.
+  const stranger = toTodayVM(metrics(), [], [], [{ ...calls[1], id: "k3", contact_id: null }], NOW);
+  const ear = stranger.queue.rows.find((r) => r.kind === "call");
+  assert.ok(ear, "the call is still worth an ear");
+  assert.equal(ear.person_id, null);
+});
+
+test("a search waiting on its owner is a row in the queue, by its wait, with one button to answer it", () => {
+  const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, [waitingSearch, runningSearch]);
+  const rows = vm.queue.rows;
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    ["callback", "search", "handoff", "window", "call"],
+    "a call back first; then three hours waited sorts before the handoff's two; the running search is nobody waiting",
+  );
+  const row = rows[1];
+  assert.deepEqual(
+    [row.who, row.channel, row.when, row.quoted, row.tone, row.warn, row.conversationId, row.callId],
+    ["Personal trainers in Austin", "Leads", "waited 3h", false, "escalated", false, null, null],
+  );
+  assert.equal(row.sentence, QUESTION.sentence, "the question, as the search asked it");
+  assert.deepEqual(row.status, ["Waiting for your answer", "nothing is spent while it waits"]);
+  assert.deepEqual(row.cta, { label: "Answer", to: leadQuestionRoute("s-wait") });
+  assert.equal(row.also, null);
+  assert.ok(vm.queue.parts.includes("1 search waiting for your answer"), vm.queue.parts.join(" · "));
+  assert.equal(vm.queue.searches, 1, "the search is counted as a search, apart from the people");
+
+  // Past twelve hours the row warns: the sweep stops a question after a day.
+  const stale = toTodayVM(metrics(), conversations, escalations, calls, NOW, [
+    search("s-old", "Dentists in Denver", round({ ...waitingSearch.round, waiting_since: "2026-09-06T01:00:00Z" })),
+  ]);
+  const old = stale.queue.rows.find((r) => r.kind === "search");
+  assert.deepEqual([old.when, old.warn], ["waited 13h", true]);
+
+  // Not read (null) and not passed at all say nothing about searches: the queue is what it was.
+  for (const before of [
+    toTodayVM(metrics(), conversations, escalations, calls, NOW, null),
+    toTodayVM(metrics(), conversations, escalations, calls, NOW),
+  ]) {
+    assert.deepEqual(
+      before.queue.rows.map((r) => r.kind),
+      ["callback", "handoff", "window", "call"],
+    );
+    assert.equal(before.queue.searches, 0);
+    assert.ok(!before.queue.parts.some((p) => p.includes("search")));
+  }
+});
+
+test("a lead who tried their own receptionist is a row (decision 0079), after everyone waiting, opening the lead", () => {
+  const tried = {
+    id: "p1",
+    lead_id: "l1",
+    state: "ready",
+    tried_at: "2026-09-06T13:30:00Z",
+    asked_count: 4,
+    call_count: 1,
+    call_seconds: 72,
+    not_right: [{ fact: "Hours", said: "Saturday we close at 1", at: "x" }],
+    business: "Fixture Barbers",
+  };
+  const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, null, { previewsTried: [tried] });
+  const rows = vm.queue.rows;
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    ["callback", "handoff", "window", "call", "tried"],
+    "a hot lead, never a person waiting: after everyone",
+  );
+  const row = rows.at(-1);
+  assert.deepEqual([row.who, row.channel, row.person_id, row.conversationId], ["Fixture Barbers", "Leads", null, null]);
+  assert.equal(row.sentence, "4 messages · a call of a minute · Says the hours aren't right: “Saturday we close at 1”");
+  assert.deepEqual(row.status, ["Tried their receptionist"]);
+  assert.deepEqual(row.cta.label, "Open the lead");
+  assert.match(row.cta.to, /l1/);
+  assert.ok(vm.queue.parts.includes("1 lead tried their preview"), vm.queue.parts.join(" · "));
+  const claimed = toTodayVM(metrics(), conversations, escalations, calls, NOW, null, {
+    previewsTried: [{ ...tried, state: "claimed" }],
+  });
+  assert.deepEqual(claimed.queue.rows.at(-1).status, ["Tried their receptionist", "made it theirs"]);
+  // Not read, or none: the queue is what it was.
+  for (const beside of [{}, { previewsTried: null }, { previewsTried: [] }])
+    assert.ok(
+      !toTodayVM(metrics(), conversations, escalations, calls, NOW, null, beside).queue.rows.some(
+        (r) => r.kind === "tried",
+      ),
+    );
+});
+
+test("every row reaches the page, which caps by group; the people past five are counted for the Inbox link; a quiet day has an empty queue", () => {
+  const many = Array.from({ length: 8 }, (_, i) => ({
+    id: `e${i}`,
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: `2026-09-06T1${i}:00:00Z`.replace("T18", "T13").replace("T19", "T13"),
+    conversation_id: "cv1",
+  }));
+  const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 8 } }), conversations, many, [], NOW);
+  // Today in three zones (2 Nov 2026): the rows are all handed over; Need you draws Up next and five waiting
+  // (contracts NEED_YOU_CAPS) and says the rest at its foot, which more_people counts.
+  assert.equal(
+    vm.queue.rows.length,
+    10,
+    "eight handoffs, the closing window, and the thread that asks for a person with no hold, every one",
+  );
+  assert.equal(vm.queue.more_people, 4, "past Up next and the five waiting, four more");
+  assert.equal(vm.queue.windows, 1, "and the closing window is a window row of its own");
+  const quiet = toTodayVM(
+    metrics({
+      period: { ...metrics().period, messages_in: 0, calls: 0, messages_out_you: 0 },
+      now: { ...metrics().now, escalations_open: 0 },
+    }),
+    [],
+    [],
+    [],
+    NOW,
+  );
+  assert.deepEqual(
+    { rows: quiet.queue.rows, more: quiet.queue.more, parts: quiet.queue.parts },
+    { rows: [], more: 0, parts: [] },
+  );
+  // What the empty queue means is contracts' sentence: both lines are up and the receptionist answers on them.
+  assert.deepEqual([quiet.queue.empty.testid, quiet.queue.empty.sub], ["today-queue-empty-ok", "nothing needs you"]);
+});
+
+test("the six are the six worth most: an ask to book from today is drawn first, ahead of a week's old waits", () => {
+  const old = Array.from({ length: 7 }, (_, i) => ({
+    id: `o${i}`,
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: `2026-08-2${i}T12:00:00Z`,
+    conversation_id: "cv1",
+  }));
+  const asks = { ...escalations[0], id: "b1", reason: "booking_reply", created_at: "2026-09-06T13:50:00Z" };
+  const rows = toTodayVM(metrics(), conversations, [...old, asks], [], NOW).queue.rows;
+  assert.deepEqual(
+    [rows[0].id, rows[0].booking],
+    ["q-b1", true],
+    "sorted by the longest wait alone, the old waits took the six",
+  );
+  assert.deepEqual(
+    rows.filter((r) => r.booking).map((r) => r.id),
+    ["q-b1"],
+    "an ask to book alone is one",
+  );
+});
+
+/* ------------------------------ the queue, drawn ------------------------------ */
+
+// Today's Need you is TSX (surfaces/today/zones/need-you.tsx, the runs its To decide rows), drawn by import over the day the
+// seam holds (surface-values.ts); its row is the kit's (surfaces/kit/attention/attn-row.tsx).
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+const { AttnRow } = await import("../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+
+/** The queue drawn over a day and the runs the broadcasts surface holds: the rows it handed the kit's row, by testid. */
+const rowsDrawn = (vm, runs) => {
+  setSurfaceValue("today", vm);
+  Object.assign(globalThis, { __BROADCASTS: runs ? { rows: runs } : undefined });
+  fresh();
+  try {
+    const tree = again(() => NeedYou());
+    return { tree, testids: all(tree, (n) => n.type === AttnRow).map((n) => n.props.testid) };
+  } finally {
+    setSurfaceValue("today", undefined);
+    delete globalThis.__BROADCASTS;
+  }
+};
+
+test("the wiring: one row component for People and Today, the queue in the command slot, the hero keeping only the narrative, the runs split between them", () => {
+  const bits = readCode("apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+  assert.ok(
+    bits.includes("export function AttnRow") &&
+      globalThis.window.AttnRow === AttnRow &&
+      bits.includes('className="cl-attn-acts"'),
+    "the grammar lives in one place, and it is the row the shell publishes for the pages that still draw it by name",
+  );
+  // Loaded before the pages that draw it: the manifest used to order the row's script ahead of the pages'; they import
+  // the row now, so the queue draws the kit's own component for each of the day's rows.
+  const day = toTodayVM(metrics(), conversations, escalations, calls, NOW);
+  const { tree, testids } = rowsDrawn(day);
+  assert.ok(byTestId(tree, "today-queue"), "the queue is drawn over the day the seam holds");
+  // The call worth a listen is Ask found's, a line at the queue's foot (the redesign of 1 Nov 2026): never a row of who
+  // waits on you, and drawn only once its line is opened.
+  assert.deepEqual(
+    testids,
+    ["queue-callback", "queue-handoff", "queue-window"],
+    "the row component the manifest loaded first is the one the queue draws, once for each of the day's rows that waits",
+  );
+  // The runs are drawn by queue-runs.tsx (the queue's own file holds no such text): one waiting for a word, one about to send.
+  const runs = [
+    {
+      id: "b1",
+      state: "pending_approval",
+      recipient_count: 3,
+      audience: { label: "Win-back" },
+      playbook_id: "p1",
+      scheduled_for: null,
+      when: "today 6:00 PM",
+      counts: { sent: 0, replied: 0 },
+    },
+    {
+      id: "b2",
+      state: "scheduled",
+      recipient_count: 2,
+      audience: { label: "Rebooking" },
+      playbook_id: "p2",
+      scheduled_for: new Date(Date.now() + 3_600_000).toISOString(),
+      when: "today 7:00 PM",
+      counts: { sent: 0, replied: 0 },
+    },
+  ];
+  const quietDay = toTodayVM(metrics(), [], [], [], NOW);
+  // The run under its Stop is the day's, at its time (day-card.tsx, decision 0064): the queue draws the one waiting.
+  assert.deepEqual(
+    rowsDrawn(quietDay, runs).testids,
+    ["brief-run-row"],
+    "a run waiting for a word is a row of the queue's grammar; one that goes on its own is not the queue's",
+  );
+  // People drew three of these rows above its table -- the table's own first rows
+  // again -- so the strip went and each row carries the words itself. Run, not read: a person who needs you,
+  // every cell of their row drawn (the desktop's columns and the phone's card) with the attention row the surface
+  // computed for them, holds no AttnRow and no strip's status, and the words are on the row.
+  installLegacyReact();
+  const needsYou = personRow({
+    id: "p1",
+    needs_human: true,
+    open_escalation_reason: "human_token",
+    open_escalation_since: daysAgo(0.1),
+    last_inbound_text: "Can I move Saturday to 11?",
+  });
+  const attention = { p1: attentionRow(needsYou, ROW_TZ, ROW_NOW) };
+  const ctx = { bookingLink: null, attention, onOpen() {}, onWarm() {}, drop: null, listsOf: {}, shows: {} };
+  const drawn = [];
+  for (const c of [...PL_COLUMNS.filter((x) => x.cell), PL_CARD]) {
+    fresh();
+    drawn.push(
+      ...all(
+        again(() => c.cell(needsYou, ctx)),
+        () => true,
+      ),
+    );
+  }
+  assert.ok(
+    drawn.some((n) => n.props?.["data-testid"] === "row-words" || n.props?.["data-testid"] === "row-state-detail"),
+    "People says it on the row",
+  );
+  assert.ok(
+    !drawn.some(
+      (n) =>
+        (typeof n.type === "function" && n.type.name === "AttnRow") ||
+        String(n.props?.className || "").includes("cl-attn-status"),
+    ),
+    "People says it on the row, once",
+  );
+  const queue = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+  for (const s of [
+    'data-testid="today-queue"',
+    // The day is the seam's (surface-values.ts), where the JSX read window.TODAY_DATA.
+    'surfaceValue("today")',
+    "<NeedYouList vm={vm} />",
+    "vm.queue.rows",
+    // A reach-out's reply read redraws the queue: it is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7).
+    // Google's reviews and People's steps do too: To do is a group of it (Today in three zones).
+    'useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "google", "settings"])',
+  ])
+    assert.ok(queue.includes(s), s);
+  assert.ok(
+    queue.includes("Need you") && !queue.includes("Agent Command"),
+    "the queue, not a command bar; the seed is gone",
+  );
+  assert.ok(!queue.includes("tq-count"), "no count over rows that say it");
+  const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
+  assert.ok(css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
+  const attn = readRaw("apps/dashboard/src/legacy/styles/clients.css");
+  assert.ok(attn.includes(".cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }"));
+  // The line a person decides from gets TWO lines, with a real ellipsis past
+  // them; one line cut 23% off a call-back summary at 1440, including who the
+  // caller had asked to speak to.
+  assert.ok(
+    attn.includes("-webkit-line-clamp: 2;") &&
+      !attn.includes(
+        ".cl-attn-sentence { font-size: 12px; color: var(--ink-muted); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }",
+      ),
+    "two lines, not one",
+  );
+});
+
+test("REGRESSION: a long message is cut at a word with an ellipsis, not mid-word at a length the row could not draw", () => {
+  // It was a bare .slice(0, 110): a hard stop mid-word, nothing to say a cut had
+  // happened, and at a length two lines of the row can draw twice over. The row
+  // is the only thing that knows how wide it is, so it truncates; this is a
+  // ceiling on what the view model carries.
+  const long =
+    "I booked for Saturday but can you do it for one hundred and fifty dollars? my friend got that price last month and she said you would honour it for me as well, please let me know before tomorrow because I need to tell my sister whether we are both coming or not";
+  assert.ok(long.length > QUOTE_MAX, "the fixture is longer than the ceiling");
+  const vm = toTodayVM(
+    metrics(),
+    [{ ...conversations[0], messages: [msg("m1", "customer", long, "2026-09-06T13:00:00Z")] }],
+    [
+      {
+        id: "e1",
+        reason: "non_text",
+        details: null,
+        state: "open",
+        created_at: "2026-09-06T12:00:00Z",
+        conversation_id: "cv1",
+      },
+    ],
+    [],
+    NOW,
+  );
+  const row = vm.queue.rows.find((r) => r.kind === "handoff");
+  assert.ok(row.quoted, "it is the customer's own words");
+  assert.ok(row.sentence.endsWith("…"), `REGRESSION: a silent cut — ${row.sentence.slice(-30)}`);
+  assert.ok(!/\s…$/.test(row.sentence), "and it does not end on a space before the ellipsis");
+  assert.ok(row.sentence.length <= QUOTE_MAX + 1, "the ceiling holds");
+  assert.ok(long.startsWith(row.sentence.slice(0, -1)), "everything before the ellipsis is what they wrote");
+  assert.ok(row.sentence.length > 110, "and it is no longer cut at a length the row can draw twice over");
+
+  const short = "Can I move Saturday to 11?";
+  const whole = toTodayVM(
+    metrics(),
+    [{ ...conversations[0], messages: [msg("m1", "customer", short, "2026-09-06T13:00:00Z")] }],
+    [
+      {
+        id: "e1",
+        reason: "non_text",
+        details: null,
+        state: "open",
+        created_at: "2026-09-06T12:00:00Z",
+        conversation_id: "cv1",
+      },
+    ],
+    [],
+    NOW,
+  );
+  assert.equal(
+    whole.queue.rows.find((r) => r.kind === "handoff").sentence,
+    short,
+    "what fits is printed whole, with no ellipsis",
+  );
+});
+
+test("REGRESSION: the queue names the wire the thread is actually on", () => {
+  // Every escalation row said "WhatsApp", hard-coded. The day email went live
+  // an owner would have read "WhatsApp \u00b7 waited 2h" above a quote from an
+  // email -- the same defect that had the Conversations list labelling SMS
+  // threads WhatsApp until it was found there.
+  const wired = (id, channel, at) => ({
+    id: `m-${id}`,
+    conversation_id: id,
+    direction: "inbound",
+    sender: "customer",
+    type: "text",
+    body: "Can you do Saturday at 9?",
+    media: null,
+    meta: null,
+    status: "received",
+    channel,
+    created_at: at,
+  });
+  const threads = [
+    {
+      id: "cvE",
+      state: "needs_human",
+      paused_until: null,
+      last_wa_inbound_at: null,
+      last_message_at: "2026-09-06T13:00:00Z",
+      contact: {
+        id: "cE",
+        display_name: "Ana Reyes",
+        wa_profile_name: null,
+        phone_e164: null,
+        email: "ana@example.com",
+        consent: "opted_in",
+        dnc: false,
+      },
+      messages: [wired("cvE", "email", "2026-09-06T13:00:00Z")],
+    },
+    {
+      id: "cvS",
+      state: "needs_human",
+      paused_until: null,
+      last_wa_inbound_at: "2026-09-06T12:30:00Z",
+      last_message_at: "2026-09-06T12:30:00Z",
+      contact: {
+        id: "cS",
+        display_name: "Bea",
+        wa_profile_name: null,
+        phone_e164: "+13055550199",
+        consent: "opted_in",
+        dnc: false,
+      },
+      messages: [wired("cvS", "sms", "2026-09-06T12:30:00Z")],
+    },
+  ];
+  const held = [
+    {
+      id: "eE",
+      reason: "email_review",
+      details: null,
+      state: "open",
+      created_at: "2026-09-06T13:05:00Z",
+      conversation_id: "cvE",
+    },
+    {
+      id: "eS",
+      reason: "human_token",
+      details: null,
+      state: "open",
+      created_at: "2026-09-06T12:35:00Z",
+      conversation_id: "cvS",
+    },
+  ];
+  const rows = toTodayVM(metrics(), threads, held, [], NOW).queue.rows;
+  assert.deepEqual(
+    rows.map((r) => [r.who, r.channel]),
+    [
+      ["Bea", "Text"],
+      ["Ana Reyes", "Email"],
+    ],
+    "the wire each thread's words last travelled, longest wait first",
+  );
+  assert.deepEqual(rows[1].status.slice(0, 2), ["Escalated", "wrote by email"]);
+  // A thread with no messages at all still reads as WhatsApp, which is what
+  // every row was before the column existed to say otherwise.
+  const bare = toTodayVM(metrics(), conversations, escalations, calls, NOW).queue.rows;
+  assert.equal(bare.find((r) => r.who === "Ana").channel, "Phone", "a call-back row is the call's");
+});
+
+/* ---- who is waiting is counted once, in the head, the foot and the brief (the 2 Oct 2026 audit) ---- */
+
+/** Nine people nobody has taken, the oldest waiting longest: Person 0 since 1:00 AM, Person 8 since 9:00 AM. */
+const crowd = (n) => {
+  const people = Array.from({ length: n }, (_, i) => ({
+    id: `p${i}`,
+    state: "needs_human",
+    paused_until: null,
+    last_wa_inbound_at: null,
+    last_message_at: "2026-09-06T05:00:00Z",
+    contact: contact(`k${i}`, `Person ${i}`, `+1305555${String(200 + i).padStart(4, "0")}`),
+    messages: [],
+  }));
+  const asking = people.map((p, i) => ({
+    id: `e-${p.id}`,
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: new Date(Date.parse("2026-09-06T05:00:00Z") + i * 3_600_000).toISOString(),
+    conversation_id: p.id,
+  }));
+  return { people, asking };
+};
+/** A caller who reached voicemail: a call worth a listen, which sorts after everyone waiting. */
+const voicemail = (i) =>
+  call(`kv${i}`, {
+    conversation_id: null,
+    contact_id: null,
+    from_e164: `+1347555${String(300 + i).padStart(4, "0")}`,
+    contact: null,
+    started_at: "2026-09-06T12:40:00Z",
+    ended_at: "2026-09-06T12:40:30Z",
+    duration_ms: 30_000,
+    in_voicemail: true,
+    summary: null,
+    wanted: null,
+    outcome: "voicemail",
+    follow_up: null,
+    caller_name: null,
+  });
+// Asked ten minutes before NOW: the people have waited longer, so it sorts after all of them.
+const lateSearch = search(
+  "s-late",
+  "Florists in Tampa",
+  round({ state: "waiting_on_owner", question: QUESTION, waiting_since: "2026-09-06T13:50:00Z", counted: 25 }),
+);
+
+test("the queue counts the people past Up next and the five apart from the calls and the searches, and the brief says all of it", () => {
+  const { people, asking } = crowd(9);
+  const vm = toTodayVM(
+    metrics({ now: { ...metrics().now, escalations_open: 9 } }),
+    people,
+    asking,
+    [0, 1, 2, 3].map(voicemail),
+    NOW,
+    [lateSearch],
+  );
+  // Every row is handed over (Today in three zones): the page caps by group, Up next and five waiting.
+  assert.equal(vm.queue.rows.length, 14, "nine people, the search and four calls");
+  assert.equal(vm.queue.more_people, 3, "the people past Up next and the five, nothing else");
+  assert.equal(vm.queue.calls, 4, "every call worth a listen: Ask found's");
+  assert.equal(vm.queue.searches, 1, "and the search, To decide's");
+  const words = todayBriefWords(vm, null, []).text;
+  assert.match(words, /Person 0, Person 1, Person 2 and 6 more need you\./, `${words}: nine people, three named`);
+  assert.doesNotMatch(words, /and 11 more|and 8 more/, "REGRESSION: the calls and the search were counted as people");
+  assert.match(
+    words,
+    /4 calls are worth a listen\./,
+    "REGRESSION: the brief counted the calls among the six rows, which held none",
+  );
+  assert.match(words, /A search is waiting on your answer\./, "and the search past the six");
+});
+
+test("the brief says the emails handed to you once, as the queue's one row does, and a label that is many says 'are'", () => {
+  const vm = toTodayVM(metrics(), [], [], [], NOW);
+  const run = (label, sentence, verb) => ({ label, sentence, waits: "waiting for you", ...(verb ? { verb } : {}) });
+  const many = todayBriefWords(vm, null, [run("Your reach-outs", "5 emails to send from your inbox.", "are")]).text;
+  assert.match(many, /Your reach-outs are waiting for you: 5 emails to send from your inbox\./, many);
+  const one = todayBriefWords(vm, null, [run("Your reach-out", "3 emails to send from your inbox.")]).text;
+  assert.match(one, /Your reach-out is waiting for you: 3 emails to send from your inbox\./, one);
+});
+
+test("a person and four calls: the brief says one person needs you, not 'and 4 more'", () => {
+  const { people, asking } = crowd(1);
+  const vm = toTodayVM(
+    metrics({ now: { ...metrics().now, escalations_open: 1 } }),
+    people,
+    asking,
+    [0, 1, 2, 3, 4, 5, 6].map(voicemail),
+    NOW,
+  );
+  assert.equal(vm.queue.more_people, 0);
+  const words = todayBriefWords(vm, null, []).text;
+  assert.match(words, /^Person 0 needs you, waiting since 1:00 AM\./, words);
+  assert.match(words, /7 calls are worth a listen\./, words);
+});
+
+test("the brief says who the head counts: a hold past a week is Older, neither named nor counted among who needs you", () => {
+  const { people, asking } = crowd(3);
+  // Flagged twelve days ago: Need you's Older, which the one count leaves out (need-you-groups.ts).
+  asking[2] = { ...asking[2], created_at: "2026-08-25T05:00:00Z" };
+  const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 3 } }), people, asking, [], NOW);
+  const words = todayBriefWords(vm, null, []).text;
+  assert.match(words, /Person 0 and Person 1 need you\./, words);
+  assert.doesNotMatch(words, /Person 2|and 1 more/, `REGRESSION: Listen counted a hold the head leaves out: ${words}`);
+});
+
+test("Need you says no count of its own and cuts nothing: its groups are the cut, and its foot counts only the people past the five", () => {
+  // Two need you, a reply window is closing and a call is worth a listen. How many need you is the head's sentence, the
+  // badge's number (Today in three zones: Need you's rows above To do, needs-you.ts).
+  const four = toTodayVM(metrics(), conversations, escalations, calls, NOW);
+  assert.equal(four.queue.rows.length, 4);
+  const head = rowsDrawn(four);
+  assert.equal(byTestId(head.tree, "today-queue-count"), null, "the queue says no count of its own: the head says it");
+  assert.equal(
+    find(head.tree, (n) => String(n.props?.className ?? "").includes("ny-cuts")),
+    null,
+    "no strip of chips over the rows: the groups say what each asks (the canvas of 2 Nov 2026)",
+  );
+  // The call worth a listen is Ask found's, a zone of its own: never a row of who waits on you.
+  assert.ok(!head.testids.includes("queue-call"), "a call worth a listen is no row of who waits on you");
+  // Six people and four calls: Up next and the five waiting are drawn, and the foot says nothing of the calls.
+  const { people, asking } = crowd(6);
+  const busy = toTodayVM(
+    metrics({ now: { ...metrics().now, escalations_open: 6 } }),
+    people,
+    asking,
+    [0, 1, 2, 3].map(voicemail),
+    NOW,
+  );
+  assert.equal(busy.queue.more_people, 0, "Up next and five waiting hold the six");
+  const drawn = rowsDrawn(busy);
+  assert.equal(drawn.testids.length, 6, "the six people, in their groups");
+  assert.equal(
+    byTestId(drawn.tree, "today-queue-foot"),
+    null,
+    "REGRESSION: it said 6 more in the Inbox, counting four calls that live in Conversations",
+  );
+});
+test("an email's row says what it is about, then their words without the signature (the email canvas, 27 Oct 2026)", () => {
+  // The email that came in on production, as it was kept: Need you quoted his signature and Gmail's picture stand-in.
+  const body =
+    "needs you test\n\nRuben Segura\nFounder, RJ Capital\n[image: RJ Capital] <https://rjcapital.io>\n" +
+    "rjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540";
+  const emailed = {
+    ...msg("m1", "customer", body, "2026-09-06T13:00:00Z"),
+    channel: "email",
+    meta: { email: { subject: "Re: test need you", from_name: "Ruben Segura" } },
+  };
+  const vm = toTodayVM(
+    metrics(),
+    [{ ...conversations[0], last_wa_inbound_at: null, messages: [emailed] }],
+    [escalations[0]],
+    [],
+    NOW,
+  );
+  const row = vm.queue.rows.find((r) => r.kind === "handoff");
+  assert.equal(row.sentence, "needs you test", "REGRESSION: the row quoted his signature as his words");
+  assert.equal(row.lead, "test need you", "the subject, without its Re:");
+  assert.equal(row.quoted, true);
+  const tree = AttnRow({ name: row.who, sentence: row.sentence, quoted: row.quoted, lead: row.lead });
+  assert.equal(
+    textOf(
+      find(tree, (n) => typeof n.props?.className === "string" && n.props.className.startsWith("cl-attn-sentence")),
+    ),
+    "test need you — “needs you test”",
+  );
+  // A WhatsApp row has no subject to lead with.
+  const wa = toTodayVM(metrics(), [conversations[0]], [escalations[0]], [], NOW).queue.rows.find(
+    (r) => r.kind === "handoff",
+  );
+  assert.equal(wa.lead, undefined);
+});

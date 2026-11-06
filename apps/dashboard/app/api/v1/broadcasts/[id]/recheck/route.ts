@@ -1,5 +1,5 @@
-import { write } from "@/server/route";
-import { broadcastScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { broadcastScope } from "@/server/shared/verbs";
 import { recheckRun } from "@/server/campaigns/reach-outs";
 
 /**

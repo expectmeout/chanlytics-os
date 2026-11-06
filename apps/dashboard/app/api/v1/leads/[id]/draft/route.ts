@@ -1,5 +1,5 @@
 import { LeadDraftInputSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
+import { write } from "@/server/shared/route";
 import { draftFor, leadScope } from "@/server/leads/leads";
 
 /**

@@ -1,6 +1,6 @@
 import { NoteWriteBody } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
 
 /**

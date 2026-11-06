@@ -1,4 +1,21 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+export { askModel, formatRejected, resetFastHolds, streamModel, tryBound } from "./ai/anthropic";
+export type {
+  ModelAsk,
+  ModelAttribution,
+  ModelBlock,
+  ModelDeps,
+  ModelMessage,
+  ModelOutcome,
+  ModelReply,
+  ModelStreamReply,
+} from "./ai/anthropic";
+export { deleteClaudeFile, uploadClaudeFile } from "./ai/anthropic-files";
+export type { ClaudeFileUploaded } from "./ai/anthropic-files";
+export { createUserProfile, deleteUserProfile, listUserProfiles } from "./ai/anthropic-profiles";
+export type { AnthropicProfile, ProfileCreated, ProfilesPage } from "./ai/anthropic-profiles";
+export { askSystemOne, SYSTEM_ONE_URL } from "./ai/typesafe";
+export type { SystemOneAsk, SystemOneReply } from "./ai/typesafe";
 export { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./email/cold-request";
 export type { RequestRefusal } from "./email/cold-request";
 export { fetchMailDomains, fetchReceivedEmail, SEND_DEADLINE_MS, SEND_MIN_MS, sendEmail } from "./email/email-resend";
@@ -26,6 +43,106 @@ export {
   senderAuthenticated,
 } from "./email/intake";
 export type { EmailClaim, EmailReceivedEvent, PlatformRecipient, ReceivedEmail } from "./email/intake";
+export {
+  calendarIcs,
+  googleCalendarIds,
+  googleEvents,
+  graphCalendarIds,
+  graphEvents,
+} from "./email/mailbox/mailbox-calendar";
+export type { CalendarEvent, CalendarIds, EventsPage } from "./email/mailbox/mailbox-calendar";
+export {
+  DKIM_SELECTORS,
+  dkimOf,
+  dmarcOf,
+  SPF_INCLUDES,
+  spfNamesProvider,
+  spfRecordsOf,
+  spfTermsOf,
+} from "./email/mailbox/mailbox-dns";
+export type { TxtAnswer } from "./email/mailbox/mailbox-dns";
+export {
+  gmailDayUsed,
+  gmailFindSent,
+  gmailHead,
+  gmailHistory,
+  gmailMessage,
+  gmailNoMailbox,
+  gmailProfile,
+  gmailReadVerdict,
+  gmailReports,
+  gmailSend,
+  gmailSentIds,
+  gmailSignature,
+  gmailSignedOut,
+  gmailStop,
+  gmailThreadOf,
+  gmailWatch,
+} from "./email/mailbox/mailbox-gmail";
+export type { GmailHistory, GmailSent } from "./email/mailbox/mailbox-gmail";
+export {
+  graphDayUsed,
+  graphDeleteMessage,
+  graphDelta,
+  graphFindSent,
+  graphInbox,
+  graphJunkSince,
+  graphMe,
+  graphMessage,
+  graphNoMailbox,
+  graphReadVerdict,
+  graphRenew,
+  graphSend,
+  graphSignedOut,
+  graphSubscribe,
+  graphUnsubscribe,
+} from "./email/mailbox/mailbox-graph";
+export type { GraphDelta, GraphSent } from "./email/mailbox/mailbox-graph";
+export { gmailListSince, graphListSince } from "./email/mailbox/mailbox-history";
+export type { ListedMail, MailPage, MailWindow } from "./email/mailbox/mailbox-history";
+export { buildMime, mailboxMessageId } from "./email/mailbox/mailbox-mime";
+export {
+  grantHolds,
+  grantScopes,
+  grantScopesMissing,
+  MAILBOX_SCOPES,
+  mailboxAdminConsentUrl,
+  mailboxAuthorizeUrl,
+  mailboxPkceChallenge,
+  mailboxPkceVerifier,
+  mailboxRefreshRequest,
+  mailboxRevokeRequest,
+  mailboxTokenRequest,
+  parseMailboxGrant,
+} from "./email/mailbox/mailbox-oauth";
+export type { MailboxGrant, MailboxOAuthClient, MailboxReach, MailboxRequest } from "./email/mailbox/mailbox-oauth";
+export { googleContacts, graphContacts } from "./email/mailbox/mailbox-people";
+export type { KnownPerson, PeoplePage } from "./email/mailbox/mailbox-people";
+export {
+  clientStateMatches,
+  gmailPushOf,
+  graphNotificationsOf,
+  verifyGooglePushToken,
+} from "./email/mailbox/mailbox-push";
+export type { PushTokenRefusal } from "./email/mailbox/mailbox-push";
+export {
+  deliveryReportOf,
+  filedAsBulk,
+  filedUnderUpdates,
+  gmailEmailOf,
+  graphEmailOf,
+  rowIdOfMessageId,
+} from "./email/mailbox/mailbox-read";
+export type { BounceClass, DeliveryReport, FoundSent, MailboxEmail, ReadVerdict } from "./email/mailbox/mailbox-read";
+export { sendFromMailbox } from "./email/mailbox/mailbox-send";
+export type { MailboxSendInput, MailboxSendResult } from "./email/mailbox/mailbox-send";
+export { gmailHeadOf, replyToElsewhere, sentByAService } from "./email/mailbox/mailbox-sender";
+export {
+  cleanGmailSignature,
+  gmailSignatureWords,
+  mailboxDtoOf,
+  mailboxSignatureOf,
+} from "./email/mailbox/mailbox-signature";
 export { mailDomainsFrom, resendLimitOf } from "./email/provider-answers";
 export type { MailCapability, MailDomainFacts, ResendLimit } from "./email/provider-answers";
 export { emailReceiptEffect, emailReceiptFrom } from "./email/receipts";
@@ -41,7 +158,8 @@ export {
 export type { EmailCampaign, EmailIdentity, EmailParent, EmailRequest, EmailRequestInput } from "./email/request";
 export { resendWebhookSignature, verifyResendWebhook, WEBHOOK_TOLERANCE_S } from "./email/webhook-signature";
 export type { SvixHeaders } from "./email/webhook-signature";
-export { fileFingerprintOf, FINGERPRINT_BYTES } from "./file-fingerprint";
+export { fileFingerprintOf, FINGERPRINT_BYTES } from "./files/file-fingerprint";
+export { remadeLogo } from "./files/logo-png";
 export {
   authorizeUrl,
   b64url,
@@ -137,8 +255,8 @@ export type {
   ProfileSyncPlan,
   ReviewBell,
 } from "./google/google-sync";
-export { isLinkedMedia } from "./inbound";
-export type { InboundMessage, LinkedMediaRef, MediaRef } from "./inbound";
+export { isLinkedMedia } from "./inbound/inbound";
+export type { InboundMessage, LinkedMediaRef, MediaRef } from "./inbound/inbound";
 export { inboundFromInstagram, instagramEventsOf } from "./instagram/instagram-events";
 export type { IgMessaging, IgReferral, InstagramEvent } from "./instagram/instagram-events";
 export {
@@ -302,123 +420,9 @@ export {
   withRequestId,
 } from "./log/request";
 export type { RequestTiming } from "./log/request";
-export { remadeLogo } from "./logo-png";
-export {
-  calendarIcs,
-  googleCalendarIds,
-  googleEvents,
-  graphCalendarIds,
-  graphEvents,
-} from "./mailbox/mailbox-calendar";
-export type { CalendarEvent, CalendarIds, EventsPage } from "./mailbox/mailbox-calendar";
-export {
-  DKIM_SELECTORS,
-  dkimOf,
-  dmarcOf,
-  SPF_INCLUDES,
-  spfNamesProvider,
-  spfRecordsOf,
-  spfTermsOf,
-} from "./mailbox/mailbox-dns";
-export type { TxtAnswer } from "./mailbox/mailbox-dns";
-export {
-  gmailDayUsed,
-  gmailFindSent,
-  gmailHead,
-  gmailHistory,
-  gmailMessage,
-  gmailNoMailbox,
-  gmailProfile,
-  gmailReadVerdict,
-  gmailReports,
-  gmailSend,
-  gmailSentIds,
-  gmailSignature,
-  gmailSignedOut,
-  gmailStop,
-  gmailThreadOf,
-  gmailWatch,
-} from "./mailbox/mailbox-gmail";
-export type { GmailHistory, GmailSent } from "./mailbox/mailbox-gmail";
-export {
-  graphDayUsed,
-  graphDeleteMessage,
-  graphDelta,
-  graphFindSent,
-  graphInbox,
-  graphJunkSince,
-  graphMe,
-  graphMessage,
-  graphNoMailbox,
-  graphReadVerdict,
-  graphRenew,
-  graphSend,
-  graphSignedOut,
-  graphSubscribe,
-  graphUnsubscribe,
-} from "./mailbox/mailbox-graph";
-export type { GraphDelta, GraphSent } from "./mailbox/mailbox-graph";
-export { gmailListSince, graphListSince } from "./mailbox/mailbox-history";
-export type { ListedMail, MailPage, MailWindow } from "./mailbox/mailbox-history";
-export { buildMime, mailboxMessageId } from "./mailbox/mailbox-mime";
-export {
-  grantHolds,
-  grantScopes,
-  grantScopesMissing,
-  MAILBOX_SCOPES,
-  mailboxAdminConsentUrl,
-  mailboxAuthorizeUrl,
-  mailboxPkceChallenge,
-  mailboxPkceVerifier,
-  mailboxRefreshRequest,
-  mailboxRevokeRequest,
-  mailboxTokenRequest,
-  parseMailboxGrant,
-} from "./mailbox/mailbox-oauth";
-export type { MailboxGrant, MailboxOAuthClient, MailboxReach, MailboxRequest } from "./mailbox/mailbox-oauth";
-export { googleContacts, graphContacts } from "./mailbox/mailbox-people";
-export type { KnownPerson, PeoplePage } from "./mailbox/mailbox-people";
-export { clientStateMatches, gmailPushOf, graphNotificationsOf, verifyGooglePushToken } from "./mailbox/mailbox-push";
-export type { PushTokenRefusal } from "./mailbox/mailbox-push";
-export {
-  deliveryReportOf,
-  filedAsBulk,
-  filedUnderUpdates,
-  gmailEmailOf,
-  graphEmailOf,
-  rowIdOfMessageId,
-} from "./mailbox/mailbox-read";
-export type { BounceClass, DeliveryReport, FoundSent, MailboxEmail, ReadVerdict } from "./mailbox/mailbox-read";
-export { sendFromMailbox } from "./mailbox/mailbox-send";
-export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
-export { gmailHeadOf, replyToElsewhere, sentByAService } from "./mailbox/mailbox-sender";
-export {
-  cleanGmailSignature,
-  gmailSignatureWords,
-  mailboxDtoOf,
-  mailboxSignatureOf,
-} from "./mailbox/mailbox-signature";
-export { META_SIGNATURE_HEADER, metaSignatureValid } from "./meta-signature";
-export { askModel, formatRejected, resetFastHolds, streamModel, tryBound } from "./models/anthropic";
-export type {
-  ModelAsk,
-  ModelAttribution,
-  ModelBlock,
-  ModelDeps,
-  ModelMessage,
-  ModelOutcome,
-  ModelReply,
-  ModelStreamReply,
-} from "./models/anthropic";
-export { deleteClaudeFile, uploadClaudeFile } from "./models/anthropic-files";
-export type { ClaudeFileUploaded } from "./models/anthropic-files";
-export { createUserProfile, deleteUserProfile, listUserProfiles } from "./models/anthropic-profiles";
-export type { AnthropicProfile, ProfileCreated, ProfilesPage } from "./models/anthropic-profiles";
-export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
-export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
-export { answerObject, breakerOf, breakerStates, providerFetch, resetBreakers } from "./provider-fetch";
-export type { Provider, ProviderCall, ProviderReply, SendOutcome } from "./provider-fetch";
-export { RESPONSE_MAX_BYTES } from "./public-fetch";
+export { answerObject, breakerOf, breakerStates, providerFetch, resetBreakers } from "./shared/provider-fetch";
+export type { Provider, ProviderCall, ProviderReply, SendOutcome } from "./shared/provider-fetch";
+export { RESPONSE_MAX_BYTES } from "./shared/public-fetch";
 export {
   isPublicAddress,
   NotPublicError,
@@ -426,28 +430,8 @@ export {
   publicFetcher,
   publicLookup,
   setPublicFetch,
-} from "./public-fetch";
-export type { PublicFetchDeps, Resolve, Resolved } from "./public-fetch";
-export {
-  FIRECRAWL_CREDITS,
-  FIRECRAWL_MAP,
-  FIRECRAWL_SCRAPE,
-  firecrawlCredits,
-  firecrawlMapper,
-  firecrawlReader,
-  imageBytes,
-  setSiteMapper,
-  setSitePageReader,
-  type SiteBrand,
-  type SiteLink,
-  type SiteMapper,
-  siteMapper,
-  type SitePage,
-  type SitePageReader,
-  sitePageReader,
-  type SiteReaderCredits,
-  type SiteReadOptions,
-} from "./site-reads";
+} from "./shared/public-fetch";
+export type { PublicFetchDeps, Resolve, Resolved } from "./shared/public-fetch";
 export { CONFIRM_PATH, confirmUrl, signConfirmToken, verifyConfirmToken } from "./tokens/confirm-token";
 export type { ConfirmClaims } from "./tokens/confirm-token";
 export { EDGE_TOKEN_TTL_MS, edgeBodyMatches, signEdgeToken, verifyEdgeToken } from "./tokens/edge-token";
@@ -576,6 +560,27 @@ export type {
 export { webCallBody, webCallMadeOf } from "./voice/voice-web-call";
 export type { WebCallMade } from "./voice/voice-web-call";
 export {
+  FIRECRAWL_CREDITS,
+  FIRECRAWL_MAP,
+  FIRECRAWL_SCRAPE,
+  firecrawlCredits,
+  firecrawlMapper,
+  firecrawlReader,
+  imageBytes,
+  setSiteMapper,
+  setSitePageReader,
+  type SiteBrand,
+  type SiteLink,
+  type SiteMapper,
+  siteMapper,
+  type SitePage,
+  type SitePageReader,
+  sitePageReader,
+  type SiteReaderCredits,
+  type SiteReadOptions,
+} from "./website/site-reads";
+export { META_SIGNATURE_HEADER, metaSignatureValid } from "./whatsapp/meta-signature";
+export {
   contactsSyncedOf,
   fetchMediaBytes,
   graphThrottled,
@@ -589,7 +594,7 @@ export {
   waPricingOf,
   waStoppedMarketing,
   WHATSAPP_SEND_TIMEOUT_MS,
-} from "./whatsapp";
+} from "./whatsapp/whatsapp";
 export type {
   EmailLeftAsWhy,
   NormalizedInbound,
@@ -604,4 +609,4 @@ export type {
   WaRawMessage,
   WaStateSyncItem,
   WaSyncedContact,
-} from "./whatsapp";
+} from "./whatsapp/whatsapp";

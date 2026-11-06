@@ -2,7 +2,7 @@
  * The business a person works at (decision 0052, canvas A §1.4): the line under their name (the business, a door to its
  * sheet; a stand-in's story; or that the business's details were removed), the Works at row in the rail, and the business
  * sheet, the one home of the business's details on their page. Every word and every fact is contracts'
- * (person-page/business.ts over Leads' own peek view model); the sheet is the kit's. The sheet's only press that leaves
+ * (people/person-page/business.ts over Leads' own peek view model); the sheet is the kit's. The sheet's only press that leaves
  * the page is Open in Leads; a person at the business is a door to their own page.
  */
 import { useEffect, useReducer, useState } from "react";

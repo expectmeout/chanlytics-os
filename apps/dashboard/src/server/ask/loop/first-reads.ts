@@ -1,6 +1,6 @@
 import "server-only";
 import { noteRows } from "@chanlytics/contracts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { load, type ReaderContext } from "../../readers";
 import { shape as shapeReader } from "../../readers/shape";
 import { fileCopiesOf } from "../../files/copies";

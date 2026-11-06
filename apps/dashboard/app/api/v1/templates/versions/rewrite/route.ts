@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AppError, TEMPLATE_LANGUAGES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { VERSION_TONES, rewriteVersion } from "@/server/campaigns/templates";
 
 /** The words a version holds at most, and its subject: past them nobody is writing one message. */

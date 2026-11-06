@@ -28,10 +28,10 @@ import {
   type MessageVariable,
   type VersionRef,
 } from "@chanlytics/db";
-import type { Member } from "@/server/route";
+import type { Member } from "@/server/shared/route";
 import { saveReachOutEmail } from "@/server/campaigns/reach-outs";
-import { serviceDb } from "@/server/service-db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { serviceDb } from "@/server/shared/service-db";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 /**
  * A message's email and text versions (One message, every channel, step 1): written by a member through one door

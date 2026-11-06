@@ -7,10 +7,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
-import { emitEvent } from "../../events";
-import { dbLog } from "../../observe";
-import { settleByEcho } from "../control";
-import { getOrCreateContact } from "../ingest";
+import { emitEvent } from "../events/events";
+import { dbLog } from "../../shared/observe";
+import { settleByEcho } from "../conversations/control";
+import { getOrCreateContact } from "../conversations/ingest";
 
 type Db = SupabaseClient<Database>;
 

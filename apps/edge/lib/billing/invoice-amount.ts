@@ -14,8 +14,8 @@
  */
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepInvoiceAmount, type Database } from "../packages/db.js";
-import { logger, errField } from "../log.js";
+import { keepInvoiceAmount, type Database } from "@chanlytics/db";
+import { logger, errField } from "../shared/log.js";
 
 type InvoiceEvent = "invoice.paid" | "invoice.payment_failed";
 type Moved = Partial<Pick<Stripe.Invoice, "amount_paid" | "amount_due" | "currency">>;

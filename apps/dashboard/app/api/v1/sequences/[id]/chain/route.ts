@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { LEAD_CHAIN_BODY } from "@/server/sequences/bodies";
-import { saveLeadChainNow } from "@/server/sequences/lead-chain";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { LEAD_CHAIN_BODY } from "@/server/campaigns/sequences/bodies";
+import { saveLeadChainNow } from "@/server/campaigns/sequences/lead-chain";
 
 /**
  * PUT /api/v1/sequences/:id/chain — a sequence to leads written on its own record (00459, the draft's record): its steps'

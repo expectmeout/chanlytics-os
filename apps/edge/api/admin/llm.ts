@@ -6,8 +6,8 @@
  * was reached, which the gateway's own hop is timed from; askTurn in lib/ops/ask-turn.ts reads the request, checks the
  * budget and makes the call.
  */
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { adminDoor } from "../../lib/log.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { askTurn } from "../../lib/ops/ask-turn.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

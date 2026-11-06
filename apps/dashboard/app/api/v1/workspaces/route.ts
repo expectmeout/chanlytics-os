@@ -1,4 +1,4 @@
-import { read, write, account, workspace } from "@/server/route";
+import { read, write, account, workspace } from "@/server/shared/route";
 import { readWorkspaces, patchWorkspace } from "@/server/workspace/workspace-list";
 
 /**

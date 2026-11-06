@@ -86,10 +86,10 @@ import { listingFor, listingFactsFor, connectionFor, googleReadiness } from "../
 import { billingFor, billingReadiness } from "./billing";
 import { emailSetupFor } from "../connections/email";
 import { emailWire } from "../connections/email-readiness";
-import { tenantFacts } from "../tenant";
-import { once } from "@/server/lazy";
-import { log } from "@/server/log";
-import { dbRefusal } from "@/server/with-route";
+import { tenantFacts } from "../shared/tenant";
+import { once } from "@/server/shared/lazy";
+import { log } from "@/server/shared/log";
+import { dbRefusal } from "@/server/shared/with-route";
 
 /**
 /**

@@ -20,7 +20,7 @@ import { defineConfig, devices } from "@playwright/test";
  * signed-in specs need a session, and this repo has no service-role key on any
  * developer machine and none in CI (ci.yml: "CI holds no live service secrets").
  * They skip with a stated reason rather than failing, exactly as the six
- * credential-gated integration suites in tooling/scripts/tests already do.
+ * credential-gated integration suites in tests already do.
  */
 
 /** Deployed by default; override for a preview or a local server. */
@@ -65,7 +65,7 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
-    // The nightly says every request's touches (apps/dashboard/src/server/server-timing.ts TOUCHES_ALL_HEADER): the refresh
+    // The nightly says every request's touches (apps/dashboard/src/server/shared/server-timing.ts TOUCHES_ALL_HEADER): the refresh
     // map's derivation reads them (tooling/scripts/ops/write-shadow.mjs; decision 0058 stage C).
     ...(process.env.E2E_TOUCHES_ALL ? { extraHTTPHeaders: { "x-touches-said": "all" } } : {}),
   },

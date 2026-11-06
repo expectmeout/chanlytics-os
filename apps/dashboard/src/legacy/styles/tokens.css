@@ -89,7 +89,7 @@
      720px), or (min-width: 721px) and (width > 720px). A media query cannot
      read a variable, so each writes its number; these are where the numbers
      are written, and the build holds every width in the dashboard's
-     stylesheets and scripts to them (tooling/scripts/tests/baselines/
+     stylesheets and scripts to them (tests/baselines/
      the breakpoints measure, which counts the other widths still in use; on 5 October
      2026, 640 and 760 the most). A width it holds as it was is a design call
      on its page, not a rename: it waits there until its page comes to one of

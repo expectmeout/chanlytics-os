@@ -37,7 +37,7 @@ fails until it is done and names what is left.
 **pnpm's settings** (the hoisted linker the edge's functions need, the
 overrides, the patched packages) are in `pnpm-workspace.yaml` and nowhere
 else: Dependabot's pnpm 11 reads no other place
-(`tooling/scripts/tests/repo/settings/pnpm-settings.test.mjs`).
+(`tests/repo/settings/pnpm-settings.test.mjs`).
 
 **The dashboard.** Copy `apps/dashboard/.env.example` to
 `apps/dashboard/.env.local` and fill in the Supabase URL and keys (a local
@@ -48,7 +48,7 @@ corepack pnpm --filter @chanlytics/dashboard dev
 ```
 
 `.claude/launch.json` starts the same command on port 3100. An unset
-`VERCEL_ENV` is a laptop, never production (`src/server/env.ts`): every
+`VERCEL_ENV` is a laptop, never production (`src/server/shared/env.ts`): every
 call that would reach a provider through the edge answers "not here" unless
 `EDGE_PROVIDERS=live` and `EDGE_URL` point at an edge holding sandbox keys.
 `EDGE_PROVIDERS=model` opens the model alone (Ask's turns, its warm, the
@@ -64,7 +64,7 @@ alone, which names no workspace (`apps/edge/lib/voice/live-call-door.ts`).
 **The edge.** It has no dev server script. Its doors are standard
 `Request`/`Response` handlers under `apps/edge/api`, so `vercel dev` inside
 `apps/edge` with a `.env` copied from `.env.example` serves them. In practice a
-door is exercised through its test world: `tooling/scripts/tests/**/*-door.test.mjs`
+door is exercised through its test world: `tests/**/*-door.test.mjs`
 runs the real handler over an in-memory database, which is how the code is run
 on a laptop most of the time.
 
@@ -216,7 +216,7 @@ date with no zone, gives the wrong day. A test that reads the wall clock pins it
 `suite.yml`; a later push runs them in `ci.yml`), or by hand from the Actions tab (`workflow_dispatch`). Every other pull request runs the tests of what it changed (`tooling/scripts/checks/changed-tests.mjs`: the folders its paths name, the rules and ratchets always, and every test whose imports reach a changed file, read from the syntax tree, nearest first while the run stays within 800 test files, never the whole suite: Ruben, 10 Oct 2026, a push is through CI in under ten minutes; what is past the 800 the run names, and the nightly runs it), and the nightly runs the whole suite. Every push still gets the typecheck, the lint, the format check, the debt this change adds (`corepack pnpm check:debt`: the measures, the lint's warnings and knip's dead exports, on the change's base and its head), the build and the bundle, in jobs that run side by side. Before a push, `corepack pnpm check:local` runs on the committed branch what CI's lint, hygiene and tests jobs and its typecheck run, and stamps the tree it checked with an empty commit (`Checked-locally: <tree>`); pushed while main has not moved past the branch, CI runs the build, the bundle and the debt alone (`tooling/scripts/checks/checked-locally.mjs`). Never the whole suite on a laptop.
 
 **A wait is for what it asserts.** A page test presses something and reads what it did. Where the press hands back
-nothing to wait on, the test waits with `until` (`tooling/scripts/tests/shared/_until.mjs`) for the thing it is about to
+nothing to wait on, the test waits with `until` (`tests/shared/_until.mjs`) for the thing it is about to
 read: the toast, the write the fake wire saw, the table no longer busy. It never waits a count of turns. Where tsx loads
 modules off the main thread (an older Node), an `import()` takes from one turn of the loop to some hundreds, more on a
 busy machine, and every write the bridge makes reads its refresh map that way: on 29 Oct 2026, 24 tests that counted
@@ -229,16 +229,16 @@ pull request.
 
 **What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
 per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
-dashboard's routes (`apps/dashboard/app/api`), in `tooling/scripts/tests/baselines/coverage.json`. Under a floor is a
+dashboard's routes (`apps/dashboard/app/api`), in `tests/baselines/coverage.json`. Under a floor is a
 red run; a floor is raised by `UPDATE_BASELINES=1 corepack pnpm test` (two points under the measure, so another platform's
 V8 does not fail it) and lowered only by `COVERAGE_FLOORS=lower corepack pnpm test`, argued under "Rises" in `docs/debt.md` (`UPDATE_BASELINES=raise` is for the two lists of reads the hearing tests keep by hand, and neither lowers nor hides a floor; every other number is held change by change, by `corepack pnpm check:debt`). A run of
 some files, a flag, the database suites and the Auckland leg are not held to the floors (`TEST_COVERAGE=1` prints the table for some files); `TEST_COVERAGE=0` skips the measure
 for a full run that wants the speed. A package's code runs from the bundle the launcher builds of it, so its lines are
 read back to the module that wrote them (`tooling/scripts/checks/coverage.mjs`).
 
-**The database in memory refuses what the real one refuses.** `tooling/scripts/tests/_fake-db.mjs` reads the schema
+**The database in memory refuses what the real one refuses.** `tests/_fake-db.mjs` reads the schema
 the migrations generate (`packages/db/src/database.types.ts`, `packages/contracts/src/schema-sets.generated.ts`
-and `tooling/scripts/tests/_unique-keys.generated.json`, through `_schema.mjs`) and answers a table, column, function
+and `tests/_unique-keys.generated.json`, through `_schema.mjs`) and answers a table, column, function
 or embed the database lacks (`PGRST205`, `42703`, `PGRST204`, `PGRST202`, `PGRST200`), a NOT NULL left empty
 (`23502`), a value outside a CHECK's set (`23514`), a second row on a unique key (`23505`; a key is judged when the
 write moves a column it reads, as Postgres does), an upsert whose conflict target no key matches (`42P10`), a request
@@ -246,12 +246,12 @@ line past the gateway's 8 KiB (about 208 uuids in one `.in()`), and reads at mos
 no foreign key: a state machine's writers are run through the real guard by one `*.db.test.mjs` each (a broadcast
 through both guards, an escalation, a job's claim to its end, a message from queued to read, a line's voice, the lead
 money lock). `database/fake-db/fake-db-agrees.db.test.mjs` sends the same requests to the replayed stack and to the double and
-fails when the two answer differently. A fixture makes its rows with `tooling/scripts/tests/_rows.mjs`, one factory
+fails when the two answer differently. A fixture makes its rows with `tests/_rows.mjs`, one factory
 per table for the thirteen the suite seeds most: every column the table has, so a migration that adds a NOT NULL column
 breaks one factory, not forty fixtures. After a migration, `corepack pnpm gen:db-types` writes the types and the unique
 keys from the stack, and `database/generated/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
 processes against one database, and each makes its own workspace; the few rows that are the platform's (the lead finder's
-switch list, the jobs ledger, the partner ledger) are behind a file lock (`tooling/scripts/tests/_file-lock.mjs`) that a
+switch list, the jobs ledger, the partner ledger) are behind a file lock (`tests/_file-lock.mjs`) that a
 suite writing or counting them takes for its whole file. A suite that changes a shared table's definition (a trigger made
 on `events` or `decisions` to refuse a write, a table altered or locked, in a block it rolls back) runs alone, after the
 others, one at a time (`tooling/scripts/checks/test.mjs`, `CHANGES_A_TABLE`): beside them, its lock queued every other
@@ -308,7 +308,7 @@ starter "How did it go" as an email and a text, and an offer as an email alone, 
 who wrote by email, on a saved list. The server answers GET templates from it as the route does
 (`tooling/scripts/e2e-harness/templates-read.mjs`, held to the reader's own answer), GET channels, and People's reads. The
 Campaigns pages are App Router pages that the mockup does not draw, so no spec of them runs on a record here: what the
-Library and the two composers draw of this one is run in `tooling/scripts/tests/e2e/e2e-harness-campaigns.test.mjs`, over
+Library and the two composers draw of this one is run in `tests/e2e/e2e-harness-campaigns.test.mjs`, over
 the real pages and against what the three specs expect.
 `kit` is the nightly's record with the kit's gallery for its page in place of
 the mockup (below, "See the kit").
@@ -362,7 +362,7 @@ the house's ring when a key focuses it, and every word an entry draws must read 
 drawn under it (a control that cannot be used is not held). It fails on faults planted in the page, which is its own
 proof, and it prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, the twins,
 the controls it focused and each run's lowest ratio. What it cannot see is in the header of `e2e/kit/kit-checks.ts`.
-`tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the classes in `corepack pnpm test`, where no browser runs:
+`tests/styles/kit-gallery.test.mjs` holds the classes in `corepack pnpm test`, where no browser runs:
 a kit class added without its entry is red there. Against production the spec skips, and the nightly's skip ceiling
 does not count it. A pull request that changes the kit's own files runs its four quick checks (`ci.yml`, Kit gallery),
 and `nightly-kit.yml` runs it whole, with the next spec below.
@@ -390,7 +390,7 @@ for one outside; the select is walked and chosen from; the sheet closes for its 
 option with a sentence and a select in its field are named and described as the browser resolves it. In Glass it checks
 that no popup is held under a blurred pane or bar. And it
 holds what each draws, state by state, to its family "on Base UI" in the gallery, so the gallery the first spec reads
-draws what the components draw; `tooling/scripts/tests/styles/kit-behaves.test.mjs` holds what a server can draw of
+draws what the components draw; `tests/styles/kit-behaves.test.mjs` holds what a server can draw of
 them in `corepack pnpm test`. It waits by condition, never for a fixed time, and each check is shown to fail on a fault planted in the page (one for a
 check, not for every line of it). It runs each night (`nightly-kit.yml`) and on no pull request, so a change to a Base UI
 component shows its run in the pull request, as does a bump of Base UI's pinned version; the dashboard's `tsc` compiles the harness page, so a props change
@@ -435,7 +435,7 @@ the page threw, a stylesheet or a font that did not load or answered with an err
 rules or in a fallback face is another page), or a request that never ended. A full recording takes a few minutes.
 
 A change to a page that has left the shell is proved by what can draw it: a **move** by value, in a test that draws the old
-and the new on the page's stub React and compares them (decision 0015; Reports' lenses, `tooling/scripts/tests/reports/`);
+and the new on the page's stub React and compares them (decision 0015; Reports' lenses, `tests/reports/`);
 a **kit part** by the gallery's spec (`e2e/kit/kit.spec.ts`), which holds each rule to the tokens it reads in both themes,
 both widths and the one look; and a page's **own restyle** by the running app, looked at at 1440 and at 390 in both themes
 ("See a real page", above), with the change's list of what must differ written in the pull request.
@@ -471,7 +471,7 @@ plan's step 5.7): its values are the roles block of `apps/dashboard/src/legacy/s
 setting for the next look (contracts `DEFAULT_LOOK_PREF`, `LOOK_OPTIONS`). A second look adds its name to `LookPref`,
 `LOOK_OPTIONS` and `isLookPref` in `packages/contracts/src/shell/chrome.ts` (the head's script reads the list), turns
 `LOOK_OFFERED` on so the account menu offers the two, adds the name to the list's pins in
-`tooling/scripts/tests/shell/chrome.test.mjs`, to the gallery's `?look=` (`tooling/scripts/e2e-harness/kit-gallery.mjs`)
+`tests/shell/chrome.test.mjs`, to the gallery's `?look=` (`tooling/scripts/e2e-harness/kit-gallery.mjs`)
 and to the looks `e2e/kit/kit.spec.ts` runs.
 
 1. **The blocks.** `[data-look="<name>"]` after the roles block, and `[data-look="<name>"][data-theme="dark"]` after
@@ -511,7 +511,7 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
 6. **The default.** `DEFAULT_LOOK_PREF` becomes the look (Glass, 1 October 2026): every device that never chose one
    draws it from its next load, since a device keeps a look only once it is chosen
    (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and a member who chose the other keeps it. `chrome.test.mjs`
-   and `tooling/scripts/tests/shell/theme-boot.test.mjs` pin the default, `apps/dashboard/app/layout.tsx` stamps it on
+   and `tests/shell/theme-boot.test.mjs` pin the default, `apps/dashboard/app/layout.tsx` stamps it on
    the document the server sends, and the browser's bars, the manifest and the native shell's own screens take its
    paper (`THEME_COLORS`, the default look's). A look with type of its own names its faces in `app/globals.css` over
    `public/fonts` and in the mockup's Google Fonts link (`Chanlytics.html`), and sets `--font-sans` in its block, as
@@ -801,7 +801,7 @@ sends cold until these are set, in order, and a reach-out exists (step 8).
    clock (every minute) checks each email before it may go, and after Approve
    the `reach-out-sweep` clock (every minute) sends what is due and checked
    within each mailbox's day, each email through the jobs tick and the door.
-   `tooling/scripts/tests/reach-out/reach-out.integration.db.test.mjs` runs the
+   `tests/reach-out/reach-out.integration.db.test.mjs` runs the
    same path on a local stack, Gmail answered by the test, from the save to
    two emails sent, a bounce read back and the day's share held.
 
@@ -923,7 +923,7 @@ the workspace once (`reach_out_replied`). The readings are rows of
   A capture from a live Exchange Online mailbox is still owed; if it claims
   `auto_reply`, the change is to `classifyReceived` alone.
 - **The proof.** The nightly's run of a reply is
-  `tooling/scripts/tests/reach-out-replies/replies.integration.db.test.mjs`:
+  `tests/reach-out/replies/replies.integration.db.test.mjs`:
   on a stack, a chain written to four businesses from a connected mailbox,
   each reply read back by the mailbox's sync and then by the real job, the
   owner's answer from the mailbox and then as the hosted address, and the undo
@@ -1133,7 +1133,7 @@ Nothing of it runs until the five variables are set, and each app refuses in wor
    `--set-url` refuses production's name. The key comes from the environment or `apps/edge/.env.local`, the header's
    value from `ELEVENLABS_LLM_SECRET` (each agent its own). The id an edge mints on is its `ELEVENLABS_AGENT_ID`. The
    body is `tooling/scripts/voice/elevenlabs-agent-config.mjs`, held to the spec by
-   `tooling/scripts/tests/ask-voice/elevenlabs-agent.test.mjs`: the agent says nothing on connect (the session comes
+   `tests/ask/voice/elevenlabs-agent.test.mjs`: the agent says nothing on connect (the session comes
    up during the hold; the first words are the person's), patient turns, the turn timeout at its longest (30) and the
    silence end off (the session's microphone is muted; the brain door answers the vendor's "..." with the buffer words,
    and the browser ends an idle session after a minute, `idle`), room voices detected and the listener's words
@@ -1344,8 +1344,8 @@ anything a page draws is read again once its last read is 15 minutes old. `docs/
    `select inserted_at, event, payload from realtime.messages where topic = 'workspace:<tenant id>:changes' and
 inserted_at > now() - interval '10 minutes' order by inserted_at desc;`. None for a change you made means the table is
    not watched (`packages/db/src/realtime.ts` WATCHED) or the update moved no column a page draws (NARROWED_UPDATES).
-4. **Ask whether the page hears it.** `tooling/scripts/tests/baselines/reads-not-heard.json` lists every table a page
-   draws and does not hear, and why; a pair there under `owed` is a known gap. `tooling/scripts/tests/baselines/hearing/`
+4. **Ask whether the page hears it.** `tests/baselines/reads-not-heard.json` lists every table a page
+   draws and does not hear, and why; a pair there under `owed` is a known gap. `tests/baselines/hearing/`
    says, per page, what each notice reads.
 5. **Realtime itself.** Supabase's dashboard, Realtime: the project's connections and messages against the plan, and
    "Allow public access" off (the production smoke asks that an anonymous join is refused).
@@ -1355,7 +1355,7 @@ inserted_at > now() - interval '10 minutes' order by inserted_at desc;`. None fo
 ### What a log line holds
 
 Every line the platform writes is one JSON object on stdout, from one logger (`packages/channels/src/log/`; the edge's
-`apps/edge/lib/log.ts` and the dashboard's `apps/dashboard/src/server/log.ts` re-export it, and core, jobs, db and
+`apps/edge/lib/shared/log.ts` and the dashboard's `apps/dashboard/src/server/shared/log.ts` re-export it, and core, jobs, db and
 channels write through it). A line holds, in this order:
 
 | Key          | What                                                                                                                                                                               |

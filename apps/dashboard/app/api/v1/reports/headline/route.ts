@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { ReportQuery, reportHeadline, reportPeriodAsked } from "@/server/readers/report";
 

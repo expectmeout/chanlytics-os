@@ -1,4 +1,4 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { lookupLogo } from "@/server/workspace/logo/lookup";
 
 /**

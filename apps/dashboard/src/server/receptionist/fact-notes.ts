@@ -23,9 +23,9 @@ import {
 import { answerFactSuggestion, factSuggestionById, putTenantConfig } from "@chanlytics/db";
 import { configRowOf } from "@/server/workspace/config-row";
 import { recordSettingsChanged } from "@/server/workspace/settings-write";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
-import { log } from "@/server/log";
-import type { Member } from "@/server/route";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import { log } from "@/server/shared/log";
+import type { Member } from "@/server/shared/route";
 
 /** What an answer did: the suggestion as it stands, the settings version a Keep wrote (or found it in), and its words. */
 interface FactAnswered {

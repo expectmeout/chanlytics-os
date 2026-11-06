@@ -6,10 +6,10 @@ import "server-only";
  */
 import { changedConfigFields } from "@chanlytics/contracts";
 import { recordEvent } from "@chanlytics/db";
-import { log } from "@/server/log";
-import type { RouteContext } from "@/server/with-route";
-import { serviceDb } from "@/server/service-db";
-import { callEdge, edgeConfigured } from "@/server/edge";
+import { log } from "@/server/shared/log";
+import type { RouteContext } from "@/server/shared/with-route";
+import { serviceDb } from "@/server/shared/service-db";
+import { callEdge, edgeConfigured } from "@/server/shared/edge";
 
 /** How long the edge has to queue a read of the website: one insert. */
 const WEBSITE_ASK_MS = 5_000;

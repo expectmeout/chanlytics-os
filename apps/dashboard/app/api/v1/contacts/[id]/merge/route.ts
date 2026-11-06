@@ -1,6 +1,6 @@
 import { PersonMergeBody } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { mergeRecords } from "@/server/people/merge-people";
 
 /**

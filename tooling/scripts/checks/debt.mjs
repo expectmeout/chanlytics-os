@@ -36,7 +36,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { compare } from "../tests/_ratchet.mjs";
+import { compare } from "../../../tests/_ratchet.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const SELF = "tooling/scripts/checks/debt.mjs";
@@ -44,8 +44,8 @@ export const PARTS = ["measures", "lint", "knip"];
 /** How the base's own copy of this file is run: as `check:debt` runs it. */
 export const LOADER = ["--max-old-space-size=5120", "--conditions=react-server", "--import", "tsx"];
 /** Where the numbers lived until 28 October 2026, and where a base from before then is read from. */
-const BASELINES = "tooling/scripts/tests/baselines";
-const SOURCE_SCAN_BASELINE = "tooling/scripts/tests/source-scan-baseline.json";
+const BASELINES = "tests/baselines";
+const SOURCE_SCAN_BASELINE = "tests/source-scan-baseline.json";
 
 const git = (args, cwd = ROOT) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 const sortedKeys = (o) =>
@@ -60,7 +60,7 @@ const sortedKeys = (o) =>
 /** One part of a record, measured on this tree. */
 export async function measurePart(part) {
   if (part === "measures") {
-    const { RATCHETS } = await import("../tests/_measures.mjs");
+    const { RATCHETS } = await import("../../../tests/_measures.mjs");
     return Object.fromEntries(
       RATCHETS.map((r) => [r.key, { name: r.name, mode: r.mode, advice: r.advice, entries: sortedKeys(r.measure()) }]),
     );
@@ -182,7 +182,7 @@ function lendInstalls(tree) {
 export async function baseRecord(ref, { out, parts = PARTS, inPlace = false } = {}) {
   const sha = git(["rev-parse", `${ref}^{commit}`]);
   if (!holds(sha, SELF)) {
-    const { RATCHETS } = await import("../tests/_measures.mjs");
+    const { RATCHETS } = await import("../../../tests/_measures.mjs");
     const show = (rel) => (holds(sha, rel) ? git(["show", `${sha}:${rel}`]) : null);
     const record = { ...recordFromBaselines(show, RATCHETS, parts), sha };
     fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });

@@ -6,10 +6,10 @@
  * them (business_reads, source google_profile), each kept only on the owner's tap, a price with its service. Its
  * website is read too (website-read.ts). A read that fails is logged and costs only these offers: the connection stands.
  */
-import { readLocationDetails, type GbpLocationDetails, type PlacesHttp } from "../packages/channels.js";
-import { listingFactsOf, normalizePhone } from "../packages/contracts.js";
-import { keepBusinessRead, listingFactsStored, patchListing, type Json } from "../packages/db.js";
-import { errField, logger } from "../log.js";
+import { readLocationDetails, type GbpLocationDetails, type PlacesHttp } from "@chanlytics/channels";
+import { listingFactsOf, normalizePhone } from "@chanlytics/contracts";
+import { keepBusinessRead, listingFactsStored, patchListing, type Json } from "@chanlytics/db";
+import { errField, logger } from "../shared/log.js";
 import { http } from "./places.js";
 import { tokenFor } from "./profile-credentials.js";
 import type { ConnectionRow, Db } from "./google-rows.js";

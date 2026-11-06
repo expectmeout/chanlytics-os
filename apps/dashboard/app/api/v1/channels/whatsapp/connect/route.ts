@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { recordDecision } from "@/server/verbs";
+import { write, workspace } from "@/server/shared/route";
+import { recordDecision } from "@/server/shared/verbs";
 import { connectWhatsApp } from "@/server/connections/whatsapp";
 
 /**

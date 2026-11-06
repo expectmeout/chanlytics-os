@@ -4,11 +4,11 @@
  * campaign replaced (a new vetting fee). Each asks the pre-flight in
  * a2p-register.ts before anything at the carrier is touched.
  */
-import { deleteCampaignRequest, updateCampaignRequest, encodeForm, twilioRequest } from "../packages/channels.js";
-import type { EdgeErrorCode } from "../packages/contracts.js";
+import { deleteCampaignRequest, updateCampaignRequest, encodeForm, twilioRequest } from "@chanlytics/channels";
+import type { EdgeErrorCode } from "@chanlytics/contracts";
 import { lineAccount } from "../sms/sms.js";
-import { logger } from "../log.js";
-import { tenantDb } from "../packages/db.js";
+import { logger } from "../shared/log.js";
+import { tenantDb } from "@chanlytics/db";
 import { filingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
 
 /**

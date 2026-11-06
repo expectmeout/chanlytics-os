@@ -5,10 +5,10 @@
  * declares who may.
  */
 import { AppError } from "@chanlytics/contracts";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 import { signedMediaUrl } from "@/server/conversations/media";
-import type { RouteContext } from "@/server/with-route";
-import type { Member, Params } from "@/server/route";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member, Params } from "@/server/shared/route";
 
 export async function messageMedia(ctx: RouteContext & { params: Params }, member: Member) {
   const id = requireUuid(ctx.params.id, "message");

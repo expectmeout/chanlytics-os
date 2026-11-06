@@ -15,8 +15,8 @@ export { parseFrame } from "./sse";
 export type { GatewayEvent } from "./sse";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
-import { deployment } from "../env";
+import { edgeConfigured, edgeHeaders, edgeUrl } from "../shared/edge";
+import { deployment } from "../shared/env";
 import { isEffortMessage } from "@chanlytics/contracts";
 import type { EdgeErrorCode, ModelEffort, ModelSpeed, SkillCraftPurpose, ThinkingType } from "@chanlytics/contracts";
 

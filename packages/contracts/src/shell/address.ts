@@ -28,7 +28,7 @@ import {
   runRoute,
   sendOnceRoute,
   sequenceRoute,
-} from "../sequences/sequence-address";
+} from "../campaigns/sequences/sequence-address";
 import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route";
 
 /**

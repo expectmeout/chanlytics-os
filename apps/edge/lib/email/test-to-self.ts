@@ -5,13 +5,13 @@
  * gives, so the door relays nothing. Member mail from the platform's sender (notify post), as the alert test is: no
  * customer's send door, no thread, no consent read. How often a member may ask is the dashboard route's.
  */
-import { SEQUENCE_TEST_LIMITS, UUID } from "../packages/contracts.js";
-import { ownAddressIn } from "../packages/db.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { json, refuse } from "../http.js";
-import { errField, logger } from "../log.js";
+import { SEQUENCE_TEST_LIMITS, UUID } from "@chanlytics/contracts";
+import { ownAddressIn } from "@chanlytics/db";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { json, refuse } from "../shared/http.js";
+import { errField, logger } from "../shared/log.js";
 import { platformFrom, post } from "../ops/notify.js";
-import { pg } from "../pg.js";
+import { pg } from "../shared/pg.js";
 
 /** Words within their bounds, trimmed, or null. */
 const bounded = (v: unknown, max: number): string | null => {

@@ -1,6 +1,6 @@
 import "server-only";
 import { answerSoFar, partialSay, proseAnswer } from "@chanlytics/contracts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { answerHasItsWay, type Offer } from "../refusals";
 import type { ToolContext } from "../tools";
 import type { turnMeter } from "../turn-end";

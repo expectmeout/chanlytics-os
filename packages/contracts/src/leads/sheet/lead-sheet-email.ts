@@ -8,7 +8,7 @@
 import { mailboxSendsNow } from "../../email/mailbox-connections";
 import { mailboxDailyCap } from "../../email/mailbox-standing";
 import { PURPOSE_REFUSALS } from "../../consent/consent";
-import { sequenceLeftWords } from "../../sequences/sequence-words";
+import { sequenceLeftWords } from "../../campaigns/sequences/sequence-words";
 
 export const LEAD_OWN_EMAIL_WORDS = {
   send: "Send",

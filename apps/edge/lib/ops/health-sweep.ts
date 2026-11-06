@@ -18,7 +18,7 @@
  * being verified (lib/mail-domain.ts) -- the one that our own rows cannot show
  * at all -- and a workspace whose model calls or receptionist turns keep
  * failing (lib/ops/model-watch.ts, which also keeps the usage ledger). It keeps Anthropic's profiles too
- * (lib/anthropic-profiles/keep.ts): what Anthropic says of each, and those made and deleted, decision 0097.
+ * (lib/ai/anthropic-profiles/keep.ts): what Anthropic says of each, and those made and deleted, decision 0097.
  *
  * Called by pg_cron via pg_net at :13 and :43, same Vault secret as the two
  * sweeps it watches. The offset is deliberate: on the :00/:30 grid every tick
@@ -26,7 +26,7 @@
  * two-minute grace in sweep_health() exempts — a watchdog that can only ever
  * report healthy.
  */
-import { json, refuse } from "../http.js";
+import { json, refuse } from "../shared/http.js";
 import { notify } from "./notify.js";
 import { pageOperator } from "./page-operator.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "./sweep-health.js";
@@ -36,13 +36,13 @@ import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
-import { keepAnthropicProfiles } from "../anthropic-profiles/keep.js";
+import { keepAnthropicProfiles } from "../ai/anthropic-profiles/keep.js";
 import { keepFilesMoving } from "../files/upkeep.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
-import { pausedJobKinds } from "../packages/db.js";
+import { pausedJobKinds } from "@chanlytics/db";
 import { watchVoice } from "../voice/watch/voice-watch.js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import type { SweepTick } from "./sweep-door.js";
 
 /**

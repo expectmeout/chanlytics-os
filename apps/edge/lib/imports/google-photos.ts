@@ -5,9 +5,9 @@
  * tried again, anywhere. A profile is better word than a public listing: a photo on both takes over from it, and what the
  * listing alone offered and nobody kept goes aside when the profile has come in.
  */
-import { IMPORT_STOPPED_WORDS, recordOrNull, type FileShows } from "../packages/contracts.js";
-import { listMedia, reviewParent, type GbpPhoto } from "../packages/channels.js";
-import { fileListingAside, importCursorOf, noteImport } from "../packages/db.js";
+import { IMPORT_STOPPED_WORDS, recordOrNull, type FileShows } from "@chanlytics/contracts";
+import { listMedia, reviewParent, type GbpPhoto } from "@chanlytics/channels";
+import { fileListingAside, importCursorOf, noteImport } from "@chanlytics/db";
 import { keepFoundFile, type FoundFile } from "../files/found.js";
 import { connectionOf, type Db } from "../google/google-rows.js";
 import { tokenFor } from "../google/profile-credentials.js";

@@ -31,7 +31,7 @@ import {
   parseInstagramMe,
   parseInstagramToken,
   type InstagramApp,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   emitEvent,
   instagramAccountHolder,
@@ -40,13 +40,13 @@ import {
   setInstagramStatus,
   writeInstagramAccount,
   type Database,
-} from "../packages/db.js";
-import { UUID } from "../packages/contracts.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
+} from "@chanlytics/db";
+import { UUID } from "@chanlytics/contracts";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
 import type { InstagramSecret } from "./credentials.js";
 
 type Db = SupabaseClient<Database>;

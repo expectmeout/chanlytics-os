@@ -21,7 +21,7 @@
  * held it and what was said has been read. Exit 0 = held, 1 = the line or a hard case was missed, 2 = could not run.
  *
  * It lives outside tests/, so `pnpm test` never runs it (it costs money and needs a key); the pure parts (wilsonLower,
- * gateOf, runCase) are executed by tooling/scripts/tests/ai/nightly-evals.test.mjs over a scripted API.
+ * gateOf, runCase) are executed by tests/ai/nightly-evals.test.mjs over a scripted API.
  */
 import fs from "node:fs";
 import path from "node:path";

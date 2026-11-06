@@ -7,7 +7,7 @@ import type { NewDraftDto } from "../../packages/contracts/src/index";
  * which a yes to offers hears -- the nightly's workspace has nobody with that yes (tooling/scripts/ops/e2e-workspace.mjs).
  *
  * A module of its own, with no Playwright in it, so the harness's node test draws New over the very draft the spec gives
- * (tooling/scripts/tests/e2e/e2e-harness-campaigns.test.mjs).
+ * (tests/e2e/e2e-harness-campaigns.test.mjs).
  */
 export const NOBODY_ONCE: NewDraftDto = {
   said: "Tell everyone we're closed on Thursday",

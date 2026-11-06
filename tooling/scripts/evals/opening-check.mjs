@@ -31,7 +31,7 @@
  * The key is ANTHROPIC_EVAL_KEY, never the production key: this script does not read ANTHROPIC_API_KEY. With --live and
  * no eval key it asks nothing, says SKIPPED and exits 0: a skip is never a pass. It writes no row and touches no
  * workspace, and it lives outside tests/ so `pnpm test` never runs it (it costs money and needs a key); its parts are
- * executed over a scripted API by tooling/scripts/tests/ai/opening-check-eval.test.mjs.
+ * executed over a scripted API by tests/ai/opening-check-eval.test.mjs.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -51,8 +51,8 @@ import { wilsonLower } from "./nightly.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "../../..");
 const FIXTURES = path.join(HERE, "../fixtures/openings/businesses.json");
-const edge = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/reach-out/check-one.ts")).href);
-const { firstJson } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/model.ts")).href);
+const edge = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/campaigns/reach-out/check-one.ts")).href);
+const { firstJson } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ai/model.ts")).href);
 
 /** The shapes whose openings guessed (29 Oct 2026), each held by two businesses at least. */
 export const SHAPES = ["open_all_hours", "open_late", "many_reviews", "thin"];
@@ -157,7 +157,7 @@ async function askOnEvalKey(key, ask, deps) {
 }
 
 /**
- * The check's model, asked as the edge asks it (apps/edge/lib/model.ts askJson under check-one.ts askReachOutModel):
+ * The check's model, asked as the edge asks it (apps/edge/lib/ai/model.ts askJson under check-one.ts askReachOutModel):
  * the reach_out_check route through the platform's port, the answer in its schema, a refused schema asked again for
  * plain JSON, a refusal or a capped answer no answer, and a call that got none thrown for the check to count. Only the
  * key is the eval's, and no call is written to a ledger.

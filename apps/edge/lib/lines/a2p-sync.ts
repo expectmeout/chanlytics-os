@@ -12,9 +12,9 @@ import {
   refusalWords,
   twilioRequest,
   type CampaignError,
-} from "../packages/channels.js";
-import { formatPhoneDisplay, type EdgeErrorCode } from "../packages/contracts.js";
-import { emitEvent, tenantDb } from "../packages/db.js";
+} from "@chanlytics/channels";
+import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
+import { emitEvent, tenantDb } from "@chanlytics/db";
 import { keepOnce } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount, refreshLineToken } from "../sms/sms.js";

@@ -6,9 +6,9 @@
  * secret), the body (readBody) and the model as a port, which a test hands in; evaluateCases in
  * lib/receptionist/eval.ts is everything after.
  */
-import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { adminDoor } from "../../lib/log.js";
+import { readBody } from "../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { evaluateCases, type BrainPort } from "../../lib/receptionist/eval.js";
 export { type BrainPort } from "../../lib/receptionist/eval.js";
 

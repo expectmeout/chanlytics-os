@@ -7,8 +7,8 @@
 import "server-only";
 import { AppError, LOOK_WORDS, accentOk } from "@chanlytics/contracts";
 import { setWorkspaceAccent } from "@chanlytics/db";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import type { Member } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { doorRefusal } from "./logo/logo";
 
 /** PUT workspaces/accent: the colour, lower-cased, as the route's schema held it; DELETE: null, and ink stands in. */
