@@ -26,6 +26,7 @@ function over(answer) {
 const CALLS = {
   createSubaccount: (p) => p.createSubaccount(master, "Harbor"),
   findSubaccount: (p) => p.findSubaccount(master, "Harbor"),
+  readSubaccount: (p) => p.readSubaccount(master, "ACsub"),
   findTrunk: (p) => p.findTrunk(acct, "chanlytics-abc.pstn.twilio.com"),
   findCredentialList: (p) => p.findCredentialList(acct, "Harbor"),
   findCredential: (p) => p.findCredential(acct, "CL1", "line-abc"),
