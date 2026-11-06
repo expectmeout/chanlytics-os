@@ -7,7 +7,7 @@ export type {
   NewAppointment,
   NoticeClient,
   NoticeEmail,
-  NoticeLedgerRow,
+  NoticeLedgerEntry,
   NoticeOutcome,
   StoredAppointment,
 } from "./ports";

@@ -23,8 +23,11 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   `packages/channels` and the edge door that speaks to them, never in a product word. Review holds it.
 - **The API and the pages say the product's nouns.** A new route segment is a glossary word (`people`, `lists`,
   `reach-outs`), never an old noun extended. The glossary's table of names that do not agree yet lists every old one
-  still in use. A glossary test (owed) fails a segment that is neither a glossary word nor a row of that table, and a
-  storage name the glossary cites that does not exist.
+  still in use. `repo/names/route-words.test.mjs` fails a segment that is neither a glossary word nor an action on one,
+  and a storage name or a path that table cites and that does not exist; the segments said before it are listed by name.
+- **A word many names use is one a newcomer has to learn.** A word in a hundred names has a row in the glossary, with the
+  term other codebases use beside it, or it is plain English (`repo/names/plain-words.json`). The `house-words` measure
+  holds it.
 
 ## Casing
 
@@ -36,22 +39,26 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   `rule`, an answer relayed from the edge): decision 0022 lists them, and the test fails a route whose whole body or
   answer is one. The edge's doors are not read yet: a check of their own is owed (decision 0022, step 5).
 - **Memory is camelCase.** A view model, a command, a port, a local. A value crosses between the two in a named
-  mapping (`toConversationDto`, `toTodayVM`), never through a generic converter. Review holds it until the two checks
-  below hold its types and identifiers.
+  mapping (`toConversationDto`, `toTodayVM`), never through a generic converter.
 - **The suffix says the side.** `…Row` (a table's row), `…Dto` (the wire) and `…Body` (a request's body) are
   snake_case; `…VM`, `…Command`, `…Ports` and `…Context` are camelCase; no type mixes them. A line on a page is a
-  `…Line`, not a `…Row`. A `type-casing` measure is owed.
+  `…Line`, not a `…Row`. The `type-casing` measure holds it. A `…Dto` that says camelCase is on the wire, and moves with
+  its domain, as `wire-casing` says.
 - **Identifiers.** Types PascalCase with no `I`; functions and variables camelCase (a component PascalCase, a route's
   `GET`); constants and closed sets CONSTANT_CASE; no `enum`: a closed set is an `as const` array.
-  `@typescript-eslint/naming-convention` in `eslint.config.mjs` (owed).
-- **Files** are kebab-case and say what they hold; `index.ts` only lists a folder's names; PascalCase only for a
-  component's file; a leading underscore only for a test helper, at the tests' root or in a domain's test folder. A
-  file's kind may follow its name: `.test.mjs`, `.db.test.mjs`, `.type-test.ts`, `.generated.ts`, `.config.ts`,
-  Supabase's `database.types.ts`, Metro's `widget.ios.ts`. A role a folder repeats keeps one name in every folder:
-  `surface.ts` (a surface's data, decision 0015), `verbs.ts` (what its page or domain does), `ports.ts` (a core verb's
-  world, `packages/core/src/conversations/ports.ts`), `sample.ts` (its seed). A framework's own names are its own:
-  Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo Router's `_layout.tsx`, `(tabs)` and `+native-intent.tsx`.
-  CSS tokens and classes are kebab-case. `tests/docs/file-names.test.mjs` holds the files.
+  `@typescript-eslint/naming-convention` in `eslint.config.mjs`, a warning check:debt holds until the last one goes.
+- **Files** are kebab-case and say what they hold, never `utils`, `helpers`, `common` or `constants`; `index.ts` only
+  lists a folder's names; PascalCase only for a component's file; a leading underscore only for a test helper, at the
+  tests' root or in a domain's test folder. A file's kind may follow its name: `.test.mjs`, `.db.test.mjs`,
+  `.type-test.ts`, `.generated.ts`, `.config.ts`, Supabase's `database.types.ts`, Metro's `widget.ios.ts`. A role a folder
+  repeats keeps one name in every folder: `surface.ts` (a surface's data, decision 0015), `verbs.ts` (what its page or
+  domain does), `ports.ts` (a core verb's world, `packages/core/src/conversations/ports.ts`), `sample.ts` (its seed),
+  `types.ts` (its types). A framework's own names are its own: Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo
+  Router's `_layout.tsx`, `(tabs)` and `+native-intent.tsx`. CSS tokens and classes are kebab-case.
+  `tests/docs/file-names.test.mjs` holds the files.
+- **A file does not repeat its folder.** The path says it already: `mailbox/gmail.ts`, not `mailbox/mailbox-gmail.ts`. A
+  folder's main module may share its name (`leads/leads.ts`), as Go's `ring/ring.go` does. The `file-repeats-folder`
+  measure holds it.
 
 ## Closed sets
 
@@ -69,10 +76,21 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
 
 ## Names that say what they hold
 
-- **No one-letter name in an API**: a property, an exported name, a parameter of an exported function. A short name is
-  fine in a scope of ten lines or fewer. A `short-names` measure is owed.
-- **A boolean is a state or a question** (`paid`, `archived`, `can_connect`), with no `is_` on the wire, and it never
-  shares its name with a count or a record. A `boolean-names` measure is owed.
+- **A function that reaches outside starts with its verb,** so a reader can tell a database call from a pure helper by its
+  name (decision 0105). A read says `list` for many, `find` for one or null, `get` for one or it throws; anything else says
+  its own action (`send`, `draft`, `settle`). A pure function may be named for what it returns (`idsOf(rows)`,
+  `toTodayVM(dto)`), as Swift's API guidelines have it. The `async-verb-first` measure holds it, reading the verbs from
+  `repo/names/_names.mjs`; a product verb joins that list in the change that first needs it.
+- **No one-letter name in an API**: a property, an exported name, a parameter of an exported function. A coordinate's
+  `x` and `y` are their own names. A short name is fine in a scope of ten lines or fewer, and never as a capital alias: `log`,
+  not `L`. The `short-names` measure holds all three, by file (`::api`, `::long`, `::capital`).
+- **A value is named for what it holds,** not for what happened to it or the question it answers: `reason`, not `why`;
+  `recipient`, not `who`; `sentence`, not `said`. The `value-names` measure holds its locals and parameters. A property
+  on the wire keeps its name until its domain moves.
+- **A boolean is a state or a question** (`paid`, `archived`, `can_connect`), with no `is_`, and it never shares its name
+  with a count or a record. The `boolean-names` measure holds it.
+- **An exported name means one thing inside a package or an app.** Two apps may each have their own `logger`. The
+  `exported-twice` measure holds it.
 
 ## SQL
 
@@ -83,8 +101,9 @@ renamed, so today's exceptions stay: singular tables (`tenant_config`, `waitlist
 `erasure_keying`, added by 00263 the day after this rule was written: one row that says whether the erased digests
 have been re-keyed, applied in production, and a table is never renamed),
 functions that start with their verb (`create_person`, `set_contact_consent`, the `trigger_*_sweep` clocks), and
-`sequence_steps.list_id`, which references `segments`. `database/names.db.test.mjs` (owed) reads the catalog and holds
-today's exceptions by name; `database/migrations.test.mjs` holds the file names.
+`sequence_steps.list_id`, which references `segments`. `repo/names/sql-names.test.mjs` reads the schema a replay builds
+(`supabase/schema.sql`), so it runs with no stack, and holds today's exceptions by name;
+`database/migrations.test.mjs` holds the file names.
 
 ## History
 

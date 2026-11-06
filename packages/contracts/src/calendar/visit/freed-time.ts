@@ -53,7 +53,7 @@ export interface FreedTimeEvent {
 }
 
 /** The appointment the event is about, as the record holds it now. */
-export interface FreedTimeRow {
+export interface FreedTimeLine {
   id: string;
   contactId: string | null;
   startsAt: string;
@@ -97,7 +97,7 @@ const no = (why: FreedTimeRefusal): FreedTimeVerdict => ({ ok: false, why });
 const LOOK_STEP_MS = 15 * MIN_MS;
 
 /** The time the change freed: the row's own span, or for a move the span it left, as long as the row is. */
-function freedSpan(event: FreedTimeEvent, row: FreedTimeRow): { start: number; end: number } | null {
+function freedSpan(event: FreedTimeEvent, row: FreedTimeLine): { start: number; end: number } | null {
   const start = Date.parse(row.startsAt);
   const length = Date.parse(row.endsAt) - start;
   if (event.change !== "moved") return { start, end: start + length };
@@ -119,7 +119,7 @@ function anyOpen(cal: FreedTimeCalendar, start: number, end: number): boolean {
  * starting as the visit did, at one of `starts`) is that visit, cancelled or moved with it, until the feed's next read
  * says so. The row itself is never one: a moved row stands at its new time.
  */
-function sightingOf(b: StandingTime, row: FreedTimeRow, starts: readonly number[]): boolean {
+function sightingOf(b: StandingTime, row: FreedTimeLine, starts: readonly number[]): boolean {
   return (
     !!row.contactId &&
     b.id !== row.id &&
@@ -129,7 +129,7 @@ function sightingOf(b: StandingTime, row: FreedTimeRow, starts: readonly number[
 }
 
 /** What stands over a freed span, the freed visit's other sightings left out. */
-function standingBesides(cal: FreedTimeCalendar, row: FreedTimeRow, spanStart: number): readonly StandingTime[] {
+function standingBesides(cal: FreedTimeCalendar, row: FreedTimeLine, spanStart: number): readonly StandingTime[] {
   return cal.standing.filter((b) => !sightingOf(b, row, [spanStart]));
 }
 
@@ -140,7 +140,7 @@ function standingBesides(cal: FreedTimeCalendar, row: FreedTimeRow, spanStart: n
  */
 export function freedTimeTaken(
   offered: { start: number; end: number },
-  row: FreedTimeRow,
+  row: FreedTimeLine,
   standing: readonly StandingTime[],
 ): boolean {
   const starts = [Date.parse(row.startsAt), offered.start];
@@ -187,7 +187,7 @@ function whyNot(
  */
 export function freedTimeOf(
   event: FreedTimeEvent,
-  row: FreedTimeRow,
+  row: FreedTimeLine,
   cal: FreedTimeCalendar,
   now: Date,
 ): FreedTimeVerdict {

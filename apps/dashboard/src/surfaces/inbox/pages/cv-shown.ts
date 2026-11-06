@@ -7,13 +7,13 @@
 import { useCallback, type RefObject } from "react";
 import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
-import type { ConversationRow } from "../types";
+import type { ConversationLine } from "../types";
 
 /** A row's height before it is measured. */
 const CV_ROW_PX = 76;
 
 export function useShownCvRows(
-  rows: readonly ConversationRow[],
+  rows: readonly ConversationLine[],
   openId: string | undefined,
   swap: RefObject<HTMLDivElement | null>,
 ): { shown: ShownRows; ref: (el: HTMLDivElement | null) => void } {

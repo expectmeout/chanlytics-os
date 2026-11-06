@@ -59,6 +59,7 @@ import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../tooling/s
 import { SCHEMA_SETS } from "@chanlytics/contracts";
 import { ERASURE_STRATEGIES } from "@chanlytics/db";
 import { SUITES } from "../tooling/scripts/checks/test.mjs";
+import { NAME_RATCHETS } from "./repo/names/_names.mjs";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
 export const LIMIT = { lines: 150, branches: 30, depth: 5 };
@@ -1258,4 +1259,5 @@ export const RATCHETS = [
   TS_ONLY_EVENTS,
   APPOINTMENT_WORDS,
   SOURCE_SCAN,
+  ...NAME_RATCHETS,
 ].map((m) => ({ mode: "count", ...m, key: m.key ?? m.file.replace(/\.json$/, "") }));
