@@ -69,6 +69,11 @@ export async function releaseLine(
       released.retell_number = line.e164;
     }
     const creds = await db.rpc("get_line_credentials", { p_line_id: line.id });
+    // A read that failed is not a line with no token: going on would skip the carrier and forget a number still billed.
+    if (creds.error) {
+      const detail = `reading the line's credentials: ${creds.error.message}`;
+      return { ok: false, status: 503, error: "read_failed", detail, released };
+    }
     const token =
       creds.data && typeof creds.data === "object" && !Array.isArray(creds.data)
         ? (creds.data as { auth_token?: string }).auth_token

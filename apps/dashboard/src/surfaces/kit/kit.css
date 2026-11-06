@@ -1863,11 +1863,11 @@ a.more-item {
     inset: -3px 0;
   }
 }
-/* A phone's strip stands at the height of the act beside it, which a phone's rules hold at 36 over the floor: at 38 a tab
-   made its strip 46, ten over the coral (Ruben, 4 Nov 2026). A tab keeps its drawn 28 and is pressed across the whole of
-   its strip, the strip's 4px over and under it. The strip scrolls across, so it clips anything past its own edge, and a
-   tab is pressed the strip's 36 tall, not the 44 of the act. Wider, the floor still holds the act at 44 and the 46 above
-   stands beside it. */
+/* A phone's strip stands at the height of the capsules beside it, which a phone's rules hold at 36 over the floor: at 38 a
+   tab made its strip 46 (Ruben, 4 Nov 2026). A tab keeps its drawn 28, as a coral act beside it does (components.css), and
+   is pressed across the whole of its strip, the strip's 4px over and under it. The strip scrolls across, so it clips
+   anything past its own edge, and a tab is pressed the strip's 36 tall, not the 44 of the act. Wider, the floor still holds
+   the act at 44 and the 46 above stands beside it. */
 @media (pointer: coarse) and (max-width: 900px) {
   .stabs .stabs-tab {
     min-height: var(--control-h-sm);

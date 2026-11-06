@@ -356,6 +356,45 @@ async function keepNameDecision(
 }
 
 /**
+ * The newest rating on the channel's row, beside what else its config holds. The write replaces the whole config, so a read
+ * that failed writes nothing: over an empty one it would take the number's standing with it. Best effort: a failure is a line
+ * and costs the row its new rating, never the webhook its answer.
+ */
+async function keepRating(
+  db: SupabaseClient<Database>,
+  routed: Routed,
+  value: Record<string, unknown>,
+  L: Logger,
+): Promise<void> {
+  const failed = (step: "read" | "write", error: string) =>
+    L.error("channel_quality_row_failed", { channel_id: routed.channelId, step, error });
+  const read = await db
+    .from("tenant_channels")
+    .select("config")
+    .eq("id", routed.channelId)
+    .eq("tenant_id", routed.tenantId)
+    .maybeSingle();
+  if (read.error) return failed("read", read.error.message);
+  const cfg = (read.data?.config && typeof read.data.config === "object" ? read.data.config : {}) as Record<
+    string,
+    unknown
+  >;
+  const kept = await db
+    .from("tenant_channels")
+    .update({
+      config: {
+        ...cfg,
+        messaging_limit: value.current_limit,
+        quality_event: value.event ?? null,
+        quality_at: new Date().toISOString(),
+      } as unknown as Json,
+    })
+    .eq("id", routed.channelId)
+    .eq("tenant_id", routed.tenantId);
+  if (kept.error) failed("write", kept.error.message);
+}
+
+/**
  * Keep the change and, when it matters, tell the workspace. Returns what it
  * did, for the log; never throws — the webhook has already been acknowledged.
  * "unclaimed" is a partner's notice for an account no workspace holds (unheld).
@@ -423,25 +462,7 @@ export async function handleWabaChange(
   });
   // The channel row remembers the newest rating, so Settings can show it.
   if (change.field === "phone_number_quality_update" && typeof change.value.current_limit === "string") {
-    const { data: row } = await db
-      .from("tenant_channels")
-      .select("config")
-      .eq("id", routed.channelId)
-      .eq("tenant_id", routed.tenantId)
-      .maybeSingle();
-    const cfg = (row?.config && typeof row.config === "object" ? row.config : {}) as Record<string, unknown>;
-    await db
-      .from("tenant_channels")
-      .update({
-        config: {
-          ...cfg,
-          messaging_limit: change.value.current_limit,
-          quality_event: change.value.event ?? null,
-          quality_at: new Date().toISOString(),
-        } as unknown as Json,
-      })
-      .eq("id", routed.channelId)
-      .eq("tenant_id", routed.tenantId);
+    await keepRating(db, routed, change.value, L);
   }
   // The templates table follows Meta's word: a status or category change
   // lands on the row the sync keeps, by name and language. Only the events

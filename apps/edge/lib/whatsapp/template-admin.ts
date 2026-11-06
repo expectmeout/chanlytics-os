@@ -266,7 +266,12 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
 /** What a sync of a workspace's templates with Meta did, or why it could not. */
 type TemplatesSynced =
   | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
-  | { ok: false; status: 500 | 502 | 503; code: "no_token" | "meta_failed" | "write_failed"; detail?: string };
+  | {
+      ok: false;
+      status: 500 | 502 | 503;
+      code: "no_token" | "meta_failed" | "read_failed" | "write_failed";
+      detail?: string;
+    };
 
 /**
  * The workspace's WhatsApp templates as Meta holds them, kept on its rows by name and language: the sync's body, which the
@@ -294,11 +299,13 @@ export async function templatesSynced(
     return { ok: false, status: 502, code: "meta_failed", detail: listed.error };
   }
 
-  const { data: existing } = await db
+  const { data: existing, error: readError } = await db
     .from("templates")
     .select("name, language, variables")
     .eq("tenant_id", tenantId)
     .eq("channel", "whatsapp");
+  // A read that failed is not no rows on file: every label would go back to Value 1, and Meta's sample be hidden again.
+  if (readError) return { ok: false, status: 503, code: "read_failed", detail: readError.message };
   const keep = new Map((existing ?? []).map((r) => [`${r.name}|${r.language}`, labelsOf(r.variables)]));
   const now = new Date();
   const rows = listed.templates.map((t) => templateRow(t, tenantId, keep.get(`${t.name}|${t.language}`) ?? [], now));
