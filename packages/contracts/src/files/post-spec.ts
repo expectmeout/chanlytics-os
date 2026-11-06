@@ -2,10 +2,11 @@
  * A post made from a photo, as a card (decision 0099, step 3). It shows the real picture and asks for one press: Save keeps it as a
  * file, in a shape each, with an Undo for ten minutes. Its door is the same a photo is added by, in who may press it.
  */
-import { POST_WORDS, postPlanOf } from "../files/post";
-import { asText, rec, type ProposalSpecAboveOperator } from "./spec";
+import { POST_WORDS, postPlanOf } from "./post";
+import { asText, rec, type ProposalSpecAboveOperator } from "../ask-proposals/spec";
 
 const FILES_ROUTE = "admin/files";
+
 export const postSpec: ProposalSpecAboveOperator = {
   needs: "partner",
   doing: "save a post to Files",

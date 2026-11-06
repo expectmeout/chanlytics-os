@@ -18,7 +18,7 @@ export const postBandOf = (phone: string, language: "en" | "es"): string =>
 
 /** What the bundled fonts can draw: Western Latin, its punctuation, and the euro. No emoji. */
 const DRAWABLE = /^[\u0020-\u007E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026\u20AC\u2122]*$/;
-const CONTACT = /https?:|www\.|@|\b[\w-]+\.[a-z]{2,}\b/i;
+const POST_CONTACT = /https?:|www\.|@|\b[\w-]+\.[a-z]{2,}\b/i;
 /** A run this long is a phone number, which the band says instead. */
 const LONG_NUMBER = /\d[\d\s().-]{6,}\d/;
 /**
@@ -49,7 +49,7 @@ export function postWordsProblem(words: string, owner: string, limit: number): s
   if (!text) return "it is empty";
   if (Array.from(text).length > limit) return `it is over ${limit} characters, too long to read on a phone`;
   if (!DRAWABLE.test(text)) return "it holds a character the post's fonts cannot draw, such as an emoji";
-  if (CONTACT.test(text)) return "a link, an email or a handle does not go in the words";
+  if (POST_CONTACT.test(text)) return "a link, an email or a handle does not go in the words";
   if (LONG_NUMBER.test(text)) return "a phone number does not go in the words: set book to true and code adds theirs";
   if (priceBreach(text, new Set(priceFigures(owner))))
     return "it names a price or a share the owner has not said. Use their figure, or ask them";

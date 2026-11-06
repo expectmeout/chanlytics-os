@@ -16,7 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const sharp = createRequire(path.join(ROOT, "apps/dashboard/package.json"))("sharp");
 
-const { POST_SIZES, SCRIM_UNDER_WORDS, inkOn, lineSizeOf, postCrop, postLayout } = await import(
+const { POST_SIZES, SCRIM_UNDER_WORDS, postCrop, postLayout } = await import(
   at("apps/dashboard/src/server/files/post/layout.ts")
 );
 const { composePost } = await import(at("apps/dashboard/src/server/files/post/compose.ts"));
@@ -24,7 +24,7 @@ const { postPathOf, postPhotoProblem, postPlanProblem, postWordsProblem } = awai
   at("packages/contracts/src/files/post-check.ts")
 );
 const { POST_LIMITS, POST_SHAPES, postPlanOf } = await import(at("packages/contracts/src/files/post.ts"));
-const { postSpec } = await import(at("packages/contracts/src/ask-proposals/post.ts"));
+const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { shelfOf } = await import(at("packages/contracts/src/files/files.ts"));
@@ -90,9 +90,16 @@ test("no mark and no colour still make a post: white in the colour's place, and 
   assert.equal(band.props.style.color, "#0d0b09");
 });
 
+/** The band a layout draws, and its line's size. */
+const bandOf = (over) =>
+  nodesOf(postLayout({ ...LAYOUT, ...over })).find((n) => n.props?.style?.padding === "16px 34px")?.props.style;
+const lineSizeOf = (line, voice) =>
+  nodesOf(postLayout({ ...LAYOUT, voice, words: { line } })).find((n) => n.props?.children?.includes?.(line))?.props
+    .style.fontSize;
+
 test("words are ink on a colour that needs it, white on one that does not", () => {
-  assert.equal(inkOn("#e8c156"), "#0d0b09");
-  assert.equal(inkOn("#1a3a5c"), "#ffffff");
+  assert.equal(bandOf({ accent: "#e8c156" }).color, "#0d0b09");
+  assert.equal(bandOf({ accent: "#1a3a5c" }).color, "#ffffff");
 });
 
 test("a short line is the picture's headline, a long one still reads", () => {
@@ -100,7 +107,7 @@ test("a short line is the picture's headline, a long one still reads", () => {
   const big = sizes.map((l) => lineSizeOf(l, "classic"));
   assert.deepEqual(
     big,
-    [...big].sort((a, b) => b - a),
+    [...big].sort((x, y) => y - x),
   );
   assert.ok(big.at(-1) >= 50, "never below what a phone reads");
   assert.ok(lineSizeOf("Now booking", "modern") < lineSizeOf("Now booking", "classic"), "a heavy sans stands smaller");

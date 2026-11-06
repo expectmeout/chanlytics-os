@@ -47,7 +47,7 @@ import {
 } from "./sequences";
 import type { ProposalGate, ProposalSpec } from "./spec";
 import { settingsSpec } from "./workspace";
-import { postSpec } from "./post";
+import { postSpec } from "../files/post-spec";
 import { memoryChangeSpec, memoryForgetSpec, memorySpec } from "./memory";
 
 /**

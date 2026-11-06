@@ -2,7 +2,7 @@
  * A post from a photo, for a member (decision 0099, step 3): the picture a card shows, and what its Save keeps. Both read what they
  * need afresh, so a card's body is never trusted, and both draw from the same plan, so what they saw is what is kept. The
  * provenance of the words was held when the card was made (contracts postWordsProblem, Ask's act); a person's press is their word,
- * so here they are held only to what can be drawn. No model is called and nothing is spent.
+ * so here they are held only to what can be postDrawn. No model is called and nothing is spent.
  */
 import "server-only";
 import { randomUUID } from "node:crypto";
@@ -55,7 +55,7 @@ export const postPlanInput = z.object({
 /** The widest a photo is read at: enough for the tallest shape, and every kind it may be kept in comes back as one the code reads. */
 const PHOTO_READ_WIDTH = 2000;
 
-/** What a post is drawn from, read afresh. */
+/** What a post is postDrawn from, read afresh. */
 interface PostMaterial {
   photo: Buffer;
   subject: readonly [number, number, number, number] | null;
@@ -114,12 +114,12 @@ async function photoFor(ctx: RouteContext, plan: PostPlan): Promise<FileMemberRo
     [plan.under, POST_LIMITS.under],
   ] as const) {
     const wrong = words ? postWordsProblem(words, words, limit) : null;
-    if (wrong) throw new AppError("validation", `Those words can't be drawn: ${wrong}.`);
+    if (wrong) throw new AppError("validation", `Those words can't be postDrawn: ${wrong}.`);
   }
   return file;
 }
 
-const drawn = (plan: PostPlan, material: PostMaterial, shape: PostShapeName): Promise<Buffer> =>
+const postDrawn = (plan: PostPlan, material: PostMaterial, shape: PostShapeName): Promise<Buffer> =>
   composePost({
     photo: material.photo,
     subject: material.subject,
@@ -143,7 +143,7 @@ export async function previewPost(
   plan: PostPlan & { shape?: PostShapeName | undefined },
 ): Promise<Response> {
   const file = await photoFor(ctx, plan);
-  const picture = await drawn(plan, await materialOf(ctx, member, file), plan.shape ?? "portrait");
+  const picture = await postDrawn(plan, await materialOf(ctx, member, file), plan.shape ?? "portrait");
   return new Response(new Uint8Array(picture), {
     status: 200,
     headers: { "content-type": "image/jpeg", "cache-control": "private, no-store" },
@@ -188,7 +188,11 @@ export async function makePost(
     if (error) throw doorRefusal(error);
   }
   const material = await materialOf(ctx, member, file);
-  const [portrait, square, story] = await Promise.all(POST_SHAPES.map((shape) => drawn(plan, material, shape)));
+  const [portrait, square, story] = await Promise.all([
+    postDrawn(plan, material, "portrait"),
+    postDrawn(plan, material, "square"),
+    postDrawn(plan, material, "story"),
+  ]);
   const id = randomUUID();
   await storeShapes(member.tenantId, id, {
     portrait: portrait,

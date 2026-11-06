@@ -43,7 +43,7 @@ export const asPng = (bytes: Buffer): Promise<Buffer | null> =>
     .catch(() => null);
 
 /** What a post is made from: the photo's bytes, what the look found, and the page's layout. */
-export interface PostAsked extends PostLayoutInput {
+interface PostAsked extends PostLayoutInput {
   photo: Buffer;
   subject: readonly [number, number, number, number] | null;
 }

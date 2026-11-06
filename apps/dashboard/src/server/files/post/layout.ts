@@ -49,7 +49,7 @@ export interface PostNode {
   props: { style?: Record<string, unknown>; children?: unknown; src?: string; width?: number; height?: number };
 }
 
-const INK = "#0d0b09";
+const POST_INK = "#0d0b09";
 const CREAM = "#faf5e8";
 /** Behind the words: never less than this, by the arithmetic above. A test holds that the words stand on it. */
 export const SCRIM_UNDER_WORDS = 0.74;
@@ -69,20 +69,20 @@ const box = (style: Record<string, unknown>, ...children: unknown[]): PostNode =
 });
 
 /** How big a line stands, by how much it has to say: a short one is the picture's headline, a long one still reads on a phone. */
-export function lineSizeOf(line: string, voice: PostVoice): number {
+function lineSizeOf(line: string, voice: PostVoice): number {
   const n = Array.from(line).length;
   const size = n <= 16 ? 96 : n <= 26 ? 84 : n <= 40 ? 70 : 58;
   return voice === "modern" ? Math.round(size * 0.92) : size;
 }
 
 /** The ink that reads on a colour: black or white, whichever stands further from it. */
-export function inkOn(color: string): string {
+function inkOn(color: string): string {
   const [r, g, b] = [1, 3, 5].map((i) => {
     const v = parseInt(color.slice(i, i + 2), 16) / 255;
     return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   }) as [number, number, number];
   const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return (luminance + 0.05) / 0.05 > 1.05 / (luminance + 0.05) ? INK : "#ffffff";
+  return (luminance + 0.05) / 0.05 > 1.05 / (luminance + 0.05) ? POST_INK : "#ffffff";
 }
 
 const VOICES = {
@@ -103,7 +103,7 @@ const VOICES = {
 } as const;
 
 /** The words, in the order they are read. */
-function wordsOf({ words, voice, accent }: PostLayoutInput): PostNode[] {
+function postWordsOf({ words, voice, accent }: PostLayoutInput): PostNode[] {
   const v = VOICES[voice];
   const parts: (PostNode | null)[] = [
     words.over
@@ -176,7 +176,7 @@ export function postLayout(input: PostLayoutInput): PostNode {
         : `${MARGIN_PX + shape.clearTop + (logo ? LOGO_PX + 28 : 0)}px ${MARGIN_PX}px ${SCRIM_FADE_PX}px`,
       backgroundImage: scrim(atFoot ? "bottom" : "top"),
     },
-    ...wordsOf(input),
+    ...postWordsOf(input),
   );
   const shade = atFoot
     ? box({

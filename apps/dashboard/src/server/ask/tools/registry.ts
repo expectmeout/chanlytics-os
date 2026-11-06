@@ -47,7 +47,7 @@ import { propose_sequence } from "./act/sequence";
 import { propose_review } from "./act/review";
 import { propose_plan } from "./act/plan";
 import { propose_follow_up } from "./act/follow-up";
-import { postAct } from "./act/post";
+import { postAct } from "./act/files/post";
 import { rememberAct } from "./act/remember";
 
 /**

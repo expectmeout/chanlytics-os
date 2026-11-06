@@ -16,17 +16,17 @@ import { Button } from "../kit/button/button";
 import { askCalls, mediaSays } from "./shell";
 import type { LineWords } from "./words";
 
-/** The pictures this tab has been shown, by card: a thread drawn again does not draw them again on the server. */
-const shown = new Map<string, Promise<string | null>>();
+/** The pictures this tab has been picturesShown, by card: a thread drawn again does not draw them again on the server. */
+const picturesShown = new Map<string, Promise<string | null>>();
 
-function pictureOf(p: AskProposal): Promise<string | null> {
-  const held = shown.get(p.id);
+function postPictureOf(p: AskProposal): Promise<string | null> {
+  const held = picturesShown.get(p.id);
   if (held) return held;
   const A = askCalls();
   const asked = A
     ? A.postPicture(postPlanOf(p.payload)).then((blob) => (blob ? URL.createObjectURL(blob) : null))
     : Promise.resolve(null);
-  shown.set(p.id, asked);
+  picturesShown.set(p.id, asked);
   return asked;
 }
 
@@ -81,7 +81,7 @@ export function AskPostCard({ p, t }: { p: AskProposal; t: LineWords }) {
   useEffect(() => {
     if (kept) return undefined;
     let live = true;
-    void pictureOf(p).then((address) => {
+    void postPictureOf(p).then((address) => {
       if (!live) return;
       setPicture(address);
       setFailed(!address);

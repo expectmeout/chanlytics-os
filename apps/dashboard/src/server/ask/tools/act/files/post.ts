@@ -10,12 +10,12 @@ import {
   postPlanProblem,
   whoStandsOf,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
-import * as readers from "../../../readers/facts";
-import { filesForAsk } from "../../../readers/files";
-import { postPhoneOf } from "../../../files/post/phone";
-import { defineAct, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
-import { filesNamed } from "../read/files";
+import { load } from "../../../../readers";
+import * as readers from "../../../../readers/facts";
+import { filesForAsk } from "../../../../readers/files";
+import { postPhoneOf } from "../../../../files/post/phone";
+import { defineAct, propose, refuse, type ProposalOutcome, type ToolContext } from "../../context";
+import { filesNamed } from "../../read/files";
 
 /**
  * A post from one of the business's photos (decision 0099, step 3). Code draws it, so it is free, and the card shows the real
@@ -35,7 +35,9 @@ const postInput = z.object({
   file: z.string().min(1).max(120).describe("The photo's name, from files with action list. Open it with view first."),
   line: z
     .string()
-    .describe(`The post's headline, at most ${POST_LIMITS.line} characters, in the owner's language and from their words.`),
+    .describe(
+      `The post's headline, at most ${POST_LIMITS.line} characters, in the owner's language and from their words.`,
+    ),
   over: z
     .string()
     .optional()
