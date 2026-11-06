@@ -135,6 +135,8 @@ const ADDRESSES = [
   "reports/2026-09-01~2026-09-20",
   "reports/reviews:2026-09-01~2026-09-20",
   "outbound",
+  "campaigns/ads",
+  "campaigns/ads:new",
 ];
 const PANES = Object.keys(ROUTE_SURFACE)
   .filter((r) => r.startsWith("admin/"))

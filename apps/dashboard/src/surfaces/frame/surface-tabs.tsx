@@ -9,6 +9,7 @@
  */
 import { useEffect, useLayoutEffect, useReducer } from "react";
 import type { ComponentType } from "react";
+import { adsPreviewOf } from "@chanlytics/contracts";
 import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
 import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
 import type { SurfaceViews } from "../routes";
@@ -213,12 +214,8 @@ interface StripPlace {
   at: number;
 }
 
-/** Whether the workspace's Ads preview is on (`features.ads_preview` in the settings it holds, `__SETTINGS`). */
-const stAdsPreviewOn = () => {
-  const config =
-    window.__SETTINGS && (window.__SETTINGS as { config?: { features?: { ads_preview?: unknown } } }).config;
-  return !!(config && config.features && config.features.ads_preview === true);
-};
+/** Whether the workspace's Ads preview is on, by the one rule (contracts adsPreviewOf), over the settings it holds (`__SETTINGS`). */
+const stAdsPreviewOn = () => adsPreviewOf((window.__SETTINGS as { config?: unknown } | undefined)?.config);
 
 /** Which of People's scopes an address of `clients` is: Leads, the Pipeline, or the list itself (a list, a state). */
 const peopleScopeRoute = (param: string | null | undefined) => {

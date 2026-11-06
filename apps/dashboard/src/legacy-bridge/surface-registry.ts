@@ -583,6 +583,10 @@ export function routeSurfaceFor(page: string, param?: string | null): string | u
   // "clients" it would wait for People's rows and paint the Leads scope with
   // no searches, no rows and no counts for as long as its own read took.
   if (page === "clients" && pane && /^leads(:|$)/.test(pane)) return ROUTE_SURFACE.leads;
+  // Ads, where it is drawn (ads/shown.ts), waits for the read that says whether it is, never for Sequences' list it does not draw;
+  // where it is not, the address is Sequences, whose list is read as the view comes on screen. No row of its own, here or in the states:
+  // a real page is a jump for every workspace (Ask's palette), and only some have this one until the Ads read is wired (0049).
+  if (page === "campaigns" && pane === "ads") return "settings";
   // A person's page reads its own person and says Reading… itself, so it never waits for the whole list: measured on
   // production (23 Sep 2026), a new tab held "Reading…" until People's 29 rows landed at 0.87 s and only then asked
   // for the person, whose page drew at 1.5 s. It waits for who is looking (the workspace surface, which carries __ME):
