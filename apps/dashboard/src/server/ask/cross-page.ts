@@ -272,6 +272,8 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
   if (scope?.kind === "search") return { name: "leads", input: { action: "search", search_id: scope.id } };
   if (scope?.kind === "run") return { name: "sequences", input: { action: "batch", broadcast_id: scope.id } };
   if (scope?.kind === "playbook") return { name: "sequences", input: { action: "moments" } };
+  // A file is opened whole, picture and all: "this photo" is the one on screen, by its id, whatever it is called by now.
+  if (scope?.kind === "file") return { name: "files", input: { action: "view", names: [scope.id] } };
   return null;
 }
 

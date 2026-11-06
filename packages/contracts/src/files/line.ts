@@ -99,6 +99,16 @@ function lookSaid(f: Pick<FileDto, "look_status" | "looks_like_stock">): string 
   return f.looks_like_stock ? "may be stock" : null;
 }
 
+/**
+ * A question's words as a later turn's history says them, once the pictures have left the request: the words, then the files it
+ * came with, by the name that opens them now and what the look saw. None, the words as they were.
+ */
+export function withFilesAttached(words: string, files: readonly (Pick<FileDto, "name" | "line"> | null)[]): string {
+  if (files.length === 0) return words;
+  const said = files.map((f) => (!f ? "a file since removed" : f.line ? `${f.name} (${f.line})` : f.name));
+  return [words, `[Attached: ${said.join("; ")}]`].filter(Boolean).join("\n");
+}
+
 /** One file on one line, to choose by: `storefront-dusk-street · place · sharp, well lit · no people: A shopfront at dusk.` */
 export function fileIndexLineOf(f: FileForAsk): string {
   const head = [f.name, fileShelfSaid(f), qualitySaid(f.quality), fileWhoSaid(f), lookSaid(f)].filter(Boolean);

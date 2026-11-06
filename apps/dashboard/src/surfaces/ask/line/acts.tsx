@@ -27,6 +27,7 @@ export const arActs = (ln: Line) => {
     flash,
     t,
     inputRef,
+    clearAttached,
   } = ln;
   // Going somewhere: on a desk the page beside the panel goes there and Ask stays open beside it, the conversation and
   // all (`stay`); a place jumped to from the words typed is a launcher's, and closes it. On a phone, and for a jump,
@@ -67,6 +68,7 @@ export const arActs = (ln: Line) => {
     moveOn();
     setActive(null);
     setQuery("");
+    clearAttached();
     setQuick(null);
     setView("rows");
     speech.stop();

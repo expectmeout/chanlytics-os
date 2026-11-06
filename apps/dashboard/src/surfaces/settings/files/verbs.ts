@@ -15,14 +15,20 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 
+/**
+ * What a picker offers, a HEIC by its name too. Asked for only JPEG, a phone converts by itself; what an iPhone hands over
+ * when asked for HEIC as well is what the first real uploads will show, and the server takes either.
+ */
+export const FILE_PICKS = "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
+
 /** How long to wait before each new try: a phone between masts is back in seconds. */
 const SEND_AGAIN_AFTER_MS = [3 * SECOND_MS, 10 * SECOND_MS] as const;
 const DONE_AGAIN_AFTER_MS = [2 * SECOND_MS, 5 * SECOND_MS, 10 * SECOND_MS] as const;
 
 const waited = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** What one photo came to: kept, already kept, or the words that refused it. */
-export type AddSaid = { kept: true; twin: boolean } | { kept: false; message: string };
+/** What one photo came to: kept, already kept (`id` is then the one it twins), or the words that refused it. */
+export type AddSaid = { kept: true; twin: boolean; id: string } | { kept: false; message: string };
 
 /** A kind by what the file calls itself: a desk browser names no type for a HEIC, and a phone always does. */
 function mimeOf(file: File): FileMime | null {
@@ -73,7 +79,7 @@ async function add(file: File): Promise<AddSaid> {
   if (!(await sendBytes(started.data.upload_url, file, mime))) return { kept: false, message: W.notSaved };
   const done = await proven(started.data.id, file.name, mime);
   if (!done.ok) return { kept: false, message: done.message };
-  return { kept: true, twin: done.data.twin };
+  return { kept: true, twin: done.data.twin, id: done.data.file_id };
 }
 
 export interface FileChange {

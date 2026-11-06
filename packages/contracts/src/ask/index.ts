@@ -21,6 +21,7 @@ export {
 } from "./answer-text";
 export type { AnswerBlock, AnswerList, AnswerRun } from "./answer-text";
 export {
+  ASK_ATTACHED_MAX,
   ASK_CAPS,
   ASK_CORE_TOOLS_CHARS_CEILING,
   ASK_MAX_CHARS,
@@ -55,6 +56,7 @@ export {
 } from "./ask";
 export type { AskColumn, SpeechPurpose, VoiceEndReason } from "./ask";
 export type {
+  AskAttached,
   AskCardSheet,
   AskMessageVM,
   AskPlanStamp,

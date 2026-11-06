@@ -29,13 +29,16 @@ const VIEW_MAX = 4;
 const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>
   (await load(t.rc, filesForAsk, undefined)).data.files;
 
-/** The named files, by the words either of them uses for one: what is typed is cleaned as a name is. */
+/**
+ * The named files, by the words either of them uses for one: what is typed is cleaned as a name is. A turn's scope names its
+ * file by the row's id (cross-page.ts scopedRead), so a file renamed since is still the one on screen.
+ */
 function filesNamed(files: readonly FileForAsk[], names: readonly string[]) {
   const byName = new Map(files.map((f) => [f.name, f]));
   const found: FileForAsk[] = [];
   const missing: string[] = [];
   for (const asked of names) {
-    const file = byName.get(fileNameOf(asked));
+    const file = byName.get(fileNameOf(asked)) ?? files.find((f) => f.id === asked);
     if (!file) missing.push(asked);
     else if (!found.includes(file)) found.push(file);
   }

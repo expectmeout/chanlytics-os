@@ -46,7 +46,7 @@ export { craftSystem, guideBlock, SKILL_CRAFT_MAX_TOKENS, SKILL_CRAFT_PURPOSES, 
 export { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } from "./ask/answer-format";
 export { answerSoFar, partialSay, stoppedAnswer } from "./ask/answer-stream";
 export { answerBlocks, answerCopy, answerPlain, answerRuns, answerSpoken, answerText, claimsWrite, cleanAnswer, FOLLOWUP_ECHO, isUngrounded, listSpoken, navigateLabel, nextNotAsked, sameQuestion, unquoted } from "./ask/answer-text";
-export { ASK_CAPS, ASK_CORE_TOOLS_CHARS_CEILING, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_SCOPE_KINDS, ASK_SELECTION_MAX, ASK_SPEECH_MAX_CHARS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_SURFACES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, askCardLapsed, askColumnOf, isVoiceEndReason, scopeFromRoute, SPEECH_PURPOSES, VOICE_END_REASONS } from "./ask/ask";
+export { ASK_ATTACHED_MAX, ASK_CAPS, ASK_CORE_TOOLS_CHARS_CEILING, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_SCOPE_KINDS, ASK_SELECTION_MAX, ASK_SPEECH_MAX_CHARS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_SURFACES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, askCardLapsed, askColumnOf, isVoiceEndReason, scopeFromRoute, SPEECH_PURPOSES, VOICE_END_REASONS } from "./ask/ask";
 export { answerForCards, answerFromV1, answerWords, ASK_ANSWER_CAPS, callsAnswer, clip, failedAnswer, needsAnswer, normalizeAnswer, oneDoor, openingsAnswer, proseAnswer, storedAnswer, v1FromAnswer } from "./ask/ask-answer";
 export { askCallOutcome, callJumpSub } from "./ask/ask-calls";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/ask-context";
@@ -197,7 +197,7 @@ export { MAILBOX_LEFT_WHY_WORDS, MAILBOX_SENDERS_WORDS, mailboxLeftLine, senderD
 export { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_DAILY_CAP_MAX, MAILBOX_HOLDS, MAILBOX_RAMP, mailboxDailyCap, mailboxHoldFixWords, mailboxHoldWords, mailboxRampShare } from "./email/mailbox-standing";
 export { SENDER_KINDS, SENDER_READ_MAX_TOKENS, SENDER_READING_SCHEMA, senderLeftWhy, senderReadingAsk, senderReadingOf, senderReadingSystem } from "./email/sender-reading";
 export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELVES, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, FILE_WORDS, fileFolderOf, fileNameOf, filePathOf, FILES_BUCKET, FILES_MAX, fileSaidOf, filesSayOf, fileViewOf, inboxCleanOf, isFileMime, shelfOf, whoStandsOf } from "./files/files";
-export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid } from "./files/line";
+export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached } from "./files/line";
 export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, fileLookAsked, fileLookOf } from "./files/look";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";

@@ -41,7 +41,7 @@ export type {
   FileWhoInIt,
   FileWhoStands,
 } from "./files";
-export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid } from "./line";
+export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached } from "./line";
 export type { FileForAsk } from "./line";
 export {
   FILE_COPY_KEEP_S,

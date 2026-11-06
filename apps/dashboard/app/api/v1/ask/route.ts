@@ -5,6 +5,7 @@ import {
   ASK_SURFACES,
   PageContextSchema,
   askColumnOf,
+  type AskLanguage,
   type AskScope,
   type LeadSearchPlan,
   type PageContext,
@@ -16,6 +17,7 @@ import { log } from "@/server/log";
 import { requireUuid } from "@/server/request-guards";
 import { readerContext } from "@/server/readers";
 import type { RouteContext } from "@/server/with-route";
+import { attachedIdsOf } from "@/server/files/attached";
 import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
 import type { SearchAnswering } from "@/server/ask/prompt";
 import { finishAskTurn, prepareAskTurn, type AskTurnLine } from "@/server/ask/turn";
@@ -24,7 +26,7 @@ import { searchRow } from "@/server/leads/leads";
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
  *
- * Body: { text, thread_id?, scope?, surface?, answering?, following?, column?, workspace? }. The response is a
+ * Body: { text, thread_id?, scope?, surface?, answering?, following?, column?, files?, language?, workspace? }. The response is a
  * stream of JSON lines: {t:"thread", id} first, then {t:"trace"} while a read
  * runs, {t:"say", headline, detail} as the answer's Say is written (a
  * preview), and {t:"final", message} last, with the answer as the Line draws
@@ -55,6 +57,10 @@ import { searchRow } from "@/server/leads/leads";
  *
  * `column: { px, phone }` is the width the Line draws the answer in, as the tab measured it (contracts AskColumn): the
  * model is told it with the question; one not in that shape is none.
+ *
+ * `files: [id]` is what the question came with: the files' ids, ten at most, and the turn sees each picture ahead of the words.
+ * With them a question may have no words of its own, and `language` then says what to answer in, as the words would have. A
+ * thread keeps the ids alone (server/files/attached.ts). An id in no shape, or of a file not there for the caller, is left out.
  *
  * The answer's row also keeps the turn as the model was sent it, at
  * `content.raw` (server/ask/memory.ts, storedRaw; the Phase 5 plan, D11), for
@@ -162,6 +168,28 @@ function scopeAsked(raw: unknown): AskScope | null | undefined {
 }
 
 /**
+ * The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the schema
+ * refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a context is a help
+ * to the answer, not a condition of it. The turn reads the page again from these identities.
+ */
+function contextAsked(raw: unknown, tenantId: string): PageContext | null {
+  if (raw === undefined || raw === null) return null;
+  const read = PageContextSchema.safeParse(raw);
+  if (read.success) return read.data;
+  const issue = read.error.issues[0];
+  log.error("ask_context_refused", {
+    tenant_id: tenantId,
+    path: issue?.path.join(".") ?? "",
+    issue: issue?.message ?? "unreadable",
+  });
+  return null;
+}
+
+/** Words say their own language; only a question with none is told it. */
+const languageAsked = (text: string, raw: unknown): { language?: AskLanguage } =>
+  !text && (raw === "es" || raw === "en") ? { language: raw } : {};
+
+/**
  * The search a Leads answer row's text answers (`answering: { search_id }`), read under RLS in this workspace: what it
  * asked rides beside the owner's words (askTurnText). None where the body names none; one not this workspace's is a 404.
  */
@@ -207,30 +235,18 @@ export const POST = write({
       column?: unknown;
       opened_ms?: unknown;
       context?: unknown;
+      files?: unknown;
+      language?: unknown;
     } | null;
     const text = questionOf(body?.text);
-    if (!text) throw new AppError("validation", "Ask something.");
+    const files = attachedIdsOf(body?.files);
+    if (!text && files.length === 0) throw new AppError("validation", "Ask something.");
     if (text.length > ASK_MAX_CHARS)
       throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
     const threadId =
       typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
     const askedScope = scopeAsked(body?.scope);
-    // The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the
-    // schema refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a
-    // context is a help to the answer, not a condition of it. The turn reads the page again from these identities.
-    let context: PageContext | null = null;
-    if (body?.context !== undefined && body.context !== null) {
-      const read = PageContextSchema.safeParse(body.context);
-      if (read.success) context = read.data;
-      else {
-        const issue = read.error.issues[0];
-        log.error("ask_context_refused", {
-          tenant_id: member.tenantId,
-          path: issue?.path.join(".") ?? "",
-          issue: issue?.message ?? "unreadable",
-        });
-      }
-    }
+    const context = contextAsked(body?.context, member.tenantId);
     // The surface the palette names; a context says the same, and fills it when the palette named none.
     const surface =
       typeof body?.surface === "string" && SURFACES.has(body.surface) ? body.surface : (context?.surface ?? null);
@@ -261,6 +277,8 @@ export const POST = write({
       openedMs,
       answering,
       column: askColumnOf(body?.column),
+      files,
+      ...languageAsked(text, body?.language),
     });
 
     await cameBackTo(ctx, member, body?.following);

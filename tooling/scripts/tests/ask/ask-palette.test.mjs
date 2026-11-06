@@ -3902,7 +3902,7 @@ test("a row of every kind an answer names draws its kind's mark, from the one ma
   for (const k of ASK_SCOPE_KINDS)
     assert.equal(
       askKindGlyph(k),
-      k === "run" ? marks.broadcast : k === "ad" ? marks.page : marks[k],
+      k === "run" ? marks.broadcast : k === "ad" ? marks.page : k === "file" ? "image" : marks[k],
       `a scope's ${k} is marked as its row`,
     );
   assert.equal(askKindGlyph("something new"), "chat", "a kind the map does not know is a chat");

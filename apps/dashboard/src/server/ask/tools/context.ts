@@ -116,6 +116,22 @@ export interface ToolPicture {
  */
 export const PICTURES = Symbol("pictures");
 
+/** A picture as a question carries it: what the model is told of it, and the id of the copy, if one could be had. */
+export interface AskedPicture {
+  said: string;
+  fileId: string | null;
+}
+
+/** Each picture as the model reads it, named just before it. An id never serves other bytes, so a replay is what was sent. */
+export const pictureBlocks = (pictures: readonly AskedPicture[]): unknown[] =>
+  pictures.flatMap((p) => [
+    { type: "text", text: p.said },
+    ...(p.fileId ? [{ type: "image", source: { type: "file", file_id: p.fileId } }] : []),
+  ]);
+
+/** A picture a read opened, as `pictureBlocks` takes it. */
+export const openedPicture = (p: ToolPicture): AskedPicture => ({ said: `The file ${p.name}:`, fileId: p.fileId });
+
 export interface ToolOutcome {
   /** What the model sees. */
   result: string;

@@ -9,6 +9,7 @@
 import type {
   AskAnswer,
   AskColumn,
+  AskLanguage,
   AskMessageVM,
   AskProposalOutcome,
   AskScope,
@@ -307,6 +308,10 @@ function turnCall(client: Api, head: { sent(): void }) {
       openedMs?: number | null;
       /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
       context?: PageContext | null;
+      /** The ids of the files the question came with: the route opens each picture ahead of the words. */
+      files?: readonly string[];
+      /** What to answer in, for a question of no words of its own: words say their own. */
+      language?: AskLanguage;
       /**
        * The person's Stop: the request is let go of, and the route stops the turn and keeps it as stopped. Not before
        * the turn's thread is named, which is passed on so the next question carries on in it, never in a second
@@ -339,6 +344,8 @@ function turnCall(client: Api, head: { sent(): void }) {
             ? { opened_ms: Math.round(input.openedMs) }
             : {}),
           ...(input.context ? { context: input.context } : {}),
+          ...(input.files?.length ? { files: [...input.files] } : {}),
+          ...(input.language ? { language: input.language } : {}),
         },
         timeoutMs: TURN_MS,
         signal: letGo.signal,

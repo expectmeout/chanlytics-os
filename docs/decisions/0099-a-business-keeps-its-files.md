@@ -75,6 +75,14 @@ what a page shows them. So a picture needs one place, one name and a written rec
     and sends no picture the model refused, which can refuse a whole request. A live chain replays its picture by the same id, and a
     picture Anthropic no longer holds gives the replay up for the words, once. The rule for Ask is that it uses what is filed, and
     someone recognizable whom no one has said agreed is the owner's to answer for.
+12. **A question can come with files, and "this photo" means the one on screen.** The Line's + (the camera or the library on a phone),
+    a paste and a drop each send a photo up by the one door, so it lands in the library and Ask sees it in that turn. Send waits
+    until they have arrived. The pictures go in ahead of the words, each named just before it, and a photo alone is a question. A
+    thread keeps the files' ids and nothing else of them, so the name a later turn reads is the one that opens the file now, a removal
+    takes its note and its tile with it, and no description of a file outlives it in a person's thread. A later cold turn carries the
+    name and the note, and Ask opens the file again if it needs to. A scope of kind `file` reads that file by its id with its
+    picture, from the sheet's Ask about this photo or from the sheet's address (`?do=file:<id>`); a thread keeps its scope, so a
+    live chain that already holds the picture is not sent it again.
 
 ## What it costs
 
@@ -101,9 +109,18 @@ On production, 5 November 2026, through real Storage and the deployed edge, in t
   it, so the browser asks the CDN again and the redirect is what it keeps.
 - Storage's client encodes a download's name twice, so it is put on the address in the code, encoded once.
 
+## What the first real Ask turn proved
+
+On production, 6 November 2026, in the test workspace, one question over three test pictures. Ask listed the catalog and opened all
+three, and read out words on their signs and the colours of their walls, none of which is in a note, so the pixels reach it.
+
+- It cost $0.58 in all: $0.31 for the cold first round, which is what any first round costs (the average is the same); $0.15 for the
+  round that read Today and the catalog; and $0.12 for the last, of which the three pictures were about $0.07.
+- So a picture itself costs cents, about 2,400 tokens written to the cache. A turn about pictures is priced by the turn.
+
 ## What is left to prove
 
-- A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line.
+- A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line, in Files and in the Line.
 - That a real phone reuses the cached redirect.
 - The file_purge a start leaves itself, a day on: `file_never_filed` in the logs for bytes that never became a file.
 - A real Google profile's media list and a real listing's photos, on the first real connection. Whether Places names the business
@@ -113,4 +130,4 @@ On production, 5 November 2026, through real Storage and the deployed edge, in t
 
 ## Not here
 
-Ask viewing these files (step 2), making pictures (steps 3 and 4) and video (step 5).
+Making pictures (steps 3 and 4) and video (step 5).

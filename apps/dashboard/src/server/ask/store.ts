@@ -13,9 +13,11 @@ import {
   citationRoute,
   storedAnswer,
   v1FromAnswer,
+  withFilesAttached,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
+import { attachedNow, fileIdsOf, type AttachedFile } from "../files/attached";
 import { answeringOf, askTurnText, titleFromQuestion } from "./prompt";
 import { log } from "@/server/log";
 
@@ -43,6 +45,10 @@ interface MessageRow {
 const THREADS_CAP = 40;
 const MESSAGES_CAP = 60;
 
+/** The files a thread's questions came with, as they are now: one that was removed is not here. */
+type NamedFiles = ReadonlyMap<string, AttachedFile>;
+const NONE_NAMED: NamedFiles = new Map();
+
 export function toThreadVM(r: ThreadRow): AskThreadVM {
   return {
     id: r.id,
@@ -56,15 +62,17 @@ export function toThreadVM(r: ThreadRow): AskThreadVM {
  * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
  * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
  */
-export function toMessageVM(r: MessageRow): AskMessageVM {
+export function toMessageVM(r: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
   const c = (r.content ?? {}) as Record<string, unknown>;
   const cites = Array.isArray(c.citations) ? (c.citations as AskMessageVM["citations"]) : [];
+  const files = fileIdsOf(c.files);
   const answer =
     c.v === 2 && c.answer && typeof c.answer === "object" && (c.answer as AskAnswer).v === 2
       ? storedAnswer(c.answer as AskAnswer)
       : null;
   return {
     ...(answer ? { answer } : {}),
+    ...(files.length ? { files: files.map((id) => ({ id, name: named.get(id)?.name ?? null })) } : {}),
     id: r.id,
     role: r.role === "assistant" ? "assistant" : "user",
     text: typeof c.text === "string" ? c.text : "",
@@ -104,12 +112,23 @@ export async function listThreads(ctx: RouteContext, tenantId: string): Promise<
 
 /**
  * A stored turn as the model reads it on a later turn: the words, and for a person's answer to a search's question
- * the search it answered (askTurnText), which is stored beside their words and never shown as them.
+ * the search it answered (askTurnText), which is stored beside their words and never shown as them, and the files it came
+ * with, by the name that opens them now (contracts withFilesAttached).
  */
-export function modelTurnOf(r: MessageRow): { role: "user" | "assistant"; text: string } {
+export function modelTurnOf(
+  r: MessageRow,
+  named: NamedFiles = NONE_NAMED,
+): { role: "user" | "assistant"; text: string } {
   const vm = toMessageVM(r);
   const c = (r.content ?? {}) as Record<string, unknown>;
-  return { role: vm.role, text: askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null) };
+  const said = askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null);
+  return {
+    role: vm.role,
+    text: withFilesAttached(
+      said,
+      fileIdsOf(c.files).map((id) => named.get(id) ?? null),
+    ),
+  };
 }
 
 /** How a stored turn's earlier turns reached the model (AskTurnShape.replay), or null: a question, or a turn from before. */
@@ -149,7 +168,7 @@ export async function readThread(
   const { data: msgs, error: merr } = await ctx.supabase
     .from("ask_messages")
     .select(
-      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
+      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, files:content->files, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
     )
     .eq("thread_id", id)
     .order("created_at", { ascending: false })
@@ -159,10 +178,13 @@ export async function readThread(
   const rows = (msgs ?? [])
     .reverse()
     .map(({ id: messageId, role, created_at, ...content }) => ({ id: messageId, role, created_at, content }));
+  // What the thread's questions came with, as those files are now. Most threads have none, and read nothing more.
+  const fileIds = [...new Set(rows.flatMap((r) => fileIdsOf(r.content.files)))];
+  const named = fileIds.length ? await attachedNow(ctx, t.tenant_id, fileIds) : NONE_NAMED;
   return {
     thread: toThreadVM(t),
-    messages: rows.map(toMessageVM),
-    turns: rows.map(modelTurnOf),
+    messages: rows.map((r) => toMessageVM(r, named)),
+    turns: rows.map((r) => modelTurnOf(r, named)),
     replays: rows.map((r) => replayOf(r.content.shape)),
     truncated: rows.length >= MESSAGES_CAP,
     tenantId: t.tenant_id,

@@ -3,12 +3,14 @@ import { useRef, useState } from "react";
 import type { AskLanguage, AskScope, AskThreadVM } from "@chanlytics/contracts";
 import type { AskApi } from "@/legacy-bridge/ask";
 import { useAskSpeech, type ahSlideFrom } from "../hooks";
+import type { AttachedPhoto } from "./attached";
 import type { AskedSeed, Conversation, LineState, LiveTurn, QuickTurn } from "./types";
 import { useAskToast } from "../shell";
 
 /** The state of one Line: the words, the conversations, the turn in flight, where the keys stand, and the refs its effects and handlers share. */
 export const useArLine = (A: AskApi | undefined): LineState => {
   const [query, setQuery] = useState("");
+  const [attached, setAttached] = useState<AttachedPhoto[]>([]); // the photos beside the field, on their way or there (attached.tsx)
   const [threads, setThreads] = useState<AskThreadVM[]>([]);
   const [active, setActive] = useState<Conversation | null>(null); // { id, title, messages, scope }
   const [live, setLive] = useState<LiveTurn | null>(null); // the turn in flight: { q, text, traces }
@@ -57,6 +59,8 @@ export const useArLine = (A: AskApi | undefined): LineState => {
   return {
     query,
     setQuery,
+    attached,
+    setAttached,
     threads,
     setThreads,
     active,

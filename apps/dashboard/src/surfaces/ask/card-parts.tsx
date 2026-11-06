@@ -30,6 +30,7 @@ const AT_KIND_GLYPHS: Record<string, string> = {
   run: "wave",
   playbook: "bolt",
   ad: "arrow-right",
+  file: "image",
   template: "content",
   mailbox: "mail",
   visit: "calendar",

@@ -11,11 +11,12 @@ import { AskActs, AskNowPills, AskReads, AskRows } from "../home";
 import { ahPanelKeys, ahPinNow, ahSlideFrom } from "../hooks";
 import { leaving, touchSwipe } from "../shell";
 import { AskLatest, AskListen, AskNextRow, AskQuestion, AskThread, AskTurn } from "../turn";
+import { allArrived, AskAttachedRow, AskAttachPress, pastedPhotos } from "./attached";
 import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon } from "./place";
 
 /** The field's end: the one button (the mic held to talk, Send, or Stop). */
 export const arLineEnd = (ln: Line) => {
-  const { t, phone, buzz, talk, held, speech, query, live, stop, submit, begin, end } = ln;
+  const { t, phone, buzz, talk, held, speech, query, live, stop, submit, begin, end, attached } = ln;
   // Held to talk. The button keeps the finger (pointer capture), so the lift reaches it even once a phone's foot has
   // turned into "Let go to ask" over it; a phone buzzes as it starts (S16). The recogniser may end on its own before
   // the finger lifts (a pause ends it on Android Chrome and iOS Safari) and the words heard are asked then, so by the
@@ -52,9 +53,11 @@ export const arLineEnd = (ln: Line) => {
   // a turn runs. One element in one place, keyed, so the finger a hold captured is still held as the words heard fill
   // the field; where the browser cannot listen there is no mic, only Send, faint until there are words.
   const hasWords = !!query.trim();
+  // A photo beside the field makes a question of it, words or none, once every photo has arrived.
+  const hasPhotos = attached.length > 0;
   // Stop while a turn runs; else the mic (a ring breathes out of it while Ask's voice reads, data-state, and a hold
-  // stops the reading), or Send once there are words.
-  const role = live ? "stop" : talk.listening || (!hasWords && talk.canTalk) ? "talk" : "send";
+  // stops the reading), or Send once there are words or photos.
+  const role = live ? "stop" : talk.listening || (!hasWords && !hasPhotos && talk.canTalk) ? "talk" : "send";
   const one =
     role === "stop"
       ? {
@@ -83,7 +86,7 @@ export const arLineEnd = (ln: Line) => {
           }
         : {
             onClick: pressed(() => submit()),
-            disabled: !hasWords,
+            disabled: !(hasWords || hasPhotos) || !allArrived(attached),
             "aria-label": t.askSend,
             title: t.askSend,
             "data-testid": "ask-send",
@@ -190,7 +193,11 @@ export const arBody = ({
         onFollow={submit}
         onOutcome={noteOutcome}
         onEdit={editWords}
-        onRetry={answerMsg.failed && latest?.q ? () => void submit(latest.q?.text) : undefined}
+        onRetry={
+          answerMsg.failed && latest?.q
+            ? () => void submit(latest.q?.text, undefined, latest.q?.files ? { files: latest.q.files } : undefined)
+            : undefined
+        }
       />
     );
   return null;
@@ -289,6 +296,10 @@ const arStage = ({
   sel,
   move,
   right,
+  attached,
+  attach,
+  detach,
+  attachAgain,
 }: Line) => {
   const activeId = showRows ? (rows.length ? `ask-row-${sel}` : undefined) : move >= 0 ? `ask-move-${move}` : undefined;
   return (
@@ -297,13 +308,16 @@ const arStage = ({
       ref={stageRef}
       data-testid="ask-line"
     >
+      {attached.length ? <AskAttachedRow photos={attached} t={t} detach={detach} attachAgain={attachAgain} /> : null}
       <div className="ask-stage-row">
+        <AskAttachPress t={t} attach={attach} />
         {scope ? (
           <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
             <Icon name={arScopeIcon(scope)} size={10} />
             <span>{scope.label}</span>
             <LinePress
               kind="clear"
+              className="ask-scope-clear"
               onClick={() => {
                 setScope(null);
                 setActive((a) => (a && a.scope ? { ...a, scope: null } : a));
@@ -338,6 +352,7 @@ const arStage = ({
           }}
           onKeyDown={onKey}
           onKeyUp={(e) => hold.onKeyUp(e)}
+          onPaste={(e) => pastedPhotos(e, attach)}
           onFocus={() => {
             if (!arPhone()) return;
             slideFrom.current = ahSlideFrom(stageRef.current, heroRef.current);
@@ -380,6 +395,7 @@ const arMiddle = ({
   hero,
   folded,
   nowQ,
+  nowFiles,
   drawn,
   answerMsg,
   nextInThread,
@@ -411,7 +427,7 @@ const arMiddle = ({
       />
     ) : null}
     <div className="ask-now">
-      {thread && nowQ ? <AskQuestion text={nowQ} now /> : null}
+      {thread && (nowQ || nowFiles.length) ? <AskQuestion text={nowQ} files={nowFiles} t={t} now /> : null}
       {hero}
       {body}
       {thread && drawn && nextInThread ? <AskNextRow answer={drawn.answer} sel={move} onFollow={submit} /> : null}
@@ -477,6 +493,8 @@ export const arLineView = (ln: Line) => {
     setDoomed,
     toastNode,
     phone,
+    dropping,
+    dropProps,
   } = ln;
   // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
@@ -495,7 +513,8 @@ export const arLineView = (ln: Line) => {
     >
       <div
         ref={dialogRef}
-        className="ask-modal ask-real ask-line"
+        className={`ask-modal ask-real ask-line${dropping ? " dropping" : ""}`}
+        {...dropProps}
         role={phone ? "dialog" : "complementary"}
         aria-modal={phone ? "true" : undefined}
         tabIndex={-1}
