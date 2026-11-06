@@ -48,6 +48,15 @@ export async function businessOnRecordOf(
 }
 
 /**
+ * A line's token out of Vault, when the line is given back: nothing is left to open a subaccount nobody points at. A token
+ * not there is as done. A call that fails throws, and the row, which is what would find it, stays.
+ */
+export async function dropLineCredentials(db: SupabaseClient<Database>, lineId: string): Promise<void> {
+  const { error } = await db.rpc("drop_line_credentials", { p_line_id: lineId });
+  if (error) throw new Error(`dropping the line's token: ${error.message}`);
+}
+
+/**
  * The names a workspace's filings sent the carriers, off its lines' facts (contracts LINE_FILED_NAMES): the campaign's,
  * which the text confirming a START states, and the brand's, the business on record's. Null each where no filing kept one
  * (a filing before the name was kept, or none at all). For what a rename says the carriers still hold, and the

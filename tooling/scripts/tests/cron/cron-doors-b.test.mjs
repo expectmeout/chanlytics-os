@@ -2288,7 +2288,7 @@ function endedWorld(n) {
   };
   return { T, own, tables };
 }
-const VAULT_TOKEN = { get_line_credentials: () => ({ auth_token: "sub-token" }) };
+const VAULT_TOKEN = { get_line_credentials: () => ({ auth_token: "sub-token" }), drop_line_credentials: () => true };
 
 test("lines (A2): with no grace set, a number whose subscription ended is only reported -- no warning, no release, nothing written -- and nobody else's number is even counted", async () => {
   const { own, tables } = endedWorld(340);
@@ -2703,7 +2703,7 @@ const SUB = "ACsub0000000000000000000000000000";
 const basic = (sid, token) => `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`;
 const SUB_AUTH = basic(SUB, "sub-token");
 /** The vault, answering the subaccount's token for any line. */
-const VAULT = { get_line_credentials: () => ({ auth_token: "sub-token" }) };
+const VAULT = { get_line_credentials: () => ({ auth_token: "sub-token" }), drop_line_credentials: () => true };
 /** A line the carriers hold: a brand filed under the workspace's own profiles, no campaign yet. */
 const waiting = (T, id, over = {}) =>
   lineRow(T, id, {

@@ -146,6 +146,7 @@ what a page shows them. So a picture needs one place, one name and a written rec
 - The look: about $0.50 per 1,000 files, on the workspace's usage.
 - A picture Ask opens: about 2.5 cents on Opus the first time (about 2,400 tokens written to the cache), under Ask's own day budget.
 - A post made from a photo: nothing. Code draws it, in about 0.9 s on production (2.7 s cold), and a Save takes about 2.5 s.
+- A press of Make a post: $0.36 on a cold cache, in one round and 5.7 s, measured once on production on 6 Nov. Typed, with Ask finding and opening the photo itself, the same post took four rounds and $0.52. A warm cache has not been measured.
 - A listing's photo: about $0.007 from Google Places, at most ten a link, on the platform.
 - Storage's transforms: billed per source image past Pro's allowance, on the platform.
 

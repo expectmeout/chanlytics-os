@@ -86,6 +86,11 @@ export interface LineProvider {
    * forget the row, and that number may still be billed.
    */
   readSubaccount(master: ProviderAccount, sid: string): Promise<ProviderAccount | null>;
+  /**
+   * A subaccount closed by its parent, the last of a line given back: Twilio cannot reopen it, releases anything left on
+   * it, and it can bill nothing more. Gone or closed already is done; anything else throws.
+   */
+  closeSubaccount(master: ProviderAccount, sid: string): Promise<void>;
   findTrunk(acct: ProviderAccount, domainName: string): Promise<{ sid: string; domainName: string } | null>;
   findCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string } | null>;
   findCredential(acct: ProviderAccount, listSid: string, username: string): Promise<{ sid: string } | null>;
