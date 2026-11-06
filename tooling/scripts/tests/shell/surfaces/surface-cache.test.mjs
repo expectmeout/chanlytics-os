@@ -855,3 +855,22 @@ test("a slot past its day is removed at boot, every workspace's, and a slot that
   assert.notEqual(ls.getItem("chanlytics-os-prefs"), null, "nothing but the cache's slots is touched");
   for (const k of ["fresh", "odd"]) ls.removeItem(`chanlytics.surfaces.v2:${k}`);
 });
+
+// A copy of a phone's screen holds the same customers' words (contracts shell/first-rows.ts): it goes wherever the rows go.
+test("a copy of a phone's first screen goes with the rows: at every clear, every workspace's, and at boot past its day", () => {
+  const ls = globalThis.localStorage;
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.parse("2026-11-03T12:00:00Z");
+  const copy = (at) => JSON.stringify({ at, width: 393, sheets: "1", vars: "", html: "<div>Robin Example</div>" });
+  ls.setItem("chanlytics.rows.v1:acme:inbox", copy(now - DAY - 1));
+  ls.setItem("chanlytics.rows.v1:acme:people", copy(now - 1000));
+  ls.setItem("chanlytics.rows.v1:other:inbox", copy(now - 1000));
+  ls.setItem("chanlytics-os-prefs", "{}");
+  dropExpiredSlots(now);
+  assert.equal(ls.getItem("chanlytics.rows.v1:acme:inbox"), null, "a day old: never drawn, and gone");
+  assert.notEqual(ls.getItem("chanlytics.rows.v1:acme:people"), null, "current: the next visit draws it");
+  clearSurfaceCache();
+  assert.equal(ls.getItem("chanlytics.rows.v1:acme:people"), null, "cleared with the rows");
+  assert.equal(ls.getItem("chanlytics.rows.v1:other:inbox"), null, "every workspace's, whoever comes next");
+  assert.notEqual(ls.getItem("chanlytics-os-prefs"), null, "nothing but the kept rows is touched");
+});
