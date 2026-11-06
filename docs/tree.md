@@ -252,6 +252,7 @@ e2e/
   conversations/
   kit/
   people/
+  production/
   settings/
   shell/
   today/
