@@ -6,12 +6,17 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, byTestId, find, textOf } from "../../_legacy-react.mjs";
+import { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, LEAD_VIEW_SORTS } from "@chanlytics/contracts";
+import { installLegacyReact, fresh, again, all, byTestId, find, textOf } from "../../_legacy-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 installLegacyReact();
 const { LEAD_COLUMNS, leadViewNow, LEAD_VIEW_EXTRA, mayRowAct } = await importSrc(
   "apps/dashboard/src/surfaces/leads/cells/columns.tsx",
+);
+const { LEAD_MORE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/more-columns.tsx");
+const { columnGroupsOf, columnOptionsOf, visibilityDefaults, visibilityOf } = await importSrc(
+  "apps/dashboard/src/surfaces/kit/table/columns.ts",
 );
 const { onPageKey } = await importSrc("apps/dashboard/src/surfaces/people/hooks/keyboard.ts");
 const { leadHeadMenus, leadQueueGroupOf, leadStatusGroupMenu, leadsFootOf } = await importSrc(
@@ -269,8 +274,272 @@ test("a heading's first press puts first what a member sorts by it for", () => {
   // the page says a date (surface.ts readDir walks its key the other way; leads-bridge.test.mjs runs it).
   assert.deepEqual(
     Object.fromEntries(LEAD_COLUMNS.filter((c) => c.sort && !c.hidden).map((c) => [c.key, c.sort.first])),
-    { business: "asc", stage: "asc", rating: "desc", found: "desc", fit: "asc", distance: "asc" },
+    {
+      business: "asc",
+      stage: "asc",
+      rating: "desc",
+      found: "desc",
+      fit: "asc",
+      distance: "asc",
+      contacted: "desc",
+      category: "asc",
+      city: "asc",
+      region: "asc",
+      reviews: "desc",
+    },
   );
+  const sorts = LEAD_COLUMNS.filter((c) => c.sort && !c.hidden).map((c) => c.key);
+  assert.deepEqual(
+    sorts.filter((k) => !LEAD_VIEW_SORTS.includes(k)),
+    [],
+    "every heading that sorts is a sort the read takes",
+  );
+});
+
+/* -------------------------------------------------------------------------- what a member can turn on (decision 0103) -- */
+
+const FOURTEEN = [
+  ["sequence", "Sequence", LEAD_COLUMN_GROUPS.stands],
+  ["contacted", "Last contacted", LEAD_COLUMN_GROUPS.stands],
+  ["outcome", "Last outcome", LEAD_COLUMN_GROUPS.stands],
+  ["category", "Kind", LEAD_COLUMN_GROUPS.who],
+  ["contact", "Contact", LEAD_COLUMN_GROUPS.who],
+  ["size", "Company size", LEAD_COLUMN_GROUPS.who],
+  ["city", "City", LEAD_COLUMN_GROUPS.where],
+  ["region", "State", LEAD_COLUMN_GROUPS.where],
+  ["phone", "Phone", LEAD_COLUMN_GROUPS.reach],
+  ["email", "Email", LEAD_COLUMN_GROUPS.reach],
+  ["social", "Social", LEAD_COLUMN_GROUPS.reach],
+  ["reviews", "Reviews", LEAD_COLUMN_GROUPS.good],
+  ["claimed", "Claimed listing", LEAD_COLUMN_GROUPS.good],
+  ["open_now", "Open now", LEAD_COLUMN_GROUPS.good],
+];
+
+test("the fourteen are off until asked for, each under its group", () => {
+  assert.deepEqual(
+    LEAD_MORE_COLUMNS.map((c) => [c.key, c.label, c.group]),
+    FOURTEEN,
+  );
+  for (const c of LEAD_MORE_COLUMNS) assert.equal(c.on, false, `${c.key} is off until asked for`);
+  const inTable = LEAD_COLUMNS.map((c) => c.key);
+  assert.ok(inTable.indexOf("open_now") < inTable.indexOf("actions"), "the row's acts stay last");
+  assert.deepEqual(
+    Object.entries(visibilityDefaults(LEAD_COLUMNS))
+      .filter(([, on]) => on)
+      .map(([k]) => k),
+    ["business", "stage", "reach", "rating", "found", "actions"],
+    "the same five are on as before",
+  );
+});
+
+test("the Columns menu reads Business and Stage first, then the six groups in the order a member reads a lead by", () => {
+  const options = columnOptionsOf(LEAD_COLUMNS, visibilityOf(LEAD_COLUMNS, {}));
+  const sets = columnGroupsOf(LEAD_COLUMNS, options, Object.values(LEAD_COLUMN_GROUPS));
+  assert.deepEqual(
+    sets.map((s) => [s.group, s.options.map((o) => o.key)]),
+    [
+      [null, ["business", "stage"]],
+      [LEAD_COLUMN_GROUPS.stands, ["sequence", "contacted", "outcome"]],
+      [LEAD_COLUMN_GROUPS.who, ["category", "contact", "size"]],
+      [LEAD_COLUMN_GROUPS.where, ["distance", "city", "region"]],
+      [LEAD_COLUMN_GROUPS.reach, ["reach", "website", "phone", "email", "social"]],
+      [LEAD_COLUMN_GROUPS.good, ["rating", "fit", "why", "reviews", "claimed", "open_now"]],
+      [LEAD_COLUMN_GROUPS.from, ["found", "source", "search"]],
+    ],
+  );
+  const rated = LEAD_COLUMNS.find((c) => c.key === "rating");
+  assert.equal(rated.hint, LEAD_RATED_HINT, "the heading says why 5.0 from one review is not first");
+});
+
+/** A lead's row with every fact the columns read. Made up, all of it. */
+const WHOLE = {
+  id: "l1",
+  name: "Quix Plumbing Service",
+  cls: "qualified",
+  state: "contacted",
+  category: "Plumber",
+  host: "quix.example",
+  card: { today: "Open until 5 PM", site: { label: "quix.example", href: "https://quix.example" } },
+  slots: {
+    phone: { state: "ok", value: "+17185550142", word: "Checked", tip: "the same number", copy: true },
+    mailbox: { state: "part", value: "hello@quix.example", word: "Unconfirmed", tip: "not confirmed", copy: true },
+  },
+  cols: {
+    sequence: SEQ,
+    contacted: { label: "3d", at: "Nov 2, 2026 · 10:00 AM" },
+    outcome: { word: "Left a voicemail", note: "Call after 3" },
+    contact: { name: "Bo Quix", title: "Office manager" },
+    size: "11 - 50",
+    city: "Queens",
+    region: "NY",
+    social: [
+      { key: "linkedin", word: "LinkedIn", href: "https://linkedin.example/quix" },
+      { key: "tiktok", word: "TikTok", href: "https://tiktok.example/quix" },
+    ],
+    reviews: "1,284",
+    claimed: "Yes",
+  },
+};
+/** The same lead with nothing held: what a bare row draws. */
+const BARE = {
+  ...WHOLE,
+  category: "",
+  host: "",
+  card: { today: null, site: null },
+  slots: {
+    phone: { state: "none", value: null, word: "Nothing found", tip: "No phone on the listing", copy: false },
+    mailbox: { state: "none", value: null, word: "Nothing found", tip: "No email", copy: false },
+  },
+  cols: {
+    sequence: null,
+    contacted: null,
+    outcome: null,
+    contact: null,
+    size: null,
+    city: null,
+    region: null,
+    social: [],
+    reviews: null,
+    claimed: null,
+  },
+};
+const cellOf = (key, l, ctx = ctxOf().ctx) => {
+  fresh();
+  return again(() => LEAD_COLUMNS.find((c) => c.key === key).cell(l, ctx));
+};
+
+test("a column draws from the row it is handed, and an empty value is an empty cell", () => {
+  const says = {
+    sequence: SEQ,
+    contacted: "3d",
+    outcome: "Left a voicemailCall after 3",
+    category: "Plumber",
+    contact: "Bo QuixOffice manager",
+    size: "11 - 50",
+    city: "Queens",
+    region: "NY",
+    reviews: "1,284",
+    claimed: "Yes",
+    open_now: "Open until 5 PM",
+  };
+  for (const [key, words] of Object.entries(says)) assert.equal(textOf(cellOf(key, WHOLE)), words, key);
+  for (const [key] of FOURTEEN) assert.equal(textOf(cellOf(key, BARE)), "", `${key} says nothing of a bare lead`);
+  const contacted = find(cellOf("contacted", WHOLE), (n) => n.props?.["data-tip"] !== undefined);
+  assert.equal(contacted.props["data-tip"], WHOLE.cols.contacted.at, "the whole date, in the kit's tip");
+  assert.equal(
+    find(cellOf("contacted", WHOLE), (n) => n.props?.title !== undefined),
+    null,
+    "never the browser's",
+  );
+});
+
+test("Phone and Email are Reach's own lines, how each was checked under it, and a press calls or copies", () => {
+  const { ctx, went } = ctxOf({ onCall: (id) => went.push(["call", id]) });
+  const phone = cellOf("phone", WHOLE, ctx);
+  assert.match(textOf(phone), /Checked$/, "how the number was checked, under it");
+  find(phone, (n) => n.props?.className === "ld-slot-btn ld-reach-press").props.onClick({ stopPropagation() {} });
+  assert.deepEqual(went.at(-1), ["call", "l1"]);
+  const email = cellOf("email", WHOLE, ctx);
+  assert.match(textOf(email), /^hello@quix\.example/);
+  assert.match(textOf(email), /Unconfirmed$/);
+  find(email, (n) => n.props?.className === "ld-slot-btn ld-reach-press").props.onClick({ stopPropagation() {} });
+  assert.deepEqual(went.at(-1), ["copy", "l1"]);
+  assert.equal(
+    find(phone, (n) => n.props?.role === "tooltip").props.id,
+    "l1-col-phone-tip",
+    "named apart from Reach's own tip, which may stand on the same row",
+  );
+  const left = { ...WHOLE, cls: "excluded" };
+  assert.equal(textOf(cellOf("phone", left, ctx)), "Not checked", "left out, as Reach says of it");
+  assert.equal(textOf(cellOf("email", left, ctx)), "Not checked");
+});
+
+test("Website and Social are links out: a new tab, each only where it is held, and no press of the row", () => {
+  const stopped = [];
+  const event = { stopPropagation: () => stopped.push(true) };
+  const anchors = (tree) => all(tree, (n) => n.type === "a");
+  const site = anchors(cellOf("website", WHOLE));
+  assert.deepEqual(
+    site.map((a) => [a.props.href, a.props.target, a.props.rel, textOf(a)]),
+    [["https://quix.example", "_blank", "noreferrer", "quix.example"]],
+  );
+  site[0].props.onClick(event);
+  assert.equal(stopped.length, 1, "the row's own press is not this one");
+  assert.deepEqual(anchors(cellOf("website", BARE)), [], "no site, no link");
+  const social = anchors(cellOf("social", WHOLE));
+  assert.deepEqual(
+    social.map((a) => [textOf(a), a.props.href, a.props.target]),
+    [
+      ["LinkedIn", "https://linkedin.example/quix", "_blank"],
+      ["TikTok", "https://tiktok.example/quix", "_blank"],
+    ],
+  );
+  assert.equal(textOf(cellOf("social", WHOLE)), "LinkedIn·TikTok");
+});
+
+/** What a business's cell reads of the page, over the acts' context. */
+const nameCtx = (over = {}) => {
+  const c = ctxOf({
+    hrefOf: (id) => `/w/acme/people/leads:p-${id}`,
+    onExpand() {},
+    peopleRows: [],
+    mixedFits: true,
+    grouped: false,
+    stageShown: true,
+    ...over,
+  });
+  return c;
+};
+const businessOf = (l, ctx) => cellOf("business", l, ctx);
+const NAMED = {
+  ...WHOLE,
+  state: "ready",
+  statusGroup: null,
+  fit: "strong",
+  fitLabel: "Strong fit",
+  places: 1,
+  sub: "Plumber · Queens",
+  tile: { initials: "QP", image: null, logo: null },
+};
+
+test("a business's name is a link: a plain press opens the sheet, a press with a key held is the browser's", () => {
+  const { ctx, went } = nameCtx();
+  const name = byTestId(businessOf(NAMED, ctx), "lead-name");
+  assert.equal(name.type, "a", "a real link");
+  assert.equal(name.props.href, "/w/acme/people/leads:p-l1");
+  const pressed = (over) => {
+    const e = {
+      stopped: 0,
+      prevented: 0,
+      stopPropagation() {
+        this.stopped += 1;
+      },
+      preventDefault() {
+        this.prevented += 1;
+      },
+      ...over,
+    };
+    name.props.onClick(e);
+    return e;
+  };
+  const plain = pressed({});
+  assert.deepEqual(went, [["open", "l1"]], "the sheet, as ever");
+  assert.deepEqual([plain.stopped, plain.prevented], [1, 1], "and no press of the row, and no move of the page");
+  for (const key of ["metaKey", "ctrlKey", "shiftKey"]) {
+    const held = pressed({ [key]: true });
+    assert.equal(went.length, 1, `${key}: the sheet is not opened`);
+    assert.deepEqual([held.stopped, held.prevented], [1, 0], `${key}: the browser's, and still no press of the row`);
+  }
+});
+
+test("under a head that says the fit, the name wears no fit pill; a lead with a place, or no head, keeps it", () => {
+  const pill = (l, over) => byTestId(businessOf(l, nameCtx(over).ctx), "lead-fit-tag");
+  assert.equal(pill(NAMED, { grouped: true }), null, "the Stage cell says it, with why");
+  assert.ok(pill(NAMED, { grouped: false }), "no head: the cell says Not contacted, and the pill says the fit");
+  assert.ok(pill(NAMED, { grouped: true, stageShown: false }), "no Stage column to say it");
+  assert.ok(pill({ ...NAMED, statusGroup: "in" }, { grouped: true }), "a lead with a place says its place there");
+  assert.ok(pill({ ...NAMED, state: "contacted" }, { grouped: true }), "a contacted lead says how long ago there");
+  assert.equal(pill(NAMED, { mixedFits: false }), null, "every fit alike: nothing to tell apart");
 });
 
 test("Stage's menu holds three switches with the view's counts and Hide column; Reach's the two the Filter held", () => {

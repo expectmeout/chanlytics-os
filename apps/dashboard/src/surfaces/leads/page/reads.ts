@@ -17,6 +17,7 @@ import {
   type LeadStatusGroup,
   type PersonRowVM,
 } from "@chanlytics/contracts";
+import { hrefOfRoute } from "@/legacy-bridge/workspace";
 import type { TableState } from "../../kit/table/state";
 import { refusalToast } from "../../legacy-verbs";
 import { placeLoad } from "../../people/shell-verbs";
@@ -104,8 +105,8 @@ export const useLeadsRead = ({
       pileList,
     });
   }, [viewRoute, chipped, q, sortBy, sortDir, pileList]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The next page, its own flag, so the button says Loading… while THIS is out and not while a Keep is, and a second press
-  // while it loads asks for nothing.
+  // The next page, its own flag, so the button says Loading more… while THIS is out and not while a Keep is, and a second
+  // press, or the scroll's own asking, while it loads asks for nothing.
   const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
   const loadMore = async () => {
     if (leadsMoreBusy) return;
@@ -331,6 +332,8 @@ const leadCellCtxFor = (
   };
   const ctx: LeadCellCtx = {
     onOpen: door("onOpen"),
+    // Over All leads whatever view the row stands in: the lead's own address, the same from every view.
+    hrefOf: (id) => hrefOfRoute(leadsRoute({ peek: id })),
     onOpenPerson: door("onOpenPerson"),
     onExpand: door("onExpand"),
     ...now,

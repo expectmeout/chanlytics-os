@@ -64,6 +64,9 @@ interface LeadsRealProps {
   scopeView?: ScopeView;
 }
 
+/** Best fit stands with its column off, as it did as the first order: Sort by fit asks for it, and a view saved in it keeps it. */
+const BEST_FIT_STANDS: readonly string[] = ["fit"];
+
 const NO_PROFILE = (): void => undefined;
 
 /** A cell's doors, to this draw's acts: Keep, Exclude and Put back show on the row at once, so a cell never waits on one. */
@@ -144,7 +147,8 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     cols: LEAD_COLUMNS,
     colCtx: { hasCenter },
     people,
-    sortFirst: { by: "fit", dir: "asc" },
+    sortFirst: { by: "stage", dir: "asc" },
+    sortStands: BEST_FIT_STANDS,
     railRow: leadList,
     extraDefaults: LEAD_VIEW_EXTRA,
     viewNow: leadViewNow,

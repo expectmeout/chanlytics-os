@@ -370,7 +370,7 @@ async function monthStanding(
  * A page of the view, as the database ordered it (leads_page): the list, the
  * class, the sort and the direction are all SQL, so the next page carries on
  * from the key the database answered rather than from a count of rows read.
- * So are the page's filters (00500, decision 0083 Phase B: lead_matches), the
+ * So are the page's filters (decision 0083 Phase B, 00554: lead_view_rows), the
  * words, the criterion, the fit and the reaches, so a view past one page is
  * narrowed whole, and the first page says how many it keeps.
  */

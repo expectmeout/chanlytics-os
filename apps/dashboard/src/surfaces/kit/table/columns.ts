@@ -76,6 +76,8 @@ export interface DataColumn<R extends TableRow, X = unknown, C = unknown> {
   fixed?: boolean;
   /** Shown until a member turns it off (the default), or off until asked for. */
   on?: boolean;
+  /** The heading it stands under in the Columns menu (columnGroupsOf); one with none stands first, under the menu's own. */
+  group?: string;
   /** Declared only where the workspace can show it (Visits needs a calendar). */
   needs?: (ctx: C) => boolean;
   /** Where it starts and its bounds; a column that says nothing is 120px. */
@@ -186,15 +188,17 @@ export const firstDirOf = (columns: readonly Pick<AnyDataColumn, "key" | "sort">
 /**
  * The order a desk's table stands in: the member's sort while its column shows, else the page's first sort; it comes
  * back with its column. People read "Sorted by next step" over a table with no Next step (27 Oct 2026). The page's first
- * sort stands whether its column shows or not: Leads' is Best fit first, its Fit column off until asked for, and gave
- * way to the first column shown that sorts, so a desk's Leads opened Z to A by name (27 Oct 2026). `shown`: the desk's
- * columns drawn.
+ * sort stands whether its column shows or not: Leads' stood with its Fit column off until asked for, and gave way to the
+ * first column shown that sorts, so a desk's Leads opened Z to A by name (27 Oct 2026). So does one the page asks for by
+ * name (`stands`: Leads' Sort by fit, and a view saved in it, with Fit off until asked for). `shown`: the desk's columns drawn.
  */
 export const sortShownOf = <S extends { by: string; dir: SortDir }>(
   shown: readonly Pick<AnyDataColumn, "key" | "sort" | "hidden">[],
   chosen: S,
   first: S,
-): S => (chosen.by === first.by || sortKeysOf(shown).includes(chosen.by) ? chosen : first);
+  stands: readonly string[] = [],
+): S =>
+  chosen.by === first.by || stands.includes(chosen.by) || sortKeysOf(shown).includes(chosen.by) ? chosen : first;
 
 /** Whether each column shows before a member chooses: every one that does not say it is off. */
 export const visibilityDefaults = (
@@ -320,12 +324,13 @@ export const reordered = (order: readonly string[], next: readonly string[]): st
     ? null
     : [...next, ...order.filter((k) => !next.includes(k))];
 
-/** A row of the Columns menu: the column's key, its heading's words, whether it shows, and whether it always does. */
+/** A row of the Columns menu: the column's key, its heading's words, whether it shows, whether it always does, and its heading there. */
 export interface ColumnOption {
   key: string;
   label: string;
   on: boolean;
   locked: boolean;
+  group?: string;
 }
 
 /**
@@ -339,9 +344,36 @@ export const columnOptionsOf = (
 ): ColumnOption[] =>
   columns.flatMap((c) =>
     !c.fixed && !c.hidden && typeof c.label === "string"
-      ? [{ key: c.key, label: c.label, on: !!c.fill || visibility[c.key] !== false, locked: !!c.fill }]
+      ? [
+          {
+            key: c.key,
+            label: c.label,
+            on: !!c.fill || visibility[c.key] !== false,
+            locked: !!c.fill,
+            ...(c.group ? { group: c.group } : {}),
+          },
+        ]
       : [],
   );
+
+/**
+ * The Columns menu's sets of switches: the rows with no group first (`group: null`), then a set for each group, in the
+ * order the page names them (`order`: Reach stands third on Leads' table and its group is not the menu's first), then as
+ * they are first declared. Never by the rows' own order, so a member moving a column moves it inside its set and never
+ * reshuffles the headings.
+ */
+export const columnGroupsOf = (
+  declared: readonly Pick<AnyDataColumn, "group">[],
+  options: readonly ColumnOption[],
+  order: readonly string[] = [],
+): { group: string | null; options: ColumnOption[] }[] => {
+  const groups = [...new Set([...order, ...declared.flatMap((c) => (c.group ? [c.group] : []))])];
+  const sets: { group: string | null; options: ColumnOption[] }[] = [
+    { group: null, options: options.filter((o) => !o.group) },
+    ...groups.map((group) => ({ group, options: options.filter((o) => o.group === group) })),
+  ];
+  return sets.filter((s) => s.options.length > 0);
+};
 
 /** The columns a desk draws: those that show, in the member's order. */
 export const shownColumnsOf = <C extends AnyDataColumn>(

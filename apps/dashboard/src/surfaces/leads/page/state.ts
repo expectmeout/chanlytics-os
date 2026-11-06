@@ -20,7 +20,7 @@ const PL_NO_LEADS: LeadsSurface = {
   rows: [],
   next: null,
   offered: 0,
-  view: { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
+  view: { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" },
   route: "clients/leads",
   suggestions: null,
   month: null,

@@ -28,6 +28,7 @@ const {
 } = await importSrc("apps/dashboard/src/surfaces/kit/table/columns.ts");
 const { useShownRows } = await importSrc("apps/dashboard/src/surfaces/kit/rows/shown-rows.ts");
 const { tableItems } = await importSrc("apps/dashboard/src/surfaces/kit/table/groups.tsx");
+const { nearEndAsker, nearsEnd } = await importSrc("apps/dashboard/src/surfaces/kit/table/near-end.ts");
 
 const h = (...a) => globalThis.React.createElement(...a);
 
@@ -150,6 +151,11 @@ test("REGRESSION: the page's first sort stands with its column off -- a desk's L
   assert.deepEqual(sortShownOf(shown, first, first), first, "the page's own order, though no heading shows it");
   assert.deepEqual(sortShownOf(shown, { by: "state", dir: "desc" }, first), { by: "state", dir: "desc" });
   assert.deepEqual(sortShownOf(shown, { by: "visits", dir: "desc" }, first), first, "not the first column shown");
+  assert.deepEqual(
+    sortShownOf(shown, { by: "visits", dir: "desc" }, first, ["visits"]),
+    { by: "visits", dir: "desc" },
+    "an order the page asks for by name stands too",
+  );
 });
 
 /* --------------------------------- the table --------------------------------- */
@@ -962,4 +968,33 @@ test("the window's first draw: its first screen, the rows it keeps wherever they
   });
   draw(500, [450]);
   assert.equal(parts.length, 500, "no way to watch the list: every row");
+});
+
+test("two screens from the end is near it, and a list shorter than its box is there already", () => {
+  assert.equal(nearsEnd({ scrollHeight: 5000, scrollTop: 0, clientHeight: 900 }), false);
+  assert.equal(nearsEnd({ scrollHeight: 5000, scrollTop: 2299, clientHeight: 900 }), false, "a pixel short of it");
+  assert.equal(nearsEnd({ scrollHeight: 5000, scrollTop: 2300, clientHeight: 900 }), true);
+  assert.equal(nearsEnd({ scrollHeight: 600, scrollTop: 0, clientHeight: 900 }), true);
+});
+
+test("more is asked once for each place the rows stand at, and never without a way to ask or before the end is near", () => {
+  const asked = [];
+  const ask = () => asked.push(1);
+  const asker = nearEndAsker();
+  const near = { scrollHeight: 5000, scrollTop: 4000, clientHeight: 900 };
+  const far = { scrollHeight: 5000, scrollTop: 0, clientHeight: 900 };
+  asker(far, "a|500", ask);
+  assert.equal(asked.length, 0, "far from the end: nothing");
+  asker(near, "a|500", ask);
+  asker(near, "a|500", ask);
+  asker(near, "a|500", ask);
+  assert.equal(asked.length, 1, "a read that is out, or that failed, is not asked for again: Show more stands for it");
+  asker(near, "a|1000", ask);
+  assert.equal(asked.length, 2, "the next page joined: the next is asked for");
+  asker(near, "b|1000", ask);
+  assert.equal(asked.length, 3, "another view at the same length is another place");
+  asker(near, "c|1000", undefined);
+  assert.equal(asked.length, 3, "no next page, nothing to ask with");
+  asker(near, "c|1000", ask);
+  assert.equal(asked.length, 4, "and one that was not asked with has not been asked");
 });

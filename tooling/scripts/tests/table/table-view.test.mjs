@@ -15,9 +15,17 @@ const { fromView, toView, viewKey, extraOf } = await importSrc("apps/dashboard/s
 const { useTableState, narrowedBy, sortingFor, chosenSortOf } = await importSrc(
   "apps/dashboard/src/surfaces/kit/table/state.ts",
 );
-const { TABLE_MAX_PX, isMovable, isSizable, isLocked } = await importSrc(
-  "apps/dashboard/src/surfaces/kit/table/columns.ts",
-);
+const {
+  TABLE_MAX_PX,
+  choicesFrom,
+  columnGroupsOf,
+  columnOptionsOf,
+  isLocked,
+  isMovable,
+  isSizable,
+  orderedColumns,
+  visibilityOf,
+} = await importSrc("apps/dashboard/src/surfaces/kit/table/columns.ts");
 const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 const { LEAD_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
 const { pipeGlassColumns } = await importSrc("apps/dashboard/src/surfaces/people/pipeline/columns.tsx");
@@ -258,6 +266,84 @@ test("the columns' acts: a switch, a column put back to its default, the locked 
   held.setExtra({ layout: "board" });
   await settle();
   assert.equal(r.sent.at(-1).layout, "board");
+});
+
+test("the way back from the switches: every column to whether it starts shown, saved as no choice at all", async () => {
+  const r = recorder();
+  fresh();
+  draw({ store: r.store, saved: null, landed: true });
+  held.toggleColumn("email");
+  held.toggleColumn("next");
+  await settle();
+  assert.deepEqual(r.sent.at(-1).columns, { email: true, next: false });
+  assert.deepEqual(choicesFrom(COLS, held.atoms.columnVisibility.get()), { email: true, next: false });
+  held.showDefaults();
+  await settle();
+  assert.deepEqual(choicesFrom(COLS, held.atoms.columnVisibility.get()), {}, "nothing differs from the page's own");
+  assert.deepEqual(r.sent.at(-1).columns, {}, "and the view saved keeps no choice, so a new default reaches it");
+});
+
+test("the Columns menu's switches stand under the page's groups, in the order it declares them, whatever a member moved", () => {
+  const grouped = [
+    { key: "name", label: "Business", fill: true },
+    { key: "stage", label: "Stage" },
+    { key: "phone", label: "Phone", group: "How to reach", on: false },
+    { key: "rated", label: "Rated", group: "How good" },
+    { key: "site", label: "Website", group: "How to reach", on: false },
+    { key: "secret", label: "Secret", group: "Hidden", hidden: true },
+    { key: "actions", label: "", fixed: true, group: "How to reach" },
+  ];
+  const options = columnOptionsOf(grouped, visibilityOf(grouped, {}));
+  assert.deepEqual(
+    options.map((o) => [o.key, o.group]),
+    [
+      ["name", undefined],
+      ["stage", undefined],
+      ["phone", "How to reach"],
+      ["rated", "How good"],
+      ["site", "How to reach"],
+    ],
+    "each row carries its column's group",
+  );
+  assert.deepEqual(
+    columnGroupsOf(grouped, options).map((s) => [s.group, s.options.map((o) => o.key)]),
+    [
+      [null, ["name", "stage"]],
+      ["How to reach", ["phone", "site"]],
+      ["How good", ["rated"]],
+    ],
+    "the columns with no group first, then each group, once, as declared; a group with nothing to switch has no heading",
+  );
+  const moved = columnOptionsOf(orderedColumns(grouped, ["rated", "site", "phone"]), visibilityOf(grouped, {}));
+  assert.deepEqual(
+    columnGroupsOf(grouped, moved).map((s) => [s.group, s.options.map((o) => o.key)]),
+    [
+      [null, ["name", "stage"]],
+      ["How to reach", ["site", "phone"]],
+      ["How good", ["rated"]],
+    ],
+    "a column moved stands where it was moved to inside its group; the headings hold their order",
+  );
+  assert.deepEqual(
+    columnGroupsOf(grouped, options, ["How good", "How to reach", "Nobody's"]).map((s) => s.group),
+    [null, "How good", "How to reach"],
+    "a page may name their order, and a heading nothing stands under draws nothing",
+  );
+  assert.deepEqual(
+    columnGroupsOf(grouped, options, ["How good"]).map((s) => s.group),
+    [null, "How good", "How to reach"],
+    "and one it does not name still stands, after",
+  );
+});
+
+test("People's and the Pipeline's columns name no group: their switches stay one set", () => {
+  for (const columns of [PL_COLUMNS, pipeGlassColumns()]) {
+    const sets = columnGroupsOf(columns, columnOptionsOf(columns, visibilityOf(columns, {})));
+    assert.deepEqual(
+      sets.map((s) => s.group),
+      [null],
+    );
+  }
 });
 
 test("Leads' rail row rides in its view, first, and a row picked is a change to save", async () => {

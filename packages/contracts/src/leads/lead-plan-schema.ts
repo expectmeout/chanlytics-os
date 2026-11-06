@@ -44,7 +44,7 @@ import { LeadPeoplePlanSchema } from "./search/people-plan-schema";
 /* --------------------------------------------------------------- requests */
 
 /**
- * The page's narrowings, as the read takes them (decision 0083, Phase B: `leads_page`'s `p_filters`, `lead_matches`):
+ * The page's narrowings, as the read takes them (decision 0083, Phase B: `leads_page`'s `p_filters`, `lead_view_rows`):
  * the box's words, the criterion that left a lead out, a fit, the reaches the Filter asks, and the status groups a
  * heading's menu asks (00552). A query says a set as one field, `email,phone`; a body as a list; either way they arrive
  * each once, in the set's order.
@@ -146,8 +146,14 @@ export const LeadDraftInputSchema = z.object({
   previous: z.object({ subject: z.string().max(200), body: z.string().max(4000) }).optional(),
 });
 
-/** The view as a file, narrowed as the table is (its filters ride in the view), so it holds the rows the owner saw. */
-export const LeadExportQuerySchema = LeadsViewSchema;
+/**
+ * The view as a file, narrowed as the table is (its filters ride in the view), so it holds the rows the owner saw, and where
+ * the chunk asked for begins, as the chunk before answered it.
+ */
+export const LeadExportQuerySchema = LeadsViewSchema.extend({
+  after_key: LeadsQuerySchema.shape.after_key,
+  after_id: LeadsQuerySchema.shape.after_id,
+});
 
 export const RenameLeadSearchSchema = z.object({ name: z.string().trim().min(1).max(80) });
 

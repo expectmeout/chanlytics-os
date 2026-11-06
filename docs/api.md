@@ -1265,7 +1265,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
 | `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
-| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
+| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"reviews"`, `"contacted"`, `"category"`, `"city"`, `"region"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `after_key` | string | no | at most 80 characters |
 | `after_id` | string (uuid) | no |  |
@@ -1473,7 +1473,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
 | `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
-| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
+| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"reviews"`, `"contacted"`, `"category"`, `"city"`, `"region"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `pile_list` | string (uuid) | no |  |
 | `q` | string | no | at most 80 characters |
@@ -1481,6 +1481,8 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `fit` | one of `"strong"`, `"look"`, `"long"` | no |  |
 | `reach` | array of one of `"email"`, `"phone"` or string | no |  |
 | `status_group` | array of one of `"needs"`, `"in"`, `"none"` or string | no |  |
+| `after_key` | string | no | at most 80 characters |
+| `after_id` | string (uuid) | no |  |
 
 ## lines
 

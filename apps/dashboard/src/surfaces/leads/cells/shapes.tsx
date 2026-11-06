@@ -1,10 +1,12 @@
 /**
  * What a lead's reach looks like (moved from legacy/pages/leads-cells.jsx, decision 0015): the two reach slots of a row,
- * so a state is never colour alone (§6.7).
+ * so a state is never colour alone (§6.7), and the lines and the links out of a row's cells that reach it.
  */
 import type { ReactNode } from "react";
 import { LEAD_REACH_NONE_WORDS, formatPhoneLocal, type LeadRowVM } from "@chanlytics/contracts";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadTip, ldPlacePop } from "./hover";
+import type { LeadCellCtx } from "./types";
 
 /** The SVG's own props, the same for every shape. */
 const svgProps = (size: number) =>
@@ -169,3 +171,45 @@ export const LeadReachLine = ({
     </span>
   );
 };
+
+/**
+ * A lead's number as a line of a cell: a press calls it, where it can be called. `tipOf` names its tip, apart where a row
+ * draws the number twice (Reach, and its own column).
+ */
+export const leadPhoneLine = (l: LeadRowVM, x: Pick<LeadCellCtx, "onCall">, tipOf: string = l.id) => (
+  <LeadReachLine
+    id={tipOf}
+    kind="phone"
+    slot={l.slots.phone}
+    onPress={l.slots.phone.value && l.slots.phone.state !== "bad" ? () => x.onCall(l.id) : null}
+    pressLabel="press to call"
+  />
+);
+
+/** A lead's address as a line of a cell: a press copies it, where it can be used. */
+export const leadMailboxLine = (l: LeadRowVM, x: Pick<LeadCellCtx, "onCopy">, tipOf: string = l.id) => (
+  <LeadReachLine
+    id={tipOf}
+    kind="mailbox"
+    slot={l.slots.mailbox}
+    onPress={l.slots.mailbox.copy ? () => x.onCopy(l.id) : null}
+    pressLabel="press to copy"
+  />
+);
+
+/** What a lead the finder left out says of how to reach it: nothing about it was checked. */
+export const LeadNotChecked = () => <span className="dim">Not checked</span>;
+
+/** A link out of the app from a cell: a new tab, and no press of the row it stands on. */
+export const LeadOutLink = ({ href, children }: { href: string; children: ReactNode }) => (
+  <LinkButton
+    size="inherit"
+    className="ld-out-link"
+    href={href}
+    target="_blank"
+    rel="noreferrer"
+    onClick={(e) => e.stopPropagation()}
+  >
+    {children}
+  </LinkButton>
+);
