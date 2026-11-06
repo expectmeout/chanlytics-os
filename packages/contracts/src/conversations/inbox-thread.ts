@@ -609,7 +609,9 @@ export function toInboxThreadVM(
           : reasonSummaryOf(escalation.reason)
         : takenOver
           ? HELD_WORDS.yours.sentence
-          : (moveWords.lastWord?.text ?? "The receptionist answered this on its own. Nothing is owed."),
+          : moveWords.lastWord
+            ? moveWords.lastWord.text
+            : "The receptionist answered this on its own. Nothing is owed.",
     ...holdWordsOf(escalation, claimedByOther, tz, now.getTime()),
     ...moments,
     ...inboxThreadClock(moments, tz, now.getTime()),
