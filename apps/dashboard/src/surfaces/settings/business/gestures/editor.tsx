@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
-import type { FoldSection } from "@/legacy-bridge/business-tab";
+import type { FoldSection } from "@/bridge/business-tab";
 import type { FocusOn } from "../../../kit/record/focus";
 import { useRecordFold } from "../../../kit/record/hooks";
 import { businessTabSave } from "../saver";

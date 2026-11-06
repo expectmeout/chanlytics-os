@@ -13,7 +13,7 @@ import {
   type SequenceRecordDto,
   type SlotWorkspace,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { workspaceName } from "../../../people/person-verbs";
 import { tplOwn } from "../../templates/words";
 import { sequenceVerbs as verbs } from "../verbs";

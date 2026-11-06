@@ -20,7 +20,7 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Panel } from "../../kit/panel/panel";
-import { onAPhone } from "../../legacy-verbs";
+import { onAPhone } from "../../frame-verbs";
 import type { DraftState, PeekActs } from "../peek/types";
 import { WordsBox } from "./email-box";
 import { stepHead } from "./picker";

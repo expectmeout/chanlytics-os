@@ -6,23 +6,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  again,
-  all,
-  fresh,
-  installLegacyReact,
-  installRoleStore,
-  settle,
-  textOf,
-  unmount,
-} from "../../_legacy-react.mjs";
+import { again, all, fresh, installStubReact, installRoleStore, settle, textOf, unmount } from "../../_stub-react.mjs";
 import { stateOf } from "@chanlytics/contracts";
 import { personDto } from "../../consent/_person-row.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
 const W = globalThis;
 const PEOPLE = "../../../apps/dashboard/src/surfaces/people";
-const BRIDGE = "../../../apps/dashboard/src/legacy-bridge";
+const BRIDGE = "../../../apps/dashboard/src/bridge";
 const ZONE = "America/New_York";
 const toasts = [];
 Object.assign(W, {

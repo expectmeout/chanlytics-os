@@ -14,20 +14,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toPersonVM } from "@chanlytics/contracts";
-import {
-  installLegacyReact,
-  fresh,
-  again,
-  all,
-  byTestId,
-  textOf,
-  classes,
-  press,
-  settle,
-} from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, classes, press, settle } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   appNavigate: () => {},
   canDo: () => true,

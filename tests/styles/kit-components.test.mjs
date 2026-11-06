@@ -1,6 +1,6 @@
 /**
  * The kit's components (apps/dashboard/src/surfaces/kit/), drawn on the stub React the page tests use
- * (_legacy-react.mjs), as decision 0015 tests a surface that has left the shell, each imported from its own module (the
+ * (_stub-react.mjs), as decision 0015 tests a surface that has left the shell, each imported from its own module (the
  * index names the kit's Base UI components too, which this suite cannot load: below). Each is held to its family in the gallery (tooling/scripts/e2e-harness/kit-gallery.mjs):
  * every kit entry of the family is drawn by the component, and what the component draws for an entry has the entry's
  * skeleton: each element's tag, its classes, the attributes a stylesheet or a screen reader reads (READ, below) and the
@@ -27,7 +27,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isThinShare } from "@chanlytics/contracts";
 import { FAMILIES } from "../../tooling/scripts/e2e-harness/kit-gallery.mjs";
-import { again, fresh, installLegacyReact, press, textOf } from "../_legacy-react.mjs";
+import { again, fresh, installStubReact, press, textOf } from "../_stub-react.mjs";
 import { Button } from "../../apps/dashboard/src/surfaces/kit/button/button.tsx";
 import { EmptyState, FailedRead } from "../../apps/dashboard/src/surfaces/kit/empty/empty.tsx";
 import { Face } from "../../apps/dashboard/src/surfaces/kit/face/face.tsx";
@@ -47,7 +47,7 @@ import { useTableState } from "../../apps/dashboard/src/surfaces/kit/table/state
 import { useDataTable } from "../../apps/dashboard/src/surfaces/kit/table/use-data-table.ts";
 import { cx } from "../../apps/dashboard/src/surfaces/kit/variants.ts";
 
-installLegacyReact();
+installStubReact();
 
 /** An element, as the kit's JSX makes one on the stub: `h(Button, { variant: "primary" }, "Save")`. */
 const h = (type, props, ...children) => globalThis.React.createElement(type, props, ...children);

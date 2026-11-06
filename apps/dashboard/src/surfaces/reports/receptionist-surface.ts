@@ -1,7 +1,7 @@
 /**
  * The Receptionist override: what the receptionist did over the days Reports shows, read for the Receptionist lens alone
  * (contracts `ReceptionistDto`, `GET reports/receptionist`: the day by day series and the profile of the period) and
- * published as the route gave it. Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the lens reads what it
+ * published as the route gave it. Part of the SurfaceData seam (bridge/surface-data.ts); the lens reads what it
  * publishes through `useFollower("reports_receptionist")`. The fold into its view model is the page's (`toReceptionistReportVM`,
  * the page-only entry `@chanlytics/contracts/report-lens`), so the fold never rides the route's chunk: this module imports
  * the DTO's type and nothing else of the lens, and `readAt` is what the fold counts "now" from.
@@ -18,8 +18,8 @@
  * closures move "while you were closed") forgets it instead of reading it from there (`forgetReceptionist`, refresh-map.ts), and
  * reads it again only where the lens is on screen, since the feed tells it of none of those writes.
  */
-import { read } from "@/legacy-bridge/api";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
+import { read } from "@/bridge/api";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
 import { reportRangeKey, type ReceptionistDto } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";

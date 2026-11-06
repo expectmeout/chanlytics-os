@@ -3,7 +3,7 @@
  * these keyboard symbols throughout the site while keeping functionality we built ... we already have the keyboard
  * shortcuts on the user nav sidebar that is enough."
  *
- * Here the shell's own chrome, EXECUTED on the stub React with the shell's real words (legacy-bridge/shell.ts
+ * Here the shell's own chrome, EXECUTED on the stub React with the shell's real words (bridge/shell.ts
  * installShell): the sidebar's rail button, its two menus, and the sheet, which the account menu opens. Each page's
  * keys are held in the page's own test, where its keys are pressed: the top bar's Ask button (shell-status), the
  * People table's foot and search (people-honest), Leads' search and Find leads (leads-honest), the lead finder
@@ -13,11 +13,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SHORTCUTS } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   usePPToast: () => [null, () => {}],
   __WORKSPACES: [
@@ -27,7 +27,7 @@ installLegacyReact({
   __ACTIVE_WORKSPACE: "w1",
 });
 const W = globalThis.window;
-const { installShell } = await importSrc("apps/dashboard/src/legacy-bridge/shell.ts");
+const { installShell } = await importSrc("apps/dashboard/src/bridge/shell.ts");
 installShell(W);
 // The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
 W.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;

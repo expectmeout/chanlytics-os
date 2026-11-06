@@ -19,7 +19,7 @@ import { Meter } from "../../../kit/meter/meter";
 import { Icon } from "../../../kit/icon/icon";
 import { useCountGlide } from "../../../kit/motion/use-count-glide";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { refusalToast, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
+import { refusalToast, routeDoor, type FrameFlash } from "../../../frame-verbs";
 import { setupVerbs } from "../../surface";
 
 const IW = FIRST_RUN_HELPERS.importWords;
@@ -46,7 +46,7 @@ const STARTING_HOLD_MS = 30_000;
  * Where a line stands, at its end: Try again where it stopped (Starting, and still, once pressed), a tick once in, the
  * live dot while it reads with no bar to say how far, and otherwise its word ("Starting", "2 of 3", "At Go live").
  */
-function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlash) => void }): ReactNode {
+function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: FrameFlash) => void }): ReactNode {
   const [pressedAt, setPressedAt] = useState<number | null>(null);
   const starting = pressedAt !== null && Date.now() - pressedAt < STARTING_HOLD_MS;
   const again = async () => {
@@ -116,7 +116,7 @@ function ImportLine({
   doors,
 }: {
   line: ImportLineVM;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   doors: boolean;
 }): ReactNode {
   const door = doors ? line.door : null;
@@ -178,7 +178,7 @@ export function ImportLines({
   doors = false,
 }: {
   lines: ImportLineVM[];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   doors?: boolean;
 }) {
   return (
@@ -210,7 +210,7 @@ export function FrBringing({
   open: boolean;
   onClose: () => void;
   lines: ImportLineVM[];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const running = lines.some((l) => l.state === "running" || l.state === "queued");
   return (

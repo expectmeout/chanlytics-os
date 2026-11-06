@@ -7,9 +7,9 @@
  */
 import { useEffect } from "react";
 import { routeOfPath } from "@chanlytics/contracts";
-import { surfaceRetiredTo } from "@/legacy-bridge/surface-registry";
-import { goToRoute } from "@/legacy-bridge/workspace";
-import { demoSession, navigate } from "../../legacy-verbs";
+import { surfaceRetiredTo } from "@/bridge/surface-registry";
+import { goToRoute } from "@/bridge/workspace";
+import { demoSession, navigate } from "../../frame-verbs";
 import { SettingsPage } from "./page";
 import { settingsAddressNow } from "./tabs";
 

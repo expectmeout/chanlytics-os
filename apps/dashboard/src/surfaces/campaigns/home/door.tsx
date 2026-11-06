@@ -9,7 +9,7 @@
  */
 import { useEffect } from "react";
 import { LIFECYCLE_WORDS, SEQUENCES_ROUTE, retiredRouteOf, routeOfPath } from "@chanlytics/contracts";
-import { goToRoute } from "@/legacy-bridge/workspace";
+import { goToRoute } from "@/bridge/workspace";
 
 export function RetiredRouteDoor({ pathname }: { pathname: string | null }) {
   const route = routeOfPath(pathname) ?? "outbound";

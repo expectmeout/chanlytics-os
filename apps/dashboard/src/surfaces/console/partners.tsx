@@ -5,7 +5,7 @@
  * only what it may take.
  */
 import { useMemo } from "react";
-import { backOffice } from "@/legacy-bridge/platform";
+import { backOffice } from "@/bridge/platform";
 import { PageHead } from "../kit/head/page-head";
 import { PartnerLine, PartnerStandingRow } from "./partner-rows";
 import { NoneRow, ScreenFailed, ScreenReading, ScreenSection, useConsoleRead, type Flash } from "./parts";

@@ -3,7 +3,7 @@
 // and the small readers of a box. Split from folds.ts, which has the three helpers of each fold; see it for how a fold
 // uses them. Pure, and no JSX.
 
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { BookingRuleKey, ProfileLimitKey, ProfileRefusalKey } from "@chanlytics/contracts";
 import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts";
 import { trimmed, type Config, type StoredNote } from "./save";

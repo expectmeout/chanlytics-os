@@ -1,5 +1,5 @@
 /**
- * The three on a phone take a page in as it arrives, and notice what comes for you (legacy-bridge/mascot/arrival.ts).
+ * The three on a phone take a page in as it arrives, and notice what comes for you (bridge/mascot/arrival.ts).
  * Run against the pure module with the real mood and a clock of its own: a page arriving on a phone is read
  * (lit) for READ_MS, or as long as the boot takes up to READ_MAX_MS, then rest; the same page again within
  * AGAIN_MS is not read, a walk within a page is the same page, another page is read; nothing on a desk, nothing while
@@ -10,17 +10,17 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createMood } from "../../../apps/dashboard/src/legacy-bridge/mascot/mood.ts";
+import { createMood } from "../../../apps/dashboard/src/bridge/mascot/mood.ts";
 import {
   AGAIN_MS,
   pageOf,
   READ_MAX_MS,
   READ_MS,
   watchArrival,
-} from "../../../apps/dashboard/src/legacy-bridge/mascot/arrival.ts";
-import { needsYouNow } from "../../../apps/dashboard/src/legacy-bridge/arrival.ts";
+} from "../../../apps/dashboard/src/bridge/mascot/arrival.ts";
+import { needsYouNow } from "../../../apps/dashboard/src/bridge/arrival.ts";
 import { importSrc } from "../../_source.mjs";
-const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 /** A clock, and timers that fire as it is moved. */
 const clock = () => {

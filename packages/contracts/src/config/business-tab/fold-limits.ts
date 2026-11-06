@@ -14,7 +14,7 @@ import { count, pluralGrouped } from "./counts";
  * record the prompt fell from 2,128 characters to 240, with the hand-off token and every rule line gone. The first such
  * field does the reverse, and the prompt grows from 240 to 1,939. Either way far more changes than the field's own
  * line, so the row says so beside that line. It is not a refusal: the save still goes. Which way a save crosses is the
- * bridge's to decide (legacy-bridge/business-tab.ts, `profileCrossing`), from `hasProfile` over the stored brain's
+ * bridge's to decide (bridge/business-tab.ts, `profileCrossing`), from `hasProfile` over the stored brain's
  * profile and the next one's; these are the words.
  */
 export const PROFILE_CROSSING_WORDS = {

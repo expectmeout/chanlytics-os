@@ -132,7 +132,7 @@ test("the wiring: the edge passes the rows to both prompts and checks after gene
   // The phone hears the same rules: run in call-start.test.mjs, where business_facts is this composer's text byte for byte.
   // The eval and the steer composing the same prompt, the Autonomy rows in it, are run in eval-door.test.mjs and steer-door.test.mjs.
   // The route refusing and the pane's dots, each by POLICY_CLASS_MODES, are run in policy-veto-option.test.mjs.
-  const store = readCode("apps/dashboard/src/legacy-bridge/policy-store.ts");
+  const store = readCode("apps/dashboard/src/bridge/policy-store.ts");
   assert.ok(!store.includes("enforced: false"), "no row is stored-but-unenforced any more");
   const pane = readCode("apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx");
   assert.ok(

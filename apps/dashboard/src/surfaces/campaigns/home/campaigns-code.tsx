@@ -6,7 +6,7 @@
  *     Sequences' step editor draw;
  *   - Messages, the Library's page as the view of Campaigns it is beside Sequences (templates/templates-page.tsx), which
  *     Campaigns draws ahead, hidden, once the frame is idle on it (route.tsx), so a switch to it shows a view already drawn.
- * Each is asked for ahead of the press: as a pointer or a thumb reaches a door to the page that draws it (LegacyApp's reach,
+ * Each is asked for ahead of the press: as a pointer or a thumb reaches a door to the page that draws it (FrameApp's reach,
  * warmCampaignsCode), and Sequences once the frame is idle (warmCampaignsSoon, which reaches for Campaigns itself: its page,
  * its read and its code). The Inbox's code comes with the boot and its rows are read at boot, so its page arrives drawn;
  * Campaigns' page waited at the press for its chunks, the sheets' and the Library's among them, which only a sheet or an
@@ -14,7 +14,7 @@
  */
 import { lazy } from "react";
 import type { ReactNode } from "react";
-import { aheadWhenIdle, routeOnScreen } from "@/legacy-bridge/workspace";
+import { aheadWhenIdle, routeOnScreen } from "@/bridge/workspace";
 import { codeOnce, type CodeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { FailedRead } from "../../kit/empty/empty";

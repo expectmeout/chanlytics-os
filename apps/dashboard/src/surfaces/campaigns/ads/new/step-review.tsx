@@ -14,7 +14,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Popover } from "../../../kit/popover/popover";
 import { RecordDisclosure } from "../../../kit/record/disclosure";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { DotRows } from "./new-bits";
 import type { StepProps } from "./new-bits";
 

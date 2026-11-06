@@ -24,11 +24,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readRaw } from "../_source.mjs";
 
-const STYLES = path.join(ROOT, "apps/dashboard/src/legacy/styles");
+const STYLES = path.join(ROOT, "apps/dashboard/src/styles");
 const sheets = fs.readdirSync(STYLES).filter((f) => f.endsWith(".css"));
 // Read once for the tests below: the ratchet counts reads, and a phone rule is proven in the browser, pinned here.
-const MOBILE = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
-const COMPONENTS = readRaw("apps/dashboard/src/legacy/styles/components.css");
+const MOBILE = readRaw("apps/dashboard/src/styles/mobile.css");
+const COMPONENTS = readRaw("apps/dashboard/src/styles/components.css");
 
 test("the shell is as tall as the phone shows, not as tall as it could show: 100dvh, with 100vh in front of it", () => {
   // On iOS Safari (and Chrome on Android) 100vh is the LARGEST viewport, the one with the browser's toolbar tucked
@@ -53,7 +53,7 @@ test("the shell is as tall as the phone shows, not as tall as it could show: 100
 });
 
 test("the measures are tokens, and every page takes one of them", () => {
-  const tokens = readRaw("apps/dashboard/src/legacy/styles/tokens.css");
+  const tokens = readRaw("apps/dashboard/src/styles/tokens.css");
   for (const t of [
     "--measure-prose: 720px",
     "--measure-page: 1160px",
@@ -85,7 +85,7 @@ test("Setup shares the settings column with the cards above and below it", () =>
   // The rows had no measure at all. Measured in the browser before capping
   // them: not one row's sentence or status line clips at 720, so the space
   // they were taking was empty — the fix loses no words.
-  const settings = readRaw("apps/dashboard/src/legacy/styles/settings.css");
+  const settings = readRaw("apps/dashboard/src/styles/settings.css");
   assert.match(
     settings,
     /\.set-card, \.setup-rows \{ max-width: var\(--measure-prose\); \}/,
@@ -120,7 +120,7 @@ test("on a phone Settings' one column is as wide as the screen, whatever the str
 });
 
 test("the thread pane has ONE gutter, and the pane owns it", () => {
-  const inbox = readRaw("apps/dashboard/src/legacy/styles/inbox.css");
+  const inbox = readRaw("apps/dashboard/src/styles/inbox.css");
   // Every rule on the scroller, its layout and the look's gutter (16px 24px, set once, in the look's own rule).
   const scroll = inbox
     .split(".ix-th-scroll {")
@@ -235,7 +235,7 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
 
   // The rails themselves: eight literals for one structural element, of which
   // these four agreed already and now say so.
-  const tokens = readRaw("apps/dashboard/src/legacy/styles/tokens.css");
+  const tokens = readRaw("apps/dashboard/src/styles/tokens.css");
   assert.ok(
     tokens.includes("--rail-nav: 220px") && tokens.includes("--rail-list: 360px"),
     "the two kinds of rail are named",
@@ -245,14 +245,14 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
     ["clients.css", ".clients"],
   ]) {
     assert.match(
-      readRaw(`apps/dashboard/src/legacy/styles/${file}`),
+      readRaw(`apps/dashboard/src/styles/${file}`),
       /grid-template-columns: var\(--rail-nav\) minmax\(0, 1fr\);/,
       `${sel} takes the nav rail`,
     );
   }
   for (const file of ["inbox.css", "conversations.css"]) {
     assert.match(
-      readRaw(`apps/dashboard/src/legacy/styles/${file}`),
+      readRaw(`apps/dashboard/src/styles/${file}`),
       /grid-template-columns: var\(--rail-list\) minmax\(0, 1fr\)/,
       `${file} takes the list rail`,
     );

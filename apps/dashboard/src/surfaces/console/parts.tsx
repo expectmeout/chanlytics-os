@@ -5,10 +5,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { CONSOLE_WORDS } from "@chanlytics/contracts";
 import { FailedRead } from "../kit/empty/empty";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { FrameFlash } from "../frame-verbs";
 import type { Read } from "./verbs";
 
-export type Flash = (f: LegacyFlash) => void;
+export type Flash = (f: FrameFlash) => void;
 /** The reader's own time zone: a day the Console names is the day on their calendar. */
 export function viewerZone(): string {
   try {

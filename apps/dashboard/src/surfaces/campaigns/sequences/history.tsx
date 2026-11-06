@@ -44,7 +44,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Segmented } from "../../kit/segmented/segmented";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 

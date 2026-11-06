@@ -2,7 +2,7 @@
  * The reader's mark, carried into the rows it is about.
  *
  * A surface's value is the server's last word, and the tab's cache paints it on the next load
- * (legacy-bridge/surface-cache.ts); the mark a person's opening makes re-reads nothing (refresh-map.ts), so every person
+ * (bridge/surface-cache.ts); the mark a person's opening makes re-reads nothing (refresh-map.ts), so every person
  * opened since a surface's last read was painted unread again on a reload, until the read landed, and one put back was
  * painted read (20 Oct 2026). The door's answer is the server's own word on the person, so it goes into each surface's
  * rows as it lands, by the read's own rule (contracts readingOf), and the cache follows as it does a saved view.
@@ -19,7 +19,7 @@ import { onSurfaceValue, type SurfaceKey } from "./surface-values";
 /** How a surface takes a mark into its rows: true when what it holds changed, and was published. */
 type MarkCarrier = (personId: string, mark: SeenOf) => boolean;
 
-/** What a carrier's surface is published and cached under (legacy-bridge/surface-data.ts SurfaceOverride). */
+/** What a carrier's surface is published and cached under (bridge/surface-data.ts SurfaceOverride). */
 interface CarrierOf {
   key: string;
   value?: SurfaceKey;

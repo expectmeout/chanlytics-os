@@ -35,7 +35,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const policies = await import(at("apps/dashboard/app/api/v1/policies/route.ts"));
-const { uiRows, installPolicyStore, UI_ROWS } = await import(at("apps/dashboard/src/legacy-bridge/policy-store.ts"));
+const { uiRows, installPolicyStore, UI_ROWS } = await import(at("apps/dashboard/src/bridge/policy-store.ts"));
 beforeEach(() => setRateStore(memoryStore()));
 
 const W = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

@@ -21,7 +21,7 @@ import {
   type PlaybookFill,
   type SupportRowVM,
 } from "@chanlytics/contracts";
-import { backOffice } from "@/legacy-bridge/platform";
+import { backOffice } from "@/bridge/platform";
 import { Button } from "../kit/button/button";
 import { CopyButton } from "../kit/copy-button/copy-button";
 import { Face } from "../kit/face/face";

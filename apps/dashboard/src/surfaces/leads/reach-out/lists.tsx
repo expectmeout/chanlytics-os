@@ -15,7 +15,7 @@ import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordSheet } from "../../kit/record/sheet";
-import { gate, navigate } from "../../legacy-verbs";
+import { gate, navigate } from "../../frame-verbs";
 import { useFindPeople } from "../finder/people-sheet";
 import { ImportSource, ImportTaste } from "../../people/import/frame";
 import type { PeopleFlash } from "../../people/types";

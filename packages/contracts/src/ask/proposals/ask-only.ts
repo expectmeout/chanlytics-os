@@ -5,7 +5,7 @@
  * own follow-up. (A reply, a thread's verbs, a held reply's rewrite and a person's first message left this table for
  * the page's, decision 0071: Today's Need you presses them.) No page walks them, so a page's bundle never
  * carries them: the browser loads this module, its own entry (`@chanlytics/contracts/ask-only`), when Ask is installed,
- * and Ask's bridge waits for it before it hands over cards (legacy-bridge/ask.ts); addProposalSpecs (page-specs.ts)
+ * and Ask's bridge waits for it before it hands over cards (bridge/ask.ts); addProposalSpecs (page-specs.ts)
  * puts them in the lookups. The server's table (proposals.ts) has them from the start.
  */
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";

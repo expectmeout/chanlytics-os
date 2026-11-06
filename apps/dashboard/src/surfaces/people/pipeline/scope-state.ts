@@ -6,8 +6,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScopeView } from "../scope-view";
 import type { PersonVM, PipelineGroupKey, PipelineRowVM, PipelineVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
-import { askOnScreenKey, navigate, setAskOnScreen } from "../../legacy-verbs";
+import { pageClock } from "@/bridge/zone";
+import { askOnScreenKey, navigate, setAskOnScreen } from "../../frame-verbs";
 import type { FocusOn } from "../../kit/record/focus";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";
@@ -58,7 +58,7 @@ export function usePipelineFrame({ onNavigate = null, pipelineRoute = null }: Pi
   const addrPeek = addr.peek;
   // A rail pick swaps the groups in with the kit's rise, as People's lists do: the table holds still, its groups rise.
   const swap = useSwapMotion<HTMLTableElement>(view, TABLE_BODIES);
-  // The workspace's zone, as every day on People is said (legacy-bridge/zone.ts).
+  // The workspace's zone, as every day on People is said (bridge/zone.ts).
   const tz = pageClock().zone();
   // One clock with the rows: the surface said each row's wait, its "since" and its valid-until at the moment it
   // published them (fetchedAt), so the Pipeline groups and counts at that same moment, and a proposal's "8 d" in its
@@ -230,7 +230,7 @@ export function usePipelineRows(f: PipelineFrame, ui: PipelineUi) {
 export type PipelineRows = ReturnType<typeof usePipelineRows>;
 
 /**
- * What Ask is told is on screen (legacy-bridge/ask/context.ts): the rows drawn, in the member's order and the board's cap,
+ * What Ask is told is on screen (bridge/ask/context.ts): the rows drawn, in the member's order and the board's cap,
  * forty at most, and the view that chose them; taken back when the page goes.
  */
 export function usePipelineAsk(r: PipelineRows) {

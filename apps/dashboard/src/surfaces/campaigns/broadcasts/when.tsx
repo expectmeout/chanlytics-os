@@ -8,7 +8,7 @@
  * sheet draws it under its own "Pick a day" (decision 0065 step 7, where that screen left).
  */
 import { DAY_MS, MIN_MS, SEND_WHEN_WORDS, sendsWaitWords } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { DatePicker } from "../../kit/datepicker/datepicker";
 import { Icon } from "../../kit/icon/icon";
 import { Picker, Token } from "../../kit/picker/picker";

@@ -23,7 +23,7 @@ import {
   type SequenceRecordDto,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
@@ -32,7 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { Picker } from "../../kit/picker/picker";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { cmChevron, cmGroups } from "../../campaigns/parts/picks";
 import { RptSection, useRptDesk } from "../blocks";
 import { RPT_SENT } from "../series";

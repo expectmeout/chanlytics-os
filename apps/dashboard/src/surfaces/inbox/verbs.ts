@@ -1,13 +1,13 @@
 /**
- * Real-thread verb dispatch for the Inbox and Conversations (moved from legacy-bridge/inbox-verbs.ts, decision 0015,
+ * Real-thread verb dispatch for the Inbox and Conversations (moved from bridge/inbox-verbs.ts, decision 0015,
  * step 3). A verb on a real thread commits through the API, the overrides re-apply (fresh values + surface events), and
  * the caller's toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import { api } from "@/legacy-bridge/api";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { api } from "@/bridge/api";
+import { refreshSurfaces } from "@/bridge/surface-runner";
+import type { SurfaceOverride } from "@/bridge/surface-data";
 import { todayOverride } from "../today/override";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { workspaceZone } from "@/bridge/zone";
 import type { ApiResult, RouteKey } from "@/client/api";
 import { refusalOf, tomorrowAtIn } from "@chanlytics/contracts";
 import { conversationsOverride } from "./conversations-surface";
@@ -130,7 +130,7 @@ export async function inboxBulk<T extends RealThread>(
     else refused.push({ thread, message: r.message });
   });
   // Once, by the same table a single verb's re-read follows (refresh-map.ts).
-  if (threads.length) await import("@/legacy-bridge/refresh-map").then((m) => m.refreshAfter(BULK_ROUTE[verb]));
+  if (threads.length) await import("@/bridge/refresh-map").then((m) => m.refreshAfter(BULK_ROUTE[verb]));
   return { done, refused };
 }
 

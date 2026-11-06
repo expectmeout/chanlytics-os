@@ -27,7 +27,7 @@ import {
   personRouteOf,
   routeOfPath,
 } from "@chanlytics/contracts";
-import { demoSession, navigate } from "../legacy-verbs";
+import { demoSession, navigate } from "../frame-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
 import { usePeopleStanding } from "./page/people-head";
@@ -47,7 +47,7 @@ import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
-import { aheadWhenIdle, routeOnScreen } from "@/legacy-bridge/workspace";
+import { aheadWhenIdle, routeOnScreen } from "@/bridge/workspace";
 
 /**
  * What the address names of the page's view (contracts parsePeopleRoute): the props the rows gave the page, and the

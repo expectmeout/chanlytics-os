@@ -9,7 +9,7 @@
  * host here says so from its own effect, which runs after the sheet's own (a child's effects run before its parent's).
  */
 import { useEffect, useState, type ComponentType } from "react";
-import { aheadWhenIdle } from "@/legacy-bridge/workspace";
+import { aheadWhenIdle } from "@/bridge/workspace";
 import { codeOnce } from "@/lib/code-once";
 
 type SheetsCode = typeof import("./code");

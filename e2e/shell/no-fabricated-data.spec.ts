@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
-import { SURFACE_STATES } from "../../apps/dashboard/src/legacy-bridge/surface-registry";
+import { SURFACE_STATES } from "../../apps/dashboard/src/bridge/surface-registry";
 import { assertNothingInvented, INVENTED } from "./invented";
 
 /**

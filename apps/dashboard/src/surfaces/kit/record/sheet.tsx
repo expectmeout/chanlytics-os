@@ -31,7 +31,7 @@
  * it does not cancel as well; with focus somewhere outside it, the window hears it.
  *
  * So anything a sheet needs must be reachable inside it, because Tab stays there. A row taken out of the list leaves an
- * inline Undo where it was. The toast is still the house's undo (legacy CLAUDE.md) and may echo it, but it is drawn
+ * inline Undo where it was. The toast is still the house's undo (mockup/CLAUDE.md) and may echo it, but it is drawn
  * outside the sheet, where Tab cannot reach it, so it is never the only way back.
  *
  * And focus stays in it while it is open, by the fold's own rules (focus.ts useRecFocusHold, useRecFocusOn): one rule,
@@ -57,7 +57,7 @@ import { recKeys, recPhoneQuery, useRecFocusHold, useRecFocusOn, useRecPhone } f
 import type { FocusOn } from "./focus";
 import { recPortalRoot } from "./leaving";
 import { RecordFoot } from "./says";
-import { touchSwipe } from "../../legacy-verbs";
+import { touchSwipe } from "../../frame-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { useBackCloses } from "../sheet/back";
 import { leaveOverlay, listen, portal, trapTab, unlisten } from "./shell-verbs";

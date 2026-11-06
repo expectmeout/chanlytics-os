@@ -45,11 +45,11 @@ globalThis.window.fetch = async (url) => {
   return json(404, { ok: false, error: { code: "not_found", message: "no" } });
 };
 
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { notificationsOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/notifications.ts");
-const { settingsOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const { notificationsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/notifications.ts");
+const { settingsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/settings.ts");
 const { inboxOverride } = await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts");
 const { calendarOverride } = await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts");
 const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");

@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { memberWords, stateOf } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 const quiet = async (fn) => {
@@ -25,7 +25,7 @@ const quiet = async (fn) => {
   }
 };
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/studio",
@@ -65,9 +65,9 @@ const { conversationsOverride } = await quiet(() =>
   importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts"),
 );
 const { liveOverride } = await quiet(() => importSrc("apps/dashboard/src/surfaces/live/surface.ts"));
-const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const { readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 const MINUTE = 60_000;
 const ALL_THREE = ["calls", "conversations", "escalations"];

@@ -22,7 +22,7 @@ import {
   describeSettingsChange,
   newReceptionistDefaults,
 } from "@chanlytics/contracts";
-import { unmount, all } from "../_legacy-react.mjs";
+import { unmount, all } from "../_stub-react.mjs";
 import { W, drawTab, marisa, openFold, redrawTab, saveRow, saving, typeInto } from "../_business-tab-harness.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 

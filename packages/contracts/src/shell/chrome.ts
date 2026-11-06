@@ -81,7 +81,7 @@ export const lookPrefOf = (stored: unknown): LookPref => (isLookPref(stored) ? s
  */
 export const LOOK_OFFERED: boolean = false;
 
-/** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
+/** Where this device keeps its preferences, the theme and the look among them (bridge/device-prefs.ts). */
 export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 
 /**
@@ -174,7 +174,7 @@ export function inAppFrom(userAgent: string | null | undefined): InApp | null {
   const platform = (m[2] ?? "").toLowerCase();
   return { version: m[1] ?? "", platform: platform === "ios" || platform === "android" ? platform : "unknown" };
 }
-/** The class on <html> that in-app rules hang from; the legacy shell reads window.__IN_APP for the same fact. */
+/** The class on <html> that in-app rules hang from; the frame reads window.__IN_APP for the same fact. */
 export const IN_APP_CLASS = "in-app";
 /**
  * The class the phone app puts on <html> where it shrinks the page to stand above the keyboard (Android: the app is
@@ -195,7 +195,7 @@ export function inAppBootScript(): string {
 
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
-/** The sidebar of a device that has kept none: open, as the app draws it (legacy-bridge/device-prefs.ts). */
+/** The sidebar of a device that has kept none: open, as the app draws it (bridge/device-prefs.ts). */
 export const DEFAULT_SIDEBAR_PREF: SidebarPref = "open";
 
 /** The `<html>` attribute that says the sidebar this device keeps, for the document's outline (OUTLINE_BARE beside it). */

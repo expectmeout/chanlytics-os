@@ -27,7 +27,7 @@ import {
   type HealthTab,
   type HealthWindow,
 } from "@chanlytics/contracts";
-import { backOffice } from "@/legacy-bridge/platform";
+import { backOffice } from "@/bridge/platform";
 import { PageHead } from "../../kit/head/page-head";
 import { Segmented } from "../../kit/segmented/segmented";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";

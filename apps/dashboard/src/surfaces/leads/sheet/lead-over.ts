@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, type MouseEvent } from "react";
 import { UUID, seeHomeOf } from "@chanlytics/contracts";
-import { goToRoute } from "@/legacy-bridge/workspace";
+import { goToRoute } from "@/bridge/workspace";
 import { overQuery } from "../../see/over-query";
 import { seeOverNow } from "../../see/see-over";
 

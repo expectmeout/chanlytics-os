@@ -1,0 +1,2226 @@
+/* ====================================================================
+   Chanlytics — Settings
+   Left tab rail + content pane. Reuses fl-roster/fl-agent/fl-card,
+   cl-tabs, cl-prof-attr, st-bullets, stat-strip primitives.
+   ==================================================================== */
+
+/* The settings column's own scale, named once. Three sizes of type (a
+   section's title, a row's label, the sentence under it), one row height,
+   one leading tile. The panes had grown five kinds of row at 7, 8, 9, 10 and
+   12px of padding and seven sizes of type between 10 and 13px, which is what
+   "cluttered" was: nothing wrong with any one row, no two alike. Setup's rows
+   keep it wherever they are drawn (the first run, Today's card), so their
+   rules read one scale inside Settings and out. */
+.settings, .setup-rows {
+  --set-title: var(--text-md);
+  --set-label: var(--text-base);
+  --set-hint: var(--text-sm);
+  --set-row-y: 11px;
+  --set-lead: 32px;
+  --set-lead-gap: 14px;
+}
+
+.settings {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--rail-nav) minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+  /* The second voice (the sentence under every label, a card sub, a fact name)
+     is the token --ink-dim, which #761 made 4.5:1 on every surface: what this
+     block once held for Settings alone, and more weakly. */
+  /* Settings is a page of numbers: counts, money, dates, phone numbers, the
+     five dials whose options sit side by side in one bar. They line up. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* A card is named by a heading now, and a section of the business form by one
+   under it. The element brings the browser's own margin and scale with it; the
+   classes keep saying how a title looks, so nothing on screen moves. Lower
+   specificity than .fl-card-title and .set-sec-title on purpose. */
+.settings h2, .settings h3 { margin: 0; font-size: inherit; font-weight: inherit; }
+
+/* A control that is already carrying a shadow -- the open tab in the rail, the
+   pressed option in a segmented control -- kept it while focused, because
+   .fl-agent.active and .cl-tab.active are (0,2,0) and the global focus rule in
+   components.css is (0,1,0). These are the first things a keyboard lands on. */
+.settings .set-nav-row:focus-visible,
+.settings .cl-tab:focus-visible,
+.settings .fl-agent:focus-visible { box-shadow: var(--focus-ring); }
+/* Setup's rows live inside .tq, which clips at its radius, so an outset ring
+   lost 3px on both sides. Theirs is drawn inside. */
+.setup-rows .cl-attn-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+
+.set-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--line);
+  background: var(--bg-sunken);
+  padding: 12px 10px 24px;
+  overflow-y: auto;
+}
+/* The top bar's crumb already says "Settings"; the rail does not say it again. */
+.set-nav .fl-roster-head { display: none; }
+.set-nav-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 16px 1fr auto;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+}
+/* The page that holds the business's fact most worth adding, marked where the rail names it; the gap line says it on
+   that page (business/tab.tsx), and a phone's list says it in words (frame/list.tsx). */
+.set-nav-gap { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--warn); }
+.set-nav-row .icon { color: var(--ink-dim); }
+.set-nav-row.active .icon { color: var(--ink); }
+.set-nav-label { font-size: var(--set-label); font-weight: 500; color: var(--ink-muted); }
+.set-nav-row.active .set-nav-label { color: var(--ink); } .set-nav-row:hover .set-nav-label { color: var(--ink); }
+/* The rail's groups say whose each section is: you, the business, its receptionist, and the workspace. Without them
+   Profile read as one more workspace setting. */
+.set-nav-group {
+  padding: 18px 10px 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.set-nav-group:first-of-type { padding-top: 6px; }
+
+.set-pane {
+  overflow-y: auto;
+  /* Tab lands a control flush against the pane's edge and the ring, which is
+     drawn 4px outside it, is cut by the scroll box. Six clears it. */
+  scroll-padding-block: 6px;
+  padding: 28px var(--gutter-page) 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: route-in 240ms var(--ease-out);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+@media (prefers-reduced-motion: reduce) { .set-pane { animation: none; } }
+/* ---- Settings on a phone: its sections as a list (frame/list.tsx), grouped as the rail groups them on a desk. Each row
+   is a link to its section, which opens as a page whose way back is this list (17 Oct 2026). */
+.set-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 48px; }
+.set-list-group { display: flex; flex-direction: column; gap: 6px; }
+.set-list-head {
+  margin: 0;
+  padding: 12px 6px 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.settings .set-list-rows { padding: 2px 14px; }
+.set-list-row {
+  display: grid;
+  grid-template-columns: var(--row-face, 32px) minmax(0, 1fr) auto 14px;
+  column-gap: 12px;
+  align-items: center;
+  min-height: 52px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.set-list-row + .set-list-row { border-top: 1px solid var(--line); }
+.set-list-glyph {
+  display: grid;
+  place-items: center;
+  width: var(--row-face, 32px);
+  height: var(--row-face, 32px);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  color: var(--ink-muted);
+}
+.set-list-name { min-width: 0; font-size: var(--text-md); font-weight: 500; }
+.set-list-said {
+  max-width: 40vw;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.set-list-said[data-tone="warn"] { color: var(--warn-ink); }
+.set-list-go { display: grid; color: var(--ink-faint); }
+/* A section opened after another arrives by the deck every change of view moves by (surfaces/kit/motion/view-deck.ts;
+   the pane says its side, settings/frame/page.tsx), and plays no entrance of its own. On a phone it travels its own
+   width, as a page from the tab beside does. On a desk the sections are a rail, one under another, and nothing goes
+   across: the two panes cross-fade where they stand. */
+.set-pane[data-slide] { animation: none; }
+@media (min-width: 721px) {
+  /* The first card's top is the rail's: 28px over it stood the cards a step below the sections beside them (the sample
+     walk, 18 Oct 2026). Two keep the card's ring inside the scroll box. */
+  .set-pane { --view-travel: 0px; padding-top: 2px; }
+}
+
+/* The settings column. Every section on this surface takes it -- including
+   the Setup rows, which had no measure at all and so ran to the pane edge
+   while the cards above and below them stopped at 720. Measured before
+   changing it: not one Setup row's sentence or status line clips at this
+   width, so the extra space it was using was empty.
+   The column sits in the middle of the pane: held to the left, a wide monitor
+   put every section against the rail and left the other half of the screen
+   empty. Whatever a pane draws is a child of the pane, so the rule is the
+   pane's and no section can forget it. */
+.set-card, .setup-rows { max-width: var(--measure-prose); }
+/* Left, where the rail leaves off, the way every other page begins. Centred,
+   a wide monitor put 350px of nothing between the rail and the first word. */
+.set-pane > * { width: 100%; max-width: var(--measure-prose); margin-inline: 0; flex: 0 0 auto; }
+
+/* A section: its title, and under it the one sentence that says what it is.
+   The sentence sat opposite the title, right-aligned, where a long one ran the
+   width of the card at 11px; an act the section offers (Invite, Edit) keeps the
+   right-hand side to itself. */
+/* Every card here is the record kit's (kit.css .rec-card: its pane, its gutter, its head), as Profile's and the
+   Business tab's are: a title, the one sentence under it, and an act the card offers (Invite) at the head's end. */
+
+/* Rows: what it is on the left, the control on the right, a hairline between
+   two rows and none under the section's head. */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: var(--set-row-y) 0;
+  border-top: 1px solid var(--line);
+}
+.set-row:first-of-type { border-top: none; }
+.set-row-info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.set-row-label { font-size: var(--set-label); font-weight: 500; line-height: 1.35; color: var(--ink); }
+/* Upright, and a size a person reads: the sentence under a label is most of the
+   words on this surface, and it was 10.5px italic. */
+.set-row-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
+.set-row-control { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+/* The acts a record row offers under its words (Billing's doors, a form's Save and Cancel): one line that wraps. */
+/* A choice made with a switch and the words that say what it is (Partner's letters and terms). */
+.set-check { display: flex; align-items: center; gap: 8px; }
+/* A quiet act that is a row's value (Sign out, Delete): the value's size, underlined as words that act are. */
+.set-inline-act { font-size: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.set-inline-act:hover { text-decoration-color: currentColor; }
+.set-acts { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+
+/* The controls a row carries, at the row's scale: the product's small button,
+   quiet link and pill are sized for a dense list, and looked lost at the end of
+   a row this tall. Scoped here so nothing outside Settings moves. */
+.settings .btn-sm { height: var(--control-h-md); padding: 0 12px; font-size: var(--set-hint); border-radius: var(--control-radius-sm); }
+.settings .btn-icon.btn-sm { width: var(--control-h-md); padding: 0; }
+.settings .cl-bucket-link {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--set-hint);
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) { .settings .cl-bucket-link:hover { background: var(--bg-hover); color: var(--ink); } }
+.settings .cl-bucket-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.settings .cl-tab { font-variant-numeric: tabular-nums; }
+/* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
+/* A control is identified by its edge, so the edge is not a hairline. The dots
+   in the policy matrix have no fill to tell them apart at all. */
+.settings .set-input, .settings .sd-input, .settings .biz-input, .setup-rows .setup-area { border-color: var(--line-strong); }
+.settings .pol-dot { border-color: color-mix(in oklab, var(--ink) 45%, var(--bg-raised)); }
+/* Something happens under a finger. There is no hover on a phone, and tapping a
+   dot, a chip, a path or a switch gave nothing back. */
+.settings .pol-dot:active, .settings .cl-attn-cta:active, .setup-rows .cl-attn-cta:active,
+.settings .cl-bucket-link:active, .setup-rows .setup-path:active, .settings .biz-choice:active,
+.setup-rows .setup-number:active { transform: scale(0.97); }
+.settings .set-switch:active { filter: brightness(0.96); }
+@media (hover: hover) { .settings .set-switch:hover { background: color-mix(in oklab, var(--ink) 12%, var(--line-strong)); } }
+@media (hover: hover) { .settings .set-switch.on:hover { background: var(--ink-muted); } }
+@media (hover: hover) { .setup-rows .setup-path:hover, .setup-rows .setup-number:hover { border-color: var(--line-strong); } }
+.set-pane a:not([class]) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.set-pane a:not([class]):hover { text-decoration-color: currentColor; }
+
+/* One input on this surface. The invite box and the alert-address box are
+   `.sd-input` from the shared sheet: a smaller radius, 13px type, and
+   `outline: none` on focus with only a border-colour change to stand in --
+   which a keyboard user cannot see. Scoped, so nothing outside Settings moves. */
+.settings .sd-input { min-height: 36px; padding: 8px 11px; font-size: var(--set-label); border-radius: var(--radius-sm); margin-bottom: 0; }
+@media (hover: hover) { .settings .sd-input:hover { border-color: var(--line-strong); } }
+.settings .sd-input::placeholder { color: var(--ink-dim); }
+/* Setup's state word carries the row's tone; on white, ok read 3.42. The
+   colour is a 6px mark rather than the whole word: ten rows saying "Ready" in
+   green made the finished ones shout and left the one that wants you level
+   with them. Ready mutes its words and keeps its mark; every other tone keeps
+   both, so the row that needs a person is the only colour on the page. */
+.setup-rows .cl-attn-status .lead { display: inline-flex; align-items: center; gap: 6px; }
+.setup-rows .cl-attn-status .lead::before {
+  content: ""; flex: none;
+  width: 6px; height: 6px; border-radius: var(--radius-full);
+  background: currentColor;
+}
+/* Ready keeps its green as the mark and gives up the words. */
+.setup-rows .cl-attn-row.tone-ok .cl-attn-status .lead { color: var(--ink-dim); }
+.setup-rows .cl-attn-row.tone-ok .cl-attn-status .lead::before { background: var(--ok-ink); }
+/* A row with nothing on it yet takes an open ring, not a filled dot: a finished
+   row and an untouched one should not be the same shape. */
+.setup-rows .cl-attn-row.tone-plain .cl-attn-status .lead::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-dim); }
+.setup-rows .cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn-ink); }
+.setup-rows .cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info-ink); }
+.setup-rows .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
+.setup-rows .cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent-ink); }
+.settings .sd-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
+
+/* Facts in two columns (the Business pane, the activity ledger): the name of a
+   fact, then the fact. The list is the person's page's, where the key is a word
+   or two at 100px; here the keys are phrases ("Tells customers to call") and
+   wrapped onto two lines, and the dashes between rows were the only dashed
+   rules on the surface. */
+.settings .cl-prof-attr { grid-template-columns: 176px minmax(0, 1fr); gap: 16px; padding: 11px 0; font-size: var(--set-label); line-height: 1.45; border-bottom: 1px solid var(--line); }
+.settings .cl-prof-attr:last-child { border-bottom: none; }
+.settings .cl-prof-attr-key { font-size: var(--set-hint); color: var(--ink-dim); padding-top: 1px; }
+@media (max-width: 640px) {
+  .settings .cl-prof-attr { grid-template-columns: 1fr; gap: 2px; }
+}
+/* A fact's own link ("Open") is part of its sentence, not a control at the end of a row. */
+.settings .cl-prof-attr .cl-bucket-link { height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
+.settings .cl-prof-aut-hint { margin-top: 0; font-size: var(--set-hint); font-style: normal; line-height: 1.5; }
+/* Filters over a list: the settings input, a row of them. On a phone they wait
+   behind one control, at the end of the card's head, which is the only place this button is drawn. */
+.set-filters-ask { display: none; align-items: center; gap: 6px; }
+.set-filters-ask-n { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.set-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 12px; }
+/* Each list is the kit's box over the house's menu (filters.tsx says why it is the menu); this only sizes the boxes in
+   the row. A list's box is as wide as what it says, at most 220px: at an equal share "Conversations" read
+   "Conversatio…", and a fifth box wrapped under the other four and took the log a row down with it. The browser's own
+   lists stood here until 8 Oct 2026, and drew themselves in the system's colours whatever the look. */
+.set-filters > div { min-width: 0; max-width: 220px; flex: 0 1 auto; }
+/* What a list's box says: its words, ending in an ellipsis where the row has no room for them. */
+.set-filter-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The box that finds a person gives way first: it is read at 96px, and a named kind beside it is not at less than its words. */
+.set-filter-person { position: relative; display: flex; flex: 1 1 96px; max-width: 220px; }
+.set-filter-person > input { flex: 1 1 auto; min-width: 0; }
+/* One day's date box: no wider than a date, in figures that do not shift. */
+.set-filters > input[type="date"] { flex: 0 0 auto; width: 150px; font-variant-numeric: tabular-nums; }
+.set-filters > input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
+.set-filters > input[type="date"]:hover::-webkit-calendar-picker-indicator { opacity: 0.8; }
+/* Back to the whole log, at the end of the card's head: words, where a box more would be one too many. */
+.set-filters-clear { margin-left: auto; white-space: nowrap; }
+/* A finger's 44px comes from around the words, not from the head: the head stood 21px taller while a filter was set,
+   and the log under it moved down and back. */
+@media (pointer: coarse) {
+  .set-filters-clear { align-self: center; margin-block: -14px; }
+}
+.set-filters + .cl-prof-attr-list, .set-filters + .act-list { border-top: 1px solid var(--line); }
+
+/* ---- The activity log ---------------------------------------------------
+   Thirteen rows, each printing its own date, read as thirteen dates and no
+   log. The day is said once above the rows that belong to it; a row says the
+   time, what kind of thing it was, what happened, and where to go for it. */
+.act-list { display: flex; flex-direction: column; }
+/* While the log is read again, what is on screen stays and dims (components.css data-loading and data-dims, the
+   loading standard): a sentence that came and went above the rows moved every one of them down and back. */
+/* ---- While it is reading, with nothing held ------------------------------
+   The shape of the log rather than a sentence about it, drawn in the list itself, so nothing above or below it moves
+   when the rows land. */
+.act-waiting { display: flex; flex-direction: column; }
+.act-waiting > .act-day:first-child { padding-top: 10px; }
+.act-waiting .act-glyph::before { display: none; }
+/* A flat dim block, not a sweeping one: the motion grammar refuses a skeleton shimmer here (the design spec's 9), and
+   a gradient that travels is the loudest thing on a settings page while it says the least. */
+.act-bone {
+  display: block;
+  height: 9px;
+  width: 100%;
+  border-radius: var(--radius-xs);
+  background: var(--bg-sunken);
+}
+.act-bone-day { width: 96px; height: 10px; }
+/* Seven sentences of seven lengths, as a log's are: each row of the waiting shape by its place (the day is the first child). */
+.act-waiting > .act-row:nth-child(2) .act-what > .act-bone { width: 68%; }
+.act-waiting > .act-row:nth-child(3) .act-what > .act-bone { width: 52%; }
+.act-waiting > .act-row:nth-child(4) .act-what > .act-bone { width: 61%; }
+.act-waiting > .act-row:nth-child(5) .act-what > .act-bone { width: 44%; }
+.act-waiting > .act-row:nth-child(6) .act-what > .act-bone { width: 57%; }
+.act-waiting > .act-row:nth-child(7) .act-what > .act-bone { width: 49%; }
+.act-waiting > .act-row:nth-child(8) .act-what > .act-bone { width: 63%; }
+.act-more { display: flex; align-items: center; gap: 10px; padding-top: 10px; }
+.act-so-far { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.act-day {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 18px 0 8px;
+  font-size: var(--set-hint);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-dim);
+}
+.act-list > .act-day:first-child { padding-top: 10px; }
+.act-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px 62px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  /* The hover reaches the card's edge rather than stopping at the text. */
+  margin-inline: calc(var(--set-row-y) * -0.5);
+  padding: 7px calc(var(--set-row-y) * 0.5);
+  border-radius: var(--radius-sm);
+  /* A row is its own door where it has a page (a link), and its fold's press where it stands for several (a button):
+     either way it is drawn as the row it is, in the row's own ink and type. */
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  text-decoration: none;
+}
+.act-row:is(a, button) { cursor: pointer; }
+.act-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Under a pointer only: a row is a press now, and a touch screen keeps :hover on the last thing tapped, so a thumb
+   left its wash on a row long after the page it opened was closed again. */
+@media (hover: hover) {
+  .act-row:hover { background: var(--bg-hover); }
+  /* The time clears 4.5 on a card, and the hover tint under it costs 0.5 of
+     that. It darkens with the row it belongs to rather than the tint being
+     watered down: the row a pointer is on is the one worth reading anyway. */
+  .act-row:hover .act-when { color: var(--ink-muted); }
+  .act-row:hover .act-go { color: var(--ink-muted); }
+}
+/* One segment of spine per row: contiguous rows draw a line, and the heading
+   that opens the next day leaves the gap between them. No row hairlines --
+   the spine is what separates a log, and both at once is a cage. */
+.act-row::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--set-row-y) * 0.5 + 12px);
+  top: 0; bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+/* The line begins and ends at the first and last disc of a day, not in the air. The last row of a day says so itself
+   (data-ends, log.tsx): a rule that looked ahead for the next day's heading (:has) was asked again of every row
+   whenever one was added or a fold opened. The waiting shape has no days, and ends at its last row. */
+.act-day + .act-row::before { top: 50%; }
+.act-row[data-ends]::before { bottom: 50%; }
+.act-waiting > .act-row:last-child::before { bottom: 50%; }
+/* ---- The kind, and what it means ---------------------------------------
+   Every line the same grey is a log you read rather than scan, and the line
+   an owner opens it to find is the one that went wrong. The node on the spine
+   is the one mark (.mark), round and neutral; the kind's tone (contracts
+   activityTone) is said by the row's words where it is a warning or a failure,
+   so most rows stay quiet and the failures do not. */
+.act-glyph { align-self: center; position: relative; z-index: 1; border-radius: var(--radius-full); }
+.act-when { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A row's two facts are the ink: who did it, a weight up, and what happened. The dots between them are the line's own
+   quieter grey, so a row reads as its facts and not as one run; a member's address in bold on every line was the
+   loudest thing on the card. The tone is the sentence's alone: who did it is not what went wrong. */
+.act-what { font-size: var(--set-label); color: var(--ink-dim); line-height: 1.5; text-wrap: pretty; }
+.act-who { color: var(--ink); font-weight: var(--weight-semibold); }
+.act-said { color: var(--ink); }
+.act-row[data-tone="warn"] .act-said { color: var(--warn-ink); }
+.act-row[data-tone="danger"] .act-said { color: var(--danger-ink); }
+/* Who or what a row is about, and since when a fold runs: said after the sentence, a step quieter than it. */
+.act-about { color: var(--ink-muted); }
+/* Where a row goes, at its end: a quiet chevron for a door, and one that turns for a fold as it opens (the bell's
+   group of notes does the same). It wakes with the row under a pointer or the focus. */
+.act-go { align-self: center; justify-self: end; display: inline-flex; color: var(--ink-faint); }
+.act-row:focus-visible .act-go { color: var(--ink-muted); }
+.act-turn { transition: rotate var(--duration-fast) var(--ease-out); }
+.act-row[aria-expanded="true"] .act-turn { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) { .act-turn { transition: none; } }
+/* ---- A fold, and the rows under it --------------------------------------
+   Rows of one kind by one hand on one day are one line (contracts activityLines, the bell's rule), and a press on
+   it draws them under it: no mark of their own, since the fold wears it, and a step quieter, so the line they belong
+   to still reads as the line. The spine runs on through them. */
+.act-under .act-what { font-size: var(--set-hint); }
+.act-under .act-said { color: var(--ink-muted); }
+@media (max-width: 640px) {
+  /* On a phone the sentence wants the whole width, so the kind, the time and the
+     door share one line and the sentence takes the next. Every cell is placed:
+     left to itself, the sentence spanned to the end and pushed the door onto a
+     line of its own, outside the card. */
+  .act-row { grid-template-columns: 24px minmax(0, 1fr) auto; row-gap: 3px; }
+  .act-glyph { grid-row: 1; grid-column: 1; }
+  .act-when { grid-row: 1; grid-column: 2; }
+  .act-go { grid-row: 1; grid-column: 3; }
+  .act-what { grid-row: 2; grid-column: 2 / -1; }
+
+  /* A log is the work; three boxes are how you narrow it once you are in it.
+     Stacked, they pushed the first line 300px down a phone. */
+  /* At the head's end: after Clear while something is set, else by itself. */
+  .set-filters-ask { display: inline-flex; margin-left: auto; }
+  .set-filters-clear + .set-filters-ask { margin-left: 0; }
+  .set-filters { display: none; }
+  .set-filters.open { display: flex; }
+  .set-filters > div, .set-filters > input[type="date"], .set-filter-person { flex: 1 1 100%; max-width: none; width: auto; }
+}
+.settings .st-bullets { margin: 4px 0 12px; gap: 9px; }
+.settings .st-bullets li { font-size: var(--set-label); }
+
+/* Switch */
+.set-switch {
+  width: 36px; height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+  border: none;
+  position: relative;
+  cursor: pointer;
+  transition: background 160ms var(--ease-out);
+  padding: 0;
+}
+/* Ink, not green, as the record kit's switch is (record.css, 24 Sep): a switch is a control, and green is the state
+   dot's. On, the knob takes the raised ground so it reads on the ink in either theme; off, the knob token. No shadow. */
+.set-switch.on { background: var(--ink); }
+.set-knob {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--knob);
+  transition: transform 160ms var(--ease-out), background 160ms var(--ease-out);
+}
+.set-switch.on .set-knob { background: var(--bg-raised); }
+/* A switch is a 36x20 pill. The 44px touch floor (bridge/frame.css)
+   applies to every button, so on a phone it became a 36x44 capsule with the
+   knob pinned 26px above its own bottom -- twelve of them down the Hours block.
+   The finger gets its 44px from the space around it, as the policy dots do. */
+@media (pointer: coarse) {
+  html.frame-on .settings .set-switch { min-height: 0; }
+  html.frame-on .settings .set-switch::after { content: ""; position: absolute; inset: -12px; }
+}
+.set-switch.on .set-knob { transform: translateX(16px); }
+
+/* Team / connection rows: the same row with something in front of it. */
+.set-team-row, .set-int-row {
+  display: flex;
+  align-items: center;
+  gap: var(--set-lead-gap);
+  min-height: 44px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.set-team-row:first-of-type, .set-int-row:first-of-type { border-top: none; }
+.set-row, .set-team-row, .set-int-row { position: relative; }
+.set-row::before, .set-team-row::before, .set-int-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 -12px;
+  z-index: -1;
+  border-radius: var(--surface-inset-radius);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .set-row:hover::before, .set-team-row:hover::before, .set-int-row:hover::before { background: var(--bg-hover); }
+}
+.set-team-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* A question a row asks (Remove, Revoke, Disconnect) takes a line of its own under the row, starting under the name:
+   inside the body's column it stood in the 145px a phone leaves between the face and the role, its words broken three
+   to a line and its two answers pinched (Ruben, 7 Oct 2026). On a phone it takes the row's whole width. */
+.set-team-row[data-asking="true"] { flex-wrap: wrap; }
+.set-row-ask { flex: 1 1 100%; grid-column: 2 / -1; }
+.set-team-row > .set-row-ask { margin-left: calc(var(--row-face, 32px) + var(--set-lead-gap)); }
+@media (max-width: 900px) {
+  .set-row-ask { grid-column: 1 / -1; }
+  .set-team-row > .set-row-ask { margin-left: 0; }
+}
+/* An address is one long word: it is cut with an ellipsis inside its own column rather than broken across two lines
+   ("hi@chanlytics.agen / cy" at a phone's width); the whole of it is the row's title on hover. */
+.set-team-name, .set-team-mail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-team-name { font-size: var(--set-label); font-weight: 500; line-height: 1.35; color: var(--ink); }
+/* What a row is called, then what it is attached to (a number, an address):
+   the second part is a detail and reads as one. `.dim` had no rule anywhere. */
+.set-team-name .dim { font-weight: 400; color: var(--ink-dim); }
+.set-team-mail { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+/* What a row says beside its sentence (contracts ConnectionLine.notes): each note a line of its own, wrapped whole -- never cut with an
+   ellipsis as the sentence is, since an owner has to read it. */
+.set-int-notes { display: flex; flex-direction: column; gap: 3px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+/* One face for every connection, the kit's (a glyph in the circle People's rows wear): what is connected has the ink, and
+   what is not is quieter than it. Nine hues, one a service, were drawn here once; the kit's face has one. */
+.set-int-tile { color: var(--ink-dim); }
+.set-int-tile[data-on="true"] { color: var(--ink); }
+
+/* Connections: every row of a group shares the group's columns (the tile, the
+   words, the state, the acts), so the states line up under one another and so
+   do the acts, the way a table's do. Each row used to lay itself out alone, and
+   "On", "Watched" and "Readable" each sat wherever that row's buttons left it. */
+.set-conn {
+  display: grid;
+  grid-template-columns: var(--set-lead) minmax(0, 1fr) auto auto;
+  column-gap: var(--set-lead-gap);
+}
+.set-conn > * { grid-column: 1 / -1; }
+.set-conn > .set-int-row { display: grid; grid-template-columns: subgrid; align-items: center; }
+.set-conn > .set-int-row > .pill { justify-self: start; }
+.set-int-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+/* The mailboxes block's foot holds a Connect for each provider and the admin's link: on a narrow pane they wrap. */
+.set-dom-foot .set-int-actions { flex-wrap: wrap; }
+/* The group is called Later; its rows do not each say so again. */
+.set-conn > .set-int-row[data-state="later"] > .pill { display: none; }
+.set-conn > .set-int-row[data-state="later"] .set-team-name { color: var(--ink-muted); }
+/* What a row opens under itself (the locations to choose among, the business
+   record) starts where the row's words do. */
+.set-conn > .set-row-stack { padding-left: calc(var(--set-lead) + var(--set-lead-gap)); border-top: none; padding-top: 0; }
+/* A row's Settings (row.tsx rowSettings), opened in place on a line of its own under its name: what it is attached to,
+   what it says, and its acts. Ruben, 20 Oct 2026: the number is said here, never on the row. */
+.set-int-open { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 2px 0 6px; }
+.set-int-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 16px; row-gap: 2px; margin: 0; font-size: var(--set-hint); line-height: 1.5; }
+.set-int-facts dt { color: var(--ink-dim); }
+.set-int-facts dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.set-int-open > .set-acts { flex: none; margin-top: 0; }
+/* What Fix opens leads with what is wrong, in the ink, and the act that mends it, over a hairline before the rest. */
+.set-int-fix { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.set-int-problem { font-size: var(--set-hint); line-height: 1.5; color: var(--ink); text-wrap: pretty; }
+/* An open row is one piece: the pointer's ground would wash its Settings with it. */
+.set-conn > .set-int-row[data-open="true"]::before { background: none; }
+/* A note about the group, after its rows. */
+.set-card-foot { margin: 0; padding: 14px max(0px, calc(100% - 68ch)) 10px 0; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+/* A row's phone pieces (row.tsx ConnectionRow): a desktop keeps its button in the group's column. A row whose button
+   is Settings is that button's press at every width, as a record row is. The ⋯ and the detail beside a name are the
+   Ad accounts card's (ad-accounts.tsx, a demo's), whose rows still carry two acts. */
+.set-int-chev, .set-int-more { display: none; }
+.set-conn > .set-int-row[data-offers="one"] { cursor: pointer; }
+/* On a phone a connection is a row of People's kind (25 Sep; they were 77 to 145px): the tile, its name, its state,
+   and its button behind the row -- a Settings row is its press with a chevron, which turns as it opens -- never a
+   line of boxed buttons under the words. A Connect row keeps its button, in the state's place; a Later row is its
+   name. */
+@media (max-width: 640px) {
+  .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
+  .set-conn > .set-int-row > .set-int-tile { align-self: start; }
+  .set-int-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--set-hint); line-height: 1.45; }
+  .set-int-sep { display: none; }
+  /* A connected row is its name, what it is attached to and its state: the sentence under it (last message 3d ago)
+     is a desktop's. A row that wants something keeps its sentence, which says what. */
+  .set-conn > .set-int-row[data-state="connected"] .set-team-mail,
+  .set-conn > .set-int-row[data-state="later"] .set-team-mail { display: none; }
+  .set-conn > .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
+  .set-conn > .set-int-row[data-offers="primary"] > .pill { display: none; }
+  /* A row that wants something has its button beside its name, in the state's place, and its sentence and notes run
+     under both, as every row's do below (7 Oct: beside the button they were a column two words wide, and the WhatsApp
+     row stood 700px tall with its button halfway down it). */
+  /* Such a row lays its own columns here, so its name has what its own button leaves. Sharing the group's, every name
+     had what the group's longest button left: 108px for a name and its press beside "Connect your calendar", and
+     "Phone line" stood on two lines beside "Get a line", "Google Business Profile" on three (seen on production,
+     8 Oct 2026). The buttons still end on one edge, the card's. */
+  .set-conn > .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; }
+  .set-conn > .set-int-row[data-offers="primary"] > :first-child { align-self: center; }
+  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
+  .set-conn > .set-int-row[data-offers="primary"] .set-team-name { white-space: normal; }
+  /* Every row does: its name stands beside its state and its act, and what it says runs under them, the row's width
+     (8 Oct: a number that had just connected said how to try it in the name's own column, 115px wide and twelve lines
+     tall, beside its state). The state is what follows the words, named by its place rather than as `.pill`, a kit
+     class a page's rule may not name again (the kit-primitives measure); a row's act, its chevron or its menu ends the line. */
+  .set-conn > .set-int-row > .set-team-body { display: contents; }
+  .set-conn > .set-int-row > :first-child { grid-row: 1; }
+  .set-conn > .set-int-row .set-int-head { grid-column: 2; grid-row: 1; }
+  .set-conn > .set-int-row > .set-team-body + * { grid-column: 3; grid-row: 1; }
+  .set-conn > .set-int-row > :is(.set-int-actions, .set-int-chev, .set-int-more) { grid-column: 4; grid-row: 1; }
+  /* The press beside a name is a finger's 44px here around a 13px glyph (mobile.css): its box reaches 8px over the
+     name's end and 8px toward the row's button, so the name is not charged for the room a thumb needs. */
+  .set-int-head > :nth-child(2) { margin-inline: -8px; }
+  .set-conn > .set-int-row :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
+  .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
+  .set-conn > .set-int-row[data-open="true"] > .set-int-chev { rotate: 90deg; }
+  .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
+  .set-conn > .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }
+  .set-conn > .set-row-stack { padding-left: 0; }
+  /* The listing's note is a desktop's paragraph: on a phone it was 100px under a group whose rows say what they are. */
+  .set-conn > .set-card-foot { display: none; }
+}
+
+/* A row's own act is the kit's button as the kit draws it (row.tsx rowActs says which kind): the tinted pill this
+   page painted over the primary is gone (Ruben, 7 Oct 2026). A connection's name stands beside the quiet press that
+   says more about it; what that press opens is the row's own notes (.set-int-notes), in place under the name. */
+.set-int-head { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.set-int-head > :first-child { min-width: 0; }
+/* The press keeps its size: it is the name that gives way, by wrapping. Left to shrink with it, the press stood 25px
+   wide beside a long name on a phone. */
+.set-int-head > :nth-child(2) { flex: none; }
+.set-int-soon { padding: 0 10px; font-size: var(--set-hint); color: var(--ink-dim); }
+
+/* ---- What a plan costs ---------------------------------------------------
+   The price was a clause inside a hint. It is the figure the card is about. */
+.set-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.set-price-per { font-size: var(--set-hint); font-weight: 400; color: var(--ink-dim); }
+
+/* The plan's name and where it stands: the value of Billing's Plan row, the pill beside the words. */
+.set-headline { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.set-row .set-row-label { font-variant-numeric: tabular-nums; }
+
+/* ---- The detail behind a mark ------------------------------------------
+   A settings page carries two kinds of fact: the one you came for, and the one
+   you want the first time and never again. The second kind was being printed in
+   full on every row -- "Ready · Transfers to +1 (212) 555-0142 when a caller
+   insists on a person · Last call 14h ago · Tested — activate it to say it is
+   yours" -- and it is what made these pages read as walls. It lives behind this
+   mark now: the app's own tooltip, so it opens on hover, on focus and on a tap,
+   and Escape closes it. */
+.set-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: help;
+  transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+.set-mark[data-tip]:focus-visible { color: var(--ink); background: var(--bg-hover); } @media (hover: hover) { .set-mark:hover { color: var(--ink); background: var(--bg-hover); } }
+.set-mark svg { display: block; }
+/* On a row of the settings kind the mark follows the label; in a list row it
+   follows the state, where the chain of facts used to run. */
+.set-row-label .set-mark, .pol-label .set-mark { margin-left: 6px; vertical-align: -3px; }
+.cl-attn-status .set-mark { margin-left: 6px; vertical-align: -4px; }
+@media (pointer: coarse) {
+  html.frame-on .settings .set-mark { width: 28px; height: 28px; min-height: 0; }
+  html.frame-on .settings .set-mark::after { content: ""; position: absolute; inset: -8px; }
+}
+.settings .set-mark { position: relative; }
+
+/* A table of records (invoices): named columns, figures that line up. */
+.set-table { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto auto auto; column-gap: 24px; }
+.set-table > * { grid-column: 1 / -1; }
+.set-table-head, .set-table-row { display: grid; grid-template-columns: subgrid; align-items: center; }
+.set-table-head { padding: 6px 0 8px; font-size: var(--text-xs); font-weight: 500; color: var(--ink-dim); }
+.set-table-row { padding: 12px 0; border-top: 1px solid var(--line); font-size: var(--set-label); color: var(--ink); }
+.set-table-row .dim { color: var(--ink-dim); }
+.set-table-num { font-variant-numeric: tabular-nums; text-align: right; }
+.set-table-key { font-weight: 500; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .set-table { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; }
+  .set-table-head { display: none; }
+  .set-table-row { row-gap: 4px; }
+  .set-table-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
+  .set-table-row > :nth-child(3) { grid-column: 2 / -1; grid-row: 1; }
+  .set-table-row > :nth-child(2) { grid-column: 1; grid-row: 2; font-size: var(--set-hint); }
+  .set-table-row > :nth-child(4) { grid-column: 2; grid-row: 2; justify-self: end; }
+  .set-table-row > :nth-child(5) { grid-column: 3; grid-row: 2; }
+}
+
+/* Billing */
+.set-usage { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.set-usage-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.set-usage-fill {
+  display: block;
+  height: 100%;
+  background: var(--ink-muted);
+  opacity: 0.55;
+  border-radius: 3px;
+  transition: width 0.5s var(--ease-out);
+}
+.set-usage-note { font-size: var(--text-xs); color: var(--ink-dim); }
+.set-billing-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+/* Billing: pace tick + per-agent spend rows */
+.set-usage-track { position: relative; }
+.set-usage-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--ink-muted);
+  opacity: 0.7;
+}
+.set-spend-row { width: 100%; text-align: left; cursor: pointer; transition: background 100ms; }
+@media (hover: hover) { .set-spend-row:hover { background: var(--bg-hover); } }
+.set-spend-roi { font-size: 11.5px; color: var(--ink-dim); }
+.set-spend-roi.ok { color: var(--ok); font-weight: 500; }
+
+/* ---------- Team & roles (audit U3; redesigned 9 Oct 2026) ---------- */
+/* A member's row is the settings row with the kit's face in front (above): the face, the name and the words under it,
+   the role (a picker where it may change, the word elsewhere), and ⋯. Every face is the kit's: the same fill and ink
+   for each person, as People's rows draw them. */
+/* Somebody invited is not somebody here: the disc is drawn, not filled. */
+.set-team-row.pending .set-team-face {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-dim);
+  border: 1px dashed var(--line-strong);
+}
+.set-team-row.pending .set-team-name { color: var(--ink-muted); }
+/* You, beside your own name: a chip, a name's shape (a label, not a live state, so never the accent). The role is a
+   word or a picker now, so the two no longer look alike. */
+.set-team-you { flex: none; margin-block: -2px; }
+/* A member's name and You: the address is cut with an ellipsis, never the word beside it. */
+.set-team-row .set-team-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.set-team-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.set-team-spacer { width: var(--control-h-md); flex: none; }
+/* The role's column and ⋯'s, at the row's end: the roles stand in one column whatever each row offers. */
+.set-team-role { flex: none; display: flex; justify-content: flex-end; align-items: center; }
+.set-team-acts { flex: none; display: flex; justify-content: center; width: var(--control-h-md); }
+.set-team-role-word { padding-inline: 10px; font-size: var(--set-hint); font-weight: 500; color: var(--ink-dim); }
+/* The words under a name: each part beside the next; the alerts mark is a glyph and two words. */
+.set-team-mail { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.set-team-alerts { display: inline-flex; align-items: center; gap: 4px; }
+/* The role under the name, and the row's own press: a phone's (below). */
+.set-team-role-line, .set-team-open { display: none; }
+/* The invitations waiting, under the members. */
+.set-team-group {
+  margin: 0;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--line);
+  font-size: var(--set-hint);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.set-team-group + .set-team-row { border-top: none; }
+/* What a removal asks beside its question: stop emailing them too. */
+.set-team-also { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+/* The card's foot: whom to ask, for an Operator or a Viewer, and what each role can do, at the line's end beside it. */
+.set-team-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: var(--set-row-y) 0 8px;
+  border-top: 1px solid var(--line);
+}
+.set-team-ask-owner { margin: 0; font-size: var(--set-hint); color: var(--ink-dim); text-wrap: pretty; }
+
+/* An address and its act on one line (Notifications' recipients): the kit's field takes what the row leaves. */
+.set-invite { display: flex; align-items: center; gap: 8px; padding: var(--set-row-y) 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.set-invite > :first-child { flex: 1; min-width: 180px; }
+
+/* What each role can do: the table opens under the card's foot. */
+.set-team-compare { margin: 10px 0 0; overflow-x: auto; }
+.set-team-compare table { width: 100%; border-collapse: collapse; font-size: var(--set-hint); }
+.set-team-compare th,
+.set-team-compare td { padding: 8px 10px; border-top: 1px solid var(--line); text-align: center; }
+.set-team-compare thead th { border-top: none; font-weight: 600; color: var(--ink); }
+.set-team-compare tbody th { text-align: left; font-weight: 400; color: var(--ink-muted); }
+.set-team-compare thead th:first-child { text-align: left; font-weight: 500; color: var(--ink-dim); }
+.set-team-compare td { color: var(--ink); }
+.set-team-compare td:not([data-can]) { color: var(--ink-faint); }
+.set-team-compare-note { color: var(--ink-dim); }
+p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wrap: pretty; }
+
+/* Inviting: the addresses, the role they join as, and what happened to each (the kit's inset panel holds it). */
+.set-team-invite { display: flex; flex-direction: column; gap: 14px; margin: 4px 0 12px; }
+.set-team-invite-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.set-team-invite-title { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--ink); }
+.set-team-invite-sub,
+.set-team-invite-note { font-size: var(--set-hint); color: var(--ink-dim); }
+.set-team-invite-note { margin: 0; }
+.set-team-addresses { display: flex; flex-wrap: wrap; gap: 6px; }
+.set-team-invite-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.set-team-said { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.set-team-said > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--set-label);
+}
+.set-team-said > li:first-child { border-top: none; }
+.set-team-said > li > :first-child { flex: none; color: var(--ink-dim); }
+.set-team-said > li[data-done] > :first-child { color: var(--ok-ink); }
+.set-team-said > li > :nth-child(2) { flex: 1; min-width: 0; color: var(--ink-muted); }
+
+/* The partner's group: one row drawn as an invitation's, its sentence whole under its name, and its act on a phone too. */
+.set-team-partner-row .set-team-note { text-wrap: pretty; }
+.set-team-partner-act { flex: none; display: flex; align-items: center; }
+/* The partner's row asks by a code: the field takes what the row leaves. */
+.set-team-partner-ask { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; padding: 0 0 var(--set-row-y); }
+.set-team-partner-ask > :first-child { flex: 1; min-width: 220px; }
+.set-team-note { margin: 0; font-size: var(--set-hint); color: var(--ink-dim); }
+
+/* A phone: a row is one press, and it opens the person's sheet (team/sheet.tsx); its role is said under the name. */
+@media (max-width: 900px) {
+  .set-team-row > .set-team-role,
+  .set-team-row > .set-team-acts { display: none; }
+  .set-team-open { display: inline-flex; flex: none; }
+  .set-team-open::after { content: ""; position: absolute; inset: 0; }
+  .set-team-row > .set-row-ask { position: relative; z-index: 1; }
+  .set-team-role-line { display: block; font-size: var(--set-hint); color: var(--ink-dim); }
+  .set-team-row:not(.pending) .set-team-mail { display: none; }
+}
+
+
+/* Policy matrix */
+/* The column heads are words in the product's own face: they were 10px capitals
+   in the mono, which is a costume for "technical", not a reason. The rows take
+   the settings row's label and sentence. */
+.pol-table{width:100%;border-collapse:collapse;margin:4px 0 10px}
+.pol-table th{font-size:var(--text-xs);color:var(--ink-dim);font-weight:500;text-align:left;padding:6px 0 8px;border-bottom:1px solid var(--line)}
+/* Wide enough for the words. The column was 64px and held a filing word (Auto,
+   Veto); it holds the sentence now, and a sentence that wraps mid-phrase reads
+   worse than the jargon it replaced. */
+.pol-table th.pol-mode{text-align:center;width:104px;vertical-align:bottom}
+.pol-mode-words{display:grid;gap:1px;justify-items:center}
+.pol-mode-head{font-size:var(--set-label);font-weight:500;color:var(--ink);line-height:1.25}
+.pol-mode-sub{font-size:var(--text-xs);color:var(--ink-dim);line-height:1.3}
+.pol-table td{padding:13px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+.pol-table td:first-child{padding-right:16px}
+.pol-table tr:last-child td{border-bottom:none}
+/* A class under the pointer is a lozenge on its cells, as People's rows are (a row has no corners of its own). */
+@media (hover: hover) {
+  .pol-table tbody tr:hover > td { background: var(--bg-hover); }
+  .pol-table tbody tr:hover > td:first-child { border-top-left-radius: var(--surface-inset-radius); border-bottom-left-radius: var(--surface-inset-radius); }
+  .pol-table tbody tr:hover > td:last-child { border-top-right-radius: var(--surface-inset-radius); border-bottom-right-radius: var(--surface-inset-radius); }
+}
+.pol-cell{text-align:center}
+.pol-label{display:block;font-size:var(--set-label);font-weight:500;line-height:1.35;color:var(--ink)}
+.pol-note{display:block;margin-top:3px;font-size:var(--set-hint);line-height:1.5;color:var(--ink-dim);max-width:58ch;text-wrap:pretty}
+.pol-dot{width:22px;height:22px;border-radius:var(--radius-full);border:1px solid var(--line);background:var(--bg-raised);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0}
+@media (hover: hover) { .pol-dot:hover{border-color:var(--ink)} }
+.pol-dot.on{background:var(--ink);border-color:var(--ink);color:var(--bg-raised)}
+/* The dash is the mark that says a mode is not on offer for this row. */
+.pol-dash{color:var(--ink-dim)}
+/* Money is no row of the matrix: it is said once, on Limits (the Settings wiring review, 18 Oct 2026). */
+/* How often the owner changed what it wrote, under a row's name (decision 0063). */
+.pol-held{display:block;margin-top:2px;font-size:var(--set-hint);line-height:1.4;color:var(--ink-muted)}
+/* A suggested note's two presses, under what it would say (decision 0063). */
+.aut-fact-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+/* Settings › Memory (decision 0070): a line's Forget and the Add bar, laid out alone; every part is the kit's. */
+.mem-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.mem-add{display:flex;flex-direction:column;gap:8px;padding-top:12px}
+
+/* On a phone the matrix is a list: each class of action, and under it its four
+   modes side by side, each named. As a table it was 520px wide inside a card that
+   scrolled sideways with nothing to say so: a phone showed the Auto column alone,
+   and a class set to Veto looked like a class with nothing set. */
+/* The matrix on a phone (pages/settings.jsx PolPhoneRows): one line per class, its mode as a word with a menu. The
+   rules under this for the table itself stay for the mockup's pane, which keeps the table at every width. */
+.pol-phone { display: flex; flex-direction: column; margin: 0 0 4px; }
+.pol-phone-mode, .set-dial { font-size: var(--set-label); white-space: nowrap; }
+@media (max-width: 640px) {
+  /* Notifications' grid keeps its table on a phone: its two columns of ticks narrow, and their heads say one word. */
+  .settings .ntf-col { width: 52px; }
+  .ntf-grid .pol-mode-sub { display: none; }
+  .settings .ntf-topic { padding-right: 8px; }
+  .settings .pol-table { display: block; min-width: 0; }
+  .pol-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .pol-table tbody { display: block; }
+  .pol-table tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .pol-table tr:last-child { border-bottom: none; }
+  .pol-table td { display: block; padding: 0; border-bottom: none; }
+  .pol-table td:first-child { grid-column: 1 / -1; padding-right: 0; }
+  .pol-table td.pol-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .pol-cell::before { content: attr(data-mode); font-size: var(--text-xs); font-weight: 500; color: var(--ink-dim); }
+  .pol-cell .pol-dash { display: grid; place-items: center; height: 30px; }
+}
+/* A finger's dot: a circle, with the touch floor met by the space around it
+   rather than by stretching the dot into an oval 22 wide and 44 tall. */
+@media (pointer: coarse) {
+  html.frame-on .settings .pol-dot { position: relative; width: 30px; height: 30px; min-height: 0; }
+  html.frame-on .settings .pol-dot::after { content: ""; position: absolute; inset: -8px; }
+}
+
+.pol-evidence{display:block;font-size:var(--text-xs);color:var(--ink-dim);margin-top:3px}
+
+.set-sec { padding: 20px 0; border-top: 1px solid var(--line); }
+.set-sec:first-of-type { border-top: none; padding-top: 8px; }
+
+/* A section of the form: its name, and under it what it is for. They shared a
+   baseline, so a long "for" wrapped back under the name at a different size. */
+.set-sec-head { display: grid; gap: 3px; margin-bottom: 12px; }
+.set-sec-title { font-size: var(--set-label); font-weight: 600; color: var(--ink); }
+.set-sec-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
+
+.set-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: var(--set-label);
+  color: var(--ink);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.set-input::placeholder { color: var(--ink-dim); }
+@media (hover: hover) { .set-input:hover { border-color: var(--line-strong); } }
+.set-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
+
+/* ── Create your workspace ────────────────────────────────────────────────
+   Rendered INSTEAD of the app, for an account that belongs to nowhere. It
+   cannot borrow the shell's chrome — there is no workspace to put chrome
+   around — so it carries its own centred layout on the design system's tokens. */
+.cw-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: var(--bg);
+}
+.cw-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  display: grid;
+  gap: 18px;
+}
+/* The head: a first workspace's step line (the first run's first step, begun: CreateWorkspace.tsx, canvas V1), the
+   title and the line under it, one group with its own gap inside the card's. */
+.cw-head { display: grid; gap: 6px; }
+.cw-head .cw-lede { margin: 0; }
+.cw-kicker { margin: 0; font-size: 12px; font-weight: 500; color: var(--ink-dim); }
+.cw-title { margin: 0; font-size: var(--text-2xl); font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.cw-lede { margin: -8px 0 4px; font-size: 13px; color: var(--ink-dim); line-height: var(--leading-relaxed); }
+.cw-field { display: grid; gap: 6px; }
+/* A yes beside its sentence: the partner a link brought (0012). */
+.cw-check { grid-template-columns: auto 1fr; align-items: start; gap: 8px; }
+.cw-label { font-size: 12px; color: var(--ink-dim); }
+.cw-input {
+  width: 100%;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+}
+.cw-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
+.cw-hint { font-size: var(--text-xs); color: var(--ink-faint); }
+.cw-error {
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--danger-soft, var(--accent-soft));
+  border: 1px solid var(--danger, var(--accent));
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+}
+.cw-submit {
+  margin-top: 4px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 11px 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cw-submit:disabled { opacity: 0.6; cursor: default; }
+.cw-submit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cw-foot {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+  line-height: var(--leading-normal);
+}
+/* A first workspace's way out and the pages sign-up agreed to (N2): quiet, below everything the screen asks. */
+.cw-legal {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.cw-legal a,
+.cw-link {
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cw-link { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+@media (hover: hover) {
+  .cw-legal a:hover,
+.cw-link:hover {
+    color: var(--ink);
+  }
+}
+.cw-legal a:focus-visible,
+.cw-link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
+
+/* Settings truth: a broken configuration lists what the parser refused. */
+.set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
+.set-broken-issues li { margin: 2px 0; }
+
+/* Settings › Notifications (decision 0040). Where alerts reach you: the bell and this browser say their state beside
+   their words; the email row opens its addresses under it, each with whose it is. */
+.ntf-bell, .ntf-browser { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ntf-phones { display: grid; gap: 2px; }
+.ntf-email-edit { display: grid; gap: 10px; margin-top: 10px; }
+.ntf-addrs { list-style: none; margin: 0; padding: 0; display: grid; }
+.ntf-addr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; }
+.ntf-addr-who { display: grid; min-width: 0; }
+.ntf-addr-mail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ntf-addr-sub { font-size: var(--set-hint); color: var(--ink-dim); }
+.ntf-addbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ntf-addbar > :first-child { flex: 1; min-width: 180px; }
+.ntf-teammates, .ntf-email-foot { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
+.ntf-email-foot { justify-content: space-between; }
+/* What you're told about: a topic a row in its group, a column a channel, Autonomy's ticks (pol-dot). A table at every
+   width: two columns of ticks fit a phone, where Autonomy's four did not. "Needs you" wears the amber of needing you. */
+.ntf-grid { width: 100%; border-collapse: collapse; margin: 2px 0 4px; }
+.ntf-grid th, .ntf-grid td { border-bottom: 1px solid var(--line); vertical-align: middle; }
+.ntf-grid thead th { font-weight: 500; padding: 4px 0 8px; }
+.ntf-col { width: 96px; text-align: center; vertical-align: bottom; }
+.ntf-topic-head, .ntf-topic { text-align: left; }
+.ntf-topic { font-weight: inherit; padding: 11px 16px 11px 0; }
+.ntf-cell { text-align: center; padding: 8px 0; }
+.ntf-group th { text-align: left; padding: 18px 0 6px; font-size: var(--text-xs); font-weight: 600; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.ntf-grid tbody[data-group="needs_you"] .ntf-group th::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: var(--radius-full); background: var(--warn); vertical-align: 1px; }
+.ntf-grid tbody:last-child tr:last-child > * { border-bottom: none; }
+/* Always emailed: the dot's ring with a lock where its tick would be, as Autonomy draws a mode its charter locks. */
+.ntf-lock { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-full); border: 1px solid var(--ink-dim); color: var(--ink-dim); cursor: help; }
+.ntf-told { cursor: help; }
+.ntf-bell-line { margin: 0; padding: 12px 0 2px; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); }
+.ntf-foot { margin: 0; padding: 0 4px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
+
+/* Setup's rows, wherever they are drawn: the first run (first-run.jsx) and Today's card. The rows are the attention
+   row People and Today share (attention-bits.jsx). A row put off for later fades. */
+/* The rows are the attention row Today and People share (attention-bits.jsx), so
+   everything here is scoped to Setup and those two are untouched. What it takes
+   from the rest of Settings: the row's height and gutter, the leading tile, the
+   three sizes of type, and one emphasized act in the whole list.
+   The sentence and the state line no longer run to an ellipsis: a row's details
+   are the content -- "Ready · Transfers to +1 (305) 555-0108 when a caller
+   insists on a person · Last call 2h ago · A…" was cut mid-word on a 1280
+   screen, and on a phone the same line lost everything after the first fact. */
+/* How far the setup is, as a figure and as a length. */
+.setup-meter {
+  height: 4px;
+  margin: 12px 0 18px;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  overflow: hidden;
+}
+.setup-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  transition: width var(--duration-slow) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) { .setup-meter-fill { transition: none; } }
+
+.setup-rows { padding: 6px 0; }
+.setup-rows .tq-list > div + div > .cl-attn-row { border-top: 1px solid var(--line); }
+.setup-rows .cl-attn-row {
+  grid-template-columns: var(--set-lead) minmax(0, 1fr) auto;
+  gap: var(--set-lead-gap);
+  height: auto;
+  padding: var(--set-row-y) 24px;
+}
+.setup-rows .cl-attn-avatar { width: var(--set-lead); height: var(--set-lead); border-radius: 10px; }
+.setup-rows .cl-attn-body { gap: 3px; }
+.setup-rows .cl-attn-name { font-size: var(--set-label); line-height: 1.35; }
+.setup-rows .cl-attn-sentence { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty; display: block; -webkit-line-clamp: none; }
+.setup-rows .cl-attn-status { font-size: var(--text-xs); line-height: 1.5; white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty; }
+/* One act carries the accent: the next step. Everything else on the list is a
+   door to somewhere, and a door is a quiet word -- fifteen bordered buttons down
+   one column made "Withdraw activation" look like the thing to press. */
+.setup-rows .cl-attn-acts { gap: 4px; }
+.setup-rows .cl-attn-cta { height: 30px; padding: 0 12px; font-size: var(--set-hint); border-radius: var(--radius-md); }
+.setup-rows .cl-attn-cta.ghost { padding: 0 8px; border-color: transparent; background: transparent; }
+@media (hover: hover) { .setup-rows .cl-attn-cta.ghost:hover { background: var(--bg-hover); border-color: transparent; color: var(--ink); } }
+.setup-later { opacity: .82; }
+/* A control that refuses is greyed, not unreadable: .55 put the word on a Later row at 4.15. */
+.settings [data-gated] { opacity: 0.66; }
+/* The row is dimmed because the invite is not accepted; the avatar is a solid
+   disc with letters on it and had no contrast to spare. */
+.set-team-row.pending .avatar { opacity: 1; }
+.settings .set-team-row.pending .set-team-face { opacity: 1; }
+@media (max-width: 640px) {
+  /* The words keep the width; the acts take the next line, at the end of it. */
+  .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 6px; padding-left: 15px; padding-right: 15px; }
+  .setup-rows .cl-attn-acts { grid-column: 2; justify-self: end; }
+  /* A row that is ready is its name and its state on a phone: its sentence and its details are a desktop's. The rows
+     that want a person keep every word. */
+  .setup-rows .cl-attn-row.tone-ok .cl-attn-sentence, .setup-rows .cl-attn-row.tone-ok .cl-attn-note { display: none; }
+}
+
+/* The line chooser under the line row: three paths, then the area code, the
+   numbers offered, and the one chosen with its cost. */
+/* What a row opens under itself starts where the row's words do, on the look's inset surface: it stood on the sunken
+   ground, edge to edge, a black band across a glass card (Ruben, 7 Oct 2026). */
+.setup-chooser { display: grid; gap: 14px; margin: 2px 24px 16px calc(24px + var(--set-lead) + var(--set-lead-gap)); padding: 16px; border: 1px solid var(--surface-inset-edge); border-radius: var(--surface-inset-radius); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
+.setup-paths { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+/* A path, a number offered and the area code are the look's own controls on the panel: the secondary fill with the
+   inset's edge, corner and top light, never the raised ground, which drew solid dark tiles on the glass. A tile's words
+   start at its top, whatever its neighbour's length. */
+.setup-path { display: grid; align-content: start; gap: 4px; text-align: left; padding: 12px 14px; border: 1px solid var(--surface-inset-edge); border-radius: var(--surface-inset-radius); background: var(--secondary-fill); box-shadow: var(--surface-inset-depth); cursor: pointer; color: var(--ink); }
+.setup-path b { font-size: var(--set-label); font-weight: 600; }
+.setup-path span { font-size: var(--set-hint); line-height: 1.45; color: var(--ink-muted); }
+.setup-path.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.setup-new, .setup-ask { display: grid; gap: 10px; }
+.setup-find { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.setup-find-label { font-size: var(--set-hint); color: var(--ink-dim); }
+.setup-area { width: 72px; min-height: 36px; padding: 6px 12px; font: inherit; font-size: var(--set-label); font-variant-numeric: tabular-nums; color: var(--ink); background: var(--surface-inset-fill); border: 1px solid var(--surface-inset-edge); border-radius: var(--control-radius); box-shadow: var(--surface-inset-depth); }
+.setup-area:focus-visible { outline: none; box-shadow: var(--focus-field), var(--surface-inset-depth); border-color: var(--accent); }
+.setup-numbers { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+.setup-number { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--surface-inset-edge); border-radius: var(--surface-inset-radius); background: var(--secondary-fill); box-shadow: var(--surface-inset-depth); cursor: pointer; color: var(--ink); }
+.setup-number.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.setup-number-num { font-size: var(--set-label); font-weight: 600; }
+.setup-number-where { font-size: var(--set-hint); color: var(--ink-muted); }
+.setup-confirm, .setup-ask { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--set-label); line-height: 1.5; color: var(--ink); }
+.setup-confirm-text, .setup-ask-text { flex: 1; min-width: 200px; }
+@media (max-width: 640px) {
+  .setup-chooser { margin-left: 14px; margin-right: 14px; padding: 14px; }
+  .setup-paths { grid-template-columns: 1fr; }
+}
+
+/* Keep the number you have: the form, then the code to dial and the test. The form is the kit's fields, two to a row
+   where there is room (the number beside its carrier) and one on a phone; which calls takes the row, and so do its
+   acts. */
+.setup-fw-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; max-width: 560px; }
+.setup-fw-wide, .setup-fw-form > .setup-fw-actions { grid-column: 1 / -1; }
+@media (max-width: 720px) {
+  .setup-fw-form { grid-template-columns: minmax(0, 1fr); }
+}
+/* Connections' choice of a Business Profile location (integrations-real.jsx GoogleChoose): one tap each. */
+.setup-places { display: grid; gap: 6px; }
+.setup-place { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); }
+.setup-place-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.setup-place-name { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
+.setup-place-where { font-size: var(--text-xs); color: var(--ink-muted); }
+.setup-fw-code { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.setup-fw-dial { font-size: var(--text-2xl); font-weight: 600; letter-spacing: .02em; color: var(--ink); text-decoration: none; }
+@media (hover: hover) { .setup-fw-dial:hover { text-decoration: underline; } }
+.setup-fw-notes { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.45; color: var(--ink-muted); display: grid; gap: 4px; }
+.setup-fw-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--text-sm); }
+.setup-fw-ok { color: var(--ink); }
+.setup-fw-off { color: var(--ink-muted); }
+.setup-fw-note { margin: 0; font-size: var(--text-sm); color: var(--warn); }
+
+/* You, on the team card: the name you go by. */
+/* Your name sits in a SetRow's control slot now, so it carries the input and
+   its Save and nothing else: the row supplies the label, the hint and the rule
+   above it, the same as every other control on this surface. It used to draw
+   its own uppercase label and its own bottom border inside the TEAM card,
+   which is what made it read as an orphan pasted above other people's rows. */
+/* retired: .set-you */
+.set-you-retired { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.set-you-input { width: 240px; max-width: 100%; }
+
+/* Profile: who is signed in, stated once, at the top of the first thing you
+   see -- rather than only inside a popover over a page about a salon. */
+/* A value a row states rather than edits. */
+.set-me-static { font-size: var(--set-label); color: var(--ink-muted); overflow-wrap: anywhere; }
+
+/* Back, when the create screen was opened from the workspace menu. */
+.cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: hover) { .cw-back:hover { color: var(--ink); } }
+.set-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
+
+/* The business on record: three groups of plain fields, read on a phone as
+   one column and on a desk as two. */
+.biz { gap: 18px; }
+.biz-group { display: flex; flex-direction: column; gap: 10px; }
+/* A group of the form names itself and says what it is for underneath, the way
+   every other section of Settings does; the two shared a baseline at 12 and
+   11px, so a long "what it is for" wrapped back under the name. */
+.biz-group-head { display: grid; gap: 3px; }
+.biz-group-title { font-size: var(--set-label); font-weight: 600; color: var(--ink); }
+.biz-group-sub { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
+.biz-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+@media (max-width: 640px) { .biz-fields { grid-template-columns: 1fr; } }
+.biz-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* One cell of the form's grid holds one kit field (the box, its label, its hint or what is wrong); a few sentences,
+   not a word, take the whole row. */
+.biz-cell { min-width: 0; }
+.biz-cell-wide { grid-column: 1 / -1; }
+.biz-label { font-size: var(--set-hint); color: var(--ink-muted); }
+.biz-input {
+  width: 100%;
+  min-height: 36px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 8px 11px;
+  font: inherit;
+  font-size: var(--set-label);
+  color: var(--ink);
+}
+@media (hover: hover) { .biz-input:hover:not(:disabled) { border-color: var(--line-strong); } }
+.biz-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
+.biz-input:disabled { opacity: 0.6; }
+.biz-bad { border-color: var(--danger); }
+/* A box whose value is half of something: the address before the @, with the rest said beside it rather than typed.
+   An input's automatic minimum is its twenty-character default, which pushed the rest onto a line of its own on a
+   phone: the box gives way instead, down to twelve characters, and only then does the rest wrap. */
+.biz-affix { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.biz-affix .biz-input { flex: 1 1 12ch; width: auto; min-width: 0; }
+.biz-affix-text { font-size: var(--set-label); color: var(--ink-muted); overflow-wrap: anywhere; }
+.biz-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+
+/* The fork: which of the two carrier registrations this business is on. Two
+   answers, side by side on a desk and stacked on a phone, each carrying what
+   it means -- an answer whose consequence is out of sight is not a choice. */
+.biz-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .biz-choices { grid-template-columns: 1fr; } }
+/* Each answer is the kit's Button drawn as a card: its words and the sentence of what it means, stacked and left-aligned,
+   the button's own height, nowrap and pill radius let go of. Scoped to Settings so it outranks the button's one class. */
+.settings .biz-choice {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  height: auto;
+  text-align: left;
+  white-space: normal;
+  background: var(--bg-sunken);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+}
+@media (hover: hover) { .settings .biz-choice:hover:not(:disabled) { background: var(--bg-sunken); border-color: var(--accent); } }
+.biz-choice:disabled { opacity: 0.6; cursor: default; }
+.settings .biz-choice-on { border-color: var(--accent); }
+.biz-choice-label { font-size: var(--set-label); font-weight: 600; }
+/* What the narrow path gives up. Read once, before it is filed, so it is a
+   list rather than a paragraph somebody skims. */
+.biz-limits { display: flex; flex-direction: column; gap: 5px; margin: 0; padding-left: 18px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
+.biz-answer { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+
+/* The back office. Borrows the settings card and the attention row wholesale --
+   the only new shapes are the find box, a line's two states, and the trail. */
+.pf-find { max-width: 220px; }
+/* What this page can do sits directly above rows whose Open reveals a button
+   that hands a customer’s number back for good. It is not a footnote. */
+.pf-warn {
+  display: flex; align-items: baseline; gap: 7px;
+  margin: 0 0 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--set-hint); line-height: 1.5;
+  color: var(--ink-muted);
+  max-width: 68ch; text-wrap: pretty;
+}
+.pf-warn .icon { flex: none; align-self: center; color: var(--ink-dim); }
+
+[data-testid="platform-rows"] .cl-attn-sentence {
+  white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty;
+}
+/* On a phone a workspace is a row of People's kind (25 Sep; they were 143 to 160px, an Open button wider than the
+   column it sat in): its mark, its name with its verdict beside it, what is up in one line, and the slug, the people
+   in it and its age under that, at the list row's numbers (tokens.css). The row is the press that opens it; the
+   facts behind the mark are the opened workspace's to show. The sort's sentence goes, and the find box takes the
+   width. */
+@media (max-width: 720px) {
+  [data-testid="platform-rows"] .cl-attn-row {
+    grid-template-columns: var(--row-face) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--row-gap);
+    height: auto;
+    padding: var(--row-pad-y) 0;
+  }
+  [data-testid="platform-rows"] .cl-attn-avatar { width: var(--row-face); height: var(--row-face); }
+  [data-testid="platform-rows"] .cl-attn-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "who state" "said said" "meta meta";
+    column-gap: 8px;
+    row-gap: var(--row-line-gap);
+  }
+  [data-testid="platform-rows"] .cl-attn-name { display: contents; }
+  [data-testid="platform-rows"] .cl-attn-who {
+    grid-area: who; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--row-name-line); color: var(--ink);
+  }
+  [data-testid="platform-rows"] .cl-attn-status { grid-area: state; align-self: center; font-size: var(--row-facts); }
+  [data-testid="platform-rows"] .cl-attn-status .set-mark { display: none; }
+  [data-testid="platform-rows"] .cl-attn-sentence {
+    grid-area: said; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted);
+  }
+  [data-testid="platform-rows"] .cl-attn-meta {
+    grid-area: meta; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim);
+  }
+  [data-testid="platform-rows"] .cl-attn-acts { display: none; }
+  .pf-find-row .set-row-info { display: none; }
+  .pf-find-row .pf-find { max-width: none; width: 100%; }
+  .pf-warn { padding-bottom: 10px; }
+}
+
+/* ---- One line, on a workspace support has opened -----------------------
+   It was a single grey run-on: two states, where it stopped, whether the
+   filing is a rehearsal, whether it is a sole proprietor, the step number
+   and the provider's error, in one sentence. The two states are what the
+   page is opened for, the error is why, and the rest reads once. */
+.pf-line-kind {
+  margin-left: 8px;
+  font-size: var(--set-hint);
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+.pf-line-states { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.pf-state {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  font-size: var(--set-hint);
+  color: var(--ink);
+}
+.pf-state-of { color: var(--ink-dim); }
+/* Where a registration stopped is half the diagnosis, so it is marked as one. */
+.pf-state-stuck { background: var(--warn-soft); color: var(--warn-ink); }
+.pf-state-stuck .pf-state-of { color: inherit; opacity: 0.75; }
+/* The provider's own words. It is the reason somebody opened this workspace,
+   so it keeps a line and a colour rather than trailing an em dash. */
+/* The provider’s words take the row, not the half of it left over beside four
+   buttons: this is the sentence somebody opened the workspace to read. */
+[data-testid^="platform-line-"] { flex-wrap: wrap; align-items: flex-start; gap: 0; }
+[data-testid^="platform-line-"] .set-row-info { flex: 1 1 100%; }
+[data-testid^="platform-line-"] .bc-chips { flex: 1 1 100%; margin-top: 12px; }
+.pf-line-error {
+  display: flex; align-items: baseline; gap: 6px;
+  margin-top: 8px;
+  font-size: var(--set-hint);
+  line-height: 1.5;
+  color: var(--danger-ink);
+  text-wrap: pretty;
+}
+.pf-line-error .icon { flex: none; align-self: center; }
+
+/* ---- What has happened ------------------------------------------------
+   Forty rows at 10.5px, each printing its own date in the READER's zone,
+   with the raw kind as the only words. It reads like the activity log now:
+   the day once, the time, what happened -- and the kind stays beside it,
+   because the kind is what support searches for. */
+.pf-events {
+  display: flex; flex-direction: column;
+  margin: 0; padding: 0; list-style: none;
+  font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted);
+  max-height: 340px; overflow-y: auto;
+}
+.pf-day { padding: 13px 0 4px; font-weight: 600; color: var(--ink-dim); }
+.pf-events > .pf-day:first-child { padding-top: 2px; }
+.pf-event {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+.pf-day + .pf-event { border-top: 0; }
+.pf-when { font-variant-numeric: tabular-nums; color: var(--ink-dim); white-space: nowrap; }
+.pf-said { color: var(--ink); text-wrap: pretty; }
+.pf-kind {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  background: var(--bg-sunken);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  /* The sentence takes the width; the kind sits under it with the time. */
+  .pf-event { grid-template-columns: 58px minmax(0, 1fr); row-gap: 2px; }
+  .pf-said { grid-column: 2 / -1; }
+  .pf-kind { grid-row: 2; grid-column: 2; justify-self: start; }
+}
+
+/* ============================ Business, as a record ============================
+   Settings › Business drawn with the record kit (record.css): the page's own parts only -- its head, the standing
+   line, a card's foot, a row while it is being edited (pages/business-tab.jsx), and the week, the closed days and the
+   calendar of When you're open (pages/business-tab-open.jsx), and the services sheet and the booking rules of What you
+   offer (pages/business-tab-offer.jsx). The kit's classes are never restyled here. Values are the canvas's (Record,
+   Edit-Inline, Edit-Sheet, Edit-Fold), on the house tokens; the label column and the card's
+   gutter are the kit's own custom properties (--rec-key, --rec-gutter), so an editing row lines up with the rows
+   around it. */
+
+/* Said once, above the cards, for a role that may not change the business: why no row offers a change. */
+.bt-viewer { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.bt-viewer .icon { flex: none; align-self: center; }
+
+/* The gap line: drawn only while a fact is missing, in the words contracts wrote for it, as the door to the row that
+   adds it; nothing stands above the cards otherwise (26 Sep: the title, the stamp and the can/won't sentences went as
+   clutter). A warn dot, never the accent. A button keeps its own line-height unless told, and a door that wraps would
+   set its lines tighter than a sentence. */
+.bt-gap { margin: 0; display: flex; align-items: flex-start; gap: 10px; font-size: var(--text-sm); line-height: var(--leading-normal); }
+.bt-gap-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: var(--radius-full); background: var(--warn); }
+.bt-gap-words, .bt-gap-door { font-weight: var(--weight-medium); color: var(--warn-ink); text-wrap: pretty; }
+/* How it answers, Rehearse's Type (business/rehearse/rehearse.tsx, once Try it): each message tried and what came back
+   stack as the card's rows, and
+   the box sits under them with its acts beside it, under it on a phone. The box is the form's first child, so no rule
+   here names the kit's field. */
+.bt-try-turn { display: grid; }
+.bt-try-ask { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; padding-top: 12px; }
+.bt-try-ask > :first-child { flex: 1 1 260px; min-width: 0; }
+.bt-try-acts { display: flex; align-items: center; gap: 12px; min-height: 32px; }
+/* Rehearse (business/rehearse, decision 0069): Talk or Type over the fold, a call's words as they come, then How it did,
+   each answer judged in a group of its own, its pill and where it came from on one line, its fix under it. A real
+   call's Review this call (inbox/thread/call.tsx) draws the same review, under the call's end line. */
+.bt-rh-modes { align-self: flex-start; margin-bottom: 12px; }
+.bt-rh-talk { display: grid; gap: 4px; }
+.bt-rh-status { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.bt-rh-review { display: grid; gap: 16px; padding-top: 16px; }
+.bt-rh-item { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.bt-rh-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.bt-rh-why { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
+.bt-rh-line { flex: 1 1 260px; min-width: 0; margin: 0; font-size: var(--text-base); color: var(--ink); }
+.bt-rh-now { display: grid; gap: 6px; padding-top: 8px; }
+.bt-rh-next { display: grid; gap: 4px; padding-top: 12px; }
+.bt-gap-door { display: inline; line-height: inherit; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--warn) 50%, transparent); text-underline-offset: 3px; border-radius: var(--radius-xs); }
+.bt-gap-door:hover { text-decoration-color: currentColor; }
+
+/* A card's closing sentence, and a link inside a sentence: a word that is a button, not a button beside the words. */
+.bt-card-foot { margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.bt-link { display: inline; line-height: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: var(--radius-xs); }
+.bt-link:hover { text-decoration-color: currentColor; }
+/* frame.css gives every button on a touch screen 44px of height, which would break these out of their sentence: they
+   keep the line's box. A link that is one word takes a thumb's reach from an ::after, as the kit's words-that-are-
+   buttons do. The door does not: it is a sentence that wraps, which is reach enough, and an area stretched round every
+   line of it would lie over the clause before it and take a press meant for nothing. */
+html.frame-on .bt-link, html.frame-on .bt-gap-door { min-height: 0; }
+html.frame-on .bt-link { position: relative; }
+.bt-link::after { content: ""; position: absolute; inset: -12px -6px; }
+
+/* A row being edited is the kit's inline editor (record.css); what is this page's inside it: the published number's
+   box, hidden while its line is chosen, and the notes that say what each choice costs. */
+.bt-inline-box[hidden] { display: none; }
+.bt-inline-note { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-inline-note b { font-weight: var(--weight-medium); color: var(--ink); }
+
+/* ---- A workspace with no receptionist (pages/business-tab-create.jsx) ---- */
+/* The number to give out, in the create fold: its label over the same choice and box the Who you are row draws,
+   spaced as the kit spaces a field's label and box. */
+.bt-create-number { display: flex; flex-direction: column; gap: 5px; }
+
+/* ---- When you're open (pages/business-tab-open.jsx) ---- */
+/* The week (pages/business-tab-open.jsx): at rest one sentence, the composer's own run-collapsing; in its fold seven
+   lines, a switch, the day and its times. It was drawn on one scale too, as bars in a ribbon at rest and on a track
+   beside each day's boxes, which said nothing the sentence did not (removed 23 Sep). The fold's label column is
+   --bt-week-key: the day's switch and name, which the copy menu lines up with; --bt-time-w a time box's width. */
+.bt-week { --bt-week-key: 96px; --bt-time-w: 110px; }
+.bt-hours-line { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
+/* A link's address on one line (23 Sep): cut with an ellipsis where it does not fit, never broken across three lines
+   at any character; the whole of it is in its editor, a press away. */
+.bt-one-line { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Your data (pages/settings.jsx WorkspaceData): the record kit's card, as every card of the tab above it. */
+.set-data-val { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+/* The hours themselves, as a shape and not a colour: a filled bar on the dim track. It was a green wash inside a green
+   edge, seven of them across a card of sentences, and green here says nothing -- these hours are not "good", they are
+   simply the ones the receptionist states. The accent is not it either: on this shell the accent means "right now". */
+
+/* The fold: a day is a switch and its name, its bars, its times, in three columns the axis above them shares. */
+/* Seven lines, each its switch, its day and its times (23 Sep): the week's scale and each day's track went, and a
+   hairline stands between days; the row at rest says the week in one sentence. */
+.bt-week { display: flex; flex-direction: column; gap: 0; }
+.bt-week-row { display: grid; grid-template-columns: var(--bt-week-key) minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
+.bt-week-row:first-of-type { border-top: none; }
+.bt-week-row .field-error { grid-column: 2 / -1; }
+.bt-week-day { display: flex; align-items: center; gap: 9px; }
+.bt-week-name { font-size: var(--text-base); color: var(--ink); }
+.bt-week-row[data-open="false"] .bt-week-name { color: var(--ink-dim); }
+.bt-week-times { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+/* A shift is one line: its two times and the act it ends in (the first shift's adds a break, a later one's removes it),
+   on tracks every line shares, so a day's shifts stand in columns. */
+.bt-week-shift { display: grid; grid-template-columns: var(--bt-time-w) auto var(--bt-time-w) auto; align-items: center; gap: 5px; }
+/* A time is the house's menu standing in the kit's box (open-week.tsx BtoTime): its track's width, the time it holds and
+   the box's chevron; "Set" in the dim ink while it holds none. The width is this page's, the rest the kit's. */
+.bt-time-pick { display: grid; min-width: 0; }
+.bt-time { width: 100%; min-width: 0; padding-inline: 10px; font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bt-time[data-empty="true"] { color: var(--ink-dim); }
+.bt-week-to { font-size: var(--text-sm); color: var(--ink-dim); }
+/* The press that adds a break: quiet ink, the plus and the word. */
+.bt-week-break { display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-sm); color: var(--ink-muted); }
+.bt-week-closed { font-size: var(--text-sm); color: var(--ink-dim); }
+/* Under the tracks, past the label column and the gap after it. */
+.bt-week-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 0 0 calc(var(--bt-week-key) + 12px); }
+.bt-week-copy-menu[hidden] { display: none; }
+/* A sentence of the page's inside a fold: what a control does, what an address is, the one case a list cannot say. */
+.bt-fold-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* A rule's sentence under "How these rules work" (answers-fields.tsx BtaRuleHow): read as the fold's notes are. */
+.bt-rule-how { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* ---- A sheet's parts, in one shape (Ruben, 10 Oct 2026: the sheets "too wordy, too explanatory, too cluttered") ----
+   Under the title, the fields. What a sheet holds that is a list of settings is one inset (the kit's Panel, inset and
+   flush) of lines: each its name, and a quiet line under it, on the left, and its control on the right, a hairline
+   between them; a group's name over it in the dim ink; what is folded away is the kit's folding row. Layout and the
+   page's own type alone: the surfaces and the controls are the kit's. */
+.bt-stack { display: flex; flex-direction: column; gap: 12px; }
+.bt-list-head { margin: 4px 0 -4px; padding: 0 4px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.bt-lines { display: flex; flex-direction: column; }
+.bt-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 46px; padding: 8px 14px; }
+.bt-line + .bt-line { border-top: 1px solid var(--line); }
+.bt-line-words { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bt-line-name { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
+.bt-line-sub { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-line-end { flex: none; display: flex; align-items: center; gap: 8px; }
+/* A rule that is not a switch: its lock and "Always on" where the switch would be. */
+.bt-line-lock { display: inline-flex; align-items: center; gap: 4px; }
+/* A number's box with its unit, at the width of a few digits and a short word, so the line keeps its name. */
+.bt-number { display: grid; width: 8.5rem; }
+/* Which channel a line is about, as a glyph in a quiet square, named for a screen reader where it is drawn. */
+.bt-line-glyph { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-md); background: var(--bg-hover); color: var(--ink-muted); }
+/* What stops a line's save, under the whole line rather than under its small box. */
+.bt-line-wrong { flex: 1 1 100%; }
+.bt-line-wrong:empty { display: none; }
+/* A box's own name over it with a tip beside the name: the kit's field label holds its box, and cannot hold a button. */
+.bt-ask { display: flex; flex-direction: column; gap: 6px; }
+.bt-ask-head { display: flex; align-items: center; gap: 6px; }
+.bt-ask-name { font-size: var(--text-base); color: var(--ink); }
+/* A fact the owner may want to change, said once at the top of a sheet: a warn dot before words in the muted ink,
+   never a box and never the warn ink, since a sheet paints the house's neutrals alone. */
+.bt-held { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
+.bt-held::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--warn); transform: translateY(-1px); }
+/* A folding row's two lines (the kit's RecordDisclosure, its label): the name in the ink, its line in the dim. */
+.bt-disc-name { display: block; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
+.bt-disc-sub { display: block; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* The details a message may name, as presses under its box; an add with its tip beside it; a line's lead word. */
+.bt-insert { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--text-sm); }
+.bt-add-line { display: flex; align-items: center; gap: 8px; }
+.bt-fold-lead { font-weight: var(--weight-medium); color: var(--ink-muted); }
+/* The Booking tool fold's parts (the calendar link, the booking emails): each a group of its own under a hairline, its
+   name in the ink and, in the fold's own dim, what it is for. */
+.bt-fold-part { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.bt-fold-head { display: grid; gap: 1px; margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-fold-head b { color: var(--ink); font-weight: 500; }
+/* The calendar fold: a pasted address's check (a refusal in the danger ink), and where each calendar keeps it. */
+.bt-fold-refused { color: var(--danger-ink); }
+.bt-feed-guides { font-size: var(--text-sm); color: var(--ink-dim); }
+.bt-feed-guides > summary { cursor: pointer; width: fit-content; }
+.bt-feed-guide { display: grid; gap: 4px; margin-top: 10px; }
+.bt-feed-guide b { color: var(--ink); font-weight: 500; }
+.bt-feed-guide ol { margin: 0; padding-left: 18px; display: grid; gap: 2px; line-height: var(--leading-normal); }
+/* Where the bookings come from: the address, which breaks anywhere on a phone and sits in the note's own size; the
+   notices held for a look, each its lines and its two presses side by side. */
+.bt-bookings-address { overflow-wrap: anywhere; color: var(--ink); font-weight: 500; }
+/* A fact and the press beside it (the address and its Copy, the last read and Open Calendar): one line where they fit,
+   two where they do not, level with each other. */
+.bt-fold-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--text-sm); }
+.bt-bookings-held { display: grid; gap: 8px; }
+.bt-bookings-notice { display: grid; gap: 2px; }
+.bt-bookings-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The logo row's Save and Cancel (or Use it and Not this one), under the picture it would keep (00407). */
+.bt-logo-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The closed days: from, until, why, and the press that removes one. */
+.bt-closures { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.bt-closure { align-self: stretch; display: grid; grid-template-columns: 150px 150px minmax(0, 1fr) auto; align-items: center; gap: 6px 8px; padding: 4px 0; border-top: 1px solid var(--line); }
+.bt-closure-head + .bt-closure { border-top: none; }
+/* Add, as a word: the list's one act that is not a row's. */
+.bt-closure-head { font-size: var(--text-xs); color: var(--ink-dim); }
+/* A box's sentence sits under the box it is about, in its own column (the kit's .rec-box). */
+
+/* The calendar it reads: where the address points, in mono, and under it what its last read found, in the Calendar
+   page's own pill and line. */
+/* Where it reads, in the page's own typeface: the host, which is what anybody checks at a glance. It was the path
+   too, in a monospace, which read as a piece of machinery on a card of plain sentences. */
+.bt-feed-where { font-size: var(--text-base); overflow-wrap: anywhere; }
+/* Whether the last read worked, as one mark. Its words are its accessible name and its tip (business-tab-open.jsx);
+   the colour is the house's own state tokens and rides with those words, never alone. */
+.bt-feed-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-full); background: var(--ink-faint); transform: translateY(-1px); }
+.bt-feed-dot[data-tone="ok"] { background: var(--ok); }
+.bt-feed-dot[data-tone="warn"] { background: var(--warn); }
+.bt-feed-dot[data-tone="danger"] { background: var(--danger); }
+.bt-feed-when { color: var(--ink-dim); }
+/* The bookings row's phrase is a sentence, not a stamp: it stays on the mark's line and wraps inside itself, where a
+   phrase too wide for the column would otherwise move whole to the next line and leave the mark alone on its own. */
+.bt-feed[data-tone] > .bt-feed-when { flex: 1 1 0; min-width: 0; }
+.bt-feed { flex: 1 1 100%; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.bt-feed-problem { flex: 1 1 100%; color: var(--ink-muted); text-wrap: pretty; }
+/* A new read is on its way: the last one stays where it is, dimmed (spec 9: a read in flight dims the last value; no
+   shimmer, and nothing moves). */
+.bt-feed { transition: opacity var(--duration-fast) var(--ease-out); }
+.bt-feed[data-reading="true"] { opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) { .bt-feed { transition: none; } }
+
+/* ---- What you offer (pages/business-tab-offer.jsx) ---- */
+/* At rest: the services' chips are the kit's (RecordChips), and the booking rules' notes follow their sentence on its
+   line, in the dim ink (24 Sep: under it they were a second line). With none of the five set they stand under what
+   the calendar applies, as the row's own line. */
+.bt-rules-notes { color: var(--ink-dim); }
+.rec-row-val > .bt-rules-notes { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); text-wrap: pretty; }
+
+/* The services sheet (the canvas's Edit-Sheet): the search and Add above the rows, the rows in three columns, and the
+   foot's line over its Save. A row the search leaves out is hidden, never taken off the page, so its display must
+   yield to the attribute. The head holds still over the rows as they scroll. */
+/* A search keeps room to type in: beside the cap's sentence at 320px it was squeezed to about nothing, and the tools
+   wrap (record.css) before it goes under 12rem. */
+.bt-services-search { flex: 1 1 12rem; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-faint); }
+/* The sheets are drawn in .app-root, out of the Settings pane (record-sheet.jsx says why), and so is a fold open on a
+   phone (record-fold.jsx), so the pane's sizing does not reach them: their buttons are a fold's 30px .btn-sm
+   (.settings .btn-sm, above), a remove is 44px wide under a finger (mobile.css gives .settings' icon buttons that),
+   where it was 26px, and the numbers line up as the column's do (.settings, tabular-nums). Scoped to the sheets, not
+   the settings root, which they are not inside. */
+:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm { height: var(--control-h-md); padding: 0 12px; font-size: var(--text-sm); border-radius: var(--control-radius-sm); }
+:is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: var(--control-h-md); padding: 0; }
+@media (pointer: coarse) {
+  html.frame-on :is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: 44px; }
+}
+.rec-fold-sheet { font-variant-numeric: tabular-nums; }
+.bt-services-search > .rec-box { flex: 1; }
+.bt-services { display: flex; flex-direction: column; gap: 0; padding: 0 0 14px; }
+/* One line per service under a hairline, read as text: its boxes draw no edge until the row is approached (below),
+   its remove waits for the same approach, and "min" is said once, in the column's head. It was three bordered boxes
+   and a Remove on each of thirty-three rows (23 Sep). */
+.bt-service-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 0.8fr) 28px; align-items: start; gap: 6px; padding: 3px 0; border-top: 1px solid var(--line); }
+.bt-service-row[hidden] { display: none; }
+/* A service's one line, a phone's (services.tsx btsLine): a desk draws its boxes instead. */
+.bt-service-line { display: none; }
+.bt-service-head { position: sticky; top: 0; z-index: 1; padding: 10px 0 6px; border-top: none; background: var(--bg-raised); font-size: var(--text-xs); color: var(--ink-dim); }
+.bt-service-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bt-service-name > .rec-box { flex: 1; }
+/* Read-only here: the consult-first list is its own fold's. The info tone, which says a fact, never the accent. */
+.bt-service-consult { flex: none; display: inline-flex; align-items: center; height: 18px; padding: 0; color: var(--ink-dim); font-size: var(--text-xs); white-space: nowrap; }
+/* Where a row was taken out: what went, and its Undo, inside the sheet's Tab ring. */
+.bt-service-gone { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding: 6px 0; font-size: var(--text-sm); color: var(--ink-muted); }
+.bt-services-told { display: flex; flex-direction: column; gap: 6px; }
+.bt-services-told-line { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
+
+.bt-services-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
+
+/* In a list's rows (a service, a shift, a note, a closed day) a box is quiet until the row is approached: its edge
+   comes with the pointer and holds while it is focused, so thirty-three rows read as a list and not ninety-nine boxes;
+   and the row's remove waits for the same approach. On a touch screen nothing hovers, so every edge and every remove is
+   drawn, at a finger's size (mobile.css). A row a keyboard is in shows both too (focus-within). */
+@media (hover: hover) {
+  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure) :is(.rec-input, .rec-input-group) { border-color: transparent; background: transparent; }
+  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure):hover :is(.rec-input, .rec-input-group), :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure):focus-within :is(.rec-input, .rec-input-group) { border-color: var(--line-strong); background: var(--bg-raised); }
+  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure) :is(.rec-input:focus-visible, .rec-input-group:focus-within) { border-color: var(--accent); }
+  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure) > .btn-icon, .bt-week-shift > .btn-icon { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
+  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure):hover > .btn-icon, :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure):focus-within > .btn-icon { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure) > .btn-icon { transition: none; } }
+
+/* ---- What your receptionist is told (pages/business-tab-prompt.jsx) ---- */
+/* At rest the section is its title, who reads it and one door, on the card's own head line. */
+.bt-told-open { flex: none; font-size: var(--text-sm); }
+/* Nothing here to save: the foot is a Done, and on a desktop the head's Close is within reach, so the foot is a
+   phone's alone (below). Each block is the kit's folding row (prompt.tsx): its door inside it, its text in the page's
+   own face with its real line breaks (an unbroken booking address must never widen the sheet), and its share a thin
+   meter on its line. */
+.bt-prompt-sheet .rec-sheet-foot { display: none; }
+.bt-prompt { padding: 14px 0 20px; }
+.bt-prompt-door { align-self: flex-start; font-size: var(--text-sm); }
+.bt-prompt-block-text { margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.bt-prompt-share { width: 44px; margin-top: 6px; }
+
+/* ---- How it answers (pages/business-tab-answers.jsx) ---- */
+/* The voice's three starting points: a row of presses after the words that name them. */
+.bt-presets { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.bt-presets-key { font-size: var(--text-sm); color: var(--ink-dim); }
+/* The languages: the chosen ones as tokens, each with its remove, over the one box that adds another. The box yields
+   to its hidden attribute once the list is full. */
+.bt-languages { display: flex; flex-direction: column; gap: 8px; }
+/* Each language is its word and its remove, in the kit's quiet words (Task 6.3, under the owner's rule): no border, no
+   pill, no ground. It was a bordered capsule, the one shape the record keeps for nothing but a list item it has to
+   tell apart in a wrapped row (.rec-chip); here each word stands with its own remove beside it, and the space between
+   two words is what tells them apart. The remove keeps its finger's reach on a touch screen (below). */
+.bt-tokens { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.bt-token { display: inline-flex; align-items: center; gap: 2px; min-height: 26px; font-size: var(--text-sm); color: var(--ink); }
+.bt-token-x { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; min-width: 0; padding: 0; border-radius: var(--radius-full); color: var(--ink-dim); }
+@media (hover: hover) { .bt-token-x:hover { color: var(--ink); background: var(--bg-hover); } }
+.bt-languages-add[hidden] { display: none; }
+/* The hand-off at rest is one line (contracts handoffWords.line); it was a line per channel under its word. */
+.bt-handoff { min-width: 0; overflow-wrap: anywhere; }
+/* The notes: a title, what it says, its last day (a date box as wide as a closed day's), and the press that removes it;
+   the row's sentence under the boxes. */
+.bt-notes { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.bt-note, .bt-note-head { align-self: stretch; display: grid; grid-template-columns: 180px minmax(0, 1fr) 150px auto; align-items: start; gap: 6px 8px; }
+.bt-note { padding: 6px 0; border-top: 1px solid var(--line); }
+.bt-note-head + .bt-note { border-top: none; }
+.bt-note > .field-error { grid-column: 1 / -1; }
+.bt-note-head { font-size: var(--text-xs); color: var(--ink-dim); }
+/* The owner's own words at rest: their opening, quoted, in the muted ink. Their size went with the count, which is
+   under the box that edits them now (contracts instructionsWords). */
+.bt-own { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.bt-own-opening { min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); overflow-wrap: anywhere; }
+.bt-own-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+/* The three messages at rest; in the sheet each is a folding row, and opened, what a customer reads under its box. */
+.bt-messages { min-width: 0; }
+.bt-fallback-reads { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* What it can do: an ability is its title, two glyphs at the row's end, and -- only where something on this page is
+   missing -- one muted line saying what happens instead, with the door to the row that fixes it. The title is the
+   row's fact, not its label, so it takes the row rather than the key column's 168px, and the glyphs go to the end. */
+.bt-can-row { flex-wrap: wrap; align-items: center; row-gap: 4px; }
+.bt-can-row > .rec-row-key { flex: 1 1 auto; color: var(--ink); }
+.bt-can-chips { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+/* The whole signal: two inks, no pill, no badge, no colour. What each glyph means is its accessible name
+   (contracts ABILITY_CHANNEL_WORDS), because dim on its own says nothing to a screen reader. */
+.rec-can-chip { display: inline-flex; color: var(--ink-dim); }
+.rec-can-chip[data-on="true"] { color: var(--ink); }
+.bt-can-why { flex: 1 1 100%; margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* A row nothing does reads as the three limits under it do, in the dim ink: one signal, no new colour, and the two
+   glyphs beside it say which channel it was. The gap before a door is a SPACE in the sentence, not a margin: a margin
+   indented the link off the paragraph's left edge every time it wrapped to a line of its own on a phone. */
+.bt-can-row[data-ready="false"] > .rec-row-key { color: var(--ink-dim); }
+/* A row that is whole keeps its sentence: a screen reader reads it, and a mouse gets it as the row's own tip. It is
+   not on screen, because six two-clause sentences under six rows nothing on which needs deciding is the clutter the
+   owner named -- and on a phone it is most of the card's height. */
+.bt-can-says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* A surface still on its way holds the card's place and says so, where a failed read says which one failed. */
+.bt-can-reading { margin: 0; padding: 11px 0; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink-dim); }
+/* One cause with one fix on another tab, said once for the whole card and never on the six rows it holds. */
+.bt-can-held { margin: 0; padding: 0 0 12px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-can-group { padding-top: 16px; }
+.bt-can-group-head { margin: 0 0 2px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); }
+/* A limit is a line and nothing else: no channel, no act, and what it is instead as the row's tip. */
+.bt-cannot-row > .rec-row-key { flex: 1 1 auto; }
+
+/* frame.css gives every button on a touch screen 44px of height; a token's remove keeps its shape and takes its reach
+   from an ::after, as the kit's switch does. */
+@media (pointer: coarse) {
+  html.frame-on .bt-token-x { min-height: 0; }
+  html.frame-on .bt-token-x::after { content: ""; position: absolute; inset: -13px; }
+}
+
+/* While a fold saves, the page's own controls inside it wait as the kit's do (record.css: the gesture says aria-busy),
+   and so do a sheet's. */
+:is(.rec-fold, .rec-fold-sheet)[aria-busy="true"] :is(.bt-closure .btn, .bt-week-shift .btn, .bt-presets .btn, .bt-token-x, .bt-note .btn, .bt-insert .bt-link, .bt-line .bt-link) { cursor: progress; }
+.rec-sheet[aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
+
+@media (max-width: 760px) {
+  /* A phone's day is one line (Ruben, 10 Oct 2026: a day took two): the switch and the day, its times at the line's
+     end, and the plus that adds a break after them, its word left to its tip. A break's times stand under the day's,
+     each shift's remove after it; a closed day says so where its times would be. Where the line is too narrow for
+     both (under about 370px) the times wrap under the day by themselves, with no width of their own to hold. */
+  .bt-week { --bt-week-key: 0px; --bt-time-w: 96px; }
+  .bt-week-row { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 10px; }
+  .bt-week-day { gap: 8px; min-height: 44px; }
+  .bt-week-row > .bt-week-times { margin-left: auto; align-items: flex-end; }
+  .bt-week-shift { grid-template-columns: var(--bt-time-w) auto var(--bt-time-w) 32px; gap: 3px; }
+  .bt-week-break-word { display: none; }
+  /* A finger's size (44px) in the line's 32px act column: the press reaches past it into the sheet's margin, never over
+     the closing time beside it. */
+  .bt-week-break { width: 44px; height: 44px; margin-right: -12px; justify-content: center; }
+  .bt-week-row > .field-error { flex-basis: 100%; }
+  /* No label column to line up with: the copy menu starts at the fold's edge. calc(var(--bt-week-key) + 12px) still
+     added the column's gap with the column at 0px, and set the menu 12px in from everything above it. */
+  .bt-week-copy { padding-left: 0; }
+  .bt-closure { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  /* The dates share the first line with the remove; the reason (the third box) takes the next. */
+  .bt-closure > .rec-box:nth-child(3) { grid-column: 1 / 3; grid-row: 2; }
+  .bt-closure-head { display: none; }
+  /* A phone's service is one line, its name and "3 h · At consult" under it, pressed to open (Ruben, 10 Oct 2026: each
+     took two lines of boxes). Open, its three columns stack: its name with the remove at the right, then how long and
+     the price, side by side. Each row is ruled off from the next, and the columns' head has nothing left to name. */
+  .bt-service-head { display: none; }
+  .bt-service-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; padding: 8px 0; border-top: 1px solid var(--line); }
+  .bt-service-row > .bt-service-name { grid-column: 1 / 3; grid-row: 1; }
+  .bt-service-row > .btn { grid-column: 3; grid-row: 1; }
+  .bt-service-row > .rec-box:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .bt-service-row > .rec-box:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .bt-service-row[data-open="false"] { padding: 0; }
+  .bt-service-row[data-open="false"] > :not(.bt-service-line) { display: none; }
+  .bt-service-line { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 0; text-align: left; color: var(--ink); }
+  .bt-service-row[data-open="true"] > .bt-service-line { display: none; }
+  .bt-service-line-words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .bt-service-line-name { overflow: hidden; font-size: var(--text-base); white-space: nowrap; text-overflow: ellipsis; }
+  .bt-service-line-sub { font-size: var(--text-sm); color: var(--ink-dim); }
+  .bt-service-line > svg { flex: none; color: var(--ink-faint); }
+  /* An ability keeps its title and its glyphs on one line -- the kit's phone row puts the value under the label, and
+     two glyphs are not a value to read down to -- and the line that carries a decision takes the row under them. */
+  .bt-can-row > .bt-can-chips { grid-column: 2; grid-row: 1; }
+  .bt-can-row > .bt-can-why { grid-column: 1 / -1; }
+  /* A note's title shares its line with the remove; what it says takes the next, the row's width, and its last day
+     the line under that. */
+  .bt-note { grid-template-columns: minmax(0, 1fr) auto; }
+  .bt-note-head { display: none; }
+  .bt-note > .rec-box:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .bt-note > :nth-child(3) { grid-column: 1 / -1; grid-row: 3; }
+  /* The prompt sheet on a phone: a foot with Done, within a thumb's reach, since there is nothing to save. */
+  /* At rest, the title and its door share the line, and who reads it takes the next rather than a sliver between them. */
+  .bt-told .rec-card-head { flex-wrap: wrap; row-gap: 4px; }
+  .bt-told .rec-card-title { flex: 1 1 auto; min-width: 0; }
+  .bt-told .rec-card-sub { order: 1; flex-basis: 100%; }
+  .bt-prompt-sheet .rec-sheet-foot { display: flex; }
+  .bt-prompt-sheet .rec-sheet-foot > .btn { height: 40px; }
+}
+
+/* Settings › Connections › Mailboxes you write from: the mailboxes a workspace sends its sequences to leads from
+   (decision 0056). Under their own row, aligned with its words; one row per mailbox, its records under it while
+   they are still to publish. Quiet: the pill carries the state, nothing else is coloured. */
+.set-domains {
+  margin: 6px 0 10px calc(var(--set-lead) + var(--set-lead-gap));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.set-dom {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line);
+}
+.set-domains > .set-dom:first-child {
+  border-top: 0;
+}
+.set-dom > svg {
+  color: var(--ink-faint);
+}
+.set-dom .t {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.set-dom .t b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.set-dom .t > span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  text-wrap: pretty;
+}
+.set-dom .cap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* A mailbox's act and the rest on its caret, one split pill with a hairline between (mailboxes-block.tsx
+   mailboxActions; Ruben, 20 Oct 2026: no three dots), as a sequence's head draws its act and its More. */
+/* What a mailbox signs with, under its choice in its settings (00487): Gmail's signature as words, never its markup, and
+   when it was read; or that none goes. */
+/* Email, as one card (mailboxes-block.tsx EmailCard; the mailbox canvas, 27 Oct 2026): the row's tile, words, state and
+   act on the group's columns, the card's facts and foot under its words. Facts in place of sentences: a label over each
+   value, a hairline between them. The foot is what was left in the mailbox and Add a mailbox. */
+.set-conn > .set-mbx-one { align-items: start; }
+.set-mbx-says { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); overflow-wrap: break-word; }
+.set-mbx-below { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-2) 0 var(--space-1); }
+/* As many to a line as the pane has room for, each whole: in a narrow pane (a 1024px window) four in a row were cut to
+   "414 email…" and "Up to 4…" (seen on production, 27 Oct 2026). */
+.set-mbx-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-3) var(--space-5); margin: 0; }
+.set-mbx-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.set-mbx-fact dt { font-size: var(--text-xs); color: var(--ink-dim); }
+.set-mbx-fact dd { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink); overflow-wrap: break-word; }
+.set-mbx-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-top: var(--space-2); border-top: 1px dashed var(--line); }
+/* What a new mailbox brings (decision 0086): its line, and its two ways once opened, on a row of their own under the foot. */
+.set-mbx-choice { flex: 1 0 100%; min-width: 0; }
+/* A fact's act (Stop, Resume, Try again, Bring in the last 6 months) on a line of its own under the fact's words. */
+.set-mbx-fact-act { display: block; }
+.set-mbx-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.set-mbx-left .set-dom { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-1) 0; border-top: 0; }
+.set-mbx-left .set-dom > :empty { display: none; }
+/* Show who stays on its line's end at every width (a phone's set-dom put it two rows down, under nothing). */
+.set-mbx-left .set-dom .set-int-actions { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+/* Several mailboxes: a flat line each under the card's words, which already start where the row's words do -- its
+   address and what came in, its state, its act -- never a box around them (the card's provider is said by each). */
+.set-mbx-below > .set-domains { margin: 0; border: 0; border-radius: 0; background: none; overflow: visible; }
+.set-mbx-below > .set-domains > .set-dom { grid-template-columns: minmax(0, 1fr) auto auto; padding: var(--space-2) 0; border-top: 1px dashed var(--line); }
+.set-mbx-below > .set-domains > .set-dom:first-child { border-top: 0; }
+.set-mbx-below > .set-domains > .set-dom > :is(svg, .cap) { display: none; }
+/* What a mailbox's domain still lacks, one line where its records stood (mailboxes-block.tsx dnsNeed; the mailbox
+   canvas's D1): amber, as what needs you is. */
+.set-mbx-need { align-self: flex-start; justify-self: start; display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); padding: 3px var(--space-3) 3px var(--space-2); border-radius: var(--radius-xl); background: var(--warn-soft); color: var(--warn-ink); font-size: var(--text-xs); font-weight: 600; line-height: 1.5; }
+.set-mbx-need::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-circle); background: currentColor; flex: none; }
+/* A mailbox's domain records (dns-sheet.tsx): how many are found, a record each with its state in words and its parts
+   to copy, a record DNS has one line, and Check again in the foot. */
+.set-dns-top { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-2); }
+.set-dns-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-size: var(--text-sm); color: var(--ink-dim); }
+.set-dns-row b { font-weight: 600; color: var(--ink); }
+.set-dns-bar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-1); }
+.set-dns-bar > span { height: 5px; border-radius: var(--radius-xs); background: var(--line); }
+.set-dns-bar > span[data-on="true"] { background: var(--ok); }
+.set-dns-where { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
+.set-dns-rec { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-3); padding: var(--space-3) var(--space-4) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-inset-fill); }
+.set-dns-rec-h { display: flex; align-items: center; gap: var(--space-2); }
+.set-dns-rec-h b, .set-dns-found b { font-size: var(--text-base); font-weight: 600; color: var(--ink); white-space: nowrap; }
+.set-dns-type { padding: 1px var(--space-2); border-radius: var(--radius-sm); background: var(--line); font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-dim); }
+.set-dns-state { margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
+.set-dns-state::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-circle); background: currentColor; }
+.set-dns-state[data-tone="warn"] { color: var(--warn-ink); }
+.set-dns-state[data-tone="ok"] { color: var(--ok-ink); }
+.set-dns-kv { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+.set-dns-k { font-size: var(--text-xs); color: var(--ink-dim); }
+.set-dns-v { min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; user-select: all; }
+.set-dns-why, .set-dns-steps { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+.set-dns-steps { color: var(--ink); }
+.set-dns-go { align-self: flex-start; }
+.set-dns-found { flex-direction: row; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.set-dns-found-v { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
+.set-dns-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); width: 100%; }
+.set-dns-foot-note { margin-right: auto; font-size: var(--text-xs); color: var(--ink-dim); }
+/* The settings sheet's groups (mailbox-sheet.tsx): Sending, Signature, the backup address, Remove, a hairline between. */
+.set-mbx-group { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; border-top: 1px solid var(--line); }
+.set-mbx-group:first-child { padding-top: var(--space-2); border-top: 0; }
+.set-mbx-group-title { margin: 0; font-size: var(--text-xs); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; color: var(--ink-dim); }
+.set-mbx-two { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: var(--space-3); align-items: start; }
+.set-mbx-say { display: flex; align-items: flex-start; gap: var(--space-3); }
+.set-mbx-say > :last-child { margin-left: auto; flex: none; }
+.set-mbx-group.set-mbx-say { flex-direction: row; align-items: center; }
+.set-mbx-say-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.set-mbx-say-name { font-size: var(--text-base); font-weight: 600; color: var(--ink); }
+.set-mbx-lines { display: flex; flex-direction: column; gap: 2px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+/* The end of an email as their inbox shows it, and what signs it: what is sent is what is seen. */
+.set-mbx-preview-title { margin-top: var(--space-1); }
+.set-mbx-preview { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-inset-fill); font-size: var(--text-sm); line-height: 1.5; }
+.set-mbx-preview-from { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); font-size: var(--text-xs); color: var(--ink-dim); overflow-wrap: anywhere; }
+.set-mbx-preview-from b { font-weight: 600; color: var(--ink); }
+.set-mbx-preview-body { white-space: pre-line; color: var(--ink); }
+.set-mbx-preview-sig { white-space: pre-line; color: var(--ink-dim); overflow-wrap: anywhere; }
+.set-mbx-preview-none { font-size: var(--text-xs); font-style: italic; color: var(--ink-dim); }
+@media (max-width: 720px) {
+  /* On a phone the card's words, facts and foot run the row's width under its name; its facts two by two. */
+  .set-conn > .set-mbx-one .set-mbx-says { grid-column: 2 / -1; }
+  .set-conn > .set-mbx-one > .set-mbx-below { grid-column: 1 / -1; }
+  .set-mbx-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-inset-fill); }
+  .set-mbx-two { grid-template-columns: minmax(0, 1fr) 112px; }
+  /* A mailbox of several: its words beside its state, its act under them. */
+  .set-mbx-below > .set-domains > .set-dom { grid-template-columns: minmax(0, 1fr) auto; }
+  .set-mbx-below > .set-domains > .set-dom > :nth-child(4) { grid-column: 2; grid-row: 1; }
+  .set-mbx-below > .set-domains > .set-dom .set-int-actions { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
+}
+/* The group across the form: its name, the choice at its own width, then what it signs with across the row. */
+.set-mbx-signs-group { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.set-mbx-signs-group > :last-child { align-self: stretch; }
+.set-mbx-signs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset-fill);
+}
+.set-mbx-signs-words {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.set-mbx-signs-read {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.set-mbx-acts {
+  display: inline-flex;
+  align-items: stretch;
+}
+.set-mbx-acts > :first-child:not(:last-child) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.set-mbx-acts .set-mbx-caret {
+  justify-content: center;
+  width: 28px;
+  padding: 0;
+}
+.set-mbx-acts > :last-child:not(:first-child) .set-mbx-caret {
+  margin-left: -1px;
+  border-left-color: var(--line-strong);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+/* The records to publish, as a registrar's form asks for them: what each is for, its type, the part before the
+   domain, the value, the priority. Each name and value copies on its own; a quiet dot says whether it reads yet. */
+.set-records {
+  padding: 10px 14px 12px 54px;
+  color: var(--ink-muted);
+  border-top: 1px dashed var(--line);
+  background: var(--bg-sunken);
+}
+.set-records-intro {
+  margin: 0 0 10px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  max-width: 76ch;
+  text-wrap: pretty;
+}
+.set-records-intro .dim {
+  color: var(--ink-dim);
+}
+.set-records-table {
+  display: grid;
+  /* What it is (its type and priority beside it), its name, its value: a name is short ("send",
+     "resend._domainkey") and keeps its line, and the value takes the room. */
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  gap: 7px 16px;
+  align-items: baseline;
+  font-size: 12px;
+}
+.set-records-row {
+  display: contents;
+}
+.set-records-head > span {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.set-records .k {
+  color: var(--ink);
+  white-space: nowrap;
+}
+.set-records .n,
+.set-records .v {
+  min-width: 0;
+}
+.set-records code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.set-records .rec-copy {
+  margin-left: 8px;
+}
+/* What to do with a value that is not simply added (an SPF record the domain has already): under the value. */
+.set-records .set-records-note {
+  display: block;
+  padding-top: 4px;
+}
+.set-records .ty-inline {
+  color: var(--ink-dim);
+}
+.set-records .rec-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: var(--line-strong);
+}
+.set-records .rec-dot[data-found="yes"] {
+  background: var(--ok);
+}
+/* The add form sits inside the block's border: its fields keep their own inner edge. */
+.set-domain-add {
+  padding: 12px 14px 14px 54px;
+}
+@media (max-width: 640px) {
+  .set-domains {
+    margin-left: 0;
+  }
+  .set-dom {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
+  /* The host and its words, the pill beside them; the cap and the actions each on a line of their own below. */
+  .set-dom > :nth-child(4) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .set-dom .cap {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    align-items: flex-start;
+  }
+  .set-dom .set-int-actions {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+  .set-domain-add {
+    padding: 12px 12px 14px;
+  }
+  .set-records-table {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  /* On a phone each record is a card of its own lines: what it is (its type and priority beside it), then its
+     name and its value, each with its Copy. The column heads have nothing to head. */
+  .set-records-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 9px 0;
+    border-top: 1px solid var(--line);
+  }
+  .set-records-row.set-records-head {
+    display: none;
+  }
+  .set-records {
+    padding-left: 14px;
+  }
+}
+/* A form's own buttons, side by side: the press and its way back (Settings › Partner, 0016). */
+.set-form-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ====================================================================
+   Glass: Settings (no canvas of its own; People's rail and panes). The places are a pane of their own beside the cards,
+   the one you are on its lozenge; the cards keep the record kit's own Glass. Each rule names the look inside :where();
+   none matches in Classic.
+   ==================================================================== */
+@media (width > 900px) {
+  .main-scroll > .settings {
+    padding: 0 var(--gutter-page) 16px;
+    column-gap: 14px;
+    overflow: visible;
+  }
+  .set-nav {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden;
+}
+  .set-nav::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+  .set-nav-row {
+    border-radius: var(--radius-xl);
+  }
+  .set-nav-row:hover {
+    background: var(--surface-inset-fill);
+  }
+  .set-nav-row.active {
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
+  }
+}
+
+/* ---- Ad accounts (Settings › Connections; a demo's card until the wiring lane) --------------------------------------
+   A platform's row is the connection row above (.set-int-row, in the group's columns); what stands under it starts where its
+   words do (.set-conn > .set-row-stack). The dot rows are Ads' standing's (ads.css: .ads-dots, .ads-dotline), and an amber
+   one says the step that mends it on a line of its own, under the dot's words. */
+.set-ads-facts { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+.set-ads-note { margin-bottom: var(--space-3); }
+.set-ads-stack { gap: var(--space-2); }
+.set-ads-ready { padding-top: var(--space-1); }
+.set-ads-ready .ads-dotline { flex-wrap: wrap; row-gap: 0; }
+.set-ads-fix { flex: 1 1 100%; padding-left: calc(7px + var(--space-2)); font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+/* Disconnect while an ad runs is refused: what to do first, then its two quiet words. */
+.set-ads-refused { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--warn-ink); }
+.set-ads-choose { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* Settings › Business, the Colour row (00490): its swatch, its editor, and the email it previews. */
+.bt-look-swatch { display: inline-flex; align-items: center; gap: 8px; }
+.bt-look-editor { display: grid; gap: 10px; margin-top: 8px; }
+.bt-look-preview {
+  display: block;
+  width: 100%;
+  height: 440px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
+}

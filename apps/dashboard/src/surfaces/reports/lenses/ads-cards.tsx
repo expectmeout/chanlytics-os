@@ -10,7 +10,7 @@ import { BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";
 import { EmptyState } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 
 /** From got in touch to booked: people only. A step that is not read is a dash, and its reason stands under the bars. */
 export function FunnelCard({ steps, className }: { steps: readonly ResultsStepVM[]; className?: string }) {

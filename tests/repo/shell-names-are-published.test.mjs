@@ -28,7 +28,7 @@ import { repoFiles, parse } from "../_ast.mjs";
 
 /** Everything that can publish on the window: the shell, its bridge and the dashboard's browser code. */
 const PUBLISHERS = repoFiles(["apps/dashboard/src"]);
-const SHELL = PUBLISHERS.filter((f) => f.startsWith("apps/dashboard/src/legacy/") && f.endsWith(".jsx"));
+const SHELL = PUBLISHERS.filter((f) => f.startsWith("apps/dashboard/mockup/") && f.endsWith(".jsx"));
 
 const isWindow = (e) => ts.isIdentifier(e) && (e.text === "window" || e.text === "globalThis");
 const isAssignToWindow = (n) =>

@@ -1,6 +1,6 @@
 /**
  * The demo Calendar's day: the one clock its sample reads, so every moment is said relative to
- * `nowMs` and the day is always today (moved from legacy-bridge/today-sample/clock.ts when Today's own sample went).
+ * `nowMs` and the day is always today (moved from bridge/today-sample/clock.ts when Today's own sample went).
  */
 import { zoneDayKey, zoneMidnight, MIN_MS } from "@chanlytics/contracts";
 import { DEMO_ZONE } from "../demo-zone";

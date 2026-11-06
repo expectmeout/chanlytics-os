@@ -1,0 +1,184 @@
+/* ============================================================
+   WHAT THE RECORD KIT LEAVES HERE. Its rules are the kit's now (src/surfaces/kit/kit.css, step 2.1 of
+   docs/plans/2026-09-28-the-interface-kit-and-its-looks.md). What stays here stands where it stood, in the order it
+   had, each for a reason the move could not keep:
+   - a width the kit's sheet does not take yet (its one breakpoint is 900px): the record kit's phone at 760px (as
+     record-fold.jsx holds it), its desk from 761px, and a toast beside a sheet from 1140px. Moved to 900px, what 761
+     to 1139px draw would change; People's step of Phase 4 takes the record kit to 900px, as a listed harmony;
+   - what names a class the kit does not own: the deal sheet's layout (components/deal-sheet.jsx), and the answers to
+     the shell's touch floor (html.frame-on, bridge/frame.css);
+   - two rules that must still come after a rule of another sheet: a busy Save's pointer, after components.css's role
+     gate, and reduced motion, after the phone block's transitions below.
+   ============================================================ */
+
+/* Save while it saves: busy, and the pointer says so (record-fold.jsx RecordFoot). It comes after components.css's
+   role gate (.btn[data-gated], as heavy), as it always did, so a Save both gated and busy says it is busy. */
+.rec-foot [aria-busy="true"] { cursor: progress; }
+
+/* The inline editor's two presses keep their 28px under the shell's touch floor (frame.css). */
+html.frame-on .rec-inline-act { min-height: 0; }
+
+/* The house's toasts while a record sheet is open (kit.css says why), where the page beside the sheet has room for
+   them: centred on what the sheet leaves of the window, and kept to it. */
+@media (min-width: 1140px) {
+  :root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
+  :root:has(.rec-sheet:not([data-leaving])) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
+}
+
+/* ---------- The deal sheet (components/deal-sheet.jsx, 0008): the kit's fields, in one column ---------- */
+.rec-sheet.deal-sheet .deal-sheet-fields { display: flex; flex-direction: column; gap: 18px; padding: 20px 0 24px; }
+.rec-sheet.deal-sheet .deal-sheet-amount-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.rec-sheet.deal-sheet .deal-sheet-amount-row > .rec-box { flex: 1 1 110px; max-width: 200px; }
+/* A day is the kit's token over its month (fields.tsx DayField), its Clear beside it; who sees the amount is said on the
+   label's line, a lock and its words at the line's end (the fitted sheets, 14 Oct 2026). */
+.ds-day-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.ds-label-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ds-private { display: inline-flex; align-items: center; gap: 4px; font-weight: var(--weight-regular); color: var(--ink-dim); }
+/* Six reasons in a grid of even cells, not one row that runs past the sheet. */
+.rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; box-sizing: border-box; }
+.rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-sheet.deal-sheet .deal-sheet-how { display: flex; flex-direction: column; gap: 12px; }
+/* Sending is its own act, after what is recorded: a hairline above it. */
+.rec-sheet.deal-sheet .deal-sheet-send { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.rec-sheet.deal-sheet .deal-sheet-send-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rec-sheet.deal-sheet .deal-sheet-send-label { font-size: var(--text-base); color: var(--ink); }
+.rec-sheet.deal-sheet .deal-sheet-send .rec-field { margin-top: 6px; }
+.rec-sheet.deal-sheet .deal-sheet-said { margin: 20px 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
+.rec-sheet.deal-sheet .deal-sheet-reading { padding: 20px 0; }
+
+/* ---------- On a touch screen ---------- */
+/* frame.css gives every button on a touch screen 44px of height. A switch keeps its shape and takes its 44px from the
+   space around it, as .set-switch does; a box with a unit grows with the box inside it (min-height, not height). */
+@media (pointer: coarse) {
+  html.frame-on .rec-switch { min-height: 0; }
+  html.frame-on .rec-switch::after { content: ""; position: absolute; inset: -13px -7px; }
+  html.frame-on .rec-tip { width: 28px; height: 28px; min-height: 0; }
+  html.frame-on .rec-tip::after { content: ""; position: absolute; inset: -8px; }
+  html.frame-on .rec-sheet-close { min-width: 44px; }
+}
+/* A word that is a button keeps the word's box under that 44px floor, and takes a thumb's reach from an ::after
+   instead (#748's pattern, components.css .tl-msg-why): a fold's Close, a tip card's act. Grown to 44px they swelled
+   the fold's head from 56px to 81px. A row's act is such a word wherever a row is not a phone's: there, its ::after is
+   the whole row, and its box stays where the row can hold it. */
+html.frame-on .rec-fold-close, html.frame-on .rec-card-tip-act { position: relative; min-height: 0; }
+html.frame-on .rec-row-act { min-height: 0; }
+@media (min-width: 761px) {
+  .rec-row-act { position: relative; }
+  .rec-row-act::after { content: ""; position: absolute; inset: -14px -8px; }
+}
+
+/* ---------- On a phone: 760px and under, the record kit's own width (record-fold.jsx) ---------- */
+@media (max-width: 760px) {
+  .rec-card { --rec-gutter: 15px; padding: 15px var(--rec-gutter) 8px; }
+  /* A card's subtitle is not drawn on a phone (23 Sep): its title says what the card is, and the line under it took a
+     second and third line of every card on a screen that fits three rows. */
+  .rec-card-sub { display: none; }
+  /* At a phone's width the whole row is the act, and its chevron is drawn, under a mouse too. The act's own box
+     stretches over the row (its ::after), so it stays one button with one name; anything else in the row that can be
+     pressed sits above that. */
+  .rec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 3px; }
+  .rec-row-key, .rec-row-val { grid-column: 1; }
+  .rec-row-act { grid-column: 2; grid-row: 1 / span 2; }
+  .rec-row-act::after { content: ""; position: absolute; inset: 0; }
+  .rec-row-val :is(button, a, input, select, textarea, [tabindex]) { position: relative; z-index: 1; }
+  .rec-row-act-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* A row that HAS its fact states it and stops. Its hint is a sentence about what the fact is for ("Sent instead of
+     confirming an appointment itself"), which the editor says again over the box, and which at a phone's width is a
+     second and third line under every filled row of the card. A row with NOTHING in it keeps its hint: that sentence
+     says what empty means, which is the one thing there is to read and the one thing to decide. */
+  .rec-row[data-empty="false"] .rec-row-hint { display: none; }
+  .rec-row-chev { display: inline-flex; color: var(--ink-faint); }
+  .rec-row-act-icon { display: none; }
+  .rec-row:hover::before { background: none; }
+  .rec-fold-head { flex-wrap: wrap; row-gap: 3px; }
+  .rec-fold-label { flex: 1 1 auto; }
+  .rec-fold-hint { flex: 1 1 100%; order: 3; }
+  .rec-foot-note { flex-basis: 100%; text-align: left; }
+  /* No label column beside a phone's fields: they, what saving writes and the foot start at the fold's edge. */
+  .rec-fold-inner, .rec-fold[data-wide="true"] .rec-fold-inner { padding-left: 4px; }
+  .rec-fold[data-wide="true"] .rec-says { margin-inline-start: 0; }
+  .rec-fold[data-wide="true"] .rec-foot { padding-inline-start: 0; }
+  /* No label column beside a phone's box: the label goes above it, as a phone's row puts its value under its label,
+     with ✓ and ✕ beside the box; and what it will say stacks, as a fold's does. The box is a finger's 44px here
+     (frame.css's floor for every box on a touch screen), so the editor's own padding is all but gone and its label
+     sits 2px over the box: the editor is then 68px to the row's 65, and the rows under it hold still. */
+  .rec-inline { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "key key" "field acts"; row-gap: 2px; padding: 1px 0; }
+  .rec-inline-more { grid-column: 1 / -1; grid-row: 3; }
+  .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
+  .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
+  /* The sheet rises from the bottom, floating clear of the screen's sides and foot as the kit's does (tokens.css
+     --sheet-float and --sheet-foot), stands on the keyboard (--kb, kit/motion/keyboard.ts watchKeyboard), and its foot
+     clears the home indicator. It is as tall as what it holds, up to 88% of what the phone shows, and past that its body scrolls
+     under its head and foot (Ruben, 14 Oct 2026, the fitted sheets: six sheets stood at 88% of blank whatever they
+     held). While a box in it is typed in it holds its height (--sheet-hold, kit/motion/use-height-glide.ts). */
+  .rec-sheet { top: auto; bottom: max(var(--kb, 0px), var(--sheet-foot, 0px)); left: var(--sheet-float, 0px); right: var(--sheet-float, 0px); width: auto; height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px))); border-radius: var(--radius-sheet); }
+  .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
+     voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
+     duration and easing (spec 9, item 1), and its wash comes in with it: a transition from where it starts, as the
+     fold's own opening is, never a keyframe. As the fold closes it goes down the way it came, on --ease-in-out (spec
+     9, item 1), its wash fading with it: React has taken it off the page by then, so what goes is a still copy of it
+     (record-fold.jsx recSheetLeaves, data-leaving), with nothing in it to press, and it is removed as its slide ends. */
+  .rec-sheet.rec-fold-sheet { max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out), --sheet-down var(--duration-base) var(--ease-out); }
+  .rec-sheet-backdrop[data-fold="true"] { transition: opacity var(--duration-base) var(--ease-out); }
+  @starting-style {
+    .rec-sheet.rec-fold-sheet { transform: translateY(100%); --sheet-down: 100%; }
+    .rec-sheet-backdrop[data-fold="true"] { opacity: 0; }
+  }
+  .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: translateY(100%); --sheet-down: 100%; pointer-events: none; transition: transform var(--duration-base) var(--ease-in-out), --sheet-down var(--duration-base) var(--ease-in-out); }
+  .rec-sheet-backdrop[data-leaving="true"] { opacity: 0; pointer-events: none; transition: opacity var(--duration-base) var(--ease-in-out); }
+  @starting-style {
+    .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: none; --sheet-down: 0px; }
+    .rec-sheet-backdrop[data-leaving="true"] { opacity: 1; }
+  }
+}
+
+/* Under reduced motion nothing of the record kit moves. After the phone block, whose transitions it stops. */
+@media (prefers-reduced-motion: reduce) {
+  .rec-row::before, .rec-row-act, .rec-inline-act, .rec-fold-close, .rec-fold-body,
+  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close,
+  .rec-sheet.rec-fold-sheet, .rec-sheet-backdrop[data-fold="true"] { transition: none; }
+  /* The kit puts no leaving copy on the page under reduced motion; were one there, it is not drawn. */
+  .rec-sheet[data-leaving], .rec-sheet-backdrop[data-leaving] { display: none; }
+}
+
+/* ---------- Glass: the deal sheet as its canvas's one composer (D3), the rows the playbook composer wears (C2) ----------
+   The word at the left in the third ink, what the row holds beside it, a hairline between rows; a field's own label
+   goes where the row's word says it. Each rule names the look inside :where(); none matches in Classic. */
+.ds-rows {
+  gap: 0;
+}
+.ds-grow {
+  display: grid;
+  grid-template-columns: var(--space-12) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+.ds-grow:last-of-type {
+  border-bottom: 0;
+}
+.ds-grow-word {
+  padding-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.ds-grow-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* On a phone the row's word gives way to its fields' own labels, and the fields take the sheet's width: in its 48px
+   column the word stood beside a label that says the same thing closer (Value over Value), and the fields kept what
+   the column left them. */
+@media (max-width: 720px) {
+  .ds-grow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ds-grow-word {
+    display: none;
+  }
+}

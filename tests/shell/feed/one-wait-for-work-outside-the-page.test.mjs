@@ -1,5 +1,5 @@
 /**
- * Waiting on work outside the page has one pace (legacy-bridge/hearing/wait-for.ts, the page-open PRD of 3 Nov 2026, L2):
+ * Waiting on work outside the page has one pace (bridge/hearing/wait-for.ts, the page-open PRD of 3 Nov 2026, L2):
  * it asks again at the page's first wait, slower each time (×1.5 up to the ceiling), never while the page is hidden (once as
  * it comes back), never twice at once, and stops when what it waited for has come or when it has waited too long. And a
  * read the server refused with a wait (a limit's `retry-after`) is asked again no sooner than the server said.
@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { waitFor } = await importSrc("apps/dashboard/src/legacy-bridge/hearing/wait-for.ts");
+const { waitFor } = await importSrc("apps/dashboard/src/bridge/hearing/wait-for.ts");
 
 /** A world with a clock a test moves, its timers, a page shown or hidden, and the page's return heard. */
 function world() {
@@ -104,7 +104,7 @@ test("a read still out is never asked again beside it", async () => {
 
 test("a read refused with a wait is asked again no sooner than the server said", async () => {
   const { ApiError } = await importSrc("apps/dashboard/src/client/api.ts");
-  const { activateOverride, readRefusedFor } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { activateOverride, readRefusedFor } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
   const was = console.error;
   console.error = () => {};
   try {

@@ -19,13 +19,13 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { zoneDayKey, clockTime } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { NOW, ZONE, handoffDay } from "./_world.mjs";
 import { until } from "../../shared/_until.mjs";
 
 const went = [];
 const flashes = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),

@@ -9,7 +9,7 @@ import { useState } from "react";
 import { MAILBOX_HISTORY_WORDS, type MailboxHistory, type MailboxHistoryAct } from "@chanlytics/contracts";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Segmented } from "../../kit/segmented/segmented";
-import { refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, type FrameFlash } from "../../frame-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 
 const WAYS = ["six_months", "from_now"] as const satisfies readonly MailboxHistory[];
@@ -55,7 +55,7 @@ interface HistoryActProps {
   id: string;
   address: string;
   act: MailboxHistoryAct;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }
 
 /** A mailbox's history act on its row: pressed once, said in a toast where the door refused it. */

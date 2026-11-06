@@ -13,7 +13,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Popover } from "../../../kit/popover/popover";
 import { Token } from "../../../kit/picker/picker";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { AdDays } from "./days";
 
 /** "Too early to judge. Most ads need…": its first words are the word that opens what the platform says. */

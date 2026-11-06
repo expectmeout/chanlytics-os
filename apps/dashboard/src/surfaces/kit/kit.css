@@ -15,8 +15,8 @@
    A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
 
    Loaded right after tokens.css, before every other stylesheet those entries import: by the shell's entry file
-   (legacy-bridge/legacy.css) and by the standalone document (legacy/Chanlytics.html, at the one path outside its tree
-   that tooling/scripts/serve-legacy.mjs serves). In the built app the root layout's app/globals.css comes first, the
+   (bridge/frame.css) and by the standalone document (mockup/Chanlytics.html, at the one path outside its tree
+   that tooling/scripts/serve-mockup.mjs serves). In the built app the root layout's app/globals.css comes first, the
    tokens at its head, so its own rules, the pages' outside the shell, stand between the tokens and the kit; none of
    them names a kit class. It imports the kit in the change that first draws a kit class on a page outside the shell
    (the plan's §3.3), which styles/kit-css.test.mjs holds: none does yet.
@@ -25,7 +25,7 @@
    in the order they stood, so nothing a member sees changed. They still write some values as numbers
    (the style-values measure counts them), which fall as the kit takes its roles. What of theirs stayed behind says
    why where it stands: a width this sheet does not take yet (the record kit's 760px phone, 761px desk and 1140px
-   toast, the tab strip's 720px), a rule that names a page's class or the shell's (html.legacy-on), and a busy Save's
+   toast, the tab strip's 720px), a rule that names a page's class or the shell's (html.frame-on), and a busy Save's
    pointer and the record kit's reduced motion, which must still come after a rule of those sheets. */
 
 /* ---------- Buttons ---------- */
@@ -248,7 +248,7 @@ a.btn {
    from the first word. Under a mouse its focus is a box's (--focus-field-edged: the capsule has no border of its own);
    on a touch screen no ring, since the caret and the keyboard say it (Ruben, 10 Oct 2026). The page places it (the
    room round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the
-   touch floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
+   touch floor's `html.frame-on button` and `input` (frame.css, 44px) give way to the capsule's own height. */
 .search {
   display: flex;
   align-items: center;
@@ -1847,7 +1847,7 @@ a.more-item {
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* Under a thumb a tab is pressed over the 44px every button is (legacy-bridge/legacy.css, the touch floor) and drawn
+/* Under a thumb a tab is pressed over the 44px every button is (bridge/frame.css, the touch floor) and drawn
    38px tall, as the Calendar's views are: its press area reaches 3px over and under it, inside the strip's 4px. Drawn
    44px tall, a tab made its strip 52px, a step taller than the Calendar's capsule of views under the same head (Ruben,
    7 Oct 2026). Named under its strip, so it outweighs the floor on a tab that is a button (Settings' sections): a
@@ -2905,7 +2905,7 @@ a.more-item {
   text-align: inherit;
   cursor: pointer;
 }
-/* Its size is what it draws, never a button's touch floor (legacy.css, a coarse pointer's 44px on every button), which
+/* Its size is what it draws, never a button's touch floor (frame.css, a coarse pointer's 44px on every button), which
    stood the name 44 tall and the head 19px taller: the floor is an invisible margin round it, as a chip's is. */
 .rec-sheet-opens[type="button"] {
   min-width: 0;
@@ -3803,7 +3803,7 @@ select.rec-input :is(option, optgroup) {
   rotate: 180deg;
 }
 /* Under a finger the token keeps its own height and the touch floor's 44px is the press round it, not its size (named
-   twice to stand over that floor, html.legacy-on button): three 44px capsules in a composer's rows stood like buttons
+   twice to stand over that floor, html.frame-on button): three 44px capsules in a composer's rows stood like buttons
    of a form (Ruben, 11 Oct 2026: the drawers too cluttered). */
 @media (pointer: coarse) {
   .token.token {
@@ -4703,7 +4703,7 @@ a.list-row {
   cursor: pointer;
   transition: color var(--duration-base) var(--ease-out);
 }
-/* The shell's touch floor (legacy.css: a coarse pointer's buttons and tabs are 44px, `[role="tab"]` too) would make a tab as
+/* The shell's touch floor (frame.css: a coarse pointer's buttons and tabs are 44px, `[role="tab"]` too) would make a tab as
    tall as its own margin is: the strip's height is the words', and a thumb's reach is the invisible margin on a phone
    (below). */
 .subtabs > .subtab[role="tab"] {
@@ -7438,7 +7438,7 @@ textarea.rec-input,
   border-radius: 2px;
 }
 /* On a touch screen the word keeps its look and grows its target, as a pressed chip does: named twice to stand over the
-   touch floor (legacy.css, html.legacy-on button), which would make it a 44px box in a line of small type. */
+   touch floor (frame.css, html.frame-on button), which would make it a 44px box in a line of small type. */
 @media (pointer: coarse) {
   .dtable-group-toggle.dtable-group-toggle {
     position: relative;

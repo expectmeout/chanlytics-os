@@ -31,7 +31,7 @@ import {
   type WaitingThread,
   type Waits,
 } from "@chanlytics/contracts";
-import { onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { onSurfaceMoved } from "@/bridge/surface-status";
 import { approvalDaysNow } from "./campaigns/broadcasts/when-words";
 import { ixWaiting, ixWaitsOnYou, vetoKeyOf } from "./inbox/rules";
 import { demoSession } from "./inbox/shell";

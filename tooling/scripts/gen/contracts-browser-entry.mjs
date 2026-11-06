@@ -74,7 +74,7 @@ export const PAGE_ONLY = [
  * `./alert-pane`, `./ask-only`), by the module each is. Each subpath names its module's source, so a page that loads one
  * shares every module it reaches with the rest of the page instead of carrying its own copy. None may reach classic zod.
  * `./page-specs` is the specs of the verbs the pages press, which the frame fetches when a press or Ask first needs
- * one (legacy-bridge/verbs/commit.ts pageSpecs): its names stay in the root entry as well, since its module must be the
+ * one (bridge/verbs/commit.ts pageSpecs): its names stay in the root entry as well, since its module must be the
  * root's own (Ask's kinds join its table in place), and on the server and in the tests it is the index itself.
  */
 export const PAGE_ENTRIES = {

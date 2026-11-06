@@ -5,7 +5,7 @@
  * the list it came from, and a row of a sheet's list.
  */
 import type { ReactNode } from "react";
-import type { GateProps } from "../../legacy-verbs";
+import type { GateProps } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import type { SheetBack } from "../../kit/sheet/sheet";
 

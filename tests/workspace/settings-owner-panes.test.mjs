@@ -29,7 +29,7 @@ import {
   BUDGET_WORDS,
   alertGrid,
 } from "@chanlytics/contracts";
-import { useStubHooks, kitPages } from "../_legacy-react.mjs";
+import { useStubHooks, kitPages } from "../_stub-react.mjs";
 
 const TID = "t-studio";
 
@@ -222,15 +222,15 @@ Object.assign(globalThis.window, {
 });
 await import("../receptionist/business-tab/_business-parts.mjs");
 // The role store the gates ask (window.ST_STORE): the bridge installs it as the app boots (seed-globals), settings.jsx used to.
-const { installRoleStore } = await import("../../apps/dashboard/src/legacy-bridge/identity.ts");
+const { installRoleStore } = await import("../../apps/dashboard/src/bridge/identity.ts");
 installRoleStore();
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Activity's reads are the bridge's
 // `activity` object, which a test stands its own feed in on; Notifications reads the settings read over the seam and
 // saves through the bridge's saveSettings; Autonomy's rows are the seam's policies and its one door is a module object a
 // test stands a door in on; Team's roster is the seam's settings value.
 const { SettingsPage } = await import("../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
-const { activity } = await import("../../apps/dashboard/src/legacy-bridge/activity.ts");
-const { pageClock } = await import("../../apps/dashboard/src/legacy-bridge/zone.ts");
+const { activity } = await import("../../apps/dashboard/src/bridge/activity.ts");
+const { pageClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
 // The log's lists are the house's menu (the kit's MoreMenu), which runs here as it does in a browser.
 const { MoreMenu } = await import("../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
 /** The log's reads answered by `f`: the module's object, which the pane imports. */
@@ -362,7 +362,7 @@ const workspace = (role, over = {}) => {
     __TEAM_INVITES: [],
     ...over,
   });
-  // The seam's settings value beside the globals it copies (legacy-bridge/surfaces/settings.ts), for the moved panes.
+  // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.
   setSurfaceValue("settings", {
     settings: globalThis.window.__SETTINGS,
     facts: globalThis.window.__FACTS,
@@ -1317,7 +1317,7 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
 /* ------------------------------ Notifications (decision 0040) ------------------------------ */
 
 test("F32: a config the parser refuses closes every notifications write, and says why on each", () => {
-  // The bridge reads a refused config as its own state: no config, and what was wrong (legacy-bridge/surfaces/settings.ts).
+  // The bridge reads a refused config as its own state: no config, and what was wrong (bridge/surfaces/settings.ts).
   workspace("owner", {
     __SETTINGS: { role: "owner", version: 3, config: null, broken: { issues: ["brain.business_name"] } },
   });

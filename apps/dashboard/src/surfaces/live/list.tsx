@@ -4,7 +4,7 @@
  */
 import type { KeyboardEvent } from "react";
 import type { LiveCallVM, LiveLineVM } from "@chanlytics/contracts";
-import { navigate } from "../legacy-verbs";
+import { navigate } from "../frame-verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Face } from "../kit/face/face";
 import { Icon } from "../kit/icon/icon";

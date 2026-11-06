@@ -15,7 +15,7 @@ import { LEAD_DOCK_WORDS as D, type LeadSheetDockVM, type LeadSheetSlotVM } from
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 
 /** The right a press's door checks: Keep, Leave out and Put back are a partner's doors (find's); the rest an operator's. */
 const rightOf = (s: LeadSheetSlotVM) =>

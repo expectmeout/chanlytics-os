@@ -1,14 +1,14 @@
 /**
  * The top bar (moved from legacy/components/topbar.jsx, the one-system plan's step 7d): the menu, the crumbs, Ask's
  * button, the demo's presence, the bell with its notes (notif-popover.tsx) and the theme. Outside a demo the bell reads the
- * workspace's own rows through the bridge (legacy-bridge/notifications.ts): who needs you, a draft waiting, a missed call,
+ * workspace's own rows through the bridge (bridge/notifications.ts): who needs you, a draft waiting, a missed call,
  * an open invitation; read state is this device's. In a demo it draws the seeded notes (bell-demo.tsx). The frame's JSX
  * draws it by its old name (`Topbar`, frame-globals.ts) until the frame itself is TypeScript (step 7e). Drawn as the JSX
  * drew it, raw buttons and all, until the frame's kit step.
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { askCalls, type LegacyFlash } from "../../legacy-verbs";
+import { askCalls, type FrameFlash } from "../../frame-verbs";
 import type { DemoNote } from "./bell-demo";
 import { tbOverlay, useDemoBell, useDemoPresence } from "./bell-demo-acts";
 import { BAR_LINE_WORDS } from "@chanlytics/contracts";
@@ -19,10 +19,10 @@ import { usePageSearchSaid, type PageSearch } from "../../kit/head/page-search";
 import { frameBell, frameChrome, frameGlyph, frameMoreMenu, frameToastHook, isDemoFrame } from "../frame-window";
 import { NotifPopover, type BellAlerts, type BellNote } from "./notif-popover";
 
-type Flash = (p: LegacyFlash) => void;
+type Flash = (p: FrameFlash) => void;
 type Bell = NonNullable<Window["__notifs"]>;
 
-// What Ask said it would come back to, come due (legacy-bridge/ask/follow-ups.ts): how many, heard as they are read. The
+// What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): how many, heard as they are read. The
 // capsule draws the kit's dot after its words while there is one, as the kit marks something new there to the reader.
 const tbDueNow = () => askCalls()?.followUpsDue?.().length ?? 0;
 function TbAskDue() {

@@ -13,7 +13,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
-import { installLegacyReact, fresh, again, settle, quiet, redrawWanted } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, settle, quiet, redrawWanted } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
@@ -86,7 +86,7 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 /* -------------------------------- a browser -------------------------------- */
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/marisas",
     hash: "",

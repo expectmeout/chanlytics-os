@@ -25,7 +25,7 @@
  * Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
  */
 import type { KeyboardEvent, ReactNode } from "react";
-import { editorBox, focusAsDrawn } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn } from "../../frame-verbs";
 
 interface ConfirmProps {
   question: ReactNode;

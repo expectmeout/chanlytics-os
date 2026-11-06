@@ -16,7 +16,7 @@ import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
 import { StatePill } from "../../kit/pill/state-pill";
-import { focusAsDrawn, gate } from "../../legacy-verbs";
+import { focusAsDrawn, gate } from "../../frame-verbs";
 
 /** A row that is a press: Enter and Space press it, as a button's would. */
 const pressKeys = (go: () => void) => (e: KeyboardEvent) => {

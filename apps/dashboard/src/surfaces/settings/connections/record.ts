@@ -1,5 +1,5 @@
 /**
- * The business on record (moved from legacy-bridge/business-record.ts with Settings › Connections, decision 0015 step
+ * The business on record (moved from bridge/business-record.ts with Settings › Connections, decision 0015 step
  * 11): what is saved, what is still wrong with it in the owner's words, and the two verbs — save it, and file the line
  * with the carriers. The form imports it (record-form.tsx).
  *
@@ -34,7 +34,7 @@ import {
   type BusinessRecordDto,
   type RegistrationPath,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 
 interface BusinessRecordApi {
   /**

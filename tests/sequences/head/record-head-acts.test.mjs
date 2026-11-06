@@ -8,12 +8,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SEQUENCE_ACT_WORDS, SEQUENCE_WORDS, sequenceActsOf, stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId } from "../../_stub-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
 
-installLegacyReact({
+installStubReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
   usePPToast: () => [null, () => {}],
@@ -29,7 +29,7 @@ installLegacyReact({
   useHotkey: () => {},
 });
 const S = "../../../apps/dashboard/src";
-(await import(`${S}/legacy-bridge/zone.ts`)).installClock();
+(await import(`${S}/bridge/zone.ts`)).installClock();
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { useRecordActs, HeadActs, RecordNotice, phoneFootOf } = await import(
   `${S}/surfaces/campaigns/sequences/record-acts.tsx`

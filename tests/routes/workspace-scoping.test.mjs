@@ -35,17 +35,17 @@ const API = path.join(ROOT, "apps/dashboard/app/api/v1");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
 const withRoute = read("apps/dashboard/src/server/shared/with-route.ts");
-// The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
+// The seam and each surface's module beside it (bridge/surfaces/), read as one text.
 const surfaceData = [
-  "apps/dashboard/src/legacy-bridge/surface-data.ts",
+  "apps/dashboard/src/bridge/surface-data.ts",
   "apps/dashboard/src/surfaces/reports/surface.ts",
   ...fs
-    .readdirSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/surfaces"))
-    .map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
+    .readdirSync(path.join(ROOT, "apps/dashboard/src/bridge/surfaces"))
+    .map((f) => `apps/dashboard/src/bridge/surfaces/${f}`),
 ]
   .map((p) => read(p))
   .join("\n");
-const runner = read("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const runner = read("apps/dashboard/src/bridge/surface-runner.ts");
 
 /* ------------------------ one resolver, one rule -------------------------- */
 
@@ -282,8 +282,8 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
     },
   };
   try {
-    const { switchWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
-    const cache = await importSrc("apps/dashboard/src/legacy-bridge/surface-cache.ts");
+    const { switchWorkspace } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
+    const cache = await importSrc("apps/dashboard/src/bridge/surface-cache.ts");
     // The workspace being left, read and cached, as a reload would paint it.
     globalThis.window.INBOX_PROBE = { threads: ["harbor-moving's"] };
     cache.snapshotSurface("inbox", ["INBOX_PROBE"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");

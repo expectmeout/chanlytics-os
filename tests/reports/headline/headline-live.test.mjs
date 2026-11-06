@@ -11,11 +11,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { headlineOf } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, reportDto } from "../_report-world.mjs";
 
-installLegacyReact();
+installStubReact();
 Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
@@ -38,11 +38,9 @@ console.error = () => {};
 const { headline, reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
 const { keepReportPeriod } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { surfaceValue, setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-const { ownsTable, ownsTheScreen, ROUTE_DRAWS } = await importSrc(
-  "apps/dashboard/src/legacy-bridge/surface-registry.ts",
-);
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
+const { ownsTable, ownsTheScreen, ROUTE_DRAWS } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 console.error = keepError;
 
 const json = (status, body) =>

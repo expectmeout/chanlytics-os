@@ -112,7 +112,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
 });
 
 test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.com, a cancel is a cancel, the code goes to the app's own route", async () => {
-  // Moved from legacy-bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11).
+  // Moved from bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11).
   const mod = await import(
     pathToFileURL(path.join(here, "../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
   );
@@ -186,7 +186,7 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   // door as the tab last read it (`held`) is what the row draws in its first frame (settings/frame/pane-reads.ts).
   assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "held", "prepare", "start"]);
   assert.ok(!src.includes("installWhatsAppConnect"));
-  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installWhatsAppConnect"));
+  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installWhatsAppConnect"));
 });
 
 test("the account's own news: routed by WABA, kept as an event, alerted when it changes what the business can do", async () => {

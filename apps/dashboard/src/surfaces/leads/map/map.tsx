@@ -19,7 +19,7 @@ import {
   type LeadMapPlot,
   type LeadRowVM,
 } from "@chanlytics/contracts";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Sheet } from "../../kit/sheet/sheet";
 import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";

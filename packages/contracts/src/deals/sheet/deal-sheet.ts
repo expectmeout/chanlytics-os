@@ -1,7 +1,7 @@
 /**
  * One sheet for every deal move, and the deal where the work is (0008).
  *
- * The deal sheet (legacy components/deal-sheet.jsx) is the only place a deal is created or moved: a new proposal, the
+ * The deal sheet (the frame's components/deal-sheet.jsx) is the only place a deal is created or moved: a new proposal, the
  * proposal edited, a passed one proposed again, a yes, a pass, an end. Everything it says is here -- each mode's
  * title, fields, words and defaults (dealSheetFor), the body the deal route takes (dealSheetBody), the field a refusal
  * names (dealSheetRefusal), and whether the proposal can go now (dealSendOf) -- so the sheet says nothing of its own.

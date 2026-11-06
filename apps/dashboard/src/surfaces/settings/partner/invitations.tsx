@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import type { PartnerApi } from "./surface";
 
 interface Asked {
@@ -20,7 +20,7 @@ export function PartnerInvitations({
   onJoined,
 }: {
   api: PartnerApi;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   onJoined: () => void;
 }) {
   const W = api.inviteWords;

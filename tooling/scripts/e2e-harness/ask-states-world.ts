@@ -18,10 +18,10 @@ import {
   type AskProposal,
   type AskThreadVM,
 } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
-import { askPalette } from "@/legacy-bridge/ask/palette";
+import type { AskApi } from "@/bridge/ask";
+import { askPalette } from "@/bridge/ask/palette";
 
-/** How a state's Line is opened, as the shell opens one (legacy-bridge/ask/line.tsx, `ask:seed`). */
+/** How a state's Line is opened, as the shell opens one (bridge/ask/line.tsx, `ask:seed`). */
 export interface AskSeed {
   prompt?: string;
   thread?: string;

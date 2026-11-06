@@ -23,9 +23,9 @@ import {
   type LeadRowVM,
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { pileAsk, reachOuts } from "../../campaigns/reach-out/surface";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import type { Flash } from "../../people/types";
 import type { AimTarget, LeadAim } from "../sheet/use-aim";
 import { excludeLead, keepLead, laterLead, setLeadStage, undoLeadOperation } from "../surface";

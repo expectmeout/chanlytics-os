@@ -6,7 +6,7 @@
  * surface holds now, as the JSX read `window.__SETTINGS`).
  */
 import { CAMPAIGN_ROOMS, DAY_MS, HOUR_MS, MIN_MS, stateOf } from "@chanlytics/contracts";
-import type { SettingsRecord, WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
+import type { SettingsRecord, WorkspaceSettings } from "@/bridge/surfaces/settings";
 import { surfaceValue } from "../../surface-values";
 import { starters } from "./verbs";
 

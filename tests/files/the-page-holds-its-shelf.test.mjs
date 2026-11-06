@@ -56,7 +56,7 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts")).addressApi(win);
+win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
 win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { filesOverride, showFilesShelf, showMoreFiles } = await importSrc(
   "apps/dashboard/src/surfaces/files/surface.ts",

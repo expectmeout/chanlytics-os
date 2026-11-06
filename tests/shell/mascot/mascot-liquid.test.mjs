@@ -8,9 +8,9 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { liquid, resetLiquid } from "../../../apps/dashboard/src/legacy-bridge/mascot/liquid.ts";
-import { createCharacter } from "../../../apps/dashboard/src/legacy-bridge/mascot/character.ts";
-import { palette } from "../../../apps/dashboard/src/legacy-bridge/mascot/colour.ts";
+import { liquid, resetLiquid } from "../../../apps/dashboard/src/bridge/mascot/liquid.ts";
+import { createCharacter } from "../../../apps/dashboard/src/bridge/mascot/character.ts";
+import { palette } from "../../../apps/dashboard/src/bridge/mascot/colour.ts";
 
 const COMPLETION_STATUS_KHR = 0x91b1;
 function fakeGl() {

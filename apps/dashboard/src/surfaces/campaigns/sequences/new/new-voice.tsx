@@ -15,7 +15,7 @@ import {
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { gate, navigate } from "../../../legacy-verbs";
+import { gate, navigate } from "../../../frame-verbs";
 import { sequenceVerbs } from "../verbs";
 
 /** Settings › Memory, where a learned line is listed and forgotten. */

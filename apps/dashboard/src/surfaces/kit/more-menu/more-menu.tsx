@@ -30,7 +30,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { gatedProps, keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
+import { gatedProps, keepTouch, onAPhone, touchSwipe } from "../../frame-verbs";
 import { Icon } from "../icon/icon";
 import { longWords } from "../menu/long-words";
 import { can, pick, pickAll } from "../record/dom";

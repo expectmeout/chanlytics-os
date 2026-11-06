@@ -7,9 +7,9 @@
  * The value is the seam's (`useSurface("ask_memory")`): undefined until read, null when the read failed.
  */
 import type { AskMemoryPageDto } from "@chanlytics/contracts";
-import { ON_DEMAND_STALE_MIN, readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { read } from "@/legacy-bridge/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { ON_DEMAND_STALE_MIN, readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import { read } from "@/bridge/api";
+import { declareReads } from "@/bridge/surface-registry";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 
 export interface AskMemorySurface {

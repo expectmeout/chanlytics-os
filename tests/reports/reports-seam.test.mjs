@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, redrawWanted, quiet } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, redrawWanted, quiet } from "../_stub-react.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -22,7 +22,7 @@ const storage = () => {
     peek: (k) => m.get(k),
   };
 };
-installLegacyReact();
+installStubReact();
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
@@ -30,12 +30,12 @@ globalThis.__ACTIVE_WORKSPACE = "t-salon";
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
-const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
+const cache = await import(`${S}/bridge/surface-cache.ts`);
 // Importing an override declares its mirror, as the app's boot does: Today's names one, Reports' and Google's none.
 await import(`${S}/surfaces/today/override.ts`);
 await import(`${S}/surfaces/reports/surface.ts`);
 // The surface's signal, from the module the surface reads it through (the stub's own copy is the shell pages').
-const { surfaceMoved: surfaceLanded } = await import(`${S}/legacy-bridge/surface-status.ts`);
+const { surfaceMoved: surfaceLanded } = await import(`${S}/bridge/surface-status.ts`);
 const { useSurface } = await import(`${S}/surfaces/use-surface.ts`);
 
 const REPORTS = { vm: { days: 30 }, days: 30, fetchedAt: 1 };

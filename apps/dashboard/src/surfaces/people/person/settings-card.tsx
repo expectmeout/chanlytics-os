@@ -35,7 +35,7 @@ import { Panel } from "../../kit/panel/panel";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordFold } from "../../kit/record/fold";
 import { RecordRow } from "../../kit/record/row";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import {
   askToConfirmSignup,
   setPersonConsent,

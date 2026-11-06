@@ -17,7 +17,7 @@ export type PageVital = (typeof PAGE_VITALS)[number];
 const PAGE_SPEED = ["READY", "SETTLED"] as const;
 export type PageSpeedMetric = (typeof PAGE_SPEED)[number];
 /**
- * What a tab could not hear or read (the page-open PRD of 3 Nov 2026, L7; legacy-bridge/hearing/freshness.ts): how long
+ * What a tab could not hear or read (the page-open PRD of 3 Nov 2026, L7; bridge/hearing/freshness.ts): how long
  * its live feed was down (ms), how many times it came back, and how many of a surface's reads failed (the surface its
  * part). Counts and durations; said only where something happened.
  */

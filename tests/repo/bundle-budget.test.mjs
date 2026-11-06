@@ -406,7 +406,7 @@ test("the shell is counted whichever way the frame loads it: in its layout's chu
   assert.deepEqual(sumsOf(measureBuild(dynamic)), seeded());
 });
 
-test("the shell is the browser's alone: `#frame-shell` is LegacyApp under the browser condition, the stand-in otherwise", () => {
+test("the shell is the browser's alone: `#frame-shell` is FrameApp under the browser condition, the stand-in otherwise", () => {
   const dashboard = path.join(ROOT, "apps/dashboard");
   const resolved = (...conditions) => {
     const r = spawnSync(process.execPath, [...conditions, "-p", "require.resolve('#frame-shell')"], {
@@ -416,7 +416,7 @@ test("the shell is the browser's alone: `#frame-shell` is LegacyApp under the br
     assert.equal(r.status, 0, r.stderr);
     return path.relative(dashboard, r.stdout.trim()).split(path.sep).join("/");
   };
-  assert.equal(resolved("--conditions=browser"), "src/legacy-bridge/LegacyApp.tsx");
+  assert.equal(resolved("--conditions=browser"), "src/bridge/FrameApp.tsx");
   assert.equal(resolved(), "src/frame-shell.ts");
 });
 

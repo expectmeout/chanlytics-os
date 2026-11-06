@@ -24,7 +24,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
 import { Meter } from "../../kit/meter/meter";
 import { StatePill } from "../../kit/pill/state-pill";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { MenuInPlace, menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { LeadTile } from "../cells/tile";
 import type { Flash, PeekActs } from "../peek/types";

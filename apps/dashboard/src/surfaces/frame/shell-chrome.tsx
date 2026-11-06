@@ -8,7 +8,7 @@
  */
 import { Component } from "react";
 import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
-import { AskLine } from "@/legacy-bridge/ask/line";
+import { AskLine } from "@/bridge/ask/line";
 import { AskDisc, AskFace } from "../kit/face/ask-face";
 import { REPORT_WORDS } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
@@ -102,7 +102,7 @@ const sideWarm = (e: PointerEvent<HTMLDivElement>) => {
 };
 
 // Shared read-only viewer: chrome-less, rendered AFTER all hooks so the hook order stays identical on every route.
-// Demo-gated like everything else. The report it shows is the frame's `sharedPage`, drawn by the bridge (LegacyApp).
+// Demo-gated like everything else. The report it shows is the frame's `sharedPage`, drawn by the bridge (FrameApp).
 export const sharedViewer = ({
   theme,
   look,

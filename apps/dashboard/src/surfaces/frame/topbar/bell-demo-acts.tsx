@@ -6,7 +6,7 @@
  */
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { TB_NOTIFS, type DemoNote } from "./bell-demo";
 import { isDemoFrame } from "../frame-window";
 
@@ -200,7 +200,7 @@ const demoThreads = () => {
  * Away to hear. Coming back from Away says what changed while you were away (#19): the sends that stayed frozen and the
  * decisions waiting.
  */
-export function useDemoPresence(flash: (p: LegacyFlash) => void) {
+export function useDemoPresence(flash: (p: FrameFlash) => void) {
   const [, prBump] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     if (!isDemoFrame()) return undefined;

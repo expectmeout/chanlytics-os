@@ -18,7 +18,7 @@ import { RoToSendRows } from "../../campaigns/reach-out/to-send";
 import { RewriteAsk } from "../../campaigns/reach-out/rewrite-ask";
 import { Confirm } from "../../kit/confirm/confirm";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import type { Flash, PeekActs } from "../peek/types";
 import type { SheetWaiting } from "./facts";
 import { approveOne, openRunFor, type SheetRun } from "./run";

@@ -16,7 +16,7 @@ import {
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
 import { reachOuts } from "../../reach-out/surface";
-import { meNow, refusalToast, type LegacyFlash } from "../../../legacy-verbs";
+import { meNow, refusalToast, type FrameFlash } from "../../../frame-verbs";
 
 /** How long after the last change a save goes: long enough for a word, short enough to feel kept. */
 const SAVE_AFTER_MS = 700;
@@ -46,7 +46,7 @@ export interface LeadChain {
 
 export function useLeadChain(
   rec: SequenceRecordDto,
-  flash: (f: LegacyFlash) => void,
+  flash: (f: FrameFlash) => void,
   moved: () => void,
 ): LeadChain | null {
   const chain = rec.chain ?? null;

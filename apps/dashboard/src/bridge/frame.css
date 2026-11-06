@@ -1,0 +1,175 @@
+/* The tokens, the kit and the shell's stylesheets, in their order — Next.js does
+   not guarantee cross-import CSS order, so one entry file does. The standalone
+   harness links the same list (tooling/scripts/serve-mockup.mjs writes
+   Chanlytics.html's links from these imports). */
+@import "../styles/tokens.css";
+@import "../surfaces/kit/kit.css";
+@import "../styles/components.css";
+@import "../surfaces/campaigns/campaigns.css";
+@import "../styles/dashboard.css";
+@import "../styles/dashboard-a-v2.css";
+@import "../surfaces/today/need-you/need-you.css";
+@import "../styles/inbox.css";
+@import "../styles/clients.css";
+@import "../styles/people.css";
+@import "../styles/leads.css";
+@import "../styles/store.css";
+@import "../styles/fleet.css";
+@import "../styles/pipeline.css";
+@import "../styles/conversations.css";
+@import "../styles/live.css";
+@import "../styles/calendar.css";
+@import "../styles/charts.css";
+@import "../styles/record.css";
+@import "../styles/reports.css";
+@import "../styles/settings.css";
+@import "../styles/first-run.css";
+@import "../styles/mobile.css";
+@import "../surfaces/today/zones/zones.css";
+@import "../surfaces/ask/ask.css";
+@import "../surfaces/files/post.css";
+@import "../surfaces/frame/outline.css";
+
+/* Chanlytics.html's inline viewport rules, scoped so they only apply while
+   the frame is mounted (login and other pages keep normal scrolling).
+   Wider than a phone only: on a phone the window scrolls the page (mobile.css,
+   "The window scrolls"). */
+@media (min-width: 721px) {
+  html.frame-on,
+  html.frame-on body {
+    height: 100%;
+    overflow: hidden;
+  }
+  html.frame-on #root {
+    height: 100vh;
+  }
+}
+
+/* Touch ergonomics (P3 from the surface review): 48 interactive targets sat
+   under 44px on a phone, many at 26px — and Today is explicitly the check-it-
+   at-9am surface, which is a phone surface. Scoped to coarse pointers so the
+   desktop's density (a deliberate part of the design) is untouched; a mouse
+   does not need 44px. Padding-box sizing keeps existing borders honest. */
+@media (pointer: coarse) {
+  html.frame-on button,
+  html.frame-on .btn,
+  html.frame-on input,
+  html.frame-on select,
+  html.frame-on textarea,
+  html.frame-on [role="tab"],
+  html.frame-on [role="button"] {
+    min-height: 44px;
+  }
+  /* Inline text-buttons (links-as-buttons) grow by padding instead of
+     box height so they don't blow up line layout. */
+  html.frame-on .brief-chip,
+  html.frame-on .td-link {
+    min-height: 36px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  /* A pill is words and a tally is a number: neither is pressed, so neither
+     takes a floor (every list row used to undo one on .pill). A chip that is
+     pressed keeps its 20px look and grows its target: an invisible margin
+     around each of its buttons, Ask's chips, a tile's value and door and a door in
+     the answer's words, which a floor would lift off its line, and Ask's one circle
+     at the field's end, which a floor would squash into an oval. */
+  html.frame-on .chip,
+  html.frame-on .chip > button,
+  html.frame-on .line-chip,
+  html.frame-on button.line-figure,
+  html.frame-on .line-door,
+  html.frame-on button.line-words,
+  html.frame-on .line-send {
+    min-height: 0;
+  }
+  html.frame-on button.chip,
+  html.frame-on .chip > button,
+  html.frame-on .line-chip,
+  html.frame-on button.line-figure,
+  html.frame-on .line-door,
+  html.frame-on button.line-words,
+  html.frame-on .line-send {
+    position: relative;
+  }
+  html.frame-on button.chip::after,
+  html.frame-on .chip > button::after,
+  html.frame-on .line-chip::after,
+  html.frame-on button.line-figure::after,
+  html.frame-on .line-door::after,
+  html.frame-on button.line-words::after,
+  html.frame-on .line-send::after {
+    content: "";
+    position: absolute;
+    inset: -8px -3px;
+  }
+  html.frame-on .line-door::after {
+    inset: -14px -8px;
+  }
+  html.frame-on .line-send::after {
+    inset: -6px;
+  }
+  /* Today's setup card on a phone is compact rows (canvas P9): each button keeps its small look beside the words
+     and grows its target, 34px tall and 44 with the margin around it, and so do the rows' Skip and the head's Hide,
+     quiet words a floor stood 44px tall, and every row with them (21 Oct 2026). The queue's Open Inbox is a link in its
+     head line, and the queue's row buttons keep their desktop size: each grows the same way. */
+  html.frame-on .setup-card-btn,
+  html.frame-on
+    .today-setup
+    :is([data-testid^="setup-later-"], [data-testid="today-setup-remind-skip"], [data-testid="today-setup-hide"]),
+  html.frame-on .tq-open,
+  html.frame-on :is(.today-queue, .today-going) .cl-attn-cta {
+    position: relative;
+    min-height: 0;
+  }
+  html.frame-on .setup-card-btn::after,
+  html.frame-on .tq-open::after,
+  html.frame-on :is(.today-queue, .today-going) .cl-attn-cta::after {
+    content: "";
+    position: absolute;
+    inset: -8px -4px;
+  }
+  html.frame-on
+    .today-setup
+    :is(
+      [data-testid^="setup-later-"],
+      [data-testid="today-setup-remind-skip"],
+      [data-testid="today-setup-hide"]
+    )::after {
+    content: "";
+    position: absolute;
+    inset: -13px -8px;
+  }
+  /* Today's other small presses, each the 44px floor round it and nothing new drawn (18 Oct 2026, measured at 375px):
+     Open Inbox is a 20px line of words (8px over and under made 36), and a card's door ("See the thread", "Open
+     Reports") 36px. */
+  html.frame-on .tq-open::after {
+    inset: -12px -4px;
+  }
+  html.frame-on .brief-door {
+    position: relative;
+  }
+  html.frame-on .brief-door::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+}
+
+/* A held draft has NOT been sent. It must not read like the messages above it
+   that the customer has already seen — dashed, dimmed, and labelled, so an
+   operator can tell at a glance what is still theirs to change. */
+.tl-msg.held .tl-msg-body {
+  border: 1px dashed var(--line-strong);
+  opacity: 0.82;
+}
+.tl-held-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--warn-bg, rgba(180, 120, 20, 0.12));
+  color: var(--warn, #9a5b00);
+}

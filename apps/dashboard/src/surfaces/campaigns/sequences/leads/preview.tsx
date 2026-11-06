@@ -24,7 +24,7 @@ import {
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { navigate } from "../../../legacy-verbs";
+import { navigate } from "../../../frame-verbs";
 import { EmailAs } from "../place/email-as";
 import { useLeadWords } from "../place/parts";
 import {

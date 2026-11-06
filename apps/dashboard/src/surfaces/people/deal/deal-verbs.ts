@@ -1,12 +1,12 @@
 /**
- * What a person's deal card asks of the shell that legacy-verbs.ts does not carry: the step sheet
+ * What a person's deal card asks of the shell that frame-verbs.ts does not carry: the step sheet
  * (components/step-sheet.jsx `openStepSheet`), which the frame draws once and every surface that shows a step opens.
  * Read at call time, so a test's stand-in window and the standalone mockup (which has no step sheet) answer as the
  * card always found them: the button that would open it is not drawn.
  *
  * A line to delete on the day the step sheet is TSX: its verb is then an import.
  */
-import { windowValue } from "../../legacy-verbs";
+import { windowValue } from "../../frame-verbs";
 
 /**
  * What the note sheet is asked for: a person, the deal a new step names (and the act its card leads with, which suggests

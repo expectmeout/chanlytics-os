@@ -5,9 +5,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, find, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, find, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const S = "../../../apps/dashboard/src/surfaces";
 const { AskChart } = await import(`${S}/ask/home.tsx`);
 const { askText } = await import(`${S}/ask/words.ts`);

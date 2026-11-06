@@ -9,10 +9,10 @@
  */
 import type { FileShelf, FilesPageDto } from "@chanlytics/contracts";
 import { SECOND_MS } from "@chanlytics/contracts";
-import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
-import { read } from "@/legacy-bridge/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import { DEAR_READ_LONGEST_WAIT_MS } from "@/bridge/surface-realtime";
+import { read } from "@/bridge/api";
+import { declareReads } from "@/bridge/surface-registry";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 /**

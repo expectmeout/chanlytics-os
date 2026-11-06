@@ -10,8 +10,8 @@ import { LOOK_WORDS, signupConfirmEmailHtml } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { RecordField } from "../../../kit/record/field";
 import { RecordRow } from "../../../kit/record/row";
-import { gate } from "../../../legacy-verbs";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
+import type { FrameFlash } from "../../../frame-verbs";
 import { useWorkspace } from "../logo/row";
 import { lookVerbs } from "./verbs";
 
@@ -23,7 +23,7 @@ function letterPreviewOf(name: string, logo: string | null, accent: string | nul
   return signupConfirmEmailHtml({ business: name, link: "#", look: { business: name, logo_url: logo, accent } });
 }
 
-export function BtColourRow({ canEdit, flash }: { canEdit: boolean; flash: (flash: LegacyFlash) => void }) {
+export function BtColourRow({ canEdit, flash }: { canEdit: boolean; flash: (flash: FrameFlash) => void }) {
   const ws = useWorkspace();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(PICKER_START);

@@ -31,7 +31,7 @@ import { LineChart } from "../../kit/charts/line";
 import { RadarChart } from "../../kit/charts/radar";
 import { adsInPreview } from "../../campaigns/ads/shown";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import type { Follower } from "../../use-surface";
 import { RptSection, RptStrip } from "../blocks";
 import { lensShownHere } from "../chrome";

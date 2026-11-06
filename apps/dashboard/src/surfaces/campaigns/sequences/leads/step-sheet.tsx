@@ -25,7 +25,7 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Picker } from "../../../kit/picker/picker";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, type FrameFlash } from "../../../frame-verbs";
 import { cmChevron, cmNumbers } from "../../parts/picks";
 import { useSlotSeats } from "../../templates/slots/slot-seats";
 import { tplOwn } from "../../templates/words";
@@ -37,7 +37,7 @@ import { cardLeadOf, exampleCardLead, useLeadRow, usePreviewLeads, workspaceOf, 
 import { LeadRewrite, useLeadRewrite } from "./rewrite";
 import type { LeadChain } from "./use-chain";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** Each step's day on the rail, from the draft's waits: the first on day 1. */
 const stepDaysOf = (steps: readonly ReachOutDraftStep[]) =>

@@ -15,7 +15,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Sheet } from "../../kit/sheet/sheet";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { peekPerson, personDetail, setPersonBusiness } from "../people-detail";
 import type { PageCtx } from "./ctx";
 

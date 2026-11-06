@@ -15,7 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
 import { sameChannels } from "@/lib/campaign-channels";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import {
   CM_NO_MESSAGE_YET,
   CM_VIA_WORDS,

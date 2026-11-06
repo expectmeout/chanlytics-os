@@ -8,14 +8,14 @@
  */
 import type { ReactNode } from "react";
 import { ALERT_REFUSED_WORDS, roleSays, withAlertAddress } from "@chanlytics/contracts";
-import { saveSettings, teamVerbs } from "@/legacy-bridge/inbox-verbs";
-import type { SettingsSurface, WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
-import { rememberWorkspace } from "@/legacy-bridge/workspace";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { saveSettings, teamVerbs } from "@/bridge/inbox-verbs";
+import type { SettingsSurface, WorkspaceSettings } from "@/bridge/surfaces/settings";
+import { rememberWorkspace } from "@/bridge/workspace";
+import type { FrameFlash } from "../../frame-verbs";
 import type { TeamPerson } from "./people";
 import type { TeamAsk } from "./rows";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** The config as the card reads it: the alerts section beside whatever else the workspace holds. */
 type TeamConfig = WorkspaceSettings & { notifications?: { escalation_emails?: string[] } };
@@ -65,7 +65,7 @@ export async function saveAlerts(
 }
 
 /** What the server's answer to a team change said, as the card flashes it. */
-const flashOf = (r: { ok: boolean; message?: string }, done: ReactNode): LegacyFlash =>
+const flashOf = (r: { ok: boolean; message?: string }, done: ReactNode): FrameFlash =>
   r.ok ? { tone: "ok", msg: done } : { tone: "danger", msg: <>{r.message}</> };
 
 /** What the card's presses do, over its state's setters. */
@@ -144,7 +144,7 @@ export function teamActs(o: {
       return;
     }
     // Nothing of this workspace is theirs to read any more: the app opens on the workspaces they still have, and not on
-    // the one the device remembers (LegacyHost opens the remembered workspace first).
+    // the one the device remembers (FrameHost opens the remembered workspace first).
     rememberWorkspace(null);
     window.location.assign("/");
   };

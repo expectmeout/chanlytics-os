@@ -125,14 +125,12 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   // The head's hover is contracts' (the page draws it: message-versions-page.test.mjs): it says who a marketing message reaches.
   assert.ok(LIBRARY_WORDS.headTip.includes("A marketing message can only go to people who said yes to offers."));
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts").includes(
+    readCode("apps/dashboard/src/bridge/surfaces/settings.ts").includes(
       'read("GET templates", { query: { all: "1" } })',
     ),
   );
   assert.deepEqual(
-    (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST templates/sync"]().map(
-      (o) => o.key,
-    ),
+    (await importSrc("apps/dashboard/src/bridge/refresh-map.ts")).AFTER["POST templates/sync"]().map((o) => o.key),
     ["settings"],
     "Settings' read is the one read of the templates: the Inbox's reply box and the composers are made of it (offered-templates.ts)",
   );

@@ -249,7 +249,7 @@ export function InboxList(props: InboxListProps) {
   const searching = !!query.trim();
   // A search finds threads: the runs stand aside while one is typed, and Needs you with a run in it is not empty.
   const runRows = activeBucket === "escalated" && !searching && !activeView;
-  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the rows this list draws, in its order, forty at most,
+  // What Ask is told is on screen (bridge/ask/context.ts): the rows this list draws, in its order, forty at most,
   // and what chose them -- a search, a saved view or the bucket. The list is the one place that knows its order.
   const askRows = visible.slice(0, 40);
   // No deps array, as the JSX drew it: what Ask is told follows every draw.

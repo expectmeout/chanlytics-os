@@ -8,7 +8,7 @@ import type { SyntheticEvent } from "react";
 import { identityWords } from "@chanlytics/contracts";
 import { isDemoFrame } from "../frame-window";
 
-/** A workspace as the switcher draws it: the workspace read's row (legacy-bridge/surface-data.ts). */
+/** A workspace as the switcher draws it: the workspace read's row (bridge/surface-data.ts). */
 type SbWorkspace = NonNullable<Window["__WORKSPACES"]>[number] & {
   name?: string;
   logo_url?: string | null;

@@ -34,8 +34,8 @@ import {
   type GuardrailsInForce,
 } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { gate } from "../../legacy-verbs";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import { gate } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { FieldError } from "../../kit/field-error/field-error";
 import { RecordDisclosure } from "../../kit/record/disclosure";

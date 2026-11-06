@@ -8,7 +8,7 @@
  * that vanished if either file moved or went, and the typed side called them with `?.`, so a missing door did nothing and
  * said nothing.
  *
- * Here they are real exports a page imports. The frame fills the bridge's registry with its doors as it renders (LegacyApp
+ * Here they are real exports a page imports. The frame fills the bridge's registry with its doors as it renders (FrameApp
  * hands it `fillDoors` as a prop), before the pages under it draw; a door the registry does not hold answers as a stand-in
  * window would (a test's, the standalone mockup's), else says so once (`door_missing`) and does nothing, as it always did.
  * The names the pages that have not moved read (`askAbout`, `appNavigate`, `appAsk`) are published from here by
@@ -19,7 +19,7 @@
  */
 import type { AskScope } from "@chanlytics/contracts";
 // A type only, which a bundle drops: this module imports nothing at run time, so the kit and every surface can import it.
-import type { GoOptions } from "@/legacy-bridge/workspace";
+import type { GoOptions } from "@/bridge/workspace";
 
 /** What Ask is opened with: a question to ask, or to finish with `mode` "compose"; a conversation to open; and the scope its chip opens on. */
 interface AskAbout {
@@ -233,7 +233,7 @@ export const routeDoor = (to: string, go: ((to: string) => void) | null = null):
       if (go) go(to);
       else if (win.CHANLY && win.CHANLY.nav) win.CHANLY.nav(to);
     },
-    // A finger is a scroll or a swipe first (legacy-verbs warmsOnReach).
+    // A finger is a scroll or a swipe first (frame-verbs warmsOnReach).
     onPointerEnter: (e) => {
       if (!e || e.pointerType !== "touch") warm();
     },

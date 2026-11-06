@@ -239,7 +239,7 @@ async function searchPeople(
     const listed = inView;
     const named = new Set(page.people.map((r) => r.id));
     inView = (id) => listed(id) && named.has(id);
-    // Each person said, as the People page builds their row (legacy-bridge/surface-data.ts personRowOf): for the member
+    // Each person said, as the People page builds their row (bridge/surface-data.ts personRowOf): for the member
     // asking, and their reach judged against what the workspace sends on (the turn's own read: a search page carries
     // none) -- built for the rows said alone, never the whole page.
     const ready = (await load(t.rc, facts.channelsReady, undefined)).data;
@@ -446,7 +446,7 @@ async function readWinners(t: ToolContext): Promise<unknown> {
 const PIPELINE_CAP = 30;
 
 /**
- * Every list People's rail shows, as the page builds it (legacy-bridge/surface-data.ts publishPeople, over contracts'
+ * Every list People's rail shows, as the page builds it (bridge/surface-data.ts publishPeople, over contracts'
  * one table of lists): People's own that this workspace can count, each with what it holds and how many; the ones it
  * cannot, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words
  * and its count or why it cannot be counted. Counted over the audience pool (readers/audience-pool.ts: everyone, for

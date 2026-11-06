@@ -5,7 +5,7 @@
  */
 import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
 import { ASK_ATTACHED_MAX, type AskAttached } from "@chanlytics/contracts";
-import { refreshSurface } from "../../legacy-verbs";
+import { refreshSurface } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { LineFiles, LinePress } from "../../kit/line/line";
 import { FILE_PICKS, fileVerbs, type AddSaid } from "../../files/verbs";

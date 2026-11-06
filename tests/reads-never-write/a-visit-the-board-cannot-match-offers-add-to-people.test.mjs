@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ADD_TO_PEOPLE_WORDS, addToPeopleOf, toCalendarVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, byTestId, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 
 const TZ = "America/New_York";
@@ -76,7 +76,7 @@ test("the words", () => {
 });
 
 /* ---- the visit, drawn ---- */
-installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} } });
+installStubReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} } });
 const { OpenVisit } = await import("../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** What the wire saw (request line and body) and what it answers a POST contacts with. */

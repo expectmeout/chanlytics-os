@@ -18,7 +18,7 @@ import { StoppedMark } from "../../kit/pill/stopped-mark";
 import type { FocusOn } from "../../kit/record/focus";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn } from "../../frame-verbs";
 import { JOB_CANCEL } from "../sheets/phone-sheet";
 import { plMatcher } from "../words";
 import { P } from "./pipe";

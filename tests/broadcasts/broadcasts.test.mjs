@@ -41,7 +41,7 @@ import {
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
-import { installLegacyReact, fresh as freshTree, all, find, byTestId, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh as freshTree, all, find, byTestId, textOf } from "../_stub-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -686,7 +686,7 @@ test("the routes: a message, values its slots take, an audience crossed with who
 /* ---- the page, drawn: TSX (surfaces/campaigns/broadcasts) on a stub React, over the values the seam holds ---- */
 
 const went = [];
-installLegacyReact({
+installStubReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
   usePPToast: () => [null, () => {}],
@@ -767,9 +767,7 @@ const yesSheet = (over = {}) => {
 };
 
 test("the surface and the page: Broadcasts is real, fed by the same rules, and the demo draws the sample", async () => {
-  const reg = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href
-  );
+  const reg = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/surface-registry.ts")).href);
   assert.equal(reg.SURFACE_STATES.broadcasts, "real");
   assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
   const sent = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
@@ -831,7 +829,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     [],
     "one WhatsApp has not approved is not",
   );
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
+  assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installBroadcasts();"));
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
 

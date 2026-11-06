@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { peopleRoute, personTabRoute } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { personDeletedHere, warmPerson } from "../people-detail";
 import { walkIn } from "../walk";
 import { usePeekRead } from "./use-peek-read";

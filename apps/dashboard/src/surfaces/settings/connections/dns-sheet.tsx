@@ -8,11 +8,11 @@
  */
 import { useState } from "react";
 import type { MailboxConnectionDto, MailboxRecordRow } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
-import { gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 
 /** The DNS sheet's verbs and words (contracts mailboxDnsOf, MAILBOX_DNS_WORDS). */
@@ -21,7 +21,7 @@ const DNS_WORDS = DNS.words;
 /** The permission a mailbox's acts ask (contracts ROLE_PERMS), as the block's. */
 const MAILBOX_PERM = "settings";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /**
  * Copy words, saying so where asked; where the browser gives no clipboard, the words are selected so a person copies

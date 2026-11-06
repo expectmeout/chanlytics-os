@@ -31,12 +31,12 @@ import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
-import { canDo, gate, gateTitle, holdStill, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, gateTitle, holdStill, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { businessRecord } from "./record";
 
 const RECORD = businessRecord;
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 type Line = LineDto | null | undefined;
 /** What is still wrong, by field, in the owner's words. */
 type Problems = Partial<Record<string, string>>;

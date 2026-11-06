@@ -35,7 +35,7 @@ import {
   press,
   quiet,
   redrawWanted,
-} from "../../_legacy-react.mjs";
+} from "../../_stub-react.mjs";
 import {
   KNOWN,
   W,
@@ -1287,7 +1287,7 @@ test("a workspace with no address is given the one its name makes in one press: 
     held_list: [],
     forwarding: null,
   };
-  // The page's own client makes the request (legacy-bridge/api.ts), over a fetch that answers as the route would.
+  // The page's own client makes the request (bridge/api.ts), over a fetch that answers as the route would.
   const asked = [];
   let answer = { status: 409, body: { ok: false, error: { code: "conflict", message: "That address is taken." } } };
   const fetchWas = globalThis.fetch;

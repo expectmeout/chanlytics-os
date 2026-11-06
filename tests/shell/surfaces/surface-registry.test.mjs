@@ -23,7 +23,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DASH = path.join(here, "../../../apps/dashboard/src");
-const registry = await import(pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href);
+const registry = await import(pathToFileURL(path.join(DASH, "bridge/surface-registry.ts")).href);
 // The routes that have left the shell: each has an App Router page of its own (decision 0015).
 const { SURFACE_ROUTES, routeHasPage } = await import(pathToFileURL(path.join(DASH, "surfaces/routes.ts")).href);
 const { setSurfaceValue } = await import(pathToFileURL(path.join(DASH, "surfaces/surface-values.ts")).href);
@@ -39,7 +39,7 @@ const ROWS_LEFT = {
   segments: [{ word: "realWorkspace", address: null }],
 };
 const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, routeSurfaces, surfaceRetiredTo } =
-  await import(pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href);
+  await import(pathToFileURL(path.join(DASH, "bridge/surface-registry.ts")).href);
 
 // The frame (surfaces/frame, TypeScript since the one-system plan's step 7e): its gate (shell-hooks.ts) and the two pages it
 // draws outside the table (app-shell.tsx: shared, start), the family it fades (clients) and its soon landing (shell-routes.ts).

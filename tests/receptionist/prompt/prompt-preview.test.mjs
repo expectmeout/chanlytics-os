@@ -51,7 +51,7 @@ const { composePromptPreview, openingsBlock } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/receptionist/prompt-preview.ts")).href
 );
 
-const css = readCode("apps/dashboard/src/legacy/styles/settings.css");
+const css = readCode("apps/dashboard/src/styles/settings.css");
 
 /** A Monday at 10:00 in New York. */
 const NOW = new Date("2026-09-14T14:00:00Z");

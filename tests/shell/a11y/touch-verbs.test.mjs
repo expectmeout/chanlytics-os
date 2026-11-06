@@ -1,16 +1,16 @@
 /**
- * What the app knows of a finger (surfaces/legacy-verbs.ts; Ruben, 8 October 2026): a touch screen is the pointer a person
+ * What the app knows of a finger (surfaces/frame-verbs.ts; Ruben, 8 October 2026): a touch screen is the pointer a person
  * mostly uses, never a width, and there no text field takes focus as it is drawn; the kit's phone is its one width;
  * and a gesture's handlers can keep a touch to themselves, so a pull on what is drawn on the body is not read again
  * by whatever drew it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact();
-const { editorBox, focusAsDrawn, keepTouch, onAPhone } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+installStubReact();
+const { editorBox, focusAsDrawn, keepTouch, onAPhone } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 /** A window that answers these queries with yes, and every other with no. */
 const answering = (yes, run) => {

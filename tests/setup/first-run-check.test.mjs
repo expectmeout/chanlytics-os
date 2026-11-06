@@ -13,7 +13,7 @@ import {
   PROFILE_LIMITS,
   profileRefusal,
 } from "@chanlytics/contracts";
-import { again, unmount, settle, all, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { again, unmount, settle, all, byTestId, textOf, press } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "../_business-tab-harness.mjs";
 
@@ -112,7 +112,7 @@ const page = () =>
     },
   });
 /**
- * The settings read as the settings override lands it (legacy-bridge/surfaces/settings.ts): the window globals the
+ * The settings read as the settings override lands it (bridge/surfaces/settings.ts): the window globals the
  * Business tab's rows and its saver still read (`__SETTINGS`, `__FACTS`), and the seam's value the first run reads.
  */
 const landSettings = (record, known) => {

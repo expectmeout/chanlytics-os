@@ -24,7 +24,7 @@ export function getsIn(source) {
 
 /**
  * A registered surface's own modules: the file the frame registers, and the code it fetches by a relative `import()`. A
- * surface the frame registers by a light module of its description fetches its read that way (legacy-bridge/surfaces/code.ts),
+ * surface the frame registers by a light module of its description fetches its read that way (bridge/surfaces/code.ts),
  * and what that code reads is the surface's. Paths from the root, with forward slashes.
  */
 export function surfaceModulesOf(file, root = ROOT) {

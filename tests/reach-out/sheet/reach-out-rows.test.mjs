@@ -17,9 +17,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const went = [];
 const toasts = [];
@@ -33,8 +33,8 @@ Object.assign(W, {
   useHotkey: () => {},
 });
 // The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.
-const L = "../../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 // The shell's toast is the frame's own; the home raises its notices through it, and a test reads them here.
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 // The pages and their panes are TSX (decision 0015): New's Write to leads.
@@ -123,7 +123,7 @@ test("the bridge's verbs press the doors they name: the report, the chain's remo
   realVerbs();
   const calls = [];
   W.__apiForTest = null;
-  const api = await import("../../../apps/dashboard/src/legacy-bridge/api.ts");
+  const api = await import("../../../apps/dashboard/src/bridge/api.ts");
   const was = W.fetch;
   W.fetch = async (url, init = {}) => {
     calls.push([

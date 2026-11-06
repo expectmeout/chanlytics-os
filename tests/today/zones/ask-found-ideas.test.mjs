@@ -15,12 +15,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ASK_FOUND_WORDS as F, NEED_YOU_WORDS, repliesFellCard } from "@chanlytics/contracts";
-import { again, all, byTestId, fresh, press, textOf } from "../../_legacy-react.mjs";
+import { again, all, byTestId, fresh, press, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
 import { answerWith, json, went, wire } from "./_world.mjs";
 
-const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 const { AskFound } = await import("../../../apps/dashboard/src/surfaces/today/zones/found.tsx");
 const { clearRowStates } = await import("../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");

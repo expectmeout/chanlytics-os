@@ -1,6 +1,6 @@
 /**
  * A real session's boot seeds no thread (the wiring's second audit, X6-1, X6-3), run on the app's own seeds
- * (legacy-bridge/seed-globals.ts), the Inbox's store and the bell over them, as a signed-in tab loads them.
+ * (bridge/seed-globals.ts), the Inbox's store and the bell over them, as a signed-in tab loads them.
  *
  * The seeds published the demo's eleven threads under INBOX_DATA in every session, and the Inbox's store answered the demo's
  * rows until its first read landed: on a real workspace the bell, the top bar's search and Ask's palette read those people as
@@ -9,20 +9,20 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const win = globalThis.window;
 // Nothing declared a demo: a signed-in tab, as the app's own page boots it.
 delete win.__DEMO_MODE;
-await importSrc("apps/dashboard/src/legacy-bridge/seed-globals.ts");
+await importSrc("apps/dashboard/src/bridge/seed-globals.ts");
 const { inboxData, conversationsData, REAL_CHANNEL_LABELS } = await importSrc(
   "apps/dashboard/src/surfaces/inbox/store.ts",
 );
 const { inboxSample, conversationsSample } = await importSrc("apps/dashboard/src/surfaces/inbox/sample.ts");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { installNotifications } = await importSrc("apps/dashboard/src/legacy-bridge/notifications.ts");
+const { installNotifications } = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 
 const SEEDED = [...inboxSample.THREADS, ...conversationsSample.CONVERSATIONS].map((row) => row.who);
 const storage = () => {

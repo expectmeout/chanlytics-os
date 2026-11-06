@@ -2,10 +2,10 @@
 // table's own state moves what is drawn: the lane's step 0, kept as the binding's first test.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, all, textOf, redrawWanted, quiet } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, textOf, redrawWanted, quiet } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const { useTable, useSlice } = await importSrc("apps/dashboard/src/surfaces/kit/table/use-table.ts");
 const { tableFeatureSet } = await importSrc("apps/dashboard/src/surfaces/kit/table/features.ts");
 const { createColumnHelper } = await import("@tanstack/table-core");

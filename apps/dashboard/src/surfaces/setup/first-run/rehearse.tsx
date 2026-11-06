@@ -12,7 +12,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { FIRST_RUN_HELPERS, type FirstRunVM, type ReceptionistCardVM } from "@chanlytics/contracts";
-import { refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, type FrameFlash } from "../../frame-verbs";
 import { BtHowItDid, BtTyped, historyOf, useRehearsal } from "../../settings/business/rehearse/rehearse";
 import { BtTalk } from "../../settings/business/rehearse/talk";
 import { setupVerbs } from "../surface";
@@ -50,7 +50,7 @@ function Using({ card, asks }: { card: ReceptionistCardVM; asks: readonly string
 }
 
 /** The skip, before any review: once, the nudge; twice, the wait put off for this member. */
-function Skip({ fr, flash, go }: { fr: FirstRunVM; flash: (f: LegacyFlash) => void; go: (to: string) => void }) {
+function Skip({ fr, flash, go }: { fr: FirstRunVM; flash: (f: FrameFlash) => void; go: (to: string) => void }) {
   const [nudged, setNudged] = useState(false);
   const [busy, setBusy] = useState(false);
   const s = fr.skip;
@@ -95,7 +95,7 @@ export function FrRehearse(o: {
   bookingLink: string | null;
   trained: number;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   /** The page's foot, at the end of the step's own column (page.tsx stepBody says why). */
   foot?: ReactNode;

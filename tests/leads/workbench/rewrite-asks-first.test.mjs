@@ -9,7 +9,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { useStubHooks } from "../../_legacy-react.mjs";
+import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 let cells = {};

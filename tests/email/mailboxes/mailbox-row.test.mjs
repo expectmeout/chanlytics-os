@@ -9,10 +9,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, find, all, byTestId, textOf, press, settle } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, all, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
-installLegacyReact();
+installStubReact();
 const SAM = "sam@getharbor.example";
 const CONNECTIONS = "../../../apps/dashboard/src/surfaces/settings/connections";
 const { EmailCard } = await import(`${CONNECTIONS}/mailboxes-block.tsx`);

@@ -64,7 +64,7 @@ const nextConfig: NextConfig = {
   // A build's own pass would compile the five packages' sources into the dashboard's one program, which ran out of
   // memory on 28 October 2026, and repeat what the gate already proved before anything merged.
   typescript: { ignoreBuildErrors: true },
-  // The legacy mockup bridge (Slice 0B) mounts client-only under app/(os).
+  // The frame (Slice 0B) mounts client-only under app/(os).
   reactStrictMode: true,
   // Every route is prerendered as far as it reads nothing of the request (decision 0053, step 5): the OS's frame whole,
   // so a document of it is served without running a function and a page warmed is warmed for every address of its

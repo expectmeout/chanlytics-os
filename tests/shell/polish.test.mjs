@@ -78,7 +78,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   );
   // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
   assert.ok(
-    /bellFeed\(\{\s*derived: feedFromGlobals\(/.test(readCode("apps/dashboard/src/legacy-bridge/notifications.ts")),
+    /bellFeed\(\{\s*derived: feedFromGlobals\(/.test(readCode("apps/dashboard/src/bridge/notifications.ts")),
     "the bridge shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed)",
   );
   const server = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
@@ -105,9 +105,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     "a long warning wraps beside its glyph, not under it",
   );
   assert.ok(
-    readRaw("apps/dashboard/src/legacy/styles/components.css").includes(
-      "  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos",
-    ),
+    readRaw("apps/dashboard/src/styles/components.css").includes("  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos"),
     "a long meta wraps in its own cell, not into the next",
   );
   // tzClock, and the four places Today says a closing or a last time with it.
@@ -115,7 +113,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     .map((m) => readCode(`packages/contracts/src/today/today-${m}.ts`))
     .join("\n");
   assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
-  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");
   const topbar = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
   assert.ok(

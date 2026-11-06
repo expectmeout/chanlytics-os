@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh,
   again,
   all,
@@ -16,10 +16,10 @@ import {
   redrawWanted,
   textOf,
   press,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
+installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");

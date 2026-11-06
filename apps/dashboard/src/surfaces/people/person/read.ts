@@ -6,7 +6,7 @@
  * into every first load (the loadability review, 19 Oct 2026).
  */
 import type { PersonVM } from "@chanlytics/contracts";
-import { demoSession } from "../../legacy-verbs";
+import { demoSession } from "../../frame-verbs";
 import { demoCode } from "../hooks/demo";
 import { peekPerson, personDetail } from "../people-detail";
 

@@ -3,7 +3,7 @@
  * call runs on, and its state as the one pill draws it.
  */
 import { mmss, type LiveCallVM } from "@chanlytics/contracts";
-import { statePillPart } from "../legacy-parts";
+import { statePillPart } from "../frame-parts";
 
 export const lrClock = (sec: number) => mmss(sec * 1000);
 

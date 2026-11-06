@@ -16,7 +16,7 @@ import { DatePicker } from "../../../kit/datepicker/datepicker";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { focusAsDrawn } from "../../../legacy-verbs";
+import { focusAsDrawn } from "../../../frame-verbs";
 import type { ListSpec, Row } from "./chip-lists";
 import { AdsNotes } from "./notes";
 

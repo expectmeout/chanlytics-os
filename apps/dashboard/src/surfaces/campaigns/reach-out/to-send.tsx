@@ -24,8 +24,8 @@ import {
   type ReachOutSaidOutcome,
   type ToSendRowVM,
 } from "@chanlytics/contracts";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { canDo, gateTitle, navigate, onAPhone } from "../../legacy-verbs";
+import { commitVerb } from "@/bridge/verbs/commit";
+import { canDo, gateTitle, navigate, onAPhone } from "../../frame-verbs";
 import { surfaceValue } from "../../surface-values";
 import { Button } from "../../kit/button/button";
 import { CopiedWords, useCopied } from "../../kit/copy-button/copy-button";

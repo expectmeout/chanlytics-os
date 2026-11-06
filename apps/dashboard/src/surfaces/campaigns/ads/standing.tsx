@@ -14,7 +14,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
 import { Popover } from "../../kit/popover/popover";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { CmDot } from "../parts/head";
 import { adsInPreview } from "./shown";
 

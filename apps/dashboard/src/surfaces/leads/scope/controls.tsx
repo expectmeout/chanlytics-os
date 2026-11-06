@@ -11,7 +11,7 @@ import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { Button } from "../../kit/button/button";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import type { AnyDataColumn } from "../../kit/table/columns";
 import { TableColumnsMenu } from "../../kit/table/columns-menu";
 import type { TableState } from "../../kit/table/state";

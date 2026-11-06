@@ -26,12 +26,12 @@
  */
 import { useState, type KeyboardEvent } from "react";
 import { isCarrier, isForwardingMode, type Carrier, type LineDto } from "@chanlytics/contracts";
-import { canDo, gate, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { FORWARDING_WORDS, setupVerbs, type SetupSurface } from "../surface";
 
 interface ForwardingProps {
   S: SetupSurface;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   onDone: () => void;
 }
 

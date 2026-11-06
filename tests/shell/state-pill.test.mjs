@@ -30,7 +30,7 @@ import {
   lifecycleStateOf,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_stub-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -269,7 +269,7 @@ globalThis.React = {
     return cells[k];
   },
   // The list's rows take one ref, the kit's arrival and the list's window together (kit/motion/use-rows-arrive.ts): a
-  // callback, as the shared stub's (_legacy-react.mjs), so it reaches the stub and never the react-server module's own.
+  // callback, as the shared stub's (_stub-react.mjs), so it reaches the stub and never the react-server module's own.
   useCallback: (fn) => fn,
   useEffect: (fn) => {
     const k = frames.key();

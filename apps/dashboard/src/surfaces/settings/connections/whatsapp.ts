@@ -16,12 +16,12 @@
  * press asks for the window before it waits on anything, and a window the browser refused is said (7 October: on a phone the
  * press asked Meta's door, fetched the SDK, and only then asked for the window; nothing opened and the page said nothing).
  *
- * Moved from legacy-bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11): the Connections
+ * Moved from bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11): the Connections
  * pane imports `waConnect` ({ config(), prepare(), start() }).
  */
 import type { LineCodeDto } from "@chanlytics/contracts";
 import { unwrap } from "@/client/api";
-import { api, read } from "@/legacy-bridge/api";
+import { api, read } from "@/bridge/api";
 import { signupDoorRead } from "../frame/pane-reads";
 
 type Refused = {

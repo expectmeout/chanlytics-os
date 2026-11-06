@@ -30,8 +30,8 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { gate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { cmOfferedFrom } from "../parts/channels";
 import { AddStepChoices } from "./new/add-step";
@@ -42,7 +42,7 @@ import { RecordFootContext } from "./record-foot";
 import { pressed } from "./verbs";
 import type { CmOffered } from "../parts/channels";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** What the sheet is open on: a step of the sequence, or the step to come (Add a step), and what it will do once picked. */
 export type StepSheetTarget = { kind: "step"; id: string } | { kind: "new"; does: NewStepDoes | null };

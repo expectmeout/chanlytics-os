@@ -4,9 +4,9 @@
  * the read, does).
  */
 import type { PushKind } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { saveSettings } from "@/legacy-bridge/inbox-verbs";
-import { surfaceMoved } from "@/legacy-bridge/surface-status";
+import { api } from "@/bridge/api";
+import { saveSettings } from "@/bridge/inbox-verbs";
+import { surfaceMoved } from "@/bridge/surface-status";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 
 /** What a test came to: sent to how many, or why not; a refusal's own words where the route refused. The pane words it. */

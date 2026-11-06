@@ -36,14 +36,12 @@ Object.assign(globalThis, {
 const { RECORD_KINDS, liveTablesOf } = await importSrc("packages/contracts/src/activity/record-kinds.ts");
 const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
 const { heardTables, heardOnItsPage, subscribesToRealtime, wantsRefresh } = await importSrc(
-  "apps/dashboard/src/legacy-bridge/surface-realtime.ts",
+  "apps/dashboard/src/bridge/surface-realtime.ts",
 );
-const { declareReads, ownsTable, ownsTheScreen } = await importSrc(
-  "apps/dashboard/src/legacy-bridge/surface-registry.ts",
-);
-const { ON_DEMAND_STALE_MIN } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+const { declareReads, ownsTable, ownsTheScreen } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
+const { ON_DEMAND_STALE_MIN } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
 
-/** Every surface the shell registers (LegacyApp.tsx), from the module it imports each from: the shell's own list, no copy of it. */
+/** Every surface the shell registers (FrameApp.tsx), from the module it imports each from: the shell's own list, no copy of it. */
 const OVERRIDES = [];
 for (const { name, file } of registeredSurfaces()) OVERRIDES.push((await importSrc(file))[name]);
 const byKey = (key) => OVERRIDES.find((o) => o.key === key);

@@ -15,7 +15,7 @@ import {
   leadsStanding,
   type LeadRowVM,
 } from "@chanlytics/contracts";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { useRecordsAhead } from "../../campaigns/sequences/use-record";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";

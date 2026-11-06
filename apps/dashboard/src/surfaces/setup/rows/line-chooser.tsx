@@ -4,12 +4,12 @@
  * gets one.
  */
 import { useState } from "react";
-import { canDo, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs, type LineChoice, type SetupSurface } from "../surface";
 
 interface ChooserProps {
   S: SetupSurface;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   onDone: () => void;
   onKeep: () => void;
 }

@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import type { FileDto } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 
 /** How many one read brings: two rows at a desk, four on a phone. */
 const KEPT_AT_ONCE = 12;

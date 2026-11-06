@@ -1,5 +1,5 @@
 /**
- * The three, following Ask's mood (legacy-bridge/mascot mood.ts). The top bar's Ask button, the Line and the phone's ✦ draw
+ * The three, following Ask's mood (bridge/mascot mood.ts). The top bar's Ask button, the Line and the phone's ✦ draw
  * it; whoever runs a turn says the mood, so there is one AI with one face wherever it is. The squares are the largest that
  * keep everything the three do inside the canvas (fitSide).
  * `tone="accent"` draws them on a coral ground in that ground's own foreground (colour.ts `Tone`); `ground="raised"` draws
@@ -7,8 +7,8 @@
  * behind it (the phone's ✦).
  */
 import { useEffect, useRef } from "react";
-import { MASCOT } from "@/legacy-bridge/mascot";
-import type { MountOptions } from "@/legacy-bridge/mascot/driver";
+import { MASCOT } from "@/bridge/mascot";
+import type { MountOptions } from "@/bridge/mascot/driver";
 
 /** The page's tokens as the driver reads them, with the ground the three sit on in place of the page. */
 const groundTokens = (ground: string) => () => {
@@ -64,7 +64,7 @@ export const AskFace = ({
 // nothing sets (`window.__USAGE` was set by the standalone mockup's stub and by no part of the app, and `surface:usage` was
 // sent by none) is not a fact the database supports. When a member-readable read of the day's budget lands, it feeds
 // `data-usage` (ok | warned | over) on this span through the seam; the dot's rules in ask.css wait for it. What needs you is
-// the three's own colour (legacy-bridge/arrival.ts).
+// the three's own colour (bridge/arrival.ts).
 export const AskDisc = ({ testId }: { testId?: string }) => (
   <span className="ask-disc" aria-hidden="true" data-testid={testId} />
 );

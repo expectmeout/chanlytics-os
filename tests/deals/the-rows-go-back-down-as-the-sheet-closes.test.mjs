@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const fromDashboard = createRequire(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../apps/dashboard/src/legacy-bridge/_.js"),
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../apps/dashboard/src/bridge/_.js"),
 );
 
 /* ------------------------------ what stands in for a browser ------------------------------ */

@@ -46,7 +46,7 @@ const { pipeline: pipelineContext } = await import(at("apps/dashboard/src/server
 const { audiencePool } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
 const { runTool, buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
+const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const noteWrite = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/route.ts"));
 const noteRemove = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts"));
@@ -478,7 +478,7 @@ test("people.lists answers the rail People draws, over the audience pool (everyo
   const { out, tc } = await ask({ action: "lists" });
   const rc = rcIn(ctxFor(), "operator");
   const pool = (await load(rc, audiencePool, undefined)).data;
-  // The page's own build (legacy-bridge/surface-data.ts publishPeople), over the pool's rows.
+  // The page's own build (bridge/surface-data.ts publishPeople), over the pool's rows.
   const cal = pool.calendar.state;
   const offered = PEOPLE_LISTS.filter(
     (l) =>

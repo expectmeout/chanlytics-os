@@ -7,7 +7,7 @@
  * so the standalone mockup renders nothing here.
  */
 import type { MediaVM } from "@chanlytics/contracts";
-import { hasHref, hrefOf } from "../../legacy-verbs";
+import { hasHref, hrefOf } from "../../frame-verbs";
 import { Icon } from "../icon/icon";
 
 export function TlMedia({ media }: { media?: MediaVM | null }) {

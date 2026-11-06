@@ -4,7 +4,7 @@
  * chosen, the peek's focus rule, who may record a deal, and the way a send from the peek's card reaches their thread.
  */
 import { carryReply } from "../../inbox/carried-reply";
-import { mayAtLeast } from "../../legacy-verbs";
+import { mayAtLeast } from "../../frame-verbs";
 
 // The order the page opens in: Stage, the Pipeline's own (contracts pipelineOf), until the member picks a heading.
 export const PIPE_SORT = { by: "stage", dir: "asc" } as const;

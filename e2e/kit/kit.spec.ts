@@ -214,9 +214,9 @@ const tokensQ = (width: Width, pressed: boolean, reduced = false): KitAsk => ({
 // medium height until Classic retired (#1367): kit.css's own `footer.rec-sheet-foot .btn` outranks it there now.
 const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegExp }[] = [
   {
-    by: "legacy.css, `@media (pointer: coarse) { html.legacy-on .chip { min-height: 0 } }`: the shell's touch floor, undone for a chip",
+    by: "frame.css, `@media (pointer: coarse) { html.frame-on .chip { min-height: 0 } }`: the shell's touch floor, undone for a chip",
     until:
-      "Phase 4's step for the frame (0015 step 13), where legacy.css leaves with the shell and the kit keeps its own floor",
+      "Phase 4's step for the frame (0015 step 13), where frame.css leaves with the shell and the kit keeps its own floor",
     runs: /^phone /,
     failure: /^chip-wrap: .* span\.chip\.chip-wrap min-height: planting --chip-h changed nothing/,
   },
@@ -231,10 +231,10 @@ const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegEx
   },
   {
     by:
-      "legacy.css, `@media (pointer: coarse) { html.legacy-on button, html.legacy-on .btn { min-height: 44px } }`: the " +
+      "frame.css, `@media (pointer: coarse) { html.frame-on button, html.frame-on .btn { min-height: 44px } }`: the " +
       "shell's touch floor, which outranks the kit's own thumb's size (.btn-touch, a notice's acts) at the same 44px",
     until:
-      "Phase 4's step for the frame (0015 step 13), where legacy.css leaves with the shell and the kit keeps its own floor",
+      "Phase 4's step for the frame (0015 step 13), where frame.css leaves with the shell and the kit keeps its own floor",
     runs: /^phone /,
     failure:
       /^(?:btn-touch|btn-thread|notice)[a-z-]*: .* min-height: planting --control-h-touch changed nothing \(min-height at 44px\)/,

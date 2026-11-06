@@ -20,16 +20,16 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { MIN_MS, headlineOf, reportDaysCount } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, reportDto } from "../_report-world.mjs";
 import { CAMPAIGNS, dtoWith } from "./_campaign-world.mjs";
 
-installLegacyReact();
+installStubReact();
 Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
-  // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+  // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
   __afterTheMoveMs: 0,
 });
 // On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
@@ -53,10 +53,10 @@ const { keepReportPeriod, shownReportPeriod, reportsOverride } = await importSrc
 );
 const { setReportRange } = await importSrc("apps/dashboard/src/surfaces/reports/period.ts");
 const { surfaceValue, setSurfaceValue, followState } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { setStatus } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { setStatus } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const { readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
 console.error = keepError;
 
@@ -855,7 +855,7 @@ test("a write that makes the read wrong forgets it, and nothing reads it from th
     await reportsCampaignsOverride.apply();
     assert.equal(reportsCampaigns.isStale(), false);
     asked.length = 0;
-    const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+    const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
     elsewhere("inbox");
     // A notification setting says nothing a campaign counts, and a deal is Reports' own Deals section: what it holds is left as it is.
     AFTER["PUT notifications"]();

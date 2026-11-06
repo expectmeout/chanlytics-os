@@ -86,7 +86,7 @@ import { logger, errField } from "../shared/log.js";
  * marked approved with NO meta_id, so Meta had never seen it and the send
  * failed there too: the caller heard "that number may not have WhatsApp",
  * which named the wrong cause entirely. The Inbox and the composer left the
- * same literal behind for the same reason (legacy-bridge inbox-verbs.ts); this
+ * same literal behind for the same reason (bridge inbox-verbs.ts); this
  * was the last caller holding it.
  *
  * `bookingTemplate` asks the questions that matter -- approved, fillable

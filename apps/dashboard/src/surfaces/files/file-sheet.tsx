@@ -22,7 +22,7 @@ import { Icon } from "../kit/icon/icon";
 import { Notice } from "../kit/notice/notice";
 import { RecordSheet } from "../kit/record/sheet";
 import { afterSheetCloses } from "../kit/sheet/back";
-import { askAbout, canDo, type LegacyFlash } from "../legacy-verbs";
+import { askAbout, canDo, type FrameFlash } from "../frame-verbs";
 import { FileChoices, FileReads, FileWho, NameField, type SheetPress } from "./file-fields";
 import { Picture } from "./photo";
 import { PostGoogle, PostGoogleActs, PostOnGoogle, usePostGoogle } from "./post-google";
@@ -180,7 +180,7 @@ function FileSheet({
   file: FileDto;
   onClose: () => void;
   open: (id: string) => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

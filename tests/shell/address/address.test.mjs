@@ -23,7 +23,7 @@ const inPath = (route) => {
   return Object.hasOwn(WORDS, head) ? WORDS[head] + route.slice(head.length) : route;
 };
 
-/** Every kind of route the shell draws (legacy/CLAUDE.md, "Routes"), each as it is written after the slug. */
+/** Every kind of route the shell draws (mockup/CLAUDE.md, "Routes"), each as it is written after the slug. */
 const ROUTES = [
   "today",
   "inbox",

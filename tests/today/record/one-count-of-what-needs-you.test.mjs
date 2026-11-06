@@ -32,12 +32,12 @@ import {
 } from "@chanlytics/contracts";
 import { waitingRunsOf } from "@chanlytics/db";
 import { fakeDb } from "../../_fake-db.mjs";
-import { installLegacyReact, fresh, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, byTestId, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { PLAN } from "../../_lead-fixtures.mjs";
 import { NOW as DAY, ZONE, handoffDay, metrics, msg, thread } from "./_world.mjs";
 
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate() {},
@@ -51,7 +51,7 @@ const W = globalThis.window;
 const SRC = "apps/dashboard/src";
 const { needsYouNow, hearNeedsYou, needsYouMoved, needsYouActed } = await importSrc(`${SRC}/surfaces/needs-you.ts`);
 const { setSurfaceValue } = await importSrc(`${SRC}/surfaces/surface-values.ts`);
-const { surfaceMoved } = await importSrc(`${SRC}/legacy-bridge/surface-status.ts`);
+const { surfaceMoved } = await importSrc(`${SRC}/bridge/surface-status.ts`);
 const { VW_STORE, IX_STORE, inboxData } = await importSrc(`${SRC}/surfaces/inbox/store.ts`);
 // The demo's seed, fetched only in a demo session (inbox/shell.ts demoCode): it hands its rows to the store as it lands.
 const { demoCode } = await importSrc(`${SRC}/surfaces/inbox/shell.ts`);

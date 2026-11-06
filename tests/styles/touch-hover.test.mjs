@@ -16,8 +16,8 @@ import { ROOT } from "../_source.mjs";
 
 /** The touch controls whose hover is the picked fill, by sheet. */
 const CONTROLS = [
-  { sheet: "apps/dashboard/src/legacy/styles/reports.css", cls: "rpt-when-open" },
-  { sheet: "apps/dashboard/src/legacy/styles/calendar.css", cls: "cal-options" },
+  { sheet: "apps/dashboard/src/styles/reports.css", cls: "rpt-when-open" },
+  { sheet: "apps/dashboard/src/styles/calendar.css", cls: "cal-options" },
 ];
 
 function parse(sheet) {

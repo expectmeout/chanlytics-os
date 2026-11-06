@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 globalThis.window = { location: { pathname: "/w/salon" } };
-const { heldViews } = await import("../../../apps/dashboard/src/legacy-bridge/held-views.ts");
+const { heldViews } = await import("../../../apps/dashboard/src/bridge/held-views.ts");
 const at = (path) => {
   globalThis.window.location.pathname = path;
 };

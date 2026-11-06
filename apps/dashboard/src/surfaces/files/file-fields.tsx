@@ -16,7 +16,7 @@ import {
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";
 import { MoreMenu } from "../kit/more-menu/more-menu";
-import { gateTitle } from "../legacy-verbs";
+import { gateTitle } from "../frame-verbs";
 import type { FileChange } from "./verbs";
 
 export /** What a press in the sheet is handed: whether it may, whether one is out, and how a word is said. */

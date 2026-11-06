@@ -8,16 +8,16 @@
  */
 import { useEffect, useState } from "react";
 import { FIRST_RUN_HELPERS, ratingWords, type ImportRowDto } from "@chanlytics/contracts";
-import { googleVerbs } from "@/legacy-bridge/google";
+import { googleVerbs } from "@/bridge/google";
 import { Icon } from "../../kit/icon/icon";
-import { gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs } from "../surface";
 import { W } from "./words";
 
 const G = FIRST_RUN_HELPERS.words.google;
 
 /** Not now: Your business goes on, and Setup's Google row keeps Connect for later. */
-async function notNow(flash: (f: LegacyFlash) => void, goOn: () => void): Promise<void> {
+async function notNow(flash: (f: FrameFlash) => void, goOn: () => void): Promise<void> {
   const r = await setupVerbs.later(FIRST_RUN_HELPERS.googleConnectLater, { on: true, why: "answer" });
   if (!r.ok) return flash(refusalToast(r, W.find.notSaved));
   goOn();
@@ -31,7 +31,7 @@ export type GoogleBack = "connected" | "not_manager";
  * that manages no location of this business (several, none of them this one, is the same); or a refusal, said in the
  * toast as Connections says it, the ask staying on screen.
  */
-export function useGoogleBack(flash: (f: LegacyFlash) => void): [GoogleBack | null, (b: GoogleBack | null) => void] {
+export function useGoogleBack(flash: (f: FrameFlash) => void): [GoogleBack | null, (b: GoogleBack | null) => void] {
   const [back, setBack] = useState<GoogleBack | null>(null);
   useEffect(() => {
     const o = googleVerbs.outcome();
@@ -50,7 +50,7 @@ export function FrNotManager(o: {
   business: string | null;
   email: string | null;
   assistant: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   goOn: () => void;
 }) {
   return (
@@ -93,7 +93,7 @@ export function FrConnectGoogle(o: {
   assistant: string | null;
   listing: { name: string; rating: number | null; review_count: number | null } | null;
   email: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   goOn: () => void;
 }) {
   const [someoneElse, setSomeoneElse] = useState(false);

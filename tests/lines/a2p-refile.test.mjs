@@ -425,7 +425,7 @@ test("a rejection reaches every person who can act on it, in words about what ha
   // And SUPPORT, pressing the button, reads the reason rather than a token. The
   // ops surface would otherwise have repeated the exact defect this fixed for
   // owners: `record_incomplete` where two sentences belong.
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/platform.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/platform.ts");
   assert.match(bridge, /Array\.isArray\(res\?\.problems\)/);
   assert.match(bridge, /if \(problems\.length\) return \{ ok: false, message: problems\.join\(" "\) \};/);
   const act = readCode("packages/contracts/src/workspace/platform.ts");

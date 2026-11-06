@@ -11,7 +11,7 @@ import { useState } from "react";
 import { leadCardBulkDoorOf, type LeadCardBulkVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Popover } from "../../kit/popover/popover";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 
 /** The bulk door's facts: how many are open, the buckets as they would be now, and the add. */
 export interface PileBulkFacts {

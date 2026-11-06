@@ -1,7 +1,7 @@
 /**
  * What the record kit still asks of the shell's frame (decision 0015, the record family): each a thin wrapper that calls
  * the window's own where it is and does what the JSX did where it is not (the standalone mockup, a test's stand-in
- * window). The kit's TSX reads no `window` name itself; it imports these, as a surface imports `legacy-verbs.ts`.
+ * window). The kit's TSX reads no `window` name itself; it imports these, as a surface imports `frame-verbs.ts`.
  *
  * The frame owns every one of them: `touchSwipe`, `trapTab`, `tabStops` and `leaveOverlay` are the frame's (the pull that
  * closes a sheet, Tab kept inside a dialog, the tab stops of a part, a sheet's still copy leaving), `__tip` the app's one
@@ -61,7 +61,7 @@ export function mediaQuery(query: string): MediaQueryList | null {
 }
 
 /**
- * Whether the pointer a person mostly uses is a finger: the house's one test for a touch screen (legacy-verbs
+ * Whether the pointer a person mostly uses is a finger: the house's one test for a touch screen (frame-verbs
  * `focusAsDrawn` says what it is and why), asked through the kit's own verb for a query.
  */
 export function onTouchScreen(): boolean {
