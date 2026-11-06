@@ -156,21 +156,12 @@ function viewKey(v: LeadsView): string {
   return `${getActiveWorkspace() ?? ""}|${leadsRoute(v)}|${v.q ?? ""}|${v.sort}|${v.dir}|${v.sort === "pile" ? (v.pileList ?? "") : ""}`;
 }
 
-/**
- * The way the read walks for the way the page says it. Found's key runs newest first (leads_page: the epoch taken from ten
- * nines), so the read's `asc` is the newest first, as Ask's tool says it. The page says it as the date it is, `desc`: the
- * heading's arrow, a phone's "Newest found first". Said straight through, both showed the oldest first (6 Nov 2026).
- */
-const readDir = (sort: string, dir: "asc" | "desc"): "asc" | "desc" =>
+/** Found's key runs newest first (leads_page), so the read's `asc`, as Ask's tool says it, is the page's newest first, `desc`. */
+const readDir = ({ sort, dir }: { sort: string; dir: "asc" | "desc" }) =>
   sort === "found" ? (dir === "asc" ? "desc" : "asc") : dir;
 
 function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Record<string, string> {
-  const q: Record<string, string> = {
-    list: v.list,
-    sort: v.sort,
-    dir: readDir(v.sort, v.dir),
-    limit: String(LEADS_PAGE),
-  };
+  const q: Record<string, string> = { list: v.list, sort: v.sort, dir: readDir(v), limit: String(LEADS_PAGE) };
   if (v.searchId) q.search = v.searchId;
   if (v.cls) q.class = v.cls;
   if (v.sort === "pile" && v.pileList) q.pile_list = v.pileList;
@@ -609,7 +600,7 @@ export async function bulkLeads(body: LeadsBulkInput) {
  */
 export async function exportLeadsFile(view: LeadsExportView) {
   return leadCall<{ file: string; csv: string; rows: number }>("POST leads/export", {
-    body: { ...view, dir: readDir(view.sort, view.dir) },
+    body: { ...view, dir: readDir(view) },
     refresh: "behind",
   });
 }
