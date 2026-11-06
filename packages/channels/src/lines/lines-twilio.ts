@@ -38,6 +38,7 @@ export const TWILIO_TIMEOUT_MS = 15000;
 
 export const twilioUrls = {
   subaccounts: `${API}/Accounts.json`,
+  subaccount: (sid: string) => `${API}/Accounts/${sid}.json`,
   availableLocal: (sid: string, country = "US") => `${API}/Accounts/${sid}/AvailablePhoneNumbers/${country}/Local.json`,
   incomingNumbers: (sid: string) => `${API}/Accounts/${sid}/IncomingPhoneNumbers.json`,
   incomingNumber: (sid: string, numberSid: string) => `${API}/Accounts/${sid}/IncomingPhoneNumbers/${numberSid}.json`,
@@ -175,6 +176,16 @@ async function findSubaccount(http: TwilioHttp, master: ProviderAccount, friendl
     if (sid && token && str(a, "status") !== "closed") return { sid, token };
   }
   return null;
+}
+
+async function readSubaccount(http: TwilioHttp, master: ProviderAccount, sid: string) {
+  const a = await http(master, "GET", twilioUrls.subaccount(sid));
+  if (a.status === 404) return null;
+  const b = need(a, "read subaccount");
+  if (str(b, "status") === "closed") return null;
+  const token = str(b, "auth_token");
+  if (!token) throw new TwilioError(200, b, "read subaccount answered without auth_token");
+  return { sid, token };
 }
 
 async function findTrunk(http: TwilioHttp, acct: ProviderAccount, domainName: string) {
@@ -454,6 +465,7 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     name: "twilio",
     createSubaccount: (master, friendlyName) => createSubaccount(http, master, friendlyName),
     findSubaccount: (master, friendlyName) => findSubaccount(http, master, friendlyName),
+    readSubaccount: (master, sid) => readSubaccount(http, master, sid),
     findTrunk: (acct, domainName) => findTrunk(http, acct, domainName),
     findCredentialList: (acct, friendlyName) => findCredentialList(http, acct, friendlyName),
     findCredential: (acct, listSid, username) => findCredential(http, acct, listSid, username),
