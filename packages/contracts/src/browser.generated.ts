@@ -199,7 +199,7 @@ export { SENDER_KINDS, SENDER_READ_MAX_TOKENS, SENDER_READING_SCHEMA, senderLeft
 export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELVES, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, FILE_WORDS, fileFolderOf, fileNameOf, filePathOf, FILES_BUCKET, FILES_MAX, fileSaidOf, filesSayOf, fileViewOf, inboxCleanOf, isFileMime, postNameOf, shelfOf, whoStandsOf } from "./files/files";
 export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached } from "./files/line";
 export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, fileLookAsked, fileLookOf } from "./files/look";
-export { POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_SHAPES, POST_VOICES, POST_WORDS, postPlanOf, postPlanTidied, postWordsIn } from "./files/post";
+export { MAKE_POST_ASK, POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_SHAPES, POST_VOICES, POST_WORDS, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } from "./files/post";
 export { postBandOf, postPathOf, postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } from "./files/post-check";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";

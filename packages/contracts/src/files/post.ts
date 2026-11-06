@@ -65,6 +65,20 @@ export function postPlanTidied(plan: PostPlan): PostPlan {
 /** Why some words can't go on a picture, whoever wrote them. Each is said to the model and to a person in their own words. */
 export type PostUndrawable = "long" | "character" | "contact" | "number";
 
+/** Why a file can't be a post's photo. Like the words, each is said to the model and to a person in their own words. */
+export type PostPhotoWont = "made" | "unkept" | "design";
+
+/**
+ * Why this file can't be a post's photo, or null: it is a post already, or it isn't kept yet, or it has a design of its own that
+ * more words would clash with. Here, with nothing behind it, so a page can ask before it offers the press.
+ */
+export function postPhotoWont(f: { status: string; source: string; shows: string | null }): PostPhotoWont | null {
+  if (f.source === "made") return "made";
+  if (f.status !== "filed") return "unkept";
+  if (f.shows === "graphic" || f.shows === "logo") return "design";
+  return null;
+}
+
 /** What a post says to a person, in the post's own language. */
 export interface PostWords {
   cardTitle: (line: string) => string;
@@ -98,6 +112,7 @@ export interface PostWords {
   bandOn: string;
   bandOff: string;
   undrawable: Record<PostUndrawable, string>;
+  photoWont: Record<PostPhotoWont, string>;
 }
 
 /** In English, which is also what a post says where nothing names a language. */
@@ -137,6 +152,11 @@ export const POST_WORDS = {
     contact: "Links and emails don't go on a post.",
     number: "Put your number on with the button below, rather than typing it.",
   },
+  photoWont: {
+    made: "That's a post already. Use the photo it came from.",
+    unkept: "Keep this photo in Files first.",
+    design: "This picture already has words or a design on it, so more would clash.",
+  },
 } as const satisfies PostWords;
 
 const POST_WORDS_ES: PostWords = {
@@ -175,7 +195,18 @@ const POST_WORDS_ES: PostWords = {
     contact: "Los enlaces y correos no van en una publicación.",
     number: "Pon tu teléfono con el botón de abajo, en vez de escribirlo.",
   },
+  photoWont: {
+    made: "Eso ya es una publicación. Usa la foto de la que salió.",
+    unkept: "Guarda primero esta foto en Archivos.",
+    design: "Esta imagen ya tiene texto o un diseño, y más texto chocaría.",
+  },
 };
+
+/**
+ * What a photo's press asks of Ask, in each language: Ask's chip, and the sheet's own door (surfaces/files/file-sheet.tsx). The scope
+ * brings the picture, so the words only have to say what to do with it.
+ */
+export const MAKE_POST_ASK = { en: "Make a post from this photo", es: "Haz una publicación con esta foto" } as const;
 
 /** What a post says, in its own language. */
 export const postWordsIn = (language: PostLanguage): PostWords => (language === "es" ? POST_WORDS_ES : POST_WORDS);
