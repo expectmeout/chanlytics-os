@@ -108,6 +108,7 @@ import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { installIdentity } from "./identity";
 import { fillDoors } from "../surfaces/frame-doors";
 import { ChanlyticsApp } from "@/surfaces/frame/app-shell";
+import { firstRowsHeldByFrame, installFirstRows, letGoFirstRows } from "@/surfaces/frame/first-rows";
 import { SURFACE_LABELS, installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 // The handover, which the shell asks on every boot, is its own small module; the create screen is fetched as it is drawn.
@@ -223,6 +224,8 @@ if (getActiveWorkspace()) {
   });
   // What the tab could not hear or read goes beside its page speed (hearing/freshness.ts; the page-open PRD, L7).
   installFreshnessReports();
+  // A phone's screen kept as it is put away, for the next visit's first paint (surfaces/frame/first-rows.ts).
+  installFirstRows();
 }
 
 // The mockup's own data-before-mount contract (boot gate): the shell's contracts and the seeded charter, which the frame's
@@ -575,6 +578,14 @@ export default function LegacyApp({ routePage, route }: { routePage?: ReactNode;
     document.documentElement.classList.add("legacy-on");
     return () => document.documentElement.classList.remove("legacy-on");
   }, []);
+
+  // The rows a phone last showed stand until the page's own are drawn (surfaces/frame/first-rows.ts), and for no longer than
+  // this holds them. What the app draws in place of the frame, a handover or the create screen, is no page of theirs.
+  useEffect(() => firstRowsHeldByFrame(), []);
+  const noFrame = !!handover || creating || (isSurfaceReady("workspace") && allWorkspaces.length === 0);
+  useEffect(() => {
+    if (noFrame) letGoFirstRows();
+  }, [noFrame]);
 
   // Surface flips: one runner owns retries, realtime, debounce, and status. A status that changed, or the connection,
   // is the line's to say; it draws nothing here.

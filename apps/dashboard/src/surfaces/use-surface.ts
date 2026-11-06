@@ -11,6 +11,7 @@ import { followState, surfaceValue } from "./surface-values";
 import type { FollowState, SurfaceKey, SurfaceValues } from "./surface-values";
 import { getSurfaceStatuses, isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 import { partBegins, partReady } from "@/client/page-speed";
+import { firstRowsDrawn } from "./frame/first-rows";
 import { refreshSurface } from "./legacy-verbs";
 import { waitFor, type WaitPace } from "@/legacy-bridge/hearing/wait-for";
 
@@ -82,7 +83,10 @@ export function usePartShown(page: string, part: string, ready: boolean, key?: s
     begun.current = true;
   }, [page, part, runKey]);
   useLayoutEffect(() => {
-    if (runKey !== null && ready) partReady(page, part, runKey);
+    if (runKey === null || !ready) return;
+    partReady(page, part, runKey);
+    // In the draw that puts the rows on the screen, so the rows a phone last showed go in the same frame (frame/first-rows.ts).
+    firstRowsDrawn(page, part);
   }, [page, part, runKey, ready]);
 }
 

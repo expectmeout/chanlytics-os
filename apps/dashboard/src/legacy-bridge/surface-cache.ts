@@ -32,7 +32,7 @@ import { getActiveWorkspace, routeOnScreen } from "./workspace";
 import { drawsTheScreen } from "./surface-registry";
 import { SURFACE_SHAPES } from "./surfaces/shapes.generated";
 import { publicEnv } from "@/lib/public-env";
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, FIRST_ROWS_OLDEST_MS, FIRST_ROWS_SLOT } from "@chanlytics/contracts";
 
 // Storage slot names (not a credential — the secret scanner reads "KEY" as one): one per workspace, by the address's word.
 const CACHE_PREFIX = "chanlytics.surfaces.v2:";
@@ -199,12 +199,12 @@ function setSlot(raw: string): void {
   }
 }
 
-/** Every workspace's slot this browser holds. */
-function slotsOf(local: Storage): string[] {
+/** Every workspace's slot this browser holds, or every copy of a phone's first screen (contracts shell/first-rows.ts). */
+function slotsOf(local: Storage, prefix: string = CACHE_PREFIX): string[] {
   const names: string[] = [];
   for (let i = 0; i < local.length; i++) {
     const name = local.key(i);
-    if (name?.startsWith(CACHE_PREFIX)) names.push(name);
+    if (name?.startsWith(prefix)) names.push(name);
   }
   return names;
 }
@@ -286,10 +286,13 @@ function flushWhenIdle(): void {
 
 /** When a slot was written, read from its head alone: `savedAt` is written second, so a slot of 2 MB is never parsed for it. */
 const SAVED_AT = /"savedAt":(\d+)/;
+/** When a copy of a phone's first screen was kept: `at` is written first, for this (contracts KeptFirstRows). */
+const KEPT_AT = /"at":(\d+)/;
 
 /**
  * Every workspace's slot past its day, removed: never drawn (MAX_AGE_MS), and it held a workspace's messages on the device
  * until the next sign-in cleared it (the page-open PRD, N8). A slot whose head says no time is not ours to judge, and stays.
+ * And every copy of a phone's first screen past its own day, which holds the same words.
  */
 export function dropExpiredSlots(now: number = Date.now()): void {
   try {
@@ -298,6 +301,10 @@ export function dropExpiredSlots(now: number = Date.now()): void {
     for (const name of slotsOf(local)) {
       const at = SAVED_AT.exec(local.getItem(name)?.slice(0, 200) ?? "")?.[1];
       if (at !== undefined && now - Number(at) >= MAX_AGE_MS) local.removeItem(name);
+    }
+    for (const name of slotsOf(local, FIRST_ROWS_SLOT)) {
+      const at = KEPT_AT.exec(local.getItem(name)?.slice(0, 40) ?? "")?.[1];
+      if (at !== undefined && now - Number(at) >= FIRST_ROWS_OLDEST_MS) local.removeItem(name);
     }
   } catch {
     /* storage refused: nothing kept to drop */
@@ -417,7 +424,9 @@ export function clearSurfaceCache(): void {
     // Every workspace's rows this browser kept: whoever comes next, signed in again or someone else, starts cold. This
     // address's by its name too, whatever the store says of its length.
     const local = cacheStore();
-    if (local) for (const name of new Set([slotName(), ...slotsOf(local)])) local.removeItem(name);
+    if (local)
+      for (const name of new Set([slotName(), ...slotsOf(local), ...slotsOf(local, FIRST_ROWS_SLOT)]))
+        local.removeItem(name);
   } catch {
     /* nothing to clear */
   }
@@ -442,3 +451,6 @@ export function sealSurfaceCache(): void {
   clearSurfaceCache();
   sealed = true;
 }
+
+/** Whether nothing this page reads may be kept any more (sealSurfaceCache): nor what it draws (surfaces/frame/first-rows.ts). */
+export const surfaceCacheSealed = (): boolean => sealed;
