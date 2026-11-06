@@ -6,8 +6,8 @@ import {
   RUN_NOW_WITHOUT_VERSION_WORDS,
   triggerOf,
 } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { playbookScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { playbookScope } from "@/server/shared/verbs";
 import { runPlaybookNow } from "@/server/campaigns/playbook-run";
 import { refuseOnArchivedList } from "@/server/campaigns/playbooks";
 

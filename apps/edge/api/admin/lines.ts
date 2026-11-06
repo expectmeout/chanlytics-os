@@ -5,9 +5,9 @@
  * The door is the knock (authorizeAdmin) and the body (readBody); lineOp in lib/lines/line-admin.ts is the table of ops
  * over lib/lines/line-ops.ts's plans, and the header of that module lists them.
  */
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { readBody } from "../../lib/admin-door.js";
-import { adminDoor } from "../../lib/log.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { readBody } from "../../lib/shared/admin-door.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { lineOp } from "../../lib/lines/line-admin.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

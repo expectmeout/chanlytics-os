@@ -7,11 +7,11 @@ import {
   type AskScope,
   type PageContext,
 } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
-import { requireUuid } from "@/server/request-guards";
-import { callEdge, edgeAnswered, edgeReasonOf, edgeRefusalWords, type EdgeAnswer } from "@/server/edge";
+import { write, workspace } from "@/server/shared/route";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
+import { requireUuid } from "@/server/shared/request-guards";
+import { callEdge, edgeAnswered, edgeReasonOf, edgeRefusalWords, type EdgeAnswer } from "@/server/shared/edge";
 import { readerContext } from "@/server/readers";
 import { buildContext } from "@/server/ask/context";
 import { createThread, readThread } from "@/server/ask/store";

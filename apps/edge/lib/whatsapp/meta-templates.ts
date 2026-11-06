@@ -11,9 +11,9 @@
  * when the positions still match; a sync never makes a template less
  * legible than it was.
  */
-import type { SchemaSet, TemplateStatus } from "../packages/contracts.js";
+import type { SchemaSet, TemplateStatus } from "@chanlytics/contracts";
 import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
-import { answerObject, providerFetch } from "../packages/channels.js";
+import { answerObject, providerFetch } from "@chanlytics/channels";
 
 export interface MetaTemplateComponent {
   type: string;

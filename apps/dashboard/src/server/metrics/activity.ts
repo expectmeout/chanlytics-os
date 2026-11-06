@@ -27,8 +27,8 @@ import {
   messageRoute,
 } from "@chanlytics/contracts";
 import { activitySubjects } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { tenantFacts } from "@/server/tenant";
+import type { RouteContext } from "@/server/shared/with-route";
+import { tenantFacts } from "@/server/shared/tenant";
 import { teamRoster } from "@/server/workspace/team";
 
 /** Rows per read, over both ledgers merged. */

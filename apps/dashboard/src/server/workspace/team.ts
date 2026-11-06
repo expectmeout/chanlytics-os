@@ -10,10 +10,10 @@ import {
 } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
-import { serviceDb } from "../service-db";
-import { tenantFacts } from "../tenant";
-import { requireSecondFactor, type RouteContext } from "../with-route";
-import { log } from "@/server/log";
+import { serviceDb } from "../shared/service-db";
+import { tenantFacts } from "../shared/tenant";
+import { requireSecondFactor, type RouteContext } from "../shared/with-route";
+import { log } from "@/server/shared/log";
 
 /**
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.

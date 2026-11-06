@@ -10,9 +10,9 @@
  * untouched, and the provider's redelivery tries again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent, messageByExternalId, type Database } from "../packages/db.js";
-import { raiseLateFailure, type LateFailureCommand, type LateFailureOutcome } from "../packages/core.js";
-import { upsertEscalation } from "../packages/jobs.js";
+import { emitEvent, messageByExternalId, type Database } from "@chanlytics/db";
+import { raiseLateFailure, type LateFailureCommand, type LateFailureOutcome } from "@chanlytics/core";
+import { upsertEscalation } from "@chanlytics/jobs";
 
 export async function flagLateFailure(
   db: SupabaseClient<Database>,

@@ -8,8 +8,8 @@
  */
 import { AppError, DOUBT_WORDS } from "@chanlytics/contracts";
 import { dismissPersonDoubt, doubtOn, emitEvent } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { serviceDb } from "@/server/shared/service-db";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 export async function settleDoubtApart(ctx: RouteContext, tenantId: string, contactId: string, doubtId: string) {
   const doubt = await doubtOn(ctx.supabase, tenantId, contactId, doubtId);

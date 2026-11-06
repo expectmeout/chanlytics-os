@@ -4,11 +4,11 @@
  * from billing.ts, which applies the readings and rings them through here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { emitEvent, workspaceZoneOf } from "../packages/db.js";
-import { DEFAULT_TIMEZONE, dayWords } from "../packages/contracts.js";
+import type { Database } from "@chanlytics/db";
+import { emitEvent, workspaceZoneOf } from "@chanlytics/db";
+import { DEFAULT_TIMEZONE, dayWords } from "@chanlytics/contracts";
 import { keepOnce, notifyOnceAs } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
 

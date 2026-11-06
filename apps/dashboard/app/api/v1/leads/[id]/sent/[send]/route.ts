@@ -1,7 +1,7 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { leadSent } from "@/server/readers/leads";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 
 /**
  * GET /api/v1/leads/:id/sent/:send — what one send of a lead's said as it went: its subject and its words, or null where

@@ -1,5 +1,5 @@
 import { ReachOutChainSchema } from "@chanlytics/contracts";
-import { read, workspace, write } from "@/server/route";
+import { read, workspace, write } from "@/server/shared/route";
 import { saveChain } from "@/server/campaigns/reach-outs";
 import { load, readerContext } from "@/server/readers";
 import { reachOutChains } from "@/server/readers/playbooks";

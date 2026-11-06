@@ -15,13 +15,13 @@
  * bounce judges again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressOf } from "../packages/channels.js";
-import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason, SEQUENCES_ROUTE } from "../packages/contracts.js";
-import { emailOfferCounts, pauseEmailOffers, type Database } from "../packages/db.js";
-import { logger, errField } from "../log.js";
+import { addressOf } from "@chanlytics/channels";
+import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason, SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import { emailOfferCounts, pauseEmailOffers, type Database } from "@chanlytics/db";
+import { logger, errField } from "../shared/log.js";
 import { notify } from "../ops/notify.js";
 import { pageOperator } from "../ops/page-operator.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { campaignsDomain } from "./campaigns-domain.js";
 
 type Db = SupabaseClient<Database>;

@@ -1,7 +1,7 @@
 import "server-only";
-import { deployment } from "../env";
-import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
-import { log } from "@/server/log";
+import { deployment } from "../shared/env";
+import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
+import { log } from "@/server/shared/log";
 
 /** How long the edge is given to write to the partner before the owner is told it did not go. */
 const PARTNER_MAIL_TIMEOUT_MS = 8000;

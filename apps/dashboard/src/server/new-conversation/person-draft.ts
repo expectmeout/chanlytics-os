@@ -33,7 +33,7 @@ import {
   type WrittenChannel,
   type PersonVM,
 } from "@chanlytics/contracts";
-import { askForJson } from "../model-json";
+import { askForJson } from "../shared/model-json";
 import { load, type ReaderContext } from "../readers";
 import * as facts from "../readers/facts";
 import { person } from "../readers/person";

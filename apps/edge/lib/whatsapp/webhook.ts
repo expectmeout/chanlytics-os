@@ -41,21 +41,21 @@
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
-import { metaSignatureValid, META_SIGNATURE_HEADER, type WaChangeValue } from "../packages/channels.js";
-import { phoneTail, pauseMsOf, WAITING_REASONS } from "../packages/contracts.js";
+import { metaSignatureValid, META_SIGNATURE_HEADER, type WaChangeValue } from "@chanlytics/channels";
+import { phoneTail, pauseMsOf, WAITING_REASONS } from "@chanlytics/contracts";
 import { WABA_FIELDS, accountOf, handleWabaChange, notificationsFor } from "./waba-events.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
+import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "@chanlytics/db";
+import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { answerHereOrLater } from "./answer-later.js";
 import { handDeliveryOn } from "../imports/history-import.js";
 import { recordReceipts } from "./receipts.js";
 import { pgSafe, IngestFailed } from "./persist.js";
 import { alertUnroutable } from "./alerts.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
 
 const L = logger();
 

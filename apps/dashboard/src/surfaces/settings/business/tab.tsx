@@ -18,7 +18,7 @@
 // Every component on the page that holds a hook is drawn on every render, and what comes and goes (a row at rest, a
 // Confirm, a note) holds none: the tests' old stub React kept every hook on a page as a cell in one order, and this
 // page was shaped to it. The stub now keeps each component's hooks where it sits, as React does, and throws as React
-// does when a component's hooks change in number (tooling/scripts/tests/_hook-frames.mjs), so the shape stands as a
+// does when a component's hooks change in number (tests/_hook-frames.mjs), so the shape stands as a
 // habit and nothing new needs keeping to it.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";

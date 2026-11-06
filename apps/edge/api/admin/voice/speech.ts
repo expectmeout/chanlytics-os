@@ -13,13 +13,13 @@
  * read just before these in the clip this one follows (a reading's first sentence, asked for by itself so the first
  * word is not behind the whole): the vendor reads these as carrying on from them, and is not billed for them.
  */
-import { refuse } from "../../../lib/http.js";
-import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
-import { readBody } from "../../../lib/admin-door.js";
-import { mayUseModelFor } from "../../../lib/model.js";
+import { refuse } from "../../../lib/shared/http.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { mayUseModelFor } from "../../../lib/ai/model.js";
 import { askSpeechConfigured, speakAskVoice } from "../../../lib/voice/ask-voice.js";
-import { ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, UUID } from "../../../lib/packages/contracts.js";
-import { logger, adminDoor } from "../../../lib/log.js";
+import { ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, UUID } from "@chanlytics/contracts";
+import { logger, adminDoor } from "../../../lib/shared/log.js";
 
 const L = logger();
 

@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { env } from "./src/server/env";
+import { env } from "./src/server/shared/env";
 
 /**
  * Response headers for an application that renders other people's customers.

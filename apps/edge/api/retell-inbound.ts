@@ -7,7 +7,7 @@
  * it: the knock is checked (voiceDoorAuth), the call routed on the agent it arrived on, and the answer planned by
  * planCallStart; past the key the answer is always 200.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { receiveInboundCall } from "../lib/voice/inbound-call.js";
 
 export const POST = door(receiveInboundCall);

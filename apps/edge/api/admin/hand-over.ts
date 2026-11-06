@@ -7,9 +7,9 @@
  * handOverCall in lib/voice/call-controls.ts is everything after: the provider key, the call's workspace (refusedCall)
  * and the provider.
  */
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { readBody } from "../../lib/admin-door.js";
-import { adminDoor } from "../../lib/log.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { readBody } from "../../lib/shared/admin-door.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { handOverCall } from "../../lib/voice/call-controls.js";
 
 const AUD = "/api/admin/hand-over";

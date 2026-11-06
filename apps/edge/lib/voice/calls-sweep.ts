@@ -60,9 +60,9 @@
  *
  * Cross-workspace: the calls sweep visits every workspace's calls; each write carries the row's own tenant_id.
  */
-import { json, refuse } from "../http.js";
-import type { pg } from "../pg.js";
-import { errField, type Logger } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import type { pg } from "../shared/pg.js";
+import { errField, type Logger } from "../shared/log.js";
 import {
   getCall,
   normalizeCall,
@@ -70,7 +70,7 @@ import {
   type NormalizedCall,
   type RetellCall,
   type RetellCallRead,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   callsOwedAnAnalysis,
   callsOwedANotice,
@@ -79,8 +79,8 @@ import {
   linkCallMessage,
   resolveChannelDetailed,
   setCallRecording,
-} from "../packages/db.js";
-import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "../packages/contracts.js";
+} from "@chanlytics/db";
+import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import { settleCall } from "./call-webhook.js";
 import {
   copyRecording,
@@ -89,7 +89,7 @@ import {
   RECORDING_MAX_ATTEMPTS,
   SWEEP_COPY_TIMEOUT_MS,
 } from "./call-recording.js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** Only look at rows that have had time to settle — a call that started

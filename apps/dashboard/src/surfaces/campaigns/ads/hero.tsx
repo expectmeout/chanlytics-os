@@ -1,13 +1,14 @@
 /**
- * The two Ads pages that are not the ledger (MOCKUP): "nothing connected" (v0), which says only what the People report already
- * reads (how new people first reached the business, the "An ad" row in the ink and the rest in one quiet hue, and the three
- * platforms as "Not connected yet"), and "connected, no ads yet", one card for the first ad with its checklist (its press waits
+ * The two Ads pages that are not the ledger: "nothing connected" (v0), which says only what the People report already reads (how new
+ * people first reached the business, the "An ad" row in the ink and the rest in one quiet hue, and the three platforms as "Not
+ * connected yet"), real in a workspace's preview (first-touch.ts), and, as a MOCKUP, "connected, no ads yet", one card for the first
+ * ad with its checklist (its press waits
  * while the account lacks something, and says what), or, while an account has to be chosen first, one card to choose it from,
  * each choice with the currency it is charged in. None draws a figure, a cost or a per-ad count: nothing here claims what
  * Chanlytics cannot support yet.
  */
 import type { AdPlatform } from "@chanlytics/contracts";
-import { GATE } from "@chanlytics/contracts/ads-page";
+import { GATE, V0 } from "@chanlytics/contracts/ads-page";
 import type { ChooseVM, NoAdsVM, V0VM } from "@chanlytics/contracts/ads-page";
 import { Button } from "../../kit/button/button";
 import { BarList } from "../../kit/charts/bar";
@@ -15,10 +16,28 @@ import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { gate, routeDoor } from "../../legacy-verbs";
+import type { FirstTouchHere } from "./first-touch";
 import { StandRows } from "./standing";
 
-/** The lead line: its bold part, and the rest, or the empty workspace's two lines. */
-function V0Lead({ v0 }: { v0: V0VM }) {
+/** The lead line: while the counts are read, or where they could not be; else its bold part and the rest, or the empty workspace's two lines. */
+function V0Lead({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
+  if (touch.state === "reading") {
+    return (
+      <p className="ads-hero-muted" data-testid="ads-v0-reading">
+        {V0.reading}
+      </p>
+    );
+  }
+  if (touch.state === "failed") {
+    return (
+      <p className="ads-hero-muted" role="alert" data-testid="ads-v0-failed">
+        {V0.notRead}{" "}
+        <LinkButton onClick={touch.again} data-testid="ads-v0-again">
+          {V0.again}
+        </LinkButton>
+      </p>
+    );
+  }
   if (v0.empty) {
     return (
       <>
@@ -41,11 +60,11 @@ function V0Lead({ v0 }: { v0: V0VM }) {
 }
 
 /** Today, nothing connected: the hero and its rows at the left, the three platforms and what comes next at the right. */
-export function V0Page({ v0 }: { v0: V0VM }) {
+export function V0Page({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
   return (
     <div className="ads-hero" data-testid="ads-v0">
       <section className="ads-hero-main">
-        <V0Lead v0={v0} />
+        <V0Lead v0={v0} touch={touch} />
         {v0.rows.length > 0 ? (
           <BarList
             rows={v0.rows.map((r) => ({
@@ -55,6 +74,11 @@ export function V0Page({ v0 }: { v0: V0VM }) {
               color: r.own ? "var(--ink)" : "var(--line-strong)",
             }))}
           />
+        ) : null}
+        {v0.nobodyNew ? (
+          <p className="ads-hero-muted" data-testid="ads-v0-nobody">
+            {v0.nobodyNew}
+          </p>
         ) : null}
         {v0.notes.map((note) => (
           <p key={note} className="ads-hero-note">

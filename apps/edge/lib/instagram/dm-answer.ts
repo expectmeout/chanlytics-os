@@ -15,10 +15,10 @@
  * A DM the person unsends before its job runs loses its words in the job too (00486 message_unsent).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inboundFromInstagram, type IgMessaging } from "../packages/channels.js";
-import { resolveChannelDetailed, type Database, type Json, type RoutedChannel } from "../packages/db.js";
-import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
-import { errField, logger } from "../log.js";
+import { inboundFromInstagram, type IgMessaging } from "@chanlytics/channels";
+import { resolveChannelDetailed, type Database, type Json, type RoutedChannel } from "@chanlytics/db";
+import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
+import { errField, logger } from "../shared/log.js";
 import { recordDmInbound, resumeDmInbound } from "../whatsapp/inbound.js";
 import { instagramCarrier, instagramCredentials } from "./credentials.js";
 

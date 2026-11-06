@@ -6,8 +6,8 @@
  * The door is the knock (authorizeAdmin); lineCodes in lib/lines/line-codes.ts is everything after: the line, its account, the
  * provider's list and the one rule that says what a code is.
  */
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { lineCodes } from "../../../lib/lines/line-codes.js";
 
 const AUD = "/api/admin/lines/codes";

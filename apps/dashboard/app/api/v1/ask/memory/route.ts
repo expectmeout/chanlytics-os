@@ -1,4 +1,4 @@
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { keepMemoryLine, memoryPage } from "@/server/ask/companion/memory-pane";
 
 /**

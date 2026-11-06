@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { settleDoubtApart } from "@/server/people/person-doubts";
 
 const Body = z

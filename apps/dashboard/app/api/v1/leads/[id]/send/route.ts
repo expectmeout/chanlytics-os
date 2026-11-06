@@ -1,5 +1,5 @@
 import { LeadEmailWordsSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
+import { write } from "@/server/shared/route";
 import { leadScope, sendLeadEmail } from "@/server/leads/leads";
 
 /**

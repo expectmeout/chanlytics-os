@@ -12,14 +12,14 @@ import {
   type BroadcastDto,
 } from "@chanlytics/contracts";
 import { sequencesAtAGlance, type SequenceGlance } from "@chanlytics/db";
-import type { RouteContext } from "../../with-route";
-import type { Member } from "../../route";
+import type { RouteContext } from "../../shared/with-route";
+import type { Member } from "../../shared/route";
 import { listBroadcasts } from "../../campaigns/broadcasts";
-import { log } from "../../log";
+import { log } from "../../shared/log";
 import { buildProposal, newToolContext } from "../tools";
 
 /**
- * What Ask noticed, as Today draws it (decision 0087; contracts ask-memory/findings.ts says what counts). Read on each
+ * What Ask noticed, as Today draws it (decision 0087; contracts ask/memory/findings.ts says what counts). Read on each
  * read of the morning, by the member, with no model: a finding is the workspace's facts, so it closes itself when they
  * move and every member sees the same one.
  */

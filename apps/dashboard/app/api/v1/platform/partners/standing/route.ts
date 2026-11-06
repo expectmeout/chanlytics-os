@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { PartnerStandingSchema } from "@chanlytics/contracts";
-import { platformPartnerStanding } from "@/server/platform/platform";
+import { platformPartnerStanding } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/partners/standing — a person decides the standing of a workspace a partner brought

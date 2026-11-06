@@ -1,5 +1,5 @@
 import { LeadExportQuerySchema } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { exportLeads } from "@/server/leads/leads";
 
 /**
@@ -14,7 +14,7 @@ import { exportLeads } from "@/server/leads/leads";
  * nothing (decision 0047, lane 6). The view rides in the body, the same keys
  * `POST leads/bulk` names a view by. The people, conversation, call and
  * all-data exports stay GETs, on the allow-list of reads that write their audit
- * row (tooling/scripts/tests/reads-never-write/).
+ * row (tests/reads-never-write/).
  */
 export const POST = write({
   scope: workspace,

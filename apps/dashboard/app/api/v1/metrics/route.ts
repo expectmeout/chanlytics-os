@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { metrics } from "@/server/readers/metrics";
 

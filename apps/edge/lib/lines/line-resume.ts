@@ -22,15 +22,10 @@
  *
  * Cross-workspace: the lines sweep resumes every workspace's stuck line; a take acts on a row its caller holds.
  */
-import {
-  PROVISIONING_DEADLINE_MS,
-  LINE_STEP_WORDS,
-  LINE_FILED_NAMES,
-  formatPhoneDisplay,
-} from "../packages/contracts.js";
+import { PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, LINE_FILED_NAMES, formatPhoneDisplay } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb, type Database, type Json } from "../packages/db.js";
-import type { Logger } from "../log.js";
+import { tenantDb, type Database, type Json } from "@chanlytics/db";
+import type { Logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 export type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];

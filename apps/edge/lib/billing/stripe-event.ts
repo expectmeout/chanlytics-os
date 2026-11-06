@@ -24,10 +24,10 @@
  * no call to Stripe.
  */
 import type Stripe from "stripe";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { logger } from "../log.js";
+import { logger } from "../shared/log.js";
 import { startChosenLine } from "../lines/chosen-line.js";
 import {
   applySubscription,
@@ -52,8 +52,8 @@ import {
   reverseForInvoice,
   type LedgerOutcome,
 } from "../partners/earnings.js";
-import { receptionistOn } from "../packages/contracts.js";
-import { env } from "../env.js";
+import { receptionistOn } from "@chanlytics/contracts";
+import { env } from "../shared/env.js";
 
 const stripeIdOf = (x: string | { id: string } | null | undefined): string | null =>
   typeof x === "string" ? x : (x?.id ?? null);

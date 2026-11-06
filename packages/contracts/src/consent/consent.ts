@@ -289,7 +289,7 @@ export const DELIVERY_REFUSALS = [
   // A text needs its line active with the carriers and not a test filing (step 3): the inbound door holds the same.
   "sms_line_not_active",
   "email_marketing_disabled",
-  // Offers by email are paused for the workspace while its complaints or bounces settle (broadcasts/email-offers.ts).
+  // Offers by email are paused for the workspace while its complaints or bounces settle (campaigns/broadcasts/email-offers.ts).
   "email_offers_paused",
   "email_suppressed",
   "recipient_changed",

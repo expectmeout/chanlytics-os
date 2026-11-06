@@ -57,7 +57,7 @@ export const SHEET_SERVICES = [
 
 /**
  * What the hold of the kit's Base UI components reads of an element, beside its tag and its classes
- * (e2e/kit/kit-behaves.spec.ts in a browser, tooling/scripts/tests/styles/kit-behaves.test.mjs on a server): the
+ * (e2e/kit/kit-behaves.spec.ts in a browser, tests/styles/kit-behaves.test.mjs on a server): the
  * attributes a stylesheet or a screen reader reads, those in MARKUP_PRESENT as there or not, the rest by their value.
  * Not the words, nor an id that wires a label or a description to its control (the spec checks the wiring), nor a
  * style, which Base UI writes as it places a popup.

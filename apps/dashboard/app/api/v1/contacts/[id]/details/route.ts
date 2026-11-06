@@ -1,5 +1,5 @@
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { setPersonDetails, PersonDetailsChange } from "@/server/people/person-details";
 
 /**

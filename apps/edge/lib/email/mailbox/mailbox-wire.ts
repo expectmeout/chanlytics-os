@@ -10,19 +10,19 @@
  * sets it to reconnect and tells its owner once. Either way the send comes back as not taken, so the outbox's fresh
  * job meets the door's wait rather than a failure.
  */
-import { mailboxSendsNow, DAY_MS } from "../../packages/contracts.js";
-import { sendFromMailbox, sendsAsConnected, type EmailRequest, type SendResult } from "../../packages/channels.js";
-import type { EmailRoute } from "../../packages/core.js";
+import { mailboxSendsNow, DAY_MS } from "@chanlytics/contracts";
+import { sendFromMailbox, sendsAsConnected, type EmailRequest, type SendResult } from "@chanlytics/channels";
+import type { EmailRoute } from "@chanlytics/core";
 import {
   emitEvent,
   mailboxConnectionsOf,
   patchMailboxConnection,
   type Database,
   type MailboxConnectionRow,
-} from "../../packages/db.js";
+} from "@chanlytics/db";
 import { tokenFor } from "./mailbox-credentials.js";
 import { tellSignedOut } from "./mailbox-notices.js";
-import { logger, errField, type Logger } from "../../log.js";
+import { logger, errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

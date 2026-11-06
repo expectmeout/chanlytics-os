@@ -7,7 +7,7 @@
  * last; a pop is placed by what opens it. The ref reaches the element.
  *
  * It draws what the gallery's Panel family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
- * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
+ * tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef } from "react";
 import { cx, variants } from "../variants";

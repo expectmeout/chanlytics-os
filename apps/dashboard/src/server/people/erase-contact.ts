@@ -9,11 +9,11 @@
  */
 import "server-only";
 import { eraseOrRedrive } from "@chanlytics/jobs";
-import { callEdge, edgeAnswered } from "@/server/edge";
-import { deployment } from "@/server/env";
-import { serviceDb } from "@/server/service-db";
-import { type erasureScope, recordDecision } from "@/server/verbs";
-import type { RouteContext } from "@/server/with-route";
+import { callEdge, edgeAnswered } from "@/server/shared/edge";
+import { deployment } from "@/server/shared/env";
+import { serviceDb } from "@/server/shared/service-db";
+import { type erasureScope, recordDecision } from "@/server/shared/verbs";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /** How long the provider's leg may take: a delete per call at the edge, each bounded at 8 s by the adapter. */
 const ERASE_CALLS_TIMEOUT_MS = 55_000;

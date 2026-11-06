@@ -19,10 +19,10 @@ import {
   type PolicyMode,
 } from "@chanlytics/contracts";
 import { listPolicies, recordEvent, setPolicyMode } from "@chanlytics/db";
-import { log } from "@/server/log";
-import { serviceDb } from "@/server/service-db";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import { log } from "@/server/shared/log";
+import { serviceDb } from "@/server/shared/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 /**
  * The change, in the ledger every other consequential act lands in: the class, the mode, which limits moved -- never
@@ -60,7 +60,7 @@ const DIAL_WORDS = {
 /**
  * The dials' camelCase names, still read for one release from 28 September 2026, when this body became snake_case
  * (the wire is snake_case: docs/naming.md, decision 0022). A tab opened before that deploy sends them, and so does
- * Ask's autonomy card (`minConfidence`, contracts' ask-proposals/workspace.ts, Ask Rewired's to move). A body that
+ * Ask's autonomy card (`minConfidence`, contracts' ask/proposals/workspace.ts, Ask Rewired's to move). A body that
  * says both is read by its snake_case name. This map goes, and the old names with it, in the release after the card
  * sends `min_confidence`.
  */

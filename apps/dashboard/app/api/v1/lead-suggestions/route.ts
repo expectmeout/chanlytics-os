@@ -1,5 +1,5 @@
 import { BusinessLineSchema } from "@chanlytics/contracts";
-import { read, workspace, write } from "@/server/route";
+import { read, workspace, write } from "@/server/shared/route";
 import { lineForMe, newIdeas, setBusinessLine, suggestionsKept, suggestionsWritten } from "@/server/leads/leads";
 
 /**

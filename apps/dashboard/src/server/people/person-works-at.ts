@@ -14,7 +14,7 @@ import {
   undoPersonName,
   type PersonNameAnswer,
 } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 /** A door's own refusal, carried back; an answer that did nothing, said in the page's words as a conflict. */
 async function asDoor<T>(run: () => Promise<T>): Promise<T> {

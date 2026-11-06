@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { AppError, type MessageDto } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { everyoneOnce, onePerson } from "@/server/people/people";
-import { tenantFacts } from "@/server/tenant";
-import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/dto";
+import { tenantFacts } from "@/server/shared/tenant";
+import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/conversations/dto";
 import { attachmentStream, dateTag, personLabel, safeName } from "@/server/export/export";
 import {
   BUNDLE_PAGE,
@@ -13,9 +13,9 @@ import {
   type BundleReaders,
 } from "@/server/export/export-bundle";
 import { personSections, workspaceSections } from "@/server/export/workspace-sections";
-import { recordDecision } from "@/server/verbs";
-import { log } from "@/server/log";
-import type { RouteContext } from "@/server/with-route";
+import { recordDecision } from "@/server/shared/verbs";
+import { log } from "@/server/shared/log";
+import type { RouteContext } from "@/server/shared/with-route";
 
 const Query = z.object({
   /**

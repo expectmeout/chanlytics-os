@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { SupportResendSchema } from "@chanlytics/contracts";
-import { supportResend } from "@/server/platform/support";
+import { supportResend } from "@/server/console/support";
 
 /**
  * POST /api/v1/platform/support/resend — {id}: a report the inbox did not get, sent to it again through the edge's

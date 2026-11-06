@@ -10,10 +10,10 @@
 import { z } from "zod";
 import { isUuid, LeadSearchPlanSchema } from "@chanlytics/contracts";
 import { recordActivation, type Json } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
+import { serviceDb } from "@/server/shared/service-db";
 import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 export const CreateSchema = z.intersection(LeadSearchPlanSchema, z.object({ thread_id: z.unknown().optional() }));
 

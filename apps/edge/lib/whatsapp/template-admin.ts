@@ -8,10 +8,10 @@
  * id on the channel row, so Meta is spoken to as the business, and a workspace with no channel, no WABA or no token is
  * refused before Meta is asked.
  */
-import { json, refuse } from "../http.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { waCredentialsForTenant } from "../tenant-runtime.js";
+import { json, refuse } from "../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { waCredentialsForTenant } from "../shared/tenant-runtime.js";
 import {
   createTemplate,
   mapCategory,
@@ -22,9 +22,9 @@ import {
   templateRow,
   type MetaTemplateComponent,
 } from "./meta-templates.js";
-import type { Json } from "../packages/db.js";
-import { logger } from "../log.js";
-import { UUID } from "../packages/contracts.js";
+import type { Json } from "@chanlytics/db";
+import { logger } from "../shared/log.js";
+import { UUID } from "@chanlytics/contracts";
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 

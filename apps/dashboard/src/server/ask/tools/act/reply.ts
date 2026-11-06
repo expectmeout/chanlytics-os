@@ -19,7 +19,7 @@ import {
 import { mayBegin } from "@chanlytics/core";
 import { openRequestOfThread } from "@chanlytics/db";
 import { beginPorts } from "../../../new-conversation/ports";
-import { replyChannelOf } from "../../../verbs";
+import { replyChannelOf } from "../../../shared/verbs";
 import {
   UUID,
   actAction,

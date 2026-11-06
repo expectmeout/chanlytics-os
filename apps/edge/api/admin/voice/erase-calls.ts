@@ -5,9 +5,9 @@
  * The door is the knock (authorizeAdmin: a token the dashboard minted for this door, the workspace and the member) and
  * the body (readBody); eraseCallsDoor in lib/voice/erase-calls.ts proves each call the workspace's and does the rest.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { eraseCallsDoor } from "../../../lib/voice/erase-calls.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

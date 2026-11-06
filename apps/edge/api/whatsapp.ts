@@ -7,9 +7,9 @@
  * it: the signature is checked against the app secret (fail-closed), each change routed by its phone number id or its
  * WABA, and the message path run process-then-200.
  */
-import { text } from "../lib/http.js";
-import { env } from "../lib/env.js";
-import { door } from "../lib/log.js";
+import { text } from "../lib/shared/http.js";
+import { env } from "../lib/shared/env.js";
+import { door } from "../lib/shared/log.js";
 import { receiveWhatsappEvent } from "../lib/whatsapp/webhook.js";
 
 export const GET = door(async function GET(request: Request): Promise<Response> {

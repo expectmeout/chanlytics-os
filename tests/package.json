@@ -1,0 +1,22 @@
+{
+  "name": "@chanlytics/tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@chanlytics/channels": "workspace:*",
+    "@chanlytics/contracts": "workspace:*",
+    "@chanlytics/core": "workspace:*",
+    "@chanlytics/db": "workspace:*",
+    "@chanlytics/jobs": "workspace:*",
+    "@supabase/supabase-js": "^2.118.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "stripe": "22.6.2",
+    "typescript": "catalog:",
+    "zod": "^4.6.7"
+  }
+}

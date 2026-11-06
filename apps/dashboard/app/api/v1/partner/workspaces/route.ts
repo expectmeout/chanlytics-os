@@ -1,4 +1,4 @@
-import { read, write, account } from "@/server/route";
+import { read, write, account } from "@/server/shared/route";
 import { HandoverCreateSchema } from "@chanlytics/contracts";
 import { readPartnerWorkspaces, setUpWorkspaceForBusiness } from "@/server/workspace/partner-account";
 

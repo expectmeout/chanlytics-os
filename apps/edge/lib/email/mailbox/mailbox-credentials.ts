@@ -8,20 +8,15 @@
  * mailbox signed out: `signed_out`, and the caller sets it to reconnect and tells its owner once. A refresh that got no
  * answer is `unavailable`: the mailbox is not touched, and the next try asks again.
  */
-import {
-  getMailboxCredentials,
-  putMailboxCredentials,
-  type Database,
-  type MailboxConnectionRow,
-} from "../../packages/db.js";
+import { getMailboxCredentials, putMailboxCredentials, type Database, type MailboxConnectionRow } from "@chanlytics/db";
 import {
   mailboxRefreshRequest,
   parseMailboxGrant,
   providerFetch,
   type MailboxGrant,
   type MailboxRequest,
-} from "../../packages/channels.js";
-import { MIN_MS, type MailboxProvider } from "../../packages/contracts.js";
+} from "@chanlytics/channels";
+import { MIN_MS, type MailboxProvider } from "@chanlytics/contracts";
 import { mailboxClient } from "./mailbox-config.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 

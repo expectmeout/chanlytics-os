@@ -18,8 +18,8 @@ import {
   grantHolds,
   type KnownPerson,
   type MailboxReach,
-} from "../packages/channels.js";
-import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone } from "../packages/contracts.js";
+} from "@chanlytics/channels";
+import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone } from "@chanlytics/contracts";
 import {
   PERSON_FORGOTTEN,
   importCursorOf,
@@ -29,7 +29,7 @@ import {
   type Database,
   type Json,
   type MailboxConnectionRow,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
 import type { Part, PartOutcome } from "./history-import.js";

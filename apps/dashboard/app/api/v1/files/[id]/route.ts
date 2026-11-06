@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FILE_NAME_MAX, FILE_SHOWS } from "@chanlytics/contracts";
-import { read, write } from "@/server/route";
+import { read, write } from "@/server/shared/route";
 import { changeFile, fileScope, removeFile } from "@/server/files/file";
 import { fileRecord } from "@/server/files/post/record";
 

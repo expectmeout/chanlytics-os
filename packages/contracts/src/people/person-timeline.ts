@@ -41,7 +41,7 @@ import { type MessageAuthor, messageAuthor } from "../conversations/message-auth
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { clipAtWord, messageStatusLabel, messageWords, reachedCustomer } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards";
-import { reachOutPersonOf, type ReachOutPersonVM } from "../reach-out/reach-out-leads";
+import { reachOutPersonOf, type ReachOutPersonVM } from "../campaigns/reach-out/reach-out-leads";
 import { addressOf } from "../activity/record-address";
 import { dateFormat } from "../shared/time";
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { draftList } from "@/server/people/lists";
 
 const Body = z.object({

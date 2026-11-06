@@ -6,11 +6,11 @@
  * Cross-workspace: the platform's diagnostic, opened by the platform key only, reports on every workspace.
  */
 import { createHash } from "node:crypto";
-import { json } from "../http.js";
-import { pg } from "../pg.js";
+import { json } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { migrationsLine } from "./migration-head.js";
 import { brainSummary } from "../receptionist/budget.js";
-import { securitySwitchesHere } from "../security-switches.js";
+import { securitySwitchesHere } from "../shared/security-switches.js";
 import type { SweepHealthRow } from "./sweep-health.js";
 import { pageStates, untoldPages, type PageRow } from "./page-operator.js";
 import {
@@ -22,13 +22,13 @@ import {
   agentSettingsDrift,
   type RetellAgentConfig,
   type RetellLlmConfig,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import { metaAppId } from "../whatsapp/meta-graph.js";
-import { DAY_MS } from "../packages/contracts.js";
-import { voiceDoorKnocks } from "../packages/db.js";
+import { DAY_MS } from "@chanlytics/contracts";
+import { voiceDoorKnocks } from "@chanlytics/db";
 import { signatureOnly } from "../voice/voice-door-auth.js";
-import { env } from "../env.js";
-import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../dashboard-origin.js";
+import { env } from "../shared/env.js";
+import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../shared/dashboard-origin.js";
 
 const META_APP_ID = metaAppId();
 

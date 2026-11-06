@@ -19,7 +19,7 @@
  *
  * Pure: the bridge feeds it what its surfaces hold, the tests feed it fixtures.
  */
-import { RUN_GOING_STATES } from "../broadcasts/broadcasts";
+import { RUN_GOING_STATES } from "../campaigns/broadcasts/broadcasts";
 import { NEW_REVIEW_NEWS, reviewNoticeIsAbout } from "../google/google";
 import { REVIEW_REPLY_HELD_TITLE } from "../google/review-reply";
 import { parseLeadsRoute } from "../leads/lead-plan";

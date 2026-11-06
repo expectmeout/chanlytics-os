@@ -14,7 +14,7 @@
  * handling the conversation and re-greets a customer mid-thread. There is
  * nowhere to fall back to, so an unknown thread goes to a person instead.
  */
-import type { HoldFacts } from "../deliver-hold";
+import type { HoldFacts } from "../deliver/deliver-hold";
 
 export interface ThreadTurn {
   role: "user" | "assistant";

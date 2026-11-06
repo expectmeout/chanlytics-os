@@ -12,8 +12,8 @@
 import "server-only";
 import { busyOfAppointments, offeringHorizon, type BusyBlock } from "@chanlytics/contracts";
 import { appointmentsBetween } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { log } from "@/server/log";
+import type { RouteContext } from "@/server/shared/with-route";
+import { log } from "@/server/shared/log";
 
 export async function recordBusy(
   ctx: Pick<RouteContext, "supabase">,

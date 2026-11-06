@@ -33,8 +33,8 @@ import {
   type UnsubscribeView,
   MIN_MS,
 } from "@chanlytics/contracts";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
 import {
   LINK_PAGE_HEADERS,
   LINK_PAGE_MAX_BYTES,

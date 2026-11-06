@@ -33,11 +33,11 @@
  * call it is handed and names that call's workspace.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { fetchRecording } from "../packages/channels.js";
-import { setCallRecording } from "../packages/db.js";
-import { DAY_MS, RECORDING_RETENTION_DAYS } from "../packages/contracts.js";
-import { logger } from "../log.js";
+import type { Database } from "@chanlytics/db";
+import { fetchRecording } from "@chanlytics/channels";
+import { setCallRecording } from "@chanlytics/db";
+import { DAY_MS, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
+import { logger } from "../shared/log.js";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
 /** The webhook's budget: the agent allows 20 s for the whole event and the upsert has already spent some. */

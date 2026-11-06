@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { POST_PICTURES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { postPlanInput, previewPost } from "@/server/files/post/make";
 
 /**

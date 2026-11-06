@@ -12,7 +12,7 @@
  * (`locationsFor` reads them again). A connect and a disconnect each write their event (google.connected,
  * google.disconnected).
  */
-import { emitEvent, linkedPlaceOf } from "../packages/db.js";
+import { emitEvent, linkedPlaceOf } from "@chanlytics/db";
 import {
   tokenExchangeRequest,
   revokeRequest,
@@ -23,8 +23,8 @@ import {
   type GbpLocation,
   type PlacesHttp,
   type TokenGrant,
-} from "../packages/channels.js";
-import type { EdgeRefusal } from "../packages/contracts.js";
+} from "@chanlytics/channels";
+import type { EdgeRefusal } from "@chanlytics/contracts";
 import { profileClient } from "./google-config.js";
 import { http } from "./places.js";
 import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
@@ -34,7 +34,7 @@ import { syncProfile } from "./profile-sync.js";
 import { syncMended } from "./sync-notice.js";
 import { readProfileDetails } from "./profile-details.js";
 import { startHistory } from "../imports/history-import.js";
-import { errField, logger } from "../log.js";
+import { errField, logger } from "../shared/log.js";
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 

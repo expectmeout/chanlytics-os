@@ -16,7 +16,7 @@ import {
   type LeadImportInput,
 } from "@chanlytics/contracts";
 import { answerOf, refusalOf } from "./lead-answers";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 
 type Ctx = Pick<RouteContext, "supabase">;
 

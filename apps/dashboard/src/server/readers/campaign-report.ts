@@ -25,7 +25,7 @@ import {
   whatsappChannelFacts,
   type ReportWindow,
 } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { reachOutReportOf } from "../campaigns/reach-out-report";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import { askedHead, reportWindowFor, windowRead } from "./report";

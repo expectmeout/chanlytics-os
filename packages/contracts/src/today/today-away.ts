@@ -184,7 +184,7 @@ function awayFoot(more: number, queued: number, drew: boolean): string | null {
 /**
  * Where a group of two or more rows opens (AwayGroupVM.door): the one place their doors share, else the list that holds
  * every row of their kind. A kind with no list falls back to the first door there is, which the table in
- * tooling/scripts/tests/today/today-away-page.test.mjs keeps from happening to a kind that groups.
+ * tests/today/today-away-page.test.mjs keeps from happening to a kind that groups.
  */
 function groupDoor(
   kind: string,

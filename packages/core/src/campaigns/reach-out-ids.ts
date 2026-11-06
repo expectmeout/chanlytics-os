@@ -5,7 +5,7 @@
  * otherwise answer with the first one's reply. A broadcast's email to one person is named the same way, by the person's
  * attempt (`broadcastEmailId`).
  */
-import { uuidV5 } from "../uuid-v5";
+import { uuidV5 } from "../shared/uuid-v5";
 
 export const reachOutRunIdFor = (stepId: string, runFor: string): Promise<string> =>
   uuidV5(`reach_out_run:${stepId}:${runFor}`);

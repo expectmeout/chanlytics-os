@@ -1,6 +1,6 @@
 import { ReachOutSaidSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { reachOutSendScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { reachOutSendScope } from "@/server/shared/verbs";
 import { saySend } from "@/server/campaigns/reach-outs";
 
 /**

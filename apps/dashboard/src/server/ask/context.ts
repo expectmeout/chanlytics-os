@@ -14,7 +14,7 @@ import {
 import { conversations, inbox, live, today } from "./context/day";
 import { calendar, leads, people, pipeline } from "./context/people";
 import { campaigns, other, reports, settings, start } from "./context/pages";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * The page a question is asked on, as the model will read it (the spec, 5.2; the Phase 2 plan, PR 2.2): one

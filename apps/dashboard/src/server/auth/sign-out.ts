@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { forgetEveryPhone, type Database } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * What a sign-out does before the session ends: every phone of the person is forgotten (packages/db forgetEveryPhone,

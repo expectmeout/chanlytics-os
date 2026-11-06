@@ -7,7 +7,7 @@
  * made (plan-steps.ts resolveSteps). The steps that send nothing are silent and are approved together; a send is its own
  * press and waits for them (`after`).
  *
- * The rules, each a row of the table test (tooling/scripts/tests/ask/plan/plan-of.test.mjs):
+ * The rules, each a row of the table test (tests/ask/plan/plan-of.test.mjs):
  *
  *   the message   a marketing message in the workspace's language whose one typed value is the offer (the month's
  *                 offer starter's own, "The offer"), every other filled per person, with a version on every channel the
@@ -37,7 +37,7 @@
  *                 room, WhatsApp's review of a paced campaign that also goes by email, the reminder), then what the
  *                 cards show (WhatsApp's review of a send it holds, the message, the note, the send's day): the answer's
  *                 detail is cut at 700 characters (answerForCards), so a cut loses what a card says; said in the
- *                 question's language (broadcasts/offer-plan-words.ts), the refusals in English for the model to say
+ *                 question's language (campaigns/broadcasts/offer-plan-words.ts), the refusals in English for the model to say
  *   the journey   a campaign on each moment not covered yet that the workspace can run, on its action's pick; the day
  *                 after's review ask only where the Google listing keeps a review link (stageInput); without one, the
  *                 check named only over a review ask the Library holds, else the action's pick, which may be the
@@ -52,21 +52,21 @@ import { isDayKey, shiftKey } from "../calendar/day-keys";
 import type { Note } from "../config/workspace-config/business-profile";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { ConsentChannel } from "../consent/consent-channels";
-import { BROADCAST_NAME_MAX } from "../broadcasts/broadcasts";
-import { OFFER_PLAN_WORDS, dayReadWrong, isTheAsk } from "../broadcasts/offer-plan-words";
-import { CHANNEL_WORDS } from "../broadcasts/reach-for";
+import { BROADCAST_NAME_MAX } from "../campaigns/broadcasts/broadcasts";
+import { OFFER_PLAN_WORDS, dayReadWrong, isTheAsk } from "../campaigns/broadcasts/offer-plan-words";
+import { CHANNEL_WORDS } from "../campaigns/broadcasts/reach-for";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { JourneyStageId } from "../journey/journey";
 import { JOURNEY_PLAN_WORDS, journeyPlan, type PlanLead } from "../journey/journey-plan";
 import { parseListToken } from "../people/lists/list-token";
-import { campaignDayWords, campaignRunsOn, localDate } from "../playbooks/playbook-schedule";
-import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../playbooks/playbook-triggers";
+import { campaignDayWords, campaignRunsOn, localDate } from "../campaigns/playbooks/playbook-schedule";
+import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../campaigns/playbooks/playbook-triggers";
 import { wallClockAt } from "../shared/clock";
-import { LIVE_VERSION_STATES, VERSION_CHANNEL_WORDS } from "../templates/message-versions";
-import { SENDER_WORDS } from "../templates/sender-words";
-import { starterByName, starterText } from "../templates/starter-lookup";
-import { messageLanguageCode } from "../templates/starter-templates";
-import { languageBase } from "../templates/template-languages";
+import { LIVE_VERSION_STATES, VERSION_CHANNEL_WORDS } from "../campaigns/templates/message-versions";
+import { SENDER_WORDS } from "../campaigns/templates/sender-words";
+import { starterByName, starterText } from "../campaigns/templates/starter-lookup";
+import { messageLanguageCode } from "../campaigns/templates/starter-templates";
+import { languageBase } from "../campaigns/templates/template-languages";
 import type { MessageRead } from "./ask";
 import { clip } from "./ask-answer";
 import { sendWaitsForReview, stepToken } from "./plan-steps";
@@ -415,7 +415,7 @@ const offerLine = (words: string): string => {
 /**
  * The offer's value as a message read on its first day says it: the owner's phrasing where every day it says reads true
  * then and it is not the ask itself, else the offer's words. Words that say a day reading wrong then ("next month") are
- * refused, by name: they title its note and its send too (broadcasts/offer-plan-words.ts dayReadWrong).
+ * refused, by name: they title its note and its send too (campaigns/broadcasts/offer-plan-words.ts dayReadWrong).
  */
 function offerValue(offer: Offer, say: string | undefined, dates: OfferDates): { line: string } | { refused: string } {
   const wrong = (text: string) => dayReadWrong(text, dates.from, dates.until);

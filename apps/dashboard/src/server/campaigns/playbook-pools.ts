@@ -30,7 +30,7 @@ import {
   type RunSplit,
 } from "@chanlytics/contracts";
 import { savedListsFor, templatesFor } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 import {
   calendarRead,
   visitsIn,
@@ -41,8 +41,8 @@ import {
 import { otherChannelSets } from "@/lib/campaign-channels";
 import { noFollowUps, poolTouches, proposalFollowUps, type FollowUpsRead } from "@/server/campaigns/playbooks";
 import { everyone } from "@/server/people/people";
-import { lazily, settled, type Lazy, type Settled } from "@/server/lazy";
-import { log } from "@/server/log";
+import { lazily, settled, type Lazy, type Settled } from "@/server/shared/lazy";
+import { log } from "@/server/shared/log";
 
 /**
  * The Playbooks page's pools: the number on each moment's chip, counted on the server over everyone with their visits

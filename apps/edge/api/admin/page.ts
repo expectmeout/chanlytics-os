@@ -6,8 +6,8 @@
  * The door is the knock (authorizeAdmin with platformKey: true); pageFromOutside in lib/ops/outside-page.ts refuses a
  * token (platform_only), reads the condition, and pages the way the edge's own do.
  */
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { adminDoor } from "../../lib/log.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { pageFromOutside } from "../../lib/ops/outside-page.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

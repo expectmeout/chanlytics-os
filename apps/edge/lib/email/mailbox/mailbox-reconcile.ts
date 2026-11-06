@@ -15,18 +15,18 @@
  *               A draft Graph left of it is deleted first.
  *   unsure      the provider could not be asked: it waits for the next tick, and the clock's day still stands.
  */
-import { gmailFindSent, graphDeleteMessage, graphFindSent, mailboxMessageId } from "../../packages/channels.js";
-import { MIN_MS } from "../../packages/contracts.js";
+import { gmailFindSent, graphDeleteMessage, graphFindSent, mailboxMessageId } from "@chanlytics/channels";
+import { MIN_MS } from "@chanlytics/contracts";
 import {
   emailFoundSent,
   emailNeverLeft,
   unknownMailboxEmails,
   type Database,
   type MailboxConnectionRow,
-} from "../../packages/db.js";
-import { UNKNOWN_OUTCOME_MS } from "../../reach-out/clock.js";
+} from "@chanlytics/db";
+import { UNKNOWN_OUTCOME_MS } from "../../campaigns/reach-out/clock.js";
 import { tokenFor } from "./mailbox-credentials.js";
-import { errField, type Logger } from "../../log.js";
+import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

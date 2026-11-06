@@ -19,12 +19,12 @@ import type { LeadCardCheck, LeadCardEmailVM } from "../lead-card";
 import type { LeadPeekVM } from "../lead-peek";
 import { LEAD_DIRECTORY_WORDS } from "../lead-kind";
 import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, type LeadClass, type LeadStage } from "../lead-words";
-import type { HoldDoor } from "../../reach-out/reach-out-words";
+import type { HoldDoor } from "../../campaigns/reach-out/reach-out-words";
 import type { LeadEmailState } from "../search/sets";
-import type { SequencePlaceDto } from "../../sequences/sequence-place";
-import { placeSpanOf } from "../../sequences/sequence-place";
-import type { SequenceRowDto } from "../../sequences/sequence-dto";
-import type { SequenceState } from "../../sequences/sequence";
+import type { SequencePlaceDto } from "../../campaigns/sequences/sequence-place";
+import { placeSpanOf } from "../../campaigns/sequences/sequence-place";
+import type { SequenceRowDto } from "../../campaigns/sequences/sequence-dto";
+import type { SequenceState } from "../../campaigns/sequences/sequence";
 
 /* ------------------------------------------------------------------------------------------------ the words -- */
 

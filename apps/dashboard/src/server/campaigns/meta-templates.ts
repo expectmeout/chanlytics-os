@@ -1,9 +1,9 @@
 import "server-only";
-import { deployment } from "../env";
+import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db";
-import { serviceDb } from "../service-db";
-import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
+import { serviceDb } from "../shared/service-db";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
 
 /** A sync pages through every template the account holds, a Graph call a page: a minute, as the lines doors get. */
 const SYNC_TIMEOUT_MS = MIN_MS;

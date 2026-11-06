@@ -1,4 +1,4 @@
-import { write } from "@/server/route";
+import { write } from "@/server/shared/route";
 import { leadSearchScope, undoSearch } from "@/server/leads/leads";
 
 /**

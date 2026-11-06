@@ -37,13 +37,13 @@
  * signature-only mode, so "true" or "yes", typed by someone who meant to close the doors, closes them.
  */
 import crypto from "node:crypto";
-import { stripKey, verifyRetellSignature } from "../packages/channels.js";
-import { emitEvent } from "../packages/db.js";
-import { MIN_MS } from "../packages/contracts.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
-import { json } from "../http.js";
-import { pg } from "../pg.js";
+import { stripKey, verifyRetellSignature } from "@chanlytics/channels";
+import { emitEvent } from "@chanlytics/db";
+import { MIN_MS } from "@chanlytics/contracts";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
+import { json } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 
 /** Retell's signature over a delivery: the badged key, the raw body, then the body as Retell's example re-serialises it. */
 export function retellSigned(

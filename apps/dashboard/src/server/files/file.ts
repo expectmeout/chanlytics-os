@@ -18,11 +18,11 @@ import {
   type FileShows,
 } from "@chanlytics/contracts";
 import { fileChange, fileKeepMany, fileOf, fileRemove, filesBucket, type FileMemberRow } from "@chanlytics/db";
-import { log } from "@/server/log";
-import { requireUuid } from "@/server/request-guards";
-import { row, type Member } from "@/server/route";
-import { serviceDb } from "@/server/service-db";
-import type { RouteContext } from "@/server/with-route";
+import { log } from "@/server/shared/log";
+import { requireUuid } from "@/server/shared/request-guards";
+import { row, type Member } from "@/server/shared/route";
+import { serviceDb } from "@/server/shared/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /**
  * How long a picture's address lasts, and a little less for how long a browser keeps being sent to it. Storage's CDN keeps a

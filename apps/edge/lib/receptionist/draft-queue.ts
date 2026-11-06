@@ -11,11 +11,11 @@
  * outcome than a vetoed one, and no reply at all is worse than both.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { queueSend } from "../packages/db.js";
-import type { BrainMeta } from "../packages/contracts.js";
-import type { InboundChannel } from "../packages/core.js";
-import type { LogEvent } from "../log.js";
+import type { Database } from "@chanlytics/db";
+import { queueSend } from "@chanlytics/db";
+import type { BrainMeta } from "@chanlytics/contracts";
+import type { InboundChannel } from "@chanlytics/core";
+import type { LogEvent } from "../shared/log.js";
 
 export type DraftSource = "veto_window" | "low_confidence" | "steered";
 

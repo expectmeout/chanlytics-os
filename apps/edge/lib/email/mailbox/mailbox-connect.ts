@@ -27,7 +27,7 @@ import {
   siteHost,
   type MailboxHistory,
   type MailboxProvider,
-} from "../../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   buildEmailRequest,
   connectedIdentity,
@@ -44,7 +44,7 @@ import {
   providerFetch,
   sendFromMailbox,
   unb64url,
-} from "../../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   connectMailbox,
   dropMailboxCredentials,
@@ -55,7 +55,7 @@ import {
   workspaceNameAndConfig,
   type Database,
   type MailboxConnectionRow,
-} from "../../packages/db.js";
+} from "@chanlytics/db";
 import { mailboxClient } from "./mailbox-config.js";
 import { grantOf, storeMailboxCredentials, tokenFor } from "./mailbox-credentials.js";
 import { readMailboxDns } from "./mailbox-dns.js";
@@ -63,7 +63,7 @@ import { endWatch, keepWatch } from "./mailbox-watch.js";
 import { keepGmailSignature, readGmailSignatureNow } from "./mailbox-signature.js";
 import { mendWarnings } from "../../ops/notify.js";
 import { startMailboxHistory } from "../../imports/history-import.js";
-import { errField, type Logger } from "../../log.js";
+import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

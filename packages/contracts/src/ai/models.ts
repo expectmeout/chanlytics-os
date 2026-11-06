@@ -6,7 +6,7 @@
  * answer, Ask's round, a review's reply, the lead judge, a note, a reach-out's opening and its reading. Each has one
  * route: the model it asks, the model it asks once more when that one is overloaded or down, how long a try may take,
  * how many tries a "not now" earns, and how many tokens an answer may write. The model port
- * (packages/channels/src/models/anthropic.ts) reads the route; nothing else names a model.
+ * (packages/channels/src/ai/anthropic.ts) reads the route; nothing else names a model.
  *
  * A fallback is asked only for an answer that never came (a 529, a 5xx or a try that ran out of time) or for a model
  * the API does not know (a 404: a variable's misspelt name, an id since retired). A refusal, a bad request or a 429 is
@@ -50,7 +50,7 @@ export type ModelId = (typeof MODEL_IDS)[number];
  * up to 2.5 times the output tokens a second, at twice the price; usage.ts FAST_MODE_PRICES). A request asks for fast
  * mode with `speed: "fast"` in its body and FAST_MODE_BETA in its anthropic-beta header; standard is the request
  * that names no speed. Fast mode has its own rate limit, apart from the model's: the port asks a fast request that
- * limit refuses (a 429) once more at standard speed (channels models/anthropic.ts).
+ * limit refuses (a 429) once more at standard speed (channels ai/anthropic.ts).
  */
 export const MODEL_SPEEDS = ["standard", "fast"] as const;
 export type ModelSpeed = (typeof MODEL_SPEEDS)[number];
@@ -67,7 +67,7 @@ export type ThinkingType = (typeof THINKING_TYPES)[number];
 /**
  * What each model takes of the settings the gateway lets a request name (Anthropic's model pages and migration guide,
  * read 15 Oct 2026): the thinking types it accepts, whether it runs fast mode, and whether it takes an effort said in
- * its messages (ai/effort.ts). The port sends a model only what it takes (channels models/anthropic.ts), so a fallback
+ * its messages (ai/effort.ts). The port sends a model only what it takes (channels ai/anthropic.ts), so a fallback
  * asked with a request written for another model still answers: Opus 5.5's fast request falls back to Sonnet 5 at
  * standard speed, Sonnet 5.5's `between_tools` to Opus 5.5 thinking as it does, and Opus 5.5's effort messages to
  * Sonnet 5 as the request's own effort.

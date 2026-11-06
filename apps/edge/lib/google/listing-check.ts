@@ -4,13 +4,13 @@
  * `connectionsDue` are what the sweep (api/cron/google.ts) reads each tick.
  * A connected profile's own read is profile-sync.ts.
  */
-import { emitEvent, patchListing } from "../packages/db.js";
-import { planListingCheck, type PlaceDetails } from "../packages/channels.js";
-import { localDate, HOUR_MS } from "../packages/contracts.js";
+import { emitEvent, patchListing } from "@chanlytics/db";
+import { planListingCheck, type PlaceDetails } from "@chanlytics/channels";
+import { localDate, HOUR_MS } from "@chanlytics/contracts";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 import { keepAndPush } from "../ops/notify.js";
-import { logger } from "../log.js";
-import { readAllRows } from "../paged.js";
+import { logger } from "../shared/log.js";
+import { readAllRows } from "../shared/paged.js";
 import { placesKey } from "./google-config.js";
 import { readPlace } from "./places.js";
 import {

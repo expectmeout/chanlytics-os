@@ -13,11 +13,11 @@ import {
   type PersonRowDto,
   type PersonRowVM,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 import { everyone } from "./people";
 import { withVisits, type PeopleVisits, type ZoneAndSettings } from "../calendar/people-visits";
 import { hasDealsRead } from "./deals";
-import { lazily, type Lazy } from "../lazy";
+import { lazily, type Lazy } from "../shared/lazy";
 
 /**
  * Everyone, with their appointments: the pool a broadcast's audience, a People list and a playbook's moment are

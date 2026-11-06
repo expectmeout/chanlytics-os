@@ -27,7 +27,7 @@ import { leadCardsLive, reachOutRootOf } from "@chanlytics/db";
 import { addToReachOut } from "../../../../leads/lead-workbench";
 import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../../leads/leads";
 import { refuseList } from "../../../../leads/lead-lists";
-import { requireUuid } from "../../../../request-guards";
+import { requireUuid } from "../../../../shared/request-guards";
 import {
   UUID,
   actAction,

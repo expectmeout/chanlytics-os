@@ -47,7 +47,7 @@
  * judges the answer (registered in 00107). Its lines carry `sweep: "calendar"` and, per workspace, `tenant_id`; the
  * tick ends in one calendar_sweep with the counts.
  */
-import { json } from "../http.js";
+import { json } from "../shared/http.js";
 import {
   calendarDue,
   markCalendarChecked,
@@ -57,7 +57,7 @@ import {
 } from "../ops/sweep-rotation.js";
 import { feedItemsFor } from "./availability.js";
 import { addPeopleFromCalendar } from "./calendar-people.js";
-import { markCalendarFeedKept } from "../packages/db.js";
+import { markCalendarFeedKept } from "@chanlytics/db";
 import { keepAppointments } from "./calendar-appointments.js";
 import { bookedFromCalendar } from "./reach-out-booked.js";
 import { recordNotification } from "../ops/notify.js";
@@ -70,8 +70,8 @@ import {
   peopleFromItems,
   type FeedItem,
   type TenantConfig,
-} from "../packages/contracts.js";
-import { noteImport, type DueCalendar } from "../packages/db.js";
+} from "@chanlytics/contracts";
+import { noteImport, type DueCalendar } from "@chanlytics/db";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** What the reads kept as appointments, for the tick's log line. */

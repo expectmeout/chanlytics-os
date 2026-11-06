@@ -12,8 +12,8 @@
  * write.
  */
 import crypto from "node:crypto";
-import { APIFY_RUN_END_EVENTS } from "../packages/channels.js";
-import type { LogEvent } from "../log.js";
+import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
+import type { LogEvent } from "../shared/log.js";
 import { trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
 
 /** The endings, spelled once: exactly the events every run is started asking for (core runner/start.ts, runner/check.ts). Anything else is progress. */

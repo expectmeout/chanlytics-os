@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { messageMedia } from "@/server/conversations/message-media";
 
 /**

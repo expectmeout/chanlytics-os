@@ -1,10 +1,11 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
-export type { ReplyDraftEdge } from "./context";
-export { eraseOrRedrive } from "./erasure";
-export { dispatchJob, incomingEmailOf, upsertEscalation } from "./handlers";
-export type { ClaimedJob, EscalationOutcome, JobContext, PushPort, PushReceipt } from "./handlers";
-export { KIND_POLICY, kindPolicyOf } from "./kinds";
-export type { KindPolicy, KindSettles, KindTold } from "./kinds";
+export { eraseOrRedrive } from "./handlers/erasure";
+export { dispatchJob, incomingEmailOf, upsertEscalation } from "./handlers/handlers";
+export type { ClaimedJob, EscalationOutcome, JobContext, PushPort, PushReceipt } from "./handlers/handlers";
+export { askReplyDraftOf, replyDraftPortsOf } from "./handlers/reply-draft";
+export type { ReplyDraftEdge } from "./runner/context";
+export { KIND_POLICY, kindPolicyOf } from "./runner/kinds";
+export type { KindPolicy, KindSettles, KindTold } from "./runner/kinds";
 export {
   CLAIM_FOR_MS,
   CLAIM_SLOTS,
@@ -27,12 +28,11 @@ export {
   TOLD_ELSEWHERE,
   verdictFor,
   YIELD_AT_MS,
-} from "./ledger";
-export type { Db, LedgerRow, Verdict } from "./ledger";
-export { askReplyDraftOf, replyDraftPortsOf } from "./reply-draft";
-export { cancelJobsFor, payloadRefusal, requeueFailedJob, scheduleJob, scheduleJobOnce } from "./schedule";
-export type { Requeued, ScheduleParams } from "./schedule";
-export { saySettled, settleJob, SETTLERS } from "./settle";
-export type { Settled, TerminalJob } from "./settle";
-export { lateFields, runTick } from "./tick";
-export type { DispatchOutcome, TickCounts, TickFields, TickLog, TickOptions, TickPorts } from "./tick";
+} from "./runner/ledger";
+export type { Db, LedgerRow, Verdict } from "./runner/ledger";
+export { cancelJobsFor, payloadRefusal, requeueFailedJob, scheduleJob, scheduleJobOnce } from "./runner/schedule";
+export type { Requeued, ScheduleParams } from "./runner/schedule";
+export { saySettled, settleJob, SETTLERS } from "./runner/settle";
+export type { Settled, TerminalJob } from "./runner/settle";
+export { lateFields, runTick } from "./runner/tick";
+export type { DispatchOutcome, TickCounts, TickFields, TickLog, TickOptions, TickPorts } from "./runner/tick";

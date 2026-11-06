@@ -8,7 +8,8 @@
  * Every verb carries the version it was drawn from and a stale one is declined, with a word from contracts. A verb that
  * succeeds bumps the ad's version and answers an `undo` that puts the ad back as it was (bumped again: Undo is a change). An ad the
  * owner made on the platform itself is not ours to change: only Pause and Resume are here. The example is kept in the tab's
- * session storage and read AFTER the page mounts, so a server render and the first client render agree.
+ * session storage. A demo reads it AFTER the page mounts, so a server render and the first client render agree; a workspace's preview
+ * draws only in a browser and opens on it, so it never reads its own counts for a page about to show an example.
  */
 import { useEffect, useRef, useState } from "react";
 import { adWith, daysBetween, patchRestarts } from "@chanlytics/contracts";
@@ -28,6 +29,7 @@ import type { LegacyFlash } from "../../legacy-verbs";
 import { rememberAdNames } from "./crumb-names";
 import { exampleAt, withAccount } from "./examples";
 import { adsOwnHere } from "./own";
+import { adsInPreview } from "./shown";
 import { CONFIG, accountChecks } from "./sample";
 
 /** What a verb answers: it worked, and here is its Undo; or it was declined, and here is why in words. */
@@ -231,9 +233,20 @@ function savedExample(): AdsExample | undefined {
   }
 }
 
+/**
+ * Where nothing was chosen: in a workspace's preview what is true of it today, nothing connected, with an example a press away; in a
+ * demo, ads running. So a real page says what is so before it shows what could be.
+ */
+const unchosen = (): AdsExample => (adsInPreview() ? "v0" : "running");
+
+/** What the page opens on: in a preview, the example kept for this tab where there is one. */
+export const adsOpening = (): AdsExample => (adsInPreview() ? (savedExample() ?? "v0") : "running");
+
 function keepExample(example: AdsExample): void {
   try {
-    window.sessionStorage.setItem(EXAMPLE_KEY, example);
+    // What the page opens on anyway is not kept, so an address that names an ad never returns to a page without it.
+    if (example === unchosen()) window.sessionStorage.removeItem(EXAMPLE_KEY);
+    else window.sessionStorage.setItem(EXAMPLE_KEY, example);
   } catch {
     // Storage can be blocked (a private window): the example still changes, for this page.
   }
@@ -245,12 +258,16 @@ const READ_AGAIN_MS = 1200;
 /** An example as it is drawn right now: of the workspace's own business, in its preview. */
 const exampleNow = (example: AdsExample): AdsRead => exampleAt(example, Date.now(), adsOwnHere());
 
-/** The page's one store: the read of the example chosen, the config, and the verbs. Changing the example resets the read. */
-export function useAdsStore() {
+/**
+ * The page's one store: the read of the example chosen, the config, and the verbs. Changing the example resets the read. `opening` is
+ * the example it starts on, read once: the kept example, where there is one, follows it as the page mounts.
+ */
+export function useAdsStore(opening: AdsExample = adsOpening()) {
   const [state, setState] = useState<{ example: AdsExample; read: AdsRead }>(() => ({
-    example: "running",
-    read: exampleNow("running"),
+    example: opening,
+    read: exampleNow(opening),
   }));
+  const openedOn = useRef(opening);
   const latest = useRef(state.read);
   const reading = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [world] = useState<World>(() => ({
@@ -275,7 +292,7 @@ export function useAdsStore() {
   // so there is no timer to stop: only the refs and the setter are touched, and the effect runs once.
   useEffect(() => {
     const saved = savedExample();
-    if (!saved || saved === "running") return;
+    if (!saved || saved === openedOn.current) return;
     const read = exampleNow(saved);
     latest.current = read;
     setState({ example: saved, read });

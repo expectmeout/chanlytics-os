@@ -17,14 +17,14 @@
  * number, its own token, and this reading.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { keepChannelStanding, whatsappNumberOf, type Database, type WhatsappNumber } from "../packages/db.js";
-import { standingAlertWords, UUID, type NumberStanding } from "../packages/contracts.js";
-import { errField, logger, type Logger } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { keepChannelStanding, whatsappNumberOf, type Database, type WhatsappNumber } from "@chanlytics/db";
+import { standingAlertWords, UUID, type NumberStanding } from "@chanlytics/contracts";
+import { errField, logger, type Logger } from "../shared/log.js";
 import { notify } from "../ops/notify.js";
-import { waCredentialsForTenant } from "../tenant-runtime.js";
+import { waCredentialsForTenant } from "../shared/tenant-runtime.js";
 import { numberStanding } from "./meta-graph.js";
 import { NUM, notificationsFor } from "./waba-events.js";
 

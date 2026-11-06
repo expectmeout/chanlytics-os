@@ -24,7 +24,7 @@ import {
 import { injectionQuestion, fenceActed } from "./fence";
 import { policyClassLabel, policyClassQuestion } from "../config/workspace-config/policy-classes";
 import { stopRequestQuestion } from "../consent/consent";
-import { isReplyIntent, replyIntentQuestion } from "../reach-out/reach-out-replies";
+import { isReplyIntent, replyIntentQuestion } from "../campaigns/reach-out/reach-out-replies";
 import { judgeShadowCalls, type PlaceFacts } from "../leads/lead-judge";
 import type { LeadSearchPlan } from "../leads/search/plan";
 

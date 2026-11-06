@@ -22,8 +22,8 @@
  * 0) waits out the reset before it returns (Reach out C14), so the next email
  * this instance sends meets an open second rather than a 429.
  */
-import type { SendResult } from "../whatsapp";
-import { providerFetch, type SendOutcome } from "../provider-fetch";
+import type { SendResult } from "../whatsapp/whatsapp";
+import { providerFetch, type SendOutcome } from "../shared/provider-fetch";
 import { receivedEmailFrom, type ReceivedEmail } from "./intake";
 import { mailDomainsFrom, resendLimitOf, type MailDomainFacts } from "./provider-answers";
 import type { EmailRequest } from "./request";

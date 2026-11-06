@@ -1,6 +1,6 @@
 import { ReplyDraftAskSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
 import { draftForThread } from "@/server/conversations/drafts";
 
 /** A model call at the edge, with the member waiting: the platform's ceiling, as the door's own. */

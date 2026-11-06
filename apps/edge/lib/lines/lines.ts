@@ -8,7 +8,7 @@
  * Cross-workspace: a routing key is unique platform-wide; its row is read unfiltered to refuse another's claim.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb, type Database, type Json } from "../packages/db.js";
+import { tenantDb, type Database, type Json } from "@chanlytics/db";
 import {
   chooseLineProvider,
   twilioProvider,
@@ -24,11 +24,11 @@ import {
   type ProviderAccount,
   type RetellConfig,
   type ProvisionSecrets,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import { ensureVoiceAgent } from "../voice/voice-agent.js";
-import { lineDtoOf, type LineDto } from "../packages/contracts.js";
-import { env } from "../env.js";
-import { edgeFnUrl } from "../dashboard-origin.js";
+import { lineDtoOf, type LineDto } from "@chanlytics/contracts";
+import { env } from "../shared/env.js";
+import { edgeFnUrl } from "../shared/dashboard-origin.js";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -344,4 +344,4 @@ export async function releaseRoutingRows(
 }
 
 /** The step, in the owner's words — one list, shared with the page (contracts/setup.ts). */
-export { LINE_STEP_WORDS } from "../packages/contracts.js";
+export { LINE_STEP_WORDS } from "@chanlytics/contracts";

@@ -18,8 +18,8 @@
  * page reads; this stays in the root barrel for the server, and a page imports its types alone.
  */
 import { standingOfThread } from "../../conversations/standing";
-import { runApprovalRefusal } from "../../playbooks/playbook-approval";
-import { nextOpenMoment } from "../../playbooks/playbook-schedule";
+import { runApprovalRefusal } from "../../campaigns/playbooks/playbook-approval";
+import { nextOpenMoment } from "../../campaigns/playbooks/playbook-schedule";
 import { zoneDayKey } from "../../shared/clock";
 import { isCount, recordOrNull } from "../../shared/unknown";
 

@@ -16,7 +16,7 @@ import {
   messageRoute,
   parseSequencesRoute,
   runRoute,
-} from "../sequences/sequence-address";
+} from "../campaigns/sequences/sequence-address";
 
 /** The query param a thing open over the page rides on. */
 export const SEE_PARAM = "see";

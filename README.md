@@ -32,7 +32,7 @@ Every model call, whichever the purpose, goes through one port and one registry
 numbers. Treat every change to `apps/edge` and `packages/channels` as something
 a member of the public will experience. The first workspace was a hair salon,
 and the code still uses it as its worked example in comments; the product is
-not for salons, and `tooling/scripts/tests/repo/trade-neutral.test.mjs` fails a
+not for salons, and `tests/repo/trade-neutral.test.mjs` fails a
 build that puts one trade's words in front of a customer of another.
 
 **Read next.** `CLAUDE.md` for the rules and the canonical example of each
@@ -55,7 +55,7 @@ sheet by sheet, `docs/decisions/` for what is decided and not yet built,
 | `supabase/migrations` | The schema. Postgres, RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials.                                                                                                                                                                                            | Supabase project                      |
 
 Counts change weekly, so this file carries none but history's, each with its
-date (`tooling/scripts/tests/docs/counts-are-dated.test.mjs` holds that).
+date (`tests/docs/counts-are-dated.test.mjs` holds that).
 `find apps/edge/api -name '*.ts' | wc -l` and `ls supabase/migrations | wc -l`
 answer the two most-asked; `docs/debt.md` has the rest, regenerated.
 
@@ -187,8 +187,8 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
   packages that hold rules; server code never imports the shell or the bridge;
   the edge never imports the dashboard. `eslint.config.mjs` enforces the three
   boundaries; a type-only import crosses freely.
-- **The edge reads its environment once**, through `apps/edge/lib/env.ts`,
-  trimmed, blank as unset. It logs once, through `apps/edge/lib/log.ts`: one
+- **The edge reads its environment once**, through `apps/edge/lib/shared/env.ts`,
+  trimmed, blank as unset. It logs once, through `apps/edge/lib/shared/log.ts`: one
   JSON object per line with a level, an event and the bound context. A
   `process.env` read or a `console` call anywhere else on the edge is a lint
   error.
@@ -199,7 +199,7 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 corepack pnpm test                    # unit + integration
 ```
 
-The suite lives under `tooling/scripts/tests/<domain>/`, each file placed by
+The suite lives under `tests/<domain>/`, each file placed by
 what it proves, on the names `apps/dashboard/src/server`, `packages/contracts`
 and `apps/edge/lib` use, plus `repo/` for the repository-wide invariants and
 ratchets, `routes/` for the app plane's floor, `shell/` for the shell and its
@@ -240,7 +240,7 @@ the nightly reported success four mornings running in September 2026 while
 executing 24 of its 128 specs (#249, 8 Sep). So a run that is MEANT to be signed in says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
 of skipping. The node suite carries the same guard in
-`tooling/scripts/tests/e2e/coverage-guard.test.mjs` for its integration suites,
+`tests/e2e/coverage-guard.test.mjs` for its integration suites,
 which skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.

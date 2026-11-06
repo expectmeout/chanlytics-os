@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { startMailboxConnect } from "@/server/connections/mailbox-connections";
 
 const Query = z.object({

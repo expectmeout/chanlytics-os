@@ -1,6 +1,6 @@
 /**
  * The settings change a card may apply: its shape, the change applied to a parsed config (applySettingsChange) and
- * the card's one line (describeSettingsChange). The workspace's cards propose it (ask-proposals/workspace.ts); its
+ * the card's one line (describeSettingsChange). The workspace's cards propose it (ask/proposals/workspace.ts); its
  * schema is ask-schemas.ts's.
  */
 // The whole-word cut the thread's lines use; Ask's own `clip` (ask-answer.ts) reaches this module through the

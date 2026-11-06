@@ -6,7 +6,7 @@
  * workspace, through the mailbox its cursor names. The clients' file is the browser's: it is added again from People,
  * never here. A source this deployment brings in no other way is refused by name.
  */
-import { IMPORT_SOURCES, UUID, parseTenantConfig, type ImportSource } from "../packages/contracts.js";
+import { IMPORT_SOURCES, UUID, parseTenantConfig, type ImportSource } from "@chanlytics/contracts";
 import {
   getTenantConfig,
   importCursorOf,
@@ -14,11 +14,11 @@ import {
   mailboxConnectionsOf,
   type ImportLedgerRow,
   type Json,
-} from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { errField, logger } from "../log.js";
+} from "@chanlytics/db";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { errField, logger } from "../shared/log.js";
 import { startHistory } from "./history-import.js";
 
 /** The sources a mailbox brings, which Try again starts again here. */

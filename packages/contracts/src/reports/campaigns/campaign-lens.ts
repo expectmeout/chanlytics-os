@@ -15,8 +15,8 @@
  */
 import { pct, sumOf } from "../../shared/numbers";
 import { isCount } from "../../shared/unknown";
-import { languageLabels } from "../../templates/message-languages";
-import { templateTitle } from "../../templates/template-titles";
+import { languageLabels } from "../../campaigns/templates/message-languages";
+import { templateTitle } from "../../campaigns/templates/template-titles";
 import {
   campaignPriorHadAny,
   toCampaignReportVM,
@@ -80,7 +80,7 @@ import {
   type ReadPart,
 } from "./campaign-words";
 import { toReachOutLensVM, type ReachOutLensVM } from "./reach-out-lens";
-import { SEQUENCES_ROUTE } from "../../sequences/sequence-address";
+import { SEQUENCES_ROUTE } from "../../campaigns/sequences/sequence-address";
 import { MESSAGES_ROUTE } from "../../shell/address";
 
 /** The three reads: the sends, the ledger the route answers (null where it failed), and the reach-outs (undefined in the demo). */

@@ -9,7 +9,7 @@
  */
 import { MIN_MS } from "../shared/time";
 import type { CallBrief } from "../new-conversation/person-draft";
-import type { DraftWhy } from "../reach-out/reach-out-reply-draft";
+import type { DraftWhy } from "../campaigns/reach-out/reach-out-reply-draft";
 
 /** What a thread is drafted: a reply to its last message, or the brief for a call back. */
 export const REPLY_DRAFT_KINDS = ["reply", "brief"] as const;

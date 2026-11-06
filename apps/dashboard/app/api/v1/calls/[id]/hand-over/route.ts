@@ -1,5 +1,5 @@
-import { write } from "@/server/route";
-import { callScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { callScope } from "@/server/shared/verbs";
 import { passCallToOwnerLine } from "@/server/conversations/call-hand-over";
 
 /**

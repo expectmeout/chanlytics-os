@@ -18,8 +18,8 @@
  * asked before a row exists, and a filing the pre-flight refuses never
  * reaches the vault.
  */
-import type { Database, OpenToCustomersRead } from "../packages/db.js";
-import { isAreaCode, LINE_COSTS, type LineProviderName } from "../packages/channels.js";
+import type { Database, OpenToCustomersRead } from "@chanlytics/db";
+import { isAreaCode, LINE_COSTS, type LineProviderName } from "@chanlytics/channels";
 import {
   formatPhoneDisplay,
   isE164,
@@ -41,7 +41,7 @@ import {
   type BusinessRecordColumn,
   type RecordFiling,
   type RegistrationPath,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { lineForClient, type LineProviderChoice } from "./lines.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
 import type { RegisterResult } from "./a2p-register.js";
@@ -49,7 +49,7 @@ import type { RefileOutcome } from "./a2p-refile.js";
 import type { RegistrationSync } from "./a2p-sync.js";
 import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "./line-resume.js";
 import type { LineReleaseResult } from "./line-release.js";
-import { errorMessage, type DoorAnswer } from "../admin-door.js";
+import { errorMessage, type DoorAnswer } from "../shared/admin-door.js";
 
 type LinesInsert = Database["public"]["Tables"]["lines"]["Insert"];
 type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];

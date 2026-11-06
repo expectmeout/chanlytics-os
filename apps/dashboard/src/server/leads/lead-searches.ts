@@ -18,10 +18,10 @@ import {
 import { emitEvent, leadCardsLive } from "@chanlytics/db";
 import { answerOf, refusalOf } from "./lead-answers";
 import { leadTimelineOf } from "../campaigns/reach-out-leads";
-import { requireUuid } from "../request-guards";
-import { serviceDb } from "../service-db";
-import { type Params, row } from "../route";
-import type { RouteContext } from "../with-route";
+import { requireUuid } from "../shared/request-guards";
+import { serviceDb } from "../shared/service-db";
+import { type Params, row } from "../shared/route";
+import type { RouteContext } from "../shared/with-route";
 
 export interface SearchViewRow {
   id: string;

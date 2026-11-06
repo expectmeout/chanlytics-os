@@ -19,14 +19,14 @@
  *     whole and the seconds at its end. Nothing reaches the call pipeline.
  *   - The booking-link tool sends nothing and says the link is on the owner's screen (rehearsalToolCall).
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { workspaceFor, personFor, type Admitted } from "../admin-auth.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
-import { env } from "../env.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { workspaceFor, personFor, type Admitted } from "../shared/admin-auth.js";
+import { loadTenantRuntime } from "../shared/tenant-runtime.js";
+import { env } from "../shared/env.js";
 import { secretToProvision } from "./voice-door-auth.js";
-import { logger, errField } from "../log.js";
-import { createWebCall, webCallBody, webCallMadeOf, type RetellCall } from "../packages/channels.js";
+import { logger, errField } from "../shared/log.js";
+import { createWebCall, webCallBody, webCallMadeOf, type RetellCall } from "@chanlytics/channels";
 import {
   endRehearsal,
   keepRehearsalCall,
@@ -40,7 +40,7 @@ import {
   writeRehearsalTranscript,
   type RehearsalRow,
   type RoutedChannel,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import {
   rehearsalAllowance,
   rehearsalCallMs,
@@ -48,7 +48,7 @@ import {
   REHEARSAL_LIMITS,
   SECOND_MS,
   UUID,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { ensureVoiceAgent } from "./voice-agent.js";
 import { planRehearsalStart } from "./call-start.js";
 

@@ -16,12 +16,12 @@ import {
   visitsIn,
   feedWithRecord,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { calendarOf } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { poolRecordOf } from "./people-visits";
 import { earlierVisitRows } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /* ---- One person's appointments, for their profile ---- */
 

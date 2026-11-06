@@ -42,9 +42,9 @@ import {
   type OwnAddresses,
   calendarFeedKeyOf,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "@/server/with-route";
-import { tenantFacts } from "@/server/tenant";
-import { log } from "@/server/log";
+import type { RouteContext } from "@/server/shared/with-route";
+import { tenantFacts } from "@/server/shared/tenant";
+import { log } from "@/server/shared/log";
 import { storedConfigOf } from "@/server/workspace/config-row";
 
 /**

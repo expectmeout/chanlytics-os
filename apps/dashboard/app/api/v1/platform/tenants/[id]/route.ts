@@ -1,7 +1,7 @@
-import { read, platform } from "@/server/route";
+import { read, platform } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { requireUuid } from "@/server/request-guards";
-import { platformTenant, platformEvents } from "@/server/platform/platform";
+import { requireUuid } from "@/server/shared/request-guards";
+import { platformTenant, platformEvents } from "@/server/console/platform";
 import { setupDtoFor } from "@/server/workspace/setup";
 
 /**

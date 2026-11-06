@@ -5,9 +5,9 @@
  * The door is the knock (authorizeAdmin: a token the dashboard minted for this door, the member and the workspace) and
  * the body (readBody); askAgain in lib/website/signup-confirm.ts is everything after.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { askAgain } from "../../../lib/website/signup-confirm.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

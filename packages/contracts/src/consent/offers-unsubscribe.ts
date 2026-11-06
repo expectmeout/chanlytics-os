@@ -5,14 +5,14 @@
  * offers a second, confirmed act for someone who means everything: "Stop all messages", which sets do-not-contact.
  *
  * The page speaks the language of the offer it came from (the Campaigns review, finding 4): English or Spanish, by the
- * sender's one rule (templates/sender-words.ts), so a customer who read the offer in Spanish does not land on an English
+ * sender's one rule (campaigns/templates/sender-words.ts), so a customer who read the offer in Spanish does not land on an English
  * page. The language is required, null where the email's could not be read, which reads English.
  *
  * The same page answers a reach-out's cold email (reach-out/reach-out.ts unsubscribePageWords), which speaks to a business
  * the finder found, not to a customer; which of the two a link belongs to is read from the email it came in. A link that
  * does not work, and a press that did not go through, are the same words for both. Pure: every sentence is here.
  */
-import { senderLanguage, type SenderLanguage } from "../templates/sender-words";
+import { senderLanguage, type SenderLanguage } from "../campaigns/templates/sender-words";
 
 /** One button the page draws: a form that posts `name=value`. A quiet one is the second act, not the page's main one. */
 export interface OfferPageButton {

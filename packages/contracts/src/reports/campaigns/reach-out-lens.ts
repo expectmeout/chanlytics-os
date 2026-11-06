@@ -16,7 +16,7 @@
  * Pure, and only Reports' page reads it (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
  */
 import { mailboxHoldWords } from "../../email/mailbox-standing";
-import { stepLabelOf } from "../../reach-out/reach-out-sheet";
+import { stepLabelOf } from "../../campaigns/reach-out/reach-out-sheet";
 import { clockDate, clockNear } from "../../shared/clock";
 import { pct, sumOf } from "../../shared/numbers";
 import { isCount } from "../../shared/unknown";
@@ -39,7 +39,7 @@ import {
   type ReportStripTile,
 } from "../report-tiles";
 import { dayPointOf, endedOn, rangeLabelOf, withinWords } from "../reports";
-import { sequenceRoute } from "../../sequences/sequence-address";
+import { sequenceRoute } from "../../campaigns/sequences/sequence-address";
 
 /**
  * A line of the sources table: a reach-out, then each of its steps on its own line. Every cell is words, in businesses

@@ -26,7 +26,8 @@ export const HEAD = {
   /** With no calendar link, the booked half waits. */
   touchOnly: (n: number) => ({ strong: `${n}`, rest: " new people got in touch through your ads." }),
   read: (time: string) => `Last 30 days · read ${time}`,
-  v0Read: (since: string) => `Last 30 days · counted from ${since}`,
+  /** Nothing connected: the counts' window, with its first day once they are read. No time, for a page that may not have read them. */
+  v0Read: (since: string | null) => (since === null ? "Last 30 days" : `Last 30 days · counted from ${since}`),
   /** The pane line while an account is being read: `Reading Meta and Google…`. */
   reading: (list: string) => `Reading ${list}…`,
   accounts: "Accounts",
@@ -328,16 +329,25 @@ export const PHONE = {
 export const V0 = {
   lead: (ad: number, of: number) => ({
     strong: `${ad} of the ${of}`,
-    rest: " new people with a recorded way in first wrote from a WhatsApp ad.",
+    rest: " new people with a recorded way in first wrote from an ad.",
   }),
   more: (n: number) => `${n} more have no way in recorded.`,
   emptyLead: "No one has written from an ad yet.",
   emptyLine: "When Meta names the ad in someone's first message, your receptionist answers and they are counted here.",
+  /** Read, and nobody at all: People's own answer for these days. */
+  nobodyNew: "Nobody new has reached you in the last 30 days.",
+  reading: "Counting how new people first reached you…",
+  notRead: "How new people first reached you could not be read.",
+  again: "Try again",
   notes: [
-    "Ads that open WhatsApp are counted under An ad, not WhatsApp.",
-    "When Meta names the ad in someone's first message, they're counted here. Calls and other ads aren't counted yet.",
+    "Ads that open WhatsApp or Instagram are counted under An ad, not under either.",
+    "When Meta names the ad in someone's first message, they're counted here. Ads that ring your phone and ads elsewhere aren't counted yet.",
   ],
+  /** Under the empty lead, which has already said when someone is counted. */
+  emptyNotes: ["Ads that ring your phone and ads elsewhere aren't counted yet."],
   door: "See them in Reports › People",
+  /** With nobody to see. */
+  doorNobody: "See Reports › People",
   platforms: {
     meta: "Ads that open WhatsApp, and forms",
     google: "Ads that ring your phone",

@@ -1,6 +1,6 @@
 import { cancelBroadcast } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { broadcastScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { broadcastScope } from "@/server/shared/verbs";
 import { cancelBroadcastPorts } from "@/server/ports/campaign-ports";
 
 /**

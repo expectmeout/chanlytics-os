@@ -8,8 +8,8 @@
 import { LEAD_MONTHLY_BUDGET_USD, leadMonth, type LeadNichePrior, type LeadPlanFacts } from "@chanlytics/contracts";
 import { monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
-import { tenantFacts } from "../tenant";
-import type { RouteContext } from "../with-route";
+import { tenantFacts } from "../shared/tenant";
+import type { RouteContext } from "../shared/with-route";
 
 /** The platform-wide prior for a kind of business, or null when nobody has searched for one. */
 export async function nichePrior(

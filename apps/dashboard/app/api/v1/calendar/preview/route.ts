@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { jsonBody } from "@/server/request-guards";
-import { tenantFacts } from "@/server/tenant";
+import { write, workspace } from "@/server/shared/route";
+import { jsonBody } from "@/server/shared/request-guards";
+import { tenantFacts } from "@/server/shared/tenant";
 import { previewFeed } from "@/server/calendar/feed-preview";
 
 /**

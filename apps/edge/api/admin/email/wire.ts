@@ -10,16 +10,16 @@
  *                                  not, null when the provider could not be asked, which is not an answer
  *
  * The key lives here and nowhere else, so the dashboard cannot know whether it is set: it asks, and this is the one
- * answer. A run on the edge reads the same functions (lib/playbooks.ts), so a page never offers email, or an offer by
+ * answer. A run on the edge reads the same functions (lib/campaigns/playbooks/playbooks.ts), so a page never offers email, or an offer by
  * email, that the run would then hold every person for. The answer is about the deployment, not a workspace: no workspace
  * is named. The business's address and the workspace's pause are the workspace's, read by whoever asks.
  */
-import { json, refuse } from "../../../lib/http.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { readBody } from "../../../lib/admin-door.js";
+import { json, refuse } from "../../../lib/shared/http.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
 import { campaignsDomainVerified } from "../../../lib/email/campaigns-domain.js";
 import { emailCanSend } from "../../../lib/email/email.js";
-import { adminDoor } from "../../../lib/log.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 
 interface EmailBody {
   op?: unknown;

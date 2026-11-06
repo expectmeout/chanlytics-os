@@ -4,7 +4,7 @@
 
 Every member-facing route, by domain: who may call it, the rate bucket it counts against, whether it may spend
 the workspace's money, and the fields it takes. A workspace-scoped route names its workspace with `?workspace=`
-(`apps/dashboard/src/server/route.ts`). What a route answers is its handler's return type, which the typed client
+(`apps/dashboard/src/server/shared/route.ts`). What a route answers is its handler's return type, which the typed client
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 

@@ -51,7 +51,7 @@ test.describe("Content-Security-Policy, enforced", () => {
     expect(headers["content-security-policy-report-only"], "nothing rides report-only any more").toBeUndefined();
     const scriptSrc = /script-src ([^;,]*)/.exec(policy)![1].trim().split(/\s+/);
     // Meta's SDK host, and Stripe's for paying in the page (decision 0073, R16): the origins Stripe's CSP guide names,
-    // as tooling/scripts/tests/routes/csp.test.mjs holds them.
+    // as tests/routes/csp.test.mjs holds them.
     expect(scriptSrc).toEqual([
       "'self'",
       "'unsafe-inline'",

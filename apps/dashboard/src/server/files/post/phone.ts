@@ -6,7 +6,7 @@
 import "server-only";
 import { parseTenantConfig, resolveFacts } from "@chanlytics/contracts";
 import { knownFacts } from "../../readers/settings";
-import type { RouteContext } from "../../with-route";
+import type { RouteContext } from "../../shared/with-route";
 
 /** The published number, or null where this business has none. */
 export async function postPhoneOf(ctx: RouteContext, tenantId: string, config: unknown): Promise<string | null> {

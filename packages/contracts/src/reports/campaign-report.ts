@@ -10,7 +10,7 @@
  */
 import { REPORT_CHANNELS, dayPointOf, type ReportChannelKey } from "./reports";
 import { REPORT_MIN_N, shareSaid } from "./report-tiles";
-import { templateTitle } from "../templates/template-titles";
+import { templateTitle } from "../campaigns/templates/template-titles";
 import { pct, sumOf } from "../shared/numbers";
 import { usableZone } from "../calendar/zone-math";
 import { dateFormat } from "../shared/time";

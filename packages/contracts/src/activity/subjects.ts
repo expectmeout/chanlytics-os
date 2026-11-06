@@ -5,7 +5,7 @@ import { addressOf } from "./record-address";
  * (packages/db events.ts, ownNames), so a new kind of subject cannot be written to the ledger without saying where it opens.
  * The writer takes its `subjectType` from this table's keys (`ActivitySubjectType`, held in events.type-test.ts), and a
  * decision's subject (DECISION_SUBJECTS) and the types the migrations' own inserts write are each held to it by
- * tooling/scripts/tests/links/every-subject-has-a-door-or-a-reason.test.mjs.
+ * tests/links/every-subject-has-a-door-or-a-reason.test.mjs.
  *
  * A door is a route without its slash, from the row's subject id (null where the row names none). A lookup is a page the
  * server finds by reading the subject (a message's thread, a deal's person: server/metrics/activity.ts), which the row alone

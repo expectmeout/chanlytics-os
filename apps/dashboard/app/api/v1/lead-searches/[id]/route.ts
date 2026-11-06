@@ -1,5 +1,5 @@
 import { RenameLeadSearchSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
+import { write } from "@/server/shared/route";
 import { leadSearchScope, removeSearch, renameSearch } from "@/server/leads/leads";
 
 /** PATCH /api/v1/lead-searches/:id — rename. An operator's: a name changes nothing that is spent. */

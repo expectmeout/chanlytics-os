@@ -13,8 +13,8 @@ import { addPersonNote, openConversation, personRow, textReached } from "@chanly
 import { channelsReadyOf } from "../campaigns/channels-ready";
 import { noteAnswer } from "../people/person-notes";
 import { replyPorts, threadPorts } from "../ports/core-ports";
-import { loadConversation } from "../verbs";
-import { dbRefusal, type RouteContext } from "../with-route";
+import { loadConversation } from "../shared/verbs";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
 
 export function beginPorts(ctx: RouteContext): BeginPorts {
   return {

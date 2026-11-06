@@ -18,7 +18,7 @@ import {
   isTheirOwnWords,
   writtenChannelOf,
 } from "../conversations/thread-channel";
-import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
+import { HELD_REASONS, isReplyTo } from "../campaigns/broadcasts/run-words";
 import { addressOf } from "../activity/record-address";
 
 export const MONTH_MS = 30 * DAY_MS;

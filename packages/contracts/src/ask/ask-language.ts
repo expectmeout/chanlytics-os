@@ -5,7 +5,7 @@
  * customers', not the person's asking (messageLanguageOf), and the next question that offers the others the business
  * speaks (messageLanguagesNext).
  */
-import { findLanguages, languageBase } from "../templates/template-languages";
+import { findLanguages, languageBase } from "../campaigns/templates/template-languages";
 
 /* ------------------------------------------------------------- language */
 
@@ -32,7 +32,7 @@ export function detectLanguage(text: string): AskLanguage {
 
 /* ------------------------------------------------------------- a message's language */
 
-/** The languages Ask writes a message to customers in: the starters' (templates/starter-templates.ts STARTER_LANGUAGES). */
+/** The languages Ask writes a message to customers in: the starters' (campaigns/templates/starter-templates.ts STARTER_LANGUAGES). */
 type MessageLanguage = "en" | "es";
 const MESSAGE_LANGUAGES: readonly MessageLanguage[] = ["en", "es"];
 

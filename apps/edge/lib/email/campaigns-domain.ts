@@ -22,11 +22,11 @@
  * when the workspace's own domains cannot be read. Never "no lane": that was the unread domain's old answer, and it held
  * each offer's person as having no channel, a skip that is final, for as long as a provider was slow.
  */
-import { fetchMailDomains, type MailDomainFacts } from "../packages/channels.js";
-import { emailDomainOf, MIN_MS } from "../packages/contracts.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
-import { unsubscribeOrigin } from "../dashboard-origin.js";
+import { fetchMailDomains, type MailDomainFacts } from "@chanlytics/channels";
+import { emailDomainOf, MIN_MS } from "@chanlytics/contracts";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
+import { unsubscribeOrigin } from "../shared/dashboard-origin.js";
 import { judgeMailDomain } from "./mail-domain.js";
 
 /** Where an offer leaves from and what seals its link: what a job that sends one is bound with (jobs JobContext.email). */

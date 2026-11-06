@@ -1,8 +1,8 @@
 import "server-only";
 import { nextMonthStart, type MonthSent } from "@chanlytics/contracts";
 import { campaignMonthSent } from "@chanlytics/db";
-import { log } from "../log";
-import { serviceDb } from "../service-db";
+import { log } from "../shared/log";
+import { serviceDb } from "../shared/service-db";
 
 /**
  * What this workspace's campaigns have sent by email and by text in the calendar month `at` falls in, in its own zone

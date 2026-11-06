@@ -1,7 +1,7 @@
 import "server-only";
-import { deployment } from "../env";
+import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
 
 /** What the browser needs to start signup is read from the edge's environment: a second's work. */
 const SIGNUP_CONFIG_TIMEOUT_MS = 10_000;

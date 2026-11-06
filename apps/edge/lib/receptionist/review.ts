@@ -19,14 +19,14 @@
  * (contracts routeFix), else by the smallest model, its answer checked in code (checkFixRoute). Nothing is written: the
  * change is the dashboard's to keep, through the settings write.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { workspaceFor, personFor, type Admitted } from "../admin-auth.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
-import { askJson, ModelUnavailable, promptHashOf } from "../model.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
-import { getCall, type RetellCall } from "../packages/channels.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { workspaceFor, personFor, type Admitted } from "../shared/admin-auth.js";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
+import { askJson, ModelUnavailable, promptHashOf } from "../ai/model.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
+import { getCall, type RetellCall } from "@chanlytics/channels";
 import {
   callForReview,
   callReviewOf,
@@ -37,7 +37,7 @@ import {
   keepTypedRehearsal,
   rehearsalById,
   type RehearsalRow,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import {
   checkFixRoute,
   checkReview,
@@ -64,7 +64,7 @@ import {
   type FixKind,
   type ReviewDto,
   type RehearsalTurn,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { rehearsalRouting } from "../voice/rehearsal-call.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;

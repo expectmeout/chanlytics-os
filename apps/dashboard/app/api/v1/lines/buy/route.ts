@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { AppError, E164 } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
-import { edgeRefusalWords } from "@/server/edge";
+import { edgeRefusalWords } from "@/server/shared/edge";
 
 const Body = z.object({
   number: z.string().trim().regex(E164, "Choose one of the numbers offered."),

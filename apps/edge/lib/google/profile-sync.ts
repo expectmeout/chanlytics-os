@@ -5,7 +5,7 @@
  * last the listing's review link read again from its location (00415).
  * The hourly sweep, "Check now" and a location's bind call it.
  */
-import { emitEvent, noteImport, reviewLinkOf, type Database } from "../packages/db.js";
+import { emitEvent, noteImport, reviewLinkOf, type Database } from "@chanlytics/db";
 import {
   GBP_REVIEWS_FIRST_PAGES,
   GBP_REVIEWS_MAX_PAGES,
@@ -15,7 +15,7 @@ import {
   reviewParent,
   type PlacesHttp,
   type ProfileSyncPlan,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   autoReplyBell,
   lensRoute,
@@ -23,10 +23,10 @@ import {
   reviewDraftsBell,
   reviewRoute,
   type EdgeRefusal,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { keepOnce, recordNotification } from "../ops/notify.js";
-import { errField, logger, type Logger } from "../log.js";
-import { readAllRows } from "../paged.js";
+import { errField, logger, type Logger } from "../shared/log.js";
+import { readAllRows } from "../shared/paged.js";
 import { http } from "./places.js";
 import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "./google-rows.js";
 import { tokenFor } from "./profile-credentials.js";

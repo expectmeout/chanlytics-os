@@ -22,9 +22,9 @@ import {
   wireFailure,
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
-import type { Delivered, Delivery } from "../deliver";
+import type { Delivered, Delivery } from "../deliver/deliver";
 import type { BroadcastChannel as Channel } from "./broadcast-channels";
-import { isNotTakenError, isWireUnavailableError } from "../wire-senders";
+import { isNotTakenError, isWireUnavailableError } from "../deliver/wire-senders";
 import {
   batchSlots,
   channelOf,

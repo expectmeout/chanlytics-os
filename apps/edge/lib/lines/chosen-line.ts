@@ -19,9 +19,9 @@ import {
   type BillingMode,
   type BillingStatus,
   type SetupPhoneWant,
-} from "../packages/contracts.js";
-import { setupChoicesOf, type Database } from "../packages/db.js";
-import { scheduleJob } from "../packages/jobs.js";
+} from "@chanlytics/contracts";
+import { setupChoicesOf, type Database } from "@chanlytics/db";
+import { scheduleJob } from "@chanlytics/jobs";
 import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { liveLineOf, planBuy, provisionJob } from "./line-ops.js";
 

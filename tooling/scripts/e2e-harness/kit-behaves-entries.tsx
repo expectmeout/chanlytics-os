@@ -5,7 +5,7 @@
  * the component, closed, and the control that opens it, with a caption that says what it holds now. Its id is the
  * static gallery's entry of the kit's Base UI families (kit-gallery.mjs) that the component draws in the state a
  * person brings it to; e2e/kit/kit-behaves.spec.ts holds the two together in a browser, and
- * tooling/scripts/tests/styles/kit-behaves.test.mjs those it can draw on a server, in the node suite. What an entry
+ * tests/styles/kit-behaves.test.mjs those it can draw on a server, in the node suite. What an entry
  * says is made up, as every fixture's is.
  *
  * The dashboard's `tsc --noEmit` compiles this file (apps/dashboard/tsconfig.json includes the page that imports it),

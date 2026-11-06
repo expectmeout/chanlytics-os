@@ -6,9 +6,9 @@
  * door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { activityTokensOf, callerNameOf, claimCallActivity, forgetActivityTokens } from "../packages/db.js";
-import { CALL_ACTIVITY_ROLES, callActivityPropsOf, callActivityStart } from "../packages/contracts.js";
+import type { Database } from "@chanlytics/db";
+import { activityTokensOf, callerNameOf, claimCallActivity, forgetActivityTokens } from "@chanlytics/db";
+import { CALL_ACTIVITY_ROLES, callActivityPropsOf, callActivityStart } from "@chanlytics/contracts";
 import type { ApnsPort } from "../ops/apns.js";
 
 export interface CallForActivity {

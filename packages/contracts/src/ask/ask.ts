@@ -21,17 +21,17 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { DAY_MS, MIN_MS, WEEK_MS } from "../shared/time";
 import type { AskAnswer } from "./ask-answer";
 import type { AskCitation } from "./citations";
-import type { ProposalNeeds } from "../ask-proposals/spec";
+import type { ProposalNeeds } from "./proposals/spec";
 import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
-import { personRouteOf } from "../person-page/route";
-import { parseSequencesRoute } from "../sequences/sequence-address";
+import { personRouteOf } from "../people/person-page/route";
+import { parseSequencesRoute } from "../campaigns/sequences/sequence-address";
 import type { AskLanguage } from "./ask-language";
-import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
+import type { ReachOutChainDto } from "../campaigns/reach-out/reach-out-dtos";
 import type { TemplateStatus } from "../shared/enums";
-import type { VersionChannel } from "../templates/message-versions";
-import type { TemplateCategoryChoice } from "../templates/templates";
+import type { VersionChannel } from "../campaigns/templates/message-versions";
+import type { TemplateCategoryChoice } from "../campaigns/templates/templates";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -479,7 +479,7 @@ const UUID = /^[0-9a-f-]{36}$/;
 
 /**
  * The row People's address names (`clients/<param>`): a lead or a search on Leads, a person in the Pipeline's peek or on
- * their own page, on any of its tabs (`<id>/history`: person-page/route.ts personRouteOf, the one parse of a person's
+ * their own page, on any of its tabs (`<id>/history`: people/person-page/route.ts personRouteOf, the one parse of a person's
  * address). The Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts). Ask lost the
  * person on every tab but Overview (the wiring's second audit, S1-2, S5-1).
  */

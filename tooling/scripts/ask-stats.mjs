@@ -3,7 +3,7 @@
  * over a list of timings, and a Wilson interval on a pass rate, so a run of
  * twenty-eight cases says "27 of 28 (95%: 82–99%)" and not "96%"; and the two
  * rules a turn's stored shape fails it on (DEGRADED). Pure; executed in
- * tooling/scripts/tests/ask/ask-stats.test.mjs.
+ * tests/ask/ask-stats.test.mjs.
  */
 
 /** The median and the slowest tenth of the numbers that exist in `xs`. */

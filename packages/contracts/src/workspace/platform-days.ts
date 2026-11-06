@@ -219,7 +219,7 @@ const heldToNothing = (why: string): PlatformCount => ({ promise: false, why });
 /**
  * Every number the nightly rollup keeps (platform_metrics' columns beyond the workspace, the day and the stamp), and
  * what each is. The targets were set on 10 October 2026 against production's own month (decision 0031): each sits above
- * what a healthy day did, so a day past it is news. `platform/every-number-names-a-target.test.mjs` holds the list to
+ * what a healthy day did, so a day past it is news. `console/back-office/every-number-names-a-target.test.mjs` holds the list to
  * the schema's columns.
  */
 export const PLATFORM_NUMBERS = {

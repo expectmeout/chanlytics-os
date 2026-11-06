@@ -15,9 +15,9 @@ import { answerOf, type DoorAnswer, refusalOf } from "./lead-answers";
 import type { DoorArgs } from "./lead-helpers";
 import type { LeadRow } from "./lead-searches";
 import { keepSaidEmail } from "./lead-send";
-import { serviceDb } from "../service-db";
-import { recordDecision } from "../verbs";
-import type { RouteContext } from "../with-route";
+import { serviceDb } from "../shared/service-db";
+import { recordDecision } from "../shared/verbs";
+import type { RouteContext } from "../shared/with-route";
 
 /* ------------------------------------------------------- one lead, worked */
 

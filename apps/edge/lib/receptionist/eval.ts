@@ -26,17 +26,17 @@
  * A lead's own receptionist's page asks the same way for its preview's workspace and no person (decision 0079), and is
  * answered only while previews are switched on.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { openingsFor, takesRequests } from "../calendar/availability.js";
-import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "../packages/contracts.js";
-import { holdPlan, layerTwo } from "../packages/core.js";
-import { oldestActiveChannel, type RoutedChannel } from "../packages/db.js";
+import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "@chanlytics/contracts";
+import { holdPlan, layerTwo } from "@chanlytics/core";
+import { oldestActiveChannel, type RoutedChannel } from "@chanlytics/db";
 import { brainCallOf, generateReply, type BrainReply } from "./brain.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
 
 const MAX_CASES = 6;
 
@@ -51,7 +51,7 @@ interface EvalCase {
  * gets the real brain; a test hands in an answer, because lib/brain.ts speaks
  * to the Anthropic SDK and has no seam of its own. Anything else that may
  * arrive in this position carries no generateReply and changes nothing. BOTH
- * branches are run in tooling/scripts/tests/eval-door.test.mjs: most cases
+ * branches are run in tests/eval-door.test.mjs: most cases
  * hand a brain in, and the last two call POST the way Vercel calls it and
  * watch the real brain reach the model.
  */
@@ -139,7 +139,7 @@ function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>
 
 /**
  * The channel the cases are answered as: the workspace's WhatsApp, as the webhook would route it (its oldest active one,
- * where it holds two), else the workspace's chat before it has a line, loaded by the workspace (reach-out/reply-draft.ts
+ * where it holds two), else the workspace's chat before it has a line, loaded by the workspace (campaigns/reach-out/reply-draft.ts
  * builds its mailbox's the same way: a kind that is not WhatsApp binds no number and reads every setting by the tenant).
  */
 async function routedFor(db: NonNullable<ReturnType<typeof pg>>, tenantId: string): Promise<RoutedChannel | undefined> {

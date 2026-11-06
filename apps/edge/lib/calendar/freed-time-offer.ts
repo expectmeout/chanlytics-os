@@ -3,17 +3,22 @@
  * through (core subscribers.ts), injected into the job context by the tick (ops/jobs-tick.ts) as the website reader is.
  *
  * The workspace's running step on `slot_opened` runs for the time, through the implementation the hourly sweep and Run
- * now use (lib/playbooks.ts runPlaybook over core's run-playbook), as the system's decision under its sequence's mode.
+ * now use (lib/campaigns/playbooks/playbooks.ts runPlaybook over core's run-playbook), as the system's decision under its sequence's mode.
  * Once per appointment: the batch made for it answers a second ask, and the database's unique index
  * (sequence_batches_offered_once) refuses a second made at the same moment, which fails that run; the batch the first
  * made then answers it too, so the bell's news says the offer whichever delivery made it. A run that failed with no batch
  * standing, or a workspace that could not be read, throws, so the delivery tries again; every other outcome is an answer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FreedTimeOffer } from "../packages/contracts.js";
-import type { FreedTimeRun } from "../packages/core.js";
-import { freedTimeBatchOf, freedTimeStepOf, type Database } from "../packages/db.js";
-import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks.js";
+import type { FreedTimeOffer } from "@chanlytics/contracts";
+import type { FreedTimeRun } from "@chanlytics/core";
+import { freedTimeBatchOf, freedTimeStepOf, type Database } from "@chanlytics/db";
+import {
+  CONTEXT_PAUSED,
+  loadTenantRunContext,
+  runPlaybook,
+  type PlaybookRow,
+} from "../campaigns/playbooks/playbooks.js";
 
 type Db = SupabaseClient<Database>;
 

@@ -7,7 +7,7 @@
  * the outcomes a door can answer with: `ok`, `rejected` (the vendor said no; asking again gets the same answer) or
  * `unreachable` (no answer, or "not now": a 429 is the vendor's concurrency or rate limit, sources §9).
  */
-import { answerObject, providerFetch, type ProviderReply } from "../provider-fetch";
+import { answerObject, providerFetch, type ProviderReply } from "../shared/provider-fetch";
 
 const ELEVENLABS_API = "https://api.elevenlabs.io";
 /** One round trip to the vendor, bounded: a mint while a person waits for the first word, or an erase after the call. */

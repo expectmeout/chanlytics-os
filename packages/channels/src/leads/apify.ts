@@ -1,5 +1,5 @@
 import { finiteOrNull, trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
-import { providerFetch } from "../provider-fetch";
+import { providerFetch } from "../shared/provider-fetch";
 /**
  * The lead finder's provider, over its HTTP API (https://docs.apify.com/api/v2).
  *

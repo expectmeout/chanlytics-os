@@ -8,14 +8,14 @@
  * gone is the mailbox's reconnect, said once.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { gmailEmailOf, gmailMessage, graphEmailOf, graphMessage } from "../../packages/channels.js";
-import { mailboxConnectionById, type Database } from "../../packages/db.js";
-import type { JobContext } from "../../packages/jobs.js";
-import { erasedBeforeEmail } from "../../erased.js";
+import { gmailEmailOf, gmailMessage, graphEmailOf, graphMessage } from "@chanlytics/channels";
+import { mailboxConnectionById, type Database } from "@chanlytics/db";
+import type { JobContext } from "@chanlytics/jobs";
+import { erasedBeforeEmail } from "../../shared/erased.js";
 import { notify } from "../../ops/notify.js";
-import { loadTenantNotifications } from "../../tenant-runtime.js";
+import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { emailWaitingMessage } from "../email.js";
-import { errField, logger } from "../../log.js";
+import { errField, logger } from "../../shared/log.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { markSignedOut } from "./mailbox-wire.js";
 

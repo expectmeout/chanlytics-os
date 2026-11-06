@@ -10,9 +10,9 @@
 import { clockDate, clockNear, zoneDayKey } from "../../shared/clock";
 import { capitalize, plural } from "../../shared/words";
 import { runApproveWords } from "../../shell/campaign-rooms";
-import { REPLY_INTENT_WORDS, isReplyIntent } from "../../reach-out/reach-out-replies";
-import { isReachOutHold } from "../../reach-out/reach-out-words";
-import { heldAnswersOf, heldOwnWordsOf, heldWhyOf } from "../../sequences/sequence-held";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../../campaigns/reach-out/reach-out-replies";
+import { isReachOutHold } from "../../campaigns/reach-out/reach-out-words";
+import { heldAnswersOf, heldOwnWordsOf, heldWhyOf } from "../../campaigns/sequences/sequence-held";
 import {
   PLACE_NOT_PLANNED_WORD,
   PLACE_WORDS,
@@ -22,7 +22,7 @@ import {
   placeWordOf,
   type PlaceTone,
   type SequencePlaceDto,
-} from "../../sequences/sequence-place";
+} from "../../campaigns/sequences/sequence-place";
 import type { LeadSheetClosedVM, LeadSheetState, LeadVerdictVM } from "./lead-sheet";
 import type { LeadSheetChecksLineVM, LeadSheetEmailLineVM } from "./lead-sheet-card";
 import { LEAD_LINE_WORDS, leadDayOf } from "./lead-sheet-lines";

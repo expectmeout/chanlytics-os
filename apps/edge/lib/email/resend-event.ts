@@ -24,17 +24,17 @@
  * Email is off on a deployment that names no EMAIL_DOMAIN: 404, the door does
  * not exist there.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 import { emailDomain } from "./email.js";
 import { planResendEvent } from "./email-ingress.js";
 import { applyEmailReceipt } from "./email-receipts.js";
-import { emitEvent } from "../packages/db.js";
-import { scheduleJobOnce } from "../packages/jobs.js";
-import { env } from "../env.js";
-import { MIN_MS } from "../packages/contracts.js";
+import { emitEvent } from "@chanlytics/db";
+import { scheduleJobOnce } from "@chanlytics/jobs";
+import { env } from "../shared/env.js";
+import { MIN_MS } from "@chanlytics/contracts";
 
 /** The event is metadata: ids, addresses, a subject. Anything larger is not one. */
 const MAX_BODY_BYTES = 256 * 1024;

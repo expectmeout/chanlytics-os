@@ -1,6 +1,6 @@
 import { AppError, AskProposalOutcomeSchema } from "@chanlytics/contracts";
-import { write, account } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { write, account } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { setProposalOutcome } from "@/server/ask/store";
 
 /**

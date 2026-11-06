@@ -12,7 +12,7 @@
  * the workspace's own word for an appointment (triggerWords, from appointmentWords), the word its customers read, never
  * one trade's.
  */
-import { triggerOf, triggerWords, type PlaybookTrigger } from "../playbooks/playbook-triggers";
+import { triggerOf, triggerWords, type PlaybookTrigger } from "../campaigns/playbooks/playbook-triggers";
 import type { AppointmentWord } from "./appointment-word";
 import { journeyOf, type JourneyStageId } from "./journey";
 

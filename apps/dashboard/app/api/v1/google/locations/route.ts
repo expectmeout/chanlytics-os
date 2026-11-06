@@ -1,7 +1,7 @@
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
 import { edgeGoogle, readOutcome } from "@/server/connections/google";
-import { edgeRefusalWords } from "@/server/edge";
+import { edgeRefusalWords } from "@/server/shared/edge";
 
 /**
  * GET /api/v1/google/locations — the locations the connected Google account

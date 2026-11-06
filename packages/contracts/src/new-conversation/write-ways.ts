@@ -24,7 +24,7 @@ import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "..
 import type { WrittenChannel } from "../conversations/thread-channel";
 import { STOP_WORDS } from "../consent/consent";
 import { replyWindow } from "../config/policy";
-import type { ChannelsReady } from "../broadcasts/reach-for";
+import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
 import type { PersonRowDto } from "../people/person-dto";
 import { QUIET_AFTER_DAYS } from "../people/person-state";
 import { DAY_MS, HOUR_MS } from "../shared/time";

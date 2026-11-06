@@ -14,16 +14,11 @@
  * What a push says is only "read this mailbox now": no body is trusted for more, and the sync reads the rest from the
  * provider with the mailbox's own grant. A push that cannot be checked is refused (401) and nothing is read.
  */
-import {
-  gmailPushOf,
-  graphNotificationsOf,
-  clientStateMatches,
-  verifyGooglePushToken,
-} from "../../packages/channels.js";
-import { liveMailboxByAddress, requestMailboxesSweep, type MailboxConnectionRow } from "../../packages/db.js";
-import { refuse, text } from "../../http.js";
-import { pg } from "../../pg.js";
-import { errField, logger, type Logger } from "../../log.js";
+import { gmailPushOf, graphNotificationsOf, clientStateMatches, verifyGooglePushToken } from "@chanlytics/channels";
+import { liveMailboxByAddress, requestMailboxesSweep, type MailboxConnectionRow } from "@chanlytics/db";
+import { refuse, text } from "../../shared/http.js";
+import { pg } from "../../shared/pg.js";
+import { errField, logger, type Logger } from "../../shared/log.js";
 import { gmailPush, graphPush } from "./mailbox-config.js";
 import { syncMailbox } from "./mailbox-sync.js";
 

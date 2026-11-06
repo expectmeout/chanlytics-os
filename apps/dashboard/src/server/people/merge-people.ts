@@ -9,7 +9,7 @@
  * sentence it was said in, at the status its code says (dbRefusal).
  */
 import { mergePeople } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 export async function mergeRecords(ctx: RouteContext, keep: string, merge: string) {
   try {

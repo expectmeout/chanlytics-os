@@ -1,7 +1,7 @@
 /**
  * What New's draft says of who hears it and what Ask checked (decision 0065), worked out from Campaigns' own counts: who
  * it reaches on the channels it goes by, why nobody can where nobody can, a sequence already on the same moment or list,
- * and the checks before Start. The server's draft says it as Ask answers (server/sequences/draft-judge.ts), and New's page
+ * and the checks before Start. The server's draft says it as Ask answers (server/campaigns/sequences/draft-judge.ts), and New's page
  * says it again whenever the owner changes who, how or the message (step 7), so a draft never speaks of a choice it no
  * longer holds, as the send screen recounted on every draw. Pure, and safe in the browser.
  */

@@ -1,4 +1,4 @@
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { readBusinessRecord, saveBusinessRecord } from "@/server/connections/business-record";
 
 /**

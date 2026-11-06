@@ -16,10 +16,10 @@ import {
   withFilesAttached,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 import { attachedNow, fileIdsOf, type AttachedFile } from "../files/attached";
 import { answeringOf, askTurnText, titleFromQuestion } from "./prompt";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read

@@ -19,15 +19,15 @@ import {
   type ReviewDto,
 } from "@chanlytics/contracts";
 import { keepRehearsalFix, listPolicies, putTenantConfig, rehearsalById } from "@chanlytics/db";
-import { callEdge, edgeConfigured, edgeReasonOf, type EdgeAnswer } from "../edge";
-import { log } from "../log";
+import { callEdge, edgeConfigured, edgeReasonOf, type EdgeAnswer } from "../shared/edge";
+import { log } from "../shared/log";
 import { configRowOf } from "../workspace/config-row";
 import { recordSettingsChanged } from "../workspace/settings-write";
 import { judgeChangedHandoff } from "../workspace/settings-save";
 import { knownFacts } from "../readers/settings";
 import { composePromptPreview } from "./prompt-preview";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
 
 /**
  * A rehearsal (decision 0069): Settings › How it answers' Rehearse, and Review this call on a real call. Every door is

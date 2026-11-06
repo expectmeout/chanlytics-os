@@ -20,15 +20,15 @@ import {
   graphEvents,
   type CalendarEvent,
   type EventsPage,
-} from "../packages/channels.js";
-import { DAY_MS, UUID, parseTenantConfig, seasonHorizon, type FeedHorizon } from "../packages/contracts.js";
-import { getTenantConfig, mailboxConnectionOf, type Database } from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
+} from "@chanlytics/channels";
+import { DAY_MS, UUID, parseTenantConfig, seasonHorizon, type FeedHorizon } from "@chanlytics/contracts";
+import { getTenantConfig, mailboxConnectionOf, type Database } from "@chanlytics/db";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
-import { logger } from "../log.js";
+import { logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

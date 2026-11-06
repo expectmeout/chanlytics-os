@@ -5,9 +5,9 @@
  * The door is the knock (authorizeAdmin: a signed admin token for this door) and the body (readBody); sendTestToSelf in
  * lib/email/test-to-self.ts is everything after.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { sendTestToSelf } from "../../../lib/email/test-to-self.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

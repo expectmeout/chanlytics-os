@@ -340,6 +340,15 @@ export const EXAMPLE = {
   preview: {
     word: "Preview.",
     said: "These ads, numbers and people are examples. Nothing is connected, spent or saved.",
+    /** Over what is true of a workspace today, nothing connected: its own counts. */
+    today:
+      "No ad account is connected yet, and what this page says is your own. See an example shows it with ads running.",
+    /** Over Connections' card, while it says what is true: no account is connected. */
+    connectLater: "Connecting an ad account comes next. Nothing here connects or saves yet.",
+    /** The pill, on what is true today, and what its menu says there. */
+    pill: "See an example",
+    menuNote: "Only Today is yours. The rest is example data.",
+    todayChoice: "Today, your own counts",
     /** Where a workspace has not said: what its preview says in place of the sample's. */
     yourAddress: "your address",
     yourHours: "your hours",

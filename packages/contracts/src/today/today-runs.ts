@@ -3,9 +3,9 @@
  * toast when a waiting run is approved. The page decides which runs wait; it composes none of their words.
  */
 
-import { audienceTrigger } from "../broadcasts/broadcast-audience";
-import { batchWaitWords } from "../playbooks/playbook-triggers";
-import { isReachOutRun } from "../reach-out/reach-out-rules";
+import { audienceTrigger } from "../campaigns/broadcasts/broadcast-audience";
+import { batchWaitWords } from "../campaigns/playbooks/playbook-triggers";
+import { isReachOutRun } from "../campaigns/reach-out/reach-out-rules";
 import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms";
 import { capitalize, plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";

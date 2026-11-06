@@ -7,8 +7,8 @@
  * stays its credential on an edge that holds the secret too. diagnosticReport in lib/ops/diagnostic.ts is the report,
  * part by part.
  */
-import { authorizeAdmin } from "../lib/admin-auth.js";
-import { door } from "../lib/log.js";
+import { authorizeAdmin } from "../lib/shared/admin-auth.js";
+import { door } from "../lib/shared/log.js";
 import { diagnosticReport } from "../lib/ops/diagnostic.js";
 
 export const GET = door(async function GET(request: Request): Promise<Response> {

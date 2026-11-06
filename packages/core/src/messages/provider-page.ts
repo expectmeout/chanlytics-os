@@ -1,5 +1,5 @@
 import type { SendPurpose } from "@chanlytics/contracts";
-import type { Channel, Delivered } from "../deliver";
+import type { Channel, Delivered } from "../deliver/deliver";
 
 /**
  * A provider's limit or a refused key is the platform's to hear, never one thread's or one run's: the page both ways of

@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
-import { read, write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { read, write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { load, readerContext } from "@/server/readers";
 import { notifications } from "@/server/readers/notifications";
-import { dbRefusal } from "@/server/with-route";
+import { dbRefusal } from "@/server/shared/with-route";
 
 /**
  * GET /api/v1/notifications — the workspace's kept notifications of the last

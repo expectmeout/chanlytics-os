@@ -6,7 +6,7 @@ import type { AskedPurpose } from "../consent/consent";
 import type { PersonRowVM } from "./person-row";
 import { MONTH_MS } from "./person-helpers";
 import { WEEK_MS } from "../shared/time";
-import { sendOnceRoute } from "../sequences/sequence-address";
+import { sendOnceRoute } from "../campaigns/sequences/sequence-address";
 import { GET_YES_ROUTE } from "./lists/people-route";
 
 /* ---------------------------- lists and totals --------------------------- */

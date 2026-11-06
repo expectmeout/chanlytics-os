@@ -10,7 +10,7 @@
  * wait rule's own words (wait-rules.ts waitEndsWords).
  */
 import { addressOf } from "../activity/record-address";
-import { isReachOutRun } from "../reach-out/reach-out-rules";
+import { isReachOutRun } from "../campaigns/reach-out/reach-out-rules";
 import { clockTime, zoneDayKey } from "../shared/clock";
 import { HOUR_MS } from "../shared/time";
 import { plural } from "../shared/words";

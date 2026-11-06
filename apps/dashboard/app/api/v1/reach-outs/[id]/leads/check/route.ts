@@ -1,6 +1,6 @@
 import { ReachOutAddSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { reachOutScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { reachOutScope } from "@/server/shared/verbs";
 import { addToReachOut } from "@/server/leads/lead-workbench";
 
 /**

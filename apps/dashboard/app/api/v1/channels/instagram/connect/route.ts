@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { startInstagramConnect } from "@/server/connections/instagram";
 
 /**

@@ -12,11 +12,11 @@ import {
   HOUR_MS,
 } from "@chanlytics/contracts";
 import { after } from "next/server";
-import { write, workspace, type Member } from "@/server/route";
-import { log } from "@/server/log";
-import { requireUuid } from "@/server/request-guards";
+import { write, workspace, type Member } from "@/server/shared/route";
+import { log } from "@/server/shared/log";
+import { requireUuid } from "@/server/shared/request-guards";
 import { readerContext } from "@/server/readers";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { attachedIdsOf } from "@/server/files/attached";
 import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
 import type { SearchAnswering } from "@/server/ask/prompt";

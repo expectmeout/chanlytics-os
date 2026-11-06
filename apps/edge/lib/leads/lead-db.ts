@@ -16,7 +16,7 @@ import {
   workspaceMaySpend,
   workspaceZoneOf,
   type Database,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import {
   DEFAULT_TIMEZONE,
   asContactId,
@@ -24,7 +24,7 @@ import {
   type LeadRoundEnding,
   type LeadRunState,
   type LeadSearchPlan,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import type {
   CollectCommitResult,
   CollectPage,
@@ -34,7 +34,7 @@ import type {
   LeadRunRow,
   LeadShare,
   RejudgeResult,
-} from "../packages/core.js";
+} from "@chanlytics/core";
 
 type Db = SupabaseClient<Database>;
 type Rpc = (

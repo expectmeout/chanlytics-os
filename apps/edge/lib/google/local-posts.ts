@@ -3,9 +3,9 @@
  * route holds who may, and nothing here runs by itself. It goes as the owner, with the token the connection holds, and the ledger keeps
  * Google's name for it, which is how a sheet says it is up and how it comes down.
  */
-import { createLocalPost, deleteLocalPost, reviewParent, type GbpPostAsked } from "../packages/channels.js";
-import type { EdgeRefusal } from "../packages/contracts.js";
-import { emitEvent } from "../packages/db.js";
+import { createLocalPost, deleteLocalPost, reviewParent, type GbpPostAsked } from "@chanlytics/channels";
+import type { EdgeRefusal } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db";
 import { connectionOf, type Db } from "./google-rows.js";
 import { http } from "./places.js";
 import { tokenFor } from "./profile-credentials.js";

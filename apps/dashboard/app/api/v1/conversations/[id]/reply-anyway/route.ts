@@ -1,6 +1,6 @@
 import { replyAnyway } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
 import { threadPorts } from "@/server/ports/core-ports";
 
 /**

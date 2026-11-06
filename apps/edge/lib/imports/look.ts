@@ -16,11 +16,11 @@ import {
   WORKSPACE_LOGOS_BUCKET,
   workspaceLogoPath,
   type LookRead,
-} from "../packages/contracts.js";
-import { imageBytes, publicFetcher, remadeLogo, type SitePage } from "../packages/channels.js";
-import { accentOfColour, siteAccentOf, siteLogoFrom } from "../packages/core.js";
-import { wearFoundLook, type Database } from "../packages/db.js";
-import { errField, logger } from "../log.js";
+} from "@chanlytics/contracts";
+import { imageBytes, publicFetcher, remadeLogo, type SitePage } from "@chanlytics/channels";
+import { accentOfColour, siteAccentOf, siteLogoFrom } from "@chanlytics/core";
+import { wearFoundLook, type Database } from "@chanlytics/db";
+import { errField, logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

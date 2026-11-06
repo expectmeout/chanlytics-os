@@ -19,17 +19,17 @@
  * carriers say so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { emitEvent } from "../packages/db.js";
+import type { Database } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db";
 import {
   FIRST_RUN_ROUTE,
   forwardingMatch,
   forwardingProof,
   formatPhoneDisplay,
   type ForwardingFacts,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { recordNotification } from "../ops/notify.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 
 export interface ForwardingCall {
   fromE164: string | null;

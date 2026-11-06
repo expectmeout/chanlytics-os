@@ -28,9 +28,9 @@
 import { shortCode, addressInMessage } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import type { IngestResult, Json } from "@chanlytics/db";
-import type { Wire } from "../deliver";
+import type { Wire } from "../deliver/deliver";
 import { type EscalateOutcome, IngestFailed } from "./ports";
-import { toldFromItsEvent } from "../subscribers";
+import { toldFromItsEvent } from "../events/subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
 import { errField } from "@chanlytics/channels";

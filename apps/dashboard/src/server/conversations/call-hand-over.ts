@@ -5,9 +5,9 @@
  */
 import { AppError, parseTenantConfigResult } from "@chanlytics/contracts";
 import { configRowOf } from "@/server/workspace/config-row";
-import { recordDecision, type VerbCall } from "@/server/verbs";
+import { recordDecision, type VerbCall } from "@/server/shared/verbs";
 import { handOverLiveCall } from "@/server/conversations/live-call";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 export async function passCallToOwnerLine(ctx: RouteContext, call: VerbCall) {
   if (call.status !== "ongoing") {

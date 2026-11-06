@@ -24,7 +24,7 @@
  * layout, and comes last; the ref reaches the element.
  *
  * It draws what the gallery's Face family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
- * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
+ * tests/styles/kit-components.test.mjs holds the two together).
  */
 import { personFaceOf } from "@chanlytics/contracts";
 import type { ComponentPropsWithRef, ReactElement, SyntheticEvent } from "react";

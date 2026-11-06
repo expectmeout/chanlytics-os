@@ -18,11 +18,11 @@ import {
   workspaceLogoSrc,
 } from "@chanlytics/contracts";
 import { setWorkspaceLogo } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import { serviceDb } from "@/server/shared/service-db";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
+import type { Member } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { remadeLogo } from "@chanlytics/channels";
 
 /** A day: a replaced picture has a new name, so only a removed one is held this long in a browser that saw it. */

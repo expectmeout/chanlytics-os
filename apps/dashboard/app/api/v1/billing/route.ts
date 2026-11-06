@@ -1,5 +1,5 @@
 import type { BillingDto } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { billingFor, billingReadiness, callMinutesThisMonth, modelStandingFor } from "@/server/workspace/billing";
 
 /**

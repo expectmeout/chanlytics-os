@@ -6,8 +6,8 @@
  * function secret and the database, and only then reads the body (a refused request reads nothing past the refusal),
  * plans, and with { apply: true } does it, leg by leg.
  */
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { adminDoor } from "../../lib/log.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { provisionVoice } from "../../lib/voice/voice-provision.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

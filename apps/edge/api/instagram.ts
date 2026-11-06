@@ -7,9 +7,9 @@
  * against the app's secrets (fail-closed), each item routed by the Instagram account it was written to, a person's DM
  * recorded and answered by its job, the team's own replies from the Instagram app kept and pausing the receptionist.
  */
-import { text } from "../lib/http.js";
-import { env } from "../lib/env.js";
-import { door } from "../lib/log.js";
+import { text } from "../lib/shared/http.js";
+import { env } from "../lib/shared/env.js";
+import { door } from "../lib/shared/log.js";
 import { receiveInstagramEvent } from "../lib/instagram/webhook.js";
 
 export const GET = door(function GET(request: Request): Promise<Response> {

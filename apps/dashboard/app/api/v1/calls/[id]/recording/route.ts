@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
-import { read } from "@/server/route";
-import { callScope } from "@/server/verbs";
+import { read } from "@/server/shared/route";
+import { callScope } from "@/server/shared/verbs";
 import { recordingOpened, signedMediaUrl } from "@/server/conversations/media";
 
 /**

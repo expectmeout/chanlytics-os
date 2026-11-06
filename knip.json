@@ -61,11 +61,14 @@
         "gen/*.mjs",
         "ops/**/*.mjs",
         "voice/*.mjs",
-        "tests/**/*.mjs",
         "e2e-harness/**/*.{ts,mjs}",
         "mobile/{sign-in,cold-start,walk}.mjs"
       ],
       "project": ["**/*.{ts,mjs}"]
+    },
+    "tests": {
+      "entry": ["**/*.mjs"],
+      "project": ["**/*.mjs"]
     }
   }
 }

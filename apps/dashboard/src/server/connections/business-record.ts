@@ -15,9 +15,9 @@ import {
 } from "@chanlytics/contracts";
 import { businessOnRecordOf, workspacePublicSlug } from "@chanlytics/db";
 import { edgeLines } from "@/server/connections/lines";
-import { edgeRefusalWords } from "@/server/edge";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import { edgeRefusalWords } from "@/server/shared/edge";
+import type { Member } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 export async function readBusinessRecord(ctx: RouteContext, member: Member) {
   const [data, slug] = await Promise.all([

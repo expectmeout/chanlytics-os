@@ -10,8 +10,8 @@ import {
   readAllRows,
   type PeopleCursor,
 } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "../with-route";
-import { log } from "@/server/log";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
+import { log } from "@/server/shared/log";
 import { stillListed } from "./going";
 
 /**

@@ -6,7 +6,7 @@
  *
  *   - the sentences the door refuses with (MERGE_REFUSALS), which the route carries back as they are;
  *   - the rule for what the merged person has answered (mergedAnswers), which the door applies in SQL. One rule, two
- *     spellings, held equal case by case on a real database by tooling/scripts/tests/people/merge/merge-people.db.test.mjs;
+ *     spellings, held equal case by case on a real database by tests/people/merge/merge-people.db.test.mjs;
  *   - the source a consent answer carries in the ledger when the merge changed it.
  *
  * THE RULE (D5): the most careful answer wins on each question. A stop on either record is a stop for the person: a

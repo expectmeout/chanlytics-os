@@ -1,7 +1,7 @@
 /**
  * What a time looks like on a phone's first screen, for the tests that hold every one to its mark (kit/says-when.ts; decision
  * 0101): a browser's walk of a kept copy (first-rows.spec.ts), and a node walk of the rows drawn over states the workspace lacks
- * (tooling/scripts/tests/shell/views/_unmarked-times.mjs). No product code reads it: a component says it says a time, and these
+ * (tests/shell/views/_unmarked-times.mjs). No product code reads it: a component says it says a time, and these
  * catch one that forgot.
  */
 

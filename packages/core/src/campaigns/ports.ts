@@ -1,7 +1,7 @@
 /**
  * The campaigns' view of the world: what a run's assembly, a playbook's run
  * and a person's broadcast need, named for what each means. The adapters
- * that know the tables are apps/edge/lib/playbooks.ts (the run, hourly or at
+ * that know the tables are apps/edge/lib/campaigns/playbooks/playbooks.ts (the run, hourly or at
  * a person's request) and apps/dashboard/src/server/campaign-ports.ts (a
  * person's broadcast, approve, cancel, the playbook's check).
  */

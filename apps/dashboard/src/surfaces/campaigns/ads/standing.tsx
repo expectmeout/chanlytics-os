@@ -16,6 +16,7 @@ import { Menu } from "../../kit/menu/menu";
 import { Popover } from "../../kit/popover/popover";
 import { routeDoor } from "../../legacy-verbs";
 import { CmDot } from "../parts/head";
+import { adsInPreview } from "./shown";
 
 /** Dot rows of what a platform, or a first ad, stands on: green where it is in order, an amber ring where it needs you, a door to fix it. */
 export function StandRows({ rows }: { rows: readonly StandRowVM[] }) {
@@ -79,30 +80,37 @@ interface ExampleMenuProps {
   onExample: (next: AdsExample) => void;
 }
 
-/** The quiet Example pill, which is the kit's Menu that chooses the example (spec C11). Mockup only. */
+/**
+ * The quiet Example pill, which is the kit's Menu that chooses the example (spec C11). In a workspace's preview, Today is what is true
+ * and comes first, and on it the pill asks to see an example, since what is on screen is none.
+ */
 function ExampleMenu({ example, onExample }: ExampleMenuProps) {
   const choose = (value: string) => {
     const next = ADS_EXAMPLES.find((e) => e === value);
     if (next) onExample(next);
   };
+  const preview = adsInPreview();
+  const today: AdsExample = "v0";
+  const order: readonly AdsExample[] = preview ? [today, ...ADS_EXAMPLES.filter((e) => e !== today)] : ADS_EXAMPLES;
+  const said = (id: AdsExample) => (preview && id === today ? EXAMPLE.preview.todayChoice : EXAMPLE.choices[id]);
   return (
     <Menu
       label={EXAMPLE.label}
       align="start"
       groups={[
         {
-          header: EXAMPLE.note,
+          header: preview ? EXAMPLE.preview.menuNote : EXAMPLE.note,
           choose: {
             value: example,
             onChoose: choose,
             tick: <Icon name="check" size={13} />,
-            options: ADS_EXAMPLES.map((id) => ({ value: id, label: EXAMPLE.choices[id] })),
+            options: order.map((id) => ({ value: id, label: said(id) })),
           },
         },
       ]}
       trigger={
         <Button variant="quiet" size="sm" className="ads-example" data-testid="ads-example">
-          {EXAMPLE.pill} <Icon name="chevron-down" size={11} />
+          {preview && example === today ? EXAMPLE.preview.pill : EXAMPLE.pill} <Icon name="chevron-down" size={11} />
         </Button>
       }
     />

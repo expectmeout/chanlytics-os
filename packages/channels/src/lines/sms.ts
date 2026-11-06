@@ -21,8 +21,8 @@ import {
   type LineCodeDto,
 } from "@chanlytics/contracts";
 import type { ReceivedText } from "./lines";
-import type { InboundMessage } from "../inbound";
-import { asksToStop } from "../stop-request";
+import type { InboundMessage } from "../inbound/inbound";
+import { asksToStop } from "../inbound/stop-request";
 
 /** Twilio's inbound message, the fields the product reads. */
 export interface SmsInbound {

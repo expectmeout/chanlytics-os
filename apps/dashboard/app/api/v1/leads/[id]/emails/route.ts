@@ -1,7 +1,7 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { leadEmails } from "@/server/readers/leads";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 
 /**
  * GET /api/v1/leads/:id/emails — the lead's own emails (decision 0094), oldest first: each one a member sent from a
