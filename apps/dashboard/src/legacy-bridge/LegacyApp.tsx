@@ -68,7 +68,7 @@ import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
-import { filesOverride } from "@/surfaces/settings/files/surface";
+import { filesOverride } from "@/surfaces/files/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,

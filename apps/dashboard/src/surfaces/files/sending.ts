@@ -10,7 +10,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { FILE_UPLOADS_AT_ONCE, FILE_WORDS as W } from "@chanlytics/contracts";
-import { refreshSurface, type LegacyFlash } from "../../legacy-verbs";
+import { refreshSurface, type LegacyFlash } from "../legacy-verbs";
 import { fileVerbs, type AddSaid } from "./verbs";
 
 /** How many photos go up at once. */
