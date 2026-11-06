@@ -12,8 +12,10 @@
  * has not loaded yet is asked about with its route alone.
  */
 import {
+  ASK_ADS_VIEW,
   ASK_CONTEXT_MAX_ROWS,
   ASK_SCOPE_KINDS,
+  isAdsParam,
   isMessagesParam,
   itemFocus,
   parseLeadsRoute,
@@ -146,9 +148,14 @@ const sequenceFocus = (q: { id: string; name: string; starts: string }, at: stri
 /**
  * Campaigns is Sequences (decision 0060), whose rows are its list's, forty at most in its order, and a sequence open beside
  * it the scope; before the list is read, the playbooks the surface read. Sent's sheets and Messages are their own views,
- * each with its own rows: Messages at `campaigns/messages` (a view of Campaigns since 19 Oct 2026) as at its old route.
+ * each with its own rows: Messages at `campaigns/messages` (a view of Campaigns since 19 Oct 2026) as at its old route. Ads, where
+ * the page says it is drawn (an address of it is Sequences where it is not), is a word and no row: it fell through to Sequences' rows,
+ * and Ask was told a person looking at their ads was looking at their sequences.
  */
 const campaigns: Provider = (w, route) => {
+  const said = askOnScreenOf(w);
+  if (route.page === "campaigns" && route.param && isAdsParam(route.param) && said?.key === "ads")
+    return { view: said.view === ASK_ADS_VIEW.example ? ASK_ADS_VIEW.example : ASK_ADS_VIEW.today, rows: [] };
   if (route.page === "outbound" || (route.page === "campaigns" && !isMessagesParam(route.param))) {
     const listed = surfaceValue("sequences")?.sequences;
     if (Array.isArray(listed)) {

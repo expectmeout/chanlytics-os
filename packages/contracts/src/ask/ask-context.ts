@@ -31,6 +31,16 @@ export const ASK_CONTEXT_ROW_KINDS = [
 ] as const;
 export type AskContextRowKind = (typeof ASK_CONTEXT_ROW_KINDS)[number];
 
+/**
+ * What the Ads page says it shows (PageContext.view): what is true of the workspace today, or an example it was asked for. A word
+ * and no fact: what is true is the server's to read (server/ask/context/pages.ts). No row, since no ad is a record yet (0049).
+ */
+export const ASK_ADS_VIEW = { today: "ads", example: "ads:example" } as const;
+
+/** Whether a page's view is the Ads page's. */
+export const isAskAdsView = (view: string | null | undefined): boolean =>
+  view === ASK_ADS_VIEW.today || view === ASK_ADS_VIEW.example;
+
 export interface PageContextRow {
   kind: AskContextRowKind;
   id: string;

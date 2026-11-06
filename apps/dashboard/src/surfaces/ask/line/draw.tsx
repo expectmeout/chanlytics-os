@@ -13,6 +13,7 @@ import { leaving, touchSwipe } from "../shell";
 import { AskLatest, AskListen, AskNextRow, AskQuestion, AskThread, AskTurn } from "../turn";
 import { allArrived, AskAttachedRow, AskAttachPress, pastedPhotos } from "./attached";
 import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon } from "./place";
+import { askOnScreenKey } from "@/legacy-bridge/ask/on-screen";
 
 /** The field's end: the one button (the mic held to talk, Send, or Stop). */
 export const arLineEnd = (ln: Line) => {
@@ -341,7 +342,8 @@ const arStage = ({
                 ? t.follow
                 : surface === "leads"
                   ? t.describeLeads
-                  : surface === "campaigns"
+                  : // Campaigns' field asks for what should go out; on its Ads page, which sends nothing yet, it asks for nothing of the kind.
+                    surface === "campaigns" && askOnScreenKey() !== "ads"
                     ? t.describeCampaigns
                     : t.placeholder
           }

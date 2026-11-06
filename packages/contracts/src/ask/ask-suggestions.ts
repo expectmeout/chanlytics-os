@@ -43,6 +43,8 @@ export interface SuggestionInput {
   scope?: AskScope | null;
   /** Operators and owners may act; a viewer is never offered a card. */
   canAct?: boolean;
+  /** On Campaigns' Ads page, as the page says it (on-screen.ts): what it asks about is ads, never the campaigns beside it. */
+  onAds?: boolean;
   /** A deal was ever recorded here (People's surface says so): the question about proposals is offered only then. */
   hasDeals?: boolean;
   /** On Leads: the first day's suggestion words (each a search to propose), and the latest searches' own words. */
@@ -113,6 +115,8 @@ const T = {
     offerIdea: "What should go out this month?",
     whyWaiting: "Why is {name} waiting?",
     working: "What's working?",
+    adsFinding: "How are new people finding me?",
+    adsReady: "Can I run an ad yet?",
     makePost: MAKE_POST_ASK.en,
     photoFor: "What is this photo good for?",
   },
@@ -156,6 +160,8 @@ const T = {
     offerIdea: "¿Qué debería salir este mes?",
     whyWaiting: "¿Por qué espera {name}?",
     working: "¿Qué está funcionando?",
+    adsFinding: "¿Cómo me encuentra la gente nueva?",
+    adsReady: "¿Ya puedo poner un anuncio?",
     makePost: MAKE_POST_ASK.es,
     photoFor: "¿Para qué sirve esta foto?",
   },
@@ -221,6 +227,11 @@ function pageChips(
       for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
         add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
     return false;
+  }
+  if (input.onAds) {
+    add(t.adsFinding, "ask", "trending-up");
+    add(t.adsReady, "ask", "bolt");
+    return true;
   }
   const rows = input.surface === "campaigns" ? (input.campaigns?.rows ?? null) : null;
   if (!rows) return false;
