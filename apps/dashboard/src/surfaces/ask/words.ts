@@ -149,7 +149,7 @@ const ASK_TEXT = {
     kMemory: "memory",
     kPost: "post",
     postDrawing: "Drawing the picture",
-    postShareFailed: "This phone can't share that. Download it instead.",
+    postShareFailed: "Sharing didn't open. Download it instead.",
     kFix: "to fix first",
   },
   es: {
@@ -287,7 +287,7 @@ const ASK_TEXT = {
     kMemory: "memoria",
     kPost: "publicación",
     postDrawing: "Dibujando la imagen",
-    postShareFailed: "Este teléfono no puede compartirla. Descárgala.",
+    postShareFailed: "No se pudo abrir compartir. Descárgala.",
     kFix: "por arreglar antes",
   },
 };

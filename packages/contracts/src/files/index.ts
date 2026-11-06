@@ -25,6 +25,7 @@ export {
   fileViewOf,
   inboxCleanOf,
   isFileMime,
+  postNameOf,
   shelfOf,
   whoStandsOf,
 } from "./files";

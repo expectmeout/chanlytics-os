@@ -80,8 +80,9 @@ function world({
   doorThrows = false,
   role = "owner",
   uploadFails = null,
+  capReached = false,
 } = {}) {
-  const asked = { uploaded: [], removed: [], made: [], changed: [], downloaded: [] };
+  const asked = { steps: [], started: [], uploaded: [], removed: [], made: [], changed: [], downloaded: [] };
   const ctx = {
     supabase: fakeDb(
       {
@@ -118,6 +119,12 @@ function world({
       },
       {},
       {
+        file_start: (a) => {
+          asked.steps.push("start");
+          asked.started.push(a);
+          if (capReached) throw Object.assign(new Error("as many files as it can"), { code: "22023" });
+          return null;
+        },
         file_change: (a) => {
           asked.changed.push(a);
           return null;
@@ -146,6 +153,7 @@ function world({
         return { data: new Blob([PHOTO]), error: null };
       },
       upload: async (p, bytes, o) => {
+        asked.steps.push("upload");
         asked.uploaded.push({ path: p, bytes, ...o });
         return uploadFails && p.endsWith(uploadFails)
           ? { error: { message: "full" } }
@@ -272,6 +280,21 @@ test("a library that is full, a door that fails, or a shape that won't store eac
   assert.equal(stuck.asked.made.length, 0, "no row for a post that did not arrive");
 });
 
+test("a Save leaves its purge before anything travels, so a function that dies part way leaves nothing for good", async () => {
+  const { asked, ctx } = world();
+  const out = await save.POST.run(post(PLAN), ctx);
+  assert.equal(asked.steps[0], "start");
+  assert.equal(asked.started[0].p_tenant_id, A);
+  assert.equal(asked.started[0].p_id, out.file_id, "the folder this press stores into");
+  assert.equal(asked.started[0].p_id, asked.made[0].p_id);
+});
+
+test("a library at its cap is told so at the start, with nothing drawn, stored or changed", async () => {
+  const { asked, ctx } = world({ capReached: true });
+  await assert.rejects(save.POST.run(post({ ...PLAN, people_agreed: true }), ctx), (e) => e.code === "validation");
+  assert.deepEqual([asked.downloaded, asked.uploaded, asked.changed, asked.made], [[], [], [], []]);
+});
+
 test("the owner's word that those in the photo agreed goes on the photo, and on the post", async () => {
   const { asked, ctx } = world();
   await save.POST.run(post({ ...PLAN, people_agreed: true }), ctx);
@@ -300,7 +323,7 @@ test("a kept post gives each shape, under its own name; a photo has its one pict
     await viewed("download&shape=portrait", post_),
     new RegExp(`${MADE}/original\\.jpg.*download=come-see-portrait\\.jpg`),
   );
-  assert.match(await viewed("w=480", post_), new RegExp(`${MADE}/original\\.jpg.*w=480`));
+  assert.match(await viewed("shape=story", post_), new RegExp(`${MADE}/story\\.jpg`));
   assert.match(
     await viewed("download&shape=story", fileRow()),
     new RegExp(`${F}/original\\.jpg.*download=storefront-dusk\\.jpg`),
@@ -310,4 +333,10 @@ test("a kept post gives each shape, under its own name; a photo has its one pict
     new RegExp(`${MADE}/original\\.jpg`),
     "only a shape it has",
   );
+});
+
+test("a post is never resized: it is drawn at its own size, and a resize would only count against Storage's allowance", async () => {
+  const post_ = fileRow({ id: MADE, source: "made", shows: "graphic", name: "come-see" });
+  for (const q of ["w=480", "w=1280", "shape=square&w=480"]) assert.doesNotMatch(await viewed(q, post_), /w=\d/, q);
+  assert.match(await viewed("w=480", fileRow()), /w=480/, "a photo is");
 });

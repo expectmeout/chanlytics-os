@@ -9,9 +9,11 @@ import {
   FILE_CACHE_S,
   FILE_WORDS as W,
   SECOND_MS,
+  fileViewOf,
   isFileMime,
   type FileMime,
   type FileShows,
+  type PostShapeName,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 
@@ -89,8 +91,15 @@ export interface FileChange {
   status?: "filed" | "set_aside";
 }
 
+/** A kept post's shape, its bytes: what a phone's sheet is handed. Null where they did not come. */
+async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null> {
+  const res = await window.fetch(`${fileViewOf(id)}?shape=${shape}`).catch(() => null);
+  return res?.ok ? res.blob().catch(() => null) : null;
+}
+
 export const fileVerbs = {
   add,
+  postBytes,
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),
