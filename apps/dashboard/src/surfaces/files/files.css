@@ -9,9 +9,18 @@
   align-items: center;
 }
 
+/* What the head says keeps its line while Add is counting, or the grid would move down as a batch starts and up as it ends. */
+.files-head[data-adding] .rec-card-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .files-head-act {
   flex: none;
   margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 /* More shelves than a phone's width holds: the row keeps its line and slides under a thumb. */
@@ -47,6 +56,13 @@
   cursor: pointer;
 }
 
+/* A picture and what stands on it: as a photo arrives the server's comes in over this device's, and it is one tile throughout. */
+.files-frame {
+  position: relative;
+  display: block;
+  transition: scale var(--duration-base) var(--ease-out);
+}
+
 .files-pic {
   display: block;
   width: 100%;
@@ -54,6 +70,11 @@
   object-fit: cover;
   border-radius: var(--radius-lg);
   background: var(--surface-page-fill);
+}
+
+.files-frame > .files-pic + .files-pic {
+  position: absolute;
+  inset: 0;
 }
 
 .files-photo:focus-visible .files-pic {
@@ -73,7 +94,7 @@ span.files-pic {
   opacity: 1;
 }
 
-.files-photo:active .files-pic {
+.files-photo:is(button, [data-state="arrived"]):active .files-pic {
   scale: 0.98;
 }
 
@@ -89,16 +110,18 @@ span.files-big {
 
 /* An outline, since a box-shadow inside an <img> paints beneath its picture. */
 @media (hover: hover) {
-  .files-photo:hover .files-pic {
+  .files-photo:is(button, [data-state="arrived"]):hover .files-pic {
     outline: 1px solid var(--surface-inset-edge);
     outline-offset: -1px;
   }
 }
 
+/* Its own line height: a press's words and a tile's on its way would otherwise stand 2px apart, and the card would move as one becomes the other. */
 .files-name,
 .files-state {
   overflow: hidden;
   font-size: var(--text-sm);
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -126,21 +149,43 @@ span.files-big {
   overflow-wrap: anywhere;
 }
 
-/* On its way: a photo that hasn't arrived isn't one to press. */
+/* On its way: a blank tile until its turn, then its picture clearing as it goes, a touch small until it lands. One that hasn't arrived isn't one to press. */
 .files-going {
   cursor: default;
 }
 
-.files-going .files-pic[data-arrived] {
-  opacity: 0.55;
+.files-going:not([data-state="arrived"]) .files-frame {
+  scale: 0.985;
+}
+
+.files-going[data-state="sending"] .files-pic[data-arrived] {
+  opacity: calc(0.4 + 0.6 * var(--sent, 0));
 }
 
 .files-sent {
-  width: 100%;
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  transition: opacity var(--duration-base) var(--ease-out);
 }
 
-.files-going .files-state {
-  color: var(--ink-dim);
+.files-going[data-state="arrived"] .files-sent {
+  opacity: 0;
+}
+
+.files-open {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  cursor: pointer;
+}
+
+.files-open:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .files-failed {
@@ -233,11 +278,14 @@ span.files-big {
 
 @media (prefers-reduced-motion: reduce) {
   .files-pic,
-  .files-big {
+  .files-big,
+  .files-frame,
+  .files-sent {
     transition: none;
   }
 
-  .files-photo:active .files-pic {
+  .files-photo:is(button, [data-state="arrived"]):active .files-pic,
+  .files-going:not([data-state="arrived"]) .files-frame {
     scale: none;
   }
 }
@@ -249,7 +297,8 @@ span.files-big {
     gap: 3px;
   }
 
-  .files-pic {
+  .files-pic,
+  .files-open {
     border-radius: var(--radius-sm);
   }
 
@@ -257,8 +306,10 @@ span.files-big {
     display: none;
   }
 
-  .files-going .files-state {
-    display: none;
+  .files-sent {
+    right: 4px;
+    bottom: 4px;
+    left: 4px;
   }
 
   /* A row of its own, its picture small: eight that failed should not be eight screens. */
@@ -271,7 +322,7 @@ span.files-big {
     margin: 6px 0;
   }
 
-  .files-failed .files-pic {
+  .files-failed .files-frame {
     grid-row: 1 / span 3;
   }
 }

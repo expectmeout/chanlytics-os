@@ -1,19 +1,50 @@
 /**
  * A photo as the grid draws it (decision 0099): the picture where it can be drawn, a tile a person opens, and what is on its way,
  * with what can be done about one that failed. What is on its way is sending.ts's.
+ *
+ * A photo on its way is one tile from its turn to the list's: blank while it waits, its picture clearing as it goes, the server's coming
+ * in over it as it arrives. It says nothing beneath itself, since the page's Add says how the whole batch stands; a screen reader is told
+ * each by name. Every state is one size, so the grid never moves under it.
  */
-import { useState } from "react";
-import { FILE_WORDS as W, fileSaidOf, fileViewOf, type FileDto } from "@chanlytics/contracts";
+import { useCallback, useEffect, useState } from "react";
+import { FILE_WORDS as W, fileSaidOf, fileViewOf, uploadNameOf, type FileDto } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Meter } from "../kit/meter/meter";
 import { Press } from "../kit/press";
 import type { FrameFlash } from "../frame-verbs";
-import { takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
+import { serverPictureIn, takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
+
+/** A photo's small picture on the grid. */
+const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
+
+/** What has come in on this visit: drawn again, as the list takes over from a tile or back on a shelf, it stands and never fades in twice. */
+const cameIn = new Set<string>();
 
 export /** A picture where it can be drawn. One Storage can't draw keeps its ground and says its name, never a broken glyph. */
-function Picture({ src, alt, name, big = false }: { src: string; alt: string; name: string; big?: boolean }) {
+function Picture({
+  src,
+  alt,
+  name,
+  big = false,
+  eager = false,
+  onArrived,
+}: {
+  src: string;
+  alt: string;
+  name: string;
+  big?: boolean;
+  /** Loaded whether or not it is near the screen, since something waits on it. */
+  eager?: boolean;
+  onArrived?: () => void;
+}) {
   const [broken, setBroken] = useState(false);
-  const [arrived, setArrived] = useState(false);
+  const [seenBefore] = useState(() => cameIn.has(src));
+  const [arrived, setArrived] = useState(seenBefore);
+  useEffect(() => {
+    if (!arrived) return;
+    if (!src.startsWith("blob:")) cameIn.add(src);
+    onArrived?.();
+  }, [arrived, src, onArrived]);
   if (broken)
     return (
       <span
@@ -30,8 +61,8 @@ function Picture({ src, alt, name, big = false }: { src: string; alt: string; na
       className={big ? "files-big" : "files-pic"}
       src={src}
       alt={alt}
-      loading={big ? undefined : "lazy"}
-      decoding="async"
+      loading={big || eager || seenBefore ? undefined : "lazy"}
+      decoding={seenBefore ? "sync" : "async"}
       data-arrived={arrived ? "true" : undefined}
       // One the browser already holds has loaded before this draw: the ref sees it, so it never waits for an event that came.
       ref={(img) => {
@@ -45,62 +76,90 @@ function Picture({ src, alt, name, big = false }: { src: string; alt: string; na
 
 export /** One photo on the grid: the picture, and the name it goes by. */
 function Photo({ file, onOpen }: { file: FileDto; onOpen: () => void }) {
-  const said = fileSaidOf(file.name);
+  const name = fileSaidOf(file.name);
   return (
     <Press className="files-photo" onClick={onOpen} data-testid="fl-tile">
-      <Picture src={`${fileViewOf(file.id)}?w=480`} alt={file.line ?? said} name={said} />
-      <span className="files-name">{said}</span>
+      <span className="files-frame">
+        <Picture src={smallPictureOf(file.id)} alt={file.line ?? name} name={name} />
+      </span>
+      <span className="files-name">{name}</span>
     </Press>
   );
 }
 
-/** A photo on its way: dim while it goes, and where it failed, its picture, its words, and what can be done about it. */
-function OnItsWay({ photo, flash }: { photo: SendingPhoto; flash: (f: FrameFlash) => void }) {
-  const failed = photo.state === "failed";
+/** One that failed: its picture, its words, and what can be done about it. */
+function FailedPhoto({ photo, flash }: { photo: SendingPhoto; flash: (f: FrameFlash) => void }) {
+  return (
+    <div className="files-photo files-failed" data-testid="fl-failed">
+      <span className="files-frame">
+        {photo.picture ? (
+          <Picture src={photo.picture} alt={photo.file.name} name={photo.file.name} />
+        ) : (
+          <span className="files-pic files-unseen">{photo.file.name}</span>
+        )}
+      </span>
+      <span className="files-state">{photo.file.name}</span>
+      <span className="files-why">{photo.message}</span>
+      <span className="files-tries">
+        <Button size="sm" onClick={() => tryAgain(photo.key, flash)} data-testid="fl-try-again">
+          {W.retry}
+        </Button>
+        <Button size="sm" variant="quiet" onClick={() => takeAway(photo.key)} data-testid="fl-take-away">
+          {W.takeAway}
+        </Button>
+      </span>
+    </div>
+  );
+}
+
+/** A photo on its way, as far as it has come. One that has arrived is a photo already, to open, until the list draws it. */
+function OnItsWay({ photo, onOpen }: { photo: SendingPhoto; onOpen: (id: string) => void }) {
+  const { key, id, file, picture, sent, state } = photo;
+  const ownPictureDone = useCallback(() => serverPictureIn(key), [key]);
+  const name = fileSaidOf(uploadNameOf(file.name));
+  const percent = Math.round((sent ?? 0) * 100);
+  const progress = state === "waiting" ? W.waitingToSend : W.sentSoFar(percent);
   return (
     <div
-      className={failed ? "files-photo files-failed" : "files-photo files-going"}
-      data-testid={failed ? "fl-failed" : "fl-sending"}
+      className="files-photo files-going"
+      data-state={state}
+      data-testid={id ? "fl-arrived" : "fl-sending"}
+      // A value no class can hold, and not a prop of the kit's: how far along it is, which the picture clears by.
+      ref={(tile) => tile?.style.setProperty("--sent", String(sent ?? 0))}
+      {...(id ? {} : { role: "img", "aria-label": `${file.name}: ${progress}` })}
     >
-      {photo.picture ? (
-        <Picture src={photo.picture} alt={photo.file.name} name={photo.file.name} />
-      ) : (
-        <span className="files-pic files-unseen">{photo.file.name}</span>
-      )}
-      <span className="files-state">
-        {failed ? photo.file.name : photo.state === "sending" ? W.sending : W.waitingToSend}
+      <span className="files-frame">
+        {picture ? <Picture key="own" src={picture} alt="" name="" /> : !id && <span className="files-pic" />}
+        {id && <Picture key="server" src={smallPictureOf(id)} alt="" name="" eager onArrived={ownPictureDone} />}
+        {sent !== null && (
+          <Meter
+            className="files-sent"
+            size="sm"
+            parts={[
+              { share: sent, tone: "ink" },
+              { share: 1 - sent, tone: "ground" },
+            ]}
+            aria-label={W.sentSoFar(percent)}
+            data-testid="fl-sent"
+          />
+        )}
+        {id && <Press className="files-open" aria-label={name} onClick={() => onOpen(id)} data-testid="fl-tile" />}
       </span>
-      {photo.sent !== null && !failed ? (
-        <Meter
-          className="files-sent"
-          size="sm"
-          parts={[
-            { share: photo.sent, tone: "ink" },
-            { share: 1 - photo.sent, tone: "ground" },
-          ]}
-          aria-label={W.sentSoFar(Math.round(photo.sent * 100))}
-          data-testid="fl-sent"
-        />
-      ) : null}
-      {failed && (
-        <>
-          <span className="files-why">{photo.message}</span>
-          <span className="files-tries">
-            <Button size="sm" onClick={() => tryAgain(photo.key, flash)} data-testid="fl-try-again">
-              {W.retry}
-            </Button>
-            <Button size="sm" variant="quiet" onClick={() => takeAway(photo.key)} data-testid="fl-take-away">
-              {W.takeAway}
-            </Button>
-          </span>
-        </>
-      )}
+      <span className="files-name">{id ? name : " "}</span>
     </div>
   );
 }
 
 export /** The grid's head: what is on its way, and one press for all that failed. */
-function PhotosOnTheirWay({ photos, flash }: { photos: readonly SendingPhoto[]; flash: (f: FrameFlash) => void }) {
+function PhotosOnTheirWay({
+  photos,
+  flash,
+  onOpen,
+}: {
+  photos: readonly SendingPhoto[];
+  flash: (f: FrameFlash) => void;
+  onOpen: (id: string) => void;
+}) {
   const failed = photos.filter((p) => p.state === "failed").length;
   return (
     <>
@@ -111,9 +170,13 @@ function PhotosOnTheirWay({ photos, flash }: { photos: readonly SendingPhoto[]; 
           </Button>
         </div>
       )}
-      {photos.map((p) => (
-        <OnItsWay key={p.key} photo={p} flash={flash} />
-      ))}
+      {photos.map((p) =>
+        p.state === "failed" ? (
+          <FailedPhoto key={p.key} photo={p} flash={flash} />
+        ) : (
+          <OnItsWay key={p.key} photo={p} onOpen={onOpen} />
+        ),
+      )}
     </>
   );
 }

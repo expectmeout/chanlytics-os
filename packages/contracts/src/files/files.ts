@@ -100,6 +100,9 @@ export function fileNameOf(text: string, words?: number): string {
   return Array.from(said).slice(0, FILE_NAME_MAX).join("").replace(/-+$/, "");
 }
 
+/** What an upload goes by until the look names it: what the file was called, or a photo where that says nothing. */
+export const uploadNameOf = (fileName: string): string => fileNameOf(fileName) || "photo";
+
 /** What a post goes by: its line, shortened as a name. */
 export const postNameOf = (line: string): string => fileNameOf(line, 5) || "post";
 
@@ -350,7 +353,6 @@ export const FILE_WORDS = {
   added: (n: number) => (n === 1 ? "Photo added." : `${n} photos added.`),
   notAdded: (n: number) => (n === 1 ? "1 photo wasn't added." : `${n} photos weren't added.`),
   tookFirst: (n: number, of: number) => `Took the first ${n} of ${of}. Add the rest after these.`,
-  sending: "Sending…",
   sentSoFar: (percent: number) => `${percent}% sent`,
   waitingToSend: "Waiting to send",
   tryAll: (n: number) => `Try all ${n}`,
