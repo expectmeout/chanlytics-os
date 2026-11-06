@@ -9,12 +9,12 @@ import { installLegacyReact, fresh, again, all, find, classes, textOf } from "..
 import { importSrc } from "../_source.mjs";
 
 installLegacyReact();
-const { Lines, cutWords } = await importSrc("apps/dashboard/src/surfaces/kit/table/lines.tsx");
+const { CellLines, cutWords } = await importSrc("apps/dashboard/src/surfaces/kit/table/lines.tsx");
 
 const h = (...a) => globalThis.React.createElement(...a);
 const drawn = (props) => {
   fresh();
-  return again(() => h(Lines, props));
+  return again(() => h(CellLines, props));
 };
 const lineOf = (tree, name) => find(tree, (n) => classes(n).includes(name));
 

@@ -110,7 +110,7 @@ export interface LeadRowActVM {
 }
 
 /** The words a row's press says that the sheet's dock does not: each opens the sheet at what the word names. */
-export const LEAD_ROW_ACT_WORDS = {
+const LEAD_ROW_ACT_WORDS = {
   review: "Review",
   send: "Send it",
   why: "See why",

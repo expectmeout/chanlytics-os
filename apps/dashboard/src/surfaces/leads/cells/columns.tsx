@@ -23,7 +23,7 @@ import { canDo, gate, hasTouchSwipe, touchSwipe } from "../../legacy-verbs";
 import { plRowCard } from "../../people/cells/row-card";
 import { plPhoneNow } from "../../people/words";
 import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";
-import { Lines } from "../../kit/table/lines";
+import { CellLines } from "../../kit/table/lines";
 import type { View } from "../../kit/table/view";
 import type { ColCtx } from "../../people/types";
 import { reachOuts } from "../../campaigns/reach-out/surface";
@@ -174,7 +174,7 @@ const stageCell = (l: LeadRowVM, x: LeadCellCtx) => {
   );
   return (
     <td key="stage" className="ld-stage-cell" data-testid="lead-stage">
-      <Lines top={word} sub={client ? null : said.line} />
+      <CellLines top={word} sub={client ? null : said.line} />
     </td>
   );
 };
@@ -189,7 +189,7 @@ const reachCell = (l: LeadRowVM, x: LeadCellCtx) => (
     {l.cls === "excluded" ? (
       <span className="dim">Not checked</span>
     ) : (
-      <Lines
+      <CellLines
         open
         top={
           <LeadReachLine
@@ -276,7 +276,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
         card={l.rated && l.spread ? <LeadRatedCard l={l} /> : null}
       >
         {l.rated ? (
-          <Lines end top={<span className="ld-rated-score">{l.rated.score}</span>} sub={ratedSub(l.rated)} />
+          <CellLines end top={<span className="ld-rated-score">{l.rated.score}</span>} sub={ratedSub(l.rated)} />
         ) : null}
       </LeadHover>
     ),
@@ -295,7 +295,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
         onMouseEnter={ldPlacePop}
         onFocus={ldPlacePop}
       >
-        <Lines
+        <CellLines
           end
           top={
             <span tabIndex={0} aria-describedby={`${l.id}-found-tip`}>

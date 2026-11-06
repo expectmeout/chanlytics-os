@@ -15,7 +15,7 @@ import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { plNameCell } from "../cells/columns";
 import { plRowCard } from "../cells/row-card";
 import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";
-import { Lines } from "../../kit/table/lines";
+import { CellLines } from "../../kit/table/lines";
 import type { TableCtx } from "../types";
 import { P } from "./pipe";
 import { PipelineRowMenu, PipelineTrack } from "./row";
@@ -95,7 +95,7 @@ const pipeColumns = (): PipelineColumn[] => {
           data-testid="pipe-next"
         >
           {r.next ? (
-            <Lines
+            <CellLines
               top={<span className="pipe-next-words">{r.next.words}</span>}
               sub={<span className="pipe-next-when">{r.next.when}</span>}
             />
@@ -185,7 +185,7 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
       cell: (r) => (
         <td key="stage" className="pipe-stands" data-testid="pipe-stands">
           {r.chip || r.inStage ? (
-            <Lines
+            <CellLines
               top={
                 r.chip ? (
                   <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" />

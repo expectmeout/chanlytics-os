@@ -10,9 +10,9 @@
 import type { ReactNode } from "react";
 
 /** What a line holds that is nothing to draw: a cell with one fact draws one line. */
-const nothing = (said: ReactNode): boolean => said === null || said === undefined || said === false || said === "";
+const saysNothing = (said: ReactNode): boolean => said === null || said === undefined || said === false || said === "";
 
-export function Lines({
+export function CellLines({
   top,
   sub = null,
   end = false,
@@ -26,13 +26,13 @@ export function Lines({
   return (
     <span className="dtable-lines" data-end={end ? "" : undefined} data-open={open ? "" : undefined}>
       <span className="dtable-line-top">{top}</span>
-      {nothing(sub) ? null : <span className="dtable-line-sub">{sub}</span>}
+      {saysNothing(sub) ? null : <span className="dtable-line-sub">{sub}</span>}
     </span>
   );
 }
 
 /** What a line is measured by: how wide its words are, how wide it stands, and the words. */
-export interface LineBox {
+interface LineBox {
   scrollWidth: number;
   clientWidth: number;
   textContent: string | null;

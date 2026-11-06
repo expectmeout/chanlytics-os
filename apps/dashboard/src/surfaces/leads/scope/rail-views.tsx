@@ -68,7 +68,7 @@ const layoutNow = (now: LeadNamedNow): LeadNamedLayout => ({
   density: now.density,
 });
 
-const nameOf = (typed: string): string => typed.trim().slice(0, LEAD_NAMED_NAME_MAX);
+const nameTyped = (typed: string): string => typed.trim().slice(0, LEAD_NAMED_NAME_MAX);
 
 /** The list and what can be done with it. A change shows at once and is kept behind it. */
 export function useLeadNamedViews(a: NamedArgs) {
@@ -103,7 +103,7 @@ export function useLeadNamedViews(a: NamedArgs) {
       a.onPicked();
     },
     saveNew: (typed: string) => {
-      const name = nameOf(typed);
+      const name = nameTyped(typed);
       if (!name) return;
       const id = `v${Date.now().toString(36)}`;
       const made = leadNamedAdd(views, { id, name, route: a.route, ...layoutNow(now) });
@@ -111,7 +111,7 @@ export function useLeadNamedViews(a: NamedArgs) {
       else a.flash({ tone: "warn", msg: made.refused });
     },
     rename: (id: string, typed: string) => {
-      const name = nameOf(typed);
+      const name = nameTyped(typed);
       if (name) keep(views.map((v) => (v.id === id ? { ...v, name } : v)));
     },
     remove: (id: string) => keep(views.filter((v) => v.id !== id)),

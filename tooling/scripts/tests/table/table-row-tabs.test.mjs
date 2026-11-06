@@ -1,5 +1,5 @@
 /**
- * One row in the tab order (kit/table/rows.tsx setRowTabs, the table review of 5 Nov 2026): the cursor's row keeps its
+ * One row in the tab order (kit/table/row-tabs.ts setRowTabs, the table review of 5 Nov 2026): the cursor's row keeps its
  * controls in it, every other row's are taken out, and each control gets back exactly what it had as the cursor reaches
  * its row. Run over stand-ins for a row's elements: what it writes is one attribute and what it keeps beside it.
  */
@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { setRowTabs } = await importSrc("apps/dashboard/src/surfaces/kit/table/rows.tsx");
+const { setRowTabs } = await importSrc("apps/dashboard/src/surfaces/kit/table/row-tabs.ts");
 
 /** A control of a row: the tabindex it was drawn with, or none. */
 const stop = (tabindex = null) => {

@@ -73,23 +73,23 @@ export const LEAD_STARTER_VIEWS: readonly LeadNamedView[] = [
   { id: "starter-email", name: "Email list", route: leadsRoute({ chips: { reach: ["email"] } }) },
 ];
 
-const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const anObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** A view's layout, each part only where it is such a part: one that is not leaves what stands. */
 const layoutRead = (v: Record<string, unknown>): LeadNamedLayout => ({
   ...(typeof v.sortBy === "string" ? { sortBy: v.sortBy } : {}),
   ...(v.sortDir === "asc" || v.sortDir === "desc" ? { sortDir: v.sortDir } : {}),
-  ...(isRecord(v.columns) ? { columns: v.columns as Record<string, boolean> } : {}),
+  ...(anObject(v.columns) ? { columns: v.columns as Record<string, boolean> } : {}),
   ...(Array.isArray(v.order) && v.order.every((k) => typeof k === "string") ? { order: v.order } : {}),
   ...(v.density === "comfortable" || v.density === "compact" ? { density: v.density } : {}),
 });
 
 /** A kept list, read with care: a list that is no list is none, and a view that names nothing is gone from it. */
 export function leadNamedViewsOf(raw: unknown): LeadNamedView[] {
-  const list = isRecord(raw) && Array.isArray(raw.list) ? raw.list : [];
+  const list = anObject(raw) && Array.isArray(raw.list) ? raw.list : [];
   const views: LeadNamedView[] = [];
   for (const v of list) {
-    if (!isRecord(v) || typeof v.id !== "string" || !v.id) continue;
+    if (!anObject(v) || typeof v.id !== "string" || !v.id) continue;
     if (typeof v.name !== "string" || !v.name || typeof v.route !== "string" || !parseLeadsRoute(v.route)) continue;
     views.push({ id: v.id, name: v.name, route: v.route, ...layoutRead(v) });
   }
@@ -116,15 +116,15 @@ export function leadNamedRouteFor(view: Pick<LeadNamedView, "route">, searchIds:
 export const leadNamedActive = (view: Pick<LeadNamedView, "route">, now: Pick<LeadNamedNow, "route">): boolean =>
   view.route === now.route;
 
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+const alike = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /** Whether the layout moved since the view was kept: only what it names is its to say changed. */
 export function leadNamedChanged(view: LeadNamedLayout, now: LeadNamedNow): boolean {
   return (
     (view.sortBy !== undefined && view.sortBy !== now.by) ||
     (view.sortDir !== undefined && view.sortDir !== now.dir) ||
-    (view.columns !== undefined && !same(view.columns, now.columns)) ||
-    (view.order !== undefined && !same(view.order, now.order)) ||
+    (view.columns !== undefined && !alike(view.columns, now.columns)) ||
+    (view.order !== undefined && !alike(view.order, now.order)) ||
     (view.density !== undefined && view.density !== now.density)
   );
 }

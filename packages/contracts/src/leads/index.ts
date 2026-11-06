@@ -514,7 +514,7 @@ export {
   leadNamedViewsOf,
 } from "./sheet/lead-named-views";
 export type { LeadNamedLayout, LeadNamedNow, LeadNamedView } from "./sheet/lead-named-views";
-export { LEAD_ROW_ACT_WORDS, leadFootOf, leadGroupOf, leadRowActOf, leadStatusOf } from "./sheet/lead-row-status";
+export { leadFootOf, leadGroupOf, leadRowActOf, leadStatusOf } from "./sheet/lead-row-status";
 export type { LeadRowActKind, LeadRowActVM, LeadStatusTone, LeadStatusVM } from "./sheet/lead-row-status";
 export {
   LEAD_SHEET_WORDS,

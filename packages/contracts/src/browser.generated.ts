@@ -237,7 +237,7 @@ export { replacedOutcome, SEARCH_CARD_REPLACED, searchCardsReplaced, searchCardV
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords } from "./leads/search/sentence";
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES, LEAD_STATUS_GROUPS, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
 export { LEAD_NAMED_MAX, LEAD_NAMED_NAME_MAX, LEAD_NAMED_PAGE, LEAD_NAMED_WORDS, LEAD_STARTER_VIEWS, leadNamedActive, leadNamedAdd, leadNamedChanged, leadNamedRouteFor, leadNamedViewsOf } from "./leads/sheet/lead-named-views";
-export { LEAD_ROW_ACT_WORDS, leadFootOf, leadGroupOf, leadRowActOf, leadStatusOf } from "./leads/sheet/lead-row-status";
+export { leadFootOf, leadGroupOf, leadRowActOf, leadStatusOf } from "./leads/sheet/lead-row-status";
 export { LEAD_SHEET_WORDS, leadPickerRowsOf, leadPileEndOf, leadSheetAboutOf, leadSheetClosedOf, leadSheetStateOf, leadVerdictOf, newStartFirst, sheetSlot } from "./leads/sheet/lead-sheet";
 export { LEAD_SHEET_CARD_WORDS, leadSheetChecksLineOf, leadSheetEmailLineOf, leadSheetExceptionWords, leadSheetSubOf, leadSheetWhyOf } from "./leads/sheet/lead-sheet-card";
 export { dockSlotsOf, LEAD_DOCK_WORDS, LEAD_LEAVE_WORDS, leadDockOf, leadLeaveAskOf } from "./leads/sheet/lead-sheet-dock";

@@ -1629,8 +1629,6 @@ html.legacy-on .lw .lw-now-edit, .lw .lw-now-edit { position: relative; flex: no
 /* The sheet's small steps. */
 
 /* The picker and New as steps of the same sheet, and the dock's asks. */
-.lw-place { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
-.lw-place-l { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
 /* On a phone the primary act takes the room the glyphs leave, its words cut short, so ▾ beside it always shows; each
    glyph says its word under it (the canvas's PhoneHalf), the two centred on the primary's middle and each as wide as its
    word, so the rim, both words and the primary stand one even 15px apart (Ruben, 2 Nov 2026: one width for both left 14,

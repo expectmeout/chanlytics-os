@@ -32,7 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";
-import { Lines } from "../../kit/table/lines";
+import { CellLines } from "../../kit/table/lines";
 import type { ColCtx, PeopleCellCtx } from "../types";
 import { offersOf, plReceptMark, plReceptSaysTheState, plVisitStart, plWhen } from "../words";
 import { plRowCard } from "./row-card";
@@ -403,7 +403,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
         data-testid="row-next-step"
       >
         {p.nextStep ? (
-          <Lines
+          <CellLines
             top={<span className="cl-row-step-words">{p.nextStep.words}</span>}
             sub={<span className="cl-row-step-when">{p.nextStep.day.words}</span>}
           />
@@ -432,7 +432,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     csv: { head: "Last contact", cell: (p) => p.lastContact.label },
     cell: (p) => (
       <td key="last" className="dim cl-last-cell" title={plWhen(p.lastContact.at)}>
-        <Lines
+        <CellLines
           top={<span className="cl-row-last-when">{p.lastContact.when || p.lastContact.by}</span>}
           sub={p.lastContact.when ? <span className="cl-row-last-by">{p.lastContact.by}</span> : null}
         />
