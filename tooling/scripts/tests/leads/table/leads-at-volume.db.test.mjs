@@ -214,7 +214,7 @@ test("every read of a full workspace holds the line", { skip, timeout: 600_000 }
       ${read("door_status", "perform count(*) from public.lead_view_rows(t, null, 'qualified', 'all', null, true, false)")}
       ${read("status_whole", "perform count(*) from public.lead_status_groups(t, null)")}
       ${read("places_whole", "perform count(*) from public.sequence_places(t, null, null, true)")}
-      q := (regexp_match(pg_get_functiondef('public.sequence_places(uuid,uuid,uuid[],boolean)'::regprocedure), '\$q\$(.*)\$q\$'))[1];
+      q := (regexp_match(pg_get_functiondef('public.sequence_places(uuid,uuid,uuid[],boolean)'::regprocedure), '[$]q[$](.*)[$]q[$]'))[1];
       for line in execute 'explain (analyze, buffers) ' || q using t, null::uuid, null::uuid[], true loop
         plan := plan || line || chr(10);
       end loop;
