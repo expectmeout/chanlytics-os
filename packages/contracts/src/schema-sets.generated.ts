@@ -93,7 +93,7 @@ export const SCHEMA_SETS = {
   "files.look_status": ["waiting", "done", "refused", "failed"],
   "files.mime": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"],
   "files.shows": ["storefront", "interior", "work", "team", "product", "menu", "logo", "graphic", "other"],
-  "files.source": ["upload", "google_profile", "google_listing", "website"],
+  "files.source": ["upload", "google_profile", "google_listing", "website", "made"],
   "files.status": ["inbox", "filed", "set_aside"],
   "files.who_in_it": ["not_asked", "no_one", "agreed"],
   "google_reviews.origin": ["places", "profile"],

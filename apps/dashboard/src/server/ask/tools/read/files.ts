@@ -23,7 +23,7 @@ import { PICTURES, defineActions, readAction, type ToolContext } from "../contex
 
 /** The most lines a list answers: enough to choose from, and a narrower ask finds the rest. */
 const LIST_MAX = 40;
-/** The most pictures one read opens: each costs a cent or so the first time, and a person compares no more than this at once. */
+/** The most pictures one read opens: each costs a few cents the first time, and a person compares no more than this at once. */
 const VIEW_MAX = 4;
 
 const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>

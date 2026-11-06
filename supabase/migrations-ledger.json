@@ -554,6 +554,7 @@
     "00549_an_erasure_s_notices_say_so.sql": "1cfa496922979b7fc51c8eac91139cc7b7dddd94bb6cfc5b3a153298bf659f20",
     "00550_the_leads_clock_asks_for_a_mark_it_owes.sql": "7471b5b560d76d7b1daffbf243ed7f7c38dbff0eba60eee5e9d7818f4f1f109d",
     "00551_a_business_keeps_its_files.sql": "fe8cf1759f2679f5c0988ea999c726a05f54c775228509abda3a1bb8e190fbc9",
-    "00552_a_lead_stands_in_one_status_group.sql": "0661f3c82c794ffda18fae534d054f54f8301b08ed45ed59feb183ed73506fb6"
+    "00552_a_lead_stands_in_one_status_group.sql": "0661f3c82c794ffda18fae534d054f54f8301b08ed45ed59feb183ed73506fb6",
+    "00553_what_ask_makes_is_a_file.sql": "4eff49643f571039d5b42b0d27026da8f3f5d850b82fa27fb79b1cad9ef5ccc9"
   }
 }

@@ -2755,6 +2755,7 @@ export type Database = {
           look_edition: number | null
           look_status: string
           looked_at: string
+          made: Json | null
           mime: string
           name: string
           owner_named: boolean
@@ -2781,6 +2782,7 @@ export type Database = {
           look_edition?: number | null
           look_status?: string
           looked_at?: string
+          made?: Json | null
           mime: string
           name: string
           owner_named?: boolean
@@ -2807,6 +2809,7 @@ export type Database = {
           look_edition?: number | null
           look_status?: string
           looked_at?: string
+          made?: Json | null
           mime?: string
           name?: string
           owner_named?: boolean
@@ -8543,6 +8546,22 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: undefined
+      }
+      file_made: {
+        Args: {
+          p_actor?: string
+          p_bytes: number
+          p_fingerprint: string
+          p_height: number
+          p_id: string
+          p_look: Json
+          p_made: Json
+          p_name: string
+          p_tenant_id: string
+          p_who_in_it: string
+          p_width: number
+        }
+        Returns: Json
       }
       file_purged: {
         Args: { p_id: string; p_tenant_id: string }
