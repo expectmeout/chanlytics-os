@@ -12,11 +12,11 @@
  * the last week: a run stranded before this watchdog existed is found too. Bounded per tick; every write is guarded on
  * the row's present state, so two overlapping ticks tell once.
  */
-import { broadcastFailureFix, audienceTrigger, MIN_MS, DAY_MS, runRoute } from "../packages/contracts.js";
-import { failStrandedRun, strandedRuns, type StrandedRun } from "../packages/db.js";
+import { broadcastFailureFix, audienceTrigger, MIN_MS, DAY_MS, runRoute } from "@chanlytics/contracts";
+import { failStrandedRun, strandedRuns, type StrandedRun } from "@chanlytics/db";
 import type { SweepTick } from "./sweep-door.js";
 import type { notifyOnce as notifyOnceFn } from "./notify.js";
-import type { loadTenantNotifications as loadFn } from "../tenant-runtime.js";
+import type { loadTenantNotifications as loadFn } from "../shared/tenant-runtime.js";
 
 /** A run this long past its time with no job is nobody's: the jobs tick claims a due job within a minute. */
 const STRANDED_AFTER_MS = 10 * MIN_MS;

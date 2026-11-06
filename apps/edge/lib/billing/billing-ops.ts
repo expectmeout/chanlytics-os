@@ -7,9 +7,9 @@
  * on the wire, which line each op logs, and what the body may say about
  * Checkout.
  */
-import { isCheckoutReturn, type CheckoutReturn, type EdgeErrorCode, type EdgeRefusal } from "../packages/contracts.js";
-import type { LogEvent } from "../log.js";
-import type { DoorAnswer } from "../admin-door.js";
+import { isCheckoutReturn, type CheckoutReturn, type EdgeErrorCode, type EdgeRefusal } from "@chanlytics/contracts";
+import type { LogEvent } from "../shared/log.js";
+import type { DoorAnswer } from "../shared/admin-door.js";
 
 /** The body as the dashboard's /api/v1/billing verbs send it. */
 export interface BillingBody {

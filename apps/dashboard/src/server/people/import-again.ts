@@ -1,8 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { AppError, IMPORT_SOURCES, IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
-import { callEdge, edgeConfigured } from "../edge";
-import { log } from "../log";
+import { callEdge, edgeConfigured } from "../shared/edge";
+import { log } from "../shared/log";
 
 /**
  * Try again on a source of the imports ledger that stopped (decision 0073, R23): the edge starts it again from where it

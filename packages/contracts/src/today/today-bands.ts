@@ -18,7 +18,7 @@ import type { ReplySpeed } from "../reports/report-speed";
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { durationWords } from "../shared/clock";
 import { capitalize, withStop } from "../shared/words";
-import { runOffClause } from "../sequences/sequence-run-off";
+import { runOffClause } from "../campaigns/sequences/sequence-run-off";
 import { runsWaitingSentence } from "../shell/campaign-rooms";
 import { PAUSED_WORDS } from "../workspace/billing";
 import type { TodayFacts } from "./today-facts";

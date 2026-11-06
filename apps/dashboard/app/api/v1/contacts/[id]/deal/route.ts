@@ -1,6 +1,6 @@
 import { AppError, DEAL_REFUSALS, DealMoveBody, normalizeLink, whyNotALink } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { currentDealOf, recordDealMove } from "@/server/people/deals";
 
 /**

@@ -1,6 +1,6 @@
 /**
  * The receptionist brain: the registry's model for its purpose (contracts ai/models.ts MODEL_ROUTES.receptionist) with
- * a guardrailed, bilingual system prompt, asked through the one model port (lib/model.ts).
+ * a guardrailed, bilingual system prompt, asked through the one model port (lib/ai/model.ts).
  *
  * It answers in a record, not a string (contracts/brain.ts): the reply, what
  * the customer wanted, whether a person should take over and why, how sure it
@@ -30,10 +30,10 @@
  * prompt's text under its hash, and what it answered before layer two replaced any of it, so a reply can be read again
  * after the person's notes, the clock and the settings have all moved on. The record names the turn (meta.turn_id)
  * once it is kept. Keeping it is the port's last act and never costs the answer: a turn that cannot be kept is a log
- * line (lib/model.ts keepTurn). An eval names no conversation and keeps its ledger row alone.
+ * line (lib/ai/model.ts keepTurn). An eval names no conversation and keeps its ledger row alone.
  */
 import { randomUUID } from "node:crypto";
-import type { ThreadTurn } from "../packages/core.js";
+import type { ThreadTurn } from "@chanlytics/core";
 import {
   BRAIN_OUTPUT_JSON_SCHEMA,
   brainOutputSchemaFor,
@@ -48,11 +48,11 @@ import {
   type BrainOutput,
   type BrainStamp,
   type ModelTurnResponse,
-} from "../packages/contracts.js";
-import { formatRejected, type ModelAsk, type ModelReply } from "../packages/channels.js";
-import { callModel, keepTurn, ModelUnavailable, promptHashOf, type ModelCallFor } from "../model.js";
-import { startShadow } from "../shadow.js";
-import { logger } from "../log.js";
+} from "@chanlytics/contracts";
+import { formatRejected, type ModelAsk, type ModelReply } from "@chanlytics/channels";
+import { callModel, keepTurn, ModelUnavailable, promptHashOf, type ModelCallFor } from "../ai/model.js";
+import { startShadow } from "../ai/shadow.js";
+import { logger } from "../shared/log.js";
 
 // The system prompt is TENANT CONFIG (PRD E4): it arrives as a parameter from
 // tenant-runtime, so this file knows how to talk, never who it speaks for.
@@ -355,7 +355,7 @@ async function askOnce(
 
 /**
  * The receptionist's answer to one customer message. While the second model is on (TYPESAFE_SHADOW and its key), the
- * customer's words are also put to it, in shadow, beside this call (lib/shadow.ts): its answer is compared with the
+ * customer's words are also put to it, in shadow, beside this call (lib/ai/shadow.ts): its answer is compared with the
  * record's intent and written to the ledger, and never changes the reply, which is answerReply's alone.
  */
 export async function generateReply(...args: Parameters<typeof answerReply>): Promise<BrainReply> {

@@ -43,9 +43,9 @@ import {
   type EmailReceipt,
   type MailboxEmail,
   type ReadVerdict,
-} from "../../packages/channels.js";
-import { MIN_MS, DAY_MS, normalizeEmail, WAITING_REASONS } from "../../packages/contracts.js";
-import { EMAIL_BODY_MAX } from "../../packages/core.js";
+} from "@chanlytics/channels";
+import { MIN_MS, DAY_MS, normalizeEmail, WAITING_REASONS } from "@chanlytics/contracts";
+import { EMAIL_BODY_MAX } from "@chanlytics/core";
 import {
   endMailboxSync,
   keepOwnerEmail,
@@ -58,13 +58,13 @@ import {
   type Database,
   type Json,
   type MailboxConnectionRow,
-} from "../../packages/db.js";
-import { scheduleJobOnce } from "../../packages/jobs.js";
+} from "@chanlytics/db";
+import { scheduleJobOnce } from "@chanlytics/jobs";
 import { applyEmailReceipt } from "../email-receipts.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { markSignedOut } from "./mailbox-wire.js";
 import { leftWhy, mailSortingFor, noteLeft, type MailSorting } from "./mailbox-sorting.js";
-import { errField, type Logger } from "../../log.js";
+import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

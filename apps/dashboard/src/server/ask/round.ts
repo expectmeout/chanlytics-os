@@ -3,7 +3,7 @@ import { fenced, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
 import type { GatewayBlockStart } from "./sse";
 import { openedPicture, pictureBlocks } from "./tools/context";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * One model round: the request goes out, the stream comes back, the content

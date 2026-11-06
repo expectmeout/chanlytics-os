@@ -9,7 +9,7 @@ import type { JobKind } from "../shared/enums";
 import { RUN_OPEN_WORDS } from "../shell/campaign-rooms";
 import { invitationExpired } from "../shell/identity";
 import { noticeTone } from "../waits/notice-tones";
-import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
+import { SEQUENCES_ROUTE } from "../campaigns/sequences/sequence-address";
 import { MESSAGES_ROUTE } from "../shell/address";
 /**
  * The bell: what needs the owner, from what the browser already holds.

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AppError, CAMPAIGNS_PAUSED_WORDS, TODAY_PHONE_WORDS, offerRefusedWords } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { offerFreedNow } from "@/server/campaigns/playbook-run";
 
 /** The visit cancelled: the edge reads the time it freed from the visit itself, never a span the page sends. */

@@ -10,8 +10,8 @@
  *   choice  one of a set of options: answered with the choice, every option's probability and its confidence;
  *   score   a place on an ordered rubric: answered with a score, the legend, the probabilities and the confidence.
  *
- * The shapes are written here once: channels' adapter (models/typesafe.ts) sends and reads them, and the edge's shadow
- * (lib/shadow.ts) compares the answers with the primary's. The model is pinned to a version, never an alias, so a week
+ * The shapes are written here once: channels' adapter (ai/typesafe.ts) sends and reads them, and the edge's shadow
+ * (lib/ai/shadow.ts) compares the answers with the primary's. The model is pinned to a version, never an alias, so a week
  * of agreement data is about one model. Text only, English-best; a request is bounded at 64,000 tokens, 32,000 of them
  * for the state and the longest question. The price is on input tokens alone: output is free.
  */

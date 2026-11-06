@@ -1,6 +1,6 @@
 import { REPLY_DRAFTS_IDS_MAX, ReplyDraftsQuerySchema } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
-import { requireUuidList } from "@/server/request-guards";
+import { read, workspace } from "@/server/shared/route";
+import { requireUuidList } from "@/server/shared/request-guards";
 import { draftsKept } from "@/server/conversations/drafts";
 
 /**

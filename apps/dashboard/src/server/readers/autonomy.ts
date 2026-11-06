@@ -19,7 +19,7 @@ import {
   sequenceEvidence,
   type PolicyRecord,
 } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as facts from "./facts";
 

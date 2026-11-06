@@ -43,16 +43,16 @@
       "default": "./src/alert-pane.ts"
     },
     "./ask-only": {
-      "types": "./src/ask-proposals/ask-only.ts",
+      "types": "./src/ask/proposals/ask-only.ts",
       "bundled": "./dist/ask-only.js",
-      "import": "./src/ask-proposals/ask-only.ts",
-      "default": "./src/ask-proposals/ask-only.ts"
+      "import": "./src/ask/proposals/ask-only.ts",
+      "default": "./src/ask/proposals/ask-only.ts"
     },
     "./page-specs": {
       "types": "./src/index.ts",
       "bundled": "./dist/index.js",
       "edge-light": "./src/index.ts",
-      "browser": "./src/ask-proposals/page-specs.ts",
+      "browser": "./src/ask/proposals/page-specs.ts",
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },

@@ -3,11 +3,11 @@
  * steps, what each wire carries, who answers, the call, and what the routes refuse in. A page composes these and writes
  * none of its own. No trade's word, no key, nothing technical: what an owner between two customers needs to act.
  */
-import { renderTemplate } from "../broadcasts/broadcasts";
+import { renderTemplate } from "../campaigns/broadcasts/broadcasts";
 import { clipAtWord } from "../conversations/message-words";
 import { THREAD_CHANNEL_WORDS, type WrittenChannel } from "../conversations/thread-channel";
-import { inboxSlots } from "../templates/inbox-templates";
-import { resolveParams } from "../templates/templates";
+import { inboxSlots } from "../campaigns/templates/inbox-templates";
+import { resolveParams } from "../campaigns/templates/templates";
 import { PLAN_NOTE_MAX, type PersonReachDto } from "./person-draft";
 import { WRITE_WAY_REFUSED, type WriteWay } from "./write-ways";
 

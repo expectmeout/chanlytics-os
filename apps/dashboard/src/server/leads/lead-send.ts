@@ -38,12 +38,12 @@ import {
   workspaceMaySpend,
 } from "@chanlytics/db";
 import { requestJson } from "../connections/email";
-import { env } from "../env";
-import { schedule } from "../jobs";
-import { log } from "../log";
-import { canonicalOrigin } from "../origin";
-import { serviceDb } from "../service-db";
-import type { RouteContext } from "../with-route";
+import { env } from "../shared/env";
+import { schedule } from "../shared/jobs";
+import { log } from "../shared/log";
+import { canonicalOrigin } from "../shared/origin";
+import { serviceDb } from "../shared/service-db";
+import type { RouteContext } from "../shared/with-route";
 import { linkHostOf } from "../../link-host";
 import { workspaceOffer } from "./lead-helpers";
 import type { LeadRow } from "./lead-searches";

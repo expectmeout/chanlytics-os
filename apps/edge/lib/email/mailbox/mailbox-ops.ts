@@ -24,13 +24,13 @@
  * A row's answer is its page row (channels mailboxDtoOf, its Gmail signature said in words). A connect that did not finish answers its reason
  * (contracts MAILBOX_CONNECT_WORDS says each) beside the code a caller compares.
  */
-import { json, refuse } from "../../http.js";
-import { personFor, workspaceFor, type Admitted } from "../../admin-auth.js";
-import { pg } from "../../pg.js";
-import { errField, logger } from "../../log.js";
-import { mailboxConnectionOf, mailboxConnectionsOf, type MailboxConnectionRow } from "../../packages/db.js";
-import { MAILBOX_PROVIDERS, UUID, normalizeEmail, type MailboxProvider } from "../../packages/contracts.js";
-import { mailboxDtoOf } from "../../packages/channels.js";
+import { json, refuse } from "../../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../../shared/admin-auth.js";
+import { pg } from "../../shared/pg.js";
+import { errField, logger } from "../../shared/log.js";
+import { mailboxConnectionOf, mailboxConnectionsOf, type MailboxConnectionRow } from "@chanlytics/db";
+import { MAILBOX_PROVIDERS, UUID, normalizeEmail, type MailboxProvider } from "@chanlytics/contracts";
+import { mailboxDtoOf } from "@chanlytics/channels";
 import { bringInSender } from "../../imports/mail-history.js";
 import { bringMailboxHistory, resumeMailboxHistory, stopMailboxHistory } from "../../imports/history-import.js";
 import { tokenFor } from "./mailbox-credentials.js";

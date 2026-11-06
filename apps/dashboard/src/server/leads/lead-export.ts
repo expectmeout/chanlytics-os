@@ -19,10 +19,10 @@ import {
 } from "@chanlytics/contracts";
 import { csvCell, dateTag, safeName } from "../export/export";
 import { leadsPage, type LeadsPageAnswer } from "./lead-page";
-import { tenantFacts } from "../tenant";
-import { recordDecision } from "../verbs";
-import type { RouteContext } from "../with-route";
-import { log } from "@/server/log";
+import { tenantFacts } from "../shared/tenant";
+import { recordDecision } from "../shared/verbs";
+import type { RouteContext } from "../shared/with-route";
+import { log } from "@/server/shared/log";
 
 /* ------------------------------------------------------------- the export */
 

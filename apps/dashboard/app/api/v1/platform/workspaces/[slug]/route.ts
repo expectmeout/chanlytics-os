@@ -1,6 +1,6 @@
-import { read, platform } from "@/server/route";
+import { read, platform } from "@/server/shared/route";
 import { AppError, CONSOLE_WORDS } from "@chanlytics/contracts";
-import { consoleWorkspace } from "@/server/platform/console";
+import { consoleWorkspace } from "@/server/console/console";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 

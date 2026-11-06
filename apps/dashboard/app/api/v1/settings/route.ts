@@ -1,4 +1,4 @@
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { settings } from "@/server/readers/settings";
 import { saveSettings } from "@/server/workspace/settings-save";

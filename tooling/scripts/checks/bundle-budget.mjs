@@ -80,7 +80,7 @@ const KINDS = ["js", "css"];
 const LABELS = { js: "route JS", css: "route CSS" };
 /** How a person runs this, for the messages that name a flag. */
 const COMMAND = "corepack pnpm check:bundle";
-const BASELINE = "tooling/scripts/tests/baselines/bundle-ceiling.json";
+const BASELINE = "tests/baselines/bundle-ceiling.json";
 
 /** A build that is not the shape this reads: fails with exit 2, rather than measuring less. */
 class BuildShape extends Error {}

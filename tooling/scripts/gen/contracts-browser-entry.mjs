@@ -35,7 +35,7 @@ const SRC = "packages/contracts/src";
  * entry. The page that draws them imports them by that subpath. (The entry was one module every page's route loaded
  * until 17 October 2026, which is why the list began; a file per module now keeps a page's own modules on that page
  * either way, and the list keeps their names off the root entry, which the frame's code reads.) Ask's whole table of
- * cards (ask-proposals/proposals.ts) is the server's alone: a page reads the verbs it presses from page-specs.ts, and
+ * cards (ask/proposals/proposals.ts) is the server's alone: a page reads the verbs it presses from page-specs.ts, and
  * Ask's bridge loads the cards only Ask proposes by their own subpath, `./ask-only`. A path that names no
  * file under SRC filters nothing, silently, so `generate` refuses it.
  */
@@ -67,7 +67,7 @@ export const PAGE_ONLY = [
   "ads/drawer-edit.ts",
   "ads/new-ad.ts",
   "ads/new-ad-parts.ts",
-  "ask-proposals/proposals.ts",
+  "ask/proposals/proposals.ts",
 ];
 /**
  * The entries a page imports by their own subpath (package.json's `./report-window`, `./report-lens`, `./ads-page`,
@@ -81,7 +81,7 @@ export const PAGE_ENTRIES = {
   "report-window": "reports/report-window.ts",
   "report-lens": "reports/report-lens.ts",
   "ads-page": "ads/ads-page.ts",
-  "page-specs": "ask-proposals/page-specs.ts",
+  "page-specs": "ask/proposals/page-specs.ts",
 };
 /** The specifiers that load zod's classic API. zod/mini and zod/v4/core share its core and are cut by the bundler. */
 const CLASSIC_ZOD = new Set(["zod", "zod/v4", "zod/v4/classic"]);

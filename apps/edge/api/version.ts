@@ -6,8 +6,8 @@
  * Vercel sets VERCEL_GIT_COMMIT_SHA on every build; a laptop has none and answers "dev". No key: a commit is not a
  * secret, and the release steps (docs/runbook.md, Deploy) read it with curl beside the dashboard's.
  */
-import { env } from "../lib/env.js";
-import { door } from "../lib/log.js";
+import { env } from "../lib/shared/env.js";
+import { door } from "../lib/shared/log.js";
 
 export const GET = door(function GET(): Promise<Response> {
   return Promise.resolve(

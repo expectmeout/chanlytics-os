@@ -1,8 +1,8 @@
 import "server-only";
 import type { AskCitationKind, AskRowRef } from "@chanlytics/contracts";
 import { noteTiming } from "@chanlytics/channels";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
 
 /**
  * One read layer (Ask Rewired, spec 5.1).

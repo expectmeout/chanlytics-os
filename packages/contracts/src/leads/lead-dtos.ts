@@ -6,7 +6,7 @@ import type { LeadPeoplePlan } from "./search/people-plan";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import type { LeadEmailState, LeadRoundEnding, LeadSearchVia, LeadStatusGroup } from "./search/sets";
 import type { LeadClass, LeadStage } from "./lead-words";
-import type { SequencePlaceOfDto } from "../sequences/sequence-place";
+import type { SequencePlaceOfDto } from "../campaigns/sequences/sequence-place";
 import type { LeadNichePrior } from "./leads";
 
 /* ------------------------------------------------- what the doors answer -- */

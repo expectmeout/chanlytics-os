@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { broadcastTouches } from "@/server/readers/broadcasts";
 

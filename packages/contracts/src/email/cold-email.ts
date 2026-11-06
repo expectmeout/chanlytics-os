@@ -4,9 +4,14 @@
  * emailTextOf's, so none of them can tell a lead a different email (3 Nov 2026: a test laid out its own way read as
  * another email).
  */
-import { emailFoot } from "../templates/email-foot";
-import { whyFrom } from "../reach-out/reach-out";
-import { REACH_OUT_LANGUAGE, coldEndingOf, coldSignedOff, type ReachOutSignsWith } from "../reach-out/reach-out-rules";
+import { emailFoot } from "../campaigns/templates/email-foot";
+import { whyFrom } from "../campaigns/reach-out/reach-out";
+import {
+  REACH_OUT_LANGUAGE,
+  coldEndingOf,
+  coldSignedOff,
+  type ReachOutSignsWith,
+} from "../campaigns/reach-out/reach-out-rules";
 import { firstSubject, replySubject } from "./email-subject";
 
 /** A cold email's parts as the wire takes them (channels buildEmailRequest), and emailTextOf lays out. */

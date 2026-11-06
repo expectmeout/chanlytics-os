@@ -14,8 +14,8 @@
  * as erased and left alone. A doubt it raises (two records one identity could belong to) is its own to keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PERSON_FORGOTTEN, resolvePerson, type Database } from "../packages/db.js";
-import type { CalendarPerson } from "../packages/contracts.js";
+import { PERSON_FORGOTTEN, resolvePerson, type Database } from "@chanlytics/db";
+import type { CalendarPerson } from "@chanlytics/contracts";
 
 interface AddedFromCalendar {
   seen: number;

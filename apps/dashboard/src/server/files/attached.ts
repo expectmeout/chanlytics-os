@@ -7,7 +7,7 @@
 import "server-only";
 import { ASK_ATTACHED_MAX, UUID, recordOrNull, type AskLanguage, type FileDto } from "@chanlytics/contracts";
 import { filesNamedBy } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 import type { AskedPicture } from "../ask/tools/context";
 
 /** A file as a question says it, as it is now. */

@@ -45,7 +45,7 @@ import {
   workspacePaused,
   type Touch,
 } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { listRuns } from "@/server/campaigns/broadcasts";
 import { calendarOf } from "@/server/calendar/calendar-settings";
 import type { ZoneAndSettings } from "@/server/calendar/people-visits";
@@ -53,8 +53,8 @@ import { archivedListWords } from "@/server/people/audience";
 import { templateValuePorts } from "@/server/ports/campaign-ports";
 import { whatsappHealthOf } from "@/server/campaigns/channels-ready";
 import { appointmentWordRead } from "@/server/people/deals";
-import { lazily } from "@/server/lazy";
-import { tenantFacts } from "@/server/tenant";
+import { lazily } from "@/server/shared/lazy";
+import { tenantFacts } from "@/server/shared/tenant";
 
 /**
  * Playbooks, read and checked.

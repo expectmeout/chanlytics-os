@@ -14,21 +14,21 @@
  * Addressed to the workspace's alert addresses only (mail(): no bell row, and nothing to the platform when there are
  * none). Signed admin token only.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
 import { mail, reachesTenant } from "./notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { logger, errField } from "../log.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { logger, errField } from "../shared/log.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import {
   alertTestMail,
   appLink,
   parseTenantConfigResult,
   spokenDuration,
   youAreLiveEmail,
-} from "../packages/contracts.js";
-import { workspaceNamed } from "../packages/db.js";
+} from "@chanlytics/contracts";
+import { workspaceNamed } from "@chanlytics/db";
 
 export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
   const L = logger();

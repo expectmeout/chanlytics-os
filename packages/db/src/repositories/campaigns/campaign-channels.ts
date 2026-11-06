@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ConsentChannel, SequenceMode } from "@chanlytics/contracts";
 import { sequenceModesOf } from "./sequences";
 import type { Database } from "../../database.types";
-import { IDS_PER_READ } from "../people";
+import { IDS_PER_READ } from "../people/people";
 
 type Db = SupabaseClient<Database>;
 

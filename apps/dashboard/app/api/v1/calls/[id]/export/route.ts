@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { exportCall } from "@/server/export/call-export";
 
 /**

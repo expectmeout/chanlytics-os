@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { SupportKindSchema } from "@chanlytics/contracts";
-import { supportMove } from "@/server/platform/support";
+import { supportMove } from "@/server/console/support";
 
 /**
  * POST /api/v1/platform/support/kind — {id, kind}: a report moved between Support and Health, as what the member

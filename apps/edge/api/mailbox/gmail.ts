@@ -5,7 +5,7 @@
  * The door names the request and calls receiveGmailPush in lib/email/mailbox/mailbox-push.ts: the token checked, the
  * mailbox that changed read back (mailbox-sync.ts). Answered 204.
  */
-import { door } from "../../lib/log.js";
+import { door } from "../../lib/shared/log.js";
 import { receiveGmailPush } from "../../lib/email/mailbox/mailbox-push.js";
 export { PUSH_READS_UNTIL_MS } from "../../lib/email/mailbox/mailbox-push.js";
 

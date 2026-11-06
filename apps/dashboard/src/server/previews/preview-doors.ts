@@ -32,10 +32,10 @@ import {
   type PreviewRefusal,
 } from "@chanlytics/db";
 import { linkPageDb } from "../public/link-page";
-import { takeRate } from "../rate-limit";
+import { takeRate } from "../shared/rate-limit";
 import { startRehearsal, type RehearsalStartDto } from "../receptionist/rehearsal";
 import { tryReceptionist } from "../receptionist/try";
-import { log } from "../log";
+import { log } from "../shared/log";
 
 /** The turns the eval door takes before a case: its own most. */
 const HISTORY_MAX = 12;

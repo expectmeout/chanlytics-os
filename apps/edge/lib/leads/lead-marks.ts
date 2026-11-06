@@ -3,7 +3,7 @@
  * collect's own wires (lead-wires.ts), the leads sweep's second try (markLeadsAgain, below) and the backfill for leads
  * found before 00161 (tooling/scripts/ops) read through these, so a mark is found one way.
  *
- * The home page is read by the platform's one page reader (`leadSitePage`: lib/public-page.ts homePage, Firecrawl's
+ * The home page is read by the platform's one page reader (`leadSitePage`: lib/shared/public-page.ts homePage, Firecrawl's
  * scrape). A mark drawn straight off a business's site never shows, because the dashboard's content policy lets images
  * in from three hosts. So the collect asks for the bytes once (`imageBytes`, over the guarded fetch: the page names the
  * picture's address), core judges them (mark-image.ts), and a copy is kept in the public lead-marks bucket under its
@@ -14,7 +14,7 @@
  */
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepLeadMark, leadSiteReadsSpent, leadsUnmarked, type Database } from "../packages/db.js";
+import { keepLeadMark, leadSiteReadsSpent, leadsUnmarked, type Database } from "@chanlytics/db";
 import {
   DEADLINE_MARGIN_MS,
   markPlaces,
@@ -22,18 +22,18 @@ import {
   type MarkImage,
   type MarkPlace,
   type SiteReads,
-} from "../packages/core.js";
-import { LEAD_MARKS_BUCKET, LEAD_SITE_READ_USD, MIN_MS, SECOND_MS } from "../packages/contracts.js";
-import type { SitePage } from "../packages/channels.js";
+} from "@chanlytics/core";
+import { LEAD_MARKS_BUCKET, LEAD_SITE_READ_USD, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
+import type { SitePage } from "@chanlytics/channels";
 import type { LeadWires } from "./lead-wires.js";
-import { errField, logger } from "../log.js";
-import { homePage, PAGE_READS, sitePagesReadable } from "../public-page.js";
+import { errField, logger } from "../shared/log.js";
+import { homePage, PAGE_READS, sitePagesReadable } from "../shared/public-page.js";
 
 /**
  * The image read is channels' (site-reads.ts): one reading of a picture a business's own site names, which the
  * dashboard's look for a workspace's logo makes too. Named here for the collect's wires.
  */
-export { imageBytes } from "../packages/channels.js";
+export { imageBytes } from "@chanlytics/channels";
 
 /** A lead's home page as a browser drew it, by its website's host: for its mark, and for the judge where a plan reads sites. */
 export function leadSitePage(host: string, timeoutMs: number): Promise<SitePage | null> {

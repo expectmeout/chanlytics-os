@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PARAM_SOURCES, TEMPLATE_CATEGORIES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { writeMessage, type WriteMessageAnswer, type WriteMessageBody } from "@/server/campaigns/write-message";
 
 /**

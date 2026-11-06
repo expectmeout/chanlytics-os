@@ -11,7 +11,7 @@ import { appointmentWords, isAppointmentWord, type AppointmentWord } from "../jo
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "../shared/clock";
 import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deal-vm";
 import { leadsRoute } from "../leads/leads";
-import { reachOutPersonOf } from "../reach-out/reach-out-leads";
+import { reachOutPersonOf } from "../campaigns/reach-out/reach-out-leads";
 import { linkHost } from "../shared/link";
 import { listRuleWhy } from "./lists/list-rules";
 import { PEOPLE_LISTS } from "./lists/builtin-lists";

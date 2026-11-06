@@ -9,8 +9,8 @@
  */
 import { seenBy, type SeenOf } from "@chanlytics/contracts";
 import { contactSeen, markContact } from "@chanlytics/db";
-import { log } from "@/server/log";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { log } from "@/server/shared/log";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 /** The door is not there yet (the dashboard deployed before 00349), or nobody is signed in on this client (a reader run for Ask by the service). */
 const NO_READING = new Set(["PGRST202", "42883", "28000"]);

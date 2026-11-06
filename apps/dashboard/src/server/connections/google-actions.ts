@@ -17,14 +17,14 @@ import {
 import { googleReadiness, afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
 import { load, readerContext } from "@/server/readers";
 import { googleReader } from "@/server/readers/connections";
-import { memberContext, type RouteContext } from "@/server/with-route";
+import { memberContext, type RouteContext } from "@/server/shared/with-route";
 import { verifyState, authorizeUrl, newNonce, signState, STATE_TTL_MS, cleanReply } from "@chanlytics/channels";
-import { log } from "@/server/log";
-import { requireUuid } from "@/server/request-guards";
-import { recordDecision } from "@/server/verbs";
+import { log } from "@/server/shared/log";
+import { requireUuid } from "@/server/shared/request-guards";
+import { recordDecision } from "@/server/shared/verbs";
 import { configRowOf } from "@/server/workspace/config-row";
-import { tenantFacts } from "@/server/tenant";
-import type { Member, Params } from "@/server/route";
+import { tenantFacts } from "@/server/shared/tenant";
+import type { Member, Params } from "@/server/shared/route";
 
 /** `GET google`: Google as the Google reader holds it (once a turn, the Reviews report's too), and what this deployment can do with it. */
 export async function readGoogle(ctx: RouteContext, member: Member): Promise<{ google: GoogleDto }> {

@@ -8,7 +8,7 @@
  * given, form-encoded bodies, JSON answers — so a test can pin every URL
  * and parameter without a network, and the edge supplies fetch.
  */
-import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
+import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import { deleteCampaignRequest } from "./a2p/brand-campaign";
 import type { AvailableNumber, LineProvider, ProviderAccount, ReceivedText } from "./lines";
 

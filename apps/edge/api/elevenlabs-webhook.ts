@@ -17,9 +17,9 @@
  * transcript, which names customers, and this door keeps nothing of what was said. A delivery it could not take is
  * its 503, which the vendor delivers again.
  */
-import { json, refuse } from "../lib/http.js";
-import { pg } from "../lib/pg.js";
-import { logger, errField, door } from "../lib/log.js";
+import { json, refuse } from "../lib/shared/http.js";
+import { pg } from "../lib/shared/pg.js";
+import { logger, errField, door } from "../lib/shared/log.js";
 import {
   askVoiceWebhookConfigured,
   askVoiceWebhookSigned,

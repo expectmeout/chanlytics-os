@@ -1,6 +1,6 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 import { edgeGoogle } from "@/server/connections/google";
 
 /**

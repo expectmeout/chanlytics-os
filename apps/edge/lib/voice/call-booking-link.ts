@@ -36,11 +36,11 @@
  * agent SPEAKS this string, so an error status would make it say nothing at all
  * while the caller waits.
  */
-import { json } from "../http.js";
-import { pg } from "../pg.js";
+import { json } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { isRehearsalCall, rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
-import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
-import { effectiveReplyMode, deliver, whatsappSender, type Delivered } from "../packages/core.js";
+import { loadTenantRuntime, waCfgFor } from "../shared/tenant-runtime.js";
+import { effectiveReplyMode, deliver, whatsappSender, type Delivered } from "@chanlytics/core";
 import {
   linkSentOnCall,
   messageByExternalId,
@@ -48,7 +48,7 @@ import {
   resolveOutboundTarget,
   personReplyMode,
   templatesToSend,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import {
   bookingHeld,
   bookingTemplate,
@@ -62,8 +62,8 @@ import {
   resolveParams,
   REHEARSAL_TOOL_WORDS,
   SECOND_MS,
-} from "../packages/contracts.js";
-import { refusalScript } from "../packages/core.js";
+} from "@chanlytics/contracts";
+import { refusalScript } from "@chanlytics/core";
 import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
 import {
   gateOnTheCall,
@@ -75,7 +75,7 @@ import {
   type LinkLeg,
   type RefusedAt,
 } from "./call-link-send.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.

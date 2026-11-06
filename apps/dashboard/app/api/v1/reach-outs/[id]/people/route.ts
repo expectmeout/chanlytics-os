@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { read } from "@/server/route";
-import { reachOutScope } from "@/server/verbs";
+import { read } from "@/server/shared/route";
+import { reachOutScope } from "@/server/shared/verbs";
 import { chainPeopleOf } from "@/server/leads/lead-workbench";
 
 /**

@@ -28,11 +28,11 @@
  * number (Meta's own words often name the number asked about, so they are not logged either).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepChannelQuality, whatsappNumbersToRead, type Database, type WhatsappNumber } from "../packages/db.js";
-import { HOUR_MS } from "../packages/contracts.js";
-import { errField, type Logger } from "../log.js";
+import { keepChannelQuality, whatsappNumbersToRead, type Database, type WhatsappNumber } from "@chanlytics/db";
+import { HOUR_MS } from "@chanlytics/contracts";
+import { errField, type Logger } from "../shared/log.js";
 import type { notify } from "../ops/notify.js";
-import { waCredentialsForTenant } from "../tenant-runtime.js";
+import { waCredentialsForTenant } from "../shared/tenant-runtime.js";
 import { phoneNumber, type numberStanding } from "./meta-graph.js";
 import { mapNumberQuality } from "./meta-templates.js";
 import { readAndKeepStanding, type StandingOutcome } from "./number-standing.js";

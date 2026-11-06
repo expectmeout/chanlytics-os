@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { morningLanguage, morningOf, startMorning } from "@/server/ask/companion/morning";
 
 /**

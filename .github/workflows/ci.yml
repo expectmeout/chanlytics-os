@@ -397,7 +397,7 @@ jobs:
       - run: pnpm format:check
 
   # Every number the build holds, measured on the change's base and on its head (decision 0074): the measures of
-  # tooling/scripts/tests/_measures.mjs, the lint's warnings and knip's dead exports. The base is the merge commit's
+  # tests/_measures.mjs, the lint's warnings and knip's dead exports. The base is the merge commit's
   # first parent, checked out here, measured by its own code, and the head checked out again; a base from before the
   # numbers left git is read from its baselines. A number that rose, or an offender that is new, fails until the
   # description says why, in a line `Debt: <why>`, read as the step runs (a re-run reads an edited one), as the bundle's

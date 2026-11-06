@@ -13,7 +13,7 @@ import { cache } from "react";
  */
 import { hasPublicPages } from "@chanlytics/contracts";
 import { publicWorkspaceBySlug, type PublicWorkspaceRead } from "@chanlytics/db";
-import { serviceDb } from "../service-db";
+import { serviceDb } from "../shared/service-db";
 
 /** A slug as `create_workspace` mints them: lowercase letters, digits and dashes. */
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;

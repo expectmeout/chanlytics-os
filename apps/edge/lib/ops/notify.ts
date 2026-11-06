@@ -32,8 +32,8 @@ import {
   workspaceNamed,
   type Database,
   type KeptNotice,
-} from "../packages/db.js";
-import type { NotificationsConfig } from "../packages/contracts.js";
+} from "@chanlytics/db";
+import type { NotificationsConfig } from "@chanlytics/contracts";
 import {
   EMAIL_ALWAYS_KINDS,
   SERVER_NOTIFICATION_KINDS,
@@ -44,13 +44,13 @@ import {
   noticeRoute,
   openItLine,
   warningsMendedBy,
-} from "../packages/contracts.js";
-import { scheduleJob } from "../packages/jobs.js";
-import { pg } from "../pg.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
-import { providerFetch } from "../packages/channels.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+} from "@chanlytics/contracts";
+import { scheduleJob } from "@chanlytics/jobs";
+import { pg } from "../shared/pg.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
+import { providerFetch } from "@chanlytics/channels";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 
 type Db = SupabaseClient<Database>;
 

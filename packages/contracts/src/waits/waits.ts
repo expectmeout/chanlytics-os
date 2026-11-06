@@ -24,8 +24,8 @@
  * Pure: a page hands in the threads and the runs it holds, the business's days and the clock.
  */
 import { replyWaitsOnYou } from "../conversations/standing";
-import { runApprovalRefusal } from "../playbooks/playbook-approval";
-import { RUN_GOING_STATES } from "../broadcasts/broadcasts";
+import { runApprovalRefusal } from "../campaigns/playbooks/playbook-approval";
+import { RUN_GOING_STATES } from "../campaigns/broadcasts/broadcasts";
 
 /** One thread as the count reads it, however the page holds the thread: a view model, or a conversation off the wire. */
 export interface WaitingThread {

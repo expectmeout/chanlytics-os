@@ -28,7 +28,7 @@ import type { BuiltContext, SearchResultBlock } from "./context";
 import { argsOf, type RoundBlock, type RoundResult } from "./round";
 import { chainEnd, rawTurn, type LastRound, type TurnEnd } from "./memory";
 import type { TurnInput, TurnResult } from "./loop";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * Where the time went and what the model was fed (AskTurnShape), as a turn measures it from `t0`, its start: the first

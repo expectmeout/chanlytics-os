@@ -25,8 +25,8 @@ import type {
   SequenceStepDto,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
-import { readAllRows } from "../../paged";
-import { answer, type DoorResult } from "./reach-out-leads";
+import { readAllRows } from "../../shared/paged";
+import { answer, type DoorResult } from "./reach-out/reach-out-leads";
 import {
   putBackOf,
   withListedWhyNot,

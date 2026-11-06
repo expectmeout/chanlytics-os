@@ -10,10 +10,10 @@
  * catches the sweep itself not running. Cached ten seconds per instance,
  * so a noisy pinger cannot become a load on the database.
  */
-import { pg } from "../lib/pg.js";
-import { platformHealthOf } from "../lib/packages/contracts.js";
+import { pg } from "../lib/shared/pg.js";
+import { platformHealthOf } from "@chanlytics/contracts";
 import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 
 const CACHE_MS = 10_000;
 let cached: { at: number; status: number; body: string } | null = null;

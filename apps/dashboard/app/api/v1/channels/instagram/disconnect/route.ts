@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { disconnectInstagram } from "@/server/connections/instagram";
 
 const Body = z.object({ channel_id: z.uuid() });

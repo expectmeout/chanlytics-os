@@ -11,7 +11,7 @@
  * the list. The PATCH is its owner's: a forbidden UPDATE answers success with no rows in this stack, so the row count
  * is the permission check. The routes declare who may and how often.
  */
-import { memberContext, requireSecondFactor, type MemberContext, type RouteContext } from "@/server/with-route";
+import { memberContext, requireSecondFactor, type MemberContext, type RouteContext } from "@/server/shared/with-route";
 import {
   APPOINTMENT_WORD_REFUSAL,
   AppError,
@@ -25,12 +25,12 @@ import {
   type AppointmentWord,
 } from "@chanlytics/contracts";
 import { emitEvent, getOpenHandovers, getOwnPartner, workspaceNamed } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
-import { isPlatformAdmin } from "@/server/platform/platform";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
-import { settled } from "@/server/lazy";
-import type { Member } from "@/server/route";
+import { serviceDb } from "@/server/shared/service-db";
+import { isPlatformAdmin } from "@/server/console/platform";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
+import { settled } from "@/server/shared/lazy";
+import type { Member } from "@/server/shared/route";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {

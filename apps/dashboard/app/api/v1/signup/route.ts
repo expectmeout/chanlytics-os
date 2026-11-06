@@ -10,13 +10,13 @@ import {
   signupPosture,
   signupPostureFor,
 } from "@chanlytics/contracts";
-import { isSameOrigin } from "@/server/request-guards";
-import { takeRate } from "@/server/rate-limit";
-import { ipOf, hashKey as hash } from "@/server/request-ip";
-import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/platform/signup";
+import { isSameOrigin } from "@/server/shared/request-guards";
+import { takeRate } from "@/server/shared/rate-limit";
+import { ipOf, hashKey as hash } from "@/server/shared/request-ip";
+import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/console/signup";
 import { previewForSignup } from "@/server/previews/claim";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
 
 /**
  * /api/v1/signup — the one door a stranger may use.

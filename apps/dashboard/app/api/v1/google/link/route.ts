@@ -1,7 +1,7 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
 import { edgeGoogle, readOutcome } from "@/server/connections/google";
-import { edgeRefusalWords } from "@/server/edge";
+import { edgeRefusalWords } from "@/server/shared/edge";
 
 /**
  * POST /api/v1/google/link — {place_id}: this is the business on Google.

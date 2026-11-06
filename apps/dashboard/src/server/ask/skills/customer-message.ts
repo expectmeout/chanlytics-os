@@ -12,7 +12,7 @@ import {
   type CraftVersions,
   type MessageBrief,
 } from "@chanlytics/contracts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { load } from "../../readers";
 import { businessShape, config, facts } from "../../readers/facts";
 import type { ToolContext } from "../tools/context";

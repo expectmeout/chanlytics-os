@@ -9,7 +9,7 @@
  */
 
 import { clockTime } from "../shared/clock";
-import { PLAYBOOK_VETO_DELAY_MS } from "../playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_MS } from "../campaigns/playbooks/playbook-triggers";
 import { DAY_MS } from "../shared/time";
 import { waitEndsWords } from "../waits/wait-rules";
 import { violatesNoPrices, namesMoney } from "../config/policy";

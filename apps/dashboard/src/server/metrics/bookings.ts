@@ -20,7 +20,7 @@ import {
   type TodayBookingsDto,
 } from "@chanlytics/contracts";
 import { bookedVisitsOf, bookingsCanArrive, visitChangesSince, type Database } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 type Db = SupabaseClient<Database>;
 

@@ -7,7 +7,7 @@
  * writes it (docs/debt.md, "Rises"). `className` is for the page's layout, and comes last; the ref reaches the element.
  *
  * It draws what the gallery's Meter family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
- * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
+ * tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef } from "react";
 import { cx, variants } from "../variants";

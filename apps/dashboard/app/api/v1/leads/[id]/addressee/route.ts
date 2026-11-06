@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { LEAD_PEOPLE_MAX, SPEND_LEADS } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { chooseAddressee } from "@/server/leads/lead-workbench";
 
 const Body = z.object({

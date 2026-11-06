@@ -29,8 +29,8 @@ import {
 } from "@chanlytics/db";
 import { linkPageDb, linkPageLookOf } from "../public/link-page";
 import { workspaceBegun } from "../workspace/workspace-create";
-import { log } from "../log";
-import type { RouteContext } from "../with-route";
+import { log } from "../shared/log";
+import type { RouteContext } from "../shared/with-route";
 
 /** The service role, where this deployment holds it: the page and sign-up know only the link. */
 type Db = ReturnType<typeof linkPageDb>;

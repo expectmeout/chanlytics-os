@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FILES_MAX, FILE_SHELVES } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { files } from "@/server/readers/files";
 

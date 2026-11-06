@@ -28,7 +28,7 @@ import {
   withStoredKeysKept,
   type BrainConfig,
   type PreviewFailure,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   getTenantConfig,
   leadForPreview,
@@ -37,11 +37,11 @@ import {
   putTenantConfig,
   type Database,
   type LeadPreviewRow,
-} from "../packages/db.js";
-import type { ClaimedJob, JobContext } from "../packages/jobs.js";
+} from "@chanlytics/db";
+import type { ClaimedJob, JobContext } from "@chanlytics/jobs";
 import { readWebsite, type WebsiteReadKept } from "../imports/website-read.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

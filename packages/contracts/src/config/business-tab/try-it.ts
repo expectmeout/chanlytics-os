@@ -8,7 +8,7 @@
 import { replyWhy } from "../brain";
 import { reasonLabelOf } from "../../conversations/escalations";
 import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS, type PolicyMode } from "../workspace-config/policy-classes";
-import { delayWords } from "../../playbooks/playbook-triggers";
+import { delayWords } from "../../campaigns/playbooks/playbook-triggers";
 import { MIN_MS, SECOND_MS } from "../../shared/time";
 import type { SpendWords } from "../../workspace/billing";
 

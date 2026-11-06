@@ -36,7 +36,7 @@ export const AREAS = [
   { key: "server", label: "the dashboard's server (apps/dashboard/src/server)", tree: "apps/dashboard/src/server" },
 ];
 
-export const FLOORS = "tooling/scripts/tests/baselines/coverage.json";
+export const FLOORS = "tests/baselines/coverage.json";
 /** How far under the last measure a floor sits, in points: V8 on another platform or version counts a line differently. */
 export const SLACK = 2;
 

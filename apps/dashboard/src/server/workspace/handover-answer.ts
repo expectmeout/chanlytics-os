@@ -5,11 +5,11 @@
  * (handover.ts), and, once accepted, the owner's address on the workspace's alert list (first-alert.ts).
  */
 import { acceptHandover, declineHandover } from "@chanlytics/db";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 import { workspaceBegun } from "@/server/workspace/workspace-create";
 import { handoverRefusal } from "@/server/workspace/handover";
-import type { RouteContext } from "@/server/with-route";
-import type { Params } from "@/server/route";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Params } from "@/server/shared/route";
 
 export async function acceptHandoverOf(
   ctx: RouteContext & { params: Params },

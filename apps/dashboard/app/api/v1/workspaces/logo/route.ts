@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { LOGO_BASE64_MAX, LOGO_WORDS } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { removeLogo, saveLogo } from "@/server/workspace/logo/logo";
 
 /**

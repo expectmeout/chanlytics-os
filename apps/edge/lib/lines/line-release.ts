@@ -28,14 +28,14 @@ import {
   type EdgeErrorCode,
   type LineReleaseBilling,
   type LineReleaseWarned,
-} from "../packages/contracts.js";
-import { deletePhoneNumber, TwilioError, type ProviderAccount, type RetellConfig } from "../packages/channels.js";
-import { dropLineCredentials, emitEvent, tenantDb } from "../packages/db.js";
+} from "@chanlytics/contracts";
+import { deletePhoneNumber, TwilioError, type ProviderAccount, type RetellConfig } from "@chanlytics/channels";
+import { dropLineCredentials, emitEvent, tenantDb } from "@chanlytics/db";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import type { Logger } from "../log.js";
+import type { Database } from "@chanlytics/db";
+import type { Logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];

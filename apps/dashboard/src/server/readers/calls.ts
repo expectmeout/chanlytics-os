@@ -1,6 +1,6 @@
 import "server-only";
 import { addressOf, callerName, type CallDto } from "@chanlytics/contracts";
-import { CALL_COLUMNS, listedCall, toCallDto } from "../dto";
+import { CALL_COLUMNS, listedCall, toCallDto } from "../conversations/dto";
 import { stamp, type Reader, type RowRef } from "./index";
 import { isGoing } from "../people/going";
 

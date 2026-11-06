@@ -19,7 +19,7 @@
  *
  * No environment: the secret, the claims and the time (`nowMs`, Date.now() unless a test gives one) are arguments, and
  * the nonce is the one thing it draws at random (randomBytes). The dashboard signs
- * (src/server/edge.ts); the edge verifies (lib/admin-auth.ts); one test signs
+ * (src/server/shared/edge.ts); the edge verifies (lib/shared/admin-auth.ts); one test signs
  * with one and verifies with the other.
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";

@@ -19,8 +19,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
-import type { Database, Json } from "../packages/db.js";
-import { emitEvent, keepChannelStanding, setTemplateQuality } from "../packages/db.js";
+import type { Database, Json } from "@chanlytics/db";
+import { emitEvent, keepChannelStanding, setTemplateQuality } from "@chanlytics/db";
 import { mendWarnings, notify, type NotifyTarget } from "../ops/notify.js";
 import { templatesSynced } from "./template-admin.js";
 import {
@@ -36,8 +36,8 @@ import {
   type ServerNotificationKind,
   type WabaEventKind,
   MESSAGES_ROUTE,
-} from "../packages/contracts.js";
-import { logger, errField, type Logger } from "../log.js";
+} from "@chanlytics/contracts";
+import { logger, errField, type Logger } from "../shared/log.js";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function notificationsFor(

@@ -1,7 +1,7 @@
 import "server-only";
 import { AppError, MIN_MS, TRY_IT_WORDS, tryItVM, type TryItAnswer, type TryItVM } from "@chanlytics/contracts";
-import { callEdge, edgeConfigured, edgeReasonOf } from "../edge";
-import { log } from "../log";
+import { callEdge, edgeConfigured, edgeReasonOf } from "../shared/edge";
+import { log } from "../shared/log";
 
 /**
  * Settings › How it answers, Try it: a message an owner writes as a customer would, answered by the receptionist as it

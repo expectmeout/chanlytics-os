@@ -28,7 +28,7 @@ import { escalations } from "./escalations";
 import { calls } from "./calls";
 import { searches } from "./searches";
 import { previewsTried } from "./leads";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 interface TodayRead {
   metrics: MetricsSummaryDto;

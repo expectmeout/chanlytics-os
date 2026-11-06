@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { PartnerPayoutSchema } from "@chanlytics/contracts";
-import { platformPartnerPayout } from "@/server/platform/platform";
+import { platformPartnerPayout } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/partners/payout — record a payout sent to a partner by hand (decision 0012, P5).

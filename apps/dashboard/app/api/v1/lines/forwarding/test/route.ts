@@ -1,6 +1,6 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { AppError, isUuid } from "@chanlytics/contracts";
-import { dbRefusal } from "@/server/with-route";
+import { dbRefusal } from "@/server/shared/with-route";
 
 /**
  * POST /api/v1/lines/forwarding/test — {line_id}: open the 30-minute test

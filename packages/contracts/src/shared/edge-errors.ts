@@ -7,7 +7,7 @@
  * sentence nor the database's own words stand where a caller expects a code.
  *
  * The edge's `json` and `refuse` (apps/edge/lib/http.ts) take a body whose `error` is an `EdgeErrorCode`, so a code
- * outside the list is a type error wherever a door answers; tooling/scripts/tests/edge/error-codes.test.mjs holds the
+ * outside the list is a type error wherever a door answers; tests/edge/error-codes.test.mjs holds the
  * list to the edge both ways, over the syntax tree: a code a refusal answers and not here, a code here that no refusal
  * answers, a refusal whose code is a value handed on and not named in its register, a sentence in an `error`. Sorted,
  * so two changes that add a code each land in different places. A new code is snake_case and names its domain first
@@ -185,7 +185,7 @@ export type EdgeErrorCode = (typeof EDGE_ERROR_CODES)[number];
 /**
  * The codes the dashboard's own side of an edge call answers with when no door answered: the call was never made
  * (`no_edge_credential`, this deployment holds nothing the edge honours; `preview`, a preview never calls a live
- * provider) or never came back (`edge_timeout`, `edge_unreachable`; apps/dashboard/src/server/edge.ts callEdge). No
+ * provider) or never came back (`edge_timeout`, `edge_unreachable`; apps/dashboard/src/server/shared/edge.ts callEdge). No
  * edge door answers one, so they are not EDGE_ERROR_CODES; they are named here so the dashboard reads every code an
  * answer can carry from one union.
  */

@@ -6,7 +6,7 @@
  * the turn and the turn that is told it. Pure, and read in the browser.
  */
 import type { AskCardSheet, AskMessageVM, AskProposal, AskProposalOutcome } from "../../ask/ask";
-import { rec } from "../../ask-proposals/spec";
+import { rec } from "../../ask/proposals/spec";
 import type { LeadPlanFacts } from "../lead-dtos";
 import { leadPlanAsk, leadPlanFactLine } from "../lead-plan";
 import { peoplePlanAsk, peoplePlanFactLine, peoplePlanOf, peoplePlanRows, type PeopleMonth } from "./people-plan";

@@ -15,7 +15,7 @@ import {
   groupMessages,
   messageRowsOf,
   toConversationDto,
-} from "../dto";
+} from "../conversations/dto";
 import { stillListed } from "../people/going";
 import { seenOfPeople } from "../people/person-seen";
 import { stamp, type Reader, type ReaderContext, type RowRef } from "./index";

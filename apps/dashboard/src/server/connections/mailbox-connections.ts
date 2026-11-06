@@ -39,12 +39,12 @@ import {
   verifyState,
   STATE_TTL_MS,
 } from "@chanlytics/channels";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { deployment } from "../env";
-import { log } from "../log";
-import { serviceDbIfConfigured } from "../service-db";
-import { memberContext, type RouteContext } from "../with-route";
-import type { Member } from "../route";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../shared/edge";
+import { deployment } from "../shared/env";
+import { log } from "../shared/log";
+import { serviceDbIfConfigured } from "../shared/service-db";
+import { memberContext, type RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
 
 /** The workspace's mailboxes, removed ones aside, oldest first, as the pages are told of them. */

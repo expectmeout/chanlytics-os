@@ -36,9 +36,9 @@ import {
   updatePlaybook,
   writePlaybookChange,
 } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
-import { jsonBody } from "@/server/request-guards";
-import { recordDecision, type playbookScope } from "@/server/verbs";
+import { serviceDb } from "@/server/shared/service-db";
+import { jsonBody } from "@/server/shared/request-guards";
+import { recordDecision, type playbookScope } from "@/server/shared/verbs";
 import {
   checkPlaybookChannelsInput,
   checkPlaybookInput,
@@ -48,9 +48,9 @@ import {
 } from "@/server/campaigns/playbooks";
 import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
 import { withStarterMessage } from "@/server/campaigns/starter-templates";
-import { unwrittenPlaceOf } from "@/server/sequences/lead-chain";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import { unwrittenPlaceOf } from "@/server/campaigns/sequences/lead-chain";
+import type { Member } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /** The playbook a playbookScope route acts on, as the scope read it. */
 type PlaybookRow = Awaited<ReturnType<typeof playbookScope.load>>;

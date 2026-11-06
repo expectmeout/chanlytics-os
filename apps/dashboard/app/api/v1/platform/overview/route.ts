@@ -1,7 +1,7 @@
-import { read, platform } from "@/server/route";
-import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/platform/platform";
-import { platformSpeed, platformVitals } from "@/server/platform/vitals";
-import { platformDays } from "@/server/platform/day-counts";
+import { read, platform } from "@/server/shared/route";
+import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/console/platform";
+import { platformSpeed, platformVitals } from "@/server/console/vitals";
+import { platformDays } from "@/server/console/day-counts";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.

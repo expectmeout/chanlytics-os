@@ -1,6 +1,6 @@
 import { approveRun } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { broadcastScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { broadcastScope } from "@/server/shared/verbs";
 import { approveRunPorts } from "@/server/ports/campaign-ports";
 
 /**

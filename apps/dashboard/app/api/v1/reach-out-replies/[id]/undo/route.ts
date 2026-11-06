@@ -1,5 +1,5 @@
-import { write } from "@/server/route";
-import { reachOutReplyScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { reachOutReplyScope } from "@/server/shared/verbs";
 import { undoReading } from "@/server/campaigns/reach-out-replies";
 
 /**

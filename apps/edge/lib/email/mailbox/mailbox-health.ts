@@ -10,7 +10,7 @@
  *
  * Each is its own small write, so one that fails is logged and the others still land; the next tick tries again.
  */
-import { DAY_MS, HOUR_MS, mailboxHoldOf } from "../../packages/contracts.js";
+import { DAY_MS, HOUR_MS, mailboxHoldOf } from "@chanlytics/contracts";
 import {
   emitEvent,
   mailboxCapacityOf,
@@ -18,10 +18,10 @@ import {
   patchMailboxConnection,
   type Database,
   type MailboxConnectionRow,
-} from "../../packages/db.js";
+} from "@chanlytics/db";
 import { readMailboxDns } from "./mailbox-dns.js";
 import { tellHeld } from "./mailbox-notices.js";
-import { errField, type Logger } from "../../log.js";
+import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

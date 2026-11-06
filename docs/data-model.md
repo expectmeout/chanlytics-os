@@ -9,81 +9,81 @@ dumped from a replay of every migration, which also holds the functions, trigger
 leaves out, and every policy's expression in full. A partition is listed under its parent.
 
 After a migration, with `supabase start` running: `corepack pnpm gen:schema-snapshot`, then
-`corepack pnpm gen:data-model`. `tooling/scripts/tests/docs/data-model.test.mjs` fails when this page is not
+`corepack pnpm gen:data-model`. `tests/docs/data-model.test.mjs` fails when this page is not
 what the script writes.
 
 ## Owners
 
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
-| [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
-| [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/anthropic-profiles.ts` | on, no policy, so only the service role reaches it |
+| [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/ai-usage.ts` | on, 1 policy |
+| [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
-| [`appointments`](#appointments) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
 | [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
 | [`ask_memory_lines`](#ask_memory_lines) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | `packages/db/src/repositories/ask/mornings.ts` | on, 4 policies |
 | [`ask_mornings`](#ask_mornings) | `packages/db/src/repositories/ask/mornings.ts` | on, 1 policy |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
-| [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
-| [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/repositories/ask/ask-voice-session.ts` | on, 4 policies |
+| [`billing_accounts`](#billing_accounts) | `packages/db/src/repositories/ai/ai-usage.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/workspace/control-plane.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
 | [`business_reads`](#business_reads) | `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
-| [`business_records`](#business_records) | `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
-| [`calls`](#calls) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
+| [`business_records`](#business_records) | `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/lines/lines.ts`, `packages/db/src/repositories/workspace/control-plane.ts` | on, 1 policy |
+| [`calls`](#calls) | `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`client_errors`](#client_errors) | `packages/db/src/repositories/console/health.ts` | on, no policy, so only the service role reaches it |
-| [`contact_identities`](#contact_identities) | `packages/db/src/erasure/legs.ts`, `packages/db/src/repositories/channels/instagram.ts` | on, 1 policy |
+| [`contact_identities`](#contact_identities) | `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/erasure/legs.ts` | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`contacts`](#contacts) | `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
 | [`conversation_channel_state`](#conversation_channel_state) | none | on, 1 policy |
 | [`conversation_drafts`](#conversation_drafts) | `packages/db/src/repositories/ask/reply-drafts.ts` | on, 1 policy |
-| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
-| [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`decisions`](#decisions) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequence-makes.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/waiting-on-you.ts` | on, 2 policies |
+| [`conversations`](#conversations) | `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/conversations/control.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/conversations/waiting-on-you.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 2 policies |
+| [`deals`](#deals) | `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/deals/deals.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
+| [`decisions`](#decisions) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequence-makes.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/conversations/waiting-on-you.ts`, `packages/db/src/repositories/people/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
-| [`escalations`](#escalations) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
-| [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
+| [`escalations`](#escalations) | `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/conversations/waiting-on-you.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 2 policies |
+| [`event_deliveries`](#event_deliveries) | `packages/db/src/repositories/events/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
-| [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
-| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
+| [`event_subscriptions`](#event_subscriptions) | `packages/db/src/repositories/events/events.ts` | on, no policy, so only the service role reaches it |
+| [`events`](#events) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/fact-suggestions.ts` | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/files/files.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
-| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
+| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
+| [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/conversations/idempotency.ts` | on, 1 policy |
 | [`imports`](#imports) | `packages/db/src/repositories/imports/ledger.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
-| [`job_kinds`](#job_kinds) | `packages/db/src/jobs.ts` | on, no policy, so only the service role reaches it |
-| [`jobs`](#jobs) | `packages/db/src/erasure/legs.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
+| [`job_kinds`](#job_kinds) | `packages/db/src/repositories/jobs/jobs.ts` | on, no policy, so only the service role reaches it |
+| [`jobs`](#jobs) | `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/jobs/jobs.ts` | on, no policy, so only the service role reaches it |
 | [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
 | [`lead_judgments`](#lead_judgments) | none | on, no policy, so only the service role reaches it |
 | [`lead_niche_priors`](#lead_niche_priors) | none | on, no policy, so only the service role reaches it |
 | [`lead_operations`](#lead_operations) | none | on, 1 policy |
-| [`lead_places`](#lead_places) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
-| [`lead_platform`](#lead_platform) | `packages/db/src/repositories/leads.ts` | on, no policy, so only the service role reaches it |
+| [`lead_places`](#lead_places) | `packages/db/src/repositories/leads/leads.ts` | on, 1 policy |
+| [`lead_platform`](#lead_platform) | `packages/db/src/repositories/leads/leads.ts` | on, no policy, so only the service role reaches it |
 | [`lead_preferences`](#lead_preferences) | none | on, 1 policy |
 | [`lead_previews`](#lead_previews) | `packages/db/src/repositories/campaigns/lead-previews.ts` | on, 1 policy |
-| [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
+| [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads/leads.ts` | on, 1 policy |
 | [`lead_runs`](#lead_runs) | none | on, 1 policy |
 | [`lead_search_members`](#lead_search_members) | none | on, 1 policy |
-| [`lead_searches`](#lead_searches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/reach-out-leads.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 1 policy |
+| [`lead_searches`](#lead_searches) | `packages/db/src/repositories/campaigns/reach-out/reach-out-leads.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/events/events.ts` | on, 1 policy |
 | [`lead_suggestions`](#lead_suggestions) | none | on, 1 policy |
-| [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
-| [`leads`](#leads) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
-| [`mailbox_connections`](#mailbox_connections) | `packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts` | on, 1 policy |
-| [`mailbox_left`](#mailbox_left) | `packages/db/src/repositories/mailboxes/senders.ts` | on, 1 policy |
-| [`mailbox_sender_reads`](#mailbox_sender_reads) | `packages/db/src/repositories/mailboxes/senders.ts` | on, 1 policy |
-| [`mailbox_senders`](#mailbox_senders) | `packages/db/src/repositories/mailboxes/senders.ts` | on, 1 policy |
-| [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
-| [`memberships`](#memberships) | `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notices/member-alerts.ts` | on, 2 policies |
-| [`messages`](#messages) | `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
+| [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/campaigns/reach-out/outreach.ts` | on, 1 policy |
+| [`leads`](#leads) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
+| [`lines`](#lines) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/lines/lines.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 1 policy |
+| [`mailbox_connections`](#mailbox_connections) | `packages/db/src/repositories/email/connections.ts`, `packages/db/src/repositories/email/sync.ts` | on, 1 policy |
+| [`mailbox_left`](#mailbox_left) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
+| [`mailbox_sender_reads`](#mailbox_sender_reads) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
+| [`mailbox_senders`](#mailbox_senders) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
+| [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email/email.ts` | on, 1 policy |
+| [`memberships`](#memberships) | `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane.ts` | on, 2 policies |
+| [`messages`](#messages) | `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/reconcile.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/email/sync.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/jobs/jobs.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
 | [`notification_marks`](#notification_marks) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
@@ -92,51 +92,51 @@ what the script writes.
 | [`operator_pages`](#operator_pages) | `packages/db/src/repositories/console/health.ts` | on, no policy, so only the service role reaches it |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
 | [`partner_earnings`](#partner_earnings) | none | on, 1 policy |
-| [`partner_invitations`](#partner_invitations) | `packages/db/src/repositories/partner.ts` | on, 1 policy |
+| [`partner_invitations`](#partner_invitations) | `packages/db/src/repositories/partners/partner.ts` | on, 1 policy |
 | [`partner_payouts`](#partner_payouts) | none | on, 1 policy |
 | [`partner_reversals_waiting`](#partner_reversals_waiting) | none | on, no policy, so only the service role reaches it |
-| [`partner_tenants`](#partner_tenants) | `packages/db/src/repositories/partner.ts` | on, 2 policies |
-| [`partners`](#partners) | `packages/db/src/repositories/partner.ts` | on, 1 policy |
-| [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people.ts` | on, 1 policy |
-| [`person_moments`](#person_moments) | `packages/db/src/repositories/people.ts` | on, 1 policy |
-| [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`partner_tenants`](#partner_tenants) | `packages/db/src/repositories/partners/partner.ts` | on, 2 policies |
+| [`partners`](#partners) | `packages/db/src/repositories/partners/partner.ts` | on, 1 policy |
+| [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
+| [`person_moments`](#person_moments) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
+| [`person_notes`](#person_notes) | `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
 | [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
-| [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
-| [`policies`](#policies) | `packages/db/src/erasure/legs.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 5 policies |
+| [`platform_metrics`](#platform_metrics) | `packages/db/src/repositories/console/ops.ts` | on, no policy, so only the service role reaches it |
+| [`policies`](#policies) | `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 5 policies |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
 | [`profiles`](#profiles) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/console/support.ts` | on, 1 policy |
-| [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
+| [`provider_events`](#provider_events) | `packages/db/src/repositories/events/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
 | [`rehearsals`](#rehearsals) | `packages/db/src/repositories/facts/rehearsals.ts` | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
-| [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 3 policies |
-| [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 4 policies |
-| [`sequence_batches`](#sequence_batches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`segment_members`](#segment_members) | `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 3 policies |
+| [`segments`](#segments) | `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 4 policies |
+| [`sequence_batches`](#sequence_batches) | `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/touches.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
 | [`sequence_enrollments`](#sequence_enrollments) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
 | [`sequence_lead_words`](#sequence_lead_words) | `packages/db/src/repositories/campaigns/lead-words.ts` | on, 1 policy |
-| [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
-| [`sequence_steps`](#sequence_steps) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
+| [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
+| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/touches.ts`, `packages/db/src/repositories/email/reconcile.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 2 policies |
+| [`sequence_steps`](#sequence_steps) | `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/jobs/sweeps.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 4 policies |
 | [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 2 policies |
-| [`setup_choices`](#setup_choices) | `packages/db/src/repositories/control-plane.ts` | on, 1 policy |
+| [`setup_choices`](#setup_choices) | `packages/db/src/repositories/workspace/control-plane.ts` | on, 1 policy |
 | [`support_reports`](#support_reports) | `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
-| [`sweep_status`](#sweep_status) | `packages/db/src/repositories/mailboxes/reconcile.ts` | on, no policy, so only the service role reaches it |
-| [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/facts/rehearsals.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
-| [`tenant_config`](#tenant_config) | `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
+| [`sweep_status`](#sweep_status) | `packages/db/src/repositories/email/reconcile.ts` | on, no policy, so only the service role reaches it |
+| [`templates`](#templates) | `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/templates/templates.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 1 policy |
+| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/facts/rehearsals.ts`, `packages/db/src/repositories/jobs/sweeps.ts`, `packages/db/src/repositories/workspace/control-plane.ts` | on, 1 policy |
+| [`tenant_config`](#tenant_config) | `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/repositories/workspace/workspace-export.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/repositories/ai/ai-usage.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 2 policies |
 | [`voice_agents`](#voice_agents) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
-| [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
+| [`waitlist`](#waitlist) | `packages/db/src/repositories/workspace/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`workspace_notices_pending`](#workspace_notices_pending) | none | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
 
-Named in a `.from("…")` in `packages/db/src` and not a table or view here: `media` (`packages/db/src/erasure/legs.ts`, `packages/db/src/repositories/channels/instagram.ts`).
+Named in a `.from("…")` in `packages/db/src` and not a table or view here: `media` (`packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/erasure/legs.ts`).
 
 ## Tables
 
@@ -144,7 +144,7 @@ Named in a `.from("…")` in `packages/db/src` and not a table or view here: `me
 
 One row per model call the platform made for a workspace (the model port, apps/edge/lib/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).
 
-- Owned by: `packages/db/src/ai-usage.ts`
+- Owned by: `packages/db/src/repositories/ai/ai-usage.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -189,7 +189,7 @@ Foreign keys:
 
 Who Anthropic is told a model call is for (decision 0097): one row a signed-up person, one a workspace. A row whose subject went (both ids null) is the health sweep's to delete at Anthropic, then here.
 
-- Owned by: `packages/db/src/anthropic-profiles.ts`
+- Owned by: `packages/db/src/repositories/ai/anthropic-profiles.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -248,7 +248,7 @@ Foreign keys:
 
 One visit as a source stated it (decision 0002): a booking tool's notice, the calendar feed, a tool's door or a person; its client, what and with whom, and what became of it. Members read; the service role writes; the product never books.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -439,7 +439,7 @@ Foreign keys:
 
 One row per voice conversation of Ask: whose it is, its thread, the member's access token sealed under the dashboard's key, and the turn the brain door claims. The member's own under RLS; the brain door reads it on the service role (apps/dashboard/src/server/ask/voice-session.ts).
 
-- Owned by: `packages/db/src/ask-voice-session.ts`
+- Owned by: `packages/db/src/repositories/ask/ask-voice-session.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 
@@ -479,7 +479,7 @@ Foreign keys:
 
 ### billing_accounts
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/repositories/ai/ai-usage.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/workspace/control-plane.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -579,7 +579,7 @@ Foreign keys:
 
 What every carrier registration asks of a business, kept once per workspace. Members read; the edge writes.
 
-- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/lines/lines.ts`, `packages/db/src/repositories/workspace/control-plane.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -619,7 +619,7 @@ Foreign keys:
 
 ### calls
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -730,7 +730,7 @@ What a page hit in a member's browser, as the boundary that caught it reported i
 
 ### contact_identities
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/repositories/channels/instagram.ts`
+- Owned by: `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/erasure/legs.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -806,7 +806,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -924,7 +924,7 @@ Foreign keys:
 
 ### conversations
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/control.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/conversations/control.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/conversations/waiting-on-you.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -966,7 +966,7 @@ Foreign keys:
 
 One engagement a person is deciding on or has taken (0004): proposed (a proposal out), won (a client), lost (passed), ended. Written by deal_record on a person's word, an Ask card through the same route, or a payment webhook later (source); never by the receptionist. A stage is an assertion, so no guard: every move is an event and version refuses a stale press. One open engagement (proposed or won) per person per service.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/deals/deals.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1008,7 +1008,7 @@ Foreign keys:
 
 ### decisions
 
-- Owned by: `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequence-makes.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/waiting-on-you.ts`
+- Owned by: `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequence-makes.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/conversations/waiting-on-you.ts`, `packages/db/src/repositories/people/people.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1051,7 +1051,7 @@ When the stored erasure digests were re-keyed (00263 erasure_rekey): null until 
 
 ### escalations
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/conversations/waiting-on-you.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1085,7 +1085,7 @@ Foreign keys:
 
 One row per event and subscriber (decision 0032): scheduled when the relay writes it and its job, done when the subscriber ran, failed when its job gave up, paused when the subscriber was paused as it ran. event_at is the event's own clock, so relay lag is one subtraction. RLS on with no policy: the service role alone.
 
-- Owned by: `packages/db/src/events.ts`
+- Owned by: `packages/db/src/repositories/events/events.ts`
 - Primary key: `event_id`, `subscriber`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1131,7 +1131,7 @@ Foreign keys:
 
 Who reacts to an event kind (decision 0032): a subscriber's name, the lane its deliveries run in, and whether it is paused. Platform-wide rows, written by a migration or the service role; a door never names a subscriber. RLS on with no policy: the service role alone.
 
-- Owned by: `packages/db/src/events.ts`
+- Owned by: `packages/db/src/repositories/events/events.ts`
 - Primary key: `kind`, `subscriber`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1145,7 +1145,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 ### events
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`
+- Owned by: `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane.ts`
 - Primary key: `id`, `created_at`
 - Row-level security: on, 1 policy
 - Partitioned by range (created_at): `events_default` (default); and one per month, `events_yYYYYmMM`, made as the months come (not in the snapshot)
@@ -1366,7 +1366,7 @@ Foreign keys:
 
 Reviews of the workspace's listing as Google showed them, one row per review, kept from the first time it was seen. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1402,7 +1402,7 @@ Foreign keys:
 
 ### idempotency_keys
 
-- Owned by: `packages/db/src/repositories/idempotency.ts`
+- Owned by: `packages/db/src/repositories/conversations/idempotency.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1492,7 +1492,7 @@ Foreign keys:
 
 One row a job kind (00526, decision 0089): the lane a claim takes it in (0 a reply, 1 someone waiting who is not a customer, 2 bulk), its once-only rule and its pause. jobs.kind references it. packages/jobs KIND_POLICY says the rest, and jobs/job-kinds.test.mjs holds the two equal. The service role's alone.
 
-- Owned by: `packages/db/src/jobs.ts`
+- Owned by: `packages/db/src/repositories/jobs/jobs.ts`
 - Primary key: `kind`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1508,7 +1508,7 @@ One row a job kind (00526, decision 0089): the lane a claim takes it in (0 a rep
 
 ### jobs
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/jobs/jobs.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1635,7 +1635,7 @@ Foreign keys:
 
 A duplicate listing (the same name, address and phone) folded into the lead already held, so rediscovery maps back (E6).
 
-- Owned by: `packages/db/src/repositories/leads.ts`
+- Owned by: `packages/db/src/repositories/leads/leads.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1662,7 +1662,7 @@ Foreign keys:
 
 One row. searches_on is the kill switch for every workspace; tenants_on lists the workspaces that may search while it is off (release A's internal runs). Read through lead_searches_on(); written by hand.
 
-- Owned by: `packages/db/src/repositories/leads.ts`
+- Owned by: `packages/db/src/repositories/leads/leads.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1756,7 +1756,7 @@ Foreign keys:
 
 The unit of execution and of money: the probe (seq 1), each top-up and each Find new ones. Carries the plan it ran, its reservation and spend, one ending; final once ended (lead_rounds_guard). The search's state is its latest round's.
 
-- Owned by: `packages/db/src/repositories/leads.ts`
+- Owned by: `packages/db/src/repositories/leads/leads.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1890,7 +1890,7 @@ Foreign keys:
 
 The saved object: who was asked for, in the owner's words, and the current plan. No state and no counters: lead_searches_view derives both from the rounds and the members.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/reach-out-leads.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/reach-out-sheet.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out/reach-out-leads.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/events/events.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1952,7 +1952,7 @@ Foreign keys:
 
 By what happened (S8): an email opt-out stops email to that address (calls stay); a customer is hidden from every search; an erasure hides the place, the number and the address for good; a reply read as no (Reach out Part 5) stops the address that said it and, when it is the business's own, the domain (kind domain, the hash of the part after the "@", N6). A bounce is email_state = invalid on the lead, never a row here. The hash is lead_suppression_hash(). The send door's facts, the audience and the finder ask an address through lead_addresses_suppressed.
 
-- Owned by: `packages/db/src/repositories/outreach.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out/outreach.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1977,7 +1977,7 @@ Foreign keys:
 
 A place: one physical location, outside contacts. Unique by place id in the workspace; a shared phone, email or website is looked up and marked on the member, never merged (25). Stage is the relationship; class lives on the membership.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2056,7 +2056,7 @@ Foreign keys:
 
 The number as an ASSET: one row per number Chanlytics bought or forwards, and the state of getting it working -- subaccount, trunk, receptionist, messaging service, carrier registration, porting, forwarding. Routing lives in tenant_channels, which this table is the source for (tenant_channels.config.line_id points back here). A number provisioned elsewhere -- inside Retell, or a WhatsApp number through Meta -- has a channel row and no row here.
 
-- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/lines/lines.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2107,7 +2107,7 @@ Foreign keys:
 
 A mailbox a business connected to write from (decision 0056): its provider (google or microsoft), its address and the name it sends as, its state, its day (the owner's cap, the ramp's clock, the provider's own limit), its domain's DNS, the sync's cursor and watch. Tokens are in Vault (put/get/drop_mailbox_credentials), never here. Members read; the service role writes. One live row per address across every workspace.
 
-- Owned by: `packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts`
+- Owned by: `packages/db/src/repositories/email/connections.ts`, `packages/db/src/repositories/email/sync.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2165,7 +2165,7 @@ Foreign keys:
 
 What a connected mailbox left where it was, one row a sender (00483): the name it gave, why (the latest), how many, first and last. Members read; the edge writes through mailbox_left_note.
 
-- Owned by: `packages/db/src/repositories/mailboxes/senders.ts`
+- Owned by: `packages/db/src/repositories/email/senders.ts`
 - Primary key: `tenant_id`, `address`
 - Row-level security: on, 1 policy
 
@@ -2191,7 +2191,7 @@ Foreign keys:
 
 What Chanlytics read a sender of mail to a connected mailbox to be, one row a sender (00495, decision 0080): inquiry or person (their mail comes in), pitch, notice or relayed (it stays in the mailbox), and in under twelve words what they wanted. What the workspace said (mailbox_senders) comes first. Members read; the edge writes as the service role.
 
-- Owned by: `packages/db/src/repositories/mailboxes/senders.ts`
+- Owned by: `packages/db/src/repositories/email/senders.ts`
 - Primary key: `tenant_id`, `address`
 - Row-level security: on, 1 policy
 
@@ -2215,7 +2215,7 @@ Foreign keys:
 
 What the workspace said of a sender of mail to its connected mailbox (00483): an address, or every address at a domain, is automated (its mail stays in the mailbox) or a person (its mail comes in whatever it looks like). Members read; mailbox_sender_sort writes.
 
-- Owned by: `packages/db/src/repositories/mailboxes/senders.ts`
+- Owned by: `packages/db/src/repositories/email/senders.ts`
 - Primary key: `tenant_id`, `sender`
 - Row-level security: on, 1 policy
 
@@ -2240,7 +2240,7 @@ Foreign keys:
 
 A workspace's email address on the platform's mail domain, its reply route, and how much the receptionist may do with an email. Members read; the service role writes.
 
-- Owned by: `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts`
+- Owned by: `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email/email.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2275,7 +2275,7 @@ Foreign keys:
 
 ### memberships
 
-- Owned by: `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notices/member-alerts.ts`
+- Owned by: `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -2301,7 +2301,7 @@ Foreign keys:
 
 ### messages
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/mailboxes/senders.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/conversations/ingest.ts`, `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/reconcile.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/email/sync.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/jobs/jobs.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -2542,7 +2542,7 @@ Foreign keys:
 
 A workspace's owner asking a partner to join it (0018): one open invitation per workspace, fourteen days. Accepted, it becomes the workspace's partner_tenants row (origin invite) and is removed.
 
-- Owned by: `packages/db/src/repositories/partner.ts`
+- Owned by: `packages/db/src/repositories/partners/partner.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -2616,7 +2616,7 @@ A refund or dispute of an invoice whose share is not written yet (0012): applied
 
 Which partner brought this workspace (0012), one row per workspace and never moved to another partner: through their link when it was made, set up and handed over (0016), or asked for by its owner (0018), as origin says. standing is what the sweep, a person, or the rule as an invited partner joined decided about it; null until one has.
 
-- Owned by: `packages/db/src/repositories/partner.ts`
+- Owned by: `packages/db/src/repositories/partners/partner.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 2 policies
 
@@ -2658,7 +2658,7 @@ Foreign keys:
 
 A partner (0012): a person who brings workspaces to Chanlytics through their link, sets them up as a member of their team, and earns share_bp of what each pays. One per account.
 
-- Owned by: `packages/db/src/repositories/partner.ts`
+- Owned by: `packages/db/src/repositories/partners/partner.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2696,7 +2696,7 @@ Foreign keys:
 
 The queue in front of merge_people (decision 0034, step 4): two living records one identity could belong to, written by resolve_person once per pair (the lower id first), open until an owner merges them (00326) or a member says they are not the same (person_doubt_dismiss). Never the identity itself: `seen` says which of the three it was. An erasure takes every row that names the person; a merge settles the pair and moves the merged record's other doubts onto the kept one.
 
-- Owned by: `packages/db/src/repositories/people.ts`
+- Owned by: `packages/db/src/repositories/people/people.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2726,7 +2726,7 @@ Foreign keys:
 
 Each person's moments, kept as their messages and calls are written (0021): when they were last in touch, which orders People, and when they first got in touch, which says who is new. Written only by the triggers on contacts, messages and calls, and by the fill.
 
-- Owned by: `packages/db/src/repositories/people.ts`
+- Owned by: `packages/db/src/repositories/people/people.ts`
 - Primary key: `contact_id`
 - Row-level security: on, 1 policy
 
@@ -2757,7 +2757,7 @@ Foreign keys:
 
 A person's notes (0007), one row each: the words, who wrote them (a member, or the receptionist), when, the member they are for, and whether they are for the team only. The receptionist reads kept notes that are not team_only; its own notes are suggested until a member keeps them. Written only by the person_note_* doors. Never sent to the customer.
 
-- Owned by: `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/conversations/thread.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2871,7 +2871,7 @@ Foreign keys:
 
 One UTC day of one workspace, counted (00277): messages in and out by channel, customers' messages (asks) and how many got an answer from anyone, the receptionist's replies answered, held and handed off, its 95th-percentile latency, sends that failed by outcome, and model tokens. Rolled up nightly (platform_metrics_roll); service role only, read by the back office.
 
-- Owned by: `packages/db/src/ops.ts`
+- Owned by: `packages/db/src/repositories/console/ops.ts`
 - Primary key: `tenant_id`, `day`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -2908,7 +2908,7 @@ Foreign keys:
 
 ### policies
 
-- Owned by: `packages/db/src/erasure/legs.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 5 policies
 
@@ -2992,7 +2992,7 @@ Foreign keys:
 
 Every verified delivery a provider made to a door, as it came, under the provider's own id (decision 0032): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.
 
-- Owned by: `packages/db/src/provider-events.ts`
+- Owned by: `packages/db/src/repositories/events/provider-events.ts`
 - Primary key: `provider`, `provider_event_id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -3132,7 +3132,7 @@ Foreign keys:
 
 ### segment_members
 
-- Owned by: `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `segment_id`, `contact_id`
 - Row-level security: on, 3 policies
 
@@ -3159,7 +3159,7 @@ Foreign keys:
 
 ### segments
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 
@@ -3190,7 +3190,7 @@ Foreign keys:
 
 Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00440): a step's run for a day (run_for), or a one-off's only batch.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/touches.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3303,7 +3303,7 @@ Foreign keys:
 
 Decision 0060: one reading of one reply to a sequence's send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.
 
-- Owned by: `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `message_id`
 - Row-level security: on, 1 policy
 
@@ -3364,7 +3364,7 @@ Foreign keys:
 
 Decision 0060: one message of a sequence to one person. A customer's (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead's (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox's day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team. A lead's own email (00540) has no sequence, batch or step: a member pressed Send, or said they sent it; it is born queued or sent, the mailbox's day counts it and a reply finds it.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequence-waiting.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/touches.ts`, `packages/db/src/repositories/email/reconcile.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -3429,7 +3429,7 @@ Foreign keys:
 
 Decision 0060: each step of a sequence in its place (playbooks until 00440). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/jobs/sweeps.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 
@@ -3533,7 +3533,7 @@ Foreign keys:
 
 What the first run chose for the workspace (00513, decision 0091): the number and how calls reach it (phone, contracts SetupPhoneWant), where WhatsApp answers, and the marks that say a step was done (marks: receptionist-met, rehearse-skipped, channels-seen). One row a workspace; members read it, setup_choice_set writes it, and the edge reads it to buy the number once the plan starts.
 
-- Owned by: `packages/db/src/repositories/control-plane.ts`
+- Owned by: `packages/db/src/repositories/workspace/control-plane.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -3589,7 +3589,7 @@ Foreign keys:
 
 One row per pg_cron -> pg_net sweep: the last request id (joins net._http_response.id), when it was enqueued, why it could not be, and when we last emailed about it being broken.
 
-- Owned by: `packages/db/src/repositories/mailboxes/reconcile.ts`
+- Owned by: `packages/db/src/repositories/email/reconcile.ts`
 - Primary key: `sweep`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -3610,7 +3610,7 @@ One row per pg_cron -> pg_net sweep: the last request id (joins net._http_respon
 
 ### templates
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out/reach-out-sheet.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/templates/templates.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3650,7 +3650,7 @@ Foreign keys:
 
 The ROUTING table: one row per thing an inbound webhook must resolve to a workspace. A voice row is keyed on the receptionist (external_id = agent id) so several numbers may share one; an sms or whatsapp row is keyed on the number, because a message arrives addressed to one. config.line_id names the lines row that created it, when a line did -- numbers provisioned inside Retell or through Meta legitimately have none. See public.number_drift() for what disagreement between the two looks like.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/facts/rehearsals.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/facts/rehearsals.ts`, `packages/db/src/repositories/jobs/sweeps.ts`, `packages/db/src/repositories/workspace/control-plane.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3678,7 +3678,7 @@ Foreign keys:
 
 ### tenant_config
 
-- Owned by: `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/repositories/workspace/workspace-export.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 2 policies
 
@@ -3727,7 +3727,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/repositories/ai/ai-usage.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane.ts`, `packages/db/src/shared/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -3775,7 +3775,7 @@ Foreign keys:
 
 People who asked for a workspace while sign-up was closed. Service-role only: deny-all RLS, no policies, because nobody here has a workspace to be scoped to yet. Drained oldest-first; invited_at is the stamp that takes a row out of the queue.
 
-- Owned by: `packages/db/src/waitlist.ts`
+- Owned by: `packages/db/src/repositories/workspace/waitlist.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 

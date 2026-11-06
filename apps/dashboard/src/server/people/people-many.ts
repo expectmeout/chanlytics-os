@@ -1,7 +1,7 @@
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
 import { beginPeopleErasure, setPersonReplyMode } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { recordDecision } from "@/server/verbs";
+import type { RouteContext } from "@/server/shared/with-route";
+import { recordDecision } from "@/server/shared/verbs";
 import { NO_ADDRESS_TO_SORT } from "@/server/connections/mailbox-senders";
 
 /**

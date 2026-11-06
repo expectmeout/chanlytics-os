@@ -18,7 +18,7 @@ import {
   MIN_MS,
   reasonShort,
   type EscalationReason,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 
 /**
  * The written channels a thread is answered on. Declared here rather than

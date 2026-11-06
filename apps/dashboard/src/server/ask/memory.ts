@@ -20,12 +20,12 @@ import {
   type AskScope,
   type AskTurnShape,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 import { answerLine, titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
 import { createThread, readRaws, readThread } from "./store";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
 import type { Msg, TurnInput } from "./loop";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * The earlier turns a cold question is asked with: counted as turns -- a person's message and what follows it until the

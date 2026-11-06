@@ -65,16 +65,16 @@ import {
   type AppointmentRow,
 } from "@chanlytics/db";
 import { hostedAddress } from "@chanlytics/channels";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { emailDomain } from "../connections/email";
-import { tenantFacts } from "@/server/tenant";
+import { tenantFacts } from "@/server/shared/tenant";
 import { everyone } from "@/server/people/people";
 import { readSettings } from "./calendar-settings";
 import { storedConfigOf } from "@/server/workspace/config-row";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { boardVisits, poolRecordOf } from "./people-visits";
 import { recordBusy } from "./record-busy";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * The calendar as the receptionist reads it, for one span of days.

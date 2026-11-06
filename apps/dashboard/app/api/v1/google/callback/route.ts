@@ -1,4 +1,4 @@
-import { read, account } from "@/server/route";
+import { read, account } from "@/server/shared/route";
 import { googleCallback } from "@/server/connections/google-actions";
 
 /**

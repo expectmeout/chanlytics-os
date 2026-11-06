@@ -1,7 +1,7 @@
 import "server-only";
 import { listPolicies } from "@chanlytics/db";
 import { configRowOf } from "../workspace/config-row";
-import { tenantFacts } from "../tenant";
+import { tenantFacts } from "../shared/tenant";
 import { appointmentWordRead, hasDealsRead } from "../people/deals";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { FACTS_READER, load, stamp, type Reader, type ReaderContext } from "./index";

@@ -37,11 +37,11 @@ import {
   memberViewsOf,
   type Json,
 } from "@chanlytics/db";
-import type { RouteContext } from "../../with-route";
-import type { Member } from "../../route";
-import { env } from "../../env";
-import { log } from "../../log";
-import { serviceDb } from "../../service-db";
+import type { RouteContext } from "../../shared/with-route";
+import type { Member } from "../../shared/route";
+import { env } from "../../shared/env";
+import { log } from "../../shared/log";
+import { serviceDb } from "../../shared/service-db";
 import { load, readerContext, type ReaderContext } from "../../readers";
 import { editedSince } from "../tools/read/sequences";
 import * as readers from "../../readers/facts";
@@ -50,7 +50,7 @@ import { finishAskTurn, prepareAskTurn } from "../turn";
 import { findingCards, sequencesAndRuns } from "./findings";
 
 /**
- * Ask speaks first (decision 0070; contracts ask-memory/morning.ts says what Today shows): once a day, when a member who
+ * Ask speaks first (decision 0070; contracts ask/memory/morning.ts says what Today shows): once a day, when a member who
  * acts arrives on Today, the page asks for the morning (POST ask/morning). The day is claimed through the morning's door,
  * once a member a day; the call that wins runs one Ask turn as the member, after the response has gone, in a thread of
  * their own titled with the day, asking ASK_MORNING_QUESTION in the member's language; then the door records how many

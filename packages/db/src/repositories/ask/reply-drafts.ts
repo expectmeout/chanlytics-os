@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { answerWireOf, isOptedOutContact, REACH_OUT_REPLY_DAYS, type MessageDto } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
-import { reachOutReplyOf } from "../outreach";
+import { reachOutReplyOf } from "../campaigns/reach-out/outreach";
 
 type Db = SupabaseClient<Database>;
 

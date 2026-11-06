@@ -9,7 +9,7 @@
  * pure helpers the saga and the endpoint share.
  */
 import { randomInt } from "node:crypto";
-import type { SendOutcome } from "../provider-fetch";
+import type { SendOutcome } from "../shared/provider-fetch";
 
 export type LineProviderName = "twilio" | "dry";
 

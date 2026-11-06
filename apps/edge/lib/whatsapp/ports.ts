@@ -19,18 +19,18 @@
  * has always been.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { pg } from "../pg.js";
-import { readLeadContext, personReplyMode, offersAnswerOf, describeLead, filedNamesOf } from "../packages/db.js";
-import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
+import type { Database } from "@chanlytics/db";
+import { pg } from "../shared/pg.js";
+import { readLeadContext, personReplyMode, offersAnswerOf, describeLead, filedNamesOf } from "@chanlytics/db";
+import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { openingsFor, visitsFor, takesRequests, requestTermsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
 import { pgThread, pgIngest, pgSink, queueReply, replyTurn, pgAnswered } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../ops/page-operator.js";
-import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packages/core.js";
-import { logger } from "../log.js";
-import { env } from "../env.js";
+import { whatsappSender, type InboundPorts as CoreInboundPorts } from "@chanlytics/core";
+import { logger } from "../shared/log.js";
+import { env } from "../shared/env.js";
 
 export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "leads" | "filing"> {
   /** The database, or null when this deployment persists nothing. */

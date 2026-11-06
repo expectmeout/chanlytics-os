@@ -172,7 +172,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
 
 /**
  * The person a route opens (`clients/<id>`), or null. A real person's id is a uuid (the route refuses anything else,
- * server/request-guards.ts requireUuid); the mockup's seeded people are `c-…` and keep the list's gate and its seeds.
+ * server/shared/request-guards.ts requireUuid); the mockup's seeded people are `c-…` and keep the list's gate and its seeds.
  */
 export function personRouteId(page: string, param?: string | null): string | null {
   // A person's tab is their address with its word (0052): `clients/<id>/history` is still their page (personRouteOf).

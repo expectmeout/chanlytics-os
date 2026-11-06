@@ -9,11 +9,11 @@
  * the Integrations pane says so to the owner instead of drawing a button
  * that would open nothing.
  */
-import { json } from "../../../lib/http.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
+import { json } from "../../../lib/shared/http.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { GRAPH_VERSION, metaAppId } from "../../../lib/whatsapp/meta-graph.js";
-import { env } from "../../../lib/env.js";
-import { adminDoor } from "../../../lib/log.js";
+import { env } from "../../../lib/shared/env.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 
 export const GET = adminDoor(async function GET(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/signup-config");

@@ -11,14 +11,14 @@
  * the partner the workspace named. Every sentence is contracts' (partnerInviteEmail). Signed admin token only; the
  * address is never logged. The body, the workspace and the refusals around it are admin-door.ts's.
  */
-import { json } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { errorMessage, workspaceOf } from "../admin-door.js";
+import { json } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { errorMessage, workspaceOf } from "../shared/admin-door.js";
 import { platformFrom, post } from "../ops/notify.js";
-import { logger } from "../log.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
-import { getPartnerInviteMail } from "../packages/db.js";
-import { partnerInviteEmail } from "../packages/contracts.js";
+import { logger } from "../shared/log.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
+import { getPartnerInviteMail } from "@chanlytics/db";
+import { partnerInviteEmail } from "@chanlytics/contracts";
 
 export async function sendPartnerInvite(auth: Admitted, body: Partial<{ tenant_id: string }>): Promise<Response> {
   const L = logger();

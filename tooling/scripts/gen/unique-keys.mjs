@@ -4,8 +4,8 @@
  *
  * Reads each unique index and primary key on a public table (partitions left out: PostgREST hides them) from the
  * LOCAL database `supabase start` builds out of every migration, with its key columns or expressions, its predicate
- * and whether NULLs are distinct, and writes tooling/scripts/tests/_unique-keys.generated.json. The double
- * (tooling/scripts/tests/_fake-db.mjs, through _schema.mjs) refuses an insert, update or upsert that would break one,
+ * and whether NULLs are distinct, and writes tests/_unique-keys.generated.json. The double
+ * (tests/_fake-db.mjs, through _schema.mjs) refuses an insert, update or upsert that would break one,
  * as Postgres does (23505), and an upsert whose conflict target no key matches (42P10). A table's keys are listed in the
  * order Postgres checks them, its indexes' own (by OID: the order a replay made them), so where a row breaks two the
  * double names the one the database names (jobs_dedupe_live before jobs_dedupe_kept, 00333 and 00528).
@@ -26,7 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const OUT = "tooling/scripts/tests/_unique-keys.generated.json";
+export const OUT = "tests/_unique-keys.generated.json";
 
 const SQL = `
 select c.relname::text as tbl,

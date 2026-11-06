@@ -27,7 +27,7 @@ import {
   type ReachOutStepRow,
   type ReplyListRow,
 } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 import { mailboxAddressOf, replyFromOf, replyIdentitiesOf } from "../connections/email";
 
 /** A chain's name and the step's place in it, 1 for its first email, by walking back to the chain's first step. */

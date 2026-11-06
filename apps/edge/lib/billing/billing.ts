@@ -10,8 +10,8 @@
  */
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { applyBilling, emitEvent, type BillingPatch } from "../packages/db.js";
+import type { Database } from "@chanlytics/db";
+import { applyBilling, emitEvent, type BillingPatch } from "@chanlytics/db";
 import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
@@ -27,12 +27,12 @@ import {
   type SchemaSet,
   type SubscriptionFacts,
   MIN_MS,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { mendWarnings } from "../ops/notify.js";
 import { ringOnce, tellOnce } from "./billing-notices.js";
-import { logger, errField } from "../log.js";
-import { env } from "../env.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { logger, errField } from "../shared/log.js";
+import { env } from "../shared/env.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 import { checkoutKeyOf, checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
 

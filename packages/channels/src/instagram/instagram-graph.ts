@@ -15,8 +15,8 @@
  * again blind).
  */
 import { utf8Bytes } from "@chanlytics/contracts";
-import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
-import type { SendResult } from "../whatsapp";
+import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
+import type { SendResult } from "../whatsapp/whatsapp";
 
 const INSTAGRAM_GRAPH = "https://graph.instagram.com/v26.0";
 const INSTAGRAM_AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize";

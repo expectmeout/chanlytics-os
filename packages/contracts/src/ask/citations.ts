@@ -6,14 +6,14 @@
 import { addressOf } from "../activity/record-address";
 import { calendarParamParts } from "../calendar/appointment-key";
 import { JOURNEY_STAGE_IDS, type JourneyStageId } from "../journey/journey";
-import type { LifecycleGroup } from "../playbooks/lifecycle/lifecycle-types";
+import type { LifecycleGroup } from "../campaigns/playbooks/lifecycle/lifecycle-types";
 import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan";
 import { BUILTIN_LISTS } from "../people/lists/builtin-lists";
 import { parseListToken } from "../people/lists/list-token";
 import { GET_YES_ROUTE } from "../people/lists/people-route";
 import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses";
 import { retiredRouteOf } from "../shell/address";
-import { TO_SEND_ROUTE } from "../sequences/sequence-address";
+import { TO_SEND_ROUTE } from "../campaigns/sequences/sequence-address";
 
 /* ----------------------------------------------------------- the citation */
 

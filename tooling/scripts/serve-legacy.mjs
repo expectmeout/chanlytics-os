@@ -196,7 +196,7 @@ async function sampleBundle(route) {
       // The schemas a page asks for by import() (contracts' write-rules entry), bundled in, as the mockup has no chunks.
       "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/src/write-rules.ts"),
       // The kinds only Ask's cards commit (contracts' ask-only entry), which the verb walk loads by import(), the same way.
-      "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/src/ask-proposals/ask-only.ts"),
+      "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/src/ask/proposals/ask-only.ts"),
       // The pages' verb specs, which the verb walk loads by import(): the root entry's own module, so one table.
       "@chanlytics/contracts/page-specs": CONTRACTS,
       "@chanlytics/contracts": CONTRACTS,

@@ -1,0 +1,695 @@
+/**
+ * The step sheet (0007, amended; 00166): where a next step is set or changed from outside the notes card. contracts
+ * step-sheet.ts and the deal card's step (deal-sheet.ts dealStepOf), executed; then the sheet itself, drawn by the
+ * frame's host (surfaces/people/step-sheet/step-sheet.tsx) over the profile's real courier and a wire that answers
+ * the person read and the notes route: it opens where it is asked for, reads the person, says what is wrong under its
+ * field before a round trip, writes through the notes route with the version it opened over, then closes, says so and
+ * tells the page.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import * as contracts from "@chanlytics/contracts";
+import { installLegacyReact, unmount, again, settle, find, byTestId, textOf, press } from "../_legacy-react.mjs";
+
+const { STEP_SHEET_WORDS, NOTE_REFUSALS, dealStepOf, stepSheetBody, stepSheetDirty, stepSheetFor, zoneDayKey } =
+  contracts;
+const ZONE = "America/New_York";
+const H = 3_600_000;
+const D = 24 * H;
+
+/* ------------------------------------------- the rules, in contracts ------------------------------------------- */
+
+const noteVM = (id, over = {}) => ({
+  id,
+  version: 1,
+  body: `Step ${id}`,
+  step: null,
+  dealId: null,
+  forUserId: null,
+  forWho: null,
+  mine: true,
+  ...over,
+});
+const stepOn = (day, done = false) => ({
+  day: { day, due: "ahead", near: day, words: `Due ${day}` },
+  due: "ahead",
+  words: `Due ${day}`,
+  done,
+  doneWords: null,
+});
+
+test("a deal's next step is the earliest open one that names it, by day and then as written; a step about the person is never a card's", () => {
+  // The notes come newest first, as the page lists them.
+  const notes = [
+    noteVM("late", { step: stepOn("2026-10-09"), dealId: "d1" }),
+    noteVM("same-newer", { step: stepOn("2026-10-02"), dealId: "d1" }),
+    noteVM("person", { step: stepOn("2026-09-30") }),
+    noteVM("done", { step: stepOn("2026-09-29", true), dealId: "d1" }),
+    noteVM("other-deal", { step: stepOn("2026-09-28"), dealId: "d2" }),
+    noteVM("same-older", { step: stepOn("2026-10-02"), dealId: "d1", mine: false, forWho: "For Sam", version: 3 }),
+    noteVM("plain", { dealId: "d1" }),
+  ];
+  assert.deepEqual(dealStepOf(notes, "d1"), {
+    id: "same-older",
+    version: 3,
+    words: "Step same-older",
+    day: notes[5].step.day,
+    forWho: "For Sam",
+    mine: false,
+  });
+  assert.equal(dealStepOf(notes, "d2").id, "other-deal");
+  assert.equal(dealStepOf(notes, "d3"), null);
+  assert.equal(dealStepOf(notes, null), null, "a deal not yet recorded has no step");
+  assert.equal(dealStepOf(undefined, "d1"), null);
+});
+
+test("the sheet opens a new step on its deal, or a change to one of theirs with its day, and never someone else's", () => {
+  const now = Date.parse("2026-09-24T15:00:00Z");
+  const person = {
+    id: "p1",
+    name: "Tove Lind",
+    deals: [{ id: "d1", service: "Website" }],
+    noteTeam: [
+      { id: "u-me", name: "Ruben", me: true },
+      { id: "u-sam", name: "Sam", me: false },
+    ],
+    noteList: [
+      noteVM("n1", { step: stepOn("2026-09-25"), dealId: "d1", forUserId: "u-sam", version: 4 }),
+      noteVM("n-far", { step: stepOn("2026-11-02"), dealId: "d1" }),
+      noteVM("n-theirs", { step: stepOn("2026-09-25"), mine: false }),
+    ],
+  };
+  const add = stepSheetFor(person, { dealId: "d1" }, now, ZONE);
+  assert.deepEqual(
+    { mode: add.mode, title: add.title, sub: add.sub, save: add.save, note: add.note, dealId: add.dealId },
+    { mode: "add", title: "Set a next step", sub: "Tove Lind · Website", save: "Set it", note: null, dealId: "d1" },
+  );
+  assert.deepEqual(add.draft, { what: "", day: null, picking: false, forId: null, teamOnly: false });
+  assert.equal(add.kind, "step", "a deal's next step is a step: a day to pick, never No day");
+  assert.deepEqual(
+    add.team.map((m) => m.label),
+    ["Anyone on the team", "Me", "Sam"],
+  );
+  assert.deepEqual(
+    add.days.map((c) => c.label),
+    ["Today", "Tomorrow", "Next week", "Pick a day"],
+  );
+  assert.equal(stepSheetFor(person, {}, now, ZONE).sub, "Tove Lind", "a step about the person names no deal");
+
+  const edit = stepSheetFor(person, { noteId: "n1" }, now, ZONE);
+  assert.deepEqual([edit.mode, edit.title, edit.save, edit.dealId], ["edit", "Change the step", "Save", "d1"]);
+  assert.deepEqual(edit.note, { id: "n1", version: 4 });
+  assert.deepEqual(edit.draft, { what: "Step n1", day: "2026-09-25", picking: false, forId: "u-sam", teamOnly: false });
+  assert.equal(stepSheetFor(person, { noteId: "n-far" }, now, ZONE).draft.picking, true, "a day no choice is");
+  assert.equal(stepSheetFor(person, { noteId: "n-theirs" }, now, ZONE).blocked, NOTE_REFUSALS.not_yours);
+  assert.equal(stepSheetFor(person, { noteId: "gone" }, now, ZONE).blocked, STEP_SHEET_WORDS.noStep);
+  assert.equal(edit.blocked, null);
+});
+
+test("the sheet's days hold its one line: a Monday offers what a Wednesday does, and a note's are five too", () => {
+  const monday = Date.parse("2026-09-21T15:00:00Z");
+  const person = { id: "p1", name: "Tove Lind", noteList: [noteVM("wed", { step: stepOn("2026-09-23") })] };
+  const labels = (ask) => stepSheetFor(person, ask, monday, ZONE).days.map((c) => c.label);
+  assert.deepEqual(labels({}), ["Today", "Tomorrow", "Fri", "Next week", "Pick a day"]);
+  assert.deepEqual(labels({ note: true }), ["No day", "Today", "Tomorrow", "Fri", "Pick a day"]);
+  // Any other day is a press of Pick a day: a step on the Wednesday opens with the date field on it.
+  const { day, picking } = stepSheetFor(person, { noteId: "wed" }, monday, ZONE).draft;
+  assert.deepEqual([day, picking], ["2026-09-23", true]);
+  // The composer's button still names a weekday it does not offer, as it did (stepDayName reads the picker's own).
+  assert.equal(contracts.stepDayName("2026-09-23", monday, ZONE), "Wed");
+});
+
+test("a new step on a deal opens filled from the act its card leads with: a send today, a follow-up tomorrow, any other empty", () => {
+  const now = Date.parse("2026-09-24T15:00:00Z");
+  const person = { id: "p1", name: "Tove Lind", deals: [{ id: "d1", service: "Website" }], noteList: [] };
+  const today = zoneDayKey(now, ZONE);
+  const opened = (lead, ask = {}) => stepSheetFor(person, { dealId: "d1", lead, ...ask }, now, ZONE).draft;
+  assert.deepEqual(opened("send"), {
+    what: "Send the proposal",
+    day: today,
+    picking: false,
+    forId: null,
+    teamOnly: false,
+  });
+  const follow = opened("follow-up");
+  assert.equal(follow.what, "Follow up on the proposal");
+  assert.equal(
+    follow.day,
+    stepSheetFor(person, { dealId: "d1" }, now, ZONE).days[1].key,
+    "tomorrow, the second choice",
+  );
+  for (const lead of ["won", "edit", null, undefined])
+    assert.deepEqual([opened(lead).what, opened(lead).day], ["", null], `${lead}: nothing suggested`);
+  // A suggestion is a new step's on a deal: about the person, or as a note, it opens as it always did.
+  assert.deepEqual(stepSheetFor(person, { lead: "send" }, now, ZONE).draft.what, "", "no deal: nothing suggested");
+  assert.equal(opened("send", { note: true }).what, "", "a note: nothing suggested");
+  // What it was opened with is what Cancel weighs: a suggestion taken as it stands asks nothing on the way out.
+  const sheet = stepSheetFor(person, { dealId: "d1", lead: "send" }, now, ZONE);
+  assert.equal(stepSheetDirty(sheet.draft, sheet.draft), false);
+  assert.deepEqual(stepSheetBody(sheet, sheet.draft).body, {
+    body: "Send the proposal",
+    due_on: today,
+    for_user_id: null,
+    team_only: true,
+    deal_id: "d1",
+  });
+});
+
+test("opened as a note, the sheet's first day is No day, a note of theirs with none opens as a note, and its Save says which", () => {
+  const now = Date.parse("2026-09-24T15:00:00Z");
+  const person = {
+    id: "p1",
+    name: "Tove Lind",
+    noteTeam: [],
+    noteList: [noteVM("plain", { teamOnly: true, version: 2 })],
+  };
+  const note = stepSheetFor(person, { note: true }, now, ZONE);
+  assert.deepEqual([note.kind, note.mode, note.title, note.save], ["note", "add", "Add a note", "Add it"]);
+  assert.deepEqual(
+    note.days.map((c) => c.label),
+    ["No day", "Today", "Tomorrow", "Next week", "Pick a day"],
+  );
+  assert.deepEqual(note.draft, { what: "", day: contracts.NO_DAY, picking: false, forId: null, teamOnly: false });
+  const plain = stepSheetFor(person, { noteId: "plain" }, now, ZONE);
+  assert.deepEqual(
+    [plain.kind, plain.title, plain.draft.day, plain.draft.teamOnly],
+    ["note", "Change the note", contracts.NO_DAY, true],
+  );
+  // A note with no day is the receptionist's to read unless it is kept from it; a day makes it a step, the team's.
+  const body = (d) =>
+    stepSheetBody({ note: null, dealId: null, kind: "note" }, { ...note.draft, what: "Prefers mornings", ...d });
+  assert.deepEqual(body({}).body, { body: "Prefers mornings", for_user_id: null, team_only: false });
+  assert.deepEqual(body({ teamOnly: true }).body, { body: "Prefers mornings", for_user_id: null, team_only: true });
+  assert.deepEqual(body({ day: "2026-09-25" }).body, {
+    body: "Prefers mornings",
+    due_on: "2026-09-25",
+    for_user_id: null,
+    team_only: true,
+  });
+  assert.deepEqual(body({ what: " " }).problem, { field: "what", words: STEP_SHEET_WORDS.problems.note });
+  // A picked date field with no day yet is a step waiting for its day, never a note.
+  assert.deepEqual(body({ picking: true }).problem, { field: "day", words: STEP_SHEET_WORDS.problems.day });
+  const done = contracts.stepSheetDone;
+  assert.deepEqual(
+    [
+      done({ mode: "add" }, { day: contracts.NO_DAY, picking: false }),
+      done({ mode: "add" }, { day: "2026-09-25", picking: false }),
+      done({ mode: "edit" }, { day: contracts.NO_DAY, picking: false }),
+      done({ mode: "edit" }, { day: "2026-09-25", picking: false }),
+    ],
+    ["Note added", "Next step set", "Note saved", "Step saved"],
+  );
+  // Many people: one line, within the batch door's limit.
+  assert.deepEqual(contracts.noteManyLine("  class of 12 Sep "), { line: "class of 12 Sep", problem: null });
+  assert.deepEqual(contracts.noteManyLine(" "), { line: null, problem: STEP_SHEET_WORDS.problems.note });
+  assert.deepEqual(contracts.noteManyLine("x".repeat(contracts.NOTE_LINE_MAX + 1)), {
+    line: null,
+    problem: STEP_SHEET_WORDS.problems.tooLong(contracts.NOTE_LINE_MAX),
+  });
+});
+
+test("a Save sends the notes route a step -- its words, its day, for whom, the team's, on its deal -- or says what is wrong first", () => {
+  const draft = {
+    what: "  Call about the timeline  ",
+    day: "2026-09-25",
+    picking: false,
+    forId: "u-sam",
+    teamOnly: false,
+  };
+  assert.deepEqual(stepSheetBody({ note: null, dealId: "d1" }, draft), {
+    problem: null,
+    body: {
+      body: "Call about the timeline",
+      due_on: "2026-09-25",
+      for_user_id: "u-sam",
+      team_only: true,
+      deal_id: "d1",
+    },
+  });
+  assert.deepEqual(stepSheetBody({ note: { id: "n1", version: 4 }, dealId: null }, { ...draft, forId: null }).body, {
+    body: "Call about the timeline",
+    due_on: "2026-09-25",
+    for_user_id: null,
+    team_only: true,
+    note_id: "n1",
+    version: 4,
+  });
+  const P = STEP_SHEET_WORDS.problems;
+  const problem = (d) => stepSheetBody({ note: null, dealId: null }, { ...draft, ...d }).problem;
+  assert.deepEqual(problem({ what: "   " }), { field: "what", words: P.what });
+  assert.deepEqual(problem({ what: "x".repeat(contracts.NOTE_MAX + 1) }), {
+    field: "what",
+    words: P.tooLong(contracts.NOTE_MAX),
+  });
+  assert.deepEqual(problem({ day: null }), { field: "day", words: P.day });
+  assert.deepEqual(problem({ day: "2026-02-30" }), { field: "day", words: P.day });
+  // Read again while open: what was typed stays, every field left alone takes the fresh value; the day and its
+  // date field are one field.
+  const was = { what: "Call", day: "2026-09-25", picking: false, forId: null, teamOnly: false };
+  const fresh = { what: "Call them", day: "2026-10-01", picking: true, forId: "u-sam", teamOnly: false };
+  assert.deepEqual(contracts.stepSheetMerge({ ...was, what: "Call Tove" }, was, fresh), {
+    what: "Call Tove",
+    day: "2026-10-01",
+    picking: true,
+    forId: "u-sam",
+    teamOnly: false,
+  });
+  assert.deepEqual(contracts.stepSheetMerge({ ...was, picking: true }, was, fresh), {
+    what: "Call them",
+    day: "2026-09-25",
+    picking: true,
+    forId: "u-sam",
+    teamOnly: false,
+  });
+  assert.deepEqual(contracts.stepSheetMerge(was, was, fresh), fresh, "nothing typed: all of it fresh");
+  // Changed is judged against what it opened with.
+  const opened = { what: "Call", day: null, picking: false, forId: null, teamOnly: false };
+  assert.equal(stepSheetDirty({ ...opened, what: " Call " }, opened), false);
+  assert.equal(stepSheetDirty({ ...opened, day: "2026-09-25" }, opened), true);
+  assert.equal(stepSheetDirty({ ...opened, forId: "" }, opened), false);
+  assert.equal(stepSheetDirty({ ...opened, forId: "u-sam" }, opened), true);
+  assert.equal(stepSheetDirty({ ...opened, teamOnly: true }, opened), true);
+});
+
+/* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
+
+installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+const W = globalThis;
+Object.assign(W, {
+  CHANLY: { nav: () => {}, R: {} },
+  canDo: () => true,
+  gate: () => ({}),
+  __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: "t1",
+});
+const L = "../../apps/dashboard/src/legacy";
+// The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are the frame's; everything else it
+// reads is imported, as the sheet imports it.
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const quietly = async (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = e;
+  }
+};
+const PEOPLE = "../../apps/dashboard/src/surfaces/people";
+const { installPeopleCourier } = await import(`${PEOPLE}/people-detail.ts`);
+const { StepSheetHost, openStepSheet } = await import(`${PEOPLE}/step-sheet/step-sheet.tsx`);
+const { recFolds } = await import("../../apps/dashboard/src/surfaces/kit/record/registry.ts");
+const { clearReadCaches } = await import("../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+await quietly(() => import("../../apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+// The courier's window names, for the last test: the Inbox's thread still writes a step through window.__personNotes.
+installPeopleCourier();
+const toasts = [];
+W.usePPToast = () => [null, (t) => toasts.push(t)];
+
+/** A person as the person read hands them over: a proposal out, a teammate, and their notes. */
+const personDto = (now, notes = []) => {
+  const at = (ms) => new Date(now - ms).toISOString();
+  return {
+    row: {
+      id: "p1",
+      display_name: "Tove Lind",
+      wa_profile_name: null,
+      phone_e164: "+12125550104",
+      consent: "opted_in",
+      dnc: false,
+      channels: ["whatsapp"],
+      conversation_count: 0,
+      escalation_count: 0,
+      needs_human: false,
+      latest_conversation_id: null,
+      last_message_at: null,
+      last_inbound_at: at(2 * D),
+      has_chat: false,
+      queued_reply_at: null,
+      deal_id: "d1",
+      deal_stage: "proposed",
+      deal_service: "Website",
+      deal_proposed_at: at(5 * D),
+    },
+    identities: [],
+    conversations: [],
+    calls: [],
+    escalations: [],
+    decisions: [],
+    deals: [
+      {
+        id: "d1",
+        contact_id: "p1",
+        service: "Website",
+        stage: "proposed",
+        proposed_at: at(5 * D),
+        decided_at: null,
+        ended_at: null,
+        amount_cents: 480_000,
+        per: "once",
+        currency: "USD",
+        note: null,
+        version: 1,
+        created_at: at(5 * D),
+        proposal_url: null,
+        valid_until: null,
+        lost_reason: null,
+      },
+    ],
+    person_notes: notes,
+    note_team: [
+      { id: "u-me", name: "Ruben", me: true },
+      { id: "u-sam", name: "Sam", me: false },
+    ],
+  };
+};
+const noteDto = (now, id, over = {}) => ({
+  id,
+  body: "Call about the timeline",
+  author_kind: "member",
+  author_name: "Ruben",
+  mine: true,
+  for_user_id: null,
+  for_name: null,
+  for_me: false,
+  team_only: true,
+  state: "kept",
+  source: "page",
+  version: 2,
+  created_at: new Date(now - H).toISOString(),
+  updated_at: new Date(now - H).toISOString(),
+  due_on: zoneDayKey(now + 3 * D, ZONE),
+  done_at: null,
+  deal_id: "d1",
+  ...over,
+});
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+/** The wire: the person's read and the notes route, each answered as the test says. */
+const wire = (dto) => {
+  const calls = [];
+  const answers = {
+    person: () => json(200, { ok: true, data: { person: dto() } }),
+    note: (body) => json(200, { ok: true, data: { note: { id: body.note_id ?? "n9", body: body.body } } }),
+  };
+  W.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const body = init.body ? JSON.parse(init.body) : null;
+    calls.push({ method: init.method || "GET", path: u.pathname, body });
+    await settle();
+    if (u.pathname === "/api/v1/contacts/p1") return answers.person();
+    // The note route and its two doors: each answers with the note, or what it removed.
+    if (u.pathname.startsWith("/api/v1/contacts/p1/notes")) return answers.note(body);
+    return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+  };
+  return { calls, answers };
+};
+// What the sheet says on the window when it saves: nothing (0047). The write's refresh reads People behind it and the live feed
+// tells of the note; the person's page and the Pipeline's peek follow People, so the sheet sends them no event of its own.
+const said = [];
+for (const type of ["note:saved", "deal:recorded", "surface:clients"])
+  W.addEventListener(type, (e) => said.push(e.type));
+/** A save the door took: the sheet has closed and said so (a refusal says nothing on the toast and keeps the sheet open). */
+const written = () => toasts.length > 0;
+
+let drawn = null;
+const open = () => {
+  unmount();
+  recFolds.reset();
+  clearReadCaches();
+  toasts.length = 0;
+  said.length = 0;
+  drawn = () => W.React.createElement(StepSheetHost, {});
+  return drawn();
+};
+const redraw = () => again(drawn);
+const until = async (what, pred) => {
+  for (let i = 0; i < 3000; i += 1) {
+    const tree = redraw();
+    if (pred(tree)) return tree;
+    await (i % 25 === 24 ? new Promise((r) => setTimeout(r, 5)) : settle());
+  }
+  throw new Error(`never: ${what}`);
+};
+const input = (tree, id) => find(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
+const type = (node, value) => node.props.onChange({ target: { value } });
+const sheetOf = (tree) => byTestId(tree, "rec-sheet-step-sheet");
+const saveOf = (tree) => byTestId(tree, "rec-sheet-save-step-sheet");
+const title = (tree) => textOf(find(tree, (n) => n.props?.className === "rec-sheet-title"));
+const sub = (tree) => textOf(find(tree, (n) => n.props?.className === "rec-sheet-sub"));
+const dayButton = (tree, label) =>
+  find(byTestId(tree, "step-sheet-days"), (n) => n.props?.role === "radio" && textOf(n) === label);
+
+test("the sheet opens where it is asked for, reads the person, says what is wrong under its field, writes a step on the deal through the notes route, then closes, says so and tells the page", async () => {
+  const now = Date.now();
+  const { calls } = wire(() => personDto(now));
+  let tree = open();
+  assert.equal(sheetOf(tree), null, "nothing drawn until it is asked for");
+  assert.equal(openStepSheet({ personId: "p1", dealId: "d1" }), true);
+  tree = redraw();
+  assert.ok(sheetOf(tree));
+  assert.equal(title(tree), "Set a next step");
+  tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
+  assert.equal(sub(tree), "Tove Lind · Website");
+  assert.match(textOf(byTestId(tree, "step-sheet-rule")), /Your team and Ask see it; the receptionist doesn't/);
+
+  // Nothing typed, no day: each is said under its field, and nothing is sent.
+  press(saveOf(tree));
+  tree = redraw();
+  assert.match(textOf(byTestId(tree, "step-sheet-what")), new RegExp(STEP_SHEET_WORDS.problems.what));
+  type(input(tree, "step-sheet-what-input"), "Call about the timeline");
+  tree = redraw();
+  press(saveOf(tree));
+  tree = redraw();
+  assert.match(textOf(byTestId(tree, "step-sheet-when")), new RegExp(STEP_SHEET_WORDS.problems.day));
+  assert.equal(calls.filter((c) => c.method === "POST").length, 0, "refused before a round trip");
+
+  // Tomorrow, for Sam; then Save.
+  press(dayButton(tree, "Tomorrow"));
+  tree = redraw();
+  type(
+    find(byTestId(tree, "step-sheet-for"), (n) => n.type === "select"),
+    "u-sam",
+  );
+  tree = redraw();
+  assert.equal(recFolds.dirty(), true, "typed: the tab asks before closing over it");
+  press(saveOf(tree));
+  tree = await until("written", written);
+  const writes = calls.filter((c) => c.method === "POST");
+  assert.deepEqual(
+    writes.map((c) => [c.path, c.body]),
+    [
+      [
+        "/api/v1/contacts/p1/notes",
+        {
+          body: "Call about the timeline",
+          due_on: contracts.stepDays(now, ZONE)[1].key,
+          for_user_id: "u-sam",
+          team_only: true,
+          deal_id: "d1",
+        },
+      ],
+    ],
+  );
+  assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.add);
+  assert.deepEqual(
+    said,
+    [],
+    "REGRESSION: the sheet told the page with a window event of its own, a second read of the person",
+  );
+  assert.equal(sheetOf(tree), null, "and the sheet has closed");
+  assert.equal(recFolds.dirty(), false);
+});
+
+test("opened as a note (a visit's Add a note), the sheet writes a note with no day, read by the receptionist unless kept from it", async () => {
+  const now = Date.now();
+  const { calls } = wire(() => personDto(now));
+  open();
+  assert.equal(openStepSheet({ personId: "p1", note: true }), true);
+  let tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
+  assert.equal(title(tree), "Add a note");
+  assert.equal(dayButton(tree, "No day")?.props["aria-checked"], true, "No day is chosen as it opens");
+  assert.ok(byTestId(tree, "step-sheet-team-only"), "with no day, Team only says who reads it");
+  type(input(tree, "step-sheet-what-input"), "Prefers mornings");
+  tree = redraw();
+  press(byTestId(tree, "step-sheet-team-only"));
+  press(saveOf(redraw()));
+  tree = await until("written", written);
+  const writes = calls.filter((c) => c.method === "POST");
+  assert.deepEqual(
+    writes.map((c) => [c.path, c.body]),
+    [["/api/v1/contacts/p1/notes", { body: "Prefers mornings", for_user_id: null, team_only: true }]],
+  );
+  assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.note);
+  assert.equal(sheetOf(tree), null);
+});
+
+test("opened for many (a selection's Add a note), the sheet takes one line, writes it once through the batch door, and hands the selection what it reached", async () => {
+  const calls = [];
+  W.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const body = init.body ? JSON.parse(init.body) : null;
+    calls.push({ method: init.method || "GET", path: u.pathname, body });
+    await settle();
+    if (u.pathname === "/api/v1/contacts/notes")
+      return json(200, { ok: true, data: { done: 2, failed: [], skipped: [] } });
+    return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+  };
+  const done = [];
+  open();
+  assert.equal(openStepSheet({ personIds: ["p1", "p2", "p1"], onDone: (r) => done.push(r) }), true);
+  let tree = redraw();
+  assert.equal(title(tree), "Add a note");
+  assert.equal(sub(tree), "2 people", "each person once");
+  assert.equal(calls.length, 0, "nobody is read: one line goes to all of them");
+  press(saveOf(tree));
+  tree = redraw();
+  assert.match(textOf(byTestId(tree, "step-sheet-what")), new RegExp(STEP_SHEET_WORDS.problems.note));
+  type(input(tree, "step-sheet-what-input"), "  class of 12 Sep ");
+  press(saveOf(redraw()));
+  tree = await until("written", () => done.length > 0);
+  assert.deepEqual(
+    calls.map((c) => [c.method, c.path, c.body]),
+    [["PUT", "/api/v1/contacts/notes", { ids: ["p1", "p2"], append: "class of 12 Sep" }]],
+  );
+  assert.deepEqual(done, [{ done: 2, failed: 0, line: "class of 12 Sep" }]);
+  assert.equal(toasts.length, 0, "the selection says it, as its bar says its acts");
+  assert.equal(sheetOf(tree), null);
+});
+
+test("a change opens on the step as it stands and saves with the version it opened over, which the door refuses if a teammate changed it since; someone else's step is not changed here", async () => {
+  const now = Date.now();
+  const { calls } = wire(() => personDto(now, [noteDto(now, "n1", { version: 2 })]));
+  open();
+  openStepSheet({ personId: "p1", noteId: "n1" });
+  let tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
+  assert.equal(title(tree), "Change the step");
+  assert.equal(input(tree, "step-sheet-what-input").props.value, "Call about the timeline");
+  type(input(redraw(), "step-sheet-what-input"), "Call about the timeline and the logo");
+  press(saveOf(redraw()));
+  await until("written", written);
+  const write = calls.find((c) => c.method === "POST");
+  assert.deepEqual([write.body.note_id, write.body.version, write.body.deal_id], ["n1", 2, "d1"]);
+  assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.edit);
+
+  wire(() => personDto(now, [noteDto(now, "n2", { mine: false, author_name: "Sam" })]));
+  open();
+  openStepSheet({ personId: "p1", noteId: "n2" });
+  tree = await until("blocked", (t) => byTestId(t, "step-sheet-blocked"));
+  assert.equal(textOf(byTestId(tree, "step-sheet-blocked")), NOTE_REFUSALS.not_yours);
+  assert.equal(saveOf(tree)?.props?.disabled ?? true, true, "nothing to save");
+});
+
+test("a person the sheet cannot read is said in the sheet, never a throw that takes the shell with it", async () => {
+  const { answers } = wire(() => personDto(Date.now()));
+  answers.person = () =>
+    json(404, { ok: false, error: { code: "not_found", message: "This person is not in your workspace." } });
+  open();
+  openStepSheet({ personId: "p1" });
+  const tree = await quietly(() => until("said", (t) => byTestId(t, "step-sheet-failed")));
+  assert.ok(byTestId(tree, "step-sheet-failed"));
+});
+
+test("refused because a teammate changed the step since, the sheet reads it again: what was typed stays, the rest and the version are the fresh read's, and the second Save goes", async () => {
+  const now = Date.now();
+  let version = 2;
+  // Days a picker never offers (it looks a week ahead at most), so the date field shows the day either way.
+  let dueIn = 20;
+  const { calls, answers } = wire(() =>
+    personDto(now, [noteDto(now, "n1", { version, due_on: zoneDayKey(now + dueIn * D, ZONE) })]),
+  );
+  let refuse = true;
+  const ok = answers.note;
+  answers.note = (body) => {
+    if (!refuse) return ok(body);
+    refuse = false;
+    return json(409, { ok: false, error: { code: "conflict", message: NOTE_REFUSALS.moved } });
+  };
+  open();
+  openStepSheet({ personId: "p1", noteId: "n1" });
+  let tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
+  type(input(tree, "step-sheet-what-input"), "Call about the timeline and the logo");
+  // Meanwhile a teammate moved its day, and the step's version with it.
+  version = 5;
+  dueIn = 30;
+  press(saveOf(redraw()));
+  // Refused, and the fresh read landed: the day left alone is the teammate's.
+  tree = await until(
+    "refused, and read again",
+    (t) =>
+      byTestId(t, "step-sheet-problem") &&
+      input(t, "step-sheet-day-input")?.props.value === zoneDayKey(now + 30 * D, ZONE),
+  );
+  assert.equal(textOf(byTestId(tree, "step-sheet-problem")), NOTE_REFUSALS.moved);
+  assert.equal(
+    input(tree, "step-sheet-what-input").props.value,
+    "Call about the timeline and the logo",
+    "what was typed stays",
+  );
+  press(saveOf(tree));
+  await until("written", written);
+  const [first, second] = calls.filter((c) => c.method === "POST").map((c) => c.body);
+  assert.equal(first.version, 2, "the first Save named the version it was read at");
+  assert.deepEqual(
+    [second.note_id, second.version, second.body, second.due_on],
+    ["n1", 5, "Call about the timeline and the logo", zoneDayKey(now + 30 * D, ZONE)],
+    "the second: the fresh version, the words typed here, the teammate's day",
+  );
+});
+
+test("the frame publishes the sheet's doors under the names the deal card and the Inbox's thread open the sheet by: the published host draws the sheet once its code is in, and the published verb asks it once it listens, however early", async () => {
+  const { PEOPLE_GLOBALS } = await import(`${PEOPLE}/people-globals.ts`);
+  const doors = await import(`${PEOPLE}/sheets/doors.tsx`);
+  assert.equal(PEOPLE_GLOBALS.StepSheetHost, doors.StepSheetHost);
+  assert.equal(PEOPLE_GLOBALS.openStepSheet, doors.askStepSheet);
+  wire(() => personDto(Date.now()));
+  // The frame's host, as the frame draws it (surfaces/frame/shell-chrome.tsx), asked for the sheet before it has drawn one.
+  unmount();
+  recFolds.reset();
+  clearReadCaches();
+  toasts.length = 0;
+  said.length = 0;
+  drawn = () => W.React.createElement(PEOPLE_GLOBALS.StepSheetHost, {});
+  drawn();
+  assert.equal(PEOPLE_GLOBALS.openStepSheet({ personId: "p1", dealId: "d1" }), true);
+  assert.equal(PEOPLE_GLOBALS.openStepSheet({}), false, "an ask that names nobody is refused at once");
+  await until("the sheet the ask waited for", (t) => title(t) === "Set a next step");
+  const tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
+  assert.equal(sub(tree), "Tove Lind · Website");
+});
+
+test("a note's write answers when the server takes it: People, whose rows carry each next step, is read again behind it, not in front", async () => {
+  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  // The refresh map's re-read is real only with the runner started (no surface of its own, no live feed).
+  startSurfaces([], () => () => {});
+  const now = Date.now();
+  wire(() => personDto(now, [noteDto(now, "n1")]));
+  // People's read, held the way a slow network holds a list read page after page.
+  const answered = W.fetch;
+  const reread = [];
+  W.fetch = (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    if (u.pathname === "/api/v1/contacts") {
+      reread.push(u.pathname);
+      return new Promise(() => {});
+    }
+    return answered(url, init);
+  };
+  // The note's verbs as the sheet and the person's page import them (people-detail.ts); the courier publishes only the done.
+  const N = await import(`${PEOPLE}/people-detail.ts`);
+  for (const [what, press] of [
+    [
+      "a step written",
+      () => N.writePersonNote("p1", { body: "Call", due_on: zoneDayKey(now + 3 * D, ZONE), team_only: true }),
+    ],
+    ["a step done", () => W.__personNotes.done("p1", "n1", true, 2)],
+    ["a note taken away", () => N.removePersonNote("p1", "n1")],
+  ]) {
+    const waited = new Promise((r) => setTimeout(() => r("waited on People's read"), 1000));
+    const r = await Promise.race([press(), waited]);
+    assert.notEqual(r, "waited on People's read", `${what}: answered when the server took it`);
+    assert.equal(r.ok, true, what);
+  }
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok(reread.length >= 1, "and People was read again all the same, behind the answers");
+});

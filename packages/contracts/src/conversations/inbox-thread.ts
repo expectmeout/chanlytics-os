@@ -25,7 +25,7 @@ import {
   emailSignedWithOf,
   emailSubjectsOf,
 } from "./message-email";
-import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
+import { replyLeftAsOf } from "../campaigns/reach-out/reach-out-reply-words";
 import { bookingRequestCardOf } from "../calendar/visit/booking-request";
 import {
   sentFactsOf,

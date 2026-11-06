@@ -30,23 +30,23 @@ export const DB_PATHS = [
   // the migrations, the seed and the config the local stack starts from
   "supabase/**",
   // the suites that run against the replayed database, in whichever domain folder they sit, and the helpers they share
-  "tooling/scripts/tests/**/*.db.test.mjs",
-  "tooling/scripts/tests/**/*.integration.test.mjs",
-  "tooling/scripts/tests/_*.mjs",
+  "tests/**/*.db.test.mjs",
+  "tests/**/*.integration.test.mjs",
+  "tests/_*.mjs",
   // and the helpers kept in shared/ (the midday zone the hours-bound suites run in)
-  "tooling/scripts/tests/shared/**",
+  "tests/shared/**",
   // and the clocks' kinds, which the register's suite (ops/sweep-registry.db.test.mjs) holds every registered clock to
-  "tooling/scripts/tests/clocks/_*.mjs",
+  "tests/clocks/_*.mjs",
   // and the stack check and migration runner the suites that run a migration share (google/review-link.db.test.mjs,
   // playbooks/change/change-playbook-keys.db.test.mjs)
-  "tooling/scripts/tests/google/_db-stack.mjs",
+  "tests/google/_db-stack.mjs",
   // and the campaign answers' world, which campaign-answers.db.test.mjs builds and holds the rule against (00403)
-  "tooling/scripts/tests/reports/campaigns/_*.mjs",
+  "tests/reports/campaigns/_*.mjs",
   // and a connected mailbox's world (Vault's doors, Gmail as it answers), which the reach-out stack suites send through
-  "tooling/scripts/tests/email/mailboxes/_*.mjs",
+  "tests/email/mailboxes/_*.mjs",
   // and the table's Leads fixture and its goldens, which the Leads read is held to (leads/lead-filters.db.test.mjs, 00500)
-  "tooling/scripts/tests/table/_fixtures.mjs",
-  "tooling/scripts/tests/table/goldens/leads-shown.json",
+  "tests/table/_fixtures.mjs",
+  "tests/table/goldens/leads-shown.json",
   // what the suites run against it: the packages that write rows, their sources (the suites read each as the bundle the
   // launcher builds from them, decision 0074)
   "packages/core/**",
@@ -64,14 +64,14 @@ export const DB_PATHS = [
   "packages/contracts/src/schema-sets.generated.ts",
   "tooling/scripts/gen/db-types.mjs",
   "tooling/scripts/gen/unique-keys.mjs",
-  "tooling/scripts/tests/_unique-keys.generated.json",
+  "tests/_unique-keys.generated.json",
   // the snapshot suite compares supabase/schema.sql (under supabase/) with what the migrations build
   "tooling/scripts/gen/schema-snapshot.mjs",
   // the ledger the migrations are held to, which a stack suite (migration-head) loads
   "tooling/scripts/checks/migration-ledger.mjs",
   // what the kept turns' suite (ai/model-turns.db.test.mjs) runs over the database: the scripted model its door asks,
   // and the operator's reader, which it runs as a person runs it
-  "tooling/scripts/tests/ai/_model-world.mjs",
+  "tests/ai/_model-world.mjs",
   "tooling/scripts/ops/turn-read.mjs",
   // the launcher `pnpm test:db` runs through, and the module it loads
   "tooling/scripts/checks/test.mjs",

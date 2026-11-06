@@ -13,7 +13,7 @@ import { proposalTone, waitingOnProposal } from "../deal-waits";
 import { consultationsWithoutProposal } from "../deal-consultations";
 import type { StepDayVM } from "../../notes/steps";
 import { stateTone, type Tone } from "../../shell/tone";
-import { followUpWords } from "../../playbooks/playbooks";
+import { followUpWords } from "../../campaigns/playbooks/playbooks";
 import { act, consultedService, dealNextAct, followUpOn, sentOf, type DealAct, type DealPerson } from "./deal-acts";
 
 /* --------------------------------------------- the card ----------------------------------------------------- */

@@ -6,13 +6,13 @@
  * makePreviewFor is the member's press, behind its admin door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isUuid, leadAsListing, previewZoneOf } from "../packages/contracts.js";
-import { leadForPreview, makeLeadPreview, type Database, type PreviewDoor, type PreviewMade } from "../packages/db.js";
-import { scheduleJobOnce } from "../packages/jobs.js";
-import { env } from "../env.js";
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
+import { isUuid, leadAsListing, previewZoneOf } from "@chanlytics/contracts";
+import { leadForPreview, makeLeadPreview, type Database, type PreviewDoor, type PreviewMade } from "@chanlytics/db";
+import { scheduleJobOnce } from "@chanlytics/jobs";
+import { env } from "../shared/env.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
 
 type Db = SupabaseClient<Database>;
 

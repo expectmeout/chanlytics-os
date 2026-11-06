@@ -2,14 +2,14 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inWorkspace, type Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
-import { serviceDb } from "../service-db";
-import { log } from "@/server/log";
+import { serviceDb } from "../shared/service-db";
+import { log } from "@/server/shared/log";
 
 /**
  * Stored media, signed for a member (the attachments of a thread, the recordings of a call). The bucket is private and
  * the signer holds the service role, so nothing in the platform's storage is scoped by RLS here: a path is signed only
  * when it sits under the asking workspace's own id (inWorkspace, the erasure's rule for what it removes, in db's
- * erasure/legs.ts), and the recording's audit row is written on the member's own session.
+ * repositories/erasure/legs.ts), and the recording's audit row is written on the member's own session.
  */
 
 /** The private bucket every stored file of a workspace is kept in, under its own folder (inWorkspace). */

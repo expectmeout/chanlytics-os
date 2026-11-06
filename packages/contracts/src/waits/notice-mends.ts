@@ -12,8 +12,8 @@
  *
  * Titles are matched here, never in SQL, so the rule stays in one place.
  */
-import { OFFERS_NOTICE_WORDS } from "../broadcasts/email-offers";
-import { TEMPLATE_STATUS_WORDS } from "../templates/templates";
+import { OFFERS_NOTICE_WORDS } from "../campaigns/broadcasts/email-offers";
+import { TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
 import { CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS } from "../notices/connection-news";
 import type { ServerNotificationKind } from "../today/notifications";
 

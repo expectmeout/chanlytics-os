@@ -1,5 +1,5 @@
 import { SPEND_LEADS } from "@chanlytics/contracts";
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { searches } from "@/server/readers/searches";
 import { createLeadSearch, CreateSchema } from "@/server/leads/lead-search-create";

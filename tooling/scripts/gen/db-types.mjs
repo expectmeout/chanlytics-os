@@ -26,7 +26,7 @@
  * Everything else the generator emits for one schema is byte-stable, so
  * everything else has to match.
  *
- * The same stack also writes tooling/scripts/tests/_unique-keys.generated.json (unique-keys.mjs) when this writes the
+ * The same stack also writes tests/_unique-keys.generated.json (unique-keys.mjs) when this writes the
  * types: every unique index and primary key, which the tests' in-memory database (_fake-db.mjs) refuses a duplicate
  * on. database/generated/unique-keys.db.test.mjs, in the replay's database suites, holds that file to the migrations.
  *

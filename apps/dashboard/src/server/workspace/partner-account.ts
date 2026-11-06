@@ -8,7 +8,7 @@
  * 00261 in the database) and tell the owner of a handover (handover.ts). The routes under app/api/v1/partner declare
  * who may, how often and on which scope.
  */
-import { requireSecondFactor, type RouteContext } from "@/server/with-route";
+import { requireSecondFactor, type RouteContext } from "@/server/shared/with-route";
 import {
   AppError,
   type PartnerBecomeSchema,
@@ -38,10 +38,10 @@ import {
   getPartnerWorkspaces,
   resendHandover,
 } from "@chanlytics/db";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 import { workspaceBegun } from "@/server/workspace/workspace-create";
 import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover";
-import type { Params } from "@/server/route";
+import type { Params } from "@/server/shared/route";
 import type { z } from "zod";
 
 export async function readPartnerAccount(

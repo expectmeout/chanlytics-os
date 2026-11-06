@@ -28,8 +28,8 @@ import {
   type ImportSource,
   type MailboxHistory,
   type MailboxProvider,
-} from "../packages/contracts.js";
-import { grantHolds } from "../packages/channels.js";
+} from "@chanlytics/contracts";
+import { grantHolds } from "@chanlytics/channels";
 import {
   importRowOf,
   importsOf,
@@ -39,9 +39,9 @@ import {
   type Database,
   type Json,
   type MailboxConnectionRow,
-} from "../packages/db.js";
-import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
-import { errField, logger, type Logger } from "../log.js";
+} from "@chanlytics/db";
+import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
+import { errField, logger, type Logger } from "../shared/log.js";
 import { mailHistoryPart } from "./mail-history.js";
 import { contactsPart } from "./mail-people.js";
 import { calendarPart } from "./calendar-part.js";

@@ -7,11 +7,11 @@
  * one claim, so a thread the event already reached takes nothing here, and a bump of the rules' edition redrafts every open
  * hold within a tick of it.
  */
-import { MIN_MS, REPLY_DRAFT_RULES } from "../packages/contracts.js";
-import { replyDraftsDue } from "../packages/db.js";
-import { askReplyDraftOf } from "../packages/jobs.js";
-import { json } from "../http.js";
-import { errField } from "../log.js";
+import { MIN_MS, REPLY_DRAFT_RULES } from "@chanlytics/contracts";
+import { replyDraftsDue } from "@chanlytics/db";
+import { askReplyDraftOf } from "@chanlytics/jobs";
+import { json } from "../shared/http.js";
+import { errField } from "../shared/log.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** How many threads one tick asks about: past them, the next tick's five minutes. */

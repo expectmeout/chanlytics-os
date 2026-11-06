@@ -43,7 +43,7 @@ import {
   type DueCalendar,
   type DuePage,
   type DueStep,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 
 type Db = SupabaseClient<Database>;
 

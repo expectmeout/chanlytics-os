@@ -8,7 +8,7 @@
  * write itself failed, because that is the one loss the provider can undo.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { pg } from "../pg.js";
+import type { pg } from "../shared/pg.js";
 import {
   fetchLinkedMedia,
   fetchMediaBytes,
@@ -16,7 +16,7 @@ import {
   publicFetcher,
   type InboundMessage,
   type WaMediaRef,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   AnswerNotKept,
   claimReplyTurn,
@@ -32,9 +32,9 @@ import {
   repliedTo,
   openBookingRequest,
   type IngestResult,
-} from "../packages/db.js";
-import type { Database, Json } from "../packages/db.js";
-import { upsertEscalation, type EscalationOutcome } from "../packages/jobs.js";
+} from "@chanlytics/db";
+import type { Database, Json } from "@chanlytics/db";
+import { upsertEscalation, type EscalationOutcome } from "@chanlytics/jobs";
 import {
   deliverSafely,
   IngestFailed,
@@ -46,8 +46,8 @@ import {
   type SendKind,
   type ThreadState,
   type Wire,
-} from "../packages/core.js";
-import { loadTenantNotifications, waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
+} from "@chanlytics/core";
+import { loadTenantNotifications, waCfgFor, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { notify } from "../ops/notify.js";
 import { queueDraft } from "../receptionist/draft-queue.js";
 import { recordTokens } from "../receptionist/budget.js";
@@ -59,8 +59,8 @@ import {
   type BrainMeta,
   type Handled,
   type SendPurpose,
-} from "../packages/contracts.js";
-import { logger, errField } from "../log.js";
+} from "@chanlytics/contracts";
+import { logger, errField } from "../shared/log.js";
 
 /**
  * Postgres-sourced thread state, or an UNKNOWN thread when it cannot be

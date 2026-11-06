@@ -12,9 +12,14 @@
  *   leadLeaveAskOf      what Take out asks, and what the sheet asks once you wrote to them yourself
  */
 import { runApproveWords } from "../../shell/campaign-rooms";
-import { heldAnswersOf, heldOwnWordsOf, waitingAnswersOf, type HeldAnswer } from "../../sequences/sequence-held";
-import type { SequencePlaceDto } from "../../sequences/sequence-place";
-import type { SequenceState } from "../../sequences/sequence";
+import {
+  heldAnswersOf,
+  heldOwnWordsOf,
+  waitingAnswersOf,
+  type HeldAnswer,
+} from "../../campaigns/sequences/sequence-held";
+import type { SequencePlaceDto } from "../../campaigns/sequences/sequence-place";
+import type { SequenceState } from "../../campaigns/sequences/sequence";
 import {
   LEAD_SHEET_WORDS,
   sheetSlot as slot,

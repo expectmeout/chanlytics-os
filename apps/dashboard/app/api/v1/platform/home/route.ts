@@ -1,5 +1,5 @@
-import { read, platform } from "@/server/route";
-import { consoleHome } from "@/server/platform/console";
+import { read, platform } from "@/server/shared/route";
+import { consoleHome } from "@/server/console/console";
 
 /**
  * GET /api/v1/platform/home — the Console's Home (decision 0066): every workspace (grouped on the page by who the next

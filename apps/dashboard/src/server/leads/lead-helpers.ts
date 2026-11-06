@@ -10,8 +10,8 @@ import {
   type IdeaAbout,
 } from "@chanlytics/contracts";
 import { leadAllowanceOf, type Database } from "@chanlytics/db";
-import { tenantFacts } from "../tenant";
-import type { RouteContext } from "../with-route";
+import { tenantFacts } from "../shared/tenant";
+import type { RouteContext } from "../shared/with-route";
 import { storedConfigOf } from "../workspace/config-row";
 
 /**

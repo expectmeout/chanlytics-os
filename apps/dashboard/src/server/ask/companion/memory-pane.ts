@@ -12,9 +12,9 @@ import {
   type AskMemorySource,
 } from "@chanlytics/contracts";
 import { askJournalDays, askMemoryLines, changeAskMemory, forgetAskMemory, keepAskMemory } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "../../with-route";
-import type { Member } from "../../route";
-import { requireUuid } from "../../request-guards";
+import { dbRefusal, type RouteContext } from "../../shared/with-route";
+import type { Member } from "../../shared/route";
+import { requireUuid } from "../../shared/request-guards";
 
 /**
  * Settings › Memory (decision 0070): what Ask keeps about the business and its journal's newest days, as the member's own

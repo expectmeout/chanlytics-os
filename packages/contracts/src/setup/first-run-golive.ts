@@ -14,7 +14,7 @@
 import { formatPhoneDisplay } from "../shared/phone";
 import { billingDoorOpen, dayWords, priceWords, trialDaysFor } from "../workspace/billing";
 import { GET_YES_ROUTE } from "../people/lists/people-route";
-import { newSequenceRoute } from "../sequences/sequence-address";
+import { newSequenceRoute } from "../campaigns/sequences/sequence-address";
 import { forwardedLineOf, type SetupDto, type SetupVM, type WhatsappChoice } from "./setup";
 import type { FirstRunPhoneVM } from "./first-run-phone";
 import { importLinesOf, whatsappPartsOf, type WhatsappPartVM } from "../imports/ledger";

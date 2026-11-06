@@ -13,7 +13,7 @@
  * of a filed line in a2p-refile.ts, and the status read in a2p-sync.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database, Json } from "@chanlytics/db";
 import {
   answerObject,
   runA2PSaga,
@@ -28,7 +28,7 @@ import {
   type A2PState,
   type BusinessRecord,
   type ProviderAccount,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   MIN_MS,
   formatPhoneDisplay,
@@ -38,13 +38,13 @@ import {
   registrationPathOf,
   registrationPreflight,
   type EdgeErrorCode,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { platformTo } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount } from "../sms/sms.js";
-import { logger } from "../log.js";
-import { getTenantConfig, tenantDb } from "../packages/db.js";
-import { env } from "../env.js";
+import { logger } from "../shared/log.js";
+import { getTenantConfig, tenantDb } from "@chanlytics/db";
+import { env } from "../shared/env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
 import { CAMPAIGN_NAME_FACT, factsOf, FILED_NAME_FACT } from "./line-resume.js";
 

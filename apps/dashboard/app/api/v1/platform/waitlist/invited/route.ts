@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { WaitlistInvitedSchema } from "@chanlytics/contracts";
-import { platformWaitlistInvited } from "@/server/platform/platform";
+import { platformWaitlistInvited } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/waitlist/invited — somebody on the waiting list was invited.

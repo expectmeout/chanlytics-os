@@ -18,11 +18,11 @@ import {
 } from "@chanlytics/contracts";
 import { createWorkspaceFn, membershipCountOf, setSetupChoices } from "@chanlytics/db";
 import { z } from "zod";
-import { inviteCodeMatches, notifyPlatformSignup } from "@/server/platform/signup";
+import { inviteCodeMatches, notifyPlatformSignup } from "@/server/console/signup";
 import { giveFirstAlertAddress, giveOwnerAlertAddress } from "@/server/workspace/first-alert";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
-import type { RouteContext } from "@/server/with-route";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /** The error Postgres or PostgREST answers a call with an argument the function does not take. */
 const noSuchSignature = (code: string | null | undefined, message: string): boolean =>

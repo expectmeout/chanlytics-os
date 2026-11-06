@@ -9,8 +9,8 @@ import { type PartnerInviteSchema, partnerCodeFrom, type WorkspacePartnerDto } f
 import { getWorkspacePartner, invitePartner, withdrawPartnerInvite } from "@chanlytics/db";
 import { handoverRefusal } from "@/server/workspace/handover";
 import { sendPartnerInvite } from "@/server/workspace/partner-invite";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 import type { z } from "zod";
 
 export async function readWorkspacePartner(ctx: RouteContext, member: Member): Promise<WorkspacePartnerDto> {

@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { MOVE_BODY } from "@/server/sequences/bodies";
-import { moveToSequenceNow } from "@/server/sequences/doors";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { MOVE_BODY } from "@/server/campaigns/sequences/bodies";
+import { moveToSequenceNow } from "@/server/campaigns/sequences/doors";
 
 /**
  * POST /api/v1/sequences/:id/move — { lead_id }: a lead nothing was sent to, out of the sequence it stands in and into

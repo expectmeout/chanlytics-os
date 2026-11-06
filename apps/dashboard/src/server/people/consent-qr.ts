@@ -9,9 +9,9 @@
 import QRCode from "qrcode";
 import { AppError, optInLink, takesSignUps } from "@chanlytics/contracts";
 import { workspaceOpenToCustomers } from "@chanlytics/db";
-import { log } from "@/server/log";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import { log } from "@/server/shared/log";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 export async function consentQr(ctx: RouteContext, member: Member) {
   const tenantId = member.tenantId;

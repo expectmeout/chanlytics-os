@@ -242,7 +242,7 @@ export type NotReceived = "no_number" | "no_address" | "address_stopped" | "stop
  * channel needs its own way to reach them, a number for WhatsApp or a text, an address for an email. An address that
  * has bounced or complained is no way to reach them: the door would refuse it (email_suppressed), so the pick must fall
  * back to another channel rather than choose email and hold the person. The pick asks it of each channel a campaign
- * ticks (broadcasts/reach-for.ts reachFor), and a page that has no campaign in view, of all three (broadcasts/reach-any.ts).
+ * ticks (campaigns/broadcasts/reach-for.ts reachFor), and a page that has no campaign in view, of all three (campaigns/broadcasts/reach-any.ts).
  * `about` is what the message is about (consent.ts MessageAbout): a visit or proposal moment's message is theirs, a
  * broadcast is ours, which by email asks for a yes covering email or a relationship (decision D1).
  */

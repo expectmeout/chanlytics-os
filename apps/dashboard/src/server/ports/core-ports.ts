@@ -32,13 +32,19 @@ import type {
   ThreadPorts,
 } from "@chanlytics/core";
 import { conversationPatch } from "@chanlytics/contracts";
-import { dbRefusal, type RouteContext } from "../with-route";
-import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "../verbs";
-import { schedule } from "../jobs";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
+import {
+  cancelPendingAiReply,
+  pauseMsFor,
+  recordDecision,
+  replyChannelOf,
+  resolveOpenEscalation,
+} from "../shared/verbs";
+import { schedule } from "../shared/jobs";
 import { takeThreadControl } from "../conversations/thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { storedConfigOf } from "../workspace/config-row";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * True iff a row changed. An UPDATE that RLS or a vanished row excludes

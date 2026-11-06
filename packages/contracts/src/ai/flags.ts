@@ -6,7 +6,7 @@
  * and a sunset that has passed without a decision.
  *
  * Seven mechanisms carry them, and a new switch uses one of them rather than an eighth: a variable on the edge
- * (lib/env.ts) or the dashboard, a workspace's own feature (tenant_config.features), a secret that turns a CI job on,
+ * (lib/shared/env.ts) or the dashboard, a workspace's own feature (tenant_config.features), a secret that turns a CI job on,
  * the deployment itself (production or a preview), a model named by a variable (ASK_MODEL, LEAD_JUDGE_MODEL), which
  * may be any id that reads as a Claude model (models.ts readsAsModel), and a rollout: a compatibility window in code
  * that no variable opens or closes, kept while the two apps' deployments may differ.
@@ -124,7 +124,7 @@ export const FLAGS: readonly Flag[] = [
     weaker: {
       allows:
         "On an edge without EDGE_CALL_SECRET (a preview: a production edge refuses to boot without it), the platform " +
-        "key alone opens every admin door (lib/admin-auth.ts). The live-call doors then refuse what it asks, as it " +
+        "key alone opens every admin door (lib/shared/admin-auth.ts). The live-call doors then refuse what it asks, as it " +
         "names no workspace (25 October 2026): a rehearsal pair that acts on a live call holds the secret on both " +
         "projects.",
       readiness: {

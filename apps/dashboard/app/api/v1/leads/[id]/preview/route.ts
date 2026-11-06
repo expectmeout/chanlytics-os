@@ -1,5 +1,5 @@
-import { read, write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { read, write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { leadPreviewFor, makeLeadPreviewFor } from "@/server/leads/lead-preview";
 
 /**

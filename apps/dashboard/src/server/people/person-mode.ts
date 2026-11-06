@@ -9,8 +9,8 @@
 import type { z } from "zod";
 import type { PersonReceptionistMode, ReceptionistModeBody } from "@chanlytics/contracts";
 import { setPersonReplyMode } from "@chanlytics/db";
-import { recordDecision, type contactScope } from "@/server/verbs";
-import type { RouteContext } from "@/server/with-route";
+import { recordDecision, type contactScope } from "@/server/shared/verbs";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /** The person a contactScope route acts on, as the scope read them. */
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;

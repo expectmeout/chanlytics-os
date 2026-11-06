@@ -8,10 +8,10 @@
  */
 import { LEAD_CARDS, isUuid, peopleEstimateUsd, type LeadPeopleSearchInput } from "@chanlytics/contracts";
 import { leadPeopleSearchCreate, recordActivation } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
+import { serviceDb } from "@/server/shared/service-db";
 import { answerOf, refusalOf } from "@/server/leads/leads";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 /** What a people search may cost, from the people card's own prices. */
 function estimateOf(count: number): number {

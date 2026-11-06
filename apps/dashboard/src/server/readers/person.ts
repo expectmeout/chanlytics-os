@@ -34,7 +34,7 @@ import {
   groupMessages,
   toCallDto,
   toConversationDto,
-} from "../dto";
+} from "../conversations/dto";
 import { personLike } from "../calendar/calendar-week";
 import { signedByThreadOf, signedFirstOf } from "../connections/email";
 import { personVisits } from "../calendar/person-visits";
@@ -45,7 +45,7 @@ import { personNotesRead, stepFor } from "../people/person-notes";
 import { DEAL_DTO_COLUMNS, dealPaceRead } from "../people/deals";
 import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
 import * as facts from "./facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
 const PERSON_MESSAGES = 2000;

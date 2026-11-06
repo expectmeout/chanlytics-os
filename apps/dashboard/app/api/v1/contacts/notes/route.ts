@@ -1,5 +1,5 @@
 import { NotesAppendManyBody } from "@chanlytics/contracts";
-import { workspace, write } from "@/server/route";
+import { workspace, write } from "@/server/shared/route";
 import { appendNotesMany } from "@/server/people/people-many";
 
 /**

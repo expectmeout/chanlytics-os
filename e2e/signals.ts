@@ -131,7 +131,7 @@ export async function expectNoQueueRepeat(page: Page): Promise<void> {
 /**
  * Since you looked opens in place: the line's few words, and once pressed its rows under it, closed again by a second
  * press. Nothing where the member never looked. (What each row says is contracts todaySince's, which
- * tooling/scripts/tests/today-zones/since-you-looked.test.mjs executes: a row per bit is so by construction, so counting
+ * tests/today/zones/since-you-looked.test.mjs executes: a row per bit is so by construction, so counting
  * one against the other here proved nothing.)
  */
 export async function expectSinceOpens(page: Page): Promise<void> {

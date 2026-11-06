@@ -22,9 +22,9 @@
  * Cross-workspace: the form names its workspace, and the key proves the site was given it.
  */
 import { createHash } from "node:crypto";
-import { json, refuse } from "../http.js";
-import { errField, logger } from "../log.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { errField, logger } from "../shared/log.js";
+import { pg } from "../shared/pg.js";
 import {
   DEFAULT_TIMEZONE,
   WebsiteFormBody,
@@ -33,10 +33,10 @@ import {
   websiteFormNotice,
   websiteFormPerson,
   signupAskLine,
-} from "../packages/contracts.js";
-import { PERSON_FORGOTTEN, resolvePerson, suggestPersonNote, workspaceZoneOf } from "../packages/db.js";
+} from "@chanlytics/contracts";
+import { PERSON_FORGOTTEN, resolvePerson, suggestPersonNote, workspaceZoneOf } from "@chanlytics/db";
 import { keepOnce, notifyOnce, onceKeyId } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { websiteFormKeyMatches } from "./form-key.js";
 import { askIfSignup } from "./signup-confirm.js";
 

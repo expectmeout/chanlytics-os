@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { Json } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
-import { workspace, write } from "@/server/route";
-import { dbRefusal } from "@/server/with-route";
+import { workspace, write } from "@/server/shared/route";
+import { dbRefusal } from "@/server/shared/with-route";
 
 const PAGE = /^[a-z][a-z0-9_-]{0,31}$/;
 const Body = z.object({ view: z.record(z.string(), z.unknown()) });

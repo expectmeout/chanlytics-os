@@ -35,7 +35,7 @@ import {
   type MailboxEmail,
   type MailWindow,
   type ReadVerdict,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   DAY_MS,
   HISTORY_BACK_DAYS,
@@ -44,8 +44,8 @@ import {
   SECOND_MS,
   normalizeEmail,
   senderLeftWhy,
-} from "../packages/contracts.js";
-import { EMAIL_BODY_MAX } from "../packages/core.js";
+} from "@chanlytics/contracts";
+import { EMAIL_BODY_MAX } from "@chanlytics/core";
 import {
   importCursorOf,
   keepBefore,
@@ -55,7 +55,7 @@ import {
   type Database,
   type Json,
   type MailboxConnectionRow,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
@@ -68,7 +68,7 @@ import {
   type SortedWhy,
 } from "../email/mailbox/mailbox-sorting.js";
 import type { Part, PartOutcome } from "./history-import.js";
-import type { Logger } from "../log.js";
+import type { Logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

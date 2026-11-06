@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { listThreads } from "@/server/ask/store";
 
 /** GET /api/v1/ask/threads — the caller's own Ask threads in this workspace, newest first. */

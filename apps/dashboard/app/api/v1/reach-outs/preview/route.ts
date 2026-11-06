@@ -1,5 +1,5 @@
 import { AppError, REACH_OUT_REFUSALS, ReachOutPreviewSchema, type ReachOutPreviewDto } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { previewReachOut } from "@/server/campaigns/reach-outs";
 
 /**

@@ -7,10 +7,10 @@
 # - A fake SIP password: a test pins that the Twilio adapter sends one that
 #   meets Twilio's rule (12+ characters, a digit, mixed case), and the
 #   fixture looked enough like a key for the scanner
-#   (tooling/scripts/tests/lines/lines-saga.test.mjs).
+#   (tests/lines/lines-saga.test.mjs).
 # - Google's own documented sample place id, beside a variable named KEY in
 #   the Places test: a public identifier from Google's examples, high in
-#   entropy, and not a credential (tooling/scripts/tests/google/google.test.mjs).
+#   entropy, and not a credential (tests/google/google.test.mjs).
 # - The migration ledger (supabase/migrations-ledger.json): each line is a
 #   migration's filename and the sha256 of its text. A checksum is high in
 #   entropy, and a filename can carry a word the generic-api-key rule reads as
@@ -18,7 +18,7 @@
 #   named with key, secret or token would trip it. The file holds no secret; it
 #   is allowed by path, the one file, because its values are not fixed.
 # - The log line test plants credentials to prove the logger redacts them by
-#   shape (tooling/scripts/tests/edge/log-line.test.mjs): a Stripe secret key,
+#   shape (tests/edge/log-line.test.mjs): a Stripe secret key,
 #   a JWT and a TypeSafe key, each made up, each listed here by value. The scan
 #   read them as real on main (#1348, 30 Sep 2026) and turned CI red.
 # - The people card's provider field after its LinkedIn one: the list of fields
@@ -28,7 +28,7 @@
 #   field name, not a credential (#1593, 14 Oct 2026).
 # - What Ask may never remember (decision 0070): a test proves a line that holds
 #   a key is refused by its shape, so it plants a made-up Stripe secret key
-#   (tooling/scripts/tests/ask/remembers/what-ask-keeps.test.mjs). The scan read
+#   (tests/ask/remembers/what-ask-keeps.test.mjs). The scan read
 #   it as real on #1792 (22 Oct 2026).
 
 [extend]

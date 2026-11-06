@@ -16,11 +16,11 @@
  * SPEAKS this string, so an error status would make it say nothing while the
  * caller waits.
  */
-import { json } from "../http.js";
-import { pg } from "../pg.js";
-import { readDealForPhone, resolveChannelDetailed } from "../packages/db.js";
+import { json } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { readDealForPhone, resolveChannelDetailed } from "@chanlytics/db";
 import { rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
+import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { feedKeyOf, linkOfferedOn, openingsData } from "../calendar/availability.js";
 import {
   bookingHeld,
@@ -33,9 +33,9 @@ import {
   type ConsultRules,
   type ServiceLike,
   type ServiceOffer,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
-import { logger } from "../log.js";
+import { logger } from "../shared/log.js";
 
 /**
  * Where there are no times to read, the link in their place. Sent the way the call's instructions say it goes, by

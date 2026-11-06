@@ -1,7 +1,7 @@
 import "server-only";
-import { deployment } from "../env";
-import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
-import { log } from "@/server/log";
+import { deployment } from "../shared/env";
+import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
+import { log } from "@/server/shared/log";
 
 /** A note to the platform mailbox gives up after this; a failure is logged, not surfaced. */
 const TELL_TIMEOUT_MS = 8000;

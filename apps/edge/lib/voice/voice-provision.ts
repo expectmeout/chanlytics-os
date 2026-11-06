@@ -26,14 +26,14 @@
  * success body (which echoes the webhook URL) is never echoed.
  * Signed admin token only.
  */
-import { json, refuse } from "../http.js";
-import { readBody } from "../admin-door.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { edgeFnUrl } from "../dashboard-origin.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { readBody } from "../shared/admin-door.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { edgeFnUrl } from "../shared/dashboard-origin.js";
+import { pg } from "../shared/pg.js";
 import { recordNotification } from "../ops/notify.js";
-import { emitEvent, voiceAgentOf } from "../packages/db.js";
-import { FIRST_RUN_ROUTE, formatPhoneDisplay, isE164, type EdgeErrorCode } from "../packages/contracts.js";
+import { emitEvent, voiceAgentOf } from "@chanlytics/db";
+import { FIRST_RUN_ROUTE, formatPhoneDisplay, isE164, type EdgeErrorCode } from "@chanlytics/contracts";
 import { createVoiceAgent } from "./voice-agent.js";
 import {
   planVoiceProvision,
@@ -53,10 +53,10 @@ import {
   type RetellConfig,
   type VoiceProvisionPlan,
   type VoiceProvisionRequest,
-} from "../packages/channels.js";
-import { env } from "../env.js";
+} from "@chanlytics/channels";
+import { env } from "../shared/env.js";
 import { secretToProvision, signatureOnly } from "./voice-door-auth.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 
 interface Body {
   tenant_id?: string;

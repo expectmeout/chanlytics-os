@@ -27,7 +27,7 @@ import {
   type ReplyVia,
 } from "./person-words";
 import { isOptedOutContact } from "../consent/consent";
-import type { FollowUpStand } from "../playbooks/playbooks";
+import type { FollowUpStand } from "../campaigns/playbooks/playbooks";
 import {
   visitDateKey,
   visitDay,
@@ -66,9 +66,9 @@ import { reasonShort } from "../conversations/escalations";
 import { readingOf } from "../conversations/standing";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
 import type { WrittenChannel } from "../conversations/thread-channel";
-import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
-import type { ChannelsReady } from "../broadcasts/reach-for";
-import { asNameSource, PERSON_NAME_WORDS, type NameSource } from "../person-page/words";
+import { personReachOf, type PersonReach } from "../campaigns/broadcasts/reach-any";
+import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
+import { asNameSource, PERSON_NAME_WORDS, type NameSource } from "./person-page/words";
 
 /** Where their name came from and the business they work at, as the row says them (0052). */
 function rowNameAndWorkOf(
@@ -240,7 +240,7 @@ export interface PersonRowVM {
   markAtMs: number;
   /**
    * How far the reader had seen their own words and calls as this read carried it (the mark's seen_at), epoch ms; 0 where
-   * they have none. Their page's "new since you last looked" reads it beside markAtMs (person-page/new-since.ts).
+   * they have none. Their page's "new since you last looked" reads it beside markAtMs (people/person-page/new-since.ts).
    */
   seenAtMs: number;
   needsYouSinceMs: number | null;

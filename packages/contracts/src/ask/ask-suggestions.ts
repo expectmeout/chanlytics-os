@@ -2,7 +2,7 @@
  * The questions and the acts the palette offers for where the person is (buildAskSuggestions): built from the
  * workspace's data, in English or Spanish, never from a seed. The pages it knows are ask.ts's (ASK_SURFACES).
  */
-import { isWinBack } from "../playbooks/playbook-triggers";
+import { isWinBack } from "../campaigns/playbooks/playbook-triggers";
 import type { AskScope, AskSurface } from "./ask";
 import type { AskLanguage } from "./ask-language";
 

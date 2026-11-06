@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { MEMBERSHIP_ROLES, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
 import {
   NO_ACTION,

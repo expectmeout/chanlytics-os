@@ -58,7 +58,7 @@ import {
   type SetupPutOff,
 } from "./setup-put-off";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone";
-import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
+import { SEQUENCES_ROUTE } from "../campaigns/sequences/sequence-address";
 
 /**
  * 0. Billing — first, for a workspace that pays by card: the door before

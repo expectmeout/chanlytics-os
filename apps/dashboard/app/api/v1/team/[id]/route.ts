@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { TEAM_ROLES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { setMemberRole, removeMember } from "@/server/workspace/team";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 
 const Body = z.object({
   role: z.enum(TEAM_ROLES as unknown as [string, ...string[]], { message: "Unknown role." }),

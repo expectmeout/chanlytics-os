@@ -21,9 +21,9 @@
  * page's own rule, because link scanners open every URL in an email. Without the edge's own key nothing is sealed, so
  * nothing is probed.
  */
-import { signUnsubscribeToken, unsubscribeUrl } from "../packages/channels.js";
-import { UNSUBSCRIBE_PAGE_HEADER } from "../packages/contracts.js";
-import { errField, type Logger } from "../log.js";
+import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels";
+import { UNSUBSCRIBE_PAGE_HEADER } from "@chanlytics/contracts";
+import { errField, type Logger } from "../shared/log.js";
 
 const UNSUBSCRIBE_PROBE_PAGE = "email_unsubscribe_links_broken";
 /** How long each ask waits. Both asks and the pause between them count in the sweep's time budget. */

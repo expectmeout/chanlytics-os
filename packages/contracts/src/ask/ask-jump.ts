@@ -4,7 +4,7 @@
  * A question is not a jump.
  */
 import { REPORT_LENSES, lensRoute, type LensRow } from "../reports/lenses";
-import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
+import { SEQUENCES_ROUTE } from "../campaigns/sequences/sequence-address";
 import { MESSAGES_ROUTE } from "../shell/address";
 
 /* ------------------------------------------------------------------- jump */

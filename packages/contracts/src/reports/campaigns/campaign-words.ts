@@ -13,20 +13,20 @@
  *
  * Pure, and only Reports' page reads it (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
  */
-import { broadcastFailureWords, readFailure } from "../../broadcasts/broadcast-failure-words";
+import { broadcastFailureWords, readFailure } from "../../campaigns/broadcasts/broadcast-failure-words";
 import {
   DELIVERY_RECEIPTS_WORDS,
   HELD_REASONS,
   REPLY_DAYS,
   REPLY_WINDOW_WORDS,
   STUCK_DAYS,
-} from "../../broadcasts/run-words";
+} from "../../campaigns/broadcasts/run-words";
 import { failureWordsOf } from "../../conversations/message-words";
 import { clockNear, durationWords } from "../../shared/clock";
 import { pct } from "../../shared/numbers";
 import { capitalize, joinWords, plural } from "../../shared/words";
-import { TEMPLATE_STATUS_WORDS } from "../../templates/templates";
-import { templateTitle } from "../../templates/template-titles";
+import { TEMPLATE_STATUS_WORDS } from "../../campaigns/templates/templates";
+import { templateTitle } from "../../campaigns/templates/template-titles";
 import { ownWord } from "../report-mix";
 import { REPORT_MIN_N, beforeWords, isThinShare, messagesAnsweredWords } from "../report-tiles";
 import type { CampaignNumberDto, CampaignStuckNowDto } from "./campaign-record";

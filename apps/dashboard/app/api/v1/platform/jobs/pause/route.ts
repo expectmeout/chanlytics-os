@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { JobKindPauseSchema } from "@chanlytics/contracts";
-import { healthPauseKind } from "@/server/platform/health";
+import { healthPauseKind } from "@/server/console/health";
 
 /**
  * POST /api/v1/platform/jobs/pause — {kind, paused, why}: a kind of background work paused, so no claim takes it and

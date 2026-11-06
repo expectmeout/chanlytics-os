@@ -7,8 +7,8 @@ import type { LegacyFlash } from "../../../legacy-verbs";
 import { useRecordFold } from "../../../kit/record/hooks";
 import { RecordInline } from "../../../kit/record/inline";
 import { RecordRow } from "../../../kit/record/row";
-import type { Brain, RowChange } from ".././save";
-import { businessTabSave } from ".././saver";
+import type { Brain, RowChange } from "../save";
+import { businessTabSave } from "../saver";
 import {
   type Flash,
   type BtSaver,

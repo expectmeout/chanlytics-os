@@ -14,7 +14,7 @@ import {
   type LeadIdeaDto,
 } from "@chanlytics/contracts";
 import { leadCardsLive } from "@chanlytics/db";
-import type { RouteContext } from "../../../../with-route";
+import type { RouteContext } from "../../../../shared/with-route";
 import { suggestionsKept } from "../../../../leads/lead-suggestions";
 import { planFacts } from "../../../../leads/lead-plan-facts";
 import { peopleCard } from "./lead-search";

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf } from "@/server/leads/leads";
 
 const Body = z.object({ version: z.number().int().min(0) });

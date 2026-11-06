@@ -25,21 +25,15 @@
  * argument, so a test hands it one in memory and the real functions run.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { resolveChannelDetailed } from "../packages/db.js";
-import type { RoutedChannel } from "../packages/db.js";
-import {
-  verifyTwilioSignature,
-  smsBody,
-  oneTimeCodeOf,
-  SMS_HELD_REASON,
-  SMS_HELD_DETAILS,
-} from "../packages/channels.js";
-import type { ProviderAccount, SmsInbound } from "../packages/channels.js";
+import type { Database } from "@chanlytics/db";
+import { resolveChannelDetailed } from "@chanlytics/db";
+import type { RoutedChannel } from "@chanlytics/db";
+import { verifyTwilioSignature, smsBody, oneTimeCodeOf, SMS_HELD_REASON, SMS_HELD_DETAILS } from "@chanlytics/channels";
+import type { ProviderAccount, SmsInbound } from "@chanlytics/channels";
 import { lineByNumber, lineAccount } from "./sms.js";
 import type { SmsLine, SmsSender } from "./sms.js";
-import type { InboundCarrier } from "../packages/core.js";
-import type { LogEvent } from "../log.js";
+import type { InboundCarrier } from "@chanlytics/core";
+import type { LogEvent } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

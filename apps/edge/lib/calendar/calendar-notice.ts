@@ -13,11 +13,11 @@ import {
   CALENDAR_SETTING_ROUTE,
   CALENDAR_UNREADABLE_TOLD_AFTER_MS,
   CALENDAR_UNREADABLE_WORDS,
-} from "../packages/contracts.js";
-import type { Database } from "../packages/db.js";
+} from "@chanlytics/contracts";
+import type { Database } from "@chanlytics/db";
 import { mendWarnings, notifyOnce } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { errField, type Logger } from "../log.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { errField, type Logger } from "../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

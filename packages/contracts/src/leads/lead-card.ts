@@ -21,18 +21,18 @@ import {
   REACH_OUT_VALUE_MARKS,
   reachOutCardEmailOf,
   reachOutCardSlotsOf,
-} from "../reach-out/reach-out-rules";
-import type { SlotLead, SlotWorkspace } from "../reach-out/reach-out-rules";
-import { REACH_OUT_SLOT_SET } from "../reach-out/reach-out-words";
+} from "../campaigns/reach-out/reach-out-rules";
+import type { SlotLead, SlotWorkspace } from "../campaigns/reach-out/reach-out-rules";
+import { REACH_OUT_SLOT_SET } from "../campaigns/reach-out/reach-out-words";
 import {
   REACH_OUT_WHY_NOT_WORDS,
   reachOutWhenOf,
   type ReachOutAddLeadDto,
   type ReachOutWhyNot,
-} from "../reach-out/reach-out-leads";
-import { chainPaceOf } from "../reach-out/reach-out-sheet";
-import { slotMentions } from "../templates/slot-sets";
-import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
+} from "../campaigns/reach-out/reach-out-leads";
+import { chainPaceOf } from "../campaigns/reach-out/reach-out-sheet";
+import { slotMentions } from "../campaigns/templates/slot-sets";
+import type { ReachOutChainDto } from "../campaigns/reach-out/reach-out-dtos";
 import type { LeadEmailState } from "./search/sets";
 import type { LeadPeekVM } from "./lead-peek";
 import type { LeadEmailText, LeadStepWordsDto } from "./sheet/lead-sheet-words";

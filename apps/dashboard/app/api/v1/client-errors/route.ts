@@ -1,8 +1,8 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { ClientErrorInput } from "@chanlytics/contracts";
-import { log } from "@/server/log";
-import { memberContext } from "@/server/with-route";
-import { keepClientErrorRow } from "@/server/platform/health";
+import { log } from "@/server/shared/log";
+import { memberContext } from "@/server/shared/with-route";
+import { keepClientErrorRow } from "@/server/console/health";
 
 /**
  * POST /api/v1/client-errors — {boundary, page, name, message, stack, digest}: an error a page hit in this member's

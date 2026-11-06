@@ -13,7 +13,7 @@
  *   leadWordsFromBox   what the box says, as the words to keep
  *   leadWordsProblem   what is wrong with those words, in the step's own rules; null where they may go
  */
-import { slotMentions, slotValueOf, slotWritten } from "../../templates/slot-sets";
+import { slotMentions, slotValueOf, slotWritten } from "../../campaigns/templates/slot-sets";
 import { capitalize } from "../../shared/words";
 import { leadAddresseeOf } from "../lead-kind";
 import {
@@ -21,14 +21,14 @@ import {
   reachOutValues,
   type SlotLead,
   type SlotWorkspace,
-} from "../../reach-out/reach-out-rules";
+} from "../../campaigns/reach-out/reach-out-rules";
 import {
   chainIssueWords,
   firstEmailLinkProblem,
   REACH_OUT_SLOT_SET as SLOTS,
   validateReachOutWords,
   wordsIssueWords,
-} from "../../reach-out/reach-out-words";
+} from "../../campaigns/reach-out/reach-out-words";
 
 /** An email's words: a later step answers the one before, and has no subject (null). */
 export interface LeadEmailText {

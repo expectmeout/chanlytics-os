@@ -12,8 +12,8 @@
  *
  * Cross-workspace: the lead sweep visits every workspace's runs and rounds; each job it schedules carries the row's tenant_id.
  */
-import { json, refuse } from "../http.js";
-import { errField } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import { errField } from "../shared/log.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
 import { markLeadsAgain } from "./lead-marks.js";
 import {
@@ -23,10 +23,10 @@ import {
   type SweepRoundRow,
   type SweepRunRow,
 } from "./lead-sweep.js";
-import { giveUpRun, reconcileUnknownRuns, runIdFor, type LeadPorts, type LeadRunRow } from "../packages/core.js";
-import { scheduleJobOnce } from "../packages/jobs.js";
+import { giveUpRun, reconcileUnknownRuns, runIdFor, type LeadPorts, type LeadRunRow } from "@chanlytics/core";
+import { scheduleJobOnce } from "@chanlytics/jobs";
 import { leadDb } from "./lead-db.js";
-import type { Json } from "../packages/db.js";
+import type { Json } from "@chanlytics/db";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */

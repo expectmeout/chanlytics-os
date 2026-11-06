@@ -9,8 +9,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accentOf, escapeHtml, workspaceLogoSrc } from "@chanlytics/contracts";
 import { workspaceLookOf, type Database } from "@chanlytics/db";
-import { env } from "@/server/env";
-import { serviceDbIfConfigured } from "@/server/service-db";
+import { env } from "@/server/shared/env";
+import { serviceDbIfConfigured } from "@/server/shared/service-db";
 
 /** A test's database; otherwise the dashboard's one service-role client, when this deployment holds its keys. */
 let linkDb: SupabaseClient<Database> | null = null;

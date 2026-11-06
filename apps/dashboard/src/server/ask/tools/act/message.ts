@@ -18,7 +18,7 @@ import {
 import { channelsReadyOf } from "../../../campaigns/channels-ready";
 import { refuseWrittenUtility } from "../../../campaigns/template-versions";
 import { checkMessage, heldValues, messageOnFile, type WriteMessageBody } from "../../../campaigns/write-message";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { load } from "../../../readers";
 import { channels as channelsReader } from "../../../readers/channels";
 import { writeCustomerMessage } from "../../skills/customer-message";

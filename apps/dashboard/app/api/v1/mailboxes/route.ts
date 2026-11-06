@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { createMailbox } from "@/server/connections/email";
 
 const Body = z

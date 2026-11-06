@@ -22,7 +22,7 @@ import {
   type BrainConfig,
 } from "@chanlytics/contracts";
 import { putTenantConfig } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 import { listingFactsFor } from "../connections/google";
 import { configRowOf } from "../workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "../workspace/settings-write";

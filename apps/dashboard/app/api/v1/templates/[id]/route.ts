@@ -1,5 +1,5 @@
-import { write } from "@/server/route";
-import { templateScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { templateScope } from "@/server/shared/verbs";
 import { changeTemplate, deleteTemplateRow, TemplateChange } from "@/server/campaigns/template-row";
 
 /**

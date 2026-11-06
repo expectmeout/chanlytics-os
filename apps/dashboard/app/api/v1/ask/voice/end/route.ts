@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ASK_VOICE_TIMING_MAX_MS, isVoiceEndReason } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { log } from "@/server/log";
+import { write, workspace } from "@/server/shared/route";
+import { log } from "@/server/shared/log";
 import { endVoiceSession, sessionHashOf, SESSION_ID } from "@/server/ask/voice-session";
 
 /**

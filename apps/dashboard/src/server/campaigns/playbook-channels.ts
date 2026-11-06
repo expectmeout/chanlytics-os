@@ -1,7 +1,7 @@
 import "server-only";
 import { DEFAULT_CAMPAIGN_CHANNELS } from "@chanlytics/contracts";
 import { playbookChannels, playbookForChannels } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 
 /**
  * The channels a playbook already ticks, for an edit that names none (packages/db playbookChannels): null when it keeps none,

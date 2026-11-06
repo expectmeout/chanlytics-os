@@ -9,7 +9,7 @@
  * edited in Settings › Business), else the linked listing's. A website that is a page on another service (a booking
  * platform, a social page, a link-in-bio page: contracts siteHost, the lead finder's own rule) is not looked at,
  * because its logo is the service's, and neither is our own. The home page is read by the platform's one page reader
- * (lib/public-page.ts homePage: Firecrawl's scrape, as the site stands now), the marks it declares are found as the
+ * (lib/shared/public-page.ts homePage: Firecrawl's scrape, as the site stands now), the marks it declares are found as the
  * website read finds them (core siteLogoFrom: the mark the reader saw, schema.org's logo, the home-screen icon, the
  * biggest icon; a builder's default refused), and each picture is asked for over the guarded fetch (channels
  * publicFetcher), which refuses any address that is not on the public internet at every hop. A candidate on a port that
@@ -25,14 +25,14 @@ import {
   parseTenantConfig,
   siteHost,
   type LogoLookupAnswer,
-} from "../packages/contracts.js";
-import { imageBytes, publicFetcher } from "../packages/channels.js";
-import { siteLogoFrom } from "../packages/core.js";
-import { getTenantConfig, listingFactsStored, type Database } from "../packages/db.js";
-import { homePage, PAGE_READS } from "../public-page.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
+} from "@chanlytics/contracts";
+import { imageBytes, publicFetcher } from "@chanlytics/channels";
+import { siteLogoFrom } from "@chanlytics/core";
+import { getTenantConfig, listingFactsStored, type Database } from "@chanlytics/db";
+import { homePage, PAGE_READS } from "../shared/public-page.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 
 type Db = SupabaseClient<Database>;
 

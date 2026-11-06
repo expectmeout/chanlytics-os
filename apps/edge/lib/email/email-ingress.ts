@@ -22,8 +22,8 @@
  * writes the count; this reads, and is proved against a database in memory.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { mailboxFor } from "../packages/db.js";
+import type { Database } from "@chanlytics/db";
+import { mailboxFor } from "@chanlytics/db";
 import {
   emailReceiptFrom,
   emailReceivedEventFrom,
@@ -31,8 +31,8 @@ import {
   verifyResendWebhook,
   type EmailReceipt,
   type SvixHeaders,
-} from "../packages/channels.js";
-import type { LogEvent } from "../log.js";
+} from "@chanlytics/channels";
+import type { LogEvent } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

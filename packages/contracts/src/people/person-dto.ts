@@ -11,9 +11,9 @@ import type { CallDto } from "../conversations/call-dto";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { DealDto, OpenDealDto } from "../deals/deal-vm";
 import type { DealPaceDto } from "../deals/deal-waits";
-import type { RecipientState } from "../broadcasts/broadcasts";
+import type { RecipientState } from "../campaigns/broadcasts/broadcasts";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
-import type { ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
+import type { ReachOutLeadTimelineDto } from "../campaigns/reach-out/reach-out-leads";
 import type { LeadRowDto } from "../leads/lead-dtos";
 import type { PersonDoubtDto } from "./person-doubts";
 

@@ -37,9 +37,9 @@
  */
 import { mail, notifyOnceAs, reachesTenant, type NotifyMessage } from "../ops/notify.js";
 import { pageOperator } from "../ops/page-operator.js";
-import { loadTenantNotifications, loadTenantRuntime } from "../tenant-runtime.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
+import { loadTenantNotifications, loadTenantRuntime } from "../shared/tenant-runtime.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import {
   normalizeCall,
@@ -47,7 +47,7 @@ import {
   updateLiveCall,
   type NormalizedCall,
   type RetellCall,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   pauseConversation,
   resolveChannelDetailed,
@@ -65,19 +65,19 @@ import {
   CALL_CONTROL_S,
   type ChannelLookup,
   type RoutedChannel,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "./call-recording.js";
 import { isRehearsalCall, settleRehearsalEvent } from "./rehearsal-call.js";
 import { markForwardingVerified } from "./forwarding.js";
 import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "../ops/apns.js";
-import { erasedBeforeCall } from "../erased.js";
-import { upsertEscalation } from "../packages/jobs.js";
-import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach } from "../packages/contracts.js";
+import { erasedBeforeCall } from "../shared/erased.js";
+import { upsertEscalation } from "@chanlytics/jobs";
+import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach } from "@chanlytics/contracts";
 import { linkOfferedOn } from "../calendar/availability.js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import { keptUrl, retellSigned } from "./voice-door-auth.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 import {
   planCallEvent,
   callNotice,
@@ -642,7 +642,7 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   if (!db) {
     // No control plane: nothing can be checked or written, so the delivery is
     // not acknowledged. The SMS and WhatsApp doors answer the same 503, and a
-    // credential-less deployment answers no_database platform-wide (lib/pg.ts).
+    // credential-less deployment answers no_database platform-wide (lib/shared/pg.ts).
     L.error("retell_no_database", { call_id: n.retellCallId, retell_event: event });
     return refuse(503, "no_database");
   }

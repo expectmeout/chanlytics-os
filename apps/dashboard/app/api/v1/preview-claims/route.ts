@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PreviewTokenSchema } from "@chanlytics/contracts";
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { claimPreviewFor } from "@/server/previews/claim";
 
 /**

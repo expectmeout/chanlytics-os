@@ -1,6 +1,6 @@
 import { createBroadcast } from "@chanlytics/core";
-import { read, write, workspace } from "@/server/route";
-import { jsonBody } from "@/server/request-guards";
+import { read, write, workspace } from "@/server/shared/route";
+import { jsonBody } from "@/server/shared/request-guards";
 import { createBroadcastPorts } from "@/server/ports/campaign-ports";
 import { load, readerContext } from "@/server/readers";
 import { broadcasts } from "@/server/readers/broadcasts";

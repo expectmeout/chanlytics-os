@@ -1,7 +1,7 @@
 /**
  * The business's website read for Check (decision 0073, R10; 00479's website_read), as the job runner is handed it: its
  * home page and up to two pages it links to for its services, prices, rules and questions (core sitePagesLinkedFrom),
- * each read by the platform's one page reader (lib/public-page.ts sitePage: Firecrawl's scrape, the page's main content
+ * each read by the platform's one page reader (lib/shared/public-page.ts sitePage: Firecrawl's scrape, the page's main content
  * as Markdown), and drawn out by the smallest model into a fixed shape (contracts WEBSITE_READ_SCHEMA), its answer read
  * in code (businessReadFactsOf). Kept whole in business_reads, the newest read standing; one that could not be made
  * says why, which Check says. Where the site says its customers book is read off the same home page and kept with the
@@ -23,20 +23,20 @@ import {
   fenced,
   listingFactsOf,
   parseTenantConfig,
-} from "../packages/contracts.js";
-import type { SitePage } from "../packages/channels.js";
-import { bookingPageOfSite, sitePagesLinkedFrom, sitePagesNamed } from "../packages/core.js";
-import { getTenantConfig, keepBusinessRead, listingFactsStored, type Database, type Json } from "../packages/db.js";
-import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
-import { askJson, promptHashOf } from "../model.js";
-import { env } from "../env.js";
-import { homePage, PAGE_READS, sitePage, siteLinks, sitePagesReadable } from "../public-page.js";
+} from "@chanlytics/contracts";
+import type { SitePage } from "@chanlytics/channels";
+import { bookingPageOfSite, sitePagesLinkedFrom, sitePagesNamed } from "@chanlytics/core";
+import { getTenantConfig, keepBusinessRead, listingFactsStored, type Database, type Json } from "@chanlytics/db";
+import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
+import { askJson, promptHashOf } from "../ai/model.js";
+import { env } from "../shared/env.js";
+import { homePage, PAGE_READS, sitePage, siteLinks, sitePagesReadable } from "../shared/public-page.js";
 import { wearSiteLook } from "./look.js";
 import { askForFoundFiles, sitePhotosOf } from "../files/found.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { errField, logger } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { errField, logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

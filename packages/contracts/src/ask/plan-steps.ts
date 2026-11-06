@@ -7,7 +7,7 @@
  */
 import type { AskPlanStamp, AskProposal } from "./ask";
 import type { AskLanguage } from "./ask-language";
-import { ASK_SENDS, PROPOSAL_WORDS, rec } from "../ask-proposals/spec";
+import { ASK_SENDS, PROPOSAL_WORDS, rec } from "./proposals/spec";
 
 /**
  * Every step of a plan committed so far, by step, as a card's commit fills its tokens from it and a press of the plan

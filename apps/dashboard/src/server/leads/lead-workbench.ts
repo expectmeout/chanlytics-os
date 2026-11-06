@@ -26,7 +26,7 @@ import {
   reachOutSources,
 } from "@chanlytics/db";
 import { answerOf, refusalOf } from "./lead-answers";
-import { dbRefusal, type RouteContext } from "../with-route";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
 
 type Ctx = Pick<RouteContext, "supabase">;
 

@@ -3,7 +3,7 @@
  * this only when something is (trigger_jobs_tick, 00098).
  *
  * sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks the sweep key; tickJobs in
- * lib/ops/jobs-tick.ts binds each job's own tenant credentials and runs the loop, which is packages/jobs/src/tick.ts,
+ * lib/ops/jobs-tick.ts binds each job's own tenant credentials and runs the loop, which is packages/jobs/src/runner/tick.ts,
  * tested by running it against fakes.
  */
 import { sweepDoor } from "../../lib/ops/sweep-door.js";

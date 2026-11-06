@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SPEND_REVIEW, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { reviewRehearsal } from "@/server/receptionist/rehearsal";
 
 /**

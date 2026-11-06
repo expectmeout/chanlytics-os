@@ -8,14 +8,14 @@
  * Cross-workspace: an inbound text names only the number it reached, so its line is found by that number.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
-import type { LineSecrets, ProviderAccount, ProviderReply, SendResult } from "../packages/channels.js";
-import { answerObject, smsStatusUrl, smsRefusalOf, twilioRequest } from "../packages/channels.js";
+import type { Database, Json } from "@chanlytics/db";
+import type { LineSecrets, ProviderAccount, ProviderReply, SendResult } from "@chanlytics/channels";
+import { answerObject, smsStatusUrl, smsRefusalOf, twilioRequest } from "@chanlytics/channels";
 import { lineProviderFromEnv } from "../lines/lines.js";
-import { edgeFnUrl } from "../dashboard-origin.js";
-import { logger, errField, type Logger } from "../log.js";
-import { phoneTail, type EdgeRefusal } from "../packages/contracts.js";
-import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "../packages/core.js";
+import { edgeFnUrl } from "../shared/dashboard-origin.js";
+import { logger, errField, type Logger } from "../shared/log.js";
+import { phoneTail, type EdgeRefusal } from "@chanlytics/contracts";
+import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 
 type Db = SupabaseClient<Database>;
 const SUBACCOUNT_READ_TIMEOUT_MS = 15000;

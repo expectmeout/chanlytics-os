@@ -10,10 +10,10 @@
  * Nothing here is shown to an owner, so the vendor's name is fine in what it says.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { firecrawlCredits, type SiteReaderCredits } from "../packages/channels.js";
-import type { Database } from "../packages/db.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
+import { firecrawlCredits, type SiteReaderCredits } from "@chanlytics/channels";
+import type { Database } from "@chanlytics/db";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
 import { pageOperator, type PagePorts } from "../ops/page-operator.js";
 
 type Db = SupabaseClient<Database>;

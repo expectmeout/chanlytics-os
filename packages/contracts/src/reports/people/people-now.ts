@@ -12,7 +12,7 @@
  * Counts only: nothing of a person leaves. The book is read for no one looking (`viewer: null`), so a list that is about
  * whoever is looking could not be counted, and none of the five lists is. Pure.
  */
-import type { ChannelsReady } from "../../broadcasts/reach-for";
+import type { ChannelsReady } from "../../campaigns/broadcasts/reach-for";
 import type { StepDue } from "../../notes/steps";
 import { poolListContext, poolRowsOf } from "../../people/audience-pool";
 import { membersOf, resolveList } from "../../people/lists/lists";

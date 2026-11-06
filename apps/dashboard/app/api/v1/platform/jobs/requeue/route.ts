@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { JobRequeueSchema } from "@chanlytics/contracts";
-import { platformJobRequeue } from "@/server/platform/platform";
+import { platformJobRequeue } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/jobs/requeue — run a failed job of another workspace again.
