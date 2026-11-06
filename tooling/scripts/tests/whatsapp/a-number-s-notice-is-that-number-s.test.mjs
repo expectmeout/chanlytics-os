@@ -6,6 +6,7 @@
  *   - Meta's notice about one number (its rating, its display name) names it, and is kept on that number's row, under
  *     that number's channel; a notice that names none, or a number not on file, is the account's oldest number's.
  *   - A reader that knows no number (a run's WhatsApp facts) is answered by the oldest, every time.
+ *   - A rating the row could not take, read or written, leaves the row whole and is a line; the notice goes on.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,9 +14,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
+import { fieldsOf, linesOf } from "../_log-lines.mjs";
 
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY"]) delete process.env[k];
 const { handleWabaChange } = await import(at("apps/edge/lib/whatsapp/waba-events.ts"));
+const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { whatsappChannelFacts } = await import(
   pathToFileURL(path.join(here, "../../../../packages/db/dist/index.js")).href
@@ -126,4 +129,65 @@ test("a number's good news mends that number's warning, and no other number's (t
     ],
     "REGRESSION: 'raised' kept no row and closed nothing, so 'lowered' stayed amber for good",
   );
+});
+
+/* ------------------------- a rating the row could not take: a line, and on -- */
+
+const DOWN = { message: "connection reset" };
+/** Meta flagging the new number: kept on its row, and told. */
+const flagged = {
+  field: "phone_number_quality_update",
+  value: { display_phone_number: "13055550972", event: "FLAGGED", current_limit: "TIER_250" },
+};
+const failuresIn = (lines) => lines.filter((l) => l.event === "channel_quality_row_failed").map(fieldsOf);
+const noteOf = (tables) => tables.notifications.map((n) => n.title);
+/** The bell's row is kept through pg(): this case's world, for the length of the case. */
+const asTheBell = (t, db) => {
+  setPg(db);
+  t.after(() => setPg(null));
+  return db;
+};
+
+test("a rating whose read of the row fails writes nothing over nothing: the config stays whole, the failure is a line, and the notice is still told", async (t) => {
+  const { tables } = world();
+  const before = structuredClone(tables.tenant_channels);
+  // The route reads this table first and finds the number; only the read of its config fails.
+  const db = asTheBell(
+    t,
+    fakeDb(tables, {
+      get "tenant_channels.select"() {
+        return db.seen.at(-1)?.columns === "config" ? DOWN : undefined;
+      },
+    }),
+  );
+  const { result, lines } = await linesOf(() => handleWabaChange(db, WABA, flagged, async () => null));
+  assert.deepEqual(
+    tables.tenant_channels,
+    before,
+    "REGRESSION: a read that failed made the config empty, and the write replaced the whole of it with three fields",
+  );
+  assert.deepEqual(failuresIn(lines), [{ tenant_id: T, channel_id: "ch-new", step: "read", error: DOWN.message }]);
+  assert.equal(result, "alerted", "it goes on: the webhook is already acknowledged");
+  assert.deepEqual(noteOf(tables), ["WhatsApp quality rating flagged"]);
+});
+
+test("a rating the row refuses is a line, where it was dropped, and the notice is still told", async (t) => {
+  const { tables } = world();
+  const before = structuredClone(tables.tenant_channels);
+  const db = asTheBell(t, fakeDb(tables, { "tenant_channels.update": DOWN }));
+  const { result, lines } = await linesOf(() => handleWabaChange(db, WABA, flagged, async () => null));
+  assert.deepEqual(tables.tenant_channels, before);
+  assert.deepEqual(failuresIn(lines), [{ tenant_id: T, channel_id: "ch-new", step: "write", error: DOWN.message }]);
+  assert.equal(result, "alerted");
+  assert.deepEqual(noteOf(tables), ["WhatsApp quality rating flagged"]);
+});
+
+test("a rating kept keeps what else the config holds, and says nothing of a failure", async () => {
+  const w = world();
+  const { result, lines } = await linesOf(() => handleWabaChange(w.db, WABA, flagged, async () => null));
+  const kept = w.tables.tenant_channels.find((c) => c.id === "ch-new").config;
+  assert.deepEqual([kept.standing_note, kept.messaging_limit, kept.quality_event], ["ch-new", "TIER_250", "FLAGGED"]);
+  assert.ok(Number.isFinite(Date.parse(kept.quality_at)));
+  assert.deepEqual(failuresIn(lines), []);
+  assert.equal(result, "alerted");
 });
