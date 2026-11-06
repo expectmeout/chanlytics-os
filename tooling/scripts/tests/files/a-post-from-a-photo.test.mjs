@@ -20,21 +20,12 @@ const { POST_SIZES, SCRIM_UNDER_WORDS, postCrop, postLayout, postPhotoBox, words
   at("apps/dashboard/src/server/files/post/layout.ts")
 );
 const { composePost } = await import(at("apps/dashboard/src/server/files/post/compose.ts"));
-const { buildAskSuggestions } = await import(at("packages/contracts/src/ask/ask-suggestions.ts"));
+const { MAKE_POST_ASK, buildAskSuggestions } = await import(at("packages/contracts/src/ask/ask-suggestions.ts"));
 const { postPathOf, postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } = await import(
   at("packages/contracts/src/files/post-check.ts")
 );
-const {
-  MAKE_POST_ASK,
-  POST_LAYOUTS,
-  POST_LIMITS,
-  POST_SHAPES,
-  POST_WORDS,
-  postPhotoWont,
-  postPlanOf,
-  postPlanTidied,
-  postWordsIn,
-} = await import(at("packages/contracts/src/files/post.ts"));
+const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } =
+  await import(at("packages/contracts/src/files/post.ts"));
 const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));

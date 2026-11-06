@@ -202,12 +202,6 @@ const POST_WORDS_ES: PostWords = {
   },
 };
 
-/**
- * What a photo's press asks of Ask, in each language: Ask's chip, and the sheet's own door (surfaces/files/file-sheet.tsx). The scope
- * brings the picture, so the words only have to say what to do with it.
- */
-export const MAKE_POST_ASK = { en: "Make a post from this photo", es: "Haz una publicación con esta foto" } as const;
-
 /** What a post says, in its own language. */
 export const postWordsIn = (language: PostLanguage): PostWords => (language === "es" ? POST_WORDS_ES : POST_WORDS);
 

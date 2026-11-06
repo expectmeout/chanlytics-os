@@ -2,7 +2,6 @@
  * The questions and the acts the palette offers for where the person is (buildAskSuggestions): built from the
  * workspace's data, in English or Spanish, never from a seed. The pages it knows are ask.ts's (ASK_SURFACES).
  */
-import { MAKE_POST_ASK } from "../files/post";
 import { isWinBack } from "../playbooks/playbook-triggers";
 import type { AskScope, AskSurface } from "./ask";
 import type { AskLanguage } from "./ask-language";
@@ -65,6 +64,13 @@ export interface SuggestionInput {
  * (LIFECYCLE_WORDS.ask.setUp), one sentence that the turn reads as a setup (server/ask/cross-page.ts SETUP).
  */
 export const SET_UP_CAMPAIGNS = { en: "Set up my campaigns", es: "Prepara mis campañas" } as const;
+
+/**
+ * What a photo's press asks, in each language: its chip here, and its sheet's own door (surfaces/files/file-sheet.tsx). Here and not
+ * with a post's words, which only Ask's chunk and Files load, since this module is on every page. The scope brings the picture, so
+ * the words only have to say what to do with it.
+ */
+export const MAKE_POST_ASK = { en: "Make a post from this photo", es: "Haz una publicación con esta foto" } as const;
 
 const T = {
   en: {
