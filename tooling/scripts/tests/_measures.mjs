@@ -50,6 +50,7 @@ import {
   stringsIn,
   visitsWrittenIn,
   fixedWaitsIn,
+  droppedDbErrorsIn,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
@@ -189,6 +190,13 @@ export function personalColumns() {
 export const CROSS_WORKSPACE = /^\s*(?:\/\/|\/\*\*|\*)?\s*Cross-workspace: \S/m;
 /** The edge's own code: its doors and what they call, less the facades that re-export the packages' dist. */
 const EDGE = SRC.filter((f) => /^apps\/edge\/(api|lib)\//.test(f) && !f.startsWith("apps/edge/lib/packages/"));
+/** The code behind the doors, both apps' and the packages' that run there, less what never runs: a test, a type test. */
+export const BEHIND_THE_DOORS = SRC.filter(
+  (f) =>
+    /^apps\/edge\/(api|lib)\/|^apps\/dashboard\/(app\/api|src\/server)\/|^packages\/(core|db|jobs|channels)\/src\//.test(
+      f,
+    ) && !/(^|\/)test\/|\.test\.|\.type-test\./.test(f),
+);
 
 /** `{ file: n }` for each of `files` whose syntax tree `count` puts over `floor`. */
 const perFile = (files, count, floor = 0) =>
@@ -562,6 +570,13 @@ export const MEASURES = [
     },
     advice:
       "A statement on a workspace's table names the workspace: tenantDb(db, tenantId).from(...) (packages/db), or .eq(\"tenant_id\", …), or a row that carries its tenant_id. A module that reads across workspaces on purpose (a sweep, a provider's webhook) says why in its header, on a line that begins Cross-workspace: and is not measured.",
+  },
+  {
+    name: "database results whose error is dropped",
+    key: "dropped-db-errors",
+    measure: () => perFile(BEHIND_THE_DOORS, (sf) => droppedDbErrorsIn(sf).length),
+    advice:
+      "Read the error where the statement is: `const { data, error } = await …`, or `r.error` on a result held by a name, then throw it, or log it and answer so. supabase-js answers a failed statement with `{ error }` and never throws, and tenantDb throws only on misuse, so a try catches nothing: a failed write looks done, and a failed read looks like no row. A write that may fail on purpose still logs its error. `.throwOnError()`, a `.then`, or a helper handed the statement or the result counts as read.",
   },
   {
     name: "unnamed durations",
