@@ -247,6 +247,8 @@ export const RATE = {
   workspace_logo: { limit: 20, windowMs: HOUR_MS, noun: "logo changes" },
   /** A member's photo added to Files (decision 0099): an address signed, then the bytes proven. Two calls a photo, and twenty photos a press. */
   file_upload: { limit: 600, windowMs: HOUR_MS, noun: "photos added" },
+  /** A post's picture drawn for a person changing its words (decision 0099): one a pause in their typing, nothing kept, nothing spent. */
+  file_post_preview: { limit: 1200, windowMs: HOUR_MS, noun: "post pictures" },
   /** A look for the logo on the business's own website: a page and up to two images asked of another server, each time. */
   workspace_logo_lookup: { limit: 6, windowMs: HOUR_MS, noun: "looks for your logo" },
   /** A Checkout or portal session, a resume, a sync: each a call to Stripe for an owner that changes something. */

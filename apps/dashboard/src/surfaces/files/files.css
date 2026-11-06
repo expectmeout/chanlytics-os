@@ -60,6 +60,33 @@
   box-shadow: var(--focus-ring);
 }
 
+/* A picture comes in as it arrives rather than popping in over its ground, and a tile answers the press that opens it. */
+.files-pic {
+  opacity: 0;
+  transition:
+    opacity var(--duration-slow) var(--ease-out),
+    scale var(--duration-fast) var(--ease-out);
+}
+
+.files-pic[data-arrived],
+span.files-pic {
+  opacity: 1;
+}
+
+.files-photo:active .files-pic {
+  scale: 0.98;
+}
+
+.files-big {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.files-big[data-arrived],
+span.files-big {
+  opacity: 1;
+}
+
 /* An outline, since a box-shadow inside an <img> paints beneath its picture. */
 @media (hover: hover) {
   .files-photo:hover .files-pic {
@@ -104,8 +131,12 @@
   cursor: default;
 }
 
-.files-going .files-pic {
+.files-going .files-pic[data-arrived] {
   opacity: 0.55;
+}
+
+.files-sent {
+  width: 100%;
 }
 
 .files-going .files-state {
@@ -185,6 +216,17 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .files-pic,
+  .files-big {
+    transition: none;
+  }
+
+  .files-photo:active .files-pic {
+    scale: none;
+  }
 }
 
 /* A phone scans photos in threes, edge to edge, as its own camera roll taught it. What failed still says its name. */

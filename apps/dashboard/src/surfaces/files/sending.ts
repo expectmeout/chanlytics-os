@@ -22,6 +22,8 @@ export interface SendingPhoto {
   state: "waiting" | "sending" | "failed";
   /** A picture of it to draw, while going or failed. */
   picture: string | null;
+  /** How much of it has gone, 0 to 1, where the browser can say; null before it starts. */
+  sent: number | null;
   /** Why it failed. */
   message: string | null;
 }
@@ -109,11 +111,13 @@ function nextWaiting(): SendingPhoto | undefined {
 async function sender(): Promise<void> {
   for (let p = nextWaiting(); p; p = nextWaiting()) {
     const { key, file } = p;
-    swap(key, { state: "sending", picture: pictureOf(file) });
-    const said = await fileVerbs.add(file).catch((): AddSaid => ({ kept: false, message: W.notSaved }));
+    swap(key, { state: "sending", picture: pictureOf(file), sent: 0 });
+    const said = await fileVerbs
+      .add(file, (sent) => swap(key, { sent }))
+      .catch((): AddSaid => ({ kept: false, message: W.notSaved }));
     if (!said.kept) {
       run.failed++;
-      swap(key, { state: "failed", message: said.message });
+      swap(key, { state: "failed", message: said.message, sent: null });
       continue;
     }
     if (said.twin) run.twins++;
@@ -159,7 +163,14 @@ export function addPhotos(files: readonly File[], flash: (f: LegacyFlash) => voi
     said: files.length > taken.length ? W.tookFirst(taken.length, files.length) : null,
     photos: [
       ...now.photos,
-      ...taken.map((file) => ({ key: nextKey++, file, state: "waiting" as const, picture: null, message: null })),
+      ...taken.map((file) => ({
+        key: nextKey++,
+        file,
+        state: "waiting" as const,
+        picture: null,
+        sent: null,
+        message: null,
+      })),
     ],
   });
   goOn();

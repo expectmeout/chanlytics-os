@@ -55,6 +55,31 @@ export {
   fileLookOf,
 } from "./look";
 export type { FileLook, FileLookRead } from "./look";
-export { POST_LIMITS, POST_SHAPES, POST_VOICES, POST_WORDS, postPlanOf } from "./post";
-export type { PostPlan, PostShapeName, PostVoice } from "./post";
-export { postBandOf, postPathOf, postPhotoProblem, postPlanProblem, postWordsProblem } from "./post-check";
+export {
+  POST_LAYOUTS,
+  POST_LIMITS,
+  POST_NO_PHONE,
+  POST_SHAPES,
+  POST_VOICES,
+  POST_WORDS,
+  postPlanOf,
+  postPlanTidied,
+  postWordsIn,
+} from "./post";
+export type {
+  PostLanguage,
+  PostLayoutName,
+  PostPlan,
+  PostShapeName,
+  PostUndrawable,
+  PostVoice,
+  PostWords,
+} from "./post";
+export {
+  postBandOf,
+  postPathOf,
+  postPhotoProblem,
+  postPlanProblem,
+  postUndrawable,
+  postWordsProblem,
+} from "./post-check";

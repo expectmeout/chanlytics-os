@@ -9,7 +9,7 @@
  * press. The presses are verbs.ts's, which the doors check again; what is on its way is sending.ts's. The words are contracts'
  * (FILE_WORDS), the parts the kit's. This module is the page; photo.tsx its tiles, file-sheet.tsx one file opened.
  */
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   FILE_SHELVES,
   FILE_WORDS as W,
@@ -24,9 +24,11 @@ import { EmptyState } from "../kit/empty/empty";
 import { LineFiles } from "../kit/line/line";
 import { Notice } from "../kit/notice/notice";
 import { Segmented } from "../kit/segmented/segmented";
+import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { doAsked } from "../kit/sheet/back";
 import { canDo, gate, refreshSurface, type LegacyFlash } from "../legacy-verbs";
 import { useSurface } from "../use-surface";
+import { hearFileAsked } from "./file-asked";
 import { FileSheet } from "./file-sheet";
 import { InboxPress } from "./inbox-press";
 import { Photo, PhotosOnTheirWay } from "./photo";
@@ -54,6 +56,9 @@ export function PaneFiles({ flash }: { flash: (f: LegacyFlash) => void }) {
   const [openId, setOpenId] = useState<string | null>(() => doAsked("file"));
   const picker = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => hearFileAsked(setOpenId), []);
+  // A shelf answers its press with a short fade of the grid where it stands, as every list that changes under one view does.
+  const grid = useSwapMotion(shelf ?? "");
 
   if (held === undefined)
     return <EmptyState kind="card" glyph="image" title={W.title} body={W.reading} testid="fl-reading" />;
@@ -153,7 +158,7 @@ export function PaneFiles({ flash }: { flash: (f: LegacyFlash) => void }) {
               {W.noneFiled}
             </p>
           )}
-          <div className="files-grid" data-testid="fl-grid">
+          <div ref={grid} className="files-grid" data-testid="fl-grid">
             <PhotosOnTheirWay photos={going} flash={flash} />
             {shown.map((f) => (
               <Photo key={f.id} file={f} onOpen={() => setOpenId(f.id)} />

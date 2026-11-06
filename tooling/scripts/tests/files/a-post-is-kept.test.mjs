@@ -69,6 +69,7 @@ const PLAN = {
   book: true,
   words_at: "bottom",
   voice: "classic",
+  layout: "over",
   language: "en",
   people_agreed: false,
 };
@@ -81,6 +82,7 @@ function world({
   role = "owner",
   uploadFails = null,
   capReached = false,
+  phone = "(555) 010-0100",
 } = {}) {
   const asked = { steps: [], started: [], uploaded: [], removed: [], made: [], changed: [], downloaded: [] };
   const ctx = {
@@ -108,7 +110,7 @@ function world({
                 business_name: "Harbor",
                 system_prompt: "Answer as the front desk of Harbor: brief and warm, never a price.",
                 fallbacks: { greeting: "g", error: "e", non_text: "n" },
-                phone_display: "(555) 010-0100",
+                ...(phone ? { phone_display: phone } : {}),
               },
             },
           },
@@ -192,6 +194,51 @@ test("the card's picture is the real one: a JPEG in the shape it asks, from the 
   assert.deepEqual([asked.uploaded, asked.made], [[], []]);
   const story = await preview.POST.run(post({ ...PLAN, shape: "story" }), ctx);
   assert.equal((await sharp(Buffer.from(await story.arrayBuffer())).metadata()).height, 1920);
+});
+
+test("the picture says whether the business has a number to print, so an editor offers only what will draw", async () => {
+  const has = world();
+  const res = await preview.POST.run(post(PLAN), has.ctx);
+  assert.equal(res.headers.get("x-post-phone"), "1");
+  const none = world({ phone: null });
+  const bare = await preview.POST.run(post(PLAN), none.ctx);
+  assert.equal(bare.headers.get("x-post-phone"), "0");
+});
+
+test("a person changing a post's words draws the same photo again and again, and it is read once", async () => {
+  const { asked, ctx } = world();
+  for (const line of ["One", "Two", "Three"]) await preview.POST.run(post({ ...PLAN, line }), ctx);
+  await save.POST.run(post(PLAN), ctx);
+  assert.equal(asked.downloaded.length, 1, "a file's bytes never change");
+  const other = world();
+  await preview.POST.run(post(PLAN), other.ctx);
+  assert.equal(
+    other.asked.downloaded.length,
+    1,
+    "and a read of it is held by the process, not shared with a test's next world",
+  );
+});
+
+test("a photo removed is never drawn from memory: the row is read first, under the caller's own RLS", async () => {
+  const { asked, ctx } = world();
+  await preview.POST.run(post(PLAN), ctx);
+  ctx.supabase = world({ rows: [] }).ctx.supabase;
+  await assert.rejects(preview.POST.run(post({ ...PLAN, line: "Again" }), ctx), (e) => e.code === "not_found");
+  assert.equal(asked.downloaded.length, 1);
+});
+
+test("words that can't be drawn are said to a person in the post's own language, and a layout left out draws as it did", async () => {
+  const { ctx } = world();
+  const emoji = { ...PLAN, line: "New floor 🎉" };
+  await assert.rejects(preview.POST.run(post(emoji), ctx), (e) => e.code === "validation" && /emoji/.test(e.message));
+  await assert.rejects(
+    preview.POST.run(post({ ...emoji, language: "es" }), ctx),
+    (e) => e.code === "validation" && /carácter/.test(e.message),
+  );
+  const { layout: _none, ...before } = PLAN;
+  assert.equal((await preview.POST.run(post(before), ctx)).status, 200);
+  const made = await save.POST.run(post(before), ctx);
+  assert.ok(made.file_id);
 });
 
 test("a photo a post can't be made from is refused at the picture and at the Save", async () => {
