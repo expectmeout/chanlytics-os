@@ -9,8 +9,9 @@
  * says is made up, as every fixture's is.
  *
  * The dashboard's `tsc --noEmit` compiles this file (apps/dashboard/tsconfig.json includes the page that imports it),
- * so a props change to a component that an entry no longer meets fails `corepack pnpm -r typecheck`, where no CI job
- * runs the browser spec. Nothing lints it. The spec and the node test run it.
+ * so a props change to a component that an entry no longer meets fails `corepack pnpm -r typecheck` on its pull request,
+ * where no job runs the browser spec; nightly-kit.yml runs it each night. Nothing lints it. The spec and the node test
+ * run it.
  */
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";

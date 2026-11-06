@@ -78,6 +78,36 @@ test("a rolling issue closes only the issues its own titles opened, never one a 
   assert.ok(workflow("migration-ledger.yml").includes(`--match "Production's migrations disagree with main's"`));
 });
 
+test("the kit's specs run whole each night in a workflow of their own: no service's secret, no deployment, and one issue of their own that a branch's run never touches", () => {
+  const y = workflow("nightly-kit.yml");
+  assert.match(y, /cron: "17 8 \* \* \*"/);
+  assert.ok(y.includes("workflow_dispatch:"), "and by hand, on main or on a branch");
+  const specs = job(y, "specs");
+  assert.ok(
+    specs.includes("run: pnpm e2e:local -- e2e/kit/kit.spec.ts e2e/kit/kit-behaves.spec.ts --scenario=kit"),
+    "both specs, on the harness's record that draws them",
+  );
+  assert.ok(!specs.includes("--grep"), "whole: the pull request's job is the one that picks");
+  assert.ok(!specs.includes("permissions:"), "the specs run with the workflow's read alone");
+  assert.ok(y.includes("permissions:\n  contents: read"));
+  assert.ok(!y.includes("E2E_BASE_URL"), "the harness says where the gallery is, and it is never a deployment");
+  assert.deepEqual(
+    [...new Set([...y.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]))],
+    ["GITHUB_TOKEN"],
+    "no secret but the token that files the issue",
+  );
+  const report = job(y, "report");
+  assert.ok(report.includes("needs: specs") && report.includes("SPECS: ${{ needs.specs.result }}"));
+  assert.ok(report.includes("issues: write"));
+  assert.ok(report.includes("if: ${{ always() && github.ref == 'refs/heads/main' }}"), "a cap's cancel is red too");
+  assert.ok(report.includes('--title "The kit\'s specs are red" --match "The kit\'s specs are red"'));
+  assert.ok(
+    report.includes("--state green") && report.includes("--state red") && report.includes('--assignee "$OWNER"'),
+  );
+  assert.ok(!report.includes("--page-after"), "no customer sees the gallery: it waits for the morning");
+  assert.ok(!workflow("nightly-e2e.yml").includes("e2e/kit/"), "the job against production runs no kit spec");
+});
+
 test("the landed job reads pushes only, opens its issue once, and the Auckland leg fails the run like any other", () => {
   const y = workflow("ci.yml");
   const landed = y.slice(y.indexOf("  landed:"));
