@@ -496,6 +496,29 @@ test("sync, the door: the knock, the workspace rule, no database, a bad workspac
   assert.deepEqual(tables.templates, [row()], "the rows are exactly as they were");
 });
 
+test("sync, a read of the rows on file that fails: answered as failed, with no row written, so no label a person gave goes back to Value 1 and Meta's sample is not hidden again", async () => {
+  // The workspace chose to show Meta's sample; a sync that reads no rows takes it for new.
+  const shown = row({ id: T2, name: "hello_world", meta_id: "tpl_hello", hidden_at: null });
+  const { tables, db } = use({ templates: [row(), shown] }, { "templates.select": { message: "connection reset" } });
+  const before = structuredClone(tables.templates);
+  const m = meta((req) => {
+    if (req.url === LIST_URL)
+      return { body: { data: [listed(), listed({ id: "tpl_hello", name: "hello_world" })], paging: {} } };
+    throw new Error(`unexpected ${req.url}`);
+  });
+  const log = quiet();
+  let got;
+  try {
+    got = await answer(await knockSync({ tenant_id: A }));
+  } finally {
+    log.restore();
+    m.restore();
+  }
+  assert.deepEqual(got, [503, { ok: false, error: "read_failed", detail: "connection reset" }]);
+  assert.deepEqual(writes(db, "templates"), [], "REGRESSION: a read that failed emptied what the sync keeps");
+  assert.deepEqual(tables.templates, before, "the rows are exactly as they were");
+});
+
 test("sync, the whole way: every template Meta returns is upserted on (tenant, channel, name, language) with the labels a person gave kept where the positions match; a row Meta does not return is left exactly as it was; Meta's sample is hidden on first sight and only then; every page is walked", async () => {
   const handWritten = row({
     id: T2,

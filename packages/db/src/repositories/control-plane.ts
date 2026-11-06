@@ -173,13 +173,15 @@ export async function setPolicyMode(
 ): Promise<PolicyRecord | null> {
   let merged: Record<string, unknown> | undefined;
   if (limits && Object.keys(limits).length) {
-    const { data: current } = await db
+    const { data: current, error: readError } = await db
       .from("policies")
       .select("limits")
       .eq("tenant_id", tenantId)
       .eq("class", policyClass)
       .is("subject_type", null)
       .maybeSingle();
+    // A read that failed is not a row with no limits: merging over nothing would write every other setting away.
+    if (readError) throw new Error(`setPolicyMode: ${readError.message}`);
     merged = { ...((current?.limits as Record<string, unknown>) ?? {}), ...limits };
   }
   const { data, error } = await db
