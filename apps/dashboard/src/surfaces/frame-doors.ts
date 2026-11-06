@@ -132,16 +132,28 @@ export function openAsk(): void {
   missing("openAsk");
 }
 
+/** What a door asked for, until the Line has heard it: its code comes as a chunk, and an event nobody is listening for is gone. */
+let askedOfTheLine: AskAbout | null = null;
+
 /**
  * Open Ask on a question: the Line asks it, or with `mode` "compose" leaves it in the field to finish; `thread` opens that
  * conversation as it is; `about` is the scope chip it opens with. It opens Ask, then hands it `ask:seed` (surfaces/ask/line/
- * useArSeedKeys). A demo session's seeded palette reads the same event, with its canned answer, links and actions.
+ * useArSeedKeys). A demo session's seeded palette reads the same event, with its canned answer, links and actions. A press in
+ * the first seconds of a page, or on a slow phone, comes before the Line's code does, so what was asked is kept for it to take.
  */
 export function askAbout(about: AskAbout = {}): void {
   const own = standIn("askAbout");
   if (own) return own(about);
+  askedOfTheLine = about;
   openAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: about }));
+}
+
+/** What was asked and has not been heard yet, once: the Line takes it as it starts to listen, and as it hears each one. */
+export function takeAskedOfTheLine(): AskAbout | null {
+  const asked = askedOfTheLine;
+  askedOfTheLine = null;
+  return asked;
 }
 
 /**
