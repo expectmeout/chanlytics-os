@@ -5,7 +5,7 @@
  * person's page needs, so the two never say a business two ways.
  */
 import { initialsOf, shortName } from "../conversations/thread-contact";
-import { leadTileSrc, leadTintOf } from "../leads/lead-facts";
+import { leadTileSrc } from "../leads/lead-facts";
 import { leadsRoute } from "../leads/lead-plan";
 import { toLeadPeekVM } from "../leads/lead-peek";
 import { LEAD_STAGE_WORDS } from "../leads/lead-words";
@@ -18,12 +18,10 @@ import type { PersonRowVM } from "../people/person-row";
 import { reachOutStandingOf, type ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
 import { BUSINESS_DOOR_LABEL, PERSON_NAME_WORDS, WORKS_AT_WORDS, type NameSource } from "./words";
 
-/** A face as the page draws it: a person's initials, or a business's tile (its tint and the listing's photo). */
+/** A face as the page draws it: a person's initials, or a business's tile (with the listing's photo). */
 export interface PersonFaceVM {
   kind: "face" | "tile";
   initials: string;
-  /** The tile's tint (leadTintOf, 1 to 6); null on a face. */
-  tint: number | null;
   /** The listing's photo for a tile; null on a face or where the listing has none. */
   image: string | null;
 }
@@ -70,12 +68,11 @@ export interface PersonHeadInput {
   saidNoMs: number | null;
 }
 
-/** The business's tile: its initials on the tint its kind decides, with the listing's photo where there is one. */
+/** The business's tile: its initials, with the listing's photo where there is one. */
 function tileOf(name: string, b: PersonBusinessDto | null): PersonFaceVM {
   return {
     kind: "tile",
     initials: initialsOf(b?.lead.business_name ?? name),
-    tint: leadTintOf(b?.lead.category ?? null),
     image: leadTileSrc(b?.lead.image_url ?? null),
   };
 }
@@ -114,7 +111,7 @@ export function personHeadOf(h: PersonHeadInput, tz: string, nowMs: number): Per
   } else if (business) line = { kind: "business", text: business, label: BUSINESS_DOOR_LABEL(business) };
   const adopted = h.nameSource === "signature" ? h.signers.find((s) => s.state === "adopted") : undefined;
   return {
-    face: standIn ? tileOf(h.name, h.business) : { kind: "face", initials: h.initials, tint: null, image: null },
+    face: standIn ? tileOf(h.name, h.business) : { kind: "face", initials: h.initials, image: null },
     name: h.name,
     standIn,
     line,

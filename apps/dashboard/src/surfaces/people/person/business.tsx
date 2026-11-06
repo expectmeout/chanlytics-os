@@ -19,7 +19,7 @@ import { routeDoor } from "../../legacy-verbs";
 import { peekPerson, personDetail, setPersonBusiness } from "../people-detail";
 import type { PageCtx } from "./ctx";
 
-/** A business's tile: its initials on the tint its kind decides, the listing's photo over them where there is one. */
+/** A business's tile: its initials, the listing's photo over them where there is one. */
 export function BusinessTile({ face, size }: { face: PersonFaceVM; size?: "sm" | "lg" | "xl" }) {
   return (
     <Face
@@ -27,7 +27,6 @@ export function BusinessTile({ face, size }: { face: PersonFaceVM; size?: "sm" |
       {...(face.image ? { photo: face.image } : {})}
       {...(size ? { size } : {})}
       className="cl-prof-brand"
-      data-tint={face.tint ?? undefined}
     />
   );
 }

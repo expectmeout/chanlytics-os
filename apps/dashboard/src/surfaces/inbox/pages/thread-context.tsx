@@ -8,7 +8,7 @@
  */
 import { addressOf, threadPersonFactsOf, WORKS_AT_WORDS, type ThreadPersonFact } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
-import { Face, faceHueOf } from "../../kit/face/face";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { routeDoor } from "../../legacy-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
@@ -92,12 +92,7 @@ export const ThreadContext = ({
   return (
     <aside className="ix-context" aria-label={CONTEXT_WORDS.about(thread.who)} data-testid="ix-context">
       <div className="ix-context-who">
-        <Face
-          person={{ name: thread.who, initials: thread.avatar }}
-          size="xl"
-          hue={faceHueOf(thread.who)}
-          className="ix-context-round"
-        />
+        <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" className="ix-context-round" />
         <div className="ix-context-name">{thread.who}</div>
         {works ? (
           <div className="ix-context-line" data-testid="ix-context-works">

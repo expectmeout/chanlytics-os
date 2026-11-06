@@ -1,6 +1,6 @@
 /**
  * What the peek, the row and the review all read of one lead: where it is, today's line, whether an act can be
- * undone, its tint, its tile and its slots. Moved whole from leads.ts (Reach out Part 2.5), which re-exports it.
+ * undone, its tile and its slots. Moved whole from leads.ts (Reach out Part 2.5), which re-exports it.
  */
 import type { LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { CLOCK, hourOf } from "./lead-helpers";
@@ -268,13 +268,6 @@ export function leadReachWord(want: readonly LeadReachFilter[]): string {
   const [one, ...more] = want;
   if (!one) return LEAD_REACH_WORDS.none;
   return more.length ? LEAD_REACH_WORDS.both : LEAD_REACH_WORDS[one];
-}
-
-/** The tile's tint, one of six, from the kind of business: the same kind wears the same tint on every row and in the peek. */
-export function leadTintOf(kind: string | null | undefined): number {
-  let h = 7;
-  for (const ch of kind ?? "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return (h % 6) + 1;
 }
 
 /**

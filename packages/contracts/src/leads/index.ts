@@ -287,7 +287,6 @@ export {
   leadsStanding,
   leadStatusGroupsOf,
   leadTileSrc,
-  leadTintOf,
   leadTodayLine,
   leadUndoable,
   leadWeekBars,

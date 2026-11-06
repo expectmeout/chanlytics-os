@@ -39,7 +39,6 @@ import {
   leadNearWhere,
   LEAD_PAUSED_TITLE,
   leadBand,
-  leadTintOf,
   leadWeekBars,
   leadMapPlot,
   leadMapNote,
@@ -463,7 +462,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     },
     rated: { score: "5.0", count: "16", reviews: "16 reviews" },
     spread: null,
-    tile: { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, band: null, logo: null },
+    tile: { initials: "ZS", image: null, band: null, logo: null },
     waitsOn: null,
     state: "ready",
     stateTag: null,
@@ -951,9 +950,6 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
   assert.deepEqual(vm.rated, { score: "5.0", count: "16", reviews: "16 reviews" });
   assert.deepEqual(vm.spread, [0, 1, 1, 4, 10]);
   assert.deepEqual([vm.tile.initials, vm.tile.image], [vm.mark, null]);
-  assert.ok(vm.tile.tint >= 1 && vm.tile.tint <= 6);
-  assert.equal(vm.tile.tint, leadTintOf("Personal trainer"), "the same kind, the same tint");
-  assert.notEqual(leadTintOf("Personal trainer"), leadTintOf("Book store"), "two kinds, two tints (these two)");
   assert.deepEqual([vm.waitsOn, vm.state, vm.stateTag], [null, "ready", null], "Ready is silent");
   assert.equal(vm.card.today, "Open until 8 PM", "whether they are open now, not the hours to work it out from");
   assert.equal(vm.card.about, "Coaching only.");
@@ -1094,7 +1090,7 @@ test("D5: the week's hours as bars, and the peek's own additions -- the tile, th
   assert.deepEqual(
     [vm.tile, vm.rated, vm.distance, vm.checksSummary],
     [
-      { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, band: null, logo: null },
+      { initials: "ZS", image: null, band: null, logo: null },
       { score: "5.0", count: "16", reviews: "16 reviews", low: null },
       "1.2 mi",
       "1 check passed · 1 couldn't tell · 1 failed",
@@ -1364,7 +1360,7 @@ test("today says whether they are open now, a night past midnight is the day it 
 });
 
 // D6: the row's tile and the peek's band draw the same three stacked layers -- the business's own mark over the
-// listing's photograph over initials on the kind's tint. They drifted apart once because each surface kept the
+// listing's photograph over initials. They drifted apart once because each surface kept the
 // photo somewhere different, so the shape itself is the thing to hold: one tile, the same keys, the same values.
 test("the two surfaces wear one tile: the peek's is the row's, mark and photograph and all", () => {
   const dto = row({

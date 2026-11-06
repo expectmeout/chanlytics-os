@@ -2095,7 +2095,7 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
    box of their own (who.tsx), since the face clips what it holds. */
 .ix-th-pic { position: relative; flex: none; display: inline-flex; }
 .ix-th-wire { position: absolute; right: -3px; bottom: -3px; display: grid; place-items: center; box-sizing: border-box; width: 19px; height: 19px; border: 1px solid var(--line-strong); border-radius: var(--radius-circle); background: var(--bg-raised); color: var(--ink-muted); }
-/* The face in their hue at the head's 40px (the kit's face at its header's size, grown by the page). */
+/* The face at the head's 40px (the kit's face at its header's size, grown by the page). */
 .ix-th-who-round { width: 40px; height: 40px; font-size: var(--text-base); }
 .ix-th-closed {
   flex-shrink: 0;
@@ -2397,7 +2397,7 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The face at the rail's head in their hue (the kit's face at a page's head, grown by the page to the canvas's 52). */
+/* The face at the rail's head (the kit's face at a page's head, grown by the page to the canvas's 52). */
 .ix-context-round {
   width: 52px;
   height: 52px;
@@ -2552,7 +2552,7 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   color: var(--ink);
 }
 @media (width > 900px) {
-  /* The row as the thread canvas's list sets it (1 Nov 2026): the face at 38 in their hue with the wire on its edge, the
+  /* The row as the thread canvas's list sets it (1 Nov 2026): the face at 38 with the wire on its edge, the
      words 10 beside it, on 12 10 of padding at a 14 corner; the open row a card of the raised ground, ringed and lifted.
      The box for a selection leaves the grid (below). */
   .ix-list .ix-thread {
@@ -4217,7 +4217,7 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
     background: var(--hover-fill);
   }
   /* The thread's head on a phone (the thread canvas, 1 Nov 2026): the chevron back in a thumb's 40 by 44, who it is (the
-     face at 40 in their hue with the wire on its edge, the name, where it stands and one fact), one link to their page,
+     face at 40 with the wire on its edge, the name, where it stands and one fact), one link to their page,
      and More, a soft 44px round, which opens the thread's sheet, on the page's own light: the paper Safari stands its
      bar over the clock on runs on under it, and the conversation fades out under it (mobile.css). From 3 Nov 2026 the
      name opened the sheet, a chevron beside it, with no More (Ruben, 4 Nov 2026: "i prefer the 3 dots we had on the

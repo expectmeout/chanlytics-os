@@ -4,7 +4,7 @@
  * row has the nodes it always had.
  */
 import { heldPill, holdToDoOf, personFaceOf, PITCH_TODO, waitedSaid } from "@chanlytics/contracts";
-import { Face, faceHueOf } from "../../kit/face/face";
+import { Face } from "../../kit/face/face";
 import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
 import { Icon } from "../../kit/icon/icon";
@@ -300,12 +300,7 @@ function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Ele
 
       {/* The one face (the kit's, by contracts' personFaceOf), with the wire of the words as a badge at its foot. */}
       <span className="ix-thread-lead">
-        <Face
-          person={{ name: t.who, initials: t.avatar }}
-          priority={t.priority}
-          hue={faceHueOf(t.who)}
-          className="ix-thread-pic"
-        />
+        <Face person={{ name: t.who, initials: t.avatar }} priority={t.priority} className="ix-thread-pic" />
         {rowWire(words.wire, t.who)}
       </span>
 

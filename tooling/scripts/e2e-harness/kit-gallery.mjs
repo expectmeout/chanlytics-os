@@ -2679,24 +2679,7 @@ export const FAMILIES = [
           `<span class="face" aria-hidden="true"><span>SO</span></span></div>`,
       },
       { id: "face-glyph", html: `<span class="face face-glyph" aria-hidden="true">${icon("phone", 12)}</span>` },
-      {
-        id: "face-tile",
-        html:
-          `<div class="gx-row">` +
-          ["a", "b", "c", "d"]
-            .map((t) => `<span class="face face-tile face-tile-${t}" aria-hidden="true"><span>LA</span></span>`)
-            .join("") +
-          `</div>`,
-      },
-      {
-        id: "face-hue",
-        html:
-          `<div class="gx-row">` +
-          ["a", "b", "c", "d", "e", "f"]
-            .map((t) => `<span class="face face-lg face-hue face-hue-${t}" aria-hidden="true"><span>MC</span></span>`)
-            .join("") +
-          `</div>`,
-      },
+      { id: "face-tile", html: `<span class="face face-tile" aria-hidden="true"><span>LA</span></span>` },
       {
         id: "face-photo",
         html: `<span class="face" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span>`,
