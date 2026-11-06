@@ -23,7 +23,8 @@
  * (nightly.mjs wilsonLower): honest openings sent of the checks answered (LINES.honestSent: a check that holds too much
  * misses it), and honest openings of those sent (LINES.cleanSent: a check that sends guesses misses it); and no pitch is
  * ever sent. Held openings the grader calls honest are the check being too strict, and are reported. A check whose calls
- * failed counts in neither; more than a tenth of them, and the run could not say. Exit 0 = held, 1 = a line was
+ * failed counts in neither; more than a tenth of them, and the run could not say. The report says why, each distinct
+ * reason once, in the API's words with the key taken out, and --out keeps each check's. Exit 0 = held, 1 = a line was
  * missed, 2 = could not run (the set is broken, the grader could not grade, too many checks failed, or the key's credit
  * ran out, which stops the run at once: the eval key's balance is the platform's).
  *
@@ -147,6 +148,15 @@ function spent(spend, r) {
 const OURS = { profileId: null };
 
 /**
+ * A call on the eval key, with the key taken out of what the API said of a failure: those words reach the report and the
+ * issue it opens, which Actions' masking of a secret does not cover, and an API may say a key back.
+ */
+async function askOnEvalKey(key, ask, deps) {
+  const r = await askModel(key, ask, deps);
+  return r.outcome === "ok" ? r : { ...r, error: String(r.error).replaceAll(key, "[the key]") };
+}
+
+/**
  * The check's model, asked as the edge asks it (apps/edge/lib/model.ts askJson under check-one.ts askReachOutModel):
  * the reach_out_check route through the platform's port, the answer in its schema, a refused schema asked again for
  * plain JSON, a refusal or a capped answer no answer, and a call that got none thrown for the check to count. Only the
@@ -154,7 +164,7 @@ const OURS = { profileId: null };
  */
 export function askCheckModel(key, deps = {}, spend = newSpend()) {
   const once = async (body, signal) => {
-    const r = await askModel(
+    const r = await askOnEvalKey(
       key,
       { purpose: "reach_out_check", attribution: OURS, timeoutMs: edge.CHECK_CALL_MS, signal, body },
       deps,
@@ -210,7 +220,15 @@ export async function runChecks(key, set, repeats, deps = {}, atOnce = AT_ONCE, 
     jobs,
     atOnce,
     async ({ business, input, round }) => {
-      const out = await edge.checkOne(input, ask, edge.checkBudget(Date.now()));
+      // The words of the call that failed, kept per check: checkOne keeps only their kind (CheckFailure), and a failed
+      // call ends its check, so this is the call its outcome speaks of. Checks run at once, so none shares this.
+      let reason = null;
+      const asking = (...args) =>
+        ask(...args).catch((e) => {
+          reason = e.message;
+          throw e;
+        });
+      const out = await edge.checkOne(input, asking, edge.checkBudget(Date.now()));
       return {
         id: business.id,
         shape: business.shape,
@@ -224,6 +242,7 @@ export async function runChecks(key, set, repeats, deps = {}, atOnce = AT_ONCE, 
         source: out.kind === "checked" && out.opening ? (out.opening === input.fact ? "listing" : "writer") : null,
         angle: out.kind === "checked" ? (out.opening?.angle ?? null) : null,
         why: out.kind === "failed" ? out.why : null,
+        reason,
         calls: out.calls,
         grade: null,
       };
@@ -294,7 +313,7 @@ async function gradeOne(key, id, record, openings, deps, spend) {
     ...openings.map((o, i) => `${i + 1}. ${o}`),
   ].join("\n");
   // The lead judge's route (Opus 5.5, no fallback): a grader that fell back to another model would be another grader.
-  const r = await askModel(
+  const r = await askOnEvalKey(
     key,
     {
       purpose: "lead_judge",
@@ -354,6 +373,16 @@ export async function gradeAll(key, set, results, deps = {}, spend = newSpend())
 
 const isHonest = (r) => r.grade?.label === "honest";
 
+/**
+ * Why checks got no answer: each distinct reason, in the order met, with the checks it stopped. A bad key is one reason,
+ * however many checks it stopped. Where no call failed (an answer that did not parse, a budget spent), the check's kind.
+ */
+function noAnswersOf(results) {
+  const unanswered = results.filter((r) => r.kind !== "checked");
+  const byReason = Map.groupBy(unanswered, (r) => r.reason ?? `${r.kind}${r.why ? ` (${r.why})` : ""}`);
+  return [...byReason].map(([reason, rs]) => ({ reason, checks: rs.map((r) => `${r.id} #${r.round}`) }));
+}
+
 /** What a run's checks came to: what was sent and how it was graded, what was held, and the same by shape. */
 export function tallyOf(results) {
   const answered = results.filter((r) => r.kind === "checked");
@@ -384,6 +413,7 @@ export function tallyOf(results) {
     checks: results.length,
     answered: answered.length,
     failed: results.length - answered.length,
+    noAnswers: noAnswersOf(results),
     sent: sent.length,
     honestSent: sent.filter(isHonest).length,
     badSent: Object.fromEntries(
@@ -420,9 +450,17 @@ export function gateOf(t, lines = LINES) {
 
 const pct = (n, of) => (of ? `${Math.round((100 * n) / of)}%` : "none");
 const quoted = (s) => `"${String(s ?? "").replace(/\s+/g, " ")}"`;
+/** How many of the checks a reason stopped the report names; --out's JSON keeps them all. */
+const CHECKS_NAMED = 3;
+const someOf = (checks) =>
+  checks.slice(0, CHECKS_NAMED).join(", ") +
+  (checks.length > CHECKS_NAMED ? ` and ${checks.length - CHECKS_NAMED} more` : "");
 
-/** The report a terminal or an issue reads: the lines, the shapes, every bad opening sent and honest one held, the cost. */
-export function report(t, gate, results, spend) {
+/**
+ * The report a terminal or an issue reads: the lines, the shapes, every bad opening sent and honest one held, why checks
+ * got no answer, the cost.
+ */
+export function report(t, gate, spend) {
   const lines = [
     `Opening check, graded: ${t.checks} checks. Written and read by ${CHECK_MODEL} (the reach_out_check route), graded by ${GRADER_MODEL}.`,
     `Honest and sent: ${t.honestSent} of ${t.answered} (${pct(t.honestSent, t.answered)}); lower bound ${gate.honestSent.lower.toFixed(3)}, line ${gate.honestSent.line}.`,
@@ -450,9 +488,9 @@ export function report(t, gate, results, spend) {
       (r) =>
         `TOO STRICT ${r.id} #${r.round} (${r.source}), held ${r.hold}${r.detail ? ` (${r.detail})` : ""}: ${quoted(r.opening)}`,
     ),
-    ...results
-      .filter((r) => r.kind !== "checked")
-      .map((r) => `NO ANSWER ${r.id} #${r.round}: ${r.kind}${r.why ? ` (${r.why})` : ""}`),
+    ...t.noAnswers.map(
+      ({ reason, checks }) => `NO ANSWER ${checks.length} of ${t.checks}: ${reason} (${someOf(checks)})`,
+    ),
     `Spent $${spend.usd.toFixed(4)} at list price over ${spend.calls} calls (${Object.entries(spend.byModel)
       .map(([m, usd]) => `${m} $${usd.toFixed(4)}`)
       .join(", ")}).`,
@@ -513,7 +551,7 @@ async function main() {
   }
   const t = tallyOf(results);
   const gate = gateOf(t);
-  console.log(report(t, gate, results, spend));
+  console.log(report(t, gate, spend));
   if (out)
     fs.writeFileSync(
       out,
