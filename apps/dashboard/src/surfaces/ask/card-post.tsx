@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { POST_WORDS, postNameOf, postPlanOf, type AskProposal } from "@chanlytics/contracts";
-import { PostShapes } from "../settings/files/post-shapes";
+import { PostShapes } from "../files/post-shapes";
 import { askCalls } from "./shell";
 import type { LineWords } from "./words";
 

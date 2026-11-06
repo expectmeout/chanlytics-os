@@ -49,7 +49,7 @@ globalThis.CustomEvent ??= class CustomEvent {
 win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts")).addressApi(win);
 win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { filesOverride } = await importSrc("apps/dashboard/src/surfaces/settings/files/surface.ts");
+const { filesOverride } = await importSrc("apps/dashboard/src/surfaces/files/surface.ts");
 
 const SECOND = 1_000;
 const MINUTE = 60 * SECOND;

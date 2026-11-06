@@ -8,7 +8,7 @@ import { ASK_ATTACHED_MAX, type AskAttached } from "@chanlytics/contracts";
 import { refreshSurface } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { LineFiles, LinePress } from "../../kit/line/line";
-import { FILE_PICKS, fileVerbs, type AddSaid } from "../../settings/files/verbs";
+import { FILE_PICKS, fileVerbs, type AddSaid } from "../../files/verbs";
 import type { LineWords } from "../words";
 import type { Line } from "./types";
 
