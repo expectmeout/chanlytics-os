@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-367 handlers in 57 domains.
+368 handlers in 57 domains.
 
 ## activity
 
@@ -916,6 +916,12 @@ Writes; for a member of the workspace the request names, partner or above; count
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/route.ts`).
+
+### `GET /api/v1/files/[id]`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/route.ts`).
 
 ### `PATCH /api/v1/files/[id]`
 

@@ -133,6 +133,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "file_decoder_answered",
   "file_post_let_go_failed",
   "file_post_logo_failed",
+  "file_post_look_failed",
   "file_post_read_failed",
   "file_post_store_failed",
   "file_upload_sign_failed",

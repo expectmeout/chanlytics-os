@@ -21,6 +21,7 @@ const { setServiceClient } = await import(at("apps/dashboard/src/server/service-
 const save = await import(at("apps/dashboard/app/api/v1/files/post/route.ts"));
 const preview = await import(at("apps/dashboard/app/api/v1/files/post/preview/route.ts"));
 const view = await import(at("apps/dashboard/app/api/v1/files/[id]/view/route.ts"));
+const one = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 after(() => setServiceClient(null));
@@ -83,6 +84,7 @@ function world({
   uploadFails = null,
   capReached = false,
   phone = "(555) 010-0100",
+  kept = [],
 } = {}) {
   const asked = { steps: [], started: [], uploaded: [], removed: [], made: [], changed: [], downloaded: [] };
   const ctx = {
@@ -138,7 +140,7 @@ function world({
     params: {},
   };
   const service = fakeDb(
-    {},
+    { files: kept },
     {},
     {
       file_made: (a) => {
@@ -358,6 +360,63 @@ const viewed = async (q, row) => {
   const res = await view.GET.run(new Request(`http://localhost/api/v1/x${inA}&${q}`), ctx);
   return res.headers.get("location");
 };
+
+/** What the sheet reads as it opens a file. `kept` is the rows as the service role reads them, with what a member can't. */
+const recorded = (row, options) => {
+  const { ctx } = world(options);
+  ctx.params = { id: row.id };
+  return one.GET.run(new Request(`http://localhost/api/v1/x${inA}`), ctx);
+};
+const POST_ROW = fileRow({ id: MADE, source: "made", shows: "graphic", name: "come-see" });
+const KEPT = [
+  { id: MADE, tenant_id: A, source: "made", made: { from: F, plan: { ...PLAN, layout: "band", voice: "modern" } } },
+];
+
+test("a post says which photo it came from and what it was asked to be, to any member, where the list says neither", async () => {
+  const said = await recorded(POST_ROW, { rows: [POST_ROW, fileRow()], kept: KEPT, role: "viewer" });
+  assert.equal(said.file.id, MADE);
+  assert.deepEqual(said.made.from, { id: F, name: "storefront-dusk" });
+  assert.equal(said.made.plan.line, PLAN.line);
+  assert.deepEqual(
+    [said.made.plan.layout, said.made.plan.voice],
+    ["band", "modern"],
+    "what was pressed, not a default",
+  );
+  assert.equal(said.made.plan.file_id, F, "so a new version is drawn from the same photo");
+});
+
+test("a post whose photo was deleted since keeps what it was asked to be, and names no photo", async () => {
+  const gone = fileRow({ removed_at: "2026-11-02T00:00:00Z" });
+  const said = await recorded(POST_ROW, { rows: [POST_ROW, gone], kept: KEPT });
+  assert.equal(said.made.from, null);
+  assert.equal(said.made.plan.line, PLAN.line);
+});
+
+test("a photo, and a post that kept no record, have nothing to say of how they were made", async () => {
+  assert.equal((await recorded(fileRow(), { kept: KEPT })).made, null);
+  const bare = await recorded(POST_ROW, { rows: [POST_ROW], kept: [{ id: MADE, tenant_id: A, made: null }] });
+  assert.equal(bare.made, null);
+  assert.equal(bare.file.id, MADE);
+});
+
+test("a file another workspace's, or removed, is not read", async () => {
+  await assert.rejects(
+    recorded(fileRow({ id: MADE }), { rows: [] }),
+    (e) => e.code === "not_found",
+    "the caller's own read of the row comes first",
+  );
+});
+
+test("a new version saved is another file: the post it came from is left, and what was pressed is what it keeps", async () => {
+  const { asked, ctx } = world({ rows: [POST_ROW, fileRow()] });
+  const changed = { ...PLAN, line: "Now open late.", layout: "frame" };
+  const made = await save.POST.run(post(changed), ctx);
+  assert.ok(made.file_id);
+  assert.notEqual(made.file_id, MADE);
+  assert.equal(asked.made[0].p_made.from, F);
+  assert.equal(asked.made[0].p_made.plan.layout, "frame");
+  assert.deepEqual(asked.removed, [], "nothing of the old one goes");
+});
 
 test("a kept post gives each shape, under its own name; a photo has its one picture whatever is asked", async () => {
   const post_ = fileRow({ id: MADE, source: "made", shows: "graphic", name: "come-see" });
