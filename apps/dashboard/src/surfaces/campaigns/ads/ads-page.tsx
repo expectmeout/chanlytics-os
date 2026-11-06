@@ -240,13 +240,13 @@ interface AdsPageProps {
 }
 
 /** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
-const openingOf = (address: AdsAddress) =>
+const opensOnOfAddress = (address: AdsAddress) =>
   address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
 
 export function AdsPage({ param }: AdsPageProps) {
   const address = parseAds(param);
   const nav = useAdsNav(address);
-  const { read, config, example, setExample, verbs, readAgain } = useAdsStore(openingOf(address));
+  const { read, config, example, setExample, verbs, readAgain } = useAdsStore(opensOnOfAddress(address));
   const [toastNode, flash] = useLegacyToast();
   const phone = useCmPhone();
   const [groupBy, setGroupBy] = useGroupBy();
