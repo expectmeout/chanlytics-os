@@ -8,6 +8,9 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { MODELS, MODEL_ROUTES, OPENING_SCHEMA, routeThinkingFor } from "@chanlytics/contracts";
 import { resetBreakers } from "@chanlytics/channels";
 import { ROOT } from "../_source.mjs";
@@ -298,6 +301,88 @@ test("a grader that answers for the wrong number of openings fails the run: noth
   await assert.rejects(gradeAll(EVAL_KEY, three, results, { fetch: short.fetch }), /could not grade/);
 });
 
+/* -------------------------------------------- why a check got no answer -- */
+
+test("checks the API rejected say its reason in its words, once however many checks it stopped", async () => {
+  const api = scripted(status(401, "invalid x-api-key"));
+  const { results, spend } = await runChecks(EVAL_KEY, three, 2, { fetch: api.fetch });
+  assert.deepEqual(
+    results.map((r) => [r.kind, r.why, r.reason]),
+    Array.from({ length: 6 }, () => ["failed", "error", "model rejected: 401 invalid x-api-key"]),
+  );
+  const t = tallyOf(results);
+  assert.deepEqual(t.noAnswers, [
+    {
+      reason: "model rejected: 401 invalid x-api-key",
+      checks: [
+        "towing-all-hours #1",
+        "towing-all-hours #2",
+        "auto-thin #1",
+        "auto-thin #2",
+        "barber-many-reviews #1",
+        "barber-many-reviews #2",
+      ],
+    },
+  ]);
+  const text = report(t, gateOf(t), spend);
+  assert.equal(text.split("invalid x-api-key").length - 1, 1, "said once");
+  assert.equal(text.split("NO ANSWER").length - 1, 1, "one line for the one reason");
+  assert.match(
+    text,
+    /\nNO ANSWER 6 of 6: model rejected: 401 invalid x-api-key \(towing-all-hours #1, towing-all-hours #2, auto-thin #1 and 3 more\)\n/,
+  );
+});
+
+test("each distinct reason is said once with the checks it stopped, and a failure with no words from the API says its kind", async () => {
+  // One at a time, so the replies fall to the checks in the set's order: each business's listing sentence, or its writer.
+  const api = scripted(
+    status(401, "invalid x-api-key"),
+    status(403, "This key may not use this model"),
+    status(401, "invalid x-api-key"),
+    said("this is not the shape asked", { usage: USAGE }),
+  );
+  const four = {
+    ...three,
+    businesses: [...three.businesses, SET.businesses.find((b) => b.id === "locksmith-all-hours")],
+  };
+  const { results, spend } = await runChecks(EVAL_KEY, four, 1, { fetch: api.fetch }, 1);
+  const t = tallyOf(results);
+  assert.deepEqual(t.noAnswers, [
+    { reason: "model rejected: 401 invalid x-api-key", checks: ["towing-all-hours #1", "barber-many-reviews #1"] },
+    { reason: "model rejected: 403 This key may not use this model", checks: ["auto-thin #1"] },
+    { reason: "failed (unparseable)", checks: ["locksmith-all-hours #1"] },
+  ]);
+  const text = report(t, gateOf(t), spend);
+  assert.match(
+    text,
+    /\nNO ANSWER 2 of 4: model rejected: 401 invalid x-api-key \(towing-all-hours #1, barber-many-reviews #1\)\n/,
+  );
+  assert.match(text, /\nNO ANSWER 1 of 4: model rejected: 403 This key may not use this model \(auto-thin #1\)\n/);
+  assert.match(text, /\nNO ANSWER 1 of 4: failed \(unparseable\) \(locksmith-all-hours #1\)\n/);
+});
+
+test("an API that says the key back never gets it printed: a check's reason, a grader's failure, or the credit's words", async () => {
+  const echoed = `invalid x-api-key: ${EVAL_KEY}`;
+  const asked = await runChecks(EVAL_KEY, three, 1, { fetch: scripted(status(401, echoed)).fetch });
+  const t = tallyOf(asked.results);
+  const text = report(t, gateOf(t), asked.spend);
+  assert.ok(!text.includes(EVAL_KEY) && !JSON.stringify(asked.results).includes(EVAL_KEY));
+  assert.match(text, /model rejected: 401 invalid x-api-key: \[the key\]/);
+
+  const { results } = await runChecks(EVAL_KEY, three, 1, { fetch: world().fetch });
+  await assert.rejects(
+    gradeAll(EVAL_KEY, three, results, { fetch: scripted(status(401, echoed)).fetch }),
+    (e) => /could not grade .*invalid x-api-key: \[the key\]/.test(e.message) && !e.message.includes(EVAL_KEY),
+  );
+
+  const broke = scripted(status(400, `Your credit balance is too low for ${EVAL_KEY}.`));
+  await assert.rejects(
+    runChecks(EVAL_KEY, three, 1, { fetch: broke.fetch }, 1),
+    (e) => /credit balance is too low for \[the key\]/.test(e.message) && !e.message.includes(EVAL_KEY),
+  );
+  assert.equal(broke.calls.length, 1, "it is still read as the credit, and stops the run");
+});
+
 /* ------------------------------------------------------------------ the lines -- */
 
 /** A run's results as tallyOf reads them: `n` checks of one shape with a kind, a hold and a grade. */
@@ -398,7 +483,7 @@ test("the report says the lines, every bad opening sent and every honest one hel
     },
   ];
   const t = tallyOf(results);
-  const text = report(t, gateOf(t), results, { calls: 30, usd: 0.2345, byModel: { [MODELS.OPUS_5_5]: 0.2 } });
+  const text = report(t, gateOf(t), { calls: 30, usd: 0.2345, byModel: { [MODELS.OPUS_5_5]: 0.2 } });
   assert.match(text, /^Opening check, graded: 12 checks\./);
   assert.match(text, /Honest and sent: 10 of 12 \(83%\); lower bound 0\.\d{3}, line 0\.75\./);
   assert.match(text, /Sent from the listing's own fields: 10 \(10 honest\); written by the model: 1 \(0 honest\)\./);
@@ -430,4 +515,42 @@ test("dry by default; asked to go live with no eval key it asks nothing, says SK
   );
   for (const out of [dry, live])
     assert.ok(!out.stdout.includes(PRODUCTION_KEY) && !out.stderr.includes(PRODUCTION_KEY));
+});
+
+/**
+ * The API a run on a bad key meets, loaded before the runner so the runner runs whole and nothing reaches the network:
+ * every call a 401, in the API's own error shape, here with the key said back.
+ */
+const REJECTING_API =
+  "data:text/javascript," +
+  encodeURIComponent(`globalThis.fetch = async () => new Response(
+    JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key: " + process.env.ANTHROPIC_EVAL_KEY } }),
+    { status: 401, headers: { "content-type": "application/json" } },
+  );`);
+
+test("a whole run on a key the API rejects says why, once, in what it prints and in --out's JSON, exits as could not run, and never prints the key", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "opening-check-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const out = path.join(dir, "run.json");
+  const run = spawnSync(
+    process.execPath,
+    ["--import", "tsx", "--import", REJECTING_API, "tooling/scripts/evals/opening-check.mjs", "--live", "--out", out],
+    { cwd: ROOT, env: { ...process.env, ANTHROPIC_EVAL_KEY: EVAL_KEY }, encoding: "utf8" },
+  );
+  assert.equal(run.status, 2, run.stderr);
+  // The workflow writes stdout and stderr to the file the issue's body is read from (opening-check-eval.yml).
+  const printed = run.stdout + run.stderr;
+  assert.match(printed, /Checks that got no answer, counted in neither: 48 of 48\./);
+  assert.match(printed, /\nNO ANSWER 48 of 48: model rejected: 401 invalid x-api-key: \[the key\] \(/);
+  assert.equal(printed.split("invalid x-api-key").length - 1, 1, "said once, not 48 times");
+  assert.match(printed, /NOT HELD: could_not_run\./);
+  assert.ok(!printed.includes(EVAL_KEY));
+  const written = fs.readFileSync(out, "utf8");
+  assert.ok(!written.includes(EVAL_KEY));
+  const { tally, results } = JSON.parse(written);
+  assert.deepEqual(
+    tally.noAnswers.map((n) => [n.reason, n.checks.length]),
+    [["model rejected: 401 invalid x-api-key: [the key]", 48]],
+  );
+  assert.ok(results.every((r) => r.reason === "model rejected: 401 invalid x-api-key: [the key]"));
 });
