@@ -238,7 +238,13 @@ test.describe("Consent for one person", () => {
     // The link is changed in the sheet's edit: "Edit proposal" is the next act where there is none, else one of the
     // card's quiet moves. On the person's Overview the next act is Up next's rung, not the card's (person-deal.tsx
     // `rung`, contracts people/person-page/next.ts); the card leads with it where no Up next is drawn.
+    // A deal folds: its link and its quiet moves are behind a press on its title.
+    const unfolded = async () => {
+      const title = card.getByTestId("person-deal-title");
+      if ((await title.getAttribute("aria-expanded")) !== "true") await title.click();
+    };
     const edit = async () => {
+      await unfolded();
       await page
         .getByTestId("person-up-next-act")
         .or(card.getByTestId("person-deal-next"))
@@ -261,6 +267,7 @@ test.describe("Consent for one person", () => {
     await input.fill(" docs.example.com/p/robin-e2e ");
     await save.click();
     await expect(sheet).toHaveCount(0);
+    await unfolded();
     await expect(card.getByTestId("person-deal-link")).toHaveText("docs.example.com");
     await expect(card.getByTestId("person-deal-link")).toHaveAttribute("href", "https://docs.example.com/p/robin-e2e");
     expect(JSON.parse(posts.at(-1) ?? "{}")).toMatchObject({
@@ -270,6 +277,8 @@ test.describe("Consent for one person", () => {
 
     // Still there on a cold load: it was stored, not drawn.
     await page.reload();
+    await expect(card).toBeVisible();
+    await unfolded();
     await expect(page.getByTestId("person-deal-link").first()).toHaveText("docs.example.com");
 
     // Emptied, it is cleared: the door is told which field was emptied, and the card says there is none.
@@ -277,6 +286,7 @@ test.describe("Consent for one person", () => {
     await sheet.getByTestId("deal-sheet-link-input").fill("");
     await save.click();
     await expect(sheet).toHaveCount(0);
+    await unfolded();
     await expect(card.getByTestId("person-deal-link")).toHaveCount(0);
     await expect(card.getByTestId("person-deal-fact").first()).toHaveText("No link");
     expect(JSON.parse(posts.at(-1) ?? "{}").clear).toContain("proposal_url");

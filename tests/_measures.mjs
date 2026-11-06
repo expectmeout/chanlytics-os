@@ -51,6 +51,7 @@ import {
   visitsWrittenIn,
   fixedWaitsIn,
   droppedDbErrorsIn,
+  quarantinesIn,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
@@ -1129,6 +1130,27 @@ export const COUNTED_WAITS = {
     'Wait for what the next lines read: `await until(() => <it>, "<what>")` from tests/shared/_until.mjs (a toast up, a write the fake wire saw, the page drawn as it is after the answer). A wait before asserting that nothing more happened is the one a count is for: argue it in the pull request.',
 };
 
+/* ---- Browser specs in quarantine ---- */
+
+/**
+ * Tests that are red, known and not worth today (quarantinesIn, _ast.mjs), by spec file. The nightly's whole suite is held
+ * green by these, so a new one is a decision a pull request says out loud, and they may only fall. Without the count a
+ * quarantine is the same always-red by another name: the nightly was red 32 nights in a row, and nobody read it.
+ */
+export const E2E_QUARANTINE = {
+  name: "browser specs in quarantine",
+  key: "e2e-quarantine",
+  measure: () =>
+    Object.fromEntries(
+      repoFiles(["e2e"])
+        .filter((f) => f.endsWith(".spec.ts"))
+        .map((f) => [f, quarantinesIn(parse(f))])
+        .filter(([, n]) => n > 0),
+    ),
+  advice:
+    "Fix the spec or the page it found. Where it is truly not worth today, say why in the pull request's `Debt:` line, in the one shape: `test.fixme(true, \"quarantine: <date> <why>\")` as the test body's first line.",
+};
+
 /* ---- Event kinds written only from TypeScript (repo/event-kinds.test.mjs reads the same map) ---- */
 
 /** An event kind as the product spells it: `<record>.<what happened>`. */
@@ -1256,6 +1278,7 @@ export const RATCHETS = [
   UNCHECKED_INDEX,
   TEST_LENGTH,
   COUNTED_WAITS,
+  E2E_QUARANTINE,
   TS_ONLY_EVENTS,
   APPOINTMENT_WORDS,
   SOURCE_SCAN,

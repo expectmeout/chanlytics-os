@@ -173,7 +173,7 @@ test("the nightly's node suite runs in four parts with their own cap, its covera
   assert.ok(!/run: pnpm test\b/.test(whole), "the suite runs once");
   const production = job(y, "production");
   assert.ok(
-    production.includes("needs: whole") && production.includes("if: ${{ !cancelled() }}"),
+    production.includes("needs: whole") && production.includes("if: ${{ !cancelled() && !inputs.specs }}"),
     "a red whole suite never hides production",
   );
   const report = job(y, "report");

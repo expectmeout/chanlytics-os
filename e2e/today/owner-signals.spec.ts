@@ -42,7 +42,7 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     await signIn(page);
   });
 
-  test("Today names it -- nobody can be sent an offer -- with its arithmetic, and its door lands on the QR", async ({
+  test("Today names it -- nobody can be sent an offer -- with its arithmetic, and its door opens who said yes, whose list's step is the QR", async ({
     page,
   }) => {
     await page.goto("/#/today");
@@ -55,8 +55,14 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
       `the seeded workspace said yes to messages and nothing to offers; Ask found said: ${JSON.stringify(rows)}`,
     ).toBeTruthy();
     expect(reach!.text).toMatch(/^\d+ people have said yes to messages, but nobody has said yes to offers\.$/);
-    expect(reach!.act).toBe("Get their yes to offers");
+    // One act on the row (the phone pass, #2081): the people it counts, where the list's own step goes on to the QR.
+    expect(reach!.act).toBe("See them");
     await page.locator('[data-key="rule:unreachable"]').getByTestId("today-found-act").click();
+    await expect.poll(() => routeOf(page.url())).toBe("clients/seg:opted_in");
+    await page
+      .getByTestId("list-action")
+      .getByRole("button", { name: /Get their yes to offers/ })
+      .click();
     await expectQrInView(page);
   });
 
@@ -69,7 +75,7 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     expect(reach, "the seeded state").toBeTruthy();
     const said = Number(/^(\d+) people/.exec(reach!.text)?.[1]);
     // The list the number is, as People names it: Said yes to messages, opened from People, not a URL built from the
-    // row (its one act is the QR's door, which the test above takes).
+    // row, whose one act the test above takes.
     await page.goto("/#/clients/seg:opted_in");
     await page.waitForLoadState("networkidle");
     await expect.poll(() => routeOf(page.url())).toBe("clients/seg:opted_in");

@@ -199,11 +199,14 @@ test.describe("Phone shell on a real workspace", () => {
     await expect.poll(x, { message: "the drawer slides in to the edge" }).toBe(edge);
     expect(Math.round((await sidebar.boundingBox())!.width), "the desk's 248px").toBe(248);
 
-    await swipeAcross(page, 200, 170, 420);
+    // On the card, which is as tall as what it holds: under it a thumb is on the page, and nothing follows it.
+    const box = (await sidebar.boundingBox())!;
+    const onIt = Math.round(box.y + box.height / 2);
+    await swipeAcross(page, 200, 170, onIt);
     await expect.poll(x, { message: "30px: it settles back" }).toBe(edge);
     await expect(nav).toHaveCount(1);
 
-    await swipeAcross(page, 200, 60, 420);
+    await swipeAcross(page, 200, 60, onIt);
     await expect(nav, "past a third: it goes").toHaveCount(0);
     await expect(sidebar, "and once it has slid shut it has no box").toBeHidden();
 
@@ -222,7 +225,8 @@ test.describe("Phone shell on a real workspace", () => {
     // than a slot that is empty the rest of the time. Calendar took it.
     // The places are links (a door is a link) and More, which is no place, a button after them: the kit's TabBar.
     const tabs = page.getByTestId("phone-tabs").locator(".tab-bar-tab");
-    await expect(tabs).toHaveText(["Today", "Inbox", "Calendar", "People", "More"]);
+    // Inbox's count rides its tab, when it has one.
+    await expect(tabs).toHaveText(["Today", /Inbox$/, "Calendar", "People", "More"]);
     await tabs.filter({ hasText: "Calendar" }).click();
     await expect(page).toHaveURL(atRoute(/^calendar/));
     await page.goto("/#/inbox");
@@ -356,7 +360,8 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("people-phone-bar");
     await expect(bar).toBeVisible();
-    for (const id of ["people-phone-lists", "people-phone-search"])
+    // The search rests in its glyph while it holds no words (phone-bar.tsx foldSearch, #2081), for the room over the rows.
+    for (const id of ["people-phone-lists", "people-phone-find"])
       await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".cl-controls")).toHaveCount(0);
     expect(
@@ -376,15 +381,14 @@ test.describe("Phone shell on a real workspace", () => {
       (await row.locator(".pl-card > .list-row-end").boundingBox())!.height,
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
-    // Search: the field from the first draw, at 16px (a phone zooms into anything smaller). Nothing focuses it by
-    // itself, and ONE tap begins the typing: it rested as a capsule a tap only swapped for the field, and a second tap
-    // raised the keyboard (Ruben, 11 Oct 2026). The clear (×) empties it from the first word and keeps it in focus
-    // (there is no Cancel).
+    // Search: at 16px (a phone zooms into anything smaller). Nothing focuses it by itself, and ONE tap begins the typing:
+    // it rested as a capsule a tap only swapped for the field, and a second tap raised the keyboard (Ruben, 11 Oct 2026).
+    // The clear (×) empties it from the first word and keeps it in focus (there is no Cancel).
     const field = page.getByTestId("people-phone-search");
-    await expect(field).toBeVisible();
     await expect(field).not.toBeFocused();
-    await field.tap();
+    await bar.getByTestId("people-phone-find").tap();
     await expect(field).toBeFocused();
+    await expect(field).toBeInViewport({ ratio: 1 });
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     await field.fill("zz");
     await page.getByTestId("people-phone-search-clear").tap();

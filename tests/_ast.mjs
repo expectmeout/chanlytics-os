@@ -1958,6 +1958,25 @@ function waitsOf(sf) {
  * condition; a wait helper's own turns, counted where it is called; `await Promise.resolve()`, whose count of microtask
  * hops a busy machine cannot change; and a mocked clock's ticks, which are not awaited turns.
  */
+/**
+ * A browser spec's tests in quarantine: `test.fixme(true, "quarantine: <date> <why>")`, the one shape of a test that is
+ * red, known and not worth today (e2e/skip-ceiling.ts says them apart at night). Any other skip is not one.
+ */
+export function quarantinesIn(sf) {
+  let n = 0;
+  const visit = (c) => {
+    if (
+      ts.isCallExpression(c) &&
+      c.expression.getText(sf) === "test.fixme" &&
+      c.arguments.some((a) => ts.isStringLiteralLike(a) && a.text.startsWith("quarantine: "))
+    )
+      n += 1;
+    ts.forEachChild(c, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 export function fixedWaitsIn(sf) {
   const { functions, isWait } = waitsOf(sf);
   const out = [];

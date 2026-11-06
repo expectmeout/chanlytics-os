@@ -62,7 +62,8 @@ test.describe("Content-Security-Policy, enforced", () => {
     ]);
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
-    expect(policy).toContain("upgrade-insecure-requests");
+    // Production's, served over https: a copy on plain http has nothing to upgrade to (csp.ts).
+    if (process.env.E2E_PRODUCTION) expect(policy).toContain("upgrade-insecure-requests");
   });
 
   test("the public pages raise no violation", async ({ page }) => {
