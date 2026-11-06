@@ -38,9 +38,8 @@ const wordOf = (route) => (Object.hasOwn(ROUTE_WORDS, route) ? ROUTE_WORDS[route
 const ROWS_LEFT = {
   segments: [{ word: "realWorkspace", address: null }],
 };
-const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surfaceRetiredTo } = await import(
-  pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
-);
+const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, routeSurfaces, surfaceRetiredTo } =
+  await import(pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href);
 
 // The frame (surfaces/frame, TypeScript since the one-system plan's step 7e): its gate (shell-hooks.ts) and the two pages it
 // draws outside the table (app-shell.tsx: shared, start), the family it fades (clients) and its soon landing (shell-routes.ts).
@@ -136,6 +135,21 @@ test("a route with an App Router page has no row in route-table.tsx, and a page 
   );
 });
 
+test("an Ads address waits for the read that says whether it is drawn, never for Sequences' list it does not draw", () => {
+  for (const param of ["ads", "ads:new", "ads:results", "ads:ad:some-ad"]) {
+    assert.equal(routeSurfaceFor("campaigns", param), "settings", param);
+    assert.ok(!routeSurfaces("campaigns", param).includes("sequences"), param);
+    assert.equal(surfaceStateFor("campaigns", param), "real", "it stands under Campaigns, with no state of its own");
+  }
+  assert.equal(routeSurfaceFor("campaigns", null), "sequences", "and Campaigns' own address still does");
+  assert.equal(routeSurfaceFor("campaigns", "sequences"), "sequences");
+  assert.equal(
+    SURFACE_STATES["campaigns/ads"],
+    undefined,
+    "no row: a real page is a jump for every workspace, and only some have this",
+  );
+});
+
 test("'real' and the SurfaceData wiring agree exactly", () => {
   const real = Object.entries(SURFACE_STATES)
     .filter(([, v]) => v === "real")
@@ -175,7 +189,6 @@ test("the real set is exactly the converted surfaces", () => {
     "broadcasts",
     "calendar",
     "campaigns",
-    "campaigns/ads",
     "campaigns/messages",
     "campaigns/sequences",
     "clients",

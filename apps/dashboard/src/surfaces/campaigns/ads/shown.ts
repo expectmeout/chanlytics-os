@@ -3,7 +3,7 @@
  * on (`features.ads_preview`, contracts `adsPreviewOf`: Ruben's to set, per workspace, until the Ads read is wired, 0049).
  * Everywhere else, Campaigns is Sequences and Messages alone, Reports has no Ads lens and Connections no Ad accounts card. The preview is
  * read off the settings surface, which an Ads address, Campaigns and Settings open on and wait for (route-prefetch, surface-registry
- * ROUTE_SURFACE), so a cold load of an Ads address draws the page first and nothing before it (e2e/campaigns/ads.spec.ts). `useAdsShown`
+ * routeSurfaceFor), so a cold load of an Ads address draws the page first and nothing before it (e2e/campaigns/ads.spec.ts). `useAdsShown`
  * draws again when that read moves.
  */
 import { adsPreviewOf } from "@chanlytics/contracts";
