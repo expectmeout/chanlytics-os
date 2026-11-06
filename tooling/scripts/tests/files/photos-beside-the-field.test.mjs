@@ -44,9 +44,9 @@ const out = await build({
       'export { arSubmitter } from "../../../../apps/dashboard/src/surfaces/ask/line/turns.tsx";\n' +
       'export { AskQuestion } from "../../../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
       'export { AskPostCard } from "../../../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
-      'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/settings/files/post-share.ts";\n' +
+      'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/files/post-share.ts";\n' +
       'export { askText } from "../../../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
-      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/settings/files/verbs.ts";\n' +
+      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tooling/scripts/tests/files"),

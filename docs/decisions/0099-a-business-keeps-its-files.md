@@ -96,7 +96,7 @@ what a page shows them. So a picture needs one place, one name and a written rec
     the photo at Save. Save and Undo are the partner's, as adding a photo is. A Save calls `file_start` first, as an upload does, so
     a library at its cap is told before anything is drawn, and a function that dies between storing the shapes and `file_made` leaves
     nothing for good: the purge empties that folder a day on.
-14. **A kept post is one piece, wherever it is looked at** (`surfaces/settings/files/post-shapes.tsx`, in Ask's card and the Files
+14. **A kept post is one piece, wherever it is looked at** (`surfaces/files/post-shapes.tsx`, in Ask's card and the Files
     sheet): the picture in the shape chosen, the shapes, and what to do with that one. Share opens the device's own sheet, which is
     how a picture reaches Instagram, and on an iPhone how it reaches Photos, since a download lands in Files there. Safari opens that
     sheet only inside the tap, and one that waits on the network first works or not by how fast the network is, so the picture comes

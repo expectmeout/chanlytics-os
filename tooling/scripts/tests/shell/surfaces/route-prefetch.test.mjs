@@ -762,7 +762,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
       (await importSrc(`${S}/surfaces/settings/notifications/surface.ts`)).alertsOverride,
       (await importSrc(`${S}/surfaces/settings/memory/surface.ts`)).askMemoryOverride,
-      (await importSrc(`${S}/surfaces/settings/files/surface.ts`)).filesOverride,
+      (await importSrc(`${S}/surfaces/files/surface.ts`)).filesOverride,
     ].map((o) => [o.key, o]),
   );
   // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first

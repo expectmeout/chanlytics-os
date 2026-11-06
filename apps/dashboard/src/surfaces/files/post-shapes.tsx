@@ -6,8 +6,8 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { POST_SHAPES, POST_WORDS, fileViewOf, type PostShapeName } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
-import { mediaSays } from "../../legacy-verbs";
+import { Button } from "../kit/button/button";
+import { mediaSays } from "../legacy-verbs";
 import { postFileOf, sharePostFile, sharesPictures } from "./post-share";
 
 interface PostShapesProps {

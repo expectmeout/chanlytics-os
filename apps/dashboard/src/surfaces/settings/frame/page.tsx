@@ -20,7 +20,7 @@ import { PaneBillingReal } from "../billing/pane";
 import { businessGapPane } from "../business/tab";
 import { PaneIntegrationsReal } from "../connections/pane";
 import { PaneNotificationsReal } from "../notifications/pane";
-import { PaneFiles } from "../files/pane";
+import { PaneFiles } from "../../files/pane";
 import { PaneMemory } from "../memory/pane";
 import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";

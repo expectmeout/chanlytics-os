@@ -18,16 +18,32 @@ const NOW = Date.UTC(2026, 9, 2, 20, 2, 0);
 const ZONE = "America/New_York";
 const MIN = 60_000;
 /** A real thread nobody has taken, which has been waiting `waitingMin` minutes. */
-const waiting = (id, waitingMin) => ({ id, real: true, state: "escalated", needsYou: true, waitingMin });
+const waiting = (id, waitingMin) => ({
+  id,
+  real: true,
+  state: "escalated",
+  needsYou: true,
+  move: { move: "needs_you", list: "escalated" },
+  waitingMin,
+});
 /** A real thread whose reply counts down to auto-send for another 42 seconds. */
 const sending = (id) => ({
   id,
   real: true,
   state: "escalated",
   needsYou: false,
+  move: {
+    move: "sending",
+    list: "escalated",
+    until: {
+      atMs: NOW + 42_000,
+      then: { move: "replying", list: "waiting" },
+      held: { move: "answered", list: "done" },
+    },
+  },
   veto: { messageId: `m-${id}`, endsAtMs: NOW + 42_000 },
 });
-const handled = (id) => ({ id, real: true, state: "done", needsYou: false });
+const handled = (id) => ({ id, real: true, state: "done", needsYou: false, move: { move: "answered", list: "done" } });
 
 test("the dateline is the day and the time in the business's zone, not the machine's", () => {
   assert.equal(pageDateline(NOW, ZONE), "Friday, October 2 · 4:02 PM");

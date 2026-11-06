@@ -96,9 +96,10 @@ const asked = (id, min) => ({
   created_at: ago(min),
 });
 
-// Three flagged threads, as the salon's Needs you bucket can hold them: one nobody has, one you have, one Ana has;
-// and a Handled thread whose last reply never left. Each as the wire holds it, with its open hold: the Inbox's rows and
-// Today's read are made of the same ones.
+// Three flagged threads, as the salon's Inbox can hold them: one nobody has, one you have, one Ana has; a thread whose
+// last reply never left, on the real clock, since a wait nobody flagged goes quiet by the page's own clock (thread-move.ts);
+// and one that was answered. Each as the wire holds it, with its open hold: the Inbox's rows and Today's read are made of
+// the same ones.
 const ROSA = [conv("c1", "Rosa Díaz"), asked("c1", 90)];
 const MINE = [
   conv("c2", "Nina Park", { paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }),
@@ -108,10 +109,24 @@ const ANAS = [
   conv("c3", "Ada Lovelace", { paused_until: later, assignee_user_id: ANA, assignee_is_me: false }),
   asked("c3", 150),
 ];
+const realAgo = (min) => {
+  const at = new Date(Date.now() - min * 60_000).toISOString();
+  return { created_at: at, channel_ts: at };
+};
 const UNSENT = [
   conv("c4", "Zoe Martin", {
     state: "open",
-    messages: [wrote("m-c4", "Can I book at 3?", 30), ours("m-c4b", "ai", "3pm works!", 29, "failed")],
+    messages: [
+      { ...wrote("m-c4", "Can I book at 3?", 30), ...realAgo(30) },
+      { ...ours("m-c4b", "ai", "3pm works!", 29, "failed"), ...realAgo(29) },
+    ],
+  }),
+  null,
+];
+const ANSWERED = [
+  conv("c7", "Ivy Moss", {
+    state: "open",
+    messages: [wrote("m-c7", "Open Sunday?", 30), ours("m-c7b", "ai", "We are, 10 to 4.", 29)],
   }),
   null,
 ];
@@ -120,6 +135,7 @@ const rosa = vmOf(ROSA);
 const mine = vmOf(MINE);
 const anas = vmOf(ANAS);
 const unsent = vmOf(UNSENT);
+const answered = vmOf(ANSWERED);
 
 /** The metrics a Today read holds on the salon's day, as the page's own fixtures write them. */
 const wireMetrics = {
@@ -177,7 +193,7 @@ test("the fixtures stand where the salon's threads stand", () => {
   assert.deepEqual([rosa.state, rosa.needsYou], ["escalated", true]);
   assert.deepEqual([mine.state, mine.takenOver, mine.needsYou], ["escalated", true, false]);
   assert.deepEqual([anas.state, anas.claimedByOther, anas.needsYou], ["escalated", true, false]);
-  assert.deepEqual([unsent.state, unsent.lastWord.short], ["done", "Didn't send"]);
+  assert.deepEqual([unsent.state, unsent.move.move], ["done", "failed"]);
 });
 
 /* -------------------------------- a browser -------------------------------- */
@@ -237,6 +253,7 @@ const buttonNamed = (tree, words) => find(tree, (n) => n.type === "button" && te
 
 const REAL_BUCKETS = [
   { id: "escalated", label: "Needs you", icon: "flag", accent: true },
+  { id: "waiting", label: "Waiting", icon: "users" },
   { id: "done", label: "Handled", icon: "check" },
   { id: "snoozed", label: "Snoozed", icon: "clock" },
 ];
@@ -285,7 +302,7 @@ const listProps = (over = {}) => ({
 /* --------------------------------- the page --------------------------------- */
 
 test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone Handled and Snoozed opened their first thread over the rows, and an empty bucket showed neither", () => {
-  const { seen, render } = page([rosa, unsent]);
+  const { seen, render } = page([rosa, answered]);
   // A tap is what opens a thread over the list: that is what a phone's one screen is for.
   seen.list.onSelectThread(rosa.id);
   assert.ok(takesOver(render()), "a tap opens the thread over the list");
@@ -300,13 +317,13 @@ test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone 
   assert.equal(seen.list.activeBucket, "done", "the bucket picked");
   assert.deepEqual(
     seen.list.threads.map((t) => t.id),
-    [unsent.id],
+    [answered.id],
     "and the list is that bucket's rows",
   );
 
   // A bucket with nothing in it is an empty list, never a blank screen: the pane is hidden on a phone, so leaving
   // the thread open showed the rows of no list and no thread either.
-  seen.list.onSelectThread(unsent.id);
+  seen.list.onSelectThread(answered.id);
   assert.ok(takesOver(render()));
   seen.list.onBucketChange("snoozed");
   assert.equal(
@@ -329,7 +346,7 @@ test("REGRESSION: a bucket the member picked survives the next read -- picking a
     dropDraft() {},
   };
   try {
-    const { seen, render } = page([rosa, unsent]);
+    const { seen, render } = page([rosa, answered]);
     seen.list.onBucketChange("snoozed");
     render();
     assert.equal(seen.list.activeBucket, "snoozed", "the bucket picked");
@@ -354,16 +371,16 @@ test("the Needs you chip counts what needs you, the badge's number -- not every 
   const chip = (id) => seen.list.buckets.find((b) => b.id === id).count;
   assert.equal(
     chip("escalated"),
-    1,
-    "REGRESSION: it counted the thread you have and Ana's too, under a badge that said 1",
+    2,
+    "Rosa, and Zoe whose reply never left. REGRESSION: it counted the thread you have and Ana's too",
   );
-  assert.equal(needsYouNow(), 1, "the badge's own number, Need you's rows of Today's read over the same threads");
+  assert.equal(needsYouNow(), 2, "the badge's own number, Need you's rows of Today's read over the same threads");
   assert.deepEqual(sentCounts, [], "and the page sends none");
   setSurfaceValue("today", undefined);
   assert.deepEqual(
-    [chip("done"), chip("snoozed")],
-    [3, 0],
-    "and the chip counts what its own list holds: Handled has the answered one, the thread you took over and Ana's",
+    [chip("waiting"), chip("done"), chip("snoozed")],
+    [2, 0, 0],
+    "and the chip counts what its own list holds: Waiting has the thread you took over and Ana's",
   );
   // The chip cannot say a number its list does not hold -- the two came apart once, three rows under a chip of two.
   assert.equal(
@@ -417,10 +434,10 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
     dropDraft() {},
   };
   setSurfaceValue("broadcasts", { rows: [waitingRun()] });
-  setSurfaceValue("today", todayOver([UNSENT]));
+  setSurfaceValue("today", todayOver([ANSWERED]));
   try {
     // Nothing but a Handled thread: the run is all that waits on you, and the Inbox opens where it is.
-    const { seen } = page([unsent]);
+    const { seen } = page([answered]);
     assert.equal(
       seen.list.activeBucket,
       "escalated",
@@ -431,7 +448,7 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
     const list = (q) => {
       place.q = q;
       fresh();
-      return again(() => InboxList(listProps({ threads: [], allThreads: [unsent], activeBucket: "escalated" })));
+      return again(() => InboxList(listProps({ threads: [], allThreads: [answered], activeBucket: "escalated" })));
     };
     const tree = list("");
     // The Inbox's wait rows are Today's too (surfaces/waits/wait-rows.tsx, the Campaigns wiring review's lane 4).
@@ -490,7 +507,7 @@ test("REGRESSION: a run that Sent's read brings after the Inbox opened on the ru
     booted();
     readLands([]);
     booted();
-    let { seen, render } = page([unsent]);
+    let { seen, render } = page([answered]);
     assert.equal(seen.list.activeBucket, "done", "opened where its threads are, by the runs it held, none waiting");
     readLands([waitingRun()]);
     render();
@@ -509,7 +526,7 @@ test("REGRESSION: a run that Sent's read brings after the Inbox opened on the ru
     // A bucket the member picked holds, though the first read brings a run.
     unmount();
     booted();
-    ({ seen, render } = page([unsent]));
+    ({ seen, render } = page([answered]));
     seen.list.onBucketChange("done");
     render();
     readLands([waitingRun()]);
@@ -522,7 +539,7 @@ test("REGRESSION: a run that Sent's read brings after the Inbox opened on the ru
   }
 });
 
-test("Needs you holds what waits on you and nothing else: the thread you took over and a teammate's are Handled", () => {
+test("Needs you holds what waits on you and nothing else: the thread you took over and a teammate's are Waiting", () => {
   const { seen, render } = page([anas, mine, rosa]);
   assert.deepEqual(
     seen.list.threads.map((t) => t.who),
@@ -530,8 +547,8 @@ test("Needs you holds what waits on you and nothing else: the thread you took ov
     "REGRESSION: it listed all three -- the list read the thread's STATE, which stays escalated whoever holds it, while the chip over it counted what waits on you",
   );
   assert.equal(seen.pane.thread.id, rosa.id, "REGRESSION: the pane opened on Ada's thread, which Ana is answering");
-  // They are not hidden: Handled has them, each row still saying whose it is, yours before a teammate's (ixRank).
-  seen.list.onBucketChange("done");
+  // They are not hidden: Waiting has them, each row still saying whose it is, yours before a teammate's (ixRank).
+  seen.list.onBucketChange("waiting");
   render();
   assert.deepEqual(
     seen.list.threads.map((t) => t.who),
@@ -718,7 +735,11 @@ test("the badge's first count is the chip's: what needs you, not every flagged t
   inboxWith([rosa, mine, anas, unsent]);
   assert.equal(needsYouNow(), null, "the Inbox's threads are not the count: Need you's rows of Today's read are");
   setSurfaceValue("today", todayOver([ROSA, MINE, ANAS, UNSENT]));
-  assert.equal(needsYouNow(), 1, "REGRESSION: it counted Ana's thread as waiting on you until the Inbox mounted");
+  assert.equal(
+    needsYouNow(),
+    2,
+    "Rosa, and Zoe whose reply never left. REGRESSION: it counted Ana's thread as waiting on you until the Inbox mounted",
+  );
   setSurfaceValue("today", undefined);
 });
 
@@ -733,7 +754,7 @@ const sendingThread = () => {
       state: "open",
       last_message_at: at,
       messages: [
-        wrote("m-c5", "Is Thursday free?", 5),
+        { ...wrote("m-c5", "Is Thursday free?", 5), ...realAgo(5) },
         {
           id: "m-c5d",
           direction: "outbound",
@@ -760,42 +781,43 @@ test("REGRESSION: a reply about to send is at the top of Needs you, counted by t
   assert.equal(jess.state, "done", "the thread itself is quiet: nobody asked for a person");
   assert.ok(jess.veto && jess.veto.endsAtMs > Date.now(), "and its reply is still counting down");
   assert.deepEqual([ixSending(jess), ixBucketOf(jess), ixWaitsOnYou(jess)], [true, "escalated", true]);
-  assert.equal(ixWaitsOnYou(unsent), false, "a thread with nothing on its way does not");
+  assert.equal(ixWaitsOnYou(answered), false, "a thread with nothing on its way does not");
 
   const { seen } = page([rosa, mine, anas, unsent, jess]);
   assert.equal(seen.list.activeBucket, "escalated");
   assert.deepEqual(
     seen.list.threads.map((t) => t.who),
-    ["Jess Park", "Rosa Díaz"],
+    ["Jess Park", "Rosa Díaz", "Zoe Martin"],
     "first, above what needs a person -- and only what waits on you is in the bucket with them",
   );
   assert.equal(seen.pane.thread.who, "Jess Park", "and it is the thread the page opens on");
   const chip = (id) => seen.list.buckets.find((b) => b.id === id).count;
   assert.deepEqual(
-    [chip("escalated"), chip("done")],
-    [2, 3],
-    "the chip counts it and matches its own list; Handled holds the rest and not this one while it counts down",
+    [chip("escalated"), chip("waiting"), chip("done")],
+    [3, 2, 0],
+    "the chip counts it and matches its own list; it stands nowhere else while it counts down",
   );
   assert.equal(seen.list.threads.length, chip("escalated"), "the chip is the length of the list under it");
-  // Today's read over the same threads: Rosa's hold, and Jess's reply counting down, its row first.
+  // Today's read over the same threads: Rosa's hold, Zoe's reply that never left, and Jess's reply counting down, its row first.
   setSurfaceValue("today", todayOver([ROSA, MINE, ANAS, UNSENT, [sendingDto(), null]]));
-  assert.equal(needsYouNow(), 2, "the badge is that same number");
+  assert.equal(needsYouNow(), 3, "the badge is that same number");
   inboxWith([rosa, mine, anas, unsent, jess]);
-  assert.equal(needsYouNow(), 2, "and says it when the Inbox is not mounted");
+  assert.equal(needsYouNow(), 3, "and says it when the Inbox is not mounted");
 
-  // Held: the countdown stops, and the thread is quiet again -- in the badge as in the chip, before the cancel's re-read.
+  // Held: the countdown stops, and what they wrote still has no answer -- it stays in Needs you, as a thread nobody answered,
+  // and the badge leaves the reply's row before the cancel's re-read.
   VW_STORE.state = { [`draft:${jess.veto.messageId}`]: { held: true } };
   assert.deepEqual(
     [ixSending(jess), ixBucketOf(jess), ixWaitsOnYou(jess)],
-    [false, "done", false],
-    "a held draft claims nothing",
+    [false, "escalated", true],
+    "a held draft sends nothing, and they are still waiting",
   );
-  assert.equal(needsYouNow(), 1, "REGRESSION: the badge kept the reply this tab had just held, one over the chip");
+  assert.equal(needsYouNow(), 2, "REGRESSION: the badge kept the reply this tab had just held");
   VW_STORE.state = {};
-  // Past its last second it is Handled again, until the re-read says what actually happened.
-  assert.equal(ixBucketOf(jess, jess.veto.endsAtMs + 1), "done");
+  // Past its last second it is on its way, until the re-read says what actually happened.
+  assert.equal(ixBucketOf(jess, jess.veto.endsAtMs + 1), "waiting");
   // (Today's read was made of the same thread a moment later than this one: a second past both deadlines.)
-  assert.equal(needsYouNow(jess.veto.endsAtMs + 1_000), 1, "and the badge leaves it too");
+  assert.equal(needsYouNow(jess.veto.endsAtMs + 1_000), 2, "and the badge leaves it too");
   setSurfaceValue("today", undefined);
 });
 
@@ -813,7 +835,7 @@ test("the row says the seconds, where the time it last moved would be", () => {
     ),
   );
   const row = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
-  assert.equal(textOf(find(row("Jess Park"), hasClass("ix-sending"))).trim(), "sending in 72s");
+  assert.equal(textOf(find(row("Jess Park"), hasClass("ix-sending"))).trim(), "Sends in 1:12");
   assert.equal(
     find(row("Jess Park"), hasClass("ix-thread-time")),
     null,
@@ -891,11 +913,25 @@ test("conversationWaitsOnYou: nobody has it, or a reply is counting down; not a 
     "counting down",
   );
   assert.equal(
-    conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 30), draft(20)] }), null, NOW),
+    conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 30), draft(11)] }), null, NOW),
     false,
-    "past its deadline: the job's to send",
+    "just past its deadline: the job's to send",
   );
-  assert.equal(conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 2)] }), null, NOW), false, "quiet");
+  assert.equal(
+    conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 30), draft(20)] }), null, NOW),
+    true,
+    "well past it, and nothing has come of it: nobody answered them",
+  );
+  assert.equal(
+    conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 2)] }), null, NOW),
+    false,
+    "a reply being worked out",
+  );
+  assert.equal(
+    conversationWaitsOnYou(open({ messages: [wrote("m1", "Any slots?", 30)] }), null, NOW),
+    true,
+    "nobody answered them",
+  );
 });
 
 test("the wire's count is the chip's: each thread waits on you on the wire exactly when the Inbox's row says it does", async () => {

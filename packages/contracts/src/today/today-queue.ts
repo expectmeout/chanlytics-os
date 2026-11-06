@@ -25,7 +25,7 @@ import { NEED_YOU_CAPS, needYouGroupsOf, needYouOrder } from "../need-you/need-y
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";
-import { QUOTE_MAX, type EscalationRecord, type TodayFacts } from "./today-facts";
+import { QUOTE_MAX, type EscalationRecord, type OwedThread, type TodayFacts } from "./today-facts";
 import { say } from "./today-rows";
 import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from "./today-vm";
 
@@ -303,6 +303,39 @@ function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
   };
 }
 
+/**
+ * What the rule owes, as a row (today-facts.ts OwedThread). With no hold to give back, letting it go archives the thread, as
+ * the thread's own No reply needed does: a new message brings it back.
+ */
+function owedRow({ conv: c, move, who, waitedMs, word, quote }: OwedThread, f: TodayFacts): TodayQueueRowVM {
+  const failed = move.move === "failed" ? failedReplyOf(c) : undefined;
+  return {
+    id: `q-o-${c.id}`,
+    kind: "handoff",
+    conversationId: c.id,
+    callId: null,
+    person_id: c.contact.id,
+    who,
+    initials: initialsOf(who),
+    channel: threadChannelWords(c.messages),
+    when: `waited ${formatWaited(waitedMs)}`,
+    sentence: failed ? [NEED_YOU_WORDS.failed.sentence, failed.said].filter(Boolean).join(" ") : quote || word,
+    quoted: !failed && !!quote,
+    status: [word],
+    tone: "escalated",
+    warn: waitedMs > 30 * MIN_MS,
+    cta: { label: HOLD_ACT_WORDS.reply.cta, to: addressOf({ kind: "conversation", id: c.id }) },
+    also: null,
+    writes: writesOf(c, f),
+    reason: word,
+    waitedMs,
+    act: "reply",
+    clock_ms: windowLeftMs(c, f.now),
+    closes: "archive",
+    ...(failed ? { failed, prepared: failed.text, why: NEED_YOU_WORDS.failed.why } : {}),
+  };
+}
+
 /** A call worth an ear, as a queue row: after everyone waiting, what the caller wanted as the sentence. */
 function earRow(r: TodayCallRowVM, f: TodayFacts): TodayQueueRowVM {
   const c = f.callsInWindow.find((k) => k.id === r.id);
@@ -405,6 +438,10 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
   // A thread whose reply is counting down is its held row, which says when its window closes: one row for one person.
   for (const c of closingConvs) {
     if (!held.has(c.id)) queueAll.push(windowRow(c, f));
+  }
+  // What the rule owes with no row above: each thread once, a reply counting down its held row.
+  for (const o of f.owed) {
+    if (!held.has(o.conv.id)) queueAll.push(owedRow(o, f));
   }
   for (const r of callRows) {
     if (r.to === "live") continue;

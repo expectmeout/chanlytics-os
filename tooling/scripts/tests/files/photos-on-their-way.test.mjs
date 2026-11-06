@@ -1,5 +1,5 @@
 /**
- * Photos on their way (apps/dashboard/src/surfaces/settings/files/sending.ts and verbs.ts, decision 0099), bundled for node with
+ * Photos on their way (apps/dashboard/src/surfaces/files/sending.ts and verbs.ts, decision 0099), bundled for node with
  * the dashboard's own React and run over a browser in memory. Three go at a time, a failed one stays with its picture and its
  * words until the person says, a twin leaves calmly, a dropped line is tried again, and the end is told once.
  */
@@ -45,8 +45,8 @@ URL.revokeObjectURL = (u) => goneUrls.push(u);
 const out = await build({
   stdin: {
     contents:
-      'export * from "../../../../apps/dashboard/src/surfaces/settings/files/sending.ts";\n' +
-      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/settings/files/verbs.ts";\n' +
+      'export * from "../../../../apps/dashboard/src/surfaces/files/sending.ts";\n' +
+      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tooling/scripts/tests/files"),
