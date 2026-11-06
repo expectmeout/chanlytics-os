@@ -18,8 +18,8 @@ name: Ask's weekly turns
 # closes it. What was asked and answered is kept as the run's artifact.
 on:
   schedule:
-    # A schedule starts here hours late (in October the nightly's 09:00 came near 15:30, a Monday's 13:00 near 19:00):
-    # early on a Sunday, this ends well before the nightly's real start.
+    # A schedule starts here hours late, each by about as much on one day (nightly-e2e.yml says how late): two hours
+    # after the nightly asks, this starts after it ends, and the group they share keeps them apart if it does not.
     - cron: "23 1 * * 0"
   workflow_dispatch:
 

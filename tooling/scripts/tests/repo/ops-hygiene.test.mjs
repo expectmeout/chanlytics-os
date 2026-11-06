@@ -81,7 +81,7 @@ test("the events purge drops the evidence kinds and only those, past the contrac
 
 test("the nightly e2e job exists, runs against production, and is honest about what needs secrets", () => {
   const y = readRaw(".github/workflows/nightly-e2e.yml");
-  assert.ok(y.includes('cron: "0 9 * * *"'));
+  assert.ok(y.includes('cron: "17 23 * * *"'));
   assert.ok(y.includes("workflow_dispatch:"));
   assert.ok(
     y.includes("E2E_BASE_URL: https://app.chanlytics.com"),
