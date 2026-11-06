@@ -44,7 +44,7 @@ const out = await build({
       'export { arSubmitter } from "../../../../apps/dashboard/src/surfaces/ask/line/turns.tsx";\n' +
       'export { AskQuestion } from "../../../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
       'export { AskPostCard } from "../../../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
-      'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/settings/files/post-shapes.tsx";\n' +
+      'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/settings/files/post-share.ts";\n' +
       'export { askText } from "../../../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
       'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/settings/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
@@ -433,10 +433,10 @@ test("the sheet opens in the tap's own turn, since Safari refuses one that waite
 });
 
 test("the picture for the sheet comes once a tab under a name a person can read, and is asked again after it did not come", async () => {
-  const realShape = S.fileVerbs.shape;
+  const realShape = S.fileVerbs.postBytes;
   const asked = [];
   let bytes = null;
-  S.fileVerbs.shape = async (id, shape) => {
+  S.fileVerbs.postBytes = async (id, shape) => {
     asked.push([id, shape]);
     return bytes;
   };
@@ -451,7 +451,7 @@ test("the picture for the sheet comes once a tab under a name a person can read,
       [FILE(3), "story"],
     ]);
   } finally {
-    S.fileVerbs.shape = realShape;
+    S.fileVerbs.postBytes = realShape;
   }
 });
 
@@ -464,14 +464,14 @@ test("a shape's bytes come from its own address, and a read that failed is nothi
     return answer();
   };
   try {
-    assert.equal(await (await S.fileVerbs.shape(FILE(4), "square")).text(), "jpeg");
+    assert.equal(await (await S.fileVerbs.postBytes(FILE(4), "square")).text(), "jpeg");
     assert.deepEqual(asked, [`/api/v1/files/${FILE(4)}/view?shape=square`], "the kept address, not a download's");
     answer = async () => new Response("gone", { status: 404 });
-    assert.equal(await S.fileVerbs.shape(FILE(4), "square"), null);
+    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
     answer = async () => {
       throw new Error("no signal");
     };
-    assert.equal(await S.fileVerbs.shape(FILE(4), "square"), null);
+    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
   } finally {
     window.fetch = realFetch;
   }

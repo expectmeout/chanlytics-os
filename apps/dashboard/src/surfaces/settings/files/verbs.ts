@@ -92,14 +92,14 @@ export interface FileChange {
 }
 
 /** A kept post's shape, its bytes: what a phone's sheet is handed. Null where they did not come. */
-async function shape(id: string, name: PostShapeName): Promise<Blob | null> {
-  const res = await window.fetch(`${fileViewOf(id)}?shape=${name}`).catch(() => null);
+async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null> {
+  const res = await window.fetch(`${fileViewOf(id)}?shape=${shape}`).catch(() => null);
   return res?.ok ? res.blob().catch(() => null) : null;
 }
 
 export const fileVerbs = {
   add,
-  shape,
+  postBytes,
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),

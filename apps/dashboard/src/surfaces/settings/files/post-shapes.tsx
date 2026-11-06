@@ -1,52 +1,15 @@
 /**
  * A kept post, wherever it is looked at (Ask's card and the Files sheet, decision 0099, step 3): the picture in the shape chosen,
  * the shapes, and what to do with it. On a phone that is the phone's own sheet, which is also how a picture reaches Photos: a
- * download lands in Files there.
- *
- * Safari lets a page open that sheet only inside the tap itself, and one that waits on the network first works or not by how fast
- * the network is. So the picture is here before the tap, and the tap asks for nothing. The shapes are the kit's Button and not its
- * Segmented, which brings Base UI: Ask rides on every page.
+ * download lands in Files there. How it gets there is post-share.ts's. The shapes are the kit's Button and not its Segmented, which
+ * brings Base UI: Ask rides on every page.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { POST_SHAPES, POST_WORDS, fileViewOf, type PostShapeName } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { mediaSays } from "../../legacy-verbs";
-import { fileVerbs } from "./verbs";
+import { postFileOf, sharePostFile, sharesPictures } from "./post-share";
 import "./post-shapes.css";
-
-/** Whether this device hands a picture to a sheet of its own: asked of the device, never of how wide it is. */
-export function sharesPictures(): boolean {
-  try {
-    return navigator.canShare?.({ files: [new File(["post"], "post.jpg", { type: "image/jpeg" })] }) === true;
-  } catch {
-    return false;
-  }
-}
-
-const fetched = new Map<string, Promise<File | null>>();
-
-/** A shape's picture as the file the sheet is handed, under a name a person can read, asked for once a tab. */
-export function postFileOf(id: string, name: string, shape: PostShapeName): Promise<File | null> {
-  const key = `${id}:${shape}`;
-  const already = fetched.get(key);
-  if (already) return already;
-  const asked = fileVerbs.shape(id, shape).then((blob) => {
-    if (blob) return new File([blob], `${name}-${shape}.jpg`, { type: "image/jpeg" });
-    // The next look asks again: a phone between masts is back in seconds.
-    fetched.delete(key);
-    return null;
-  });
-  fetched.set(key, asked);
-  return asked;
-}
-
-/** The sheet, opened in the tap's own turn, so nothing here may wait first. A person closing it is no failure. */
-export function sharePostFile(file: File): Promise<"went" | "closed" | "failed"> {
-  return navigator.share({ files: [file] }).then(
-    () => "went" as const,
-    (e: unknown) => (e instanceof DOMException && e.name === "AbortError" ? ("closed" as const) : ("failed" as const)),
-  );
-}
 
 interface PostShapesProps {
   id: string;
