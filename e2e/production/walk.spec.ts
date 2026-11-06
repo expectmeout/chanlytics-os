@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { activeWorkspace, scoped, apiGet } from "../workspace";
+import { watchViolations } from "../shell/csp-violations";
 import { assertNothingInvented } from "../shell/invented";
 import { placeRow } from "../shell/places";
 import { drawnIn, timesDrawn } from "../shell/ready";
@@ -11,8 +12,9 @@ import { drawnIn, timesDrawn } from "../shell/ready";
  * as that copy did, and it asks little of them: one cold open is 233 database reads (measured 6 Nov 2026), where the suite
  * on production was about 125,000 a night.
  *
- * It looks for what only production can say. A page thrown out of its own script is a failure here; a console error is not,
- * since a provider's script or a browser's own warning writes there too, and one that matters to a customer shows on the page.
+ * It looks for what only production can say. The policy names production's own origins, so a page it would refuse there is
+ * a failure here, as is a page thrown out of its own script. Any other console error is not, since a provider's script or a
+ * browser's own warning writes there too, and one that matters to a customer shows on the page.
  */
 const STOPS: { name: string; press: (page: Page) => Locator }[] = [
   { name: "inbox", press: (page) => placeRow(page, "Inbox") },
@@ -31,11 +33,13 @@ test.describe("production, walked once", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
 
   let page: Page;
+  let refused: string[] = [];
   const thrown: string[] = [];
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
     page.on("pageerror", (error) => thrown.push(error.message));
+    refused = watchViolations(page, "the walk").seen;
     await signIn(page);
   });
 
@@ -43,7 +47,7 @@ test.describe("production, walked once", () => {
     await page.goto("/#/today");
     await drawnIn(page, "today");
     await assertNothingInvented(page, "today");
-    expect(thrown).toEqual([]);
+    expect([...thrown, ...refused]).toEqual([]);
   });
 
   for (const stop of STOPS) {
@@ -52,15 +56,15 @@ test.describe("production, walked once", () => {
       await stop.press(page).click();
       await drawnIn(page, stop.name, before);
       await assertNothingInvented(page, stop.name);
-      expect(thrown).toEqual([]);
+      expect([...thrown, ...refused]).toEqual([]);
     });
   }
 
   test("Settings opens, nothing on it invented", async () => {
-    await page.goto("/#/admin/business");
+    await page.goto("/#/admin/workspace");
     await page.waitForLoadState("networkidle");
     await assertNothingInvented(page, "settings");
-    expect(thrown).toEqual([]);
+    expect([...thrown, ...refused]).toEqual([]);
   });
 
   test("the app says which commit it is", async ({ request }) => {

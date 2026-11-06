@@ -137,7 +137,10 @@ jobs:
       REQUIRE_SERVICE_CREDENTIALS: "1"
       E2E_USER_EMAIL: e2e-owner@example.com
       E2E_MEMBER_EMAIL: e2e-member@example.com
-      E2E_BASE_URL: http://127.0.0.1:3100
+      # localhost by name: Next says a request's host as localhost whatever it was asked by (NextURL), so asked as
+      # 127.0.0.1 the proxy's rewrite of an address that names nothing reads as another host and comes back to the
+      # proxy, which sends it to sign in: the opt-in page's 404 answered 307.
+      E2E_BASE_URL: http://localhost:3100
       # Unset, the app calls production's edge (apps/dashboard/src/server/edge.ts). The trial called one path of it.
       EDGE_URL: http://127.0.0.1:3101
       # Without a credential the app never calls the edge at all (edgeConfigured), and the stand-in reads none.
@@ -196,19 +199,16 @@ jobs:
       - name: Start the edge's stand-in and the app
         run: |
           nohup node tooling/scripts/e2e-harness/edge-stub.mjs 3101 > edge-stub.log 2>&1 &
-          nohup pnpm --filter @chanlytics/dashboard exec next start -p 3100 -H 127.0.0.1 > next-start.log 2>&1 &
+          nohup pnpm --filter @chanlytics/dashboard exec next start -p 3100 > next-start.log 2>&1 &
       - name: The app answers, at this commit
         run: |
           for i in $(seq 1 60); do
-            said="$(curl -fsS http://127.0.0.1:3100/api/version || true)"
+            said="$(curl -fsS http://localhost:3100/api/version || true)"
             case "$said" in *"$GITHUB_SHA"*) echo "$said"; exit 0 ;; esac
             sleep 2
           done
           cat next-start.log
           exit 1
-      # DIAGNOSTIC, to come out before this lands: what the opt-in page answers on a copy.
-      - name: What the opt-in page answers
-        run: curl -si http://127.0.0.1:3100/yes/no-such-workspace-here | sed -n 1,14p | cut -c1-160
       # The run's own workspace, before any spec signs in: a test owner with exactly one membership, fake people, one
       # conversation, one call and a WhatsApp channel with no credentials.
       - name: The run's own workspace, in its known state

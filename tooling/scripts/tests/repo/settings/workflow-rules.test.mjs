@@ -193,7 +193,10 @@ test("the nightly's node suite and its whole suite hold no live secret, and the 
     workflow("nightly-database.yml").includes("run: pnpm test:db"),
     "the suites that need one run every night on their own stack",
   );
-  assert.ok(whole.includes("E2E_BASE_URL: http://127.0.0.1:3100"));
+  assert.ok(
+    whole.includes("E2E_BASE_URL: http://localhost:3100"),
+    "by name: the proxy's rewrites read 127.0.0.1 as another host",
+  );
   assert.ok(whole.includes("EDGE_URL: http://127.0.0.1:3101"), "unset, the app calls production's edge");
   assert.ok(
     whole.includes("127.0.0.1 app.chanlytics.com chanlytics-messaging.vercel.app"),
