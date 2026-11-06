@@ -122,7 +122,6 @@ test.describe("Files, from a photo to a post", () => {
     await page.goto("/#/admin/files");
     await expect(page.getByTestId("rec-card-files")).toBeVisible({ timeout: 30_000 });
     const workspace = await activeWorkspace(page);
-    const fileUrl = (id: string) => scoped(`/api/v1/files/${id}`, workspace);
     let photoId = "";
 
     try {
@@ -141,7 +140,7 @@ test.describe("Files, from a photo to a post", () => {
       photoId = ((await done.json()) as { data: { file_id: string } }).data.file_id;
 
       // Said by a person, over whatever the look says of a picture of coloured blocks: a post is made from what shows a place.
-      const said = await page.request.patch(fileUrl(photoId), {
+      const said = await page.request.patch(scoped(`/api/v1/files/${photoId}`, workspace), {
         data: { shows: "storefront", who_in_it: "no_one" },
         ...fromTheApp,
       });
@@ -234,7 +233,7 @@ test.describe("Files, from a photo to a post", () => {
       await expect.poll(() => made.length, { timeout: 60_000 }).toBe(2);
       await expect(sheet.locator("h2")).toContainText("Open early this saturday", { timeout: 30_000 });
       expect(made.at(0), "the first is left as it was").not.toBe(made.at(1));
-      const first = await page.request.get(fileUrl(made.at(0) ?? ""));
+      const first = await page.request.get(scoped(`/api/v1/files/${made.at(0) ?? ""}`, workspace));
       expect(first.ok(), "and is still there").toBeTruthy();
 
       // Where it came from opens that photo, whichever shelf is on show.
@@ -250,13 +249,13 @@ test.describe("Files, from a photo to a post", () => {
       await expect(card).toBeVisible();
       await page.getByTestId("ask-card").getByRole("button", { name: "Undo", exact: true }).click();
       await expect
-        .poll(async () => (await page.request.get(fileUrl(made.at(0) ?? ""))).status(), { timeout: 30_000 })
+        .poll(async () => (await page.request.get(scoped(`/api/v1/files/${made.at(0) ?? ""}`, workspace))).status(), { timeout: 30_000 })
         .toBe(404);
-      const version2 = await page.request.get(fileUrl(made.at(1) ?? ""));
+      const version2 = await page.request.get(scoped(`/api/v1/files/${made.at(1) ?? ""}`, workspace));
       expect(version2.ok(), "the version stays").toBeTruthy();
     } finally {
       for (const id of [...made, photoId].filter(Boolean)) {
-        const gone = await page.request.delete(fileUrl(id), fromTheApp);
+        const gone = await page.request.delete(scoped(`/api/v1/files/${id}`, workspace), fromTheApp);
         expect([200, 404], `${id} cleared`).toContain(gone.status());
       }
     }
