@@ -1,4 +1,5 @@
 /** The Line's hooks: one concern each, called in the order AskReal always called them. */
+import { askedWords } from "../../frame-doors";
 import type { AskedSeed, Line } from "./types";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { MASCOT } from "@/legacy-bridge/mascot";
@@ -376,12 +377,13 @@ export const useArSeedKeys = ({
             : null
           : A.scopeFor(r.page, r.param, arScopeLabel(r.page, r.param));
       if (d.about) setScope(chip);
+      const prompt = askedWords(d, A.language());
       if (d.thread) void openThread({ id: d.thread });
-      else if (d.mode === "compose" || !d.prompt) {
+      else if (d.mode === "compose" || !prompt) {
         setActive(null);
         setQuick(null);
-        setQuery(d.prompt || "");
-      } else void submit(d.prompt, chip, d.fresh ? { fresh: true } : undefined); // the chip this opening shows: `scope` is still the last opening's until the next draw; a page's own search (`fresh`) its own conversation
+        setQuery(prompt || "");
+      } else void submit(prompt, chip, d.fresh ? { fresh: true } : undefined); // the chip this opening shows: `scope` is still the last opening's until the next draw; a page's own search (`fresh`) its own conversation
     }
     return () => window.removeEventListener("keydown", onKeys);
   });

@@ -5,7 +5,14 @@
  */
 import { namesMoney, priceBreach, priceFigures } from "../config/policy";
 import { fileFolderOf } from "./files";
-import { POST_LIMITS, type PostPlan, type PostShapeName, type PostUndrawable } from "./post";
+import {
+  POST_LIMITS,
+  postPhotoWont,
+  type PostPhotoWont,
+  type PostPlan,
+  type PostShapeName,
+  type PostUndrawable,
+} from "./post";
 
 /** Where a shape of a made file is kept: portrait is the file's original, the others stand beside it. */
 export function postPathOf(tenantId: string, fileId: string, shape: PostShapeName): string {
@@ -95,10 +102,14 @@ export function postPlanProblem(plan: Pick<PostPlan, "line" | "over" | "under">,
   return null;
 }
 
+const PHOTO_WONT_TO_MODEL: Readonly<Record<PostPhotoWont, string>> = {
+  made: "that is a post Ask already made, with its words on it. Use the photo it came from",
+  unkept: "it waits in the Inbox or was set aside: it is the owner's to keep first",
+  design: "it already has words or a design on it, so more would clash",
+};
+
 /** What a file needs before a post is made from it, in a sentence for the model, or null. */
-export function postPhotoProblem(f: { status: string; source: string; shows: string | null }): string | null {
-  if (f.source === "made") return "that is a post Ask already made, with its words on it. Use the photo it came from";
-  if (f.status !== "filed") return "it waits in the Inbox or was set aside: it is the owner's to keep first";
-  if (f.shows === "graphic" || f.shows === "logo") return "it already has words or a design on it, so more would clash";
-  return null;
+export function postPhotoProblem(f: Parameters<typeof postPhotoWont>[0]): string | null {
+  const wont = postPhotoWont(f);
+  return wont ? PHOTO_WONT_TO_MODEL[wont] : null;
 }

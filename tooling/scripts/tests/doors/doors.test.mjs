@@ -85,6 +85,16 @@ test("askAbout opens Ask through the frame and then hands the Line what it was a
   );
 });
 
+test("a question a page words itself is asked in the language the Line last spoke; one handed whole is asked as it came", () => {
+  const prompts = { en: "Make a post from this photo", es: "Haz una publicación con esta foto" };
+  assert.equal(doors.askedWords({ prompts }, "es"), prompts.es);
+  assert.equal(doors.askedWords({ prompts }, "en"), prompts.en);
+  assert.equal(doors.askedWords({ prompts }, "other"), prompts.en, "a language it has no words in reads English");
+  assert.equal(doors.askedWords({ prompts, prompt: "x" }, "es"), prompts.es, "the page's own words win");
+  assert.equal(doors.askedWords({ prompt: "x" }, "es"), "x");
+  assert.equal(doors.askedWords({}, "es"), undefined, "a door with no question opens the field");
+});
+
 test("the names the pages that have not moved read go through the registry, and the person's Back is no window name", () => {
   assert.deepEqual(Object.keys(doors.DOOR_NAMES).sort(), ["appAsk", "appNavigate", "askAbout"]);
   assert.equal(doors.DOOR_NAMES.appAsk, doors.openAsk);

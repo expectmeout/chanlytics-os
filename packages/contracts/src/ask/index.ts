@@ -144,7 +144,7 @@ export type {
 } from "./ask-settings-change";
 export { cacheHitOf } from "./ask-shape";
 export type { AskTurnShape, AskTurnTokens } from "./ask-shape";
-export { buildAskSuggestions } from "./ask-suggestions";
+export { buildAskSuggestions, MAKE_POST_ASK } from "./ask-suggestions";
 export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
 export { rightNowCounts, rightNowLine } from "./ask-waiting";
 export type { AskWaiting } from "./ask-waiting";
