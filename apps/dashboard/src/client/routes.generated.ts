@@ -7,6 +7,7 @@ export const ROUTES = {
   "DELETE capabilities/[kind]": { method: "DELETE", path: "/api/v1/capabilities/[kind]" },
   "DELETE contacts/[id]": { method: "DELETE", path: "/api/v1/contacts/[id]" },
   "DELETE files/[id]": { method: "DELETE", path: "/api/v1/files/[id]" },
+  "DELETE files/[id]/google": { method: "DELETE", path: "/api/v1/files/[id]/google" },
   "DELETE google/connection": { method: "DELETE", path: "/api/v1/google/connection" },
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
   "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
@@ -204,6 +205,7 @@ export const ROUTES = {
   "POST escalations/[id]/resolve": { method: "POST", path: "/api/v1/escalations/[id]/resolve" },
   "POST fact-suggestions/[id]": { method: "POST", path: "/api/v1/fact-suggestions/[id]" },
   "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
+  "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
   "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
   "POST files/post": { method: "POST", path: "/api/v1/files/post" },
   "POST files/post/preview": { method: "POST", path: "/api/v1/files/post/preview" },
@@ -379,6 +381,7 @@ export type Routes = {
   "DELETE capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").DELETE;
   "DELETE contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").DELETE;
   "DELETE files/[id]": typeof import("../../app/api/v1/files/[id]/route").DELETE;
+  "DELETE files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").DELETE;
   "DELETE google/connection": typeof import("../../app/api/v1/google/connection/route").DELETE;
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
   "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
@@ -576,6 +579,7 @@ export type Routes = {
   "POST escalations/[id]/resolve": typeof import("../../app/api/v1/escalations/[id]/resolve/route").POST;
   "POST fact-suggestions/[id]": typeof import("../../app/api/v1/fact-suggestions/[id]/route").POST;
   "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
+  "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
   "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;
   "POST files/post": typeof import("../../app/api/v1/files/post/route").POST;
   "POST files/post/preview": typeof import("../../app/api/v1/files/post/preview/route").POST;

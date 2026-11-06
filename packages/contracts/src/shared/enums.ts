@@ -296,8 +296,10 @@ export const EVENT_KINDS = [
   "file.added",
   "file.changed",
   "file.kept",
+  "file.posted",
   "file.removed",
   "file.set_aside",
+  "file.unposted",
   /**
    * A note for the receptionist suggested from an owner's correction, and the member's answer (00448, decision 0063):
    * { suggestion_id, source }, never the words; a Keep's note is the settings.changed beside it.

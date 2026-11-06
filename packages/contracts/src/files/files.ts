@@ -158,11 +158,23 @@ export interface FileMade {
   plan: PostPlan;
 }
 
-/** One file, as GET files/[id] answers it. `made` is null on everything but a post. */
+/** A post on the business's Google profile, as it went up: Google's own name for it, and where it can be seen once Google says. */
+export interface FilePosted {
+  name: string;
+  search_url: string | null;
+  at: string;
+}
+
+/** One file, as GET files/[id] answers it. `made` is null on everything but a post, and so is `google`. */
 export interface FileRecordDto {
   file: FileDto;
   made: FileMade | null;
+  /** Whether it can go on Google, and whether it is there. */
+  google: { connected: boolean; posted: FilePosted | null } | null;
 }
+
+/** The most words a post on Google may carry (localPosts.create). */
+export const FILE_GOOGLE_WORDS_MAX = 1500;
 
 /** What the look counted of the people in a picture: how many, and how many someone who knows them could recognize. */
 export type FilePeople = { count: number; recognizable: number };
@@ -304,6 +316,27 @@ export const FILE_WORDS = {
   makePost: "Make a post",
   showMore: "Show more",
   newVersion: "New version",
+  google: {
+    post: "Post to Google",
+    words: "What it says on Google",
+    wordsNeeded: "Say something to go with it.",
+    tooLong: "Google takes up to 1,500 characters.",
+    cancel: "Cancel",
+    posted: "Sent to Google. It can take a few minutes to show.",
+    on: "On your Google profile",
+    see: "See it",
+    down: "Take it down",
+    downAsk: "Take this post off your Google profile?",
+    downNote: "It leaves your profile. The post stays here.",
+    downKeep: "Keep it up",
+    downed: "Taken off your Google profile.",
+    notConnected: "Connect your Business Profile first: posts go through it.",
+    noToken: "The connection to Google was lost. Connect again from Connections.",
+    refused: "Google did not take the post.",
+    noPhoto: "The photo this came from was deleted, so it can't be drawn for Google.",
+    notAPost: "Only a post can go on Google.",
+    notSent: "The post did not go through. Try again.",
+  },
   madeFrom: "Made from",
   madeFromGone: "Made with Ask, from a photo since deleted",
   title: "Files",

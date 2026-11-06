@@ -669,6 +669,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
+  "POST files/[id]/google": "a post put on Google: its sheet says so from the answer, and the list holds nothing of it",
+  "DELETE files/[id]/google":
+    "a post taken off Google: its sheet says so from the answer, and the list holds nothing of it",
   "POST files/start": "an upload under way is no file yet: the page reads again when it arrives",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.

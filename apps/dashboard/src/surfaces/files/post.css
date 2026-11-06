@@ -20,6 +20,12 @@
   aspect-ratio: 1;
 }
 
+/* What Google shows a post in. */
+.post-frame[data-shape="wide"] {
+  max-width: 420px;
+  aspect-ratio: 4 / 3;
+}
+
 /* A story stands narrower, so its whole height is on a phone's screen at once. */
 .post-frame[data-shape="story"] {
   max-width: 240px;
@@ -139,6 +145,10 @@
   padding: 0;
   field-sizing: content;
   font-size: var(--text-base);
+}
+
+.post-say .post-say-long {
+  max-height: 160px;
 }
 
 /* On a phone the keys take half the screen: the picture stays in sight, small, above what is being typed. */

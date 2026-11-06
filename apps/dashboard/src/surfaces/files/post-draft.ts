@@ -5,7 +5,7 @@
  * a lost line says nothing, and the last picture stands.
  */
 import { useEffect, useRef, useState } from "react";
-import { SECOND_MS, postPlanTidied, type PostPlan, type PostShapeName } from "@chanlytics/contracts";
+import { SECOND_MS, postPlanTidied, type PostPicture, type PostPlan } from "@chanlytics/contracts";
 import { drawnKeyOf, keepDrawn, pictureDrawn, wordsKeyOf, type PostDrawn } from "./post-drawn";
 import { fileVerbs } from "./verbs";
 
@@ -15,7 +15,7 @@ const DRAW_AFTER_MS = 0.35 * SECOND_MS;
 /** What a draft holds, for a card to draw and press, and for its fields to change. */
 export interface PostDraft {
   plan: PostPlan;
-  shape: PostShapeName;
+  shape: PostPicture;
   /** The picture of what is asked, or the last one while the next comes; null before the first. */
   picture: string | null;
   /** A picture is on its way. */
@@ -27,16 +27,16 @@ export interface PostDraft {
   /** Whether the business has a number to print, once known. */
   hasPhone: boolean;
   change: (part: Partial<PostPlan>) => void;
-  choose: (shape: PostShapeName) => void;
+  choose: (shape: PostPicture) => void;
 }
 
 /** What the last answer was, and what it was the answer to: `drawing` is derived, so a request let go can't leave it standing. */
 type Answer = { key: string; picture: PostDrawn | null; refused: string | null };
 
 /** `drawing` says whether to draw at all: a post kept shows its own file, and is never drawn again. */
-export function usePostDraft(start: PostPlan, wanted: boolean): PostDraft {
+export function usePostDraft(start: PostPlan, wanted: boolean, startShape: PostPicture = "portrait"): PostDraft {
   const [plan, setPlan] = useState(start);
-  const [shape, setShape] = useState<PostShapeName>("portrait");
+  const [shape, setShape] = useState<PostPicture>(startShape);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [last, setLast] = useState<PostDrawn | null>(null);
   const key = drawnKeyOf(plan, shape);

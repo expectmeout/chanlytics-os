@@ -62,6 +62,7 @@ export {
   emitEvent,
   eventOfDelivery,
   failOpenDelivery,
+  filePostedOf,
   finishBroadcast,
   recordActivation,
   recordEvent,

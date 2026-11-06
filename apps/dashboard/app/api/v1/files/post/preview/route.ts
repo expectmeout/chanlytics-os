@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { POST_SHAPES } from "@chanlytics/contracts";
+import { POST_PICTURES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { postPlanInput, previewPost } from "@/server/files/post/make";
 
@@ -14,6 +14,6 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "file_post_preview",
-  input: postPlanInput.extend({ shape: z.enum(POST_SHAPES).optional() }),
+  input: postPlanInput.extend({ shape: z.enum(POST_PICTURES).optional() }),
   handle: ({ ctx, input, member }) => previewPost(ctx, member, input),
 });

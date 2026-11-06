@@ -5,11 +5,11 @@
  * much, and words on a ground of a colour take whichever of black or white reads on it.
  */
 
-import type { PostLayoutName, PostShapeName, PostVoice } from "@chanlytics/contracts";
+import type { PostLayoutName, PostPicture, PostVoice } from "@chanlytics/contracts";
 
 /** A shape a post is made in, and what stays clear of the phone's own controls. */
 export interface PostShape {
-  name: PostShapeName;
+  name: PostPicture;
   width: number;
   height: number;
   /** What a story's own controls cover, top and foot. */
@@ -21,7 +21,9 @@ export const POST_SIZES = {
   square: { name: "square", width: 1080, height: 1080, clearTop: 0, clearFoot: 0 },
   portrait: { name: "portrait", width: 1080, height: 1350, clearTop: 0, clearFoot: 0 },
   story: { name: "story", width: 1080, height: 1920, clearTop: 250, clearFoot: 340 },
-} as const satisfies Record<PostShapeName, PostShape>;
+  // What Google shows a post in. Past 400 by 300 it takes, and at 4:3 it crops nothing.
+  wide: { name: "wide", width: 1200, height: 900, clearTop: 0, clearFoot: 0 },
+} as const satisfies Record<PostPicture, PostShape>;
 
 /** What a post says. The line is the post; the rest stands around it where there is something to say. */
 export interface PostWords {

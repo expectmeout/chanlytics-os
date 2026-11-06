@@ -7,6 +7,10 @@
 export const POST_SHAPES = ["portrait", "square", "story"] as const;
 export type PostShapeName = (typeof POST_SHAPES)[number];
 
+/** What a picture can be drawn as: those, and the wide one Google shows a post in, drawn only as it goes there. */
+export const POST_PICTURES = [...POST_SHAPES, "wide"] as const;
+export type PostPicture = (typeof POST_PICTURES)[number];
+
 /** Whose voice the words are set in: a serif's, or a plain sans's. */
 export const POST_VOICES = ["classic", "modern"] as const;
 export type PostVoice = (typeof POST_VOICES)[number];
