@@ -78,10 +78,26 @@ export const filesForAsk: Reader<undefined, { files: FileForAsk[] }> = {
 };
 
 /** What each file says of itself and no more: what Ask's line and a page's tally count, on every turn and every page. */
-export const filesTallied: Reader<undefined, { files: Awaited<ReturnType<typeof filesTalliedOf>> }> = {
+export const filesTallied: Reader<
+  undefined,
+  { files: Pick<FileDto, "status" | "shows" | "source" | "look_status" | "created_at">[] }
+> = {
   name: "filesTallied",
   async read(rc) {
-    return { data: { files: await filesTalliedOf(rc.ctx.supabase, rc.tenantId) }, rows: [], stamp: stamp() };
+    const rows = await filesTalliedOf(rc.ctx.supabase, rc.tenantId);
+    return {
+      data: {
+        files: rows.map((r) => ({
+          status: r.status as FileDto["status"],
+          shows: r.shows as FileDto["shows"],
+          source: r.source as FileDto["source"],
+          look_status: r.look_status as FileDto["look_status"],
+          created_at: r.created_at,
+        })),
+      },
+      rows: [],
+      stamp: stamp(),
+    };
   },
 };
 
