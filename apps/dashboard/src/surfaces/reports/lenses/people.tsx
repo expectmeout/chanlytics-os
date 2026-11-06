@@ -29,6 +29,7 @@ import type { ChartConfig } from "../../kit/charts/geometry";
 import { HeatStrip } from "../../kit/charts/heat";
 import { LineChart } from "../../kit/charts/line";
 import { RadarChart } from "../../kit/charts/radar";
+import { adsInPreview } from "../../campaigns/ads/shown";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { navigate } from "../../legacy-verbs";
 import type { Follower } from "../../use-surface";
@@ -255,10 +256,11 @@ function stuckSection(v: PeopleReportVM) {
 
 /**
  * The door from "An ad" to Reports › Ads, over the days this lens shows: the days the address says, else the period kept, which
- * Ads opens on too. Only where the Ads lens is shown to this workspace; none otherwise.
+ * Ads opens on too. Only where the Ads lens is shown to this workspace; none otherwise, and none from a real count into a preview's
+ * sample, which never brought those people.
  */
 function adsDoor({ range }: ReportsSurface): (() => void) | null {
-  return lensShownHere("ads") === true
+  return lensShownHere("ads") === true && !adsInPreview()
     ? () => navigate(lensRoute("ads", typeof range === "string" ? null : range))
     : null;
 }

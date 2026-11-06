@@ -25,6 +25,7 @@ import { useUnsavedWork } from "../../../kit/record/work";
 import { useKept } from "../../home/pane-sheet";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPane, useCmPhone } from "../../parts/split";
+import { PreviewNote } from "../preview-note";
 import type { Flash } from "./new-bits";
 import { NewFoot } from "./new-foot";
 import { NewLead } from "./new-sentence";
@@ -217,6 +218,7 @@ function NewAdSheet({ opening, open, read, config, onClose, onTurnOn, flash }: S
         }
       >
         <div className="ads-new cm-sentence" data-step={step} data-testid="ads-new-body">
+          <PreviewNote />
           <NewLead
             // The draft opens filled in (Services, the newest post, the area, the smallest amount), so the sentence is read
             // whole from the first step: each chip is a door to the step that holds it, never a blank to fill.
