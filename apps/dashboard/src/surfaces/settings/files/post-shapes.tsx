@@ -9,7 +9,6 @@ import { POST_SHAPES, POST_WORDS, fileViewOf, type PostShapeName } from "@chanly
 import { Button } from "../../kit/button/button";
 import { mediaSays } from "../../legacy-verbs";
 import { postFileOf, sharePostFile, sharesPictures } from "./post-share";
-import "./post-shapes.css";
 
 interface PostShapesProps {
   id: string;
