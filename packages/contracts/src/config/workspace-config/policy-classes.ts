@@ -5,7 +5,7 @@
  */
 import type { SchemaSet } from "../../shared/schema-sets";
 import type { SystemOneQuestion } from "../../ai/system-one";
-import { PLAYBOOK_VETO_DELAY_WORDS } from "../../playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_WORDS } from "../../campaigns/playbooks/playbook-triggers";
 import type { PolicyLimits } from "./policy-limits-schema";
 
 /* --------------------------------------------------------------- E3 policy */

@@ -4,7 +4,7 @@
  * only: what comes back is judged by its own bytes where it is kept (the edge's keepFoundFile), so a marketing page's icons
  * fall away by their size there, and the words here only spare those reads.
  */
-import { attrsOf, decodeEntities } from "../html";
+import { attrsOf, decodeEntities } from "../website/html";
 
 /** The most one page offers. A gallery is more, and the owner has the upload for the rest. */
 export const SITE_PHOTOS_MAX = 12;

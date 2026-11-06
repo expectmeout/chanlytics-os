@@ -1,6 +1,6 @@
-import { read, platform } from "@/server/route";
+import { read, platform } from "@/server/shared/route";
 import { FindQuerySchema } from "@chanlytics/contracts";
-import { consoleFind } from "@/server/platform/console";
+import { consoleFind } from "@/server/console/console";
 
 /**
  * GET /api/v1/platform/find?q= — the Console's Find (decision 0066): workspaces by name or address, owners by email,

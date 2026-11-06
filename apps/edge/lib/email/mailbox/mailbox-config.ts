@@ -5,10 +5,10 @@
  * reach). A provider whose client is unset is not offered; a push that is unset leaves a mailbox to the five-minute
  * sweep, which reads every one whatever its push.
  */
-import type { GoogleAudience, MailboxProvider } from "../../packages/contracts.js";
+import type { GoogleAudience, MailboxProvider } from "@chanlytics/contracts";
 import { googleAudience } from "../../google/google-config.js";
-import type { MailboxOAuthClient } from "../../packages/channels.js";
-import { env } from "../../env.js";
+import type { MailboxOAuthClient } from "@chanlytics/channels";
+import { env } from "../../shared/env.js";
 
 /**
  * One provider's OAuth client, or null when this deployment does not offer it. Google's is the mailbox's own pair where

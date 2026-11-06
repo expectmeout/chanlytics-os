@@ -23,13 +23,13 @@
  * unset, the door places nothing (voice_canary_unset).
  */
 import crypto from "node:crypto";
-import { createPhoneCall } from "../../packages/channels.js";
-import { canaryCallFacts, canaryLineOf, type CanaryCallFacts } from "../../packages/db.js";
-import { MIN_MS, UUID, isE164 } from "../../packages/contracts.js";
-import { json, refuse } from "../../http.js";
-import { pg } from "../../pg.js";
-import { env } from "../../env.js";
-import { errField, logger } from "../../log.js";
+import { createPhoneCall } from "@chanlytics/channels";
+import { canaryCallFacts, canaryLineOf, type CanaryCallFacts } from "@chanlytics/db";
+import { MIN_MS, UUID, isE164 } from "@chanlytics/contracts";
+import { json, refuse } from "../../shared/http.js";
+import { pg } from "../../shared/pg.js";
+import { env } from "../../shared/env.js";
+import { errField, logger } from "../../shared/log.js";
 import { pageOperator } from "../../ops/page-operator.js";
 
 /** One canary call a half hour at most: the key can place no more, whoever holds it. */

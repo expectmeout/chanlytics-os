@@ -6,16 +6,16 @@ import {
   PURPOSE_REFUSALS,
   type SendPurpose,
 } from "@chanlytics/contracts";
-import type { Channel, Delivered } from "../deliver";
+import type { Channel, Delivered } from "../deliver/deliver";
 import {
   isNotTakenError,
   isWireUnavailableError,
   type NotTakenError,
   type WireUnavailableError,
-} from "../wire-senders";
+} from "../deliver/wire-senders";
 import type { SendQueuedCommand, SendQueuedPorts } from "./ports";
 import { pageTheProvider } from "./provider-page";
-import { toldFromItsEvent } from "../subscribers";
+import { toldFromItsEvent } from "../events/subscribers";
 
 export type { SendQueuedCommand } from "./ports";
 

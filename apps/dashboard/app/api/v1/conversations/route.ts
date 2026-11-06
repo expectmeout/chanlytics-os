@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { read, workspace } from "@/server/route";
-import { requireUuidList } from "@/server/request-guards";
+import { read, workspace } from "@/server/shared/route";
+import { requireUuidList } from "@/server/shared/request-guards";
 import { load, readerContext } from "@/server/readers";
 import { conversations } from "@/server/readers/conversations";
 

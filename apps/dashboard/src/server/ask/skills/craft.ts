@@ -1,12 +1,12 @@
 import "server-only";
 import type { ZodType } from "zod";
 import { AppError, ASK_TURN_BUDGET_MS, MODEL_ROUTES, craftSystem, type AskSkill } from "@chanlytics/contracts";
-import { askForJson } from "../../model-json";
+import { askForJson } from "../../shared/model-json";
 
 /**
  * A skill's craft call (contracts ask-skills): the job done by a call made only for it, with the skill's own words as its
  * system prompt, at the skill's effort, under the skill's gateway purpose, in the skill's JSON, through the one structured
- * answer every draft asks for (server/model-json.ts). What it answers is the skill's to check; a call that does not answer
+ * answer every draft asks for (server/shared/model-json.ts). What it answers is the skill's to check; a call that does not answer
  * is said as why, never thrown, so the card it serves keeps what it had.
  */
 

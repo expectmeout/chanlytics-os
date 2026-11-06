@@ -13,7 +13,7 @@ import {
   placesToAsk,
 } from "@chanlytics/contracts";
 import { MAPS_CAP_FLOOR_USD } from "@chanlytics/core";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 export interface DoorAnswer {
   error?: string;

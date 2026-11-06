@@ -3,7 +3,7 @@
  * language, an ending and a refusal, and the sentence under each part, said once. Pure; receptionist-report.ts puts them in
  * the view model, and only Reports' page reads them (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
  */
-import { HELD_REASONS } from "../../broadcasts/run-words";
+import { HELD_REASONS } from "../../campaigns/broadcasts/run-words";
 import { INTENT_LABELS } from "../../config/intent-labels";
 import { DISCONNECTION_LABELS } from "../../conversations/call-dto";
 import { NEEDS_YOU_WORD } from "../../conversations/standing";

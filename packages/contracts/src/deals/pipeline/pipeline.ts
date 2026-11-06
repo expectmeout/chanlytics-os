@@ -31,7 +31,7 @@ import { daysInStageWords, dealIsOpen, wholeDaysSince, type DealVM } from "../de
 import { heardSinceProposal, proposalTone, waitingOnProposal, type DealPaceVM } from "../deal-waits";
 import { consultationsWithoutProposal, consultsHeldWords, dealStageOf } from "../deal-consultations";
 import { stepDayOf } from "../../notes/steps";
-import { followUpWords } from "../../playbooks/playbooks";
+import { followUpWords } from "../../campaigns/playbooks/playbooks";
 import type {
   PipelineChip,
   PipelineGroupKey,

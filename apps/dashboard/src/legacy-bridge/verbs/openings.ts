@@ -8,7 +8,7 @@ import { REWRITE_NOW_MAX, type ReachOutCheckLine, type RewriteStep, type Rewrote
 import { readLines, type Api } from "../../client/api";
 import { apiFor } from "../api";
 
-/** A rewrite's check waits at most this, a little past the route's own wait for the edge (server/sequences/opening.ts). */
+/** A rewrite's check waits at most this, a little past the route's own wait for the edge (server/campaigns/sequences/opening.ts). */
 const CHECK_WAIT_MS = 30_000;
 
 /** The check of one email, now, its steps handed on as they come; how it stands after, or null where none came back. */

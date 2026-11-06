@@ -2,10 +2,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inviteUserByEmail, type Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
-import { deployment } from "../env";
-import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
-import { serviceDb } from "../service-db";
-import { log } from "@/server/log";
+import { deployment } from "../shared/env";
+import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
+import { serviceDb } from "../shared/service-db";
+import { log } from "@/server/shared/log";
 
 /**
  * A partner hands a workspace to its owner (decision 0016): the half of it the database cannot do, which is telling

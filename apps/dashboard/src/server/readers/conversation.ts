@@ -1,7 +1,7 @@
 import "server-only";
 import { AppError, addressOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
-import { groupMessages, messageRowsOf, THREAD_MESSAGE_COLUMNS } from "../dto";
-import { loadConversation, type VerbConversation } from "../verbs";
+import { groupMessages, messageRowsOf, THREAD_MESSAGE_COLUMNS } from "../conversations/dto";
+import { loadConversation, type VerbConversation } from "../shared/verbs";
 import { load, stamp, type Reader, type RowRef } from "./index";
 
 /**

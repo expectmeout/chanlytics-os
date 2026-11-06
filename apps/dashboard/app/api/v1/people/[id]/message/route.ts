@@ -1,8 +1,8 @@
 import { asTenantId, PersonMessageBodySchema } from "@chanlytics/contracts";
 import { beginConversation } from "@chanlytics/core";
-import { log } from "@/server/log";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { log } from "@/server/shared/log";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { beginPorts } from "@/server/new-conversation/ports";
 
 /**

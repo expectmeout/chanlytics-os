@@ -1,5 +1,5 @@
 import { AppError } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { keepIdeaCard } from "@/server/ask/tools/act/leads/idea-card";
 
 /**

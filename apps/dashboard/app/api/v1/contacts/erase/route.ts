@@ -1,5 +1,5 @@
 import { EraseManyBody } from "@chanlytics/contracts";
-import { workspace, write } from "@/server/route";
+import { workspace, write } from "@/server/shared/route";
 import { eraseMany } from "@/server/people/people-many";
 
 /**

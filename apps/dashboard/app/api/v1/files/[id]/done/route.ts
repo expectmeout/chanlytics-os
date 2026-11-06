@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FILE_MIMES, FILE_WORDS } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { finishUpload } from "@/server/files/upload";
 
 /** A file's name as a phone or a desk gives it; only its words are kept (contracts fileNameOf). */

@@ -32,14 +32,14 @@ import type {
   CreateBroadcastPorts,
   TemplateValuesPorts,
 } from "@chanlytics/core";
-import type { RouteContext } from "../with-route";
-import { log, requestId } from "../log";
-import { recordDecision } from "../verbs";
-import { cancelKindFor } from "../jobs";
+import type { RouteContext } from "../shared/with-route";
+import { log, requestId } from "../shared/log";
+import { recordDecision } from "../shared/verbs";
+import { cancelKindFor } from "../shared/jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
 import { storedConfigOf } from "../workspace/config-row";
-import { serviceDb } from "../service-db";
-import { tenantFacts } from "../tenant";
+import { serviceDb } from "../shared/service-db";
+import { tenantFacts } from "../shared/tenant";
 import { channelsReadyOf, channelsReadyOrNull, whatsappHealthOf } from "../campaigns/channels-ready";
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {

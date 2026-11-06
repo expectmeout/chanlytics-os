@@ -1,7 +1,7 @@
 import "server-only";
 import { AppError, addressOf, callerName, personName, type CallDto } from "@chanlytics/contracts";
-import { CALL_COLUMNS, toCallDto } from "../dto";
-import { requireUuid } from "../request-guards";
+import { CALL_COLUMNS, toCallDto } from "../conversations/dto";
+import { requireUuid } from "../shared/request-guards";
 import { stamp, type Reader, type RowRef } from "./index";
 
 /**

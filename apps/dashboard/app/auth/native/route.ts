@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fromAnotherSite, nativeSignInPlan, NATIVE_FAILED } from "@/server/auth/native-sign-in";
-import { takeRate } from "@/server/rate-limit";
-import { ipOf, hashKey } from "@/server/request-ip";
-import { log } from "@/server/log";
+import { takeRate } from "@/server/shared/rate-limit";
+import { ipOf, hashKey } from "@/server/shared/request-ip";
+import { log } from "@/server/shared/log";
 
 /**
  * POST /auth/native -- where the native app hands in the identity token it got from Apple or Google.

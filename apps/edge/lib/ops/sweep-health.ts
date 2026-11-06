@@ -7,7 +7,7 @@
  * be tested.
  */
 
-import { HOUR_MS } from "../packages/contracts.js";
+import { HOUR_MS } from "@chanlytics/contracts";
 
 /** One row of public.sweep_health(). */
 export interface SweepHealthRow {

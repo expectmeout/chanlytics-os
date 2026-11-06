@@ -30,7 +30,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { repoFiles, parse, bundleExports, unimportedExports } from "../tests/_ast.mjs";
+import { repoFiles, parse, bundleExports, unimportedExports } from "../../../tests/_ast.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -62,7 +62,7 @@ const isBarrel = (f) => /(^|\/)index\.ts$/.test(f);
 
 /** `{ file: n }`: each package module's public values that no other module imports (the pass knip cannot make). */
 export function packagePass() {
-  const everything = [...repoFiles(["apps", "packages"]), ...repoFiles(["tooling/scripts", "e2e"])];
+  const everything = [...repoFiles(["apps", "packages"]), ...repoFiles(["tooling/scripts", "tests", "e2e"])];
   const now = {};
   for (const p of PACKAGES) {
     const own = (f) => f.startsWith(`packages/${p}/src/`);

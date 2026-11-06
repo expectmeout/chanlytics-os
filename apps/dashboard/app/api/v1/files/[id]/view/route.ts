@@ -1,4 +1,4 @@
-import { read } from "@/server/route";
+import { read } from "@/server/shared/route";
 import { fileScope, viewFile } from "@/server/files/file";
 
 /**

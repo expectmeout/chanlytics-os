@@ -4,10 +4,10 @@
  * apart from the rule, so a page that asks only the rule (a person's page, drawing More's sends) carries none of the
  * sheet's words with it.
  */
-import type { ChannelsReady } from "../broadcasts/reach-for";
+import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
 import type { PersonRowDto } from "../people/person-dto";
 import { personName } from "../people/person-name";
-import { firstNameOf } from "../templates/templates";
+import { firstNameOf } from "../campaigns/templates/templates";
 import { NEW_CONVERSATION_WORDS } from "./new-conversation-words";
 import type { PersonReachDto } from "./person-draft";
 import { defaultWriteWire, writeWaysOf, type WriteRow } from "./write-ways";

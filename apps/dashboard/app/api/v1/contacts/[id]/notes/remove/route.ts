@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { noteAnswer, noteOn } from "@/server/people/person-notes";
 
 const Body = z.object({ note_id: z.string().uuid() }).strict();

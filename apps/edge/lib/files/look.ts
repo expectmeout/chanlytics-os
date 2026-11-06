@@ -21,9 +21,9 @@ import {
   filePathOf,
   parseTenantConfig,
   type FileMime,
-} from "../packages/contracts.js";
-import { deleteClaudeFile, uploadClaudeFile } from "../packages/channels.js";
-import { imageHeaderOf } from "../packages/core.js";
+} from "@chanlytics/contracts";
+import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels";
+import { imageHeaderOf } from "@chanlytics/core";
 import {
   fileForWork,
   fileLookKeep,
@@ -32,11 +32,11 @@ import {
   workspaceNameAndConfig,
   type Database,
   type FileRow,
-} from "../packages/db.js";
-import type { ClaimedJob } from "../packages/jobs.js";
-import { askJson, firstJson, modelMayGo, promptHashOf, type ModelCallFor } from "../model.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
+} from "@chanlytics/db";
+import type { ClaimedJob } from "@chanlytics/jobs";
+import { askJson, firstJson, modelMayGo, promptHashOf, type ModelCallFor } from "../ai/model.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

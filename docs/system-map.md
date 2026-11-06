@@ -105,7 +105,7 @@ Blob code; `jobs/fire.ts`, the QStash responder, went on 16 September;
 `admin/backfill-calls.ts` and its driver were deleted on 14 September.
 
 The admin doors share one lock. `EDGE_CALL_SECRET` — the per-workspace,
-per-person, one-minute token — is _optional_: `apps/dashboard/src/server/edge.ts:24`
+per-person, one-minute token — is _optional_: `apps/dashboard/src/server/shared/edge.ts:24`
 accepts `EDGE_CALL_SECRET || DIAG_KEY`, and `admin-auth.ts:6` says the shared key
 still works "while `EDGE_CALL_SECRET` is being rolled out." Until that variable
 is set in production, one shared secret opens all 22.
@@ -430,9 +430,9 @@ counts rather than edit them by hand:
 ```bash
 ls supabase/migrations/*.sql | wc -l                     # migrations
 find apps/edge/api -name '*.ts' | wc -l                  # edge endpoints
-python3 -c "import json;d=json.load(open('tooling/scripts/tests/route-policy.json'));print(len(d['routes']),'routes,',d['undeclared'],'undeclared')"
+python3 -c "import json;d=json.load(open('tests/route-policy.json'));print(len(d['routes']),'routes,',d['undeclared'],'undeclared')"
 grep -c ': "real"' apps/dashboard/src/legacy-bridge/surface-registry.ts   # 22
-find tooling/scripts/tests -name '*.test.mjs' | wc -l    # test files
+find tests -name '*.test.mjs' | wc -l    # test files
 corepack pnpm test                                        # the honest pass/skip split
 ```
 

@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { PartnerStatusSchema } from "@chanlytics/contracts";
-import { platformPartnerStatus } from "@/server/platform/platform";
+import { platformPartnerStatus } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/partners/status — pause, close or restore a partner (decision 0012, Risks).

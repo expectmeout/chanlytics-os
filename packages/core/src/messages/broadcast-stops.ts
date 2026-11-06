@@ -20,7 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
 import { cancelBroadcast } from "../campaigns/cancel";
-import type { DeliveryRefusal } from "../deliver";
+import type { DeliveryRefusal } from "../deliver/deliver";
 import type { BroadcastChannel as Channel } from "./broadcast-channels";
 import type { Work } from "./broadcast-channels";
 import { stoppedRunCause } from "./broadcast-words";

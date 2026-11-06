@@ -3,7 +3,7 @@
  * which stays mounted in the layout, draws its chrome around it. A route is here when its page is
  * `app/(os)/w/[workspace]/<word>/page.tsx` (`<word>` is the route's own name, or the product's where
  * `ROUTE_WORDS` says another) and its row has left the frame's route table (`surfaces/frame/route-table.tsx`); the registry test
- * (`tooling/scripts/tests/shell/surfaces/surface-registry.test.mjs`) holds the two to each other, in both directions.
+ * (`tests/shell/surfaces/surface-registry.test.mjs`) holds the two to each other, in both directions.
  *
  * What the frame needs to know of one is what its row said: which item of the sidebar it lights, its crumbs, and
  * whether it draws in a pane. The page itself arrives as the layout's `children`.

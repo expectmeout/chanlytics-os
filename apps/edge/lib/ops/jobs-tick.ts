@@ -7,7 +7,7 @@
  * pg_cron asks every ten seconds whether anything in the ledger is due and
  * calls this only when something is (trigger_jobs_tick, 00098). Auth and the
  * database are sweepDoor's; each job's own tenant credentials are bound here;
- * the loop is packages/jobs/src/tick.ts, which is tested by running it against fakes.
+ * the loop is packages/jobs/src/runner/tick.ts, which is tested by running it against fakes.
  *
  * Its ceiling is apps/edge/vercel.json's, and the ledger's timings hang off
  * it: jobs are claimed one at a time, in CLAIM_SLOTS slots side by side, for
@@ -16,10 +16,10 @@
  * last one to the ceiling). Each is measured from the moment the door was
  * reached (sweepDoor's `started`), as the ceiling is.
  */
-import { json, refuse } from "../http.js";
-import { errField } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import { errField } from "../shared/log.js";
 import { alertFor } from "./job-alert.js";
-import { whatsappWireForTenant } from "../tenant-runtime.js";
+import { whatsappWireForTenant } from "../shared/tenant-runtime.js";
 import { instagramWireForTenant } from "../instagram/credentials.js";
 import { smsSenderForTenant, smsWire } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
@@ -32,11 +32,11 @@ import { campaignsBinding } from "../email/campaigns-domain.js";
 import { pageOperator } from "./page-operator.js";
 import { provisionLineJob } from "../lines/line-provision-job.js";
 import { eraseCallsAtProvider } from "../voice/erase-calls.js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
 import { expoPush } from "./push.js";
 import { draftEdge } from "../drafts/draft-writer.js";
-import { replyReader } from "../reach-out/reply-read.js";
+import { replyReader } from "../campaigns/reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../calendar/freed-time-offer.js";
@@ -62,8 +62,8 @@ import {
   RELAY_LIMIT,
   type ClaimedJob,
   type TickCounts,
-} from "../packages/jobs.js";
-import { relayEvents, workspaceIsOurs } from "../packages/db.js";
+} from "@chanlytics/jobs";
+import { relayEvents, workspaceIsOurs } from "@chanlytics/db";
 import type { SweepTick } from "./sweep-door.js";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */

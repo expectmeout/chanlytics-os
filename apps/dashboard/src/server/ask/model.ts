@@ -1,7 +1,7 @@
 import "server-only";
 import { MODEL_EFFORTS, MODEL_SPEEDS, askModelProfile, type AskModelProfile } from "@chanlytics/contracts";
-import { log } from "@/server/log";
-import { env } from "../env";
+import { log } from "@/server/shared/log";
+import { env } from "../shared/env";
 
 /**
  * The profile this deployment runs Ask on (contracts ask-model.ts): ASK_MODEL in the environment, any Claude model's

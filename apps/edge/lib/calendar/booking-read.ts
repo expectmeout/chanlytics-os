@@ -4,7 +4,7 @@
  * person-making rules are. The shape is contracts' (booking-notice.ts) and the verb is core's (readBookingNotice); this
  * asks and matches.
  *
- *   - ask: Haiku (the registry's booking_read route) through the platform's one JSON-model transport (lib/model.ts
+ *   - ask: Haiku (the registry's booking_read route) through the platform's one JSON-model transport (lib/ai/model.ts
  *     askJson), bounded by the job's time left; a plain-JSON second call when the schema format is refused is part of
  *     the one read. Each call is written to the usage ledger for the notice's workspace, stamped by the delivery it read.
  *   - mayRead: the model's key, and the workspace's one reading of whether it may spend (workspaceMaySpend). No cap of
@@ -14,13 +14,13 @@
  *     never made from (00125).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CALENDAR_SETTING_ROUTE, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA } from "../packages/contracts.js";
-import { contactIdByEmail, contactIdByPhone, workspaceMaySpend, type Database } from "../packages/db.js";
-import type { JobContext } from "../packages/jobs.js";
-import { askJson, promptHashOf } from "../model.js";
-import { env } from "../env.js";
+import { CALENDAR_SETTING_ROUTE, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA } from "@chanlytics/contracts";
+import { contactIdByEmail, contactIdByPhone, workspaceMaySpend, type Database } from "@chanlytics/db";
+import type { JobContext } from "@chanlytics/jobs";
+import { askJson, promptHashOf } from "../ai/model.js";
+import { env } from "../shared/env.js";
 import { notifyOnce } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { addPeopleFromCalendar } from "./calendar-people.js";
 
 type Db = SupabaseClient<Database>;

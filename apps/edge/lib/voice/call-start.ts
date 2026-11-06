@@ -27,9 +27,9 @@
  * and the real memory read run.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { resolveChannelDetailed, readLeadContext, describeLead } from "../packages/db.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
+import type { Database } from "@chanlytics/db";
+import { resolveChannelDetailed, readLeadContext, describeLead } from "@chanlytics/db";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import {
   normalizePhone,
@@ -40,8 +40,8 @@ import {
   phoneVoiceOf,
   phonePaceSpeed,
   type GreetingSource,
-} from "../packages/contracts.js";
-import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "../packages/channels.js";
+} from "@chanlytics/contracts";
+import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "@chanlytics/channels";
 
 type Db = SupabaseClient<Database>;
 

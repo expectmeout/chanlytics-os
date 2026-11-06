@@ -31,8 +31,8 @@ import {
   type LeadRoundEnding,
   type LeadRoundPurpose,
   type LeadRoundState,
-} from "../packages/contracts.js";
-import { nextStepOf, type StepRun } from "../packages/core.js";
+} from "@chanlytics/contracts";
+import { nextStepOf, type StepRun } from "@chanlytics/core";
 
 export const RUN_MAX_AGE_MS = 45 * MIN_MS;
 export const STARTING_STALE_MS = 10 * MIN_MS;

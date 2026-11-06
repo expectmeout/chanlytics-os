@@ -83,9 +83,9 @@ export const PLUMBING = new Set([
  * seat, the workspace's standing, the replay guard) says nothing of what the route answers. Not entered.
  */
 const WRAPPER = new Set([
-  "apps/dashboard/src/server/route.ts",
-  "apps/dashboard/src/server/with-route.ts",
-  "apps/dashboard/src/server/tenant.ts",
+  "apps/dashboard/src/server/shared/route.ts",
+  "apps/dashboard/src/server/shared/with-route.ts",
+  "apps/dashboard/src/server/shared/tenant.ts",
   "apps/dashboard/src/server/idempotency.ts",
 ]);
 

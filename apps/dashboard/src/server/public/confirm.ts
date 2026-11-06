@@ -19,8 +19,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { confirmationEmailOf, setEmailOffersYes, type Database, type OffersYesOutcome } from "@chanlytics/db";
 import { addressOf, verifyConfirmToken, type ConfirmClaims } from "@chanlytics/channels";
 import { confirmPageWords, escapeHtml, MIN_MS, type ConfirmPageView } from "@chanlytics/contracts";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
 import {
   LINK_PAGE_HEADERS,
   LINK_PAGE_MAX_BYTES,

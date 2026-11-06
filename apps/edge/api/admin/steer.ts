@@ -6,9 +6,9 @@
  * the body (readBody) and the model as a port, which a test hands in; steerHeldDraft in lib/receptionist/steer.ts is
  * everything after.
  */
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { readBody } from "../../lib/admin-door.js";
-import { adminDoor } from "../../lib/log.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { readBody } from "../../lib/shared/admin-door.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { steerHeldDraft, type BrainPort } from "../../lib/receptionist/steer.js";
 export { type BrainPort } from "../../lib/receptionist/steer.js";
 

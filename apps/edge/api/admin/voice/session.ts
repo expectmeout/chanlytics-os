@@ -11,13 +11,13 @@
  * reached, or said "not now" (a 429 is its concurrency or rate limit), is 503 provider_unreachable; one that refused
  * is 502 provider_refused. Body: { tenant_id, user_id }.
  */
-import { json, refuse } from "../../../lib/http.js";
-import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
-import { readBody } from "../../../lib/admin-door.js";
-import { mayUseModelFor } from "../../../lib/model.js";
+import { json, refuse } from "../../../lib/shared/http.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { mayUseModelFor } from "../../../lib/ai/model.js";
 import { askVoiceConfigured, mintAskVoiceSession } from "../../../lib/voice/ask-voice.js";
-import { UUID } from "../../../lib/packages/contracts.js";
-import { logger, adminDoor } from "../../../lib/log.js";
+import { UUID } from "@chanlytics/contracts";
+import { logger, adminDoor } from "../../../lib/shared/log.js";
 
 const L = logger();
 

@@ -16,9 +16,9 @@ import {
 } from "@chanlytics/contracts";
 import { emitEvent, lineForwardingSet } from "@chanlytics/db";
 import { configRowOf } from "@/server/workspace/config-row";
-import { serviceDb } from "@/server/service-db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import { serviceDb } from "@/server/shared/service-db";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 const NO_TEST_PHONE: string | null = null;
 

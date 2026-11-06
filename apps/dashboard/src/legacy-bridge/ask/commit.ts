@@ -17,7 +17,7 @@
  *
  * A plan's cards (AskProposal.plan) are ordinary cards with three differences: a step's calls go under the step's key
  * (`plan:<id>:<n>`), so the plan pressed twice the same day, or once as a group and once card by card, makes nothing
- * twice (server/route.ts onceForKey keeps a key a day, 00340, and a plan's card is fresh a week); a send waits for the
+ * twice (server/shared/route.ts onceForKey keeps a key a day, 00340, and a plan's card is fresh a week); a send waits for the
  * steps its stamp names (`after`), refused before its spec is read until each is committed; and a token in a step's
  * payload (`@step:n`) is filled with what step n made before the spec reads it. commitPlan approves one plan's silent
  * steps together, in step order, stopping at the first refused; commitCard is a card pressed on the Line, judged by what
@@ -163,7 +163,7 @@ export interface PlanRun {
  * reload, is done, and one the owner undid stays undone, skipped, since an undo is the owner's word on that step and any
  * later step that names it is refused on its own (planUndone); the rest of the plan still goes. So a second press with
  * those outcomes recorded files nothing twice; two presses that each know nothing was made (two tabs at once) are
- * answered by each route under the step's key with what the first made (server/route.ts, onceForKey, a key kept a day);
+ * answered by each route under the step's key with what the first made (server/shared/route.ts, onceForKey, a key kept a day);
  * and a press after that day whose record was lost is held by each door's own rule, as this module's head says. A
  * step's tokens are filled from what was made and what the press makes as it goes, and every step it commits joins the
  * made it hands back, with no id where it made nothing a token names. The first step refused or failed ends the press:

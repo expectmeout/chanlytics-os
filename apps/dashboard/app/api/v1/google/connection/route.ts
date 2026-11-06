@@ -1,7 +1,7 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
 import { edgeGoogle } from "@/server/connections/google";
-import { edgeRefusalWords } from "@/server/edge";
+import { edgeRefusalWords } from "@/server/shared/edge";
 
 /**
  * DELETE /api/v1/google/connection — the Business Profile disconnected: the

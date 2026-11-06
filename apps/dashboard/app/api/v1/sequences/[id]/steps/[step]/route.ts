@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { STEP_CHANGE_BODY } from "@/server/sequences/bodies";
-import { changeSequenceStep, dropSequenceStep } from "@/server/sequences/doors";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { STEP_CHANGE_BODY } from "@/server/campaigns/sequences/bodies";
+import { changeSequenceStep, dropSequenceStep } from "@/server/campaigns/sequences/doors";
 
 /**
  * One step after the first of a customer's sequence (decision 0060, D6).

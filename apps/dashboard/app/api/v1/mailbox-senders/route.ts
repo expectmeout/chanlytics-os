@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { mailboxSendersFor, sortSender } from "@/server/connections/mailbox-senders";
 
 /**

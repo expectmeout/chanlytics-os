@@ -4,8 +4,8 @@
  * line's own words rather than failing whole.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { migrationHead } from "../packages/db.js";
-import type { Database, MigrationHead } from "../packages/db.js";
+import { migrationHead } from "@chanlytics/db";
+import type { Database, MigrationHead } from "@chanlytics/db";
 
 type MigrationsLine = MigrationHead | { error: string };
 

@@ -3,11 +3,11 @@
  * answers what the sweep says.
  *
  * sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks the key; the sweep is
- * sweepPlaybooks in lib/reach-out/playbooks-sweep.ts: every running playbook whose hour it is runs once for the day,
+ * sweepPlaybooks in lib/campaigns/reach-out/playbooks-sweep.ts: every running playbook whose hour it is runs once for the day,
  * and so does every reach-out step.
  */
 import { sweepDoor } from "../../lib/ops/sweep-door.js";
-import { sweepPlaybooks } from "../../lib/reach-out/playbooks-sweep.js";
-export { MOMENTS_YIELD_AT_MS, REACH_OUT_YIELD_AT_MS } from "../../lib/reach-out/playbooks-sweep.js";
+import { sweepPlaybooks } from "../../lib/campaigns/reach-out/playbooks-sweep.js";
+export { MOMENTS_YIELD_AT_MS, REACH_OUT_YIELD_AT_MS } from "../../lib/campaigns/reach-out/playbooks-sweep.js";
 
 export const POST = sweepDoor({ sweep: "playbooks" }, sweepPlaybooks);

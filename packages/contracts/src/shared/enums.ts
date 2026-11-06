@@ -229,7 +229,7 @@ export type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
 /**
  * Every event kind the product writes, and nothing it does not.
  *
- * Held to the emitters by tooling/scripts/tests/event-kinds.test.mjs, a
+ * Held to the emitters by tests/event-kinds.test.mjs, a
  * repo-wide lint: a kind here that nothing emits is a dead declaration, a
  * kind emitted that is not here is a row nobody can name. Both were true for
  * months (three dead, fourteen undeclared) before the lint existed.

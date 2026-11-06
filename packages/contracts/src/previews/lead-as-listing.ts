@@ -12,8 +12,8 @@
 import type { FirstReceptionistKnown } from "../config/first-receptionist";
 import type { GoogleListingFacts } from "../google/google";
 import { leadCalledByOf } from "../leads/search/called-by";
-import { listingPeriodsOf } from "../reach-out/lead-hours";
-import { zoneOfRegion } from "../reach-out/us-zones";
+import { listingPeriodsOf } from "../campaigns/reach-out/lead-hours";
+import { zoneOfRegion } from "../campaigns/reach-out/us-zones";
 import { formatPhoneDisplay } from "../shared/phone";
 
 /** What a lead holds that its listing said, as the finder kept it (00140, 00144). */

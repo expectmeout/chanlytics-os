@@ -17,7 +17,7 @@ import {
   placeStands,
   placeWordOf,
   type SequencePlaceOfDto,
-} from "../../sequences/sequence-place";
+} from "../../campaigns/sequences/sequence-place";
 import { agoWords } from "../../shared/time";
 import type { LeadViewCountsDto } from "../lead-dtos";
 import { LEAD_REVIEW_ACT_WORDS } from "../lead-review";

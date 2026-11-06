@@ -7,14 +7,14 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  * Each page is drawn with its rows within its budget, on a cold load and on a move (the page-open PRD of 3 Nov 2026, L9,
  * NFR3). The page says when it was drawn (READY, client/page-speed.ts), as a measure on the page's own clock carrying the
  * report the field data keeps; this reads those, so the nightly holds the same number the back office shows, and fails a
- * page past its line in tooling/scripts/tests/baselines/page-speed-budgets.json. Every other load spec proves that nothing
+ * page past its line in tests/baselines/page-speed-budgets.json. Every other load spec proves that nothing
  * moves once drawn; none said how long the drawing took.
  *
  * A fresh context is a first load, as after every deploy: no cache, no warm. Each page is read once; the line has a fifth of
  * room over the week it was set from, so a slow runner's one load is not a regression.
  */
 const BUDGETS = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "../../tooling/scripts/tests/baselines/page-speed-budgets.json"), "utf8"),
+  fs.readFileSync(path.join(__dirname, "../../tests/baselines/page-speed-budgets.json"), "utf8"),
 ) as { cold: Record<string, number>; move: Record<string, number> };
 
 /** Each page's address, as the frame moves to it (the hash the shell still takes and moves to its path). */

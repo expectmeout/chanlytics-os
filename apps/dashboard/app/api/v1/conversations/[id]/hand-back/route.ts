@@ -1,6 +1,6 @@
 import { handBack } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
 import { threadPorts } from "@/server/ports/core-ports";
 
 /** Hand back: the receptionist resumes; the open escalation resolves (§4). */

@@ -18,8 +18,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TIMEZONE, RUN_GOING_STATES, isReachOutRun } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
-import { emitEvent } from "../../events";
-import { runWaitingCounts } from "../reach-out-sheet";
+import { emitEvent } from "../events/events";
+import { runWaitingCounts } from "./reach-out/reach-out-sheet";
 
 type Db = SupabaseClient<Database>;
 

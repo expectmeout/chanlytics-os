@@ -12,14 +12,14 @@
  * nobody but the person the workspace waits for. Every sentence is contracts' (handoverInviteEmail). Signed admin token
  * only; the address is never logged.
  */
-import { json } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
+import { json } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
 import { platformFrom, post } from "../ops/notify.js";
-import { logger, errField } from "../log.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
-import { getHandoverInvite } from "../packages/db.js";
-import { handoverInviteEmail } from "../packages/contracts.js";
+import { logger, errField } from "../shared/log.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
+import { getHandoverInvite } from "@chanlytics/db";
+import { handoverInviteEmail } from "@chanlytics/contracts";
 
 export async function sendHandoverInvite(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
   const L = logger();

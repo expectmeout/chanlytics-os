@@ -44,7 +44,7 @@ import {
   tokenCapOf,
   type PromptWire,
   type ReplyDraftWhy,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   describeLead,
   mailboxConnectionsOf,
@@ -55,16 +55,16 @@ import {
   workspaceMaySpend,
   type Database,
   type RoutedChannel,
-} from "../packages/db.js";
-import { layerTwo, type BriefWritten, type ReplyDraftAsk, type ReplyWritten } from "../packages/core.js";
-import type { ReplyDraftEdge } from "../packages/jobs.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
-import { askJson, promptHashOf } from "../model.js";
+} from "@chanlytics/db";
+import { layerTwo, type BriefWritten, type ReplyDraftAsk, type ReplyWritten } from "@chanlytics/core";
+import type { ReplyDraftEdge } from "@chanlytics/jobs";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
+import { askJson, promptHashOf } from "../ai/model.js";
 import { brainCallOf, generateReply } from "../receptionist/brain.js";
 import { recordTokens, tokensLast24h } from "../receptionist/budget.js";
 import { senderFactsReaderFor } from "../email/mailbox/mailbox-reader.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
 

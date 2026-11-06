@@ -6,9 +6,9 @@
  * The door reads the body once as text (the token's body hash is checked over these bytes) and asks authorizeAdmin;
  * instagramOp in lib/instagram/connect.ts is the op table and what each answer means.
  */
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { readBody } from "../../../lib/admin-door.js";
-import { adminDoor } from "../../../lib/log.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { instagramOp, type InstagramBody } from "../../../lib/instagram/connect.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

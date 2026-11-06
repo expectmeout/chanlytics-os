@@ -28,10 +28,10 @@ import {
 } from "@chanlytics/contracts";
 import { fileFingerprintOf, FINGERPRINT_BYTES } from "@chanlytics/channels";
 import { fileChange, fileMade, fileOf, fileStart, type FileMemberRow, type Json } from "@chanlytics/db";
-import { log } from "@/server/log";
-import type { Member } from "@/server/route";
-import { serviceDb } from "@/server/service-db";
-import type { RouteContext } from "@/server/with-route";
+import { log } from "@/server/shared/log";
+import type { Member } from "@/server/shared/route";
+import { serviceDb } from "@/server/shared/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
 import { bucket, doorRefusal } from "../file";
 import { composePost } from "./compose";
 import { POST_SIZES } from "./layout";

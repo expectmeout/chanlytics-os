@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { LOOK_WORDS } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { saveAccent } from "@/server/workspace/look";
 
 /**

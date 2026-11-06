@@ -21,13 +21,13 @@
  * which the database keeps only as its hash, and its body is a pointer the collect reads the run back by, so a lost
  * delivery is the provider's to send again.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { logger, errField } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { logger, errField } from "../shared/log.js";
 import { planApifyIngress, tokenMatches, RUN_ROW_ID, WEBHOOK_TOKEN, type IngressRunRow } from "./apify-ingress.js";
 import { leadDb } from "./lead-db.js";
 import { leadWires } from "./lead-wires.js";
-import { scheduleJobOnce } from "../packages/jobs.js";
+import { scheduleJobOnce } from "@chanlytics/jobs";
 
 /** The delivery is a pointer: ids and a status. Anything larger is not one. */
 const MAX_BODY = 64_000;

@@ -4,11 +4,11 @@
  * day), and at once when they choose it again in Settings. Read with the gmail.readonly the grant already holds. A
  * read that fails changes nothing and is said; what the mailbox signs with is contracts' rule (mailboxSignsOf).
  */
-import { DAY_MS } from "../../packages/contracts.js";
-import { cleanGmailSignature, gmailSignature } from "../../packages/channels.js";
-import { patchMailboxConnection, type Database, type MailboxConnectionRow } from "../../packages/db.js";
+import { DAY_MS } from "@chanlytics/contracts";
+import { cleanGmailSignature, gmailSignature } from "@chanlytics/channels";
+import { patchMailboxConnection, type Database, type MailboxConnectionRow } from "@chanlytics/db";
 import { tokenFor } from "./mailbox-credentials.js";
-import { errField, type Logger } from "../../log.js";
+import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

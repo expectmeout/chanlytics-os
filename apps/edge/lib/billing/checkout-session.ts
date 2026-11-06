@@ -4,7 +4,7 @@
  * the owner never leaves the first run. In the page it comes back by itself where Stripe needs no redirect (a card), and
  * to the step's own address where it does (a bank's page). Pure: billing.ts makes the session.
  */
-import { MIN_MS, type CheckoutReturn } from "../packages/contracts.js";
+import { MIN_MS, type CheckoutReturn } from "@chanlytics/contracts";
 
 /**
  * How long two presses of Pay are one: a checkout asked again inside this window, from the same door and the same way

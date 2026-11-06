@@ -6,9 +6,9 @@
  * The door is the knock (authorizeAdmin: a signed admin token for this door) and the body (readBody); offerFreedTimeNow
  * in lib/calendar/freed-time-now.ts is everything after.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { offerFreedTimeNow } from "../../../lib/calendar/freed-time-now.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

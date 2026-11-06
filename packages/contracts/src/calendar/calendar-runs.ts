@@ -17,17 +17,17 @@
  * - cold email, on its own switch: a reach-out's runs a day, counts only ("12 written"), never a time, since each lead is
  *   written to in its own zone.
  */
-import { BROADCAST_STATE_LABELS, type BroadcastState } from "../broadcasts/broadcasts";
+import { BROADCAST_STATE_LABELS, type BroadcastState } from "../campaigns/broadcasts/broadcasts";
 import { addressOf } from "../activity/record-address";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import type { Tone } from "../shell/tone";
-import { campaignEnded, nextRunOf, planRun } from "../playbooks/playbook-schedule";
+import { campaignEnded, nextRunOf, planRun } from "../campaigns/playbooks/playbook-schedule";
 import { clockInZone, dayInZone } from "./zone-math";
 import { shiftKey } from "./day-keys";
 import { clockLabel } from "./calendar-words";
 import { plural } from "../shared/words";
 import { MIN_MS } from "../shared/time";
-import type { SequenceMode } from "../sequences/sequence";
+import type { SequenceMode } from "../campaigns/sequences/sequence";
 
 /** One run as the span's read carries it: a one-off send, a campaign's run, or a reach-out step's. */
 export interface CalendarRunDto {

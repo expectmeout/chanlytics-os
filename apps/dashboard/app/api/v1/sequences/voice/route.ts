@@ -1,6 +1,6 @@
-import { write, workspace } from "@/server/route";
-import { VOICE_BODY } from "@/server/sequences/bodies";
-import { learnVoice } from "@/server/sequences/voice";
+import { write, workspace } from "@/server/shared/route";
+import { VOICE_BODY } from "@/server/campaigns/sequences/bodies";
+import { learnVoice } from "@/server/campaigns/sequences/voice";
 
 /**
  * POST /api/v1/sequences/voice — { text } → { lines, full }: an email the owner wrote, read once by Ask into up to three

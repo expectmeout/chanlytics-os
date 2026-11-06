@@ -1,6 +1,6 @@
 /**
  * What assembling a reach-out step's run needs (Part 3), as ports: the edge's run context builds them over the database
- * (apps/edge lib/reach-out/run-context.ts); tests build them from arrays.
+ * (apps/edge lib/campaigns/reach-out/run-context.ts); tests build them from arrays.
  */
 import { outreachRefusalOf, type StepHand, type TimetableSender } from "@chanlytics/contracts";
 

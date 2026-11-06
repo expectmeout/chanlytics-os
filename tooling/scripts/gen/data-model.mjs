@@ -27,7 +27,7 @@ import {
   splitTopLevel,
   statementsOf,
 } from "./schema-snapshot.mjs";
-import { parse, repoFiles, tablesNamedIn } from "../tests/_ast.mjs";
+import { parse, repoFiles, tablesNamedIn } from "../../../tests/_ast.mjs";
 
 export const OUT = "docs/data-model.md";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -325,7 +325,7 @@ export function render({ tables, views }, owners) {
     "leaves out, and every policy's expression in full. A partition is listed under its parent.",
     "",
     "After a migration, with `supabase start` running: `corepack pnpm gen:schema-snapshot`, then",
-    "`corepack pnpm gen:data-model`. `tooling/scripts/tests/docs/data-model.test.mjs` fails when this page is not",
+    "`corepack pnpm gen:data-model`. `tests/docs/data-model.test.mjs` fails when this page is not",
     "what the script writes.",
     "",
     "## Owners",

@@ -34,13 +34,13 @@
  * Cross-workspace: the deadman sweep visits every workspace; each write carries the row's own tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS } from "../packages/contracts.js";
-import type { EscalationOutcome } from "../packages/jobs.js";
-import { toldFromItsEvent } from "../packages/core.js";
-import type { logger } from "../log.js";
+import type { Database } from "@chanlytics/db";
+import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS } from "@chanlytics/contracts";
+import type { EscalationOutcome } from "@chanlytics/jobs";
+import { toldFromItsEvent } from "@chanlytics/core";
+import type { logger } from "../shared/log.js";
 import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "../ops/notify.js";
-import type { loadTenantNotifications as loadFn } from "../tenant-runtime.js";
+import type { loadTenantNotifications as loadFn } from "../shared/tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
 

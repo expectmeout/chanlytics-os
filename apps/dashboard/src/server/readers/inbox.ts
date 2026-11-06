@@ -3,7 +3,7 @@ import { addressOf, heldThreadIds, type ConversationDto, type EscalationDto } fr
 import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
 import { conversations, whoOf } from "./conversations";
 import { escalations } from "./escalations";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 interface InboxRead {
   /** The escalated threads outside the newest hundred first, then the hundred: the Inbox's order. */

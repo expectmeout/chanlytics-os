@@ -13,10 +13,10 @@
  * so it is only sent while the day is fresh (before PAGE_UNTIL_HOUR UTC): one page per silent day.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS, pastTarget, pastTargetPage } from "../packages/contracts.js";
-import { platformDay, type Database } from "../packages/db.js";
+import { DAY_MS, pastTarget, pastTargetPage } from "@chanlytics/contracts";
+import { platformDay, type Database } from "@chanlytics/db";
 import { pageOperator, type PagePorts } from "./page-operator.js";
-import { logger } from "../log.js";
+import { logger } from "../shared/log.js";
 
 /** The page goes out only in the first hours after the rollup: once per day, not once per suppression window. */
 const ANSWER_SILENCE_PAGE_UNTIL_HOUR = 6;

@@ -8,7 +8,7 @@
  * calendar feed's cache; every refusal still answers HTTP 200 with a `result` sentence, because the agent speaks that
  * string.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { availabilityTool } from "../lib/voice/availability-tool.js";
 export { spoken, availabilityAnswer } from "../lib/voice/availability-tool.js";
 

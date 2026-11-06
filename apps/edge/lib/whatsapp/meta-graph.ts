@@ -10,9 +10,9 @@
  * number is registered for Cloud API messaging with a two-step PIN. Every
  * call reports the API's own error message; nothing is retried blindly.
  */
-import { env } from "../env.js";
-import { graphThrottled, providerFetch } from "../packages/channels.js";
-import type { NumberStanding } from "../packages/contracts.js";
+import { env } from "../shared/env.js";
+import { graphThrottled, providerFetch } from "@chanlytics/channels";
+import type { NumberStanding } from "@chanlytics/contracts";
 
 export const GRAPH_VERSION = "v25.0";
 /** How long one Graph API request may take. */

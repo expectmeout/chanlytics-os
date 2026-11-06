@@ -8,8 +8,8 @@
 import "server-only";
 import { AppError, VISIT_REFUSALS, type VisitMark, type VisitWord } from "@chanlytics/contracts";
 import { markVisit } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
-import { log } from "@/server/log";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import { log } from "@/server/shared/log";
 
 /** What the door answered: the row as it stands now, what it stood at before, and the decision, unless nothing moved. */
 interface VisitMarked {

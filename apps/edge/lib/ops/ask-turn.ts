@@ -12,7 +12,7 @@
  * is still being written. Ask's own daily budget is checked here, apart from
  * the receptionist's, and refused with 429 when spent.
  *
- * The request leaves through the model port (lib/model.ts, channels' adapter): the registry's route for the purpose
+ * The request leaves through the model port (lib/ai/model.ts, channels' adapter): the registry's route for the purpose
  * (Ask's, or the small JSON drafts'), asked once of its fallback model when the first gives no answer before the stream
  * starts (a 529, a 5xx, a timeout) or is a model the API does not know (a 404: Ask's model is its deployment's to name,
  * and a misspelt name is answered by the route's own, said in the log as ask_gateway_fell_back). An answer that never came is this door's own refusal, `model_unreachable` at 503, so
@@ -31,10 +31,10 @@
  * Signed admin token only: the dashboard is the sole caller, exactly as it is for
  * steer and whisper.
  */
-import { json, refuse } from "../http.js";
-import { readBody } from "../admin-door.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { readBody } from "../shared/admin-door.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
 import {
   ASK_TOKENS_DAY,
   MIN_MS,
@@ -43,7 +43,7 @@ import {
   NO_USAGE,
   usageOf,
   UUID,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   GATEWAY_MAX_BODY,
   GATEWAY_PURPOSES,
@@ -53,10 +53,10 @@ import {
   teeUsage,
   validateGatewayRequest,
   type GatewayPurpose,
-} from "../ask-gateway.js";
-import { mayUseModelFor, recordCall, streamModelCall } from "../model.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
+} from "../ai/ask-gateway.js";
+import { mayUseModelFor, recordCall, streamModelCall } from "../ai/model.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
 
 /**
  * The day's count per workspace, kept a minute per instance. A turn is two

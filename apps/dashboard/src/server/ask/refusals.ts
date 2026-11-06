@@ -1,6 +1,6 @@
 import "server-only";
 import { foldWordsMessages, MODEL_PAUSED_WORDS, type MembershipRole } from "@chanlytics/contracts";
-import { log, type DashboardLogEvent } from "@/server/log";
+import { log, type DashboardLogEvent } from "@/server/shared/log";
 import type { GatewayRefusal } from "./gateway";
 import { toApiTools } from "./tools";
 import { featureRejected } from "./sse";

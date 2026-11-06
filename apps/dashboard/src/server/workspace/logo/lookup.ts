@@ -9,10 +9,10 @@
  */
 import "server-only";
 import { AppError, LOGO_WORDS, logoLookupAnswerOf, type LogoLookupAnswer } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered } from "@/server/edge";
-import { log } from "@/server/log";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import { callEdge, edgeAnswered } from "@/server/shared/edge";
+import { log } from "@/server/shared/log";
+import type { Member } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /** The edge's door for the look. */
 const LOOKUP_DOOR = "/api/admin/imports/logo-lookup";

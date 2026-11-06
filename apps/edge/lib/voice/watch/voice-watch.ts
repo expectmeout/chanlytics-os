@@ -21,11 +21,11 @@ import {
   getRetellLlm,
   voiceShellDrift,
   type RetellConcurrency,
-} from "../../packages/channels.js";
-import { activeVoiceAgents, type Database } from "../../packages/db.js";
-import { edgeFnUrl } from "../../dashboard-origin.js";
-import { env } from "../../env.js";
-import { errField, logger } from "../../log.js";
+} from "@chanlytics/channels";
+import { activeVoiceAgents, type Database } from "@chanlytics/db";
+import { edgeFnUrl } from "../../shared/dashboard-origin.js";
+import { env } from "../../shared/env.js";
+import { errField, logger } from "../../shared/log.js";
 import { pageOperator } from "../../ops/page-operator.js";
 import { signatureOnly } from "../voice-door-auth.js";
 

@@ -176,7 +176,7 @@ async function sendThen(
   return n.ok ? { ok: true, data: n.data } : { ok: false, message: n.message };
 }
 
-/** The specs of the verbs the pages press, and the readings of a spec (contracts ask-proposals/page-specs.ts). */
+/** The specs of the verbs the pages press, and the readings of a spec (contracts ask/proposals/page-specs.ts). */
 export type PageSpecs = typeof import("@chanlytics/contracts/page-specs");
 
 /**

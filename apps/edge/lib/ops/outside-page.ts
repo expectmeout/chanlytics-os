@@ -13,11 +13,11 @@
  * token, which names a workspace, is refused. The conditions are a closed set, so a workflow cannot page anything
  * else; the words are the workflow's, cut to what a page carries.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { pageOperator } from "./page-operator.js";
-import { logger } from "../log.js";
-import type { Admitted } from "../admin-auth.js";
+import { logger } from "../shared/log.js";
+import type { Admitted } from "../shared/admin-auth.js";
 
 /** What a workflow may page for, and the subject its page carries. */
 const OUTSIDE_CONDITIONS = {

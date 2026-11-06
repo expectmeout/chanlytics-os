@@ -19,8 +19,8 @@ import {
   type VoiceSessionRow,
 } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
 
 /**
  * A voice conversation's session (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1, §3.3, §6): the row

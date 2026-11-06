@@ -51,14 +51,14 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   `surface.ts` (a surface's data, decision 0015), `verbs.ts` (what its page or domain does), `ports.ts` (a core verb's
   world, `packages/core/src/conversations/ports.ts`), `sample.ts` (its seed). A framework's own names are its own:
   Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo Router's `_layout.tsx`, `(tabs)` and `+native-intent.tsx`.
-  CSS tokens and classes are kebab-case. `tooling/scripts/tests/docs/file-names.test.mjs` holds the files.
+  CSS tokens and classes are kebab-case. `tests/docs/file-names.test.mjs` holds the files.
 
 ## Closed sets
 
 - **A set of names is declared once and tested both ways**: everything used is declared, everything declared is used.
   The activity log's kinds are `EVENT_KINDS` (`repo/event-kinds.test.mjs`) and the edge's log names `LOG_EVENTS`
   (`repo/log-events.test.mjs`); the dashboard's server names are `DASHBOARD_LOG_EVENTS`
-  (`apps/dashboard/src/server/log.ts`), held by the same test, and a line names its workspace `tenant_id`, never
+  (`apps/dashboard/src/server/shared/log.ts`), held by the same test, and a line names its workspace `tenant_id`, never
   `tenant`. Event kinds are `domain.verb`; job kinds, log events and notification kinds are snake_case, the domain first
   (`lead_round_start`). A log or event name never changes once it ships: alerting greps for it, so the four `a2p.*`
   log events keep theirs.

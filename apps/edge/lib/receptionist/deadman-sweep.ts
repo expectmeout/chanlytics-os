@@ -46,16 +46,16 @@
  * (deadman_query_failed), before any escalation is told. Its lines carry `sweep: "deadman"` and, for a workspace,
  * its `tenant_id`.
  */
-import { json } from "../http.js";
+import { json } from "../shared/http.js";
 import { notify, notifyOnce, reachesTenant, NOTIFY_TIMEOUT_MS } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { errField } from "../log.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { errField } from "../shared/log.js";
 import { pageOperator } from "../ops/page-operator.js";
-import { markProcessed } from "../packages/db.js";
-import { upsertEscalation } from "../packages/jobs.js";
+import { markProcessed } from "@chanlytics/db";
+import { upsertEscalation } from "@chanlytics/jobs";
 import { sweepUnfinished } from "./unfinished.js";
 import { sweepStrandedRuns } from "../ops/stranded-runs.js";
-import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "../packages/contracts.js";
+import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "@chanlytics/contracts";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** How long a customer may wait on a human before this is a problem. */

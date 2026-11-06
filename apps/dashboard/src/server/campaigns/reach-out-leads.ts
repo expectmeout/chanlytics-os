@@ -25,9 +25,9 @@ import {
   type Json,
   type OwnerSendFacts,
 } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
-import { tenantFacts } from "@/server/tenant";
-import type { RouteContext } from "@/server/with-route";
+import { serviceDb } from "@/server/shared/service-db";
+import { tenantFacts } from "@/server/shared/tenant";
+import type { RouteContext } from "@/server/shared/with-route";
 import { chainsOf, dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs";
 
 /** An open search's chain and its leads' lines; both null when the search has no chain. */

@@ -17,13 +17,13 @@
  * the email says they signed up there), at the address their page has, the form their last ask carried kept as its
  * evidence and the member who asked beside it.
  */
-import { env } from "../env.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { env } from "../shared/env.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { emailCanSend, emailDomain } from "../email/email.js";
-import { buildEmailRequest, confirmUrl, hostedIdentity, signConfirmToken } from "../packages/channels.js";
+import { buildEmailRequest, confirmUrl, hostedIdentity, signConfirmToken } from "@chanlytics/channels";
 import {
   SIGNUP_CONFIRM_MS,
   SIGNUP_CONFIRM_SOURCE,
@@ -36,7 +36,7 @@ import {
   workspaceLogoSrc,
   type SignupAskRefusal,
   type WebsiteFormInput,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   contactEmailOf,
   insertQueuedEmail,
@@ -45,9 +45,9 @@ import {
   signupAskFacts,
   workspaceLookOf,
   type Json,
-} from "../packages/db.js";
-import { scheduleJob } from "../packages/jobs.js";
-import { errField, logger, type Logger } from "../log.js";
+} from "@chanlytics/db";
+import { scheduleJob } from "@chanlytics/jobs";
+import { errField, logger, type Logger } from "../shared/log.js";
 import { onceKeyId } from "../ops/notify.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;

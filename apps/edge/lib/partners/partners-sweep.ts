@@ -12,7 +12,7 @@
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
  */
-import { json } from "../http.js";
+import { json } from "../shared/http.js";
 import { sendPartnerLetters } from "./letters.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 

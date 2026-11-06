@@ -18,8 +18,8 @@
  * promotion (core textRefusal), re-reads the person's no at the wire, and records the carrier's STOP (Twilio 21610) as
  * theirs. The words open with the business's name and end with how to stop, as every sample the carriers approved does.
  */
-import { json } from "../http.js";
-import type { pg } from "../pg.js";
+import { json } from "../shared/http.js";
+import type { pg } from "../shared/pg.js";
 import { smsSenderForTenant, smsWire } from "../sms/sms.js";
 import {
   deliver,
@@ -28,10 +28,10 @@ import {
   textRefusal,
   type DeliveryRefusal,
   type OutboundRefusal,
-} from "../packages/core.js";
-import { countSentToday, emitEvent, textLineFacts, type OutboundTarget } from "../packages/db.js";
-import { NO_LINK_DETAILS, senderWords, type AskedPurpose } from "../packages/contracts.js";
-import type { Logger } from "../log.js";
+} from "@chanlytics/core";
+import { countSentToday, emitEvent, textLineFacts, type OutboundTarget } from "@chanlytics/db";
+import { NO_LINK_DETAILS, senderWords, type AskedPurpose } from "@chanlytics/contracts";
+import type { Logger } from "../shared/log.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 

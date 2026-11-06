@@ -11,7 +11,7 @@ import {
   type PlaceCandidate,
   type PlaceDetails,
   type PlacesHttp,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 
 const http: PlacesHttp = placesFetch();
 

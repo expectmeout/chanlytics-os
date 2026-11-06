@@ -15,14 +15,14 @@
  * or a read that failed (nothing sent and nothing failed: the job waits for a heartbeat that can read the Vault).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendInstagramText, type InstagramConfig, type SendResult } from "../packages/channels.js";
+import { sendInstagramText, type InstagramConfig, type SendResult } from "@chanlytics/channels";
 import {
   activeChannelRows,
   lineWrittenTo,
   readChannelSecret,
   type Database,
   type WhatsappNumberRow,
-} from "../packages/db.js";
+} from "@chanlytics/db";
 import {
   wireUnavailable,
   WireUnavailableError,
@@ -30,8 +30,8 @@ import {
   type InboundCarrier,
   type Sender,
   type WireUnavailable,
-} from "../packages/core.js";
-import { errField, logger } from "../log.js";
+} from "@chanlytics/core";
+import { errField, logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

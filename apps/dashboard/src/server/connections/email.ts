@@ -45,9 +45,9 @@ import {
   type MailboxRow,
 } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
-import { dbRefusal, type RouteContext } from "../with-route";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
 import { mailboxConnectionsWithDaysFor, mailboxesLeftTodayFor, mailboxesReadiness } from "./mailbox-connections";
-import { env } from "../env";
+import { env } from "../shared/env";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
 export function emailDomain(): string | null {

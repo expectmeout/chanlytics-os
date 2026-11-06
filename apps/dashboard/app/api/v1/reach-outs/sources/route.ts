@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { reachOutSourcesOf } from "@/server/leads/lead-workbench";
 
 /**

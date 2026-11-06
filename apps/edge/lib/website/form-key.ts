@@ -4,7 +4,7 @@
  * the same derivation; a rotated service role key changes it, and the site's forms are refused until it is set again.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 
 /** The workspace's key, or null where the edge has no service role key to make it from. */
 function websiteFormKeyOf(tenantId: string): string | null {

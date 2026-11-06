@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { edgeLines } from "@/server/connections/lines";
 
 /** How long the carrier's records have to answer: one lookup. */

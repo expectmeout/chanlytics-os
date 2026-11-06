@@ -338,7 +338,7 @@ test.describe("Ask with the page it is asked on", () => {
  * plan is refused in its own words (contracts PLAN_WORDS.noChannel) and nothing that sends is proposed: no broadcast
  * card, no campaign card, and no words claiming one was made. That holds whatever else the model writes on that seed.
  * A plan approved, the message it writes in the Library, the receptionist's note and Undo need a workspace that sends
- * offers by email: the node tests prove them (tooling/scripts/tests/ask/plan/), and so does Ruben's own run on such a
+ * offers by email: the node tests prove them (tests/ask/plan/), and so does Ruben's own run on such a
  * workspace. Written and typechecked with the lane, never run by it: its first run is after 00415 and 00416 are
  * applied to production, with E2E_PAID_MODEL=1.
  */

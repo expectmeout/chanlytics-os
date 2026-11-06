@@ -1,4 +1,4 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { acceptPartnerInvitation } from "@/server/workspace/partner-account";
 
 /**

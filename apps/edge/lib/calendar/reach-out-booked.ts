@@ -8,9 +8,9 @@
  * deploy order works.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { bookedSeenOf, type FeedItem, type OwnAddresses } from "../packages/contracts.js";
-import { logger } from "../log.js";
+import type { Database } from "@chanlytics/db";
+import { bookedSeenOf, type FeedItem, type OwnAddresses } from "@chanlytics/contracts";
+import { logger } from "../shared/log.js";
 
 export async function bookedFromCalendar(
   db: SupabaseClient<Database>,

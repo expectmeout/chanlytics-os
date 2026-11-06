@@ -1,6 +1,6 @@
 /**
  * The rules of where a page's time goes (decision 0053), pure over a clock, a paint and an `emit`, so node runs them
- * (tooling/scripts/tests/platform/page-speed.test.mjs); page-speed.ts hands them the browser.
+ * (tests/console/page-speed.test.mjs); page-speed.ts hands them the browser.
  *
  *   createPageSpeed  each visit to a page, and each part of it, from its start to the frame its rows were painted in:
  *                    READY for each, the page's own from its first part (contracts PRIMARY_PART) or, with none, from

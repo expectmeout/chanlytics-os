@@ -12,11 +12,11 @@
  * What came of it is a 200 ({ offered, people, waits }, or { offered: false, why } where the time cannot be offered now or
  * the run did nothing, with the run's reason in `detail`); a run that failed is a 500 with its reason in `detail`.
  */
-import { json, refuse } from "../http.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { UUID, freedTimeOf } from "../packages/contracts.js";
-import { freedTimeFactsOf } from "../packages/db.js";
+import { json, refuse } from "../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { UUID, freedTimeOf } from "@chanlytics/contracts";
+import { freedTimeFactsOf } from "@chanlytics/db";
 import { offerFreedTime } from "./freed-time-offer.js";
 
 /**

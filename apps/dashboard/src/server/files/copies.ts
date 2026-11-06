@@ -4,8 +4,8 @@
  */
 import "server-only";
 import { SECOND_MS, recordOrNull } from "@chanlytics/contracts";
-import { callEdge, edgeConfigured } from "@/server/edge";
-import { log } from "@/server/log";
+import { callEdge, edgeConfigured } from "@/server/shared/edge";
+import { log } from "@/server/shared/log";
 
 /** How long the edge has for a few copies: a resize and an upload each, where the look's copy has run out. */
 const COPIES_MS = 25 * SECOND_MS;

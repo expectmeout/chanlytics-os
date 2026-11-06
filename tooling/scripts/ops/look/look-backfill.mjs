@@ -23,7 +23,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { feedUrlOk, parseTenantConfig } from "@chanlytics/contracts";
-import { scheduleJobOnce } from "../../../../packages/jobs/src/schedule.ts";
+import { scheduleJobOnce } from "../../../../packages/jobs/src/runner/schedule.ts";
 
 /** The website a workspace's read would use: the settings' first, else the linked listing's (website-read.ts askWebsiteRead). */
 export function websiteOf(config, listingFacts) {

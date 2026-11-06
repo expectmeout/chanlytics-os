@@ -5,14 +5,14 @@
  */
 import { AppError, memberMetaOf } from "@chanlytics/contracts";
 import type { MessageDto } from "@chanlytics/contracts";
-import { requireUuid } from "@/server/request-guards";
-import { tenantFacts } from "@/server/tenant";
-import { mediaPublic } from "@/server/dto";
+import { requireUuid } from "@/server/shared/request-guards";
+import { tenantFacts } from "@/server/shared/tenant";
+import { mediaPublic } from "@/server/conversations/dto";
 import { attachment, dateTag, personLabel, safeName, transcriptText } from "@/server/export/export";
-import { recordDecision } from "@/server/verbs";
-import { log } from "@/server/log";
-import type { Member, Params } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import { recordDecision } from "@/server/shared/verbs";
+import { log } from "@/server/shared/log";
+import type { Member, Params } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 const THREAD_EXPORT_PAGE = 500;
 

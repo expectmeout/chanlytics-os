@@ -12,9 +12,9 @@
  * The usage ledger keeps its rows RETENTION_DAYS.ai_usage days: the older ones go on the same tick.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { aiFailuresHour, purgeAiUsage, workspaceIsOurs, type AiFailures, type Database } from "../packages/db.js";
+import { aiFailuresHour, purgeAiUsage, workspaceIsOurs, type AiFailures, type Database } from "@chanlytics/db";
 import { pageOperator, type PagePorts } from "./page-operator.js";
-import { logger, errField } from "../log.js";
+import { logger, errField } from "../shared/log.js";
 
 /** Failures in an hour, in one workspace, that page the platform: a handful is a blip, this many is a storm. */
 const MODEL_FAILURES_PAGE_AT = 5;

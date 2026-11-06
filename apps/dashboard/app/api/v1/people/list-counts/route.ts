@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TODAY_PINS_MAX } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { listCounts } from "@/server/readers/audience-pool";
 

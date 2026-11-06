@@ -32,7 +32,7 @@ import {
   readInstagramName,
   META_SIGNATURE_HEADER,
   type InstagramEvent,
-} from "../packages/channels.js";
+} from "@chanlytics/channels";
 import {
   emitEvent,
   lastDmsSentTo,
@@ -44,16 +44,16 @@ import {
   resolveChannelDetailed,
   type Database,
   type RoutedChannel,
-} from "../packages/db.js";
-import { HOUR_MS, MIN_MS, pauseMsOf, WAITING_REASONS } from "../packages/contracts.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
+} from "@chanlytics/db";
+import { HOUR_MS, MIN_MS, pauseMsOf, WAITING_REASONS } from "@chanlytics/contracts";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
+import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { IngestFailed } from "../whatsapp/persist.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
 import { instagramCredentials } from "./credentials.js";
 import { recordThenAnswerDm } from "./dm-answer.js";
 

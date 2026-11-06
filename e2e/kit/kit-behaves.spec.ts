@@ -13,7 +13,7 @@ import { kitSkeleton, trappedUnder, type SkeletonAsk } from "./kit-behaves-check
  *    (kit-gallery.mjs), element for element (kit-behaves-checks.ts, kitSkeleton). So the gallery that the class,
  *    rule and token checks read (e2e/kit/kit.spec.ts) draws what the components draw. The node suite cannot hold this:
  *    its stub React runs no Base UI hook, and under its react-server condition React has none to run (see
- *    tooling/scripts/tests/styles/kit-components.test.mjs).
+ *    tests/styles/kit-components.test.mjs).
  * 2. What each does, with a keyboard and a pointer: Escape closes the sheet, a menu and the popover and gives focus back
  *    to what opened them; Tab stays inside the sheet, and the page behind it does not scroll; a menu's arrows walk it
  *    and typing finds an item; a switch answers Space and the segmented control the arrows; the combobox narrows its

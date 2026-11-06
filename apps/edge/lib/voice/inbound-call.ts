@@ -42,15 +42,15 @@
  * Lines carry the caller's last four digits (from_tail), never the number, with the agent and the call id; the call ends
  * in one retell_inbound with how the facts and the memory were arrived at.
  */
-import { phoneTail, divertedNumbers } from "../packages/contracts.js";
+import { phoneTail, divertedNumbers } from "@chanlytics/contracts";
 import { markForwardingVerified } from "./forwarding.js";
-import { json } from "../http.js";
-import { pg } from "../pg.js";
+import { json } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { planCallStartWithin } from "./call-start.js";
-import { claimControl, CALL_CONTROL_S } from "../packages/db.js";
+import { claimControl, CALL_CONTROL_S } from "@chanlytics/db";
 import { alertUnroutable } from "../whatsapp/alerts.js";
-import { logger } from "../log.js";
+import { logger } from "../shared/log.js";
 import { keptUrl, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */

@@ -12,12 +12,12 @@
  * Cross-workspace: a job worker; the round's own row names its workspace, and only that workspace is mailed.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { appLink, leadQuestionMail, leadQuestionRoute } from "../packages/contracts.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import type { Database } from "@chanlytics/db";
+import { appLink, leadQuestionMail, leadQuestionRoute } from "@chanlytics/contracts";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { mail, reachesTenant, type NotifyPorts } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { logger, errField } from "../log.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { logger, errField } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

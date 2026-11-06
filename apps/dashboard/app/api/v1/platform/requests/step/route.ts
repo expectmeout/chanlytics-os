@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { RequestStepSchema } from "@chanlytics/contracts";
-import { consoleRequestStep } from "@/server/platform/requests";
+import { consoleRequestStep } from "@/server/console/requests";
 
 /**
  * POST /api/v1/platform/requests/step — {id, step, done, why}: one step of a request marked done or not done, or the

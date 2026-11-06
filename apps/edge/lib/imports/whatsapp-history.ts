@@ -25,8 +25,8 @@ import {
   type WaChangeValue,
   type WaHistoryRead,
   type WaSyncedContact,
-} from "../packages/channels.js";
-import { DAY_MS, HOUR_MS, IMPORT_STOPPED_WORDS, normalizePhone, type ImportSource } from "../packages/contracts.js";
+} from "@chanlytics/channels";
+import { DAY_MS, HOUR_MS, IMPORT_STOPPED_WORDS, normalizePhone, type ImportSource } from "@chanlytics/contracts";
 import {
   PERSON_FORGOTTEN,
   importCursorOf,
@@ -38,8 +38,8 @@ import {
   resolvePerson,
   type Database,
   type Json,
-} from "../packages/db.js";
-import { waCredentialsForChannel } from "../tenant-runtime.js";
+} from "@chanlytics/db";
+import { waCredentialsForChannel } from "../shared/tenant-runtime.js";
 import { graphRetryable, smbAppData } from "../whatsapp/meta-graph.js";
 import type { Part, PartOutcome } from "./history-import.js";
 

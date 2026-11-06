@@ -71,19 +71,19 @@ import {
   type ReachOutStepRow,
 } from "@chanlytics/db";
 import { mailboxSignatureOf } from "@chanlytics/channels";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
-import { recordDecision } from "@/server/verbs";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
+import { recordDecision } from "@/server/shared/verbs";
 import { runPlaybookNow, type RunPlaybookOutcome } from "@/server/campaigns/playbook-run";
-import { serviceDb } from "@/server/service-db";
+import { serviceDb } from "@/server/shared/service-db";
 import { storedConfigOf } from "@/server/workspace/config-row";
-import { log } from "@/server/log";
-import { deployment } from "@/server/env";
-import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "@/server/edge";
+import { log } from "@/server/shared/log";
+import { deployment } from "@/server/shared/env";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "@/server/shared/edge";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
 const PREVIEW_TIMEOUT_MS = 35_000;
-import { tenantFacts } from "@/server/tenant";
+import { tenantFacts } from "@/server/shared/tenant";
 
 interface PgError {
   code?: string;
@@ -385,7 +385,7 @@ export async function removeChain(
 /**
  * An owner's answer to one held (or planned) email: include, rewrite, skip, or not a fit, atomic (R18). A rewrite says
  * what should change where its owner did (00505); its opening is written by POST reach-out-sends/check
- * (server/sequences/opening.ts).
+ * (server/campaigns/sequences/opening.ts).
  */
 export async function decideSend(
   ctx: RouteContext,

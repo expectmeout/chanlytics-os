@@ -15,19 +15,19 @@
  * in the same words.
  */
 import { notify, recordNotification } from "../ops/notify.js";
-import { emitEvent, recordActivation } from "../packages/db.js";
+import { emitEvent, recordActivation } from "@chanlytics/db";
 import {
   FIRST_RUN_ROUTE,
   formatPhoneDisplay,
   lineCredentialFailure,
   LINE_CREDENTIALS_SENTENCE,
-} from "../packages/contracts.js";
-import { runLineSaga, type LineRow } from "../packages/channels.js";
+} from "@chanlytics/contracts";
+import { runLineSaga, type LineRow } from "@chanlytics/channels";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
 import type { ResumedBy } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { logger } from "../log.js";
+import type { Database } from "@chanlytics/db";
+import { logger } from "../shared/log.js";
 
 /**
  * A line stopped: tell the workspace's bell, the platform's mailbox and the ledger.

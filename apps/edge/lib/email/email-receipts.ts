@@ -48,11 +48,11 @@ import {
   stampEmailSent,
   suppressEmailOf,
   type Database,
-} from "../packages/db.js";
-import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
-import { isCampaignEmail } from "../packages/contracts.js";
+} from "@chanlytics/db";
+import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "@chanlytics/channels";
+import { isCampaignEmail } from "@chanlytics/contracts";
 import { judgeOfferGates } from "./offer-gates.js";
-import { upsertEscalation } from "../packages/jobs.js";
+import { upsertEscalation } from "@chanlytics/jobs";
 
 type Db = SupabaseClient<Database>;
 

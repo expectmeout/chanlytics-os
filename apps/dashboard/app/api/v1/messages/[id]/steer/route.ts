@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { messageScope, recordDecision } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { messageScope, recordDecision } from "@/server/shared/verbs";
 import { steerDraft } from "@/server/conversations/thread-control";
 
 const MAX_CHARS = 500;

@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { ClaimSchema } from "@chanlytics/contracts";
-import { consoleClaim } from "@/server/platform/console";
+import { consoleClaim } from "@/server/console/console";
 
 /**
  * POST /api/v1/platform/claims — {tenant_id, take}: take a workspace for four hours, or let it go (decision 0066), so

@@ -4,13 +4,13 @@
  * already made, or made again where it has run out. A file the model refused is not sent again: a refused picture in a request
  * can refuse the whole of it.
  */
-import { UUID } from "../packages/contracts.js";
-import { fileForWork } from "../packages/db.js";
-import { readBody } from "../admin-door.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { json, refuse } from "../http.js";
-import { errField, logger } from "../log.js";
-import { pg } from "../pg.js";
+import { UUID } from "@chanlytics/contracts";
+import { fileForWork } from "@chanlytics/db";
+import { readBody } from "../shared/admin-door.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { json, refuse } from "../shared/http.js";
+import { errField, logger } from "../shared/log.js";
+import { pg } from "../shared/pg.js";
 import { claudeCopyOf } from "./look.js";
 
 /** The most one call asks for: what one turn's question may carry. */

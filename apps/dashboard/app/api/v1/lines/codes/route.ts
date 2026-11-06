@@ -1,5 +1,5 @@
 import { AppError } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { lineCodesFor } from "@/server/connections/lines";
 
 /**

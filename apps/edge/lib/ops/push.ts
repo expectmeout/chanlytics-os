@@ -18,11 +18,11 @@
  * belong to more than one app (PUSH_TOO_MANY_EXPERIENCE_IDS) is sent again, one request per app: this app's tokens get
  * through, and a phone whose token is another app's is forgotten by its receipt like any other dead one.
  */
-import type { PushMessage } from "../packages/contracts.js";
-import type { PushPort, PushReceipt } from "../packages/jobs.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { providerFetch, type ProviderReply } from "../packages/channels.js";
+import type { PushMessage } from "@chanlytics/contracts";
+import type { PushPort, PushReceipt } from "@chanlytics/jobs";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import { providerFetch, type ProviderReply } from "@chanlytics/channels";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 export const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";

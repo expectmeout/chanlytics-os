@@ -11,7 +11,7 @@ import type { BrainConfig, NotificationsConfig, SendPurpose } from "@chanlytics/
 // TYPES ONLY: the one inbound shape is the channels package's, and a value from there would be a provider in a verb.
 import type { InboundMessage } from "@chanlytics/channels";
 import type { IngestResult, Json } from "@chanlytics/db";
-import type { Delivered } from "../deliver";
+import type { Delivered } from "../deliver/deliver";
 import { replyPosture } from "./reply-posture";
 import type { EscalateOutcome, InboundChannel, InboundHandoff, InboundPorts, InboundSink } from "./ports";
 import { MAX_REPLIES_PER_DAY } from "./steps";

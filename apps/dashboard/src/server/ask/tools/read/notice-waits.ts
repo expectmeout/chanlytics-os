@@ -8,7 +8,7 @@ import {
   type WhatWaits,
 } from "@chanlytics/contracts";
 import { heldNoticeKeys, reviewsNamed, runsNamed, type Database } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * What still waits on the owner of what the kept notices are about, read on the server for Ask's read of the notices (the

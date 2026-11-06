@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { DeliveryRedriveSchema } from "@chanlytics/contracts";
-import { healthRedrive } from "@/server/platform/health";
+import { healthRedrive } from "@/server/console/health";
 
 /**
  * POST /api/v1/platform/deliveries/redrive — {subscriber, why}: Deliver again (decision 0068). Every failed or paused

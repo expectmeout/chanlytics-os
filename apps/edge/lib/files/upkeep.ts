@@ -3,8 +3,8 @@
  * and the sweep's half-hourly pass over what has not finished. And the jobs' three doors onto this folder.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS, FILE_LOOK_EDITION, HOUR_MS, SECOND_MS, WEEK_MS, fileFolderOf } from "../packages/contracts.js";
-import { deleteClaudeFile } from "../packages/channels.js";
+import { DAY_MS, FILE_LOOK_EDITION, HOUR_MS, SECOND_MS, WEEK_MS, fileFolderOf } from "@chanlytics/contracts";
+import { deleteClaudeFile } from "@chanlytics/channels";
 import {
   fileForWork,
   filePurged,
@@ -12,10 +12,10 @@ import {
   filesToLookAgain,
   filesToPurgeAgain,
   type Database,
-} from "../packages/db.js";
-import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
+} from "@chanlytics/db";
+import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
 import { fetchFiles } from "./found.js";
 import { lookAtFile } from "./look.js";
 

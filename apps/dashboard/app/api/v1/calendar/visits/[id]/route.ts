@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { write } from "@/server/route";
-import { appointmentScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { appointmentScope } from "@/server/shared/verbs";
 import { markVisitOf } from "@/server/calendar/visits";
 
 /**

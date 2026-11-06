@@ -10,11 +10,11 @@
  * under the last sync that worked (notify's onceKey), so the hourly tries find it told, and a breakage after the next
  * good sync is a new one. Best effort: Connections and Setup already say it from the row.
  */
-import { GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, type EdgeRefusal } from "../packages/contracts.js";
-import { PlacesError } from "../packages/channels.js";
+import { GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, type EdgeRefusal } from "@chanlytics/contracts";
+import { PlacesError } from "@chanlytics/channels";
 import { mendWarnings, notifyOnce } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { errField, type Logger } from "../log.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { errField, type Logger } from "../shared/log.js";
 import type { ConnectionRow, Db } from "./google-rows.js";
 
 /** Whose a failed sync's cause is: the owner's to mend, a passing one of Google's, or the platform's. */

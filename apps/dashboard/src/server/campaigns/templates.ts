@@ -27,13 +27,13 @@ import {
   type TemplateDraft,
 } from "@chanlytics/contracts";
 import { reviewLinkOf } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { tenantFacts } from "@/server/tenant";
+import type { RouteContext } from "@/server/shared/with-route";
+import { tenantFacts } from "@/server/shared/tenant";
 import { storedConfigOf } from "@/server/workspace/config-row";
 import { workspaceFacts, type WorkspaceFacts } from "@/server/ask/prompt";
 import { runRound } from "@/server/ask/round";
 import { GatewayRefused } from "@/server/ask/gateway";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * A template drafted with the assistant.
@@ -48,7 +48,7 @@ export const DRAFT_MODEL = MODEL_ROUTES.template_draft.model;
 /**
  * The drafter's thinking, off: a model that thinks by default spends it inside the 900 tokens and can run out before
  * the draft (the 30 Oct 2026 replay: 3 drafts in 12, "not well-formed"). Named in the request, since the drafter asks as
- * Ask's round; a fallback that does not take it is sent none (channels models/anthropic.ts).
+ * Ask's round; a fallback that does not take it is sent none (channels ai/anthropic.ts).
  */
 const DRAFT_THINKING = thinkingOffOf(DRAFT_MODEL);
 

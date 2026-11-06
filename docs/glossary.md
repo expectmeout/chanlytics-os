@@ -102,7 +102,7 @@ verb: a lead's `contacted_at`, a search's `contact` (phone or email).
 | **Broadcast**                                     | One message to an audience, once                                                                                                                                                                                                                                                                                       | `sequence_batches`, `sequence_sends`                                                                                                                                            | Audience crossed with consent at enrolment and again at every send                                                                                                                                                                                                                                                                 |
 | **Run**                                           | One day's send of a playbook: one message to the people its moment names that day                                                                                                                                                                                                                                      | A `sequence_batches` row with its `playbook_id` and `run_for`, the local day it ran for: one a day per playbook                                                                 | A run is a broadcast (00048); under Ask it waits for a person (`pending_approval`). Each step of a reach-out runs the same way                                                                                                                                                                                                     |
 | **Playbook**                                      | A standing rule that sends one message to people who newly qualify                                                                                                                                                                                                                                                     | `sequence_steps`                                                                                                                                                                | A run is a broadcast; the trigger's class decides whether it sends, waits, or asks                                                                                                                                                                                                                                                 |
-| **Moment**                                        | What a playbook sends on: a list, kept current or the workspace's own, the month's offer, an appointment, a proposal waiting                                                                                                                                                                                           | `sequence_steps.trigger`, on the rows of `kind = 'moment'`                                                                                                                      | Every trigger but a reach-out's two (`MOMENT_TRIGGERS`, contracts' `playbooks/playbook-triggers.ts`). Playbooks draws the moments below the chains, the idle ones too                                                                                                                                                              |
+| **Moment**                                        | What a playbook sends on: a list, kept current or the workspace's own, the month's offer, an appointment, a proposal waiting                                                                                                                                                                                           | `sequence_steps.trigger`, on the rows of `kind = 'moment'`                                                                                                                      | Every trigger but a reach-out's two (`MOMENT_TRIGGERS`, contracts' `campaigns/playbooks/playbook-triggers.ts`). Playbooks draws the moments below the chains, the idle ones too                                                                                                                                                    |
 | **Freed time**                                    | The time a client's cancellation, a move or a vanished calendar entry freed, offered to the people who asked in the last 30 days and never booked                                                                                                                                                                      | `sequence_batches.offered_start`, `offered_end`, `offered_from` (00498); the moment `slot_opened`, the campaign Fill a cancellation                                             | Never "opening", which is the cold email's sentence. One batch per freed appointment (decision 0082); who took it is read (`freed_time_taken`), never stored                                                                                                                                                                       |
 | **Goes by**                                       | The channels a campaign ticks (WhatsApp, text, email), each person reached once, on their best of them                                                                                                                                                                                                                 | `sequence_steps.channels`, `sequence_batches.channels`, `sequence_sends.channel` (00298)                                                                                        | Said on a sequence's step as a mark per channel (on, waits, could) and switched in its step editor; the composers' row is "Send by". One that names none goes by WhatsApp alone (8 Oct 2026)                                                                                                                                       |
 | **Campaigns**                                     | The nav group for what the workspace sends on its own: Playbooks (moments and reach-outs), Broadcasts and Templates                                                                                                                                                                                                    | No table of its own: `sequence_steps`, `sequence_batches`, `templates`                                                                                                          | Three other things carry the word, each in its own scope: the policy class `campaign`, shown as Standing offers; Twilio's A2P campaign, a line's registration (`lines.campaign_sid`), a provider's word; and the `campaigns/` folders of `src/server` and core                                                                     |
@@ -148,6 +148,110 @@ verb: a lead's `contacted_at`, a search's `contact` (phone or email).
 | **Theme**                                         | Light or dark, the colours a page is drawn in; or System, which follows the device                                                                                                                                                                                                                                     | `data-theme` on `<html>` and on each root that stamps it; kept on the device                                                                                                    | The interface kit's plan calls it the mode. A look is chosen beside it                                                                                                                                                                                                                                                             |
 | **Look**                                          | The finish every page is drawn in, beside the theme: Glass, the canvases', the one look since Classic (the app as it was drawn before) retired on 2 October 2026                                                                                                                                                       | `data-look` beside `data-theme`; kept on the device with the theme, and only once chosen                                                                                        | Glass is the roles block of `tokens.css` and the dark block after it; a second look is two blocks after those, the dark side second. `LOOK_OFFERED` offers the looks in the account menu once there are two; `DEFAULT_LOOK_PREF` gives the default to every unchosen device. Never on the account                                  |
 
+## The domains
+
+One name for one thing, in every tree: a folder directly under a package's `src`, `packages/db/src/repositories`,
+`apps/edge/lib`, `apps/dashboard/src/server` or `tests` is on this list (`tests/docs/domains-are-named.test.mjs`, decision
+0104). A tree holds only the domains it has code for.
+
+| Domain             | What it is                                                                    |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `activity`         | What happened in a workspace, as the Activity page says it                    |
+| `ads`              | An owner's paid ads                                                           |
+| `ai`               | The models: which one is asked, what it costs, and who a call is for          |
+| `ask`              | Ask, the team's assistant: its turns, memory, proposals and skills            |
+| `auth`             | Sign-in, sessions and second factors                                          |
+| `billing`          | Plans, trials and what Stripe says                                            |
+| `broadcasts`       | A message sent once to many; under `campaigns/` in the source                 |
+| `calendar`         | Appointments, availability and what a visit shows                             |
+| `campaigns`        | What goes out to many people; its products nest under it, as the pages do     |
+| `channels`         | A channel's rows: routing and echoes                                          |
+| `config`           | What a workspace has told the receptionist                                    |
+| `connections`      | Connecting the lines, mailboxes and accounts a workspace uses                 |
+| `consent`          | Who has said yes to what                                                      |
+| `console`          | The back office: platform staff's view of every workspace                     |
+| `conversations`    | Threads, messages and holds                                                   |
+| `deals`            | A person's deals and the pipeline                                             |
+| `deliver`          | The one door a message leaves through                                         |
+| `drafts`           | A reply written for a person to send                                          |
+| `email`            | Email, and the mailboxes it goes through                                      |
+| `erasure`          | Honouring a deletion                                                          |
+| `events`           | The ledger of what happened, and who hears about it                           |
+| `export`           | The workspace's own records, for its owner                                    |
+| `facts`            | What the receptionist has learned and suggests keeping                        |
+| `files`            | Pictures and documents a workspace keeps                                      |
+| `google`           | Google: the business profile, reviews and sign-in                             |
+| `imports`          | Bringing in history from where it was                                         |
+| `inbound`          | A customer's message on its way to an answer                                  |
+| `instagram`        | Instagram's direct messages                                                   |
+| `intake`           | A provider's delivery, kept as it came                                        |
+| `jobs`             | Background work's ledger, from the outside                                    |
+| `journey`          | The stages of a person's time with a business                                 |
+| `leads`            | The lead finder, and leads as they are worked                                 |
+| `lines`            | A workspace's phone numbers and their carrier registration                    |
+| `logo`             | A workspace's logo                                                            |
+| `look`             | A workspace's colours and mark, as an email or a page wears them              |
+| `messages`         | A message's way out: gates, batches and what became of it                     |
+| `metrics`          | The numbers a workspace's day is told in                                      |
+| `mobile`           | The phone app's side of what it shares with the site                          |
+| `need-you`         | What waits on a person, on Today                                              |
+| `new-conversation` | Starting a conversation with someone                                          |
+| `notes`            | Notes on a person, and the steps they suggest                                 |
+| `notices`          | The bell and what it says                                                     |
+| `ops`              | What keeps the edge running: pages to an operator, diagnostics, sweeps' doors |
+| `partners`         | The partner program                                                           |
+| `people`           | Everyone a workspace knows, lists, and a person's page                        |
+| `playbooks`        | A run on a schedule or a moment; under `campaigns/` in the source             |
+| `previews`         | A lead's preview of what the receptionist would be                            |
+| `public`           | What the public reads with no sign-in: an unsubscribe, a link's page          |
+| `reach-out`        | Cold email to leads; under `campaigns/` in the source                         |
+| `receptionist`     | The receptionist: its brain, its memory and when it stands down               |
+| `rehearsal`        | Trying the receptionist before a customer does                                |
+| `reports`          | What the Reports page says                                                    |
+| `sequences`        | A series of sends; under `campaigns/` in the source                           |
+| `setup`            | A new workspace's way to answering                                            |
+| `shell`            | The frame every page sits in                                                  |
+| `sms`              | Text messages                                                                 |
+| `support`          | Get help, and what reaches the support inbox                                  |
+| `templates`        | A message's versions; under `campaigns/` in the source                        |
+| `today`            | The Today page                                                                |
+| `voice`            | Calls and the voice agent                                                     |
+| `waits`            | Who owes the next move on a thread                                            |
+| `website`          | A business's own site: what it says, and its form                             |
+| `whatsapp`         | WhatsApp                                                                      |
+| `workspace`        | A business's workspace: its team, its plan and its record                     |
+
+Folders that are not domains: the plumbing, and the suite's own.
+
+| Folder              | What it is                                                      |
+| ------------------- | --------------------------------------------------------------- |
+| `shared`            | In any tree, what every domain there uses                       |
+| `readers`           | `apps/dashboard/src/server`: the one place a read lives         |
+| `ports`             | `apps/dashboard/src/server`: the adapters a core verb is handed |
+| `runner`            | `packages/jobs/src`: the ledger and the tick                    |
+| `handlers`          | `packages/jobs/src`: what each kind of job does                 |
+| `log`               | `packages/channels/src`: the platform's one logger              |
+| `tokens`            | `packages/channels/src`: signed tokens                          |
+| `baselines`         | `tests`: what a measure holds that is a person's decision       |
+| `checks`            | `tests`: the scripts CI runs                                    |
+| `clocks`            | `tests`: what every clock in the product must agree on          |
+| `cron`              | `tests`: the sweeps' doors                                      |
+| `database`          | `tests`: what needs a real database                             |
+| `docs`              | `tests`: the pages' own rules                                   |
+| `doors`             | `tests`: what every door shares                                 |
+| `e2e`               | `tests`: the browser suite's harness                            |
+| `edge`              | `tests`: the edge as a whole                                    |
+| `fixtures`          | `tests`: data the tests read                                    |
+| `history`           | `tests`: the decisions' index                                   |
+| `links`             | `tests`: every link the product writes opens what it says       |
+| `reads-never-write` | `tests`: a read never writes                                    |
+| `repo`              | `tests`: the repository's rules and ratchets                    |
+| `routes`            | `tests`: every route as a whole                                 |
+| `shipping`          | `tests`: what the packages and bundles ship                     |
+| `styles`            | `tests`: the stylesheets' rules                                 |
+| `table`             | `tests`: the kit's table                                        |
+| `types`             | `tests`: the one TypeScript, and what only a compile can prove  |
+
 ## Where the names do not agree yet
 
 These are known and deliberate for now. Storage keeps its words for good (the
@@ -174,7 +278,7 @@ address still say, and either old name lands on the word for ever (`movedAddress
 A link to a record is written once: contracts' `addressOf` (`packages/contracts/src/activity/record-address.ts`) says where
 each kind of record opens (a person, a thread, a call, a visit, a list, a lead, a campaign, a run, a message of Messages,
 the reviews, the lines, the team), and the dashboard's address registry (`apps/dashboard/src/surfaces/addresses.ts`) holds each
-page's own parse of what it opens, so a writer and its page are held to each other (`tooling/scripts/tests/links/`). A link to a
+page's own parse of what it opens, so a writer and its page are held to each other (`tests/links/`). A link to a
 thread or a call older than the page's newest hundred reads that one by its id.
 
 ## Words to avoid
@@ -182,7 +286,7 @@ thread or a call older than the page's newest hundred reads that one by its id.
 - **Salon, stylist, visit** as product words. The first workspace was a salon
   and the code still uses it as the worked example in comments; the product is
   for any business that turns a conversation into a booked time.
-  `tooling/scripts/tests/repo/trade-neutral.test.mjs` fails a build that puts one
+  `tests/repo/trade-neutral.test.mjs` fails a build that puts one
   trade's words in front of a customer of another.
 - **Bot, agent** for the receptionist. "Agent" is reserved for the deferred
   agent-platform surfaces of the mockup; the thing that answers is the

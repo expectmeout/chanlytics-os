@@ -1,8 +1,15 @@
 import { z } from "zod";
 import { AppError, ASK_SPEECH_MAX_CHARS, MIN_MS, SPEECH_PURPOSES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { log } from "@/server/log";
-import { edgeHeaders, edgeUrl, edgeConfigured, edgeReasonOf, edgeRefusalWords, type EdgeAnswer } from "@/server/edge";
+import { write, workspace } from "@/server/shared/route";
+import { log } from "@/server/shared/log";
+import {
+  edgeHeaders,
+  edgeUrl,
+  edgeConfigured,
+  edgeReasonOf,
+  edgeRefusalWords,
+  type EdgeAnswer,
+} from "@/server/shared/edge";
 
 /**
  * POST /api/v1/ask/speech — words read aloud in Ask's one voice, as the signed-in member

@@ -14,11 +14,11 @@ import {
   validateTemplateDraft,
 } from "@chanlytics/contracts";
 import { templateIdOf } from "@chanlytics/db";
-import { jsonBody } from "@/server/request-guards";
+import { jsonBody } from "@/server/shared/request-guards";
 import { createTemplate } from "@/server/campaigns/meta-templates";
-import type { EdgeReason } from "@/server/edge";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import type { EdgeReason } from "@/server/shared/edge";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
 
 const SUBMIT_SAID: Record<string, string> = {
   preview: "Submitting only works on the production dashboard.",

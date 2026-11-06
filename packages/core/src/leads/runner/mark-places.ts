@@ -7,7 +7,7 @@
 
 import { leadMarksFrom } from "../mark";
 import { markImageFrom, MARK_MAX_BYTES } from "../mark-image";
-import { eachAtOnce } from "../../each-at-once";
+import { eachAtOnce } from "../../shared/each-at-once";
 import type { LeadColumns, LeadPorts } from "../ports";
 import { SITES_AT_ONCE, type SiteReads } from "./site-reads";
 

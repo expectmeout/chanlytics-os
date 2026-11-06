@@ -39,16 +39,16 @@
  * happened; anything Twilio should not retry is a 2xx with nothing in it. A line or account that could not be read
  * is a 503 before anything is proven or kept, and is the log's alone.
  */
-import { text } from "../http.js";
-import { pg } from "../pg.js";
+import { text } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "../packages/channels.js";
-import { recordLateCarrierOptOut, recordStatusByExternalId, type LateCarrierStop } from "../packages/db.js";
+import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "@chanlytics/channels";
+import { recordLateCarrierOptOut, recordStatusByExternalId, type LateCarrierStop } from "@chanlytics/db";
 import { flagLateFailure } from "../receptionist/late-failure.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import { pageOperator, type PageOutcome } from "../ops/page-operator.js";
-import { logger } from "../log.js";
-import { phoneTail } from "../packages/contracts.js";
+import { logger } from "../shared/log.js";
+import { phoneTail } from "@chanlytics/contracts";
 
 const empty = (status: number) => text(status, "", { "content-type": "text/plain" });
 

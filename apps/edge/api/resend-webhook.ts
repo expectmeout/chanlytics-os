@@ -7,7 +7,7 @@
  * it: the event is verified and planned (planResendEvent), a receipt applied and a received mail scheduled as an
  * email_ingest job.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { receiveResendEvent } from "../lib/email/resend-event.js";
 
 export const POST = door(receiveResendEvent);

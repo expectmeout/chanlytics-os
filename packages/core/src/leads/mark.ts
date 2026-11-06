@@ -25,7 +25,7 @@
  * hero photograph as often as not, and a photograph is what we already have.
  */
 
-import { attrsOf, decodeEntities } from "../html";
+import { attrsOf, decodeEntities } from "../website/html";
 
 /**
  * Past this the head is not a head, and a page that never closes one is a page we stop reading.

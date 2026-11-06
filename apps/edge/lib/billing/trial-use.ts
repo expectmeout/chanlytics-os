@@ -6,7 +6,7 @@
  * it every quarter hour, beside the numbers of workspaces that stopped paying: a trial's cost is its number and its
  * minutes. This file decides over ports, so the tests run it against a world in memory.
  */
-import { TRIAL_SPENT_WORDS, trialSpentOf, trialUseWords } from "../packages/contracts.js";
+import { TRIAL_SPENT_WORDS, trialSpentOf, trialUseWords } from "@chanlytics/contracts";
 
 /** How many trials one tick looks at: a quarter hour's work, the rest the next tick's. */
 const TRIALS_PER_TICK = 200;

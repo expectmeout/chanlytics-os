@@ -8,7 +8,7 @@
  * and the reviews on record (review-report.ts). Where a window is a number of days (or an hour), it is the constant the
  * report counts by, never a second spelling of it.
  */
-import { DELIVERY_RECEIPTS_WORDS, REPLY_DAYS, REPLY_WINDOW_WORDS, STUCK_DAYS } from "../broadcasts/run-words";
+import { DELIVERY_RECEIPTS_WORDS, REPLY_DAYS, REPLY_WINDOW_WORDS, STUCK_DAYS } from "../campaigns/broadcasts/run-words";
 import { MISSED_CALL_TOUCH_WORDS } from "./receptionist/receptionist-record";
 import type { ReportMetric } from "./report-tiles";
 

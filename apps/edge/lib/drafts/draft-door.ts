@@ -7,14 +7,14 @@
  * is a thread that is not there. Body: { conversation_id, kind, instruction? }. Nothing leaves by it: the words are kept on
  * the thread's row, for the reply's own door to send on a press.
  */
-import { MIN_MS, SECOND_MS, UUID, type ReplyDraftKind } from "../packages/contracts.js";
-import { rewriteReplyDraft, type RewriteOutcome } from "../packages/core.js";
-import { replyDraftPortsOf, type ReplyDraftEdge } from "../packages/jobs.js";
-import { tokenWorkspace, type Admitted } from "../admin-auth.js";
-import { env } from "../env.js";
-import { json, refuse } from "../http.js";
-import { logger } from "../log.js";
-import { pg } from "../pg.js";
+import { MIN_MS, SECOND_MS, UUID, type ReplyDraftKind } from "@chanlytics/contracts";
+import { rewriteReplyDraft, type RewriteOutcome } from "@chanlytics/core";
+import { replyDraftPortsOf, type ReplyDraftEdge } from "@chanlytics/jobs";
+import { tokenWorkspace, type Admitted } from "../shared/admin-auth.js";
+import { env } from "../shared/env.js";
+import { json, refuse } from "../shared/http.js";
+import { logger } from "../shared/log.js";
+import { pg } from "../shared/pg.js";
 import { draftEdge } from "./draft-writer.js";
 
 /** A member's change, as long as the route takes it. */

@@ -23,7 +23,7 @@
  * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
  * refuses the whole read, so the test pins them name by name.
  */
-import { providerFetch } from "../provider-fetch";
+import { providerFetch } from "../shared/provider-fetch";
 import {
   E164,
   type GoogleListingFacts,

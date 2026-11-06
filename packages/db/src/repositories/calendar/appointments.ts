@@ -30,7 +30,7 @@ import {
   type FeedAppointmentRow,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
-import { readAllRows } from "../../paged";
+import { readAllRows } from "../../shared/paged";
 
 type Db = SupabaseClient<Database>;
 export type AppointmentRow = Database["public"]["Tables"]["appointments"]["Row"];

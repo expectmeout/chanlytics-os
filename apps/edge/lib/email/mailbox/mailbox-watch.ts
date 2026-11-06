@@ -13,11 +13,11 @@ import {
   graphRenew,
   graphSubscribe,
   graphUnsubscribe,
-} from "../../packages/channels.js";
-import { HOUR_MS } from "../../packages/contracts.js";
-import { keepMailboxWatch, type Database, type MailboxConnectionRow } from "../../packages/db.js";
+} from "@chanlytics/channels";
+import { HOUR_MS } from "@chanlytics/contracts";
+import { keepMailboxWatch, type Database, type MailboxConnectionRow } from "@chanlytics/db";
 import { gmailPush, graphPush } from "./mailbox-config.js";
-import type { Logger } from "../../log.js";
+import type { Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = SupabaseClient<Database>;

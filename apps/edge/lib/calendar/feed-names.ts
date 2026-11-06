@@ -16,9 +16,9 @@ import {
   feedNamesOf,
   parseTenantConfigResult,
   seasonHorizon,
-} from "../packages/contracts.js";
-import type { FeedNames } from "../packages/contracts.js";
-import { getTenantConfig, workspaceZoneOf, type Database } from "../packages/db.js";
+} from "@chanlytics/contracts";
+import type { FeedNames } from "@chanlytics/contracts";
+import { getTenantConfig, workspaceZoneOf, type Database } from "@chanlytics/db";
 import { feedItemsFor } from "./availability.js";
 
 /**

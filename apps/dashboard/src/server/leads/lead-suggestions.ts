@@ -61,13 +61,13 @@ import {
   type IdeasKept,
   type Json,
 } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { monthUsed, workspaceOffer } from "./lead-helpers";
 import { nichePrior } from "./lead-plan-facts";
-import { askForJson } from "../model-json";
-import { serviceDb } from "../service-db";
-import { tenantFactsOf } from "../tenant";
-import type { RouteContext } from "../with-route";
+import { askForJson } from "../shared/model-json";
+import { serviceDb } from "../shared/service-db";
+import { tenantFactsOf } from "../shared/tenant";
+import type { RouteContext } from "../shared/with-route";
 
 /* ----------------------------------------------------------- what is kept */
 

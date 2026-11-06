@@ -26,8 +26,8 @@ import {
 } from "@chanlytics/contracts";
 import { publicFetcher } from "@chanlytics/channels";
 import { fillerFeedFor } from "../calendar/filler-calendar";
-import { callEdge, edgeConfigured } from "../edge";
-import { log } from "@/server/log";
+import { callEdge, edgeConfigured } from "../shared/edge";
+import { log } from "@/server/shared/log";
 
 /** How long the edge has to read a calendar through a mailbox's grant: a few pages of each calendar. */
 const GRANT_FEED_MS = 20_000;

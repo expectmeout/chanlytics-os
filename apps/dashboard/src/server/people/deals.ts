@@ -1,5 +1,5 @@
 import "server-only";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { dealOnFile, readAllRows, recordDeal, yesesSince, type DealMove } from "@chanlytics/db";
 import {
   AppError,
@@ -23,7 +23,7 @@ import {
   type PersonCameFrom,
   type PersonRowDto,
 } from "@chanlytics/contracts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * What this workspace calls an appointment (tenants.appointment_word, 00458), by contracts' one derivation

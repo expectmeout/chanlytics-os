@@ -13,7 +13,7 @@
  * a reading costs a hundredth of a cent.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emailPlainText, replyToElsewhere, sentByAService, type MailboxEmail } from "../../packages/channels.js";
+import { emailPlainText, replyToElsewhere, sentByAService, type MailboxEmail } from "@chanlytics/channels";
 import {
   SECOND_MS,
   SENDER_READ_MAX_TOKENS,
@@ -24,17 +24,17 @@ import {
   senderReadingSystem,
   type SenderFacts,
   type SenderReading,
-} from "../../packages/contracts.js";
+} from "@chanlytics/contracts";
 import {
   keepSenderReading,
   workspaceAbout,
   workspaceMayUseModels,
   workspaceNameAndConfig,
   type Database,
-} from "../../packages/db.js";
-import { askJson, promptHashOf } from "../../model.js";
-import { env } from "../../env.js";
-import { errField, type Logger } from "../../log.js";
+} from "@chanlytics/db";
+import { askJson, promptHashOf } from "../../ai/model.js";
+import { env } from "../../shared/env.js";
+import { errField, type Logger } from "../../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 

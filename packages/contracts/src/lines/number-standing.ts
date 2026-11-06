@@ -13,7 +13,7 @@
  * is. The account's payment method (is one on file), the business that owns the account and the account itself ride with the
  * standing, so the row can send the owner to Meta's own page for each (whatsapp-cost.ts addPaymentMethodLink, and the links here).
  */
-import { dailyLimit, numberHealth, type NumberHealth } from "../broadcasts/broadcast-number";
+import { dailyLimit, numberHealth, type NumberHealth } from "../campaigns/broadcasts/broadcast-number";
 import { formatPhoneDisplay } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
 import type { ConnectionNote } from "./connection-note";

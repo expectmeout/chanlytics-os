@@ -51,19 +51,19 @@
  * accepted text, sms_inbound_failed when the handler threw, and the verdict's own event for a refusal.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { text } from "../http.js";
-import { pg } from "../pg.js";
+import { text } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "../packages/channels.js";
-import type { Database, IngestResult, Json } from "../packages/db.js";
-import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
+import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "@chanlytics/channels";
+import type { Database, IngestResult, Json } from "@chanlytics/db";
+import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { smsSenderFor, type SmsSender } from "./sms.js";
 import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./sms-ingress.js";
 import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";
-import { errField, logger } from "../log.js";
-import { phoneTail } from "../packages/contracts.js";
+import { errField, logger } from "../shared/log.js";
+import { phoneTail } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 

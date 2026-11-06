@@ -1,6 +1,6 @@
 import { isAutomatedSend, sendFailureWords } from "@chanlytics/contracts";
 import { raiseSendFailed } from "./send";
-import { toldFromItsEvent } from "../subscribers";
+import { toldFromItsEvent } from "../events/subscribers";
 
 /** What a late failure needs to know of the message the provider's id names. */
 export interface LateFailureFacts {

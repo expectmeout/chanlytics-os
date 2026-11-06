@@ -1,4 +1,4 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { acceptHandoverOf } from "@/server/workspace/handover-answer";
 
 /**

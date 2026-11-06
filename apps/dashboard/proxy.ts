@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { isRetryableAuthError } from "@/server/auth-errors";
+import { isRetryableAuthError } from "@/server/auth/auth-errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 import { linkHostAnswers, linkHostOf } from "@/link-host";
 import { publicPageNamesNothing } from "@/server/public/public-page-gate";
-import { writeAuthCookies } from "@/server/auth-cookies";
-import { env, isProduction, servedOverHttps } from "@/server/env";
+import { writeAuthCookies } from "@/server/auth/auth-cookies";
+import { env, isProduction, servedOverHttps } from "@/server/shared/env";
 import { publicEnv } from "@/lib/public-env";
 import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
 import { returnFragmentOf } from "@/auth/sign-in-return";
@@ -181,7 +181,7 @@ export async function proxy(request: NextRequest) {
         // A refreshed token rides out on THIS response, so the headers that
         // keep it out of every cache in front of us ride with it. Dropping
         // them lets a shared cache hand one operator's Set-Cookie to the
-        // next person who asks for the URL -- see src/server/auth-cookies.ts.
+        // next person who asks for the URL -- see src/server/auth/auth-cookies.ts.
         writeAuthCookies(response, cookiesToSet, headers);
       },
     },

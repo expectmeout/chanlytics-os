@@ -16,7 +16,7 @@
  * today that is the cost of one page of People an hour, and the season's bookings one read beside it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { everyoneIn, notedOver, syncFeedAppointments, type AppointmentSync, type Database } from "../packages/db.js";
+import { everyoneIn, notedOver, syncFeedAppointments, type AppointmentSync, type Database } from "@chanlytics/db";
 import {
   feedAppointmentRows,
   ownAddressesOf,
@@ -25,7 +25,7 @@ import {
   seasonHorizon,
   type FeedItem,
   type TenantConfig,
-} from "../packages/contracts.js";
+} from "@chanlytics/contracts";
 
 export async function keepAppointments(
   db: SupabaseClient<Database>,

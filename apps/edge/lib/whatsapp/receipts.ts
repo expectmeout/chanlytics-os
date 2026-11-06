@@ -14,16 +14,16 @@
  * door answers with a 503 so Meta sends it again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "../packages/channels.js";
+import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "@chanlytics/channels";
 import {
   keepMessageCost,
   recordStatusByExternalId,
   recordWhatsAppOffersStop,
   type Database,
   type Json,
-} from "../packages/db.js";
-import { phoneTail } from "../packages/contracts.js";
-import { logger, type Logger } from "../log.js";
+} from "@chanlytics/db";
+import { phoneTail } from "@chanlytics/contracts";
+import { logger, type Logger } from "../shared/log.js";
 import { flagLateFailure } from "../receptionist/late-failure.js";
 import { pgSafe } from "./persist.js";
 

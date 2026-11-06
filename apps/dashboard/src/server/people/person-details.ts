@@ -20,8 +20,8 @@
 import { z } from "zod";
 import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } from "@chanlytics/contracts";
 import { personRow } from "@chanlytics/db";
-import type { contactScope } from "@/server/verbs";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import type { contactScope } from "@/server/shared/verbs";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 /** Any field alone; an empty string clears it. */
 export const PersonDetailsChange = z

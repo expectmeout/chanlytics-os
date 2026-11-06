@@ -7,11 +7,11 @@
 import { z } from "zod";
 import { AppError, CAPABILITY_KINDS, capabilityStatus, type CapabilityKind } from "@chanlytics/contracts";
 import { activateCapabilityFn, deactivateCapabilityFn } from "@chanlytics/db";
-import { dbRefusal } from "@/server/with-route";
+import { dbRefusal } from "@/server/shared/with-route";
 import { setupDtoFor } from "@/server/workspace/setup";
 import { tellOwnerLive } from "@/server/workspace/tell";
-import type { Member, Params } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import type { Member, Params } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 export const ActivateBody = z.object({
   note: z.string().trim().max(200, "Two hundred characters at most.").optional(),

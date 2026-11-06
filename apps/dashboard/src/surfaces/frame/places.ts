@@ -68,7 +68,7 @@ export function placeLit(activeNav: string): string {
  * the shell's `clients`), and the routes whose page says its list's search in Ask's line (kit/head/page-search.ts: the
  * Inbox's and Conversations' lists, People's list and Pipeline, Leads, Sequences and the Library). The route table's own
  * answer (routes.ts activeNav, through placeLit) and the pages' own say are what these follow;
- * tooling/scripts/tests/shell/address/outline-routes.test.mjs holds the places to the route table.
+ * tests/shell/address/outline-routes.test.mjs holds the places to the route table.
  */
 export const OUTLINE_ROUTES = {
   lit: {

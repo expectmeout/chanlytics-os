@@ -24,10 +24,10 @@ import {
   type SignupAskRefusal,
 } from "@chanlytics/contracts";
 import { recordConsent } from "@chanlytics/db";
-import { callEdge, edgeConfigured } from "@/server/edge";
-import { log } from "@/server/log";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
-import type { contactScope } from "@/server/verbs";
+import { callEdge, edgeConfigured } from "@/server/shared/edge";
+import { log } from "@/server/shared/log";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { contactScope } from "@/server/shared/verbs";
 
 /** The person a contactScope route acts on, as the scope read them. */
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;

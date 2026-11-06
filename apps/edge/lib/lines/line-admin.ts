@@ -28,10 +28,10 @@
  * the job, and the shape the dashboard wants back. The same split the texting
  * door (inbound-sms.ts with sms-ingress.ts) uses.
  */
-import { json, refuse } from "../http.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
-import { businessOnRecordOf, emitEvent, type Database } from "../packages/db.js";
+import { json, refuse } from "../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
+import { businessOnRecordOf, emitEvent, type Database } from "@chanlytics/db";
 import {
   SPEND_NUMBER,
   SPEND_TEXTING,
@@ -39,18 +39,18 @@ import {
   lineLookupOf,
   normalizePhone,
   type SpendWords,
-} from "../packages/contracts.js";
-import { lookupLineType } from "../packages/channels.js";
+} from "@chanlytics/contracts";
+import { lookupLineType } from "@chanlytics/channels";
 import { lineForClient, lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { releaseLine } from "./line-release.js";
 import { registerLine } from "./a2p-register.js";
 import { syncRegistration } from "./a2p-sync.js";
 import { unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign } from "./a2p-refile.js";
-import { scheduleJob } from "../packages/jobs.js";
+import { scheduleJob } from "@chanlytics/jobs";
 import { claimLineForResume, type LineDbRow } from "./line-resume.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import { secretToProvision } from "../voice/voice-door-auth.js";
 import {
   UNKNOWN_LINE_OP,

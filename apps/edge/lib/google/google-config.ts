@@ -12,9 +12,9 @@
  * and review-answers.ts; the rows are in google-rows.ts, the transport to
  * Google in places.ts, and the credentials in profile-credentials.ts.
  */
-import type { OAuthClient } from "../packages/channels.js";
-import type { GoogleAudience } from "../packages/contracts.js";
-import { env } from "../env.js";
+import type { OAuthClient } from "@chanlytics/channels";
+import type { GoogleAudience } from "@chanlytics/contracts";
+import { env } from "../shared/env.js";
 
 export function placesKey(): string | null {
   return env.GOOGLE_PLACES_API_KEY || null;

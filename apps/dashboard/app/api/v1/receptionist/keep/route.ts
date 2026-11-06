@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FixChangeSchema } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { keepRehearsalChange } from "@/server/receptionist/rehearsal";
 
 /**

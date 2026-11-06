@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FILE_GOOGLE_WORDS_MAX } from "@chanlytics/contracts";
-import { write } from "@/server/route";
+import { write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
 import { postFileToGoogle, takeFileOffGoogle } from "@/server/files/post/google";
 

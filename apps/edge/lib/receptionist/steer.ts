@@ -21,10 +21,10 @@
  * the role door has been checked there. The token names that workspace, and a
  * draft of another is refused. Body: { message_id, text }.
  */
-import { json, refuse } from "../http.js";
-import { tokenWorkspace, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
+import { json, refuse } from "../shared/http.js";
+import { tokenWorkspace, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import {
   readThreadState,
   readLeadContext,
@@ -32,8 +32,8 @@ import {
   instagramIdOf,
   oldestActiveChannel,
   withdrawQueued,
-} from "../packages/db.js";
-import type { InboundChannel } from "../packages/core.js";
+} from "@chanlytics/db";
+import type { InboundChannel } from "@chanlytics/core";
 import {
   resolveSystemPrompt,
   describeNow,
@@ -45,12 +45,12 @@ import {
   replyDelayMs,
   fallbackMessages,
   UUID,
-} from "../packages/contracts.js";
-import { smsBody } from "../packages/channels.js";
+} from "@chanlytics/contracts";
+import { smsBody } from "@chanlytics/channels";
 import { brainCallOf, generateReply } from "./brain.js";
 import { queueDraft } from "./draft-queue.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
 
 const MAX_CHARS = 500;
 
@@ -61,7 +61,7 @@ const steerLog = logger();
  * test hands in an answer, because lib/brain.ts speaks to the Anthropic SDK
  * and has no seam of its own. Anything else that may arrive in this position
  * carries no generateReply and changes nothing. BOTH branches are run in
- * tooling/scripts/tests/steer-door.test.mjs: most cases hand a brain in, and
+ * tests/steer-door.test.mjs: most cases hand a brain in, and
  * the last three call POST the way Vercel calls it and watch the real brain
  * reach the model.
  */

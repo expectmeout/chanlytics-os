@@ -12,7 +12,7 @@ import {
   type RehearsalDto,
 } from "@chanlytics/contracts";
 import { rehearsalById, reviewLinkOf } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
+import type { RouteContext } from "../shared/with-route";
 import { promptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
 import { linesFor } from "../connections/lines";
 import { load, stamp, type Reader, type ReaderContext } from "./index";

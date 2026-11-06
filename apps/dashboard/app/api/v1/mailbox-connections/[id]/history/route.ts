@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { mailboxHistory } from "@/server/connections/mailbox-connections";
 
 const Body = z.object({ act: z.enum(["stop", "resume", "bring"]) }).strict();

@@ -1,6 +1,6 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { AppError, parseDevice } from "@chanlytics/contracts";
-import { dbRefusal } from "@/server/with-route";
+import { dbRefusal } from "@/server/shared/with-route";
 
 /**
  * PUT /api/v1/me/devices — {token, platform, app_version?}: the phone the native app runs on, registered to be

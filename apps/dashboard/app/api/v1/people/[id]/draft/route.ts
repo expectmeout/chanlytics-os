@@ -1,6 +1,6 @@
 import { PersonDraftInputSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { readerContext } from "@/server/readers";
 import { draftForPerson } from "@/server/new-conversation/person-draft";
 

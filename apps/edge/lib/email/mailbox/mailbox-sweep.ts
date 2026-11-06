@@ -22,11 +22,11 @@
  * answers 200 with the counts; a table that cannot be read is a 503 (no_database). Its lines carry
  * `sweep: "mailboxes"`, and the tick ends in one mailboxes_swept.
  */
-import { json, refuse } from "../../http.js";
-import { env } from "../../env.js";
-import { mailboxConnectionById, mailboxesToTend, type MailboxConnectionRow } from "../../packages/db.js";
+import { json, refuse } from "../../shared/http.js";
+import { env } from "../../shared/env.js";
+import { mailboxConnectionById, mailboxesToTend, type MailboxConnectionRow } from "@chanlytics/db";
 import { probeUnsubscribe } from "../unsubscribe-probe.js";
-import { unsubscribeOrigin } from "../../dashboard-origin.js";
+import { unsubscribeOrigin } from "../../shared/dashboard-origin.js";
 import { pageOperator } from "../../ops/page-operator.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { tendMailboxHealth } from "./mailbox-health.js";
@@ -35,7 +35,7 @@ import { syncMailbox } from "./mailbox-sync.js";
 import { keepWatch, watchDue } from "./mailbox-watch.js";
 import { gmailSignatureDue, keepGmailSignature } from "./mailbox-signature.js";
 import { markSignedOut } from "./mailbox-wire.js";
-import { errField, type Logger } from "../../log.js";
+import { errField, type Logger } from "../../shared/log.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
 
 /** The most a tick reads from the table: the time budget is what bounds the work. */

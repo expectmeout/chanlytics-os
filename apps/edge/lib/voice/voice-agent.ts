@@ -7,7 +7,7 @@
  * makes; a test proves it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepVoiceAgent, voiceAgentOf, type Database } from "../packages/db.js";
+import { keepVoiceAgent, voiceAgentOf, type Database } from "@chanlytics/db";
 import {
   voiceLlmCreateBody,
   voiceAgentCreateBody,
@@ -18,8 +18,8 @@ import {
   publishAgentVersion,
   type RetellConfig,
   type ProvisionSecrets,
-} from "../packages/channels.js";
-import { edgeFnUrl } from "../dashboard-origin.js";
+} from "@chanlytics/channels";
+import { edgeFnUrl } from "../shared/dashboard-origin.js";
 
 interface VoiceAgent {
   llmId: string;

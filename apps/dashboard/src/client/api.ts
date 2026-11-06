@@ -11,7 +11,7 @@
  * fetch, and the bridge instantiates it with the real one.
  */
 import { refusalOf, SERVED_AT_HEADER, sessionEnded, type Refusal } from "@chanlytics/contracts";
-import type { InputOf, OutputOf } from "../server/route";
+import type { InputOf, OutputOf } from "../server/shared/route";
 import { ROUTES, type Routes } from "./routes.generated";
 
 export type RouteKey = keyof Routes;

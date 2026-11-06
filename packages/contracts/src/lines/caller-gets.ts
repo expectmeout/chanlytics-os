@@ -19,7 +19,7 @@
  * your facts and are not recorded"), the tone every page draws the state in -- and a page says its own lead-in ("The line
  * is switched off", "This workspace is paused") and then the value. A page-owned sentence about what happens to a caller
  * in either state is a second implementation of it, and contradicted the first four times it was written.
- * tooling/scripts/tests/connections/a-line-off-and-a-pause-are-said-once.test.mjs draws every page's words for both over
+ * tests/connections/a-line-off-and-a-pause-are-said-once.test.mjs draws every page's words for both over
  * their real view models and fails one that does.
  *
  * It names no page and reads no data: the states are decided where they always were (a channel's status, the tenant's).

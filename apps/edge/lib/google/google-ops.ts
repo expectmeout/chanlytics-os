@@ -9,14 +9,14 @@
  * takes what the door read and says what to answer, write or log, and the
  * door (which reads the rows in the order the ops need them) applies it.
  */
-import type { Database } from "../packages/db.js";
-import { PLACE_ID, cleanReply, type GbpPostAsked, type PlaceDetails } from "../packages/channels.js";
-import { FILE_GOOGLE_WORDS_MAX, type EdgeRefusal, type ReviewReplyMode } from "../packages/contracts.js";
-import type { LogEvent } from "../log.js";
+import type { Database } from "@chanlytics/db";
+import { PLACE_ID, cleanReply, type GbpPostAsked, type PlaceDetails } from "@chanlytics/channels";
+import { FILE_GOOGLE_WORDS_MAX, type EdgeRefusal, type ReviewReplyMode } from "@chanlytics/contracts";
+import type { LogEvent } from "../shared/log.js";
 import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./google-rows.js";
 import type { CheckResult } from "./listing-check.js";
 import type { ConnectResult, LocationChoice } from "./profile-connection.js";
-import { errorMessage, type DoorAnswer } from "../admin-door.js";
+import { errorMessage, type DoorAnswer } from "../shared/admin-door.js";
 
 type ListingInsert = Database["public"]["Tables"]["google_listings"]["Insert"];
 

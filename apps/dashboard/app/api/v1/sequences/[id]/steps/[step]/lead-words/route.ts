@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { LEAD_WORDS_BODY } from "@/server/sequences/bodies";
-import { saveLeadWords } from "@/server/sequences/lead-words";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { LEAD_WORDS_BODY } from "@/server/campaigns/sequences/bodies";
+import { saveLeadWords } from "@/server/campaigns/sequences/lead-words";
 
 /**
  * POST /api/v1/sequences/:id/steps/:step/lead-words — { lead_id, words }: one lead's own email at this step (decision

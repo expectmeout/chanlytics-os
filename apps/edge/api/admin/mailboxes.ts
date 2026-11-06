@@ -7,9 +7,9 @@
  * is an empty one) and asks authorizeAdmin; mailboxesOp in lib/email/mailbox/mailbox-ops.ts is the op table and what
  * each answer means.
  */
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { readBody } from "../../lib/admin-door.js";
-import { adminDoor } from "../../lib/log.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { readBody } from "../../lib/shared/admin-door.js";
+import { adminDoor } from "../../lib/shared/log.js";
 import { mailboxesOp, type Body } from "../../lib/email/mailbox/mailbox-ops.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {

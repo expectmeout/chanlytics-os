@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { PartnerSecondFactorSchema } from "@chanlytics/contracts";
-import { platformPartnerSecondFactorReset } from "@/server/platform/platform";
+import { platformPartnerSecondFactorReset } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/partners/second-factor — {partner_id, why}: remove a partner's authenticator so they can set

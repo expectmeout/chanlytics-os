@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { write } from "@/server/route";
-import { erasureScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { erasureScope } from "@/server/shared/verbs";
 import { notAPerson } from "@/server/connections/mailbox-senders";
 
 const Body = z.object({ scope: z.enum(["address", "domain"]) }).strict();

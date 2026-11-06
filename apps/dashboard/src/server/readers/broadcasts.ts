@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/db";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as readers from "./facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /** A broadcast as a citation names it: a Broadcasts row, opened where its address spells it, a run. */
 const runRef = (b: Pick<BroadcastDto, "id" | "name">): RowRef => ({

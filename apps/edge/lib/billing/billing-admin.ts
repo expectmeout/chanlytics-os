@@ -25,9 +25,9 @@
  * lib/billing/billing-ops.ts's; what is left here is the knock, the
  * workspace's row and slug, and the dispatch.
  */
-import { json } from "../http.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { respond, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
+import { json } from "../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { respond, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
 import {
   billingReadiness,
   checkoutFor,
@@ -41,9 +41,9 @@ import {
   syncFor,
   trialDays,
 } from "./billing.js";
-import { logger, type Logger } from "../log.js";
+import { logger, type Logger } from "../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import type { Database } from "@chanlytics/db";
 import {
   UNKNOWN_BILLING_OP,
   billingStatusOf,

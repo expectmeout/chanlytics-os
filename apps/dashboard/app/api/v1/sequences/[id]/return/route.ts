@@ -1,6 +1,6 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { returnToSequenceNow } from "@/server/sequences/doors";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { returnToSequenceNow } from "@/server/campaigns/sequences/doors";
 
 /**
  * POST /api/v1/sequences/:id/return — a leave undone (decision 0060; 00450 sequence_return): the people the leave named

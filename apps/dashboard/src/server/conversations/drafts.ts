@@ -12,9 +12,9 @@ import {
   type ReplyDraftWords,
 } from "@chanlytics/contracts";
 import { conversationDraftsOf, conversationsSetAside, type ConversationDraftRow, type Json } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
-import type { VerbConversation } from "../verbs";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
+import type { VerbConversation } from "../shared/verbs";
 import { signedByThreadOf } from "../connections/email";
 import { draftAtTheEdge } from "./thread-control";
 

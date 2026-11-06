@@ -6,9 +6,9 @@
  * (readBody); voiceCanary in lib/voice/watch/voice-canary.ts is everything after. It is no admin door: its key opens this door
  * alone, which can ring only a line of ours and read what that call left, as /api/diag's key opens the diagnostic.
  */
-import { readBody } from "../lib/admin-door.js";
-import { refuse } from "../lib/http.js";
-import { door } from "../lib/log.js";
+import { readBody } from "../lib/shared/admin-door.js";
+import { refuse } from "../lib/shared/http.js";
+import { door } from "../lib/shared/log.js";
 import { canaryKeyMatches, voiceCanary } from "../lib/voice/watch/voice-canary.js";
 
 export const POST = door(async function POST(request: Request): Promise<Response> {

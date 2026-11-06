@@ -7,11 +7,11 @@ import "server-only";
 import { postPlanOf, recordOrNull, type FileRecordDto, type PostPlan } from "@chanlytics/contracts";
 import { fileMadeOf, fileOf, filePostedOf, newestMadeOf, type FileMemberRow } from "@chanlytics/db";
 import { connectionFor } from "@/server/connections/google";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { fileDtoOf } from "@/server/readers/files";
-import type { Member } from "@/server/route";
-import { serviceDb } from "@/server/service-db";
-import type { RouteContext } from "@/server/with-route";
+import type { Member } from "@/server/shared/route";
+import { serviceDb } from "@/server/shared/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /** GET files/[id]: one file, and for a post what it came from and what it was asked to be. */
 export async function fileRecord(ctx: RouteContext, member: Member, row: FileMemberRow): Promise<FileRecordDto> {

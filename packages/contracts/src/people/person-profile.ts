@@ -23,7 +23,7 @@ import { campaignsOf, inSequencesOf, ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, REPLY_WIRE, sinceWords, type PersonChannel } from "./person-words";
 import { signupAskOf } from "./doors/signup-confirm";
-import type { ChannelsReady } from "../broadcasts/reach-for";
+import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
 import { wayOff, writeWaysOf, type WriteWay } from "../new-conversation/write-ways";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { draftSendsAtMs, heldDraftOf } from "../conversations/message-words";
@@ -60,18 +60,18 @@ import {
   type BusinessRecordVM,
   type PersonHeadVM,
   type WorksAtVM,
-} from "../person-page/business";
-import { personFiguresOf, type PersonFigureVM } from "../person-page/figures";
-import { personNextOf, type UpNextVM } from "../person-page/next";
-import { lastWordsOf, type LastWordVM } from "../person-page/last-words";
-import { personNoticesOf, type NoticeVM } from "../person-page/notices";
-import { personTabsOf, type PersonTabVM } from "../person-page/route";
-import { personVisitsOf, type PersonVisitsVM } from "../person-page/visits";
-import { callBackWaits } from "../person-page/call";
+} from "./person-page/business";
+import { personFiguresOf, type PersonFigureVM } from "./person-page/figures";
+import { personNextOf, type UpNextVM } from "./person-page/next";
+import { lastWordsOf, type LastWordVM } from "./person-page/last-words";
+import { personNoticesOf, type NoticeVM } from "./person-page/notices";
+import { personTabsOf, type PersonTabVM } from "./person-page/route";
+import { personVisitsOf, type PersonVisitsVM } from "./person-page/visits";
+import { callBackWaits } from "./person-page/call";
 import { holderOf } from "./person-state";
-import { callFactsOf } from "../person-page/call-facts";
-import { contactEvidenceOf, personBeforeOf, personOriginOf, reachRowsOf } from "../person-page/origin";
-import { WORKS_AT_WORDS } from "../person-page/words";
+import { callFactsOf } from "./person-page/call-facts";
+import { contactEvidenceOf, personBeforeOf, personOriginOf, reachRowsOf } from "./person-page/origin";
+import { WORKS_AT_WORDS } from "./person-page/words";
 
 /* -------------------------------- profile -------------------------------- */
 

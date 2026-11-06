@@ -9,7 +9,7 @@ import { reportHourWords, type ReportVM } from "./reports";
 import { beforeWords, messagesAnsweredWords } from "./report-tiles";
 import type { CampaignReportVM } from "./campaign-report";
 import { plural } from "../shared/words";
-import { runRoute, sequenceRoute } from "../sequences/sequence-address";
+import { runRoute, sequenceRoute } from "../campaigns/sequences/sequence-address";
 
 export interface ReportFactVM {
   id: "unanswered" | "handovers" | "busiest" | "hours" | "closed" | "campaign" | "channel" | "ads";

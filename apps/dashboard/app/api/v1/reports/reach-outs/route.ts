@@ -1,4 +1,4 @@
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/readers";
 import { reachOutReport } from "@/server/readers/campaign-report";
 import { ReportQuery, reportWindowFor } from "@/server/readers/report";

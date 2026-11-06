@@ -1,7 +1,7 @@
 import "server-only";
-import { deployment } from "../env";
+import { deployment } from "../shared/env";
 import type { EdgeAnswerCode } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered, edgeReasonOf, type EdgeAnswer, type EdgeReason } from "../edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeAnswer, type EdgeReason } from "../shared/edge";
 
 /** A live call waits on nobody: the edge's own call to the provider is bounded at 8 s (voice-retell), this just above. */
 const LIVE_CALL_TIMEOUT_MS = 15_000;
