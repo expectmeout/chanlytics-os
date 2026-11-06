@@ -38,7 +38,7 @@ export type {
   ConnectionGroup,
   ConnectionInputs,
   ConnectionKind,
-  ConnectionRow,
+  ConnectionLine,
   ConnectionState,
   ConnectionTone,
   ConnectionVerb,

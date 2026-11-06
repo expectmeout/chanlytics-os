@@ -126,6 +126,12 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now,
   // and a message open in it (`campaigns/messages/<name>`, its home) is drawn from them.
   "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
+  // Campaigns › Ads (`campaigns/ads…`, where it is drawn; an ad, New ad and Results among its addresses): the settings read, which
+  // says whether it is drawn and whose business it is, and nothing of Sequences. It waited for Sequences' list it does not draw. What
+  // a workspace's page counts is the page's own read, made as its code is in (campaigns/ads/first-touch.ts): the boot lets go of what
+  // the head started once its own reads are in (api.ts dropPrefetched), before a page that loads on demand could take it, so the
+  // dearest of the reports would be read twice.
+  "campaigns/ads": SETTINGS_READ,
   // Settings: its own read, and the partner account the rail names Partner by; a pane its address names opens on its own
   // (below, the head reads the pane's word: `settings/billing` is `admin/billing`), and a pane not named there on these.
   admin: [...SETTINGS_READ, "partner"],
@@ -275,6 +281,8 @@ export function routePrefetchScript(): string {
     // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), a message open in it among its addresses,
     // and opens on its own reads; a message's drawer over Sequences (`message:<name>`) went into it, and lands there.
     'if(s==="campaigns"&&/^messages?(\\/|:|$)/.test(l))s="campaigns/messages";',
+    // Ads is a view of Campaigns too (`campaigns/ads`, `campaigns/ads:new`, `campaigns/ads:ad:<id>`), and opens on its own reads.
+    'if(s==="campaigns"&&/^ads(:|$)/.test(l))s="campaigns/ads";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

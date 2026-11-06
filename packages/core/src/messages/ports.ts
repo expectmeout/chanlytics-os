@@ -7,7 +7,7 @@ import type {
   AppointmentState,
   FeedNames,
   FreedTimeCalendar,
-  FreedTimeRow,
+  FreedTimeLine,
   JobNews,
   SendPurpose,
 } from "@chanlytics/contracts";
@@ -198,7 +198,7 @@ export interface BroadcastBatchPorts {
    * The appointment a freed time's batch offers the time of, and what stands on the record over the days ahead (db
    * freedTimeFactsOf), or null when the record no longer holds it (decision 0082): read before the batch's first send.
    */
-  freedTimeFacts(appointmentId: string): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null>;
+  freedTimeFacts(appointmentId: string): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null>;
   /** The batch moved to canceled as the system, only from the state it was read in (db cancelBroadcastFrom). */
   cancelFrom: CancelBroadcastPorts["cancel"];
   /** The system's decision on the ledger (db recordSystemDecision): its id. */

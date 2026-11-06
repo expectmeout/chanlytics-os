@@ -7,13 +7,13 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cvPicked, cvWhose } from "../cv-rules";
 import { demoSession, type Flash } from "../shell";
 import { inboxData } from "../store";
-import type { ConversationRow, Picked } from "../types";
+import type { ConversationLine, Picked } from "../types";
 import { pickArchiveAsk, pickBar, pickMark, pickRun } from "./pick";
 
 /** The pick, as the list draws it: who can be picked, who is, and what stands over the rows while anyone is. */
 export interface CvPick {
   /** A row as a pick reads it; null for one that wears no box. */
-  of: (c: ConversationRow) => Picked | null;
+  of: (c: ConversationLine) => Picked | null;
   /** The names of the rows picked that the tab still holds. */
   selected: string[];
   toggle: (name: string) => void;
@@ -29,9 +29,9 @@ export interface CvPick {
  */
 export const useCvPick = (p: {
   /** The tab's people, whole: a pick acts on the person, not on what a search matched of them. */
-  everyone: ConversationRow[];
+  everyone: ConversationLine[];
   channel: string;
-  unread: (c: ConversationRow) => boolean;
+  unread: (c: ConversationLine) => boolean;
   flash: (flash: Flash) => void;
 }): CvPick => {
   const { everyone, channel, unread, flash } = p;
@@ -47,7 +47,7 @@ export const useCvPick = (p: {
     (inboxData().THREADS || []).flatMap((t) => (t.real && t.archived && t.conversationId ? [t.conversationId] : [])),
   );
   // The mockup's seeded rows act only inside the Inbox page's demo state: nothing here is theirs to pick.
-  const of = (c: ConversationRow): Picked | null => {
+  const of = (c: ConversationLine): Picked | null => {
     if (demoSession()) return null;
     const whole = byName.get(cvWhose(c)) ?? c;
     return cvPicked(whole, { unread: unread(whole), archived: (id) => archived.has(id) });

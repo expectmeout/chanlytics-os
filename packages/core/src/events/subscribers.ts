@@ -65,7 +65,7 @@ import {
   type FreedTimeEvent,
   type FreedTimeOffer,
   type FreedTimeRefusal,
-  type FreedTimeRow,
+  type FreedTimeLine,
   type HoldFacts,
   type JobNews,
   type MemberJoined,
@@ -141,7 +141,7 @@ export interface SubscriberPorts {
     tenantId: string,
     appointmentId: string,
     nowMs: number,
-  ): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null>;
+  ): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null>;
   /**
    * The edge's offer of a freed time (decision 0082): the workspace's running step on `slot_opened` runs for it, once per
    * appointment, and a second ask answers the batch the first made. Throws when it could not be asked, so the delivery

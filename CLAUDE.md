@@ -141,7 +141,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   not one of `tokens.css`'s breakpoints; lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`); a test's wait that counts turns of
-  the loop or time instead of waiting for what it asserts (`counted-waits`). CI's debt job measures each
+  the loop or time instead of waiting for what it asserts (`counted-waits`); a name `docs/naming.md` would refuse (`short-names`,
+  `async-verb-first`, `value-names`, `file-repeats-folder`, `type-casing`, `boolean-names`, `exported-twice`, `house-words`). CI's debt job measures each
   pull request's base and head (decision 0074): a number that rose, or an offender that is new, fails unless the
   description carries a line `Debt: <why>`; a fall needs nothing, and no number is kept in the repository, so nothing
   is banked. Where a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in

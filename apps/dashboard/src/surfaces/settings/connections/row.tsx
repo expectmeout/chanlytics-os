@@ -25,7 +25,7 @@ import { useState, type MouseEvent, type ReactNode } from "react";
 import {
   MESSAGES_ROUTE,
   type ConnectionKind,
-  type ConnectionRow as Row,
+  type ConnectionLine as Row,
   type ConnectionVerb,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";

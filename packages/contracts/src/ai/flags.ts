@@ -271,7 +271,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "ads_preview",
     mechanism: "workspace_feature",
-    does: "Campaigns › Ads (its page, its Reports lens, Ad accounts in Connections) drawn from its sample in this workspace, as a demo session draws it, before the Ads read is wired (0049).",
+    does: "Campaigns › Ads (its page, its Reports lens, Ad accounts in Connections) drawn in this workspace before the Ads read is wired (0049): it opens on what is true, nothing connected and its own counts, and its sample is a press away.",
     owner: "Ruben",
     sunset: "2026-12-31",
   },

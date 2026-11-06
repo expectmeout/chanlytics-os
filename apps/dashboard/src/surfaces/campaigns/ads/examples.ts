@@ -4,14 +4,14 @@
  * and each of these is one a reader could return. A state the model already draws is data here; a state a feature lane draws
  * is data too, so the lane starts from something to look at.
  *
- *   running      the default: four ads, and one the owner made on the platform itself (read-only here)
+ *   running      what a demo opens on: four ads, and one the owner made on the platform itself (read-only here)
  *   needs-you    a turned-down ad, a declined card, an ad paused in its platform, a price Services changed, a lapsing permission
  *   finished     an ad ended two days ago (still settling) and one that spent its total and stopped twenty days ago
  *   no-calendar  running, but no calendar link: nobody can be counted as booked
  *   setting-up   running, and one ad being made on its platform and one that could not be finished
  *   no-ads       Meta connected with no payment method yet, and no ad
  *   choose       Meta has three accounts to choose from; nothing else is connected
- *   v0           nothing connected: how new people first reached the business
+ *   v0           nothing connected, what a preview opens on: how new people first reached the business, a preview's its own (first-touch.ts)
  *   reading      running, while Meta's and Google's numbers are being read
  *   failed       running, but Meta's numbers could not be read since yesterday evening
  *

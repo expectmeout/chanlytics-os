@@ -126,7 +126,7 @@ async function identified(
   round: LeadRoundRow,
   prepared: Prepared[],
   geo: { center: LatLng | null; radiusM: number },
-): Promise<{ rows: BatchRow[]; toJudge: Prepared[]; yoursAt: number[] }> {
+): Promise<{ rows: BatchPlace[]; toJudge: Prepared[]; yoursAt: number[] }> {
   const cleans = prepared.map((x) => x.clean);
   const { folded } = foldDuplicates(cleans);
   const keys = cleans.map(shareKeysOf);
@@ -149,7 +149,7 @@ async function identified(
   ]);
   const within = sharesWithin(cleans.filter((c) => !folded.has(c.raw.placeId)));
   const toJudge: Prepared[] = [];
-  const rows: BatchRow[] = [];
+  const rows: BatchPlace[] = [];
   const yoursAt: number[] = [];
   for (const prep of prepared) {
     const idn = identityOf(prep.clean, held, supp.placeIds, shares);
@@ -325,7 +325,7 @@ async function collectHeld(
 }
 
 /** A place of a batch that is committed: what it is, what it shares with those the workspace holds, and whose copy it is. */
-type BatchRow = { prep: Prepared; shares: LeadShare[]; duplicateOf: string | null };
+type BatchPlace = { prep: Prepared; shares: LeadShare[]; duplicateOf: string | null };
 
 /**
  * What was said of one place: its answer, the judgment it was kept under (null when its call refused, or the screen
