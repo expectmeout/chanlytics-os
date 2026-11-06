@@ -56,7 +56,7 @@ export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext,
 export { ASK_DRAFT_EFFORT, ASK_DRAFT_MAX_TOKENS, ASK_EFFORT, ASK_MODEL, ASK_SPEED, askModelProfile, askRoundCap } from "./ask/ask-model";
 export { applySettingsChange, ASK_ANSWERS_PANE, ASK_ANSWERS_ROWS, describeSettingsChange, GUARDRAIL_RULE_WORDS, GUARDRAIL_RULES } from "./ask/ask-settings-change";
 export { cacheHitOf } from "./ask/ask-shape";
-export { MAKE_POST_ASK, buildAskSuggestions } from "./ask/ask-suggestions";
+export { buildAskSuggestions, MAKE_POST_ASK } from "./ask/ask-suggestions";
 export { rightNowCounts, rightNowLine } from "./ask/ask-waiting";
 export { ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS, citationRoute, emptyReadSet, groundCitations, noteRows } from "./ask/citations";
 export { PLAN_WORDS, planOf } from "./ask/plan";
