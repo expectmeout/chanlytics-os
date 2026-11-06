@@ -68,6 +68,7 @@ const {
   bulkLeads,
   eraseLead,
   excludeLead,
+  exportLeadsFile,
   keepLead,
   leadsMore,
   leadsTakeOffered,
@@ -406,15 +407,48 @@ test("REGRESSION: an empty view takes a running search's first rows as they come
   assert.equal(L().offered, 2, "once the owner is reading, what comes next is offered, as before");
 });
 
-test("under the found sort new rows append in the order found", async () => {
+test("the oldest found first: new rows append, where they sort; the newest first: they are offered, as under any order", async () => {
   const w = wire({ searches: [SEARCH_RUNNING], rows: PAGE1, counts: COUNTS });
-  await leadsView({ sort: "found", dir: "desc" });
-  w.now({ rows: [NEW_A, ...PAGE1] });
+  await leadsView({ sort: "found", dir: "asc" });
+  w.now({ rows: [...PAGE1, NEW_A] });
   await leadsOverride.apply();
   assert.deepEqual(
     [L().offered, L().rows.at(-1).id],
     [0, NEW_A.id],
     "appended after what the owner is reading, not on top of it",
+  );
+  const newest = wire({ searches: [SEARCH_RUNNING], rows: PAGE1, counts: COUNTS });
+  await leadsView({ sort: "found", dir: "desc" });
+  newest.now({ rows: [NEW_A, ...PAGE1] });
+  await leadsOverride.apply();
+  assert.deepEqual(
+    [L().offered, L().rows.length],
+    [1, PAGE1.length],
+    "they sort at the top: offered, so nothing moves under the owner, and taking them reads the view again in its order",
+  );
+});
+
+test("REGRESSION: the page's newest found first reads the key's own order, on every page and in the file", async () => {
+  // 6 Nov 2026: Found's key runs newest first, so the heading's first press and a phone's "Newest found first", both `desc`,
+  // read the oldest first.
+  const leadReads = (w) => w.reads.filter((r) => r.startsWith("/api/v1/leads?"));
+  const asked = (read) => new URL(read, "https://app.chanlytics.com").searchParams;
+  const w = wire({ rows: PAGE1, next: PAGE2, counts: COUNTS });
+  await leadsView({ sort: "found", dir: "desc" });
+  assert.equal(asked(leadReads(w).at(-1)).get("dir"), "asc", "the read's asc is the newest first");
+  assert.equal(L().view.dir, "desc", "the page says it as the date it is, so the arrow is true");
+  await leadsMore();
+  const second = asked(leadReads(w).at(-1));
+  assert.deepEqual([second.has("after_key"), second.get("dir")], [true, "asc"], "the next page walks the same way");
+  await leadsView({ sort: "found", dir: "asc" });
+  assert.equal(asked(leadReads(w).at(-1)).get("dir"), "desc", "the oldest first");
+  await leadsView({ sort: "rating", dir: "desc" });
+  assert.equal(asked(leadReads(w).at(-1)).get("dir"), "desc", "every other sort is said as it is");
+  await exportLeadsFile({ list: "all", sort: "found", dir: "desc" });
+  assert.deepEqual(
+    w.writes.at(-1),
+    { key: "POST /api/v1/leads/export", body: { list: "all", sort: "found", dir: "asc" } },
+    "the file holds the rows in the order the table shows them",
   );
 });
 

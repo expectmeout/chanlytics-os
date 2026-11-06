@@ -10,8 +10,8 @@
  *
  * Every read is made under a key -- the workspace and the whole view -- and an
  * answer that lands under a newer key is dropped. New rows a refresh finds are
- * offered ("12 new"), not sorted in, unless the owner is reading in the order
- * found, where they append after what is already read.
+ * offered ("12 new"), not sorted in, unless the owner is reading the oldest
+ * found first, where they append after what is already read.
  */
 import {
   LEAD_VIEW_SORTS,
@@ -156,8 +156,21 @@ function viewKey(v: LeadsView): string {
   return `${getActiveWorkspace() ?? ""}|${leadsRoute(v)}|${v.q ?? ""}|${v.sort}|${v.dir}|${v.sort === "pile" ? (v.pileList ?? "") : ""}`;
 }
 
+/**
+ * The way the read walks for the way the page says it. Found's key runs newest first (leads_page: the epoch taken from ten
+ * nines), so the read's `asc` is the newest first, as Ask's tool says it. The page says it as the date it is, `desc`: the
+ * heading's arrow, a phone's "Newest found first". Said straight through, both showed the oldest first (6 Nov 2026).
+ */
+const readDir = (sort: string, dir: "asc" | "desc"): "asc" | "desc" =>
+  sort === "found" ? (dir === "asc" ? "desc" : "asc") : dir;
+
 function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Record<string, string> {
-  const q: Record<string, string> = { list: v.list, sort: v.sort, dir: v.dir, limit: String(LEADS_PAGE) };
+  const q: Record<string, string> = {
+    list: v.list,
+    sort: v.sort,
+    dir: readDir(v.sort, v.dir),
+    limit: String(LEADS_PAGE),
+  };
   if (v.searchId) q.search = v.searchId;
   if (v.cls) q.class = v.cls;
   if (v.sort === "pile" && v.pileList) q.pile_list = v.pileList;
@@ -337,10 +350,10 @@ async function refreshView(): Promise<void> {
   const loaded = new Set(L.rows.map((r) => r.id));
   const rows = L.rows.map((r) => fresh.get(r.id) ?? r);
   const arrived = page.rows.filter((r) => !loaded.has(r.id) && !L.offered.some((o) => o.id === r.id));
-  // The order found: after what is already read. An empty view: as read, since nothing on screen moves (29 Oct 2026: a
-  // running search's first three sat behind "3 new" over "No leads in this view yet").
-  if (L.view.sort === "found" || !L.rows.length) rows.push(...arrived);
-  else L.offered.push(...arrived); // any other order: offered, never sorted in
+  // The oldest found first: after what is already read, where they sort. An empty view: as read, since nothing on screen
+  // moves (29 Oct 2026: a running search's first three sat behind "3 new" over "No leads in this view yet").
+  if ((L.view.sort === "found" && L.view.dir === "asc") || !L.rows.length) rows.push(...arrived);
+  else L.offered.push(...arrived); // any other order, the newest first among them: offered, never sorted in
   L.searches = searches.searches;
   L.counts = page.counts ?? searches.counts ?? L.counts;
   L.cardsLive = searches.cards_live ?? L.cardsLive;
@@ -596,7 +609,7 @@ export async function bulkLeads(body: LeadsBulkInput) {
  */
 export async function exportLeadsFile(view: LeadsExportView) {
   return leadCall<{ file: string; csv: string; rows: number }>("POST leads/export", {
-    body: view,
+    body: { ...view, dir: readDir(view.sort, view.dir) },
     refresh: "behind",
   });
 }
