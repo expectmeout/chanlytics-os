@@ -136,10 +136,10 @@ const recDisclosureGroup = ({ open = false } = {}) =>
   `</div></div></div>`;
 
 /** A row of a list of properties (RecordDisclosure look="row", the lead sheet's lines): its label, its answer, and what it opens. */
-const recDisclosureRow = ({ open = false } = {}) =>
+const recDisclosureRow = ({ open = false, label = "Contact", value = "hello@example.com" } = {}) =>
   `<div class="rec-disclosure" data-open="${open}" data-look="row">` +
   `<button type="button" class="rec-disclosure-press" aria-expanded="${open}">` +
-  `<span class="rec-disclosure-label">Contact</span><span class="rec-disclosure-value">hello@example.com</span>` +
+  `<span class="rec-disclosure-label">${label}</span><span class="rec-disclosure-value">${value}</span>` +
   `${icon("chevron", 12)}</button>` +
   `<div class="rec-disclosure-panel" role="region"><div class="rec-disclosure-inner">` +
   `<p>Checked · the sequence writes here</p></div></div></div>`;
@@ -389,7 +389,7 @@ const tableHeading = (c, t) => {
   // A heading a page gave a menu (head.tsx): its caret, lit while a filter in it is on.
   const menu = t.menus?.[c.key];
   const caret = menu
-    ? `<button type="button" class="dtable-menu" aria-label="${c.label}: filter and hide" aria-haspopup="menu" aria-expanded="false"${menu === "on" ? ' data-on=""' : ""}>${icon("chevron-down", 11)}</button>`
+    ? `<button type="button" class="dtable-menu" aria-label="${c.label}: filter and hide" aria-haspopup="menu" aria-expanded="${menu === "open"}"${menu === "on" ? ' data-on=""' : ""}>${icon("chevron-down", 11)}</button>`
     : "";
   return (
     `<th data-key="${c.key}"${tableAttr("data-align", c.align)}${tableAttr("data-pin", pin)}${c.sorts ? ' data-sorts=""' : ""}` +
@@ -456,8 +456,9 @@ const tableLines = (top, sub = null, end = false, open = false) =>
   `<span class="dtable-line-top">${top}</span>` +
   `${sub ? `<span class="dtable-line-sub">${sub}</span>` : ""}</span>`;
 /**
- * A table of such cells at a row height: two lines, one fact alone left open, a line its column cuts, and a number's
- * at the column's end; its box as it stands once rows have passed under its heads (data-under).
+ * A table of such cells at a row height: two lines, one fact alone left open, two lines left open (a lead's Reach), a
+ * line its column cuts, and a number's at the column's end; its box as it stands once rows have passed under its heads
+ * (data-under).
  */
 const dtableLines = (density) =>
   `<div class="dtable-wrap" data-density="${density}"><div class="dtable-scroll" data-under>` +
@@ -471,7 +472,7 @@ const dtableLines = (density) =>
       `<tr data-index="${i}" id="person-${r.id}" tabindex="${i === 0 ? 0 : -1}">` +
       `<td data-col="name" data-pin="start">${r.name}</td>` +
       `<td data-col="stands">${tableLines(r.note, i === 2 ? null : "What qualifies it, on a line its column cuts where it ends", false, i === 2)}</td>` +
-      `<td data-col="visits">${tableLines(r.visits, "visits", true)}</td></tr>`,
+      `<td data-col="visits">${tableLines(r.visits, "visits", true, i === 1)}</td></tr>`,
   ).join("")}</tbody></table></div><div class="dtable-foot"><span>3 people</span></div></div>`;
 
 const dtable = ({
@@ -962,6 +963,31 @@ const kitMenuLines = () =>
     { hint: "Sample" },
   ) +
   `</div><p class="more-cap">Not offered: 2 promotions (Fern hasn't said yes to offers).</p></div></div></div>`;
+
+/**
+ * The kit's Menu as a thread's sheet, open: who it is about at its head (their face, their name at 600, how to reach them,
+ * the chevron to their page at its end), an act on its square with the same chevron, and times with what is said of them
+ * all under them, on the edge their words stand on.
+ */
+const kitMenuWho = () =>
+  `<button type="button" tabindex="0" aria-label="More" aria-haspopup="menu" aria-expanded="true" ` +
+  `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-right" role="menu" tabindex="-1">` +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item">` +
+  `<span class="face face-xl" aria-hidden="true"><span>SO</span></span>` +
+  `<span class="more-item-label">Sam Ortega</span><span class="more-item-meta">sam@example.com</span>` +
+  `<span class="more-item-hint">${icon("chevron", 13)}</span></button>` +
+  `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item">` +
+  `<span class="more-glyph" aria-hidden="true">${icon("user", 16)}</span>` +
+  `<span class="more-item-label">See what it knows</span><span class="more-item-hint">${icon("chevron", 13)}</span></button>` +
+  `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
+  kitItem("calendar", "In an hour") +
+  kitItem("calendar", "Tomorrow") +
+  `<p class="more-cap">They hear nothing while it is snoozed.</p>` +
+  `</div></div>`;
 
 /**
  * The kit's Popover, open under its control: Base UI's dialog on the panel's pop, on the positioner that writes where it
@@ -1471,8 +1497,9 @@ export const FAMILIES = [
         html:
           `<button type="button" class="btn btn-touch btn-outline">${icon("refresh", 14)}Hand back</button> ` +
           `<button type="button" class="btn btn-sm btn-soft" aria-expanded="false">Signature${icon("chevron-down", 10)}</button> ` +
+          `<button type="button" class="btn btn-sm btn-soft" aria-expanded="true">Signature${icon("chevron-down", 10)}</button> ` +
           `<button type="button" class="btn btn-icon btn-touch btn-soft" aria-label="More">${icon("more", 18)}</button> ` +
-          `<button type="button" class="btn btn-lg btn-ink">Send now</button>`,
+          `<button type="button" class="btn btn-lg btn-ink">${icon("check", 14)}Send now</button>`,
       },
       {
         // A left chevron is the right one turned (kit.css .icon-turned): a walk's ‹ › between two people.
@@ -1529,6 +1556,8 @@ export const FAMILIES = [
           `<div class="gx-row"><span class="pill pill-accent pill-lit" data-tone="accent">Needs you</span>` +
           `<span class="pill pill-warn pill-lit" data-tone="warn">${icon("pause", 11)}Sends in 0:42</span>` +
           `<span class="pill pill-ok pill-lit" data-tone="ok">${icon("check", 11)}Handled</span>` +
+          `<span class="pill pill-info pill-lit" data-tone="info">Snoozed</span>` +
+          `<span class="pill pill-danger pill-lit" data-tone="danger">Didn't send</span>` +
           `<span class="pill pill-lit" data-tone="plain">Archived</span></div>`,
       },
       { id: "pill-dot", html: `<span class="pill pill-ok" data-tone="ok"><span class="dot"></span>Confirmed</span>` },
@@ -2071,7 +2100,12 @@ export const FAMILIES = [
       { id: "subtabs-capsule", html: kitSubtabsCapsule("About this lead", ["Why", "Contact", "Sequence"]) },
       {
         id: "subtabs-chips",
-        html: kitSubtabsChips("Need you, by what it asks of you", [["All"], ["Reply", 3], ["Call", 1], ["Approve", 1]]),
+        html: kitSubtabsChips("Need you, by what it asks of you", [
+          ["All", 5],
+          ["Reply", 3],
+          ["Call", 1],
+          ["Approve", 1],
+        ]),
       },
     ],
   },
@@ -2421,6 +2455,10 @@ export const FAMILIES = [
       { id: "rec-disclosure-group-open", html: recCard(recDisclosureGroup({ open: true })) },
       { id: "rec-disclosure-row", html: recCard(recDisclosureRow()) },
       { id: "rec-disclosure-row-open", html: recCard(recDisclosureRow({ open: true })) },
+      {
+        id: "rec-disclosure-rows",
+        html: recCard(recDisclosureRow() + recDisclosureRow({ label: "Sequence", value: "Bookstore intro" })),
+      },
       {
         id: "rec-inline-saving",
         html: recCard(
@@ -2890,10 +2928,11 @@ export const FAMILIES = [
       "The kit's Menu (surfaces/kit/menu/menu.tsx), open: Base UI's menu on its positioner (.pop-place), a group under " +
       "its heading, a sentence under its item's words, a line, a door and the danger item; a set to choose one of, the " +
       "tick beside the one chosen; a set whose options say a line under their words, under the menu's head; and a " +
-      "set of switches it stays open over, ticked while on, one kept on by the page and refused; and one menu its " +
-      "rows' controls share, which says the row that opened it.",
+      "set of switches it stays open over, ticked while on, one kept on by the page and refused; one menu its " +
+      "rows' controls share, which says the row that opened it; and a thread's sheet, headed by who it is about.",
     entries: [
       { id: "menu-kit", stage: "pop", html: kitMenu() },
+      { id: "menu-kit-who", stage: "pop", html: kitMenuWho() },
       { id: "menu-kit-caption", stage: "pop", html: kitMenuCaption() },
       { id: "menu-kit-set", stage: "pop", html: kitMenuSet() },
       { id: "menu-kit-lines", stage: "pop", html: kitMenuLines() },
@@ -3112,8 +3151,11 @@ export const FAMILIES = [
   {
     family: "Table's heading menus",
     about:
-      "A heading a page gave a menu wears a caret: at rest, and lit while a filter in it is on. The menu is the kit's.",
-    entries: [{ id: "dtable-menus", width: "desk", html: dtable({ menus: { state: "on", visits: "rest" } }) }],
+      "A heading a page gave a menu wears a caret: at rest, with its menu open, and lit while a filter in it is on. The " +
+      "menu is the kit's.",
+    entries: [
+      { id: "dtable-menus", width: "desk", html: dtable({ menus: { name: "open", visits: "rest", note: "on" } }) },
+    ],
   },
   {
     family: "Table's two lines",
