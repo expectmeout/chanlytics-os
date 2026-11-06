@@ -4,7 +4,7 @@
  * released -- wait, warn once, a week, release -- including a grace set late and a workspace that resumed. The sweep
  * that acts on it runs in cron-doors-b.test.mjs. And a release whose credentials read fails, or that finds no token on
  * file, run over a database in memory (apps/edge/lib/lines/line-release.ts): each skipped the carrier and forgot a number
- * still billed.
+ * still billed. And one holding a token the carrier refuses, which never finished.
  */
 import "../fixtures/pin-utc.mjs";
 import { test } from "node:test";
@@ -23,7 +23,7 @@ import { dryProvider, twilioProvider } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 
-const { releaseLine } = await import("../../../../apps/edge/lib/lines/line-release.ts");
+const { releaseLine, sweepEndedLines } = await import("../../../../apps/edge/lib/lines/line-release.ts");
 
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-10-20T15:00:00.000Z");
@@ -348,6 +348,309 @@ test("no token on file and the parent says the subaccount is closed or gone: not
   }
 });
 
+const DONE = { status: 204, body: null };
+const REFUSED = { status: 401, body: { code: 20003, message: "Authenticate" } };
+const DEAD = { auth_token: "dead-token" };
+const ON_FILE = { auth_token: "sub-token" };
+const DELETE_CAMPAIGN = "https://messaging.twilio.com/v1/Services/MG0001/Compliance/Usa2p/QE0001";
+const FILED = { messaging_service_sid: "MG0001", campaign_sid: "QE0001" };
+/** Twilio answering each call by `answer(acct, method, url)`, every call kept with the account it was made as. */
+const wire = (answer) => {
+  const calls = [];
+  const provider = twilioProvider(async (acct, method, url) => {
+    calls.push([acct.sid, acct.token, method, url]);
+    return answer(acct, method, url);
+  });
+  return { calls, choice: { name: "twilio", provider, master: MASTER } };
+};
+/** A delete is refused unless it carries the token the parent reads; a read hears `read`. */
+const tokenOnFileIsDead = (read, refused = REFUSED) =>
+  wire((acct, method) => {
+    if (method !== "DELETE") return read;
+    return acct.token === "read-by-parent" ? DONE : refused;
+  });
+const stands = (tables, why) => {
+  assert.deepEqual(
+    tables.lines.map((l) => l.id),
+    [LINE],
+    `${why}: the row stands`,
+  );
+  assert.equal(tables.tenant_channels[0].status, "active", `${why}: the voice row is left on`);
+  assert.deepEqual(tables.events, [], `${why}: no line.released for a number nobody gave back`);
+};
+
+test("a token on file the carrier refuses: the parent reads it once, and the number and the trunk go back with that", async () => {
+  for (const [why, refused] of [
+    ["rotated in Twilio's console: 401", REFUSED],
+    ["refused: 403", { status: 403, body: { code: 20003, message: "Forbidden" } }],
+  ]) {
+    const tables = boughtLine();
+    const c = tokenOnFileIsDead(OPEN, refused);
+    assert.deepEqual(
+      await release(tables, DEAD, c.choice),
+      {
+        ok: true,
+        released: { token_read_as_parent: true, number: "PN0001", trunk: "TK0001", channel_disabled: VOICE },
+      },
+      why,
+    );
+    assert.deepEqual(
+      c.calls,
+      [
+        [SUB, "dead-token", "DELETE", DELETE_NUMBER],
+        ["ACmaster", "master-token", "GET", READ_SUBACCOUNT],
+        [SUB, "read-by-parent", "DELETE", DELETE_NUMBER],
+        [SUB, "read-by-parent", "DELETE", DELETE_TRUNK],
+      ],
+      why,
+    );
+    assert.deepEqual(tables.lines, [], why);
+    assert.doesNotMatch(JSON.stringify(tables.events), /read-by-parent|dead-token/, "the ledger never holds a token");
+  }
+});
+
+test("a token on file the carrier refuses, and a subaccount closed or gone: the row goes, so closing it is a person's way out of any stuck line", async () => {
+  for (const [why, read] of [
+    ["closed", { status: 200, body: { sid: SUB, auth_token: "still-answered", status: "closed" } }],
+    ["deleted", { status: 404, body: { code: 20404, message: "not found" } }],
+  ]) {
+    const tables = boughtLine(FILED);
+    const c = tokenOnFileIsDead(read);
+    assert.deepEqual(
+      await release(tables, DEAD, c.choice),
+      { ok: true, released: { subaccount_gone: true, channel_disabled: VOICE } },
+      why,
+    );
+    assert.deepEqual(
+      c.calls,
+      [
+        [SUB, "dead-token", "DELETE", DELETE_NUMBER],
+        ["ACmaster", "master-token", "GET", READ_SUBACCOUNT],
+      ],
+      why,
+    );
+    assert.deepEqual(tables.lines, [], why);
+  }
+});
+
+test("a token the carrier refuses even as the parent read it: one read and no loop, a refusal, and the row stays", async () => {
+  const refuseEveryDelete = () => wire((_, method) => (method === "DELETE" ? REFUSED : OPEN));
+  const onFile = boughtLine();
+  const dead = refuseEveryDelete();
+  assert.deepEqual(await release(onFile, DEAD, dead.choice), {
+    ok: false,
+    status: 502,
+    error: "provider_refused",
+    detail: "releasing at the provider: release number: Authenticate (Twilio 20003)",
+    released: { token_read_as_parent: true },
+  });
+  assert.deepEqual(dead.calls, [
+    [SUB, "dead-token", "DELETE", DELETE_NUMBER],
+    ["ACmaster", "master-token", "GET", READ_SUBACCOUNT],
+    [SUB, "read-by-parent", "DELETE", DELETE_NUMBER],
+  ]);
+  stands(onFile, "with a token on file");
+
+  // None on file: the token it refuses is already the parent's, so there is nothing better to read.
+  const none = boughtLine();
+  const lost = refuseEveryDelete();
+  assert.equal((await release(none, null, lost.choice)).error, "provider_refused");
+  assert.deepEqual(lost.calls, [
+    ["ACmaster", "master-token", "GET", READ_SUBACCOUNT],
+    [SUB, "read-by-parent", "DELETE", DELETE_NUMBER],
+  ]);
+  stands(none, "with none on file");
+});
+
+test("a token on file refused and the parent's read failing: a refusal naming the read, and the row stays", async () => {
+  const tables = boughtLine();
+  const c = wire(() => REFUSED);
+  assert.deepEqual(await release(tables, DEAD, c.choice), {
+    ok: false,
+    status: 502,
+    error: "provider_refused",
+    detail: "releasing at the provider: read subaccount: Authenticate (Twilio 20003)",
+    released: {},
+  });
+  assert.deepEqual(c.calls, [
+    [SUB, "dead-token", "DELETE", DELETE_NUMBER],
+    ["ACmaster", "master-token", "GET", READ_SUBACCOUNT],
+  ]);
+  stands(tables, "the platform's own key refused");
+});
+
+test("a carrier's refusal that says nothing of the token is not read again: the parent is not asked, and the row stays", async () => {
+  for (const status of [400, 409, 500, 0]) {
+    const tables = boughtLine();
+    const c = wire(() => ({ status, body: { code: 20500, message: "internal error" } }));
+    assert.deepEqual(
+      await release(tables, DEAD, c.choice),
+      {
+        ok: false,
+        status: 502,
+        error: "provider_refused",
+        detail: "releasing at the provider: release number: internal error (Twilio 20500)",
+        released: {},
+      },
+      `HTTP ${status}`,
+    );
+    assert.deepEqual(c.calls, [[SUB, "dead-token", "DELETE", DELETE_NUMBER]], `HTTP ${status}`);
+    stands(tables, `HTTP ${status}`);
+  }
+});
+
+test("a lost receipt and a dead token: the look for the number is refused too, the parent reads the token, and the look finds it", async () => {
+  const tables = boughtLine({ number_sid: null, trunk_sid: null });
+  const c = wire((acct, method, url) => {
+    if (url === READ_SUBACCOUNT) return OPEN;
+    if (acct.token === "dead-token") return REFUSED;
+    return method === "DELETE"
+      ? DONE
+      : { status: 200, body: { incoming_phone_numbers: [{ sid: "PNlost", phone_number: NUMBER }] } };
+  });
+  assert.deepEqual(await release(tables, DEAD, c.choice), {
+    ok: true,
+    released: {
+      token_read_as_parent: true,
+      number: "PNlost",
+      number_found_by_lookup: true,
+      channel_disabled: VOICE,
+    },
+  });
+  assert.deepEqual(tables.lines, []);
+});
+
+test("a campaign on the line comes off after the number and the trunk: its monthly fee runs until it is deleted, and the row is all that knows it", async () => {
+  const tables = boughtLine(FILED);
+  const c = twilio(OPEN);
+  assert.deepEqual(await release(tables, ON_FILE, c.choice), {
+    ok: true,
+    released: { number: "PN0001", trunk: "TK0001", campaign: "QE0001", channel_disabled: VOICE },
+  });
+  assert.deepEqual(c.calls, [
+    [SUB, "sub-token", "DELETE", DELETE_NUMBER],
+    [SUB, "sub-token", "DELETE", DELETE_TRUNK],
+    [SUB, "sub-token", "DELETE", DELETE_CAMPAIGN],
+  ]);
+  assert.deepEqual(tables.lines, []);
+  assert.deepEqual(
+    tables.events.map((e) => [e.kind, e.data.campaign]),
+    [["line.released", "QE0001"]],
+  );
+});
+
+test("a Messaging Service with no campaign filed has nothing to delete: no call is made for it", async () => {
+  const tables = boughtLine({ messaging_service_sid: "MG0001" });
+  const c = twilio(OPEN);
+  assert.deepEqual(await release(tables, ON_FILE, c.choice), {
+    ok: true,
+    released: { number: "PN0001", trunk: "TK0001", channel_disabled: VOICE },
+  });
+  assert.deepEqual(c.calls, [
+    [SUB, "sub-token", "DELETE", DELETE_NUMBER],
+    [SUB, "sub-token", "DELETE", DELETE_TRUNK],
+  ]);
+});
+
+test("a campaign the carrier will not delete, a suspended one say: a refusal naming what came off, the row stays as the only pointer to it, and the next try finishes", async () => {
+  const tables = boughtLine(FILED);
+  const c = wire((_, __, url) =>
+    url === DELETE_CAMPAIGN ? { status: 400, body: { code: 20001, message: "campaign is suspended" } } : DONE,
+  );
+  assert.deepEqual(await release(tables, ON_FILE, c.choice), {
+    ok: false,
+    status: 502,
+    error: "provider_refused",
+    detail: "releasing at the provider: delete campaign: campaign is suspended (Twilio 20001)",
+    released: { number: "PN0001", trunk: "TK0001" },
+  });
+  stands(tables, "the campaign refused");
+
+  const again = twilio(OPEN);
+  assert.deepEqual(await release(tables, ON_FILE, again.choice), {
+    ok: true,
+    released: { number: "PN0001", trunk: "TK0001", campaign: "QE0001", channel_disabled: VOICE },
+  });
+  assert.deepEqual(tables.lines, []);
+});
+
+/* -- the sweep, over releases that stop: sweepEndedLines itself, with what it reaches for as ports -- */
+
+const QUARTER_HOUR = 15 * 60_000;
+const LINES = [1, 2, 3].map((n) => `${n}${n}${n}${n}${n}${n}${n}${n}-1111-4111-8111-111111111111`);
+/** Three lines of one workspace whose subscription ended 40 days ago, each warned 8 days ago: all due, oldest first. */
+const dueWorld = () => ({
+  tenants: [{ id: A, slug: "harbor", status: "paused", timezone: "UTC" }],
+  billing_accounts: [rows.billing({ tenant_id: A, ...bill({ current_period_end: iso(NOW - 40 * DAY) }) })],
+  lines: LINES.map((id, n) =>
+    rows.line({
+      id,
+      tenant_id: A,
+      e164: `+1305555010${n}`,
+      kind: "chanlytics",
+      created_at: iso(NOW - (100 - n) * DAY),
+      facts: { release_warning: { at: iso(NOW - 8 * DAY), ended_at: iso(NOW - 40 * DAY) } },
+    }),
+  ),
+});
+/** The quarter hour `at`: every release that `stuck` names stops, the rest go. What was tried, paged and alerted, in order. */
+const tick = async (tables, stuck, at = NOW) => {
+  const tried = [];
+  const paged = [];
+  const alerted = [];
+  const out = await sweepEndedLines(
+    fakeDb(tables),
+    {
+      release: async (_, row) => {
+        tried.push(row.id);
+        if (stuck.includes(row.id))
+          return { ok: false, status: 502, error: "provider_refused", detail: "held at the carrier", released: {} };
+        tables.lines = tables.lines.filter((l) => l.id !== row.id);
+        return { ok: true, released: {} };
+      },
+      tell: async () => ({ told: true, reached: true }),
+      alert: async (subject) => void alerted.push(subject),
+      page: async (key, subject) => void paged.push([key, subject]),
+      billingUrl: () => "https://app.example.com/b",
+      now: () => at,
+      log: { info() {}, warn() {}, error() {} },
+    },
+    30,
+  );
+  return { out, tried, paged, alerted };
+};
+
+test("a release that stays stuck never holds up the rest: it goes behind the lines not yet tried, so two of them cannot take both of a tick's places for ever", async () => {
+  const tables = dueWorld();
+  const [a, b, c] = LINES;
+
+  const first = await tick(tables, [a, b]);
+  assert.deepEqual(first.tried, [a, b], "oldest first, two a tick");
+  assert.equal(first.out.failed, 2);
+
+  const second = await tick(tables, [a, b], NOW + QUARTER_HOUR);
+  assert.deepEqual(
+    second.tried,
+    [c, a],
+    "REGRESSION when [a, b]: the two stuck lines held every place, and c never went",
+  );
+  assert.deepEqual(
+    tables.lines.map((l) => l.id),
+    [a, b],
+    "c went back",
+  );
+
+  const third = await tick(tables, [a, b], NOW + 2 * QUARTER_HOUR);
+  assert.deepEqual(third.tried, [b, a], "and the two left take turns, the longest since it was tried first");
+});
+
+test("a release that stays stuck pages the platform under the line's own key, which the pager tells once a window: it does not mail every quarter hour", async () => {
+  const [a] = LINES;
+  const { paged, alerted } = await tick(dueWorld(), [a]);
+  assert.deepEqual(paged, [[`line_release_failed:${a}`, `A number could not be given back (workspace ${A})`]]);
+  assert.deepEqual(alerted, [], "REGRESSION when not empty: a suspended campaign alone mails 96 times a day");
+});
+
 test("a line that never got a subaccount has nothing at the carrier: nobody is asked, and nothing is said to be gone", async () => {
   const tables = boughtLine({ subaccount_sid: null, number_sid: null, trunk_sid: null });
   const c = twilio(OPEN);
@@ -360,10 +663,10 @@ test("a dry-run line keeps releasing, with a token on file and with none, reachi
   t.mock.method(globalThis, "fetch", () => assert.fail("the dry provider never reaches the network"));
   const dry = () => ({ name: "dry", provider: dryProvider(1), master: { sid: "ACdryrun", token: "dry" } });
 
-  const held = boughtLine({ provider: "dry" });
+  const held = boughtLine({ provider: "dry", ...FILED });
   assert.deepEqual(await release(held, { auth_token: "tok" }, dry()), {
     ok: true,
-    released: { number: "PN0001", trunk: "TK0001", channel_disabled: VOICE },
+    released: { number: "PN0001", trunk: "TK0001", campaign: "QE0001", channel_disabled: VOICE },
   });
   assert.deepEqual(held.lines, []);
 

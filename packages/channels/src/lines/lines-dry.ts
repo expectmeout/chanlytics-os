@@ -119,6 +119,7 @@ export function dryProvider(seed = 1): DryProvider {
     async deleteTrunk(acct, trunkSid) {
       rec("deleteTrunk", acctOf(acct), trunkSid);
     },
+    deleteCampaign: () => Promise.resolve(),
     async createCredentialList(acct, friendlyName) {
       rec("createCredentialList", acctOf(acct), friendlyName);
       const sid = next("CL");

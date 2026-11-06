@@ -60,6 +60,8 @@ export interface LineProvider {
     o: { friendlyName: string; domainName: string },
   ): Promise<{ sid: string; domainName: string }>;
   deleteTrunk(acct: ProviderAccount, trunkSid: string): Promise<void>;
+  /** A line's campaign off its Messaging Service: its monthly fee runs until it is deleted. Gone already is done. */
+  deleteCampaign(acct: ProviderAccount, serviceSid: string, campaignSid: string): Promise<void>;
   createCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string }>;
   addCredential(acct: ProviderAccount, listSid: string, username: string, password: string): Promise<{ sid: string }>;
   attachCredentialList(acct: ProviderAccount, trunkSid: string, listSid: string): Promise<void>;
