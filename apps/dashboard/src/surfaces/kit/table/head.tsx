@@ -3,9 +3,13 @@
  * column drawn. A heading that sorts is one button across the whole cell, with a quiet caret at rest so the ones that
  * sort can be told from the ones that do not, and its arrow once it is the sort (the member's: the tiebreak after it is
  * never shown). On a desk the edge of each heading is where its width is changed (edge.tsx), and a column a member may
- * move is dragged by its heading, or moved a place with Alt and an arrow on its button. Hookless: drawn with the table.
+ * move is dragged by its heading, or moved a place with Alt and an arrow on its button. A heading a page gives a menu
+ * (`menus`: its filter, Hide column) wears a caret, which opens it and starts no drag; a filter set stands lit there with
+ * the menu closed. Hookless: drawn with the table.
  */
 import type { DragEvent, KeyboardEvent, ReactNode } from "react";
+import { Icon } from "../icon/icon";
+import { Menu, type MenuGroup } from "../menu/menu";
 import { ColumnEdge, holdingEdge } from "./edge";
 import { TABLE_MIN_PX, baseOf, isMovable, isSizable, type AnyDataColumn, type SortDir } from "./columns";
 
@@ -33,6 +37,18 @@ export interface HeadActs {
 /** The column being dragged to a new place, for the heading it is over to say where it would land. */
 let columnInHand: string | null = null;
 
+/** What a page gives a heading: its menu's groups, and whether a filter in it is on. */
+export interface HeadingMenu {
+  groups: readonly MenuGroup[];
+  active: boolean;
+}
+
+/**
+ * A heading's caret is held down: a heading is draggable, and its drag names the heading whatever the press began on, so
+ * the press that opens a menu has to say so, as an edge's does.
+ */
+let caretIsHeld = false;
+
 /** A heading's words: the column's own, and for the row's acts, which have none, the word a screen reader needs. */
 const headingWords = (c: { key: string; label: ReactNode }): ReactNode =>
   c.label === "" && c.key === "actions" ? <span className="rec-sr">Actions</span> : c.label;
@@ -46,7 +62,7 @@ function headingDrag(key: string, acts: HeadActs | null, keys: readonly string[]
   return {
     draggable: true,
     onDragStart: (e: DragEvent<HTMLElement>) => {
-      if (holdingEdge() || (e.target as HTMLElement).closest(".dtable-edge")) {
+      if (holdingEdge() || caretIsHeld || (e.target as HTMLElement).closest(".dtable-edge")) {
         e.preventDefault();
         return;
       }
@@ -90,7 +106,38 @@ export interface HeadProps {
   pinEnd?: string | null;
   /** One body drawn in part says each row's place: the heads are row 1. */
   indexed: boolean;
+  /** The menus a page gives its headings, by column; a desk's. */
+  menus?: Readonly<Record<string, HeadingMenu>> | null;
 }
+
+/** A heading's caret and the menu it opens: above the press that sorts, and clear of the edge. Never three dots. */
+const headingMenu = (key: string, words: ReactNode, menu: HeadingMenu) => (
+  <Menu
+    align="start"
+    groups={menu.groups}
+    label={typeof words === "string" ? words : undefined}
+    trigger={
+      <button
+        type="button"
+        className="dtable-menu"
+        aria-label={`${typeof words === "string" ? words : key}: filter and hide`}
+        data-on={menu.active ? "" : undefined}
+        data-testid={`table-menu-${key}`}
+        onPointerDown={() => {
+          caretIsHeld = true;
+        }}
+        onPointerUp={() => {
+          caretIsHeld = false;
+        }}
+        onPointerCancel={() => {
+          caretIsHeld = false;
+        }}
+      >
+        <Icon name="chevron-down" size={11} />
+      </button>
+    }
+  />
+);
 
 /** The heading row. */
 export function tableHead(p: HeadProps) {
@@ -121,6 +168,7 @@ export function tableHead(p: HeadProps) {
           const movable = !!acts && isMovable(c);
           const here = sortBy === c.key;
           const text = headingWords(c);
+          const menu = p.menus?.[c.key] ?? null;
           // The heading is drawn in its new place, and a control that was moved in the page has lost the keyboard.
           const shift = (by: -1 | 1, from: Element, control: string) => {
             if (!acts) return;
@@ -144,6 +192,8 @@ export function tableHead(p: HeadProps) {
               data-align={c.align}
               data-pin={pinOf(c)}
               data-sorts={c.sort ? "" : undefined}
+              data-menu={menu ? "" : undefined}
+              data-filtering={menu?.active ? "" : undefined}
               aria-sort={here ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
               {...headingDrag(c.key, movable ? acts : null, keys)}
             >
@@ -167,6 +217,7 @@ export function tableHead(p: HeadProps) {
                   {text}
                 </span>
               )}
+              {menu ? headingMenu(c.key, text, menu) : null}
               {acts && isSizable(c) && typeof c.label === "string" && (
                 <ColumnEdge
                   id={c.key}

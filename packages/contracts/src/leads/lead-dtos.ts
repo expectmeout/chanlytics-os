@@ -4,7 +4,7 @@
  */
 import type { LeadPeoplePlan } from "./search/people-plan";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
-import type { LeadEmailState, LeadRoundEnding, LeadSearchVia } from "./search/sets";
+import type { LeadEmailState, LeadRoundEnding, LeadSearchVia, LeadStatusGroup } from "./search/sets";
 import type { LeadClass, LeadStage } from "./lead-words";
 import type { SequencePlaceOfDto } from "../sequences/sequence-place";
 import type { LeadNichePrior } from "./leads";
@@ -92,6 +92,11 @@ export interface LeadRowDto {
    * places could not be read.
    */
   place?: SequencePlaceOfDto | null;
+  /**
+   * Where it stands in the queue (00552 lead_status_groups), read only where the sort or a filter asks: needs, in, or null
+   * for a lead in neither, and for every lead of a read that asked none. Absent from a server before it.
+   */
+  status_group?: Exclude<LeadStatusGroup, "none"> | null;
   /** A place or a company, and a company's people (00430, leads_page): read through contracts leadFactsOf. */
   kind?: string;
   facts?: unknown;
@@ -208,6 +213,11 @@ export interface LeadViewCountsDto {
   view: number;
   matching: number;
   excluded_by: Record<string, number>;
+  /** Each status group's leads, under every filter but the status filter itself (a heading's menu; 00552). */
+  status_groups?: Record<LeadStatusGroup, number>;
+  /** Of the leads every filter keeps, how many can be reached each way, by the rule the Reach filter asks (the foot; 00552). */
+  with_email?: number;
+  with_phone?: number;
 }
 
 export interface LeadMonthDto {

@@ -4256,6 +4256,12 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
   :is(.inbox, .conversations)[data-takeover] .ix-th-who {
     gap: 10px;
   }
+  /* A long name ends in its ellipsis before More, on one line, and their page says it whole. The way back shares the
+     column here, and a desk's rule above let who it is take all of it, so the name ran 40px on under the ⋯ (Ruben,
+     5 Nov 2026). */
+  :is(.inbox, .conversations)[data-takeover] .ix-th-head-main > .ix-th-who {
+    flex: 0 1 auto;
+  }
   :is(.inbox, .conversations)[data-takeover] .ix-th-name {
     font-size: var(--text-lg);
     line-height: var(--leading-tight);

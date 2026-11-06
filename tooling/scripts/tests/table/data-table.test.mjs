@@ -13,7 +13,7 @@ import { importSrc } from "../_source.mjs";
 
 installLegacyReact();
 const { DataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/data-table.tsx");
-const { useTableState } = await importSrc("apps/dashboard/src/surfaces/kit/table/state.ts");
+const { chosenSortOf, useTableState } = await importSrc("apps/dashboard/src/surfaces/kit/table/state.ts");
 const { useDataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/use-data-table.ts");
 const {
   choicesFrom,
@@ -27,6 +27,7 @@ const {
   visibilityOf,
 } = await importSrc("apps/dashboard/src/surfaces/kit/table/columns.ts");
 const { useShownRows } = await importSrc("apps/dashboard/src/surfaces/kit/rows/shown-rows.ts");
+const { tableItems } = await importSrc("apps/dashboard/src/surfaces/kit/table/groups.tsx");
 
 const h = (...a) => globalThis.React.createElement(...a);
 
@@ -415,6 +416,169 @@ test("a row's box selects through the table: a row a filter hides stays selected
   assert.deepEqual(selectedNow(), ["r5"]);
 });
 
+/* --------------------------------------------------------------------------------------- group heads among rows */
+
+/** Rows named for the group they stand in, and what the page says of a group. */
+const inGroups = (...keys) => keys.map((key, i) => ({ id: `g${i}`, name: `Person ${i}`, state: "new", group: key }));
+const WORDS = { needs: "Needs you", in: "In a sequence", none: "Not contacted" };
+const COUNTS = { needs: 7, in: 12 };
+const groupOf = (r) => (r.group ? { key: r.group, label: WORDS[r.group], count: COUNTS[r.group] ?? null } : null);
+const kinds = (items) => items.map((x) => (x.kind === "head" ? `head:${x.key}` : x.rowIndex));
+const headRows = (tree) =>
+  all(tree, (n) => n.type === "tr" && /\bdtable-group\b/.test(String(n.props?.className || "")));
+const rowIds = (tree) => all(tree, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id);
+const bodiesOf = (tree) => all(tree, (n) => n.type === "tbody");
+
+test("a head stands before each run of a group; without a group the items are the rows, and nothing else", () => {
+  const rows = inGroups("needs", "needs", "in", "none");
+  assert.deepEqual(kinds(tableItems(rows, groupOf)), ["head:needs", 0, 1, "head:in", 2, "head:none", 3]);
+  assert.deepEqual(kinds(tableItems(rows, null)), [0, 1, 2, 3], "a table that names no groups is exactly its rows");
+  assert.deepEqual(kinds(tableItems([], groupOf)), [], "no rows, no heads");
+  assert.deepEqual(kinds(tableItems(inGroups(null, null), groupOf)), [0, 1], "a row in no group wears no head");
+});
+
+test("a key that comes back gets no second head: the row stays where it stands until the next read", () => {
+  assert.deepEqual(kinds(tableItems(inGroups("needs", "in", "needs"), groupOf)), ["head:needs", 0, "head:in", 1, 2]);
+});
+
+test("Show more carries on under the last head: a second page starting in the same group draws no new head", () => {
+  const first = inGroups("needs", "needs");
+  const more = inGroups("needs", "needs", "needs", "in");
+  assert.deepEqual(kinds(tableItems(first, groupOf)), ["head:needs", 0, 1]);
+  assert.deepEqual(kinds(tableItems(more, groupOf)), ["head:needs", 0, 1, 2, "head:in", 3]);
+});
+
+test("a head says the view's count, never the rows loaded so far, and none where the view's was not read", () => {
+  const t = table({ rows: inGroups("needs", "in", "none"), total: 3, groupOf });
+  const [needs, inIt, none] = headRows(t);
+  assert.match(textOf(needs), /Needs you/);
+  assert.equal(textOf(find(needs, (n) => n.props?.className === "tally")), "7", "the view's, and one row is loaded");
+  assert.equal(textOf(find(inIt, (n) => n.props?.className === "tally")), "12");
+  assert.equal(
+    find(none, (n) => n.props?.className === "tally"),
+    null,
+    "no count where the view's was not read",
+  );
+  assert.equal(find(t, (n) => n.type === "table").props["data-grouped"], "true", "the heading stands above a group's");
+});
+
+test("a head has no id, so a fit measures no head and the keys walk over it; it does not fold", () => {
+  const t = table({ rows: inGroups("needs", "in"), total: 2, groupOf });
+  assert.deepEqual(rowIds(t), ["person-g0", "person-g1"], "only the rows have ids");
+  const [head] = headRows(t);
+  assert.equal(head.props.id, undefined);
+  assert.equal(
+    find(head, (n) => n.type === "button"),
+    null,
+    "nothing in it presses: a head does not fold",
+  );
+  assert.equal(bodiesOf(t).length, 1, "one body, heads and rows together");
+  // The first row is the tab stop before there is a cursor, though a head stands before it.
+  const first = find(t, (n) => n.type === "tr" && n.props?.id === "person-g0");
+  assert.ok(first.props.className !== undefined);
+  assert.equal(first.props.tabIndex, 0);
+  assert.equal(find(t, (n) => n.type === "tr" && n.props?.id === "person-g1").props.tabIndex, -1);
+});
+
+test("the window keeps every head drawn however far it is scrolled, and the cursor's row; a count of rows and heads", () => {
+  const many = [
+    ...inGroups(...Array(60).fill("needs")),
+    ...inGroups(...Array(60).fill("in")).map((r, i) => ({ ...r, id: `h${i}` })),
+    ...inGroups(...Array(60).fill("none")).map((r, i) => ({ ...r, id: `k${i}` })),
+  ];
+  watching(() => {
+    const t = table({ rows: many, total: 180, groupOf, cursor: "k50" });
+    assert.equal(headRows(t).length, 3, "every head, though the first screen holds only the first");
+    assert.ok(rowIds(t).includes("person-k50"), "the cursor's row");
+    const marks = find(t, (n) => n.type === "table").props;
+    assert.equal(marks["aria-rowcount"], 180 + 3 + 1, "the rows, the heads among them, and the heading row");
+    assert.equal(headRows(t)[0].props["aria-rowindex"], 2, "the first head is the row after the heading's");
+    assert.equal(find(t, (n) => n.type === "tr" && n.props?.id === "person-g0").props["aria-rowindex"], 3);
+    assert.equal(headRows(t)[1].props["data-index"], 61, "each head is an item of the window, measured as a row is");
+  });
+});
+
+/* ------------------------------------------------------------------------------------- a heading's menu, the foot */
+
+const SWITCHES = { groups: [{ items: [{ label: "Hide column", onSelect() {} }] }], active: false };
+const headingOf = (tree, key) => find(tree, (n) => n.type === "th" && n.props?.["data-key"] === key);
+/** The caret, as the kit's Menu is handed it: Base UI draws it, and the stub React draws no further than the Menu. */
+const caretOf = (tree, key) => {
+  const menu = find(headingOf(tree, key), (n) => n.props?.trigger?.props?.className === "dtable-menu");
+  return menu ? menu.props.trigger : null;
+};
+
+test("a heading with a menu shows its caret; the idle sort caret gives way to it; pressing the heading still sorts", () => {
+  const pressed = [];
+  const t = table({ menus: { state: SWITCHES }, onSort: (k) => pressed.push(k) });
+  assert.equal(headingOf(t, "state").props["data-menu"], "", "what the stylesheet lets the idle arrow go by");
+  assert.ok(caretOf(t, "state"), "its caret");
+  assert.equal(caretOf(t, "state").props["aria-label"], "State: filter and hide");
+  assert.equal(headingOf(t, "name").props["data-menu"], undefined, "a heading with none is as it was");
+  assert.equal(caretOf(t, "name"), null);
+  find(headingOf(t, "state"), (n) => n.props?.className === "dtable-sort").props.onClick();
+  assert.deepEqual(pressed, ["state"]);
+});
+
+test("the caret starts no drag: a column is dragged by its heading, and not from the press that opens its menu", () => {
+  const t = table({ menus: { state: SWITCHES } });
+  const heading = headingOf(t, "state");
+  const dragged = () => {
+    let refused = false;
+    heading.props.onDragStart({
+      target: { closest: () => null },
+      preventDefault: () => {
+        refused = true;
+      },
+      dataTransfer: { setData() {}, effectAllowed: "" },
+    });
+    return refused;
+  };
+  assert.equal(dragged(), false, "from the heading it drags");
+  caretOf(t, "state").props.onPointerDown();
+  assert.equal(dragged(), true, "from the caret it does not");
+  caretOf(t, "state").props.onPointerUp();
+  assert.equal(dragged(), false, "and a press over is over");
+});
+
+test("a filter set with its menu closed shows at the heading", () => {
+  const t = table({ menus: { state: { ...SWITCHES, active: true }, name: SWITCHES } });
+  assert.equal(caretOf(t, "state").props["data-on"], "", "the caret stands lit");
+  assert.equal(headingOf(t, "state").props["data-filtering"], "");
+  assert.equal(caretOf(t, "name").props["data-on"], undefined);
+});
+
+test("a layout taken whole moves what it names in one batch and leaves what it does not, widths among them", () => {
+  table();
+  held.state.sizeColumn("state", 240, true);
+  held.state.takeLayout({ sortBy: "state", sortDir: "desc", density: "compact" });
+  assert.deepEqual(held.state.chosen, { by: "name", dir: "asc" }, "this draw's reading, drawn before the press");
+  assert.equal(held.state.atoms.columnSizing.get().state, 240, "the width stands");
+  assert.deepEqual(chosenSortOf(held.state.atoms.sorting.get(), { by: "name", dir: "asc" }), {
+    by: "state",
+    dir: "desc",
+  });
+  assert.equal(held.state.own.density.get(), "compact");
+  held.state.takeLayout({ density: "comfortable" });
+  assert.deepEqual(chosenSortOf(held.state.atoms.sorting.get(), { by: "name", dir: "asc" }), {
+    by: "state",
+    dir: "desc",
+  });
+  assert.equal(held.state.own.density.get(), "comfortable");
+});
+
+test("the foot says the count, then what the page adds, and holds the page's act at its end", () => {
+  const t = table({ foot: { words: ["2 need you", "23 you can email"], end: h("b", null, "Clear filters") } });
+  const foot = find(t, (n) => n.props?.className === "dtable-foot");
+  assert.match(textOf(foot), /2 people · 2 need you · 23 you can email/);
+  assert.match(textOf(foot), /Clear filters/);
+  assert.match(
+    textOf(find(table(), (n) => n.props?.className === "dtable-foot")),
+    /^2 people$/,
+    "with none, as it was",
+  );
+});
+
 /* ------------------------------------------------------------------------------------------------ in sections */
 
 const SECTIONED = [
@@ -557,6 +721,71 @@ test("words that find nobody say the page's own empty words, and a narrowed view
   find(narrowed, (n) => n.type === "button" && textOf(n) === "Clear filters").props.onClick();
   assert.equal(filters, 1);
   assert.match(textOf(find(narrowed, (n) => n.props?.className === "dtable-foot")), /Showing 0 of 5/);
+});
+
+test("REGRESSION: the foot counts where a narrowing leaves nobody out -- Leads said Showing 27 of 27", () => {
+  const foot = (tree) => textOf(find(tree, (n) => n.props?.className === "dtable-foot"));
+  assert.equal(foot(table({ filtered: true, total: 2, noun: "lead" })), "2 leads", "narrowed, and every row kept");
+  assert.equal(foot(table({ rows: [ROWS[0]], filtered: true, total: 2 })), "Showing 1 of 2", "one left out");
+  assert.equal(foot(table({ rows: [ROWS[0]], total: 2 })), "2 people", "not narrowed: the rest are not loaded yet");
+});
+
+/** The scroller as a page scrolls it: where it stands, and the attributes it was told to wear. */
+const scrollerAt = ({ scrollTop = 0, scrollLeft = 0 }) => {
+  const worn = new Set();
+  return {
+    worn,
+    scrollTop,
+    scrollLeft,
+    clientWidth: 600,
+    scrollWidth: 600,
+    toggleAttribute: (name, on) => (on ? worn.add(name) : worn.delete(name)),
+  };
+};
+
+test("the box says when rows have passed under its heads, which is when a head paints the pane's solid", () => {
+  const scroll = byTestId(table(), "people-table-scroll").props.onScroll;
+  const rest = scrollerAt({});
+  scroll({ currentTarget: rest });
+  assert.deepEqual([...rest.worn], [], "at rest the heads are clear on the pane");
+  const down = scrollerAt({ scrollTop: 40 });
+  scroll({ currentTarget: down });
+  assert.deepEqual([...down.worn], ["data-under"]);
+  const across = scrollerAt({ scrollLeft: 12 });
+  scroll({ currentTarget: across });
+  assert.deepEqual([...across.worn], ["data-scrolled"], "sideways is the pinned cells' own mark, as before");
+});
+
+/** A line as a pointer finds it: how wide its words are, what it holds, and the tip it was given. */
+const lineAt = ({ scrollWidth, clientWidth = 120, saysMore = false, words = "Local: your receptionist is built" }) => {
+  const line = {
+    tip: undefined,
+    scrollWidth,
+    clientWidth,
+    textContent: words,
+    querySelector: () => (saysMore ? {} : null),
+    setAttribute: (name, value) => name === "data-tip" && (line.tip = value),
+    removeAttribute: (name) => name === "data-tip" && (line.tip = undefined),
+  };
+  return line;
+};
+const reach = (tree, line) =>
+  byTestId(tree, "people-table-scroll").props.onMouseOverCapture({ target: { closest: () => line } });
+
+test("a line its column cut says its whole words as its tip; one shown whole, or holding a control that says more, says none", () => {
+  const tree = table();
+  const cut = lineAt({ scrollWidth: 200 });
+  reach(tree, cut);
+  assert.equal(cut.tip, "Local: your receptionist is built");
+  cut.scrollWidth = 100;
+  reach(tree, cut);
+  assert.equal(cut.tip, undefined, "a column made wider takes the tip away");
+  const described = lineAt({ scrollWidth: 200, saysMore: true });
+  reach(tree, described);
+  assert.equal(described.tip, undefined, "its control's own description is the one tip");
+  assert.doesNotThrow(() => reach(tree, null), "a pointer over anything else asks nothing");
+  const cards = table({ card: { label: "Person", cell: (r) => h("td", { key: "card" }, r.name) } });
+  assert.equal(byTestId(cards, "people-table-scroll").props.onMouseOverCapture, undefined, "a phone has no pointer");
 });
 
 /* ------------------------------------- how the rows move ------------------------------------- */

@@ -170,6 +170,18 @@ export function formatPhoneDisplay(e164: string | null | undefined): string | nu
   return `+${digits.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
 
+/**
+ * A number as a list of them reads best: a North American one as its own country writes it, `(718) 419-9255`, where a
+ * `+1` on every row said nothing; any other as formatPhoneDisplay says it. Null for none.
+ */
+export function formatPhoneLocal(e164: string | null | undefined): string | null {
+  if (!e164) return null;
+  const digits = String(e164).replace(/[^\d]/g, "");
+  return digits.length === 11 && digits.startsWith("1")
+    ? `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`
+    : formatPhoneDisplay(e164);
+}
+
 /** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
 export function areaCodeOf(raw: string | null | undefined): string | null {
   const e164 = normalizePhone(raw);

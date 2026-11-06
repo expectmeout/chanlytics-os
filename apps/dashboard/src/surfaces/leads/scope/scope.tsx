@@ -37,6 +37,7 @@ import { peekVMFor } from "../surface";
 import type { LeadsScopeProps } from "../page/props";
 import { LeadsBulkBar } from "./bulk-bar";
 import { LeadsActs, LeadsControlsRight, LeadsHead } from "./controls";
+import { leadHeadMenus, leadQueueGroupOf, leadsFootOf } from "./head-menus";
 import { LeadPlanSheet, LeadsImportAct, LeadsNewSearch, LeadsPhoneBar } from "./phone-bar";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadsRailRows } from "./rail";
@@ -51,6 +52,7 @@ type Sections = TableSection<LeadRowVM>[] | null;
 const railRowsOf = (p: P, phone: boolean) => (
   <LeadsRailRows
     compact={phone}
+    named={p.named}
     rail={p.rail}
     list={p.view.list}
     searchId={p.view.searchId}
@@ -95,6 +97,9 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     swapRef={p.swapRef}
     rowClass={ldRowClass}
     sections={sections}
+    groupOf={leadQueueGroupOf(p.surface, { phone })}
+    menus={phone ? null : leadHeadMenus(p)}
+    foot={phone ? null : leadsFootOf(p)}
     total={p.total}
     sortBy={p.sortBy}
     sortDir={p.sortDir}
@@ -139,6 +144,9 @@ const phoneBarOf = (p: P) => (
     sortItems={p.sortItems}
     reach={p.reach}
     onReach={p.onReach}
+    statusGroups={p.statusGroups}
+    onStatusGroup={p.onStatusGroup}
+    statusCounts={p.statusCounts}
   />
 );
 

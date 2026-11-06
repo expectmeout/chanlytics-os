@@ -85,6 +85,8 @@ export function leadBand(search: LeadSearchDto | null): LeadBand | null {
 }
 
 export interface LeadRowVM {
+  /** Where it stands in the queue (00552), where the read asked: needs, in, or null in neither or a read that asked none. */
+  statusGroup?: LeadRowDto["status_group"];
   id: string;
   searchId: string;
   searchName: string;
@@ -352,10 +354,15 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   };
 }
 
-/** A row as Leads publishes it: its words (toLeadRowVM) and the pile's facts (00426), the reach-out it goes with and when
- * it was put off in this pass. */
+/** A row as Leads publishes it: its words (toLeadRowVM), the pile's facts (00426), the reach-out it goes with and when it
+ * was put off in this pass, and where it stands in the queue, where the read asked (00552). */
 export function leadRowOf(r: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null = null): LeadRowVM {
-  return { ...toLeadRowVM(r, tz, now, search), chainId: r.chain_id ?? null, laterAt: r.member.later_at ?? null };
+  return {
+    ...toLeadRowVM(r, tz, now, search),
+    chainId: r.chain_id ?? null,
+    laterAt: r.member.later_at ?? null,
+    statusGroup: r.status_group ?? null,
+  };
 }
 
 /**

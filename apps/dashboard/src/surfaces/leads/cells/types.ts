@@ -12,8 +12,6 @@ export interface LeadCellCtx extends TableCtx {
   /** A converted lead's person, by their id (the row's `contactId`): the Client pill opens them in People. */
   onOpenPerson: (id: string) => void;
   onExpand: (id: string) => void;
-  /** Values ⁄ Signals: the number and the address in the row. */
-  values: boolean;
   /** Whether the open search's fits differ, which is when a row wears its fit. */
   mixedFits: boolean;
   /** Whether a search names a centre, which is when Distance may be shown. */
@@ -21,6 +19,8 @@ export interface LeadCellCtx extends TableCtx {
   canFind: boolean;
   /** People's rows, for a converted lead's Client pill (0004). */
   peopleRows: readonly PersonRowVM[];
+  /** Whether its rows stand under the queue's heads (a stage sort): then a row stops repeating what its head says. */
+  grouped?: boolean;
   /** Whether the Stage column is drawn: then the name's tag gives way where the column says the same. */
   stageShown: boolean;
   onCall: (id: string) => void;
@@ -31,6 +31,10 @@ export interface LeadCellCtx extends TableCtx {
   onKeep: (id: string) => void;
   onExclude: (id: string) => void;
   onPutBack: (id: string) => void;
+  /** Add the lead to the search's pick (scope/row-add.ts), or open its sheet at the picker where none is chosen. */
+  onAdd: (id: string) => void;
+  /** The search's pick by name, where one is chosen: what a row's Add names. */
+  pickName: string | null;
   /** What ties each row's Call to the one menu the rows share (call-menu.tsx LeadRowsCallMenu), made once by the page. */
   callMenu: LeadCallHandle;
   /** Under a group's own heading on a phone (Needs review's sections): the reason is said once, above. */

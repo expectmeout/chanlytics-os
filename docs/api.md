@@ -1275,6 +1275,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `excluded_by` | string | no | matches `^[a-z][a-z0-9_]{0,59}$` |
 | `fit` | one of `"strong"`, `"look"`, `"long"` | no |  |
 | `reach` | array of one of `"email"`, `"phone"` or string | no |  |
+| `status_group` | array of one of `"needs"`, `"in"`, `"none"` or string | no |  |
 
 ### `GET /api/v1/leads/[id]`
 
@@ -1479,6 +1480,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `excluded_by` | string | no | matches `^[a-z][a-z0-9_]{0,59}$` |
 | `fit` | one of `"strong"`, `"look"`, `"long"` | no |  |
 | `reach` | array of one of `"email"`, `"phone"` or string | no |  |
+| `status_group` | array of one of `"needs"`, `"in"`, `"none"` or string | no |  |
 
 ## lines
 

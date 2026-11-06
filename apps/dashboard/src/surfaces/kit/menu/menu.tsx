@@ -102,10 +102,11 @@ export type MenuOption = { value: string; label: string; hint?: ReactNode; sub?:
 
 /**
  * A set of switches the menu stays open over while each is flipped (a table's columns): each ticked while it is on. One
- * the page keeps on (`locked`, the word said in place of a flip: "Always") is drawn on, and refuses a press.
+ * the page keeps on (`locked`, the word said in place of a flip: "Always") is drawn on, and refuses a press. A switch may
+ * say a word at its end, as an option's `hint` does (how many it holds).
  */
 export type MenuToggles = {
-  items: readonly { value: string; label: string; on: boolean; locked?: string }[];
+  items: readonly { value: string; label: string; on: boolean; locked?: string; hint?: string }[];
   onToggle: (value: string) => void;
   /** The tick (the Icon's `check`, at 13px): drawn on every switch, and seen beside each one that is on (kit.css). */
   tick: ReactElement;
@@ -289,7 +290,7 @@ function Toggles({ toggles }: { toggles: MenuToggles }) {
       closeOnClick={false}
       onCheckedChange={() => toggles.onToggle(t.value)}
     >
-      {itemContent({ label: t.label, glyph: toggles.tick, meta: t.locked })}
+      {itemContent({ label: t.label, glyph: toggles.tick, meta: t.locked, hint: t.hint })}
     </BaseMenu.CheckboxItem>
   ));
   return toggles.chips ? <div className="more-chips">{items}</div> : <>{items}</>;

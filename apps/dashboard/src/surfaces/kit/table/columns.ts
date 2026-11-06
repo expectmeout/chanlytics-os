@@ -66,6 +66,12 @@ export interface DataColumn<R extends TableRow, X = unknown, C = unknown> {
    * and given the room the other columns leave until a member sizes it (widths.ts).
    */
   fill?: boolean;
+  /**
+   * Takes the room the others leave, while it shows and no member has sized it, in the fill column's place (widths.ts):
+   * the column whose words are the ones a narrow width cuts (Leads' Stage). The fill column then stands at its own
+   * width, pinned as ever, and gives way to its least before the table scrolls sideways. One column at most.
+   */
+  takes?: boolean;
   /** Holds still at the right edge: never moved, hidden or sized (the row's acts). */
   fixed?: boolean;
   /** Shown until a member turns it off (the default), or off until asked for. */
@@ -111,6 +117,11 @@ export const TABLE_NUDGE_PX = 16;
 export const TABLE_NUDGE_BIG_PX = 64;
 /** The select column: a box, held at this width. */
 export const TABLE_SELECT_PX = 42;
+/**
+ * The row's acts' column, where they float in over the row's end (People's, Leads' and the Pipeline's): the row's own
+ * right gutter and no more, so the acts cost the columns no room at rest.
+ */
+export const ROW_ACTS_PX = 18;
 /** A column that declares nothing is this wide. */
 const DEFAULT_BASE_PX = 120;
 

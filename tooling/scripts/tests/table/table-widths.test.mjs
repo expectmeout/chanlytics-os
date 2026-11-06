@@ -156,6 +156,72 @@ function standIn(keys) {
   return { table, cols, edges, box };
 }
 
+/** A table shaped like Leads': its fill column, the column that takes the room, three that keep their widths. */
+const TAKES = [
+  { key: "business", fill: true, width: { base: 344, min: 280, max: 640 } },
+  { key: "stage", takes: true, width: { base: 220, min: 180, max: 520 } },
+  { key: "reach", width: { base: 208 } },
+  { key: "rating", width: { base: 92 } },
+  { key: "found", width: { base: 84 } },
+];
+const TAKES_LEAST = 344 + 180 + 208 + 92 + 84;
+
+test("a column that takes the room stands in the fill column's place, which gives way to its least before anything scrolls", () => {
+  const wide = drawnWidths(TAKES, {}, 1200, true);
+  assert.equal(wide.sizing, "fill");
+  assert.deepEqual(wide.widths, [344, null, 208, 92, 84], "the fill column at its own width, the taker's none written");
+  assert.equal(wide.total, TABLE_SELECT_PX + TAKES_LEAST, "the table's least: the taker at its least");
+  const tight = drawnWidths(TAKES, {}, 886, true);
+  assert.equal(tight.widths[0], 280, "the fill column gave way to its least");
+  assert.equal(tight.total, 886, "and the table is its box: nothing scrolls sideways");
+  // It gives way so the taker keeps the width it starts at (220), not only its least: its words are the ones cut.
+  const between = drawnWidths(TAKES, {}, 960, true);
+  assert.equal(between.widths[0], 344 - (TABLE_SELECT_PX + TAKES_LEAST - 180 + 220 - 960), "only as far as that takes");
+  assert.equal(960 - (TABLE_SELECT_PX + between.widths[0] + 208 + 92 + 84), 220, "the taker stands where it starts");
+  const tighter = drawnWidths(TAKES, {}, 900, true);
+  assert.equal(
+    tighter.widths[0],
+    280,
+    "REGRESSION: the fill column kept 22px the taker's line was cut for (1440 wide)",
+  );
+  assert.equal(900 - (TABLE_SELECT_PX + 280 + 208 + 92 + 84), 194, "the taker has what is left, over its least");
+  const narrow = drawnWidths(TAKES, {}, 760, true);
+  assert.equal(narrow.widths[0], 280, "never under its least");
+  assert.equal(narrow.total, 886, "past both leasts the table scrolls sideways");
+  assert.equal(drawnWidths(TAKES, {}, null, true).widths[0], 344, "before the box is measured, where it starts");
+});
+
+test("a wide box: the taker stops at its most, the fill column takes what is past it up to its own most", () => {
+  const kept = TABLE_SELECT_PX + 208 + 92 + 84;
+  // REGRESSION: at 1920 wide Stage stood 602px, two words in it, and pushed Reach to the far edge of the table.
+  const roomy = drawnWidths(TAKES, {}, 1378, true);
+  assert.equal(roomy.widths[0], 1378 - kept - 520, "the fill column has what is past the taker's most");
+  assert.equal(roomy.widths[1], null, "the taker's width is still the room left: the table is its box");
+  assert.equal(roomy.total, TABLE_SELECT_PX + TAKES_LEAST, "the table's least does not move with the box");
+  const edge = drawnWidths(TAKES, {}, kept + 344 + 520, true);
+  assert.equal(edge.widths[0], 344, "at the taker's most exactly, the fill column is where it starts");
+  const vast = drawnWidths(TAKES, {}, 2400, true);
+  assert.equal(vast.widths[0], 640, "never past its own most: what is left then is the taker's");
+  const noMost = TAKES.map((c) => (c.key === "stage" ? { ...c, width: { base: 220, min: 180 } } : c));
+  assert.equal(drawnWidths(noMost, {}, 2400, true).widths[0], 344, "a taker with no most takes all of it");
+  assert.equal(drawnWidths(TAKES, { business: 400 }, 2400, true).widths[0], 400, "a member's width is theirs");
+});
+
+test("a taker hidden or sized by a member is a column like any other; a fill column a member sized keeps their width", () => {
+  const shown = TAKES.filter((c) => c.key !== "stage");
+  const hidden = drawnWidths(shown, {}, 1368, true);
+  assert.deepEqual(hidden.widths, [null, 208, 92, 84], "the fill column takes the room again, as it always did");
+  assert.equal(hidden.total, TABLE_SELECT_PX + 280 + 208 + 92 + 84);
+  const sized = drawnWidths(TAKES, { stage: 300 }, 1368, true);
+  assert.deepEqual(sized.widths, [null, 300, 208, 92, 84], "sized: the fill column fills beside it");
+  const both = drawnWidths(TAKES, { stage: 300, business: 400 }, 1368, true);
+  assert.equal(both.sizing, "sized");
+  assert.deepEqual(both.widths, [400, 300, 208, 92, 84]);
+  const theirs = drawnWidths(TAKES, { business: 400 }, 800, true);
+  assert.deepEqual(theirs.widths, [400, null, 208, 92, 84], "a width a member gave the fill column does not give way");
+  assert.equal(theirs.total, TABLE_SELECT_PX + TAKES_LEAST - 344 + 400);
+});
+
 test("the writer: each col its width, the fill column's none while it fills, the table how it is sized, each edge its width", () => {
   const { table, cols, edges, box } = standIn(COLS.map((c) => c.key));
   writeWidths(table, COLS, drawnWidths(COLS, {}, 1000, true));

@@ -6906,6 +6906,8 @@ textarea.rec-input,
   /* A picked row: an ink tint that shows in light as in dark (7% of the ink on light paper, 12% on dark, where 7% sat
      within a shade of a hovered row and the cursor's). */
   --dtable-picked: oklch(from var(--ink) l c h / 0.07);
+  /* The room a cell's two lines take (.dtable-lines), which a page's own name block keeps too. */
+  --dtable-two-lines: calc((var(--text-sm) + var(--text-xs)) * var(--leading-snug) + 3px);
 }
 [data-theme="dark"] .dtable-wrap {
   --dtable-picked: oklch(from var(--ink) l c h / 0.12);
@@ -6981,6 +6983,39 @@ textarea.rec-input,
 /* The row's acts' heading takes no more than they need where nothing sets the columns' widths. */
 .dtable th[data-pin="end"] {
   width: 1%;
+}
+/* A cell's two lines (table/lines.tsx): the fact, then what qualifies it a step smaller in the dim ink, each on a line
+   of its own, cut in its own column. A number's stand at the column's end, with its heading. The two keep the room of
+   two whether or not there is a second, so a cell with one fact stands on the first line, where every other cell's fact
+   and the row's name stand, and not between the two (a cell stands at its row's middle). */
+.dtable-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  min-height: var(--dtable-two-lines);
+}
+.dtable-line-top,
+.dtable-line-sub {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: var(--leading-snug);
+}
+.dtable-line-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.dtable-lines[data-end] {
+  align-items: flex-end;
+  text-align: right;
+}
+/* A line left open: what it holds cuts its own words, so a control's focus ring and its tip are not clipped with them. */
+.dtable-lines[data-open] > .dtable-line-top,
+.dtable-lines[data-open] > .dtable-line-sub {
+  overflow: visible;
 }
 .dtable-foot {
   padding: 10px 14px;
@@ -7216,6 +7251,41 @@ textarea.rec-input,
   .dtable thead .dtable-sort:focus-visible .dtable-arrow[data-idle] {
     opacity: 1;
   }
+  /* A heading a page gave a menu: its caret stands where the idle arrow did, above the press that sorts (the cell's whole
+     box, ::after above), and lit while a filter in it is on, so the view says what it is with the menu closed. */
+  .dtable thead th[data-menu] .dtable-arrow[data-idle] {
+    display: none;
+  }
+  .dtable thead th .dtable-menu {
+    all: unset;
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+    vertical-align: middle;
+    border-radius: var(--radius-xs);
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: color 120ms ease;
+  }
+  @media (hover: hover) {
+    .dtable thead th:hover .dtable-menu {
+      color: var(--ink-muted);
+    }
+  }
+  .dtable thead th .dtable-menu[aria-expanded="true"] {
+    color: var(--ink-muted);
+  }
+  .dtable thead th .dtable-menu[data-on] {
+    color: var(--ink);
+  }
+  .dtable thead th .dtable-menu:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
   /* The edge: a thin separator at the heading's right, wider to hit than to see. It is the keyboard's too (it takes focus). */
   .dtable-edge {
     position: absolute;
@@ -7287,6 +7357,24 @@ textarea.rec-input,
   .dtable-wrap[data-density="compact"] .dtable-scroll .dtable td {
     padding-top: 4px;
     padding-bottom: 4px;
+  }
+  /* A cell's two lines stand side by side there: what qualifies the fact gives way, all of the way, before the fact is
+     cut at the cell's own width (a share of the squeeze, however small, cut "5.0" to "5.…" beside "16 re…"). */
+  .dtable-wrap[data-density="compact"] .dtable-lines {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+    min-height: 0;
+  }
+  .dtable-wrap[data-density="compact"] .dtable-lines[data-end] {
+    justify-content: flex-end;
+  }
+  .dtable-wrap[data-density="compact"] .dtable-line-top {
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+  .dtable-wrap[data-density="compact"] .dtable-line-sub {
+    flex: 0 1 auto;
   }
 }
 
@@ -7526,8 +7614,9 @@ textarea.rec-input,
   .dtable-wrap .dtable tbody tr > td {
     border-bottom: 0;
   }
+  /* 20px between two columns' words (12 ran a long line into its neighbour's, 5 Nov 2026). */
   .dtable-wrap .dtable td {
-    padding: 10px 6px;
+    padding: 10px;
   }
   .dtable-wrap .dtable td:first-child,
   .dtable-wrap .dtable thead th:first-child {
@@ -7614,17 +7703,22 @@ textarea.rec-input,
   .dtable-wrap .dtable th .dtable-check:indeterminate {
     opacity: 1;
   }
-  /* The head is clear on the pane; it stays sticky, so it blurs the rows that pass under it. */
+  /* The head is clear on the pane while nothing is under it. It stays sticky, and once rows pass under it (data-under,
+     said on the box as it scrolls) it paints the pane's solid: as clear glass it blurred each row under it to a smear
+     behind its words (5 Nov 2026), as the pinned heads did sideways. */
   .dtable-wrap .dtable thead th,
   .dtable-wrap .dtable thead th.dtable-sel,
   .dtable-wrap .dtable thead th[data-pin="start"] {
-    padding: 6px 6px 8px;
+    padding: 6px 10px 8px;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
     letter-spacing: 0.08em;
     color: var(--ink-dim);
     background: transparent;
-    backdrop-filter: blur(var(--blur-md));
+  }
+  .dtable-wrap .dtable-scroll[data-under] .dtable thead th,
+  .dtable-wrap .dtable-scroll[data-under] .dtable-group > th {
+    background: var(--surface-pane-solid);
   }
   /* The foot (P1): how many, at the small step, over a hairline. */
   .dtable-wrap .dtable-foot {
@@ -7648,7 +7742,6 @@ textarea.rec-input,
     padding-top: 16px;
     font-size: var(--text-sm);
     background: transparent;
-    backdrop-filter: blur(var(--blur-md));
   }
   .dtable-wrap .dtable-group .dtable-group-label {
     font-size: var(--text-base);

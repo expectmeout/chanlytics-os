@@ -6,7 +6,7 @@ import type { LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
 import { LEAD_KIND_KEY, LEAD_NO_SITE_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./search/class";
-import { LEAD_REACH_FILTERS, type LeadReachFilter } from "./search/sets";
+import { LEAD_REACH_FILTERS, LEAD_STATUS_GROUPS, type LeadReachFilter, type LeadStatusGroup } from "./search/sets";
 import {
   LEAD_CHECK_WORDS,
   LEAD_LEFT_OUT_WORD,
@@ -16,6 +16,7 @@ import {
 } from "./lead-words";
 import { weekdayNamed } from "../calendar/day-keys";
 import { clockInZone, dayInZone, dayPlusInZone } from "../calendar/zone-math";
+import { formatPhoneLocal } from "../shared/phone";
 import { DAY_MS } from "../shared/time";
 
 /**
@@ -155,6 +156,9 @@ export const LEAD_SLOT_WORDS: Record<LeadSlotState, string> = {
   checking: "Still checking",
 };
 
+/** What a table's Reach says where a slot found nothing: in words, where a dashed ring said it to nobody. */
+export const LEAD_REACH_NONE_WORDS = { phone: "No phone found", mailbox: "No email found" } as const;
+
 /**
  * The two reach slots, phone then mailbox (D5): five states a shape can carry, so the column survives greyscale.
  * A mail server that would not answer wears Unconfirmed's shape with its own sentence; a number the owner marked
@@ -164,6 +168,8 @@ export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_
   phone: LeadSlot;
   mailbox: LeadSlot;
 } {
+  // The number as a person reads it, in what is said of it; the slot's value stays the number a dial takes.
+  const said = formatPhoneLocal(r.phone) ?? r.phone;
   const phone: LeadSlot = !r.phone
     ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false }
     : r.phone_wrong
@@ -171,7 +177,7 @@ export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_
           state: "bad",
           value: r.phone,
           word: LEAD_SLOT_WORDS.bad,
-          tip: `${r.phone} — you marked this number wrong`,
+          tip: `${said} — you marked this number wrong`,
           copy: false,
         }
       : r.phone_agrees
@@ -179,14 +185,14 @@ export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_
             state: "ok",
             value: r.phone,
             word: LEAD_SLOT_WORDS.ok,
-            tip: `${r.phone} — the same number on Google Maps and on their website`,
+            tip: `${said} — the same number on Google Maps and on their website`,
             copy: true,
           }
         : {
             state: "part",
             value: r.phone,
             word: LEAD_SLOT_WORDS.part,
-            tip: `${r.phone} — one source, their Google Maps listing`,
+            tip: `${said} — one source, their Google Maps listing`,
             copy: true,
           };
   const s = r.email_state;
@@ -236,6 +242,10 @@ export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_
 /** A kept or a flipped set of reach filters, each once and in the set's one order; anything else is dropped. */
 export const leadReachOf = (v: unknown): LeadReachFilter[] =>
   Array.isArray(v) ? LEAD_REACH_FILTERS.filter((f) => v.includes(f)) : [];
+
+/** A kept or a flipped set of status groups, each once and in the queue's order; anything else is dropped. */
+export const leadStatusGroupsOf = (v: unknown): LeadStatusGroup[] =>
+  Array.isArray(v) ? LEAD_STATUS_GROUPS.filter((g) => v.includes(g)) : [];
 
 /**
  * The filter's words: its two switches, their heading and the line under them, its control's hover, and its control with

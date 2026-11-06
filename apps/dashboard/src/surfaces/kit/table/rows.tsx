@@ -6,10 +6,14 @@
  *
  * A cell draws its own `<td>`; the row marks on it the column it is (`data-col`) and, for the fill column, that it is
  * pinned at the left edge (`data-pin`), so where a column stands is the kit's in one place.
+ *
+ * One row is in the tab order on a desk: the cursor's (the first until there is one), with the controls its cells drew.
+ * Every other row's controls are taken out of it (`setRowTabs`), and are still a pointer's to press.
  */
-import { cloneElement, memo } from "react";
+import { cloneElement, memo, useLayoutEffect } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 import { warmsOnReach } from "../../legacy-verbs";
+import { setRowTabs } from "./row-tabs";
 import { EmptyState } from "../empty/empty";
 import type { AnyDataColumn, DataCard, RowPick, TableRow } from "./columns";
 import type { TableNouns } from "./head";
@@ -66,12 +70,17 @@ function TableRowView<R extends TableRow, X>(p: RowProps<R, X>) {
   // What a card's face says of the selection: a ring while one is under way, the ink with its tick for this one in it.
   const pick: RowPick = selected ? "chosen" : selecting ? "choose" : undefined;
   const own = [card?.rowClass, p.rowClass ? p.rowClass(row) : ""].filter(Boolean).join(" ");
+  const rowId = `${words.id ?? words.one}-${row.id}`;
+  // After each draw of the row, since a cell may have drawn a control since. A phone's cards have no cursor to walk.
+  useLayoutEffect(() => {
+    if (typeof document !== "undefined") setRowTabs(document.getElementById(rowId), p.tabStop || !!card);
+  });
   return (
     <tr
       ref={p.measure}
       data-index={p.index}
       aria-rowindex={p.rowIndex}
-      id={`${words.id ?? words.one}-${row.id}`}
+      id={rowId}
       className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${own}`}
       aria-selected={selectable ? selected : undefined}
       data-card={card ? "" : undefined}

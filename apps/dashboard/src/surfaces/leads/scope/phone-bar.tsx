@@ -8,7 +8,7 @@
  * A search's reach-out (Reach out Part 4 PR 6) is an accent word under its counts on a phone (scope.tsx), not here.
  */
 import type { ReactNode, RefObject } from "react";
-import type { LeadReachFilter } from "@chanlytics/contracts";
+import type { LeadReachFilter, LeadStatusGroup, LeadViewCountsDto } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
 import { Menu } from "../../kit/menu/menu";
@@ -19,6 +19,7 @@ import { Sheet, type SheetBack } from "../../kit/sheet/sheet";
 import { JOB_CANCEL } from "../../people/sheets/phone-sheet";
 import { BarWord, PeoplePhoneBar, SELECT_WORDS } from "../../people/rail/phone-bar";
 import { leadReachGroup } from "./controls";
+import { leadStatusGroupMenu } from "./head-menus";
 
 interface LeadsPhoneBarProps {
   listLabel?: ReactNode;
@@ -39,8 +40,12 @@ interface LeadsPhoneBarProps {
   /** Select's word now and what it does, or none where nobody may act on a selection or nothing is shown. */
   select?: { word: string; press: () => void } | null;
   sortItems?: readonly PeopleMenuItem[];
-  /** The Filter's reach (controls.tsx LeadsFilterMenu): its two switches stand under the sorts, as chips. */
+  /** The Filter's reach (controls.tsx leadReachGroup): its two switches stand under the sorts, as chips. */
   reach?: readonly LeadReachFilter[];
+  /** The status groups (head-menus.tsx), beside them: a desk's Stage heading holds these. */
+  statusGroups?: readonly LeadStatusGroup[];
+  onStatusGroup?: (group: string) => void;
+  statusCounts?: LeadViewCountsDto["status_groups"] | null;
   onReach?: (filter: string) => void;
 }
 
@@ -54,12 +59,16 @@ interface LeadsPhoneBarProps {
  */
 /** Sort's word, and the word it says while the Filter's switches in its sheet leave some leads out (People says Filtered). */
 const SORT_WORDS = ["Sort", "Filtered"] as const;
+const NO_TOGGLE = (): void => undefined;
 
 function barWords(o: {
   select: { word: string; press: () => void } | null;
   sortItems: readonly PeopleMenuItem[];
   reach: readonly LeadReachFilter[];
   onReach: (filter: string) => void;
+  statusGroups: readonly LeadStatusGroup[];
+  onStatusGroup: (group: string) => void;
+  statusCounts: LeadViewCountsDto["status_groups"] | null | undefined;
   onImport: () => void;
   canMap: boolean;
   mapOn: boolean;
@@ -75,10 +84,14 @@ function barWords(o: {
       {o.sortItems.length ? (
         <Menu
           label="Sort"
-          groups={[...menuGroups(o.sortItems), leadReachGroup(o.reach, o.onReach, true)]}
+          groups={[
+            ...menuGroups(o.sortItems),
+            leadReachGroup(o.reach, o.onReach, true),
+            leadStatusGroupMenu(o.statusGroups, o.onStatusGroup, o.statusCounts, true),
+          ]}
           trigger={
             <Button variant="plain" size="sm" data-testid="leads-phone-sort">
-              <BarWord word={o.reach.length ? "Filtered" : "Sort"} words={SORT_WORDS} />
+              <BarWord word={o.reach.length || o.statusGroups.length ? "Filtered" : "Sort"} words={SORT_WORDS} />
             </Button>
           }
         />
@@ -124,6 +137,9 @@ export const LeadsPhoneBar = ({
   select = null,
   sortItems = [],
   reach = [],
+  statusGroups = [],
+  onStatusGroup,
+  statusCounts,
   onReach = () => undefined,
   title = null,
 }: LeadsPhoneBarProps) => (
@@ -144,7 +160,19 @@ export const LeadsPhoneBar = ({
       title={title}
       trailing={
         <>
-          {barWords({ select, sortItems, reach, onReach, onImport, canMap, mapOn, onMap })}
+          {barWords({
+            select,
+            sortItems,
+            reach,
+            onReach,
+            statusGroups,
+            onStatusGroup: onStatusGroup ?? NO_TOGGLE,
+            statusCounts,
+            onImport,
+            canMap,
+            mapOn,
+            onMap,
+          })}
           <button
             type="button"
             className="pp-bar-icon ld-bar-find"

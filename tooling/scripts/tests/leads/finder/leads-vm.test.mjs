@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emptyReadSet, groundCitations, stateLabel } from "@chanlytics/contracts";
+import { emptyReadSet, groundCitations, leadRowOf, stateLabel } from "@chanlytics/contracts";
 import {
   leadsRoute,
   parseLeadsRoute,
@@ -450,7 +450,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
         state: "ok",
         value: "+15125550101",
         word: "Checked",
-        tip: "+15125550101 — the same number on Google Maps and on their website",
+        tip: "(512) 555-0101 — the same number on Google Maps and on their website",
         copy: true,
       },
       mailbox: {
@@ -1582,4 +1582,11 @@ test("a search's empty view says what its round holds: leads to look at, or that
     "an ended search with none: the page's words",
   );
   assert.equal(leadSearchEmptyWords(null), null);
+});
+
+test("a row reads its status group, and none where the read asked none", () => {
+  const groupOf = (over) => leadRowOf(row(over), "UTC", new Date("2026-11-05T12:00:00Z")).statusGroup;
+  assert.equal(groupOf({ status_group: "needs" }), "needs");
+  assert.equal(groupOf({ status_group: null }), null);
+  assert.equal(groupOf({}), null, "a server before 00552 says nothing of it");
 });

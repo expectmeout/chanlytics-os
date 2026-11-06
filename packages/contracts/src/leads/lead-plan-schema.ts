@@ -15,7 +15,7 @@ import {
   leadNotBusinessesLine,
 } from "./lead-words";
 import { BUSINESS_LINE_MAX, LEAD_MAX_PLACES } from "./search/caps";
-import { LEAD_FITS, LEAD_REACH_FILTERS } from "./search/sets";
+import { LEAD_FITS, LEAD_REACH_FILTERS, LEAD_STATUS_GROUPS } from "./search/sets";
 import { LEAD_CRITERION_KEY, LEAD_WORDS_MAX } from "./lead-plan";
 import { leadKindKey, stateCode } from "./search/clean";
 import { lowerFirst } from "./search/sentence";
@@ -45,8 +45,9 @@ import { LeadPeoplePlanSchema } from "./search/people-plan-schema";
 
 /**
  * The page's narrowings, as the read takes them (decision 0083, Phase B: `leads_page`'s `p_filters`, `lead_matches`):
- * the box's words, the criterion that left a lead out, a fit, and the reaches the Filter asks. A query says the reaches
- * as one field, `email,phone`; a body as a list; either way they arrive each once, in the set's order.
+ * the box's words, the criterion that left a lead out, a fit, the reaches the Filter asks, and the status groups a
+ * heading's menu asks (00552). A query says a set as one field, `email,phone`; a body as a list; either way they arrive
+ * each once, in the set's order.
  */
 const LeadFiltersSchema = z.object({
   q: z.string().trim().max(LEAD_WORDS_MAX).optional(),
@@ -60,6 +61,16 @@ const LeadFiltersSchema = z.object({
     .transform((v) => {
       const asked: readonly string[] = typeof v === "string" ? v.split(",") : v;
       return LEAD_REACH_FILTERS.filter((f) => asked.includes(f));
+    })
+    .optional(),
+  status_group: z
+    .union([
+      z.array(z.enum(LEAD_STATUS_GROUPS)).max(LEAD_STATUS_GROUPS.length),
+      z.string().regex(/^(needs|in|none)(,(needs|in|none)){0,2}$/),
+    ])
+    .transform((v) => {
+      const asked: readonly string[] = typeof v === "string" ? v.split(",") : v;
+      return LEAD_STATUS_GROUPS.filter((g) => asked.includes(g));
     })
     .optional(),
 });

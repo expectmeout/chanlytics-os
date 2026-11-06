@@ -1479,4 +1479,38 @@ test.describe("Phone shell on a real workspace", () => {
     await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/[\w-]+$/);
     await expect(page.locator(".cl-profile")).toBeVisible();
   });
+
+  /**
+   * A long name ends in its ellipsis before More, on one line, and their page says it whole (Ruben, 5 Nov 2026): it ran
+   * 32px on under the ⋯, with the line under it. This workspace's names are short, so the head lends one a business's.
+   */
+  test("a long name in a thread's header stops before More, on one line", async ({ page }) => {
+    await page.goto("/#/inbox");
+    await page.waitForLoadState("networkidle");
+    const row = page.locator(".ix-thread").first();
+    test.skip((await row.count()) === 0, "no thread on this workspace");
+    await row.click();
+    const head = page.locator(".ix-thread-pane > .ix-th-head");
+    await expect(head).toBeVisible();
+    await motionSettled(page);
+    const fit = await head.evaluate((el) => {
+      const words = el.querySelector(".ix-th-name-words");
+      const name = words?.firstChild;
+      const more = el.querySelector(".ix-th-more")?.getBoundingClientRect();
+      const under = el.querySelector(".ix-th-sub");
+      if (!words || !name || !more || !under) return null;
+      const was = name.nodeValue;
+      name.nodeValue = "24 Hr. Emergency Plumbing & Hot Water Repairs of Greater Springfield";
+      const box = words.getBoundingClientRect();
+      const measured = {
+        cut: words.scrollWidth > words.clientWidth,
+        oneLine: box.height < parseFloat(getComputedStyle(words).fontSize) * 2,
+        nameClearOfMore: box.right <= more.left,
+        lineClearOfMore: under.getBoundingClientRect().right <= more.left,
+      };
+      name.nodeValue = was;
+      return measured;
+    });
+    expect(fit).toEqual({ cut: true, oneLine: true, nameClearOfMore: true, lineClearOfMore: true });
+  });
 });

@@ -13,15 +13,6 @@ import type { Armed, DraftState, PeekMode } from "../peek/types";
 import type { FinderState } from "../finder/types";
 import type { LeadRail } from "../scope/rail";
 
-/** The viewer's Values ⁄ Signals choice, read in a try: a private window or blocked storage answers Signals. */
-const ldValuesPref = (): boolean => {
-  try {
-    return !!window.localStorage && window.localStorage.getItem("leads.values") === "1";
-  } catch {
-    return false;
-  }
-};
-
 /** Before the first read: no searches, no rows, nothing counted. */
 const PL_NO_LEADS: LeadsSurface = {
   searches: [],
@@ -135,9 +126,8 @@ export const useLeadsState = () => {
   // "Did you send it?" after a draft, "How did the call go?" after a call. `asked` turns true only once the tab is
   // theirs again (leadArmOnReturn, Task 13), so nothing is asked while they are away.
   const [armed, setArmed] = useState<Armed | null>(null);
-  // D5: the row's Values ⁄ Signals choice (kept per viewer), and the photo expanded. The band's fit, the Excluded view's
-  // chip and the Filter's reach are the table's filters (reads.ts leadNarrowings, decision 0083).
-  const [values, setValues] = useState(ldValuesPref());
+  // D5: the photo expanded. The band's fit, the Excluded view's chip and the Filter's reach are the table's filters
+  // (reads.ts leadNarrowings, decision 0083).
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [benchGroup, setBenchGroup] = useState<string | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
@@ -167,8 +157,6 @@ export const useLeadsState = () => {
     setDraft,
     armed,
     setArmed,
-    values,
-    setValues,
     lightboxId,
     setLightboxId,
     benchGroup,

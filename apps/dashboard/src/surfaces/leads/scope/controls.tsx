@@ -1,17 +1,16 @@
 /**
- * The desk's tools (moved from legacy/pages/leads-scope.jsx, decision 0015): the Filter, the map, Values ⁄ Signals, which
+ * The desk's tools (moved from legacy/pages/leads-scope.jsx, decision 0015): the map, which
  * columns show and the file, as words beside Columns (the ⋯ that folded them is gone), on the row of views before the
  * page's acts (the page heads canvas, H1, 31 Oct 2026), where they stood at the right of the search in a row of their own.
  * The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live canvas), stand at the
  * right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
 import type { ReactNode } from "react";
-import { LEAD_REACH_FILTERS, LEAD_REACH_WORDS, leadReachWord, type LeadReachFilter } from "@chanlytics/contracts";
+import { LEAD_REACH_FILTERS, LEAD_REACH_WORDS, type LeadReachFilter } from "@chanlytics/contracts";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { Button } from "../../kit/button/button";
-import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
 import type { AnyDataColumn } from "../../kit/table/columns";
 import { TableColumnsMenu } from "../../kit/table/columns-menu";
@@ -23,10 +22,6 @@ interface ControlsProps {
   onExport: () => void;
   mapOpen: boolean;
   onMap: (on: boolean) => void;
-  values: boolean;
-  onValues: (on: boolean) => void;
-  reach: readonly LeadReachFilter[];
-  onReach: (filter: string) => void;
   /** The table's state, and the columns this workspace declares: what the Columns menu draws. */
   table: TableState;
   declared: readonly AnyDataColumn[];
@@ -71,28 +66,9 @@ export const LeadsHead = ({ act }: { act?: ReactNode }) => {
 /**
  * The Filter (Ruben, 30 Oct 2026: "a specific email list to send a sequence to vs a call list"): only the leads with a
  * checked email, a checked phone, or both, as the Reach column says Checked. The kit's switches, as Columns draws them,
- * the menu open while each is flipped; its word says what is on, as Map and Values say the view they show. The phone's is
- * the same two switches in its Sort sheet (phone-bar.tsx).
+ * the menu open while each is flipped. On a desk it is the Reach heading's menu (head-menus.tsx, 5 Nov 2026), where the
+ * word it filters stands; on a phone the same two switches in its Sort sheet (phone-bar.tsx), as chips on a line.
  */
-const LeadsFilterMenu = ({
-  reach,
-  onReach,
-}: {
-  reach: readonly LeadReachFilter[];
-  onReach: (filter: string) => void;
-}) => (
-  <Menu
-    label={LEAD_REACH_WORDS.none}
-    groups={[leadReachGroup(reach, onReach, false)]}
-    trigger={
-      <Button variant="quiet" size="sm" data-tip={LEAD_REACH_WORDS.tip} data-testid="leads-filter">
-        {leadReachWord(reach)}
-      </Button>
-    }
-  />
-);
-
-/** The Filter's switches as the kit's Menu takes them: rows on a desk, chips on a line in a phone's sheet. */
 export const leadReachGroup = (
   reach: readonly LeadReachFilter[],
   onReach: (filter: string) => void,
@@ -118,10 +94,10 @@ export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
     : { onClick: () => undefined, ...gate("export", "export these leads") };
   return (
     <div className="pg-tools">
-      <LeadsFilterMenu reach={p.reach} onReach={p.onReach} />
-      <TableColumnsMenu state={p.table} columns={p.declared} desk={!p.phone} rowHeight={false} />
-      {/* The map, Values / Signals and the file stand beside Columns as words, as People's Import and Export do (the ⋯ that
-          folded them away is gone, Ruben, 9 Oct 2026). */}
+      <TableColumnsMenu state={p.table} columns={p.declared} desk={!p.phone} />
+      {/* The map and the file stand beside Columns as words, as People's Import and Export do (the ⋯ that folded them
+          away is gone, Ruben, 9 Oct 2026). Values ⁄ Signals stood here too: a button to see what a row holds, which the
+          Reach column now says in the row (the table review of 5 Nov 2026). */}
       <div className="pl-file-acts">
         <Button
           variant="quiet"
@@ -131,15 +107,6 @@ export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
           data-testid="leads-map-toggle"
         >
           {p.mapOpen ? "Table" : "Map"}
-        </Button>
-        <Button
-          variant="quiet"
-          size="sm"
-          data-tip="Show the numbers and addresses in the rows"
-          onClick={() => p.onValues(!p.values)}
-          data-testid="leads-values-toggle"
-        >
-          {p.values ? "Signals" : "Values"}
         </Button>
         <Button variant="quiet" size="sm" data-testid="leads-export" {...exportPress}>
           Export

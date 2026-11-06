@@ -10,6 +10,13 @@
  *   over can always be reached (a Person saved at 979px stood over the whole of an 888px box). What a member saved is
  *   kept; this only draws it.
  *
+ * A table may name another column to take the room (`takes`: Leads' Stage, whose words are what a narrow width cuts).
+ * While that one shows and nobody has sized it, the table fills as above with it in the fill column's place: the fill
+ * column stands at its own width, and gives way to its least as the box narrows, first so that the taker keeps the
+ * width it starts at (its words are the ones a narrow width cuts), so the table scrolls sideways only once both stand
+ * at their least. In a wide box the taker stops at its most and the fill column takes what is past it, to its own most.
+ * Hidden, or sized by a member, it is a column like any other and the rules above hold.
+ *
  * The share-of-spare-room model this replaces (every column growing by a share, the first drag freezing all of them)
  * is gone: it was rebuilt three times. Widths are written to the table's `<col>`s and its attributes as the sizing atom
  * moves (`writeWidths`), never through React, so a drag draws no row.
@@ -31,11 +38,25 @@ export interface DrawnWidths {
 }
 
 /**
+ * Where the fill column stands beside a column that takes the room, given the room the box leaves that one with the
+ * fill column where it starts. Narrower, never under its least, where the taker would stand under the width it starts
+ * at. Wider, never past its most, where the taker would stand past its own most (Stage stood 602px at 1920 wide, two
+ * words in it); what is left past both is the taker's, since the table is its box.
+ */
+const fillBeside = (fill: Pick<AnyDataColumn, "width">, takes: Pick<AnyDataColumn, "width">, room: number): number => {
+  const stands = baseOf(fill);
+  if (room < baseOf(takes)) return Math.max(fillMinOf(fill), stands - (baseOf(takes) - room));
+  const most = takes.width?.max;
+  if (most === undefined || room <= most) return stands;
+  return Math.min(Math.max(stands, fill.width?.max ?? stands), stands + (room - most));
+};
+
+/**
  * The widths a desk draws: the columns in the order drawn, the member's widths, the box's width (null before it is
  * measured), and whether the select column stands first.
  */
 export function drawnWidths(
-  columns: readonly Pick<AnyDataColumn, "key" | "fill" | "width">[],
+  columns: readonly Pick<AnyDataColumn, "key" | "fill" | "takes" | "width">[],
   sizing: Readonly<Record<string, number>>,
   box: number | null,
   selectable: boolean,
@@ -44,6 +65,22 @@ export function drawnWidths(
   const fillAt = columns.findIndex((c) => c.fill);
   const fill = columns[fillAt];
   const widthOf = (c: Pick<AnyDataColumn, "key" | "width">): number => sizing[c.key] ?? baseOf(c);
+  const takesAt = columns.findIndex((c) => c.takes && !c.fill && sizing[c.key] === undefined);
+  const takes = columns[takesAt];
+  if (takes) {
+    const widths = columns.map((c, i) => (i === takesAt ? null : widthOf(c)));
+    const least = (): number => sel + widths.reduce<number>((sum, x) => sum + (x ?? 0), 0) + fillMinOf(takes);
+    // The fill column moves only at the page's own width and in a measured box: a width a member gave it is theirs.
+    if (!fill || sizing[fill.key] !== undefined || box === null || box <= 0) {
+      return { widths, sizing: "fill", total: least() };
+    }
+    const beside = fillBeside(fill, takes, Math.round(box) - (least() - fillMinOf(takes)));
+    // The table's least is said with the fill column no wider than it starts, so a wide box does not raise it.
+    widths[fillAt] = Math.min(beside, baseOf(fill));
+    const total = least();
+    widths[fillAt] = beside;
+    return { widths, sizing: "fill", total };
+  }
   if (fill && sizing[fill.key] === undefined) {
     const widths = columns.map((c, i) => (i === fillAt ? null : widthOf(c)));
     const others = widths.reduce<number>((sum, w) => sum + (w ?? 0), 0);
