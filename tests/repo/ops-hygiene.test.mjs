@@ -194,10 +194,8 @@ test("the opening check is graded weekly once it is switched on, and by hand: th
 
 test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 plan, D4), apart from the suite: its verdict is its own step and its own issue, titled by whether Ask crossed a line or the check could not run (I2:2), and never turns the suite red", () => {
   const y = readRaw(".github/workflows/nightly-e2e.yml");
-  const step = y.slice(
-    y.indexOf("- name: Ask's cache and first words hold their lines"),
-    y.indexOf("- run: pnpm e2e:install"),
-  );
+  const asked = y.indexOf("- name: Ask's cache and first words hold their lines");
+  const step = y.slice(asked, y.indexOf("- run: pnpm e2e:install", asked));
   assert.ok(
     step.includes("node --import tsx tooling/scripts/ops/ask-day.mjs --check > ask-day.txt"),
     "the check, its lines kept",

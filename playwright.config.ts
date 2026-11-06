@@ -21,6 +21,11 @@ import { defineConfig, devices } from "@playwright/test";
  * developer machine and none in CI (ci.yml: "CI holds no live service secrets").
  * They skip with a stated reason rather than failing, exactly as the six
  * credential-gated integration suites in tests already do.
+ *
+ * The nightly runs every spec on a copy of the commit, on the runner, and only
+ * e2e/production/ and a few doors against production (.github/workflows/nightly-e2e.yml).
+ * e2e/production/ is asked for by name: a run that does not say E2E_PRODUCTION leaves it out,
+ * because a copy's timings say nothing about a customer's, and its doors are production's alone.
  */
 
 /** Deployed by default; override for a preview or a local server. */
@@ -39,14 +44,15 @@ const PREVIEW_STATE = "test-results/preview-bypass.json";
 
 export default defineConfig({
   testDir: "./e2e",
-  // These hit a real deployment over the network, so failures are far more
-  // often a slow cold start than a real regression. One retry locally, two in
-  // CI, and a generous per-assertion timeout.
+  testIgnore: process.env.E2E_PRODUCTION ? [] : ["**/production/**"],
+  // Against a real deployment over the network, failures are far more often a
+  // slow cold start than a real regression. One retry locally, two in CI (a run
+  // on its own stack says one), and a generous per-assertion timeout.
   timeout: 45_000,
   expect: { timeout: 10_000 },
   retries: process.env.CI ? 2 : 1,
-  // Against a shared deployment, parallel workers are just concurrent load on
-  // one Vercel function. Serial is slower and far less flaky.
+  // The specs share one workspace, and against a deployment parallel workers are
+  // just concurrent load on one Vercel function.
   workers: 1,
   fullyParallel: false,
   // A stray `test.only` must not silently shrink the suite in CI.

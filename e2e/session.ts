@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { Page } from "@playwright/test";
 import { createChunks } from "@supabase/ssr/dist/main/utils/chunker.js";
 
@@ -59,17 +61,39 @@ interface MintedSession {
  * first version minted a fresh session in every test — so a full suite spent a
  * third of the hourly budget, and two runs in a row started failing with 429s
  * that look nothing like a product bug. The session is valid for an hour and
- * the suite runs in one process with a single worker, so mint it once and
- * share it.
+ * the suite has a single worker, so mint it once and share it.
+ *
+ * Kept on disk too: Playwright starts a new worker after a failing test, so in
+ * memory alone each failure minted another, 31 in thirty minutes on 6 Nov 2026.
+ * Playwright empties this folder as a run starts, git ignores it, and no job
+ * uploads it.
  */
-let cached: { session: MintedSession; mintedAt: number } | null = null;
+const KEPT = "test-results/e2e-session.json";
 const REUSE_MS = 30 * 60 * 1000;
+
+/** The session kept for this project and person, while it is young enough to reuse; else null. */
+export function keptSession(file: string, who: string, now: number): MintedSession | null {
+  try {
+    const kept = JSON.parse(fs.readFileSync(file, "utf8")) as { who: string; mintedAt: number; session: MintedSession };
+    return kept.who === who && now - kept.mintedAt < REUSE_MS ? kept.session : null;
+  } catch {
+    return null;
+  }
+}
+
+export function keepSession(file: string, who: string, session: MintedSession, now: number): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ who, mintedAt: now, session }), { mode: 0o600 });
+}
 
 /** Mint a real session for E2E_USER_EMAIL, over the API. */
 async function mint(): Promise<MintedSession> {
-  if (cached && Date.now() - cached.mintedAt < REUSE_MS) return cached.session;
+  const who = `${URL_} ${EMAIL}`;
+  const now = Date.now();
+  const kept = keptSession(KEPT, who, now);
+  if (kept) return kept;
   const fresh = await mintFresh();
-  cached = { session: fresh, mintedAt: Date.now() };
+  keepSession(KEPT, who, fresh, now);
   return fresh;
 }
 
