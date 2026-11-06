@@ -446,8 +446,8 @@ test(
     );
     assert.deepEqual(
       names(ok(await page({ p_class: "qualified", p_sort: "stage", p_list: "all", p_dir: "asc", p_limit: 200 }))),
-      ["Fixture 6", "Fixture 3", "Fixture 4", "Fixture 2"],
-      "Ready, then Contacted, then Talking, newest first inside each",
+      ["Fixture 3", "Fixture 6", "Fixture 4", "Fixture 2"],
+      "Not contacted by fit, then reach (Fixture 6's number is not checked), then Contacted, then Talking",
     );
     assert.equal(
       ok(await page({ p_class: "qualified", p_sort: "fit", p_list: "nurture", p_limit: 200 })).length,

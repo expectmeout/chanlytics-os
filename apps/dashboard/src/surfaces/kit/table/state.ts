@@ -425,6 +425,11 @@ export function useTableState(a: TableStateArgs) {
       touch();
       atoms.columnVisibility.set((v) => ({ ...visibilityDefaults(columns), ...v, [key]: v[key] === false }));
     },
+    /** Every column back to whether it starts shown: the way back from a menu of switches, in one press. */
+    showDefaults: () => {
+      touch();
+      atoms.columnVisibility.set(visibilityDefaults(columns));
+    },
     setDensity: (d: Density) => {
       touch();
       own.density.set(d);

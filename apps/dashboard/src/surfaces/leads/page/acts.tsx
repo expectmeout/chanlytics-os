@@ -4,15 +4,22 @@
  * operation the door answered, which is the only thing an undo names (the review's E9).
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { formatPhoneDisplay, type LeadNotAFitWhy, type LeadRowVM, type LeadsBulkInput } from "@chanlytics/contracts";
+import {
+  LEAD_EXPORT_WORDS,
+  formatPhoneDisplay,
+  type LeadNotAFitWhy,
+  type LeadRowVM,
+  type LeadsBulkInput,
+} from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { downloadCsv } from "../../kit/download";
 import { canDo, refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
+import { walkLeadsExport } from "../export-walk";
 import {
+  applyLeads,
   bulkLeads,
   excludeLead,
-  exportLeadsFile,
   keepLead,
   putBackLead,
   undoLeadOperation,
@@ -188,26 +195,28 @@ export const leadActs = (a: LeadActsArgs) => {
     leadAct(() => putBackLead(searchOf(leadById(id)), id), <>Put back. It counts as a lead now.</>);
   const bulk = (body: LeadsBulkInput) =>
     leadAct(() => bulkLeads(body), body.action === "contacted" ? <>Marked contacted.</> : <>Not a fit.</>);
-  // A view's leads as a file. A press that POSTs, not a link: marking what it took moves the month's count (§0.2), and a GET
-  // changes nothing (decision 0047, lane 6). The kit saves the file (on the phone app, through the share sheet); the toast
-  // says how many left.
+  // A view's leads as a file, of any size (export-walk.ts). A press that POSTs, not a link: marking what it took moves the
+  // month's count (§0.2), and a GET changes nothing (decision 0047, lane 6). The kit saves the file (on the phone app, through
+  // the share sheet); one toast says how far it has come, in place, and then how many left. The rows and the month's count
+  // read again once, behind the file.
   const exportLeads = async (view: LeadsExportView) => {
     if (a.leadBusy) return;
     a.setLeadBusy(true);
-    const r = await exportLeadsFile(view);
+    const r = await walkLeadsExport(view, {
+      progress: (done, of) => a.plFlash({ msg: LEAD_EXPORT_WORDS.going(done, of), tone: "info", once: "leads-export" }),
+    });
     a.setLeadBusy(false);
     if (!r.ok) {
       a.plFlash(refusalToast(r, "The leads could not be exported"));
       return;
     }
     downloadCsv(r.data.file, r.data.csv);
-    a.plFlash({
-      msg: (
-        <>
-          Exported {r.data.rows.toLocaleString()} {r.data.rows === 1 ? "lead" : "leads"}.
-        </>
-      ),
-    });
+    void applyLeads().catch(() => undefined);
+    a.plFlash(
+      r.data.whole
+        ? { msg: LEAD_EXPORT_WORDS.done(r.data.rows), once: "leads-export" }
+        : { msg: LEAD_EXPORT_WORDS.part(r.data.rows, r.data.of), tone: "warn", once: "leads-export" },
+    );
   };
   // Not a fit, for everything selected: the same five whys the peek asks, asked once, one operation, one Undo (Task 15
   // step 4). The pick closes the list; the body is the one LeadsBulkSchema takes, which carries no reason -- the route

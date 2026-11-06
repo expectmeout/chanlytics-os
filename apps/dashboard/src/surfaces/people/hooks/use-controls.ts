@@ -44,6 +44,8 @@ interface ControlsArgs<R extends TableRow, X, C> {
   colCtx: C;
   people: PeopleRead;
   sortFirst: { by: string; dir: SortDir };
+  /** The orders that stand whether their column shows or not, beside the first (columns.ts `sortShownOf`). */
+  sortStands?: readonly string[];
   sortThen?: SortThen;
   railRow?: string | null;
   extraDefaults?: View | null;
@@ -141,7 +143,7 @@ export function usePlControls<R extends TableRow, X, C>(args: ControlsArgs<R, X,
   );
   const chosen = table.chosen;
   // The order a desk's table stands in is one its member can see (sortShownOf); the member's sort stays theirs.
-  const shown = phone ? chosen : sortShownOf(deskColumns, chosen, sortFirst);
+  const shown = phone ? chosen : sortShownOf(deskColumns, chosen, sortFirst, args.sortStands);
   // What the table sorts by: the order it shows, with the page's tiebreak (kit/table/use-data-table.ts `sorting`).
   const applied = useMemo(
     () => sortingFor(shown.by, shown.dir, table.sortThen),

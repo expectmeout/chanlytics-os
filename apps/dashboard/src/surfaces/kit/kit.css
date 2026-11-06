@@ -7474,6 +7474,11 @@ textarea.rec-input,
   .dtable[data-grouped] thead th {
     z-index: 4;
   }
+  /* A pinned heading stays over the headings scrolled under it, as an ungrouped table's does: on one layer they drew over it
+     in their own order ("BUSINESSEMAIL", 6 Nov 2026). */
+  .dtable[data-grouped] thead :is(th.dtable-sel, th[data-pin]) {
+    z-index: 5;
+  }
 }
 @media (max-width: 900px) {
   /* A card list's head: the row's gutter, edge to edge, a hairline under it, and none over it. */

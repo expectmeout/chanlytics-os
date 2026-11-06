@@ -195,30 +195,41 @@ const ldPlaceTag = (l: LeadRowVM, x: LeadCellCtx) => {
   return place ? <StatePill kind="tone" value={place.tone} label={place.word} testid="lead-state-tag" /> : null;
 };
 
+/**
+ * Whether the name wears the lead's fit: while the search's fits differ, and not under the Not contacted head, where the
+ * Stage column says it with why (contracts leadStatusOf): said once.
+ */
+const wearsFit = (l: LeadRowVM, x: LeadCellCtx) =>
+  x.mixedFits && !(x.grouped && x.stageShown && l.state === "ready" && !l.statusGroup);
+
 export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
   <td key="business" className={`cl-name-cell ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
       <LeadTile l={l} onExpand={x.onExpand} />
       <LeadHover as="div" className="cl-row-name-block ld-hover" card={<LeadNameCard l={l} x={x} />}>
         <div className="cl-row-fullname">
-          <button
-            type="button"
+          {/* A real link to the lead: a plain press opens its sheet here, and a press with a key held, a middle press or a
+              long one are the browser's, a new tab on the lead. None of them is a press of the row. */}
+          <a
             className="ld-biz-name"
+            href={x.hrefOf(l.id)}
             onClick={(e) => {
               e.stopPropagation();
+              if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+              e.preventDefault();
               x.onOpen(l.id);
             }}
             aria-describedby={`${l.id}-card`}
             data-testid="lead-name"
           >
             {l.name}
-          </button>
+          </a>
           {l.places > 1 && (
             <span className="ld-badge" title="Two listings on the map for one business">
               {l.places} listings
             </span>
           )}
-          {x.mixedFits && l.fit ? (
+          {l.fit && wearsFit(l, x) ? (
             <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" />
           ) : null}
           {/* One status, said once: while the Stage column is drawn it says where the lead stands, whatever that is

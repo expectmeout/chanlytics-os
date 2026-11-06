@@ -1152,7 +1152,7 @@ test("the export is a POST, the owner's, on the ledger like contacts/export, and
   );
   assert.equal(
     csv.split("\r\n")[0],
-    "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,About,Facebook,LinkedIn,Google Maps,Rating,Reviews,Stage,Why,Search,Found",
+    "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,About,Facebook,LinkedIn,Google Maps,Rating,Reviews,Stage,Why,Search,Found,Phone checked,Sequence,Last contacted,Last outcome,Last note,Contact,Contact title,Company size,Claimed listing,Instagram,TikTok,Fit,Distance,Source,Exported",
   );
   assert.ok(csv.includes("Travis Heights Coaching Co."));
   assert.equal(
@@ -1515,7 +1515,7 @@ test("Ask's leads, lead and search answer what the Leads page's builders answer 
         assert.equal(out.matching, page.data.rows.length);
       },
     ],
-    // The box's words go to the read, as the page's do (00500 lead_matches, proved in lead-filters.db.test.mjs): Ask
+    // The box's words go to the read, as the page's do (lead_view_rows, proved in lead-filters.db.test.mjs): Ask
     // matches nothing itself, and answers the rows the read answered.
     [
       "leads, the box's words",

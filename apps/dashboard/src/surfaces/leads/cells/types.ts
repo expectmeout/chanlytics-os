@@ -9,6 +9,8 @@ import type { TableCtx } from "../../people/types";
 /** The cell context of the Leads scope (the page's `cellCtxLeads`): doors to the page's latest acts, and what a cell reads. */
 export interface LeadCellCtx extends TableCtx {
   onOpen: (id: string) => void;
+  /** The lead's own address: what its name links to, so a new tab opens it. */
+  hrefOf: (id: string) => string;
   /** A converted lead's person, by their id (the row's `contactId`): the Client pill opens them in People. */
   onOpenPerson: (id: string) => void;
   onExpand: (id: string) => void;

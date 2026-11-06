@@ -9,6 +9,7 @@ import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
 import { isLeadList } from "./lead-import";
 import { LEAD_DIRECTORY_WORDS, leadAddresseeOf } from "./lead-kind";
+import { leadColumnsOf, type LeadColumnsVM } from "./sheet/lead-row-columns";
 import type { LEAD_CLOSED_REASONS, LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
 import {
@@ -161,6 +162,8 @@ export interface LeadRowVM {
   stateTag: string | null;
   /** The name card's facts. */
   card: LeadRowCard;
+  /** What the columns a member may turn on say. */
+  cols: LeadColumnsVM;
   /** Where it sits, when the door gave coordinates. */
   point: { lat: number; lng: number } | null;
   /** The pile's facts (00426): the reach-out it goes with (lead_chain_of) and when it was put off (Later). */
@@ -221,8 +224,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const excludedBy = m.excluded_by ? leadCriterionWords(m.excluded_by) : null;
   const rating = ratingLabel(r.rating, r.reviews);
   const rated = leadRatingOf(r);
-  // Qualified wears its fit band; Needs review wears the judge's reason, which
-  // is what it is waiting on; Excluded wears the criterion that left it out.
+  // Qualified wears its fit band; Needs review the judge's reason, what it waits on; Excluded the criterion that left it out.
   const fitLabel =
     m.class === "excluded"
       ? (excludedBy ?? m.reason)
@@ -348,6 +350,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     state,
     stateTag,
     card,
+    cols: leadColumnsOf(r, tz, now),
     point: typeof r.lat === "number" && typeof r.lng === "number" ? { lat: r.lat, lng: r.lng } : null,
   };
 }
@@ -381,7 +384,7 @@ function subLineOf(r: LeadRowDto, distanceM: number | null): string {
 }
 
 /** Where a lead's facts came from, as foundLine says it: a directory, its Maps listing, else the owner's own list. */
-function leadSourceWord(r: LeadRowDto): string {
+export function leadSourceWord(r: Pick<LeadRowDto, "kind" | "place_id">): string {
   if (r.kind === "company") return LEAD_DIRECTORY_WORDS.source;
   return r.place_id ? LEAD_SOURCE_WORD : "Your list";
 }

@@ -172,7 +172,7 @@ test("the queue's heads: needs you and in a sequence with the view's counts, the
   assert.equal(leadGroupOf(row({ cls: "excluded" }), counts), null);
 });
 
-test("under a head that says it, a row stops repeating it: Not contacted says nothing, In sequence gives way to its step", () => {
+test("under a head that says it, a row stops repeating it: Not contacted with no fit says nothing, In sequence gives way to its step", () => {
   const at = new Date(NOW + 2 * 86_400_000).toISOString();
   const placed = (group, over = {}) => ({
     lead_id: "l1",
@@ -202,6 +202,19 @@ test("under a head that says it, a row stops repeating it: Not contacted says no
   assert.deepEqual(wordsOf(leadStatusOf(asked, null, CLOCK, true)), { word: "3h ago", tone: "quiet", line: null });
   assert.equal(leadStatusOf(lead(), placed("next"), CLOCK).word, "In sequence", "and with no head, as before");
   assert.equal(leadStatusOf(lead(), null, CLOCK).word, "Not contacted");
+});
+
+test("under the Not contacted head a row says its fit, and why under it", () => {
+  const l = lead({ fit: "strong", why: "Independent, well rated" });
+  assert.deepEqual(leadStatusOf(l, null, CLOCK, true), {
+    word: "Strong fit",
+    tone: "quiet",
+    line: "Independent, well rated",
+    by: "stage",
+  });
+  assert.equal(leadStatusOf({ ...l, why: "" }, null, CLOCK, true).line, null, "no reason held, none said");
+  assert.equal(leadStatusOf({ ...l, fit: null }, null, CLOCK, true).word, "", "no fit, nothing said");
+  assert.equal(leadStatusOf(l, null, CLOCK, false).word, "Not contacted", "no head, the stage's own word");
 });
 
 test("the foot says what the view holds, and names none it could not read", () => {

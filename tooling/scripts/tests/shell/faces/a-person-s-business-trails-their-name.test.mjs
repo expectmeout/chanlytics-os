@@ -393,6 +393,7 @@ const cellCtx = (over = {}) => ({
   onOpen() {},
   onOpenPerson: (id) => opened.push(`person:${id}`),
   onExpand() {},
+  hrefOf: (id) => `/w/acme/people/leads:p-${id}`,
   values: false,
   mixedFits: false,
   hasCenter: false,

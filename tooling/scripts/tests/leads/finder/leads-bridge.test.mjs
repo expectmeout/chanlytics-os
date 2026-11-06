@@ -68,7 +68,6 @@ const {
   bulkLeads,
   eraseLead,
   excludeLead,
-  exportLeadsFile,
   keepLead,
   leadsMore,
   leadsTakeOffered,
@@ -80,6 +79,7 @@ const {
   undoLeadOperation,
   warmLeadsView,
 } = await import("../../../../../apps/dashboard/src/surfaces/leads/surface.ts");
+const { exportLeadsFile } = await import("../../../../../apps/dashboard/src/surfaces/leads/export-walk.ts");
 const { leadsOverride } = await import("../../../../../apps/dashboard/src/surfaces/leads/override.ts");
 const { surfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -335,7 +335,10 @@ const WS = "workspace=harbor";
 test("the Leads surface reads the searches and one view's rows, and publishes them for the page", async () => {
   const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
   await leadsOverride.apply();
-  assert.deepEqual(w.reads, [`/api/v1/lead-searches?${WS}`, `/api/v1/leads?list=all&sort=fit&dir=asc&limit=500&${WS}`]);
+  assert.deepEqual(w.reads, [
+    `/api/v1/lead-searches?${WS}`,
+    `/api/v1/leads?list=all&sort=stage&dir=asc&limit=500&${WS}`,
+  ]);
   assert.deepEqual(
     [
       L().rows.length,
@@ -450,6 +453,18 @@ test("REGRESSION: the page's newest found first reads the key's own order, on ev
     { key: "POST /api/v1/leads/export", body: { list: "all", sort: "found", dir: "asc" } },
     "the file holds the rows in the order the table shows them",
   );
+});
+
+test("a refresh rebuilds only the row that changed: the others keep their words, and their draw", async () => {
+  const [a, b] = [leadRow(), leadRow()];
+  const w = wire({ searches: [SEARCH_DONE], rows: [a, b], counts: COUNTS });
+  await leadsView("clients/leads");
+  const before = L().rows;
+  w.now({ rows: [{ ...a, stage: "nurture" }, { ...b }] });
+  await leadsOverride.apply();
+  assert.equal(L().rows[1], before[1], "said the same: the same object, which a memoised row is not drawn again for");
+  assert.notEqual(L().rows[0], before[0], "said something else: made again");
+  assert.equal(L().rows[0].stage, "nurture");
 });
 
 test("leadsMore appends only under the same view; its late answer after a view change is dropped", async () => {
@@ -1130,7 +1145,7 @@ test("the view a cold boot reads: the one the address names, in the order this t
   );
   assert.deepEqual(
     leadsBootView("clients/leads:l-ready", null),
-    { searchId: null, list: "ready", cls: null, chips: {}, sort: "fit", dir: "asc" },
+    { searchId: null, list: "ready", cls: null, chips: {}, sort: "stage", dir: "asc" },
     "nothing restored: the view's own default order",
   );
   assert.deepEqual(
@@ -1140,7 +1155,7 @@ test("the view a cold boot reads: the one the address names, in the order this t
   );
   assert.deepEqual(
     leadsBootView("clients/leads", restored({ sort: "nonsense", dir: "sideways" })),
-    { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" },
     "an order the server does not know is never sent",
   );
   assert.deepEqual(leadsBootView("clients/leads", { view: "garbage" }), {
@@ -1148,12 +1163,12 @@ test("the view a cold boot reads: the one the address names, in the order this t
     list: "all",
     cls: null,
     chips: {},
-    sort: "fit",
+    sort: "stage",
     dir: "asc",
   });
   assert.deepEqual(
     leadsBootView("", undefined),
-    { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
+    { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" },
     "what it always read",
   );
 });
