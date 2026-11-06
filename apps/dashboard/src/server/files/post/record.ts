@@ -30,7 +30,7 @@ export async function fileRecord(ctx: RouteContext, member: Member, row: FileMem
 }
 
 /** The look a person settled on, as their newest post keeps it: what a card changed, since a card's Save keeps what was pressed. */
-export type PostLook = Pick<PostPlan, "voice" | "layout" | "book">;
+type PostLook = Pick<PostPlan, "voice" | "layout" | "book">;
 
 /** What the workspace's newest post looks like, or null before its first. Never costs a turn: a failed read is no look to keep. */
 export async function newestPostLookOf(tenantId: string): Promise<PostLook | null> {
