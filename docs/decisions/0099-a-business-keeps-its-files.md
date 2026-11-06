@@ -125,6 +125,14 @@ what a page shows them. So a picture needs one place, one name and a written rec
     read of the row. Beside a picture opened, Ask reads how the newest post looks (`last_post`: its type, its layout, its number), and
     keeps that unless it is asked for something else. It is told rather than held to it by code: before the first post the model
     chooses from the business, and it can only know there is none by being told.
+18. **A shelf comes a page at a time, and the server says how the library stands.** `GET files` answers sixty of one shelf, newest
+    first, and a tally of every file, so the page's counts and its shelves are true whichever page it holds. The next page starts just
+    past the last by its time and id, so a file kept while a person scrolls moves nothing past them, and two kept at one instant still
+    have an order. A read again asks for what is on screen, so a shelf chosen and what was scrolled through stay put when the feed says
+    something changed. The Inbox comes whole, since its one press covers all of it and it empties. A shelf is asked of the database
+    by `shelfFilterOf`, which a test holds equal to `shelfOf` over every file there can be. A tally still reads a small row per file:
+    Ask's line and a page's head read four short columns where they read every look, and a count in SQL would need a migration for a
+    read that is a few KB at the cap.
 
 ## What it costs
 
