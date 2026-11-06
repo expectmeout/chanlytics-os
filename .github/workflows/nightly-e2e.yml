@@ -46,7 +46,7 @@ on:
         type: boolean
         default: false
       base_url:
-        description: "Where the credential-free specs run, an address that needs no bypass (a preview with protection off; preview-smoke.yml takes the protected ones); production when empty. The signed-in specs always run against production."
+        description: "Where the credential-free specs run, an address that needs no bypass (a preview with protection off; preview-smoke.yml takes the protected ones); production when empty. Read by that half alone: the whole suite runs on its own copy, and the check of production is of production."
         type: string
         default: ""
 
