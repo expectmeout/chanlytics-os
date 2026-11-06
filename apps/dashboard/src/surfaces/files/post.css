@@ -1,33 +1,150 @@
-/* A kept post (post-shapes.tsx), in Ask's card and the Files sheet: on every page, as Ask's stylesheet is (legacy.css). */
+/* A post, as it is changed and kept (post-frame.tsx, post-edit.tsx, post-shapes.tsx), in Ask's card and the Files sheet: on every page, as
+   Ask's stylesheet is (legacy.css). Every value is a token. */
 .post-shapes {
   display: grid;
   gap: 10px;
 }
-.post-picture {
-  display: block;
+
+/* The frame is the picture's shape, and holds it while the next comes: its pictures fill it, one over the other as they change. */
+.post-frame {
+  position: relative;
   width: 100%;
   max-width: 320px;
   aspect-ratio: 4 / 5;
-  object-fit: cover;
+  overflow: hidden;
   border-radius: var(--radius-lg);
   background: var(--bg-active);
 }
-.post-picture[data-shape="square"] {
+
+.post-frame[data-shape="square"] {
   aspect-ratio: 1;
 }
+
 /* A story stands narrower, so its whole height is on a phone's screen at once. */
-.post-picture[data-shape="story"] {
+.post-frame[data-shape="story"] {
   max-width: 240px;
   aspect-ratio: 9 / 16;
 }
+
+.post-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-waiting {
+  animation: post-waits 1.4s var(--ease-out) infinite alternate;
+}
+
+@keyframes post-waits {
+  to {
+    opacity: 0.55;
+  }
+}
+
+/* A newer picture on its way: a hairline along the foot, so a pause in the typing is seen to have been heard. */
+.post-frame[data-drawing]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--ink);
+  opacity: 0.7;
+  transform-origin: left;
+  animation: post-draws 1s var(--ease-in-out) infinite;
+}
+
+@keyframes post-draws {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.post-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
 .post-choose,
 .post-acts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-.post-gone {
+
+/* The shapes and the way out come as the press lands, where they will stay. */
+.post-acts {
+  animation: post-arrives var(--duration-base) var(--ease-out);
+}
+
+@keyframes post-arrives {
+  from {
+    opacity: 0;
+  }
+}
+
+.post-said {
   margin: 0;
   color: var(--ink-dim);
   font-size: var(--text-sm);
+}
+
+.post-edit {
+  display: grid;
+  gap: 10px;
+  animation: post-arrives var(--duration-base) var(--ease-out);
+}
+
+.post-say {
+  display: grid;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+}
+
+.post-say:focus-within {
+  box-shadow: var(--focus-field);
+}
+
+.post-say-label {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+.post-say .post-say-box {
+  min-height: 24px;
+  max-height: 72px;
+  padding: 0;
+  field-sizing: content;
+  font-size: var(--text-base);
+}
+
+/* On a phone the keys take half the screen: the picture stays in sight, small, above what is being typed. */
+@media (max-width: 720px) {
+  .ask-post[data-editing] .post-frame {
+    position: sticky;
+    top: 8px;
+    z-index: 1;
+    max-width: 148px;
+    margin-inline: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-waiting,
+  .post-acts,
+  .post-edit,
+  .post-frame[data-drawing]::after {
+    animation: none;
+  }
 }

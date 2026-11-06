@@ -149,7 +149,6 @@ const ASK_TEXT = {
     kMemory: "memory",
     kPost: "post",
     postDrawing: "Drawing the picture",
-    postShareFailed: "Sharing didn't open. Download it instead.",
     kFix: "to fix first",
   },
   es: {
@@ -287,7 +286,6 @@ const ASK_TEXT = {
     kMemory: "memoria",
     kPost: "publicación",
     postDrawing: "Dibujando la imagen",
-    postShareFailed: "No se pudo abrir compartir. Descárgala.",
     kFix: "por arreglar antes",
   },
 };

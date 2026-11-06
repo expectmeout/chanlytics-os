@@ -13,6 +13,7 @@ import {
   isFileMime,
   type FileMime,
   type FileShows,
+  type PostPlan,
   type PostShapeName,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
@@ -26,6 +27,8 @@ export const FILE_PICKS = "image/jpeg,image/png,image/webp,image/heic,image/heif
 /** How long to wait before each new try: a phone between masts is back in seconds. */
 const SEND_AGAIN_AFTER_MS = [3 * SECOND_MS, 10 * SECOND_MS] as const;
 const DONE_AGAIN_AFTER_MS = [2 * SECOND_MS, 5 * SECOND_MS, 10 * SECOND_MS] as const;
+/** How long a post's picture is waited for: a photo read and a drawing, on a slow day. */
+const POST_PICTURE_MS = 30 * SECOND_MS;
 
 const waited = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -91,6 +94,28 @@ export interface FileChange {
   status?: "filed" | "set_aside";
 }
 
+/** What came of asking for a post's picture: the picture and whether the business has a number to print, or what refused it. */
+export type PostDrawing = { ok: true; picture: Blob; hasPhone: boolean } | { ok: false; refused: string | null };
+
+/**
+ * The real picture a post would be (POST files/post/preview), for a card and for an editor as its words change. What the server
+ * refuses, it says in the post's own language; anything else, a lost line or a stale press, says nothing, and the last picture stands.
+ */
+async function postPicture(plan: PostPlan, shape: PostShapeName, signal?: AbortSignal): Promise<PostDrawing> {
+  const res = await api()
+    .raw("POST files/post/preview", { body: { ...plan, shape }, timeoutMs: POST_PICTURE_MS, signal })
+    .catch(() => null);
+  if (!res) return { ok: false, refused: null };
+  if (res.ok)
+    return res.blob().then(
+      (picture) => ({ ok: true, picture, hasPhone: res.headers.get("x-post-phone") !== "0" }),
+      () => ({ ok: false, refused: null }),
+    );
+  const said = (await res.json().catch(() => null)) as { error?: { message?: unknown } } | null;
+  const message = said?.error?.message;
+  return { ok: false, refused: res.status === 400 && typeof message === "string" ? message : null };
+}
+
 /** A kept post's shape, its bytes: what a phone's sheet is handed. Null where they did not come. */
 async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null> {
   const res = await window.fetch(`${fileViewOf(id)}?shape=${shape}`).catch(() => null);
@@ -100,6 +125,7 @@ async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null>
 export const fileVerbs = {
   add,
   postBytes,
+  postPicture,
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),

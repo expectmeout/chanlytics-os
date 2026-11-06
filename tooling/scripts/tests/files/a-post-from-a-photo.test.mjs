@@ -16,14 +16,16 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const sharp = createRequire(path.join(ROOT, "apps/dashboard/package.json"))("sharp");
 
-const { POST_SIZES, SCRIM_UNDER_WORDS, postCrop, postLayout } = await import(
+const { POST_SIZES, SCRIM_UNDER_WORDS, postCrop, postLayout, postPhotoBox, wordsOverPhoto } = await import(
   at("apps/dashboard/src/server/files/post/layout.ts")
 );
 const { composePost } = await import(at("apps/dashboard/src/server/files/post/compose.ts"));
-const { postPathOf, postPhotoProblem, postPlanProblem, postWordsProblem } = await import(
+const { postPathOf, postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } = await import(
   at("packages/contracts/src/files/post-check.ts")
 );
-const { POST_LIMITS, POST_SHAPES, postPlanOf } = await import(at("packages/contracts/src/files/post.ts"));
+const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPlanOf, postPlanTidied, postWordsIn } = await import(
+  at("packages/contracts/src/files/post.ts")
+);
 const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
@@ -53,6 +55,7 @@ const LAYOUT = {
   words: { over: "Fall special", line: "20% off balayage", under: "Ends Nov 30", act: "Book · (555) 010-0100" },
   wordsAt: "bottom",
   voice: "classic",
+  layout: "over",
   accent: "#e8c156",
   logo: `data:image/png;base64,${MARK.toString("base64")}`,
 };
@@ -87,7 +90,7 @@ test("no mark and no colour still make a post: white in the colour's place, and 
   assert.equal(drawn.filter((n) => n.type === "img").length, 0);
   const band = drawn.find((n) => n.props?.style?.backgroundColor === "#ffffff");
   assert.ok(band, "the band reads on white");
-  assert.equal(band.props.style.color, "#0d0b09");
+  assert.equal(band.props.style.color, "#000000");
 });
 
 /** The band a layout draws, and its line's size. */
@@ -98,7 +101,7 @@ const lineSizeOf = (line, voice) =>
     .style.fontSize;
 
 test("words are ink on a colour that needs it, white on one that does not", () => {
-  assert.equal(bandOf({ accent: "#e8c156" }).color, "#0d0b09");
+  assert.equal(bandOf({ accent: "#e8c156" }).color, "#000000");
   assert.equal(bandOf({ accent: "#1a3a5c" }).color, "#ffffff");
 });
 
@@ -111,6 +114,119 @@ test("a short line is the picture's headline, a long one still reads", () => {
   );
   assert.ok(big.at(-1) >= 50, "never below what a phone reads");
   assert.ok(lineSizeOf("Now booking", "modern") < lineSizeOf("Now booking", "classic"), "a heavy sans stands smaller");
+});
+
+/** The reckoning WCAG gives, to hold the layouts to it from outside them. */
+const contrast = (a, b) => {
+  const light = (hex) => {
+    const [r, g, c] = [1, 3, 5].map((i) => {
+      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * c;
+  };
+  const [hi, lo] = [light(a), light(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+const groundOf = (node) =>
+  nodesOf(node).find((n) => n.props?.style?.flexDirection === "column" && n.props?.style?.backgroundColor)?.props.style
+    .backgroundColor;
+const ACCENTS = ["#e8c156", "#1a3a5c", "#777777", "#ffffff", "#000000", "#c0392b", "#2ecc71", "#8e44ad"];
+
+test("words on a ground of their own read on it, whatever the business's colour is", () => {
+  for (const accent of ACCENTS)
+    for (const layout of ["band", "frame"])
+      for (const voice of ["classic", "modern"]) {
+        const tree = postLayout({ ...LAYOUT, layout, voice, accent });
+        const ground = groundOf(tree);
+        assert.ok(ground, `${layout} has a ground`);
+        const inks = nodesOf(tree)
+          .filter((n) => n.props?.style?.color && n.props?.style?.fontSize && !n.props?.style?.backgroundColor)
+          .map((n) => n.props.style);
+        assert.ok(inks.length >= 3, `${layout}: the words are found`);
+        for (const s of inks) {
+          const needs = s.fontSize >= 50 ? 3 : s.fontSize === 26 ? 3 : 4.5;
+          assert.ok(contrast(s.color, ground) >= needs, `${layout} ${accent} ${s.fontSize}px: ${s.color} on ${ground}`);
+        }
+      }
+});
+
+test("a brand's name is never lost on the scrim: a colour that doesn't read there gives way to cream", () => {
+  const over = (accent) =>
+    nodesOf(postLayout({ ...LAYOUT, accent })).find((n) => n.props?.style?.textTransform === "uppercase").props.style
+      .color;
+  assert.equal(over("#e8c156"), "#e8c156", "a colour that reads keeps its place");
+  assert.equal(over("#1a3a5c"), "#faf5e8", "navy would vanish on black");
+  assert.equal(over(null), "#faf5e8");
+});
+
+test("every layout draws in every shape with the words at either end, and the photo stands inside the page", () => {
+  for (const layout of POST_LAYOUTS)
+    for (const name of POST_SHAPES)
+      for (const wordsAt of ["top", "bottom"]) {
+        const shape = POST_SIZES[name];
+        const box = postPhotoBox({ ...LAYOUT, layout, shape, wordsAt });
+        assert.ok(box.left >= 0 && box.top >= 0, `${layout} ${name} ${wordsAt}`);
+        assert.ok(box.left + box.width <= shape.width && box.top + box.height <= shape.height, "inside the page");
+        assert.ok(box.height >= shape.height * 0.4, `${layout} ${name} ${wordsAt}: the photo is still the picture`);
+        assert.ok(nodesOf(postLayout({ ...LAYOUT, layout, shape, wordsAt })).length > 3);
+      }
+});
+
+test("the longest words a post may say still leave the photo most of the page, and a story's stay clear of its controls", () => {
+  const most = {
+    over: "o".repeat(32),
+    line: "l ".repeat(30).trim(),
+    under: "u ".repeat(40).trim(),
+    act: "Book · (555) 010-0100",
+  };
+  for (const layout of ["band", "frame"])
+    for (const name of POST_SHAPES) {
+      const shape = POST_SIZES[name];
+      const box = postPhotoBox({ ...LAYOUT, layout, shape, words: most });
+      assert.ok(box.height >= shape.height * 0.4, `${layout} ${name}: ${box.height}`);
+    }
+  const story = postLayout({ ...LAYOUT, layout: "band", shape: POST_SIZES.story });
+  const inner = nodesOf(story).find(
+    (n) => typeof n.props?.style?.padding === "string" && n.props.style.padding.endsWith("340px"),
+  );
+  assert.ok(inner, "the words stand above the story's own controls");
+});
+
+test("a post's plan goes out as a person meant it: no spaces left from typing, and an empty part no part", () => {
+  const plan = postPlanOf({ file_id: FILE, line: " Now booking ", over: "  ", under: "Soon " });
+  assert.deepEqual(
+    [postPlanTidied(plan).line, postPlanTidied(plan).over, postPlanTidied(plan).under],
+    ["Now booking", null, "Soon"],
+  );
+});
+
+test("every word a post says to a person is there in both languages", () => {
+  const shapeOf = (o) =>
+    Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v && typeof v === "object" ? shapeOf(v) : typeof v]));
+  assert.deepEqual(shapeOf(postWordsIn("es")), shapeOf(POST_WORDS));
+  assert.equal(postWordsIn("en"), POST_WORDS);
+});
+
+test("what can't be drawn is one reading: the same words are refused to a person and to the model", () => {
+  for (const [words, why] of [
+    ["New floor 🎉", "character"],
+    ["See harbor.com", "contact"],
+    ["Call 555-010-0100", "number"],
+    ["x".repeat(61), "long"],
+  ]) {
+    assert.equal(postUndrawable(words, POST_LIMITS.line), why, words);
+    assert.ok(postWordsProblem(words, words, POST_LIMITS.line), `the model is told too: ${words}`);
+  }
+  assert.equal(
+    postUndrawable("20% off, free consultation", POST_LIMITS.line),
+    null,
+    "a person's press is their word on the rest",
+  );
+});
+
+test("only words over the photo soften it", () => {
+  assert.deepEqual(POST_LAYOUTS.filter(wordsOverPhoto), ["over", "left"]);
 });
 
 /* ------------------------------------------------------------------------- the crop */
@@ -180,6 +296,52 @@ test("a sign behind the words does not read through them, and the rest of the ph
   const underWords = await variesIn(out, 1300, 30);
   assert.ok(sharpTop > 40, `the photo stays itself away from the words (${sharpTop})`);
   assert.ok(underWords < sharpTop / 3, `under the words it is soft and dark (${underWords})`);
+});
+
+test("a band or a frame leaves the photo sharp, on a ground the words can stand on", async () => {
+  const photo = await busyPhoto(1600, 2000);
+  for (const [layout, ground] of [
+    ["band", [232, 193, 86]],
+    ["frame", [250, 245, 232]],
+  ]) {
+    const out = await composePost({ ...LAYOUT, layout, logo: null, photo, subject: null });
+    const box = postPhotoBox({ ...LAYOUT, layout });
+    assert.ok((await variesIn(out, box.top + 100, 200)) > 40, `${layout}: the photo is itself`);
+    const foot = await sharp(out).extract({ left: 540, top: 1345, width: 2, height: 2 }).raw().toBuffer();
+    for (const [i, want] of ground.entries())
+      assert.ok(Math.abs(foot[i] - want) < 8, `${layout}: the ground is its colour (${[...foot.subarray(0, 3)]})`);
+  }
+});
+
+test("a draft draws the same picture, for less time encoding it: only what is kept takes the slow road", async () => {
+  const photo = await busyPhoto(1600, 2000);
+  const kept = await composePost({ ...LAYOUT, photo, subject: null, draft: false });
+  const draft = await composePost({ ...LAYOUT, photo, subject: null, draft: true });
+  const [a, b] = await Promise.all([kept, draft].map((j) => sharp(j).metadata()));
+  assert.deepEqual([b.format, b.width, b.height], [a.format, a.width, a.height]);
+});
+
+test("whatever a photo is kept as draws: black and white, with a clear ground, or in a printer's colours", async () => {
+  const base = { width: 1200, height: 1200 };
+  const photos = {
+    grey: await sharp(await busyPhoto(1200, 1200))
+      .greyscale()
+      .jpeg()
+      .toBuffer(),
+    clear: await sharp({ create: { ...base, channels: 4, background: { r: 200, g: 40, b: 40, alpha: 0.4 } } })
+      .png()
+      .toBuffer(),
+    cmyk: await sharp(await busyPhoto(1200, 1200))
+      .toColourspace("cmyk")
+      .jpeg()
+      .toBuffer(),
+  };
+  for (const [name, photo] of Object.entries(photos))
+    for (const layout of POST_LAYOUTS) {
+      const out = await composePost({ ...LAYOUT, layout, photo, subject: null, draft: true });
+      const seen = await sharp(out).metadata();
+      assert.deepEqual([seen.format, seen.width, seen.height], ["jpeg", 1080, 1350], `${name} ${layout}`);
+    }
 });
 
 test("a photo on its side comes upright", async () => {
@@ -316,6 +478,7 @@ test("a card from the owner's words: the photo by its id, and the plan its Save 
     book: true,
     words_at: "bottom",
     voice: "classic",
+    layout: "over",
     language: "en",
     people_agreed: false,
   });
@@ -372,6 +535,7 @@ test("a card's plan reads back the same, and what it does not hold it does not i
     book: false,
     words_at: "top",
     voice: "modern",
+    layout: "over",
     language: "es",
     people_agreed: false,
   });
@@ -382,9 +546,12 @@ test("Save is one call, and its Undo takes back only what that press made", () =
   assert.equal(call.route, "POST files/post");
   assert.deepEqual(call.body, postPlanOf(CARD.payload));
   const made = { file_id: "f2", name: "now-booking", twin: false };
-  assert.equal(postSpec.receipt(CARD, made), "Saved to Files as now-booking");
+  assert.equal(postSpec.receipt(CARD, made), "Guardada en Archivos como now-booking", "in the post's own language");
+  assert.equal(postSpec.receipt({ payload: { language: "en" } }, made), "Saved to Files as now-booking");
+  assert.equal(postSpec.undo.label(CARD), "Deshacer");
   assert.equal(postSpec.made(CARD, made), "f2");
-  assert.deepEqual(postSpec.undo.record(CARD, made, { settings: null }), { file_id: "f2" });
+  assert.deepEqual(postSpec.undo.record(CARD, made, { settings: null }), { file_id: "f2", language: "es" });
+  assert.equal(postSpec.undo.receipt({}, { language: "es" }), "Quitada de Archivos");
   assert.equal(postSpec.undo.record(CARD, { ...made, twin: true }, { settings: null }), null, "it was already there");
   const undo = postSpec.undo.call({ file_id: "f2" }, { settings: null });
   assert.deepEqual([undo.route, undo.params.id, undo.goneIsDone], ["DELETE files/[id]", "f2", true]);

@@ -125,7 +125,7 @@ function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => voi
       foot={<FileActs {...press} remove={() => void remove()} ask={ask} />}
     >
       {file.source === "made" ? (
-        <PostShapes id={file.id} name={file.name} alt={file.line ?? said} shareFailed={POST_WORDS.shareFailed} />
+        <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />
       ) : (
         <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
       )}
