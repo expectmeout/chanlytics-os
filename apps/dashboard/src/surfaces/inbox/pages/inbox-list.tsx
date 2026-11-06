@@ -335,7 +335,7 @@ export function InboxList(props: InboxListProps) {
 /* --------------------------------- the parts --------------------------------- */
 
 /**
- * Buckets, the kit's sub-tabs. A real workspace has three, and they sit in one line of words, with no glyph: the glyph
+ * Buckets, the kit's sub-tabs. A real workspace has four, and they sit in one line of words, with no glyph: the glyph
  * said again what the label says, and a grid of two took two rows with the third alone on the second. Six seeded
  * buckets keep theirs. The canvases count a bucket only where there is something to count ("Snoozed" stands alone,
  * I1), and on a phone only the bucket that needs you says its figure.
@@ -345,7 +345,7 @@ function bucketTabs(L: ListCtx) {
   const tabs = (
     <SubTabs
       label="Conversations by status"
-      className="ix-buckets"
+      className={buckets.length === 5 ? "ix-buckets ix-buckets-five" : "ix-buckets"}
       quietCounts
       value={activeBucket}
       onSelect={onBucketChange}
@@ -355,7 +355,7 @@ function bucketTabs(L: ListCtx) {
         hint: b.hint,
         tone: b.accent ? ("warn" as const) : undefined,
         // A real inbox's words alone, its Set aside among them: with glyphs, four tabs ran past a desk's list.
-        glyph: buckets.length > 4 ? <Icon name={b.icon} size={13} /> : undefined,
+        glyph: buckets.length > 5 ? <Icon name={b.icon} size={13} /> : undefined,
         count: (b.count ?? 0) > 0 ? b.count : undefined,
       }))}
     />
@@ -565,11 +565,16 @@ interface EmptyWords {
  */
 function emptyWords(isReal: boolean): Record<string, EmptyWords> {
   return {
+    waiting: {
+      icon: "users",
+      title: "Nothing waiting",
+      body: "Threads where the next move is theirs, or a teammate's, show here.",
+    },
     done: isReal
       ? {
           icon: "check",
-          title: "No conversations yet",
-          body: "Messages to your WhatsApp number show up here once they arrive.",
+          title: "Nothing handled yet",
+          body: "Conversations that were answered or closed show here.",
           cta: { label: "Open Conversations", to: "conversations" },
         }
       : {
@@ -600,7 +605,7 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
       ? {
           icon: "check",
           title: "Nobody's waiting on you",
-          body: "The receptionist is answering on its own. Anything it can't handle lands here.",
+          body: "The receptionist is answering on its own. Anything left for you lands here.",
         }
       : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
   };

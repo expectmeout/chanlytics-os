@@ -5,9 +5,11 @@ export {
   CALL_TRANSCRIPT,
   callAttemptWords,
   DISCONNECTION_LABELS,
+  MISSED_CALL_LINE,
   missedCall,
   neverConnected,
   reachedVoicemail,
+  UNCONNECTED_DIAL_LINE,
 } from "./call-dto";
 export type { CallDto } from "./call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./call-vm";
@@ -98,7 +100,15 @@ export {
   standingOf,
   standingOfThread,
 } from "./standing";
-export type { SeenMarksDto, SeenOf, SeenReading, Standing, StandingInput, StandingVerdict } from "./standing";
+export type {
+  SeenMarksDto,
+  SeenOf,
+  SeenReading,
+  Standing,
+  StandingInput,
+  StandingVerdict,
+  ThreadMoveKey,
+} from "./standing";
 export {
   agentFor,
   answerWireOf,
@@ -112,7 +122,7 @@ export {
   writtenChannelOf,
 } from "./thread-channel";
 export type { ThreadChannel, WrittenChannel } from "./thread-channel";
-export { formatWaited, inboxThreadClock, shortTime, waitedSaid } from "./thread-clock";
+export { formatWaited, inboxThreadClock, shortTime, waitedSaid, waitedSince } from "./thread-clock";
 export {
   contactMeta,
   contactName,

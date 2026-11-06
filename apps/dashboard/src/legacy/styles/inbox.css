@@ -247,6 +247,11 @@
   margin-left: auto;
   min-width: 0;
 }
+/* Beside a name it takes what it needs and the name the rest, the wait whole: it shared the squeeze with a long name, and
+   its pill and its wait ran past the row's edge. A teammate's pill gives way (data-gives, below). */
+.ix-thread-meta:not([data-gives]) {
+  flex: none;
+}
 .ix-thread-meta > .ix-wait,
 .ix-thread-meta > .ix-state-pill:not(.ix-name-pill) {
   flex: none;
@@ -2458,6 +2463,16 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-list > .ix-buckets {
   order: 2;
 }
+/* Set aside makes five, which is more than the list's width holds: closer together, so the fifth shows at the edge and says
+   the strip goes on, where at the kit's spacing it stood wholly past it with nothing to say it was there. */
+.ix-list .ix-buckets-five {
+  --subtabs-gap: 12px;
+}
+@media (width > 900px) {
+  .ix-list .ix-buckets-five {
+    --subtabs-side: 12px;
+  }
+}
 .ix-list-head {
   order: 3;
   border-bottom-color: transparent;
@@ -2742,6 +2757,10 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-th-standing-meta {
   font-size: var(--text-xs);
   font-weight: var(--weight-regular);
+}
+/* Who gave the last word, in words: the mono face is the wait's figure. */
+.ix-th-standing-words {
+  font-family: var(--font-sans);
 }
 /* The conversation is anchored at the pane's foot, as a messaging app's is: a short one stands over the band, never
    under the head with the room beneath it. */
@@ -4186,9 +4205,14 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
     gap: var(--space-2);
     margin: 0 8px 0 16px;
   }
+  /* Held to this width and scrolling in it: the strip ran under the search's glyph at 320px, and wherever Set aside makes
+     five. */
   .inbox .ix-bucket-row > .ix-buckets {
     flex: 1 1 auto;
     min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
   }
   .inbox .ix-bucket-row > .ix-find {
     flex: none;

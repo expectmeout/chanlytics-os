@@ -3,10 +3,11 @@
  * each read once, the closing windows and the day's calls. today-bands.ts, today-rows.ts and today-queue.ts
  * build the bands from them; today-brief.ts composes the view model.
  */
-import { standingOfThread } from "../conversations/standing";
+import { NEEDS_YOU_WORD, standingOfThread, THREAD_MOVE_WORDS } from "../conversations/standing";
+import { threadMoveOf, type ThreadMove } from "../waits/thread-move";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
-import { waitsOnAPerson, type EscalationDto } from "../conversations/escalations";
+import { waitsOnAPerson, YOURS_STILL_WAIT, type EscalationDto } from "../conversations/escalations";
 import { threadWaitsOf } from "../conversations/inbox-thread";
 import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words";
 import { emailTopicOf } from "../conversations/message-email";
@@ -110,6 +111,8 @@ export interface TodayFacts extends TodayInput {
   escSet: Set<string>;
   /** Threads where the customer spoke last and the free-reply window is running out. */
   closingConvs: ConversationDto[];
+  /** What the rule owes that no hold's row or closing window says (OwedThread). */
+  owed: OwedThread[];
   sinceMs: number;
   callsInWindow: CallDto[];
   callMinutes: number;
@@ -131,11 +134,50 @@ function todayWires(m: MetricsSummaryDto): TodayWire[] {
 }
 
 /**
- * The holds on a thread you have taken that still ask something of you (Today in three zones, 2 Nov 2026): a reply of
- * yours that never reached them, and a customer who wrote again while you had the thread. The receptionist stays out of
- * a thread you hold, so nobody else will answer either.
+ * A thread the rule puts in Needs you with no hold's row or closing window's to say so (thread-move.ts): nobody answered what
+ * they wrote, a reply of ours never reached them, or the thread itself asks for a person. Today counted only the holds, and
+ * the Inbox's tab said more than the badge beside it.
  */
-const YOURS_STILL_WAIT: ReadonlySet<string> = new Set(["send_failed", "wrote_while_held"]);
+export interface OwedThread {
+  conv: ConversationDto;
+  move: ThreadMove;
+  who: string;
+  /** Since the rule says it stood; nothing where it does not say. */
+  waitedMs: number;
+  /** Why, in the pill's word. */
+  word: string;
+  /** Their last words, clipped as a row quotes them; none where they never wrote. */
+  quote: string;
+}
+
+/** What the rule owes, each thread once and the longest wait first; each thread's open hold as the Inbox picks it. */
+function owedThreads(
+  threads: readonly ConversationDto[],
+  escalations: TodayInput["escalations"],
+  taken: ReadonlySet<string>,
+  now: Date,
+): OwedThread[] {
+  const holds = new Map(escalations.filter((e) => e.state === "open").map((e) => [e.conversation_id, e]));
+  const nowMs = now.getTime();
+  return threads
+    .filter((c) => !taken.has(c.id))
+    .flatMap((conv): OwedThread[] => {
+      const move = threadMoveOf(conv, holds.get(conv.id) ?? null, nowMs);
+      if (move.list !== "escalated" || move.move === "sending") return [];
+      const words = [...conv.messages].reverse().find((m) => m.sender === "customer");
+      return [
+        {
+          conv,
+          move,
+          who: contactName(conv),
+          waitedMs: move.sinceMs === undefined ? 0 : Math.max(0, nowMs - move.sinceMs),
+          word: move.move === "unanswered" || move.move === "failed" ? THREAD_MOVE_WORDS[move.move] : NEEDS_YOU_WORD,
+          quote: words ? clipAtWord(messageWords(words), QUOTE_MAX) : "",
+        },
+      ];
+    })
+    .sort((a, b) => b.waitedMs - a.waitedMs);
+}
 
 /**
  * The open escalations the queue holds, oldest waiting first. One rule (standing.ts): a handoff a person has
@@ -238,6 +280,7 @@ export function todayFacts(input: TodayInput): TodayFacts {
   const waits = threadWaitsOf(threads, escalations, now);
   const openEsc = openEscalations(escalations, byConv, now);
   const escSet = new Set(openEsc.map((e) => e.conversation_id));
+  const closingConvs = closingConversations(conversations, escSet, now);
   const sinceMs = new Date(metrics.window.since).getTime();
   return {
     ...input,
@@ -252,7 +295,8 @@ export function todayFacts(input: TodayInput): TodayFacts {
     needsYouCount: waits.holds + waits.sends,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
-    closingConvs: closingConversations(conversations, escSet, now),
+    closingConvs,
+    owed: owedThreads(threads, escalations, new Set([...escSet, ...closingConvs.map((c) => c.id)]), now),
     sinceMs,
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
     callMinutes: Math.round(period.call_seconds / 60),
