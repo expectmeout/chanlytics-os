@@ -762,7 +762,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
       (await importSrc(`${S}/surfaces/settings/notifications/surface.ts`)).alertsOverride,
       (await importSrc(`${S}/surfaces/settings/memory/surface.ts`)).askMemoryOverride,
-      (await importSrc(`${S}/surfaces/settings/files/surface.ts`)).filesOverride,
+      (await importSrc(`${S}/surfaces/files/surface.ts`)).filesOverride,
     ].map((o) => [o.key, o]),
   );
   // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first
@@ -931,8 +931,8 @@ test("every page there is says what it opens on: a page that arrives without its
 
 /* ------------------------------ what the page did not take ------------------------------ */
 
-test("REGRESSION: what the head started and the page's own reads did not take is let go of once they are in -- Leads' list in Fit order, untaken by a tab that last read another order, answered the owner's pick of Fit minutes later", async () => {
-  const LEADS_FIT = "/api/v1/leads?list=all&sort=fit&dir=asc&limit=500&workspace=acme";
+test("REGRESSION: what the head started and the page's own reads did not take is let go of once they are in -- Leads' list in the queue's order, untaken by a tab that last read another order, answered the owner's pick of the queue minutes later", async () => {
+  const LEADS_QUEUE = "/api/v1/leads?list=all&sort=stage&dir=asc&limit=500&workspace=acme";
   const fetched = [];
   const win = {
     fetch: async (url) => {
@@ -947,9 +947,9 @@ test("REGRESSION: what the head started and the page's own reads did not take is
     dispatchEvent() {
       return true;
     },
-    // What the head started as the document began: the list in Fit order, as every Leads page opens on.
+    // What the head started as the document began: the list in the queue's order, as every Leads page opens on.
     [PREFETCH_SLOT]: {
-      [LEADS_FIT]: Promise.resolve(json({ ok: true, data: { rows: [{ id: "from the first second" }] } })),
+      [LEADS_QUEUE]: Promise.resolve(json({ ok: true, data: { rows: [{ id: "from the first second" }] } })),
     },
   };
   globalThis.window = win;
@@ -973,11 +973,11 @@ test("REGRESSION: what the head started and the page's own reads did not take is
       "the page's own read asked the server",
     );
     api().forget();
-    // Minutes on, the owner sorts by Fit.
-    const r = await api()("GET leads", { query: { list: "all", sort: "fit", dir: "asc", limit: "500" } });
+    // Minutes on, the owner asks for the queue.
+    const r = await api()("GET leads", { query: { list: "all", sort: "stage", dir: "asc", limit: "500" } });
     assert.equal(r.ok, true);
     assert.equal(r.data.rows[0].id, "read now", "REGRESSION: answered from what the document's head read as it began");
-    assert.ok(fetched.includes(LEADS_FIT), "the server was asked");
+    assert.ok(fetched.includes(LEADS_QUEUE), "the server was asked");
   } finally {
     stop();
     api().forget();

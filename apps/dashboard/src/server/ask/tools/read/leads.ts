@@ -138,7 +138,7 @@ const searchesById = async (t: ToolContext, why: string) =>
 /**
  * The leads themselves, as the Leads page's view lists them (readers/leads.ts, the page's own read of five hundred):
  * the view by its list, one search, a class and a sort, as the address and the member's view name them, and the
- * page's box -- its words matched on a lead's name, kind and area in the read, as the page's are (00500 lead_matches),
+ * page's box -- its words matched on a lead's name, kind and area in the read, as the page's are (lead_view_rows),
  * over the whole view. The rail's counts and, for a member who may find, the month ride with the first page.
  */
 async function listLeads(
@@ -165,7 +165,7 @@ async function listLeads(
     ...(input.sort ? { sort: input.sort } : {}),
     // The order as the page's column asks it: each sort's own first (the database's ascending key), or reversed.
     ...(input.dir ? { dir: input.dir } : {}),
-    // The box's words, matched where the page's are: in the read (00500 lead_matches), over the whole view.
+    // The box's words, matched where the page's are: in the read (lead_view_rows), over the whole view.
     ...(str(input.words, 80).trim() ? { q: str(input.words, 80) } : {}),
     ...after,
   });
@@ -386,7 +386,7 @@ export const leadsTool = defineActions({
       }),
       examples: [{ list: "ready", sort: "rating", dir: "desc" }],
       label: "Reading your leads",
-      words: `Action leads reads the businesses the searches found, as a view of the Leads page lists them: list is all (the default), ready, nurture (contacted), converted (talking), said_no or not_a_fit; search_id keeps one search's leads; class is qualified (the default: the counted ones), review (needs review) or excluded (left out), so a lead in review or left out is read only with its class; sort is fit (the default: strongest first), found (newest first), distance (nearest first), business (A to Z), rating (lowest first) or stage (ready first), and dir desc reverses it, so the best rated come first with sort rating and dir desc; words keeps the ones whose name, kind or area has them, as the page's box does. Each lead says its kind, area, class, fit or why it was left out, stage, email, rating, when it was found and its search; with the view's first page come the rail's six counts and, for an owner or a partner, this month's leads used and left. Call it for who the leads are or to find one in a class, and action lead for one lead's details. It returns at most ${LEADS_CAP} leads, matching counting the view's first five hundred of that class (words match within those) before the cap, and next_page, passed back as after, for the next five hundred.`,
+      words: `Action leads reads the businesses the searches found, as a view of the Leads page lists them: list is all (the default), ready, nurture (contacted), converted (talking), said_no or not_a_fit; search_id keeps one search's leads; class is qualified (the default: the counted ones), review (needs review) or excluded (left out), so a lead in review or left out is read only with its class; sort is fit (the default: strongest first), stage (what needs you first), found (newest first), distance (nearest first), business (A to Z), rating (lowest first, weighed by how many reviewed), reviews (fewest first), contacted (longest since contact first), or category, city or region (A to Z), an empty value last whichever way, and dir desc reverses it, so the best rated come first with sort rating and dir desc; words keeps the ones that have every word, each on its own and in any order, in the name, kind, area, street, email or website, and a word of three or more digits in the phone too, as the page's box does. Each lead says its kind, area, class, fit or why it was left out, stage, email, rating, when it was found and its search; with the view's first page come the rail's six counts and, for an owner or a partner, this month's leads used and left. Call it for who the leads are or to find one in a class, and action lead for one lead's details. It returns at most ${LEADS_CAP} leads, matching counting the view's first five hundred of that class (words match within those) before the cap, and next_page, passed back as after, for the next five hundred.`,
       run: listLeads,
     }),
     lead: readAction({

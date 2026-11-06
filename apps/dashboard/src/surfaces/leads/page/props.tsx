@@ -132,6 +132,7 @@ const leadsSelectStep = (p: LeadsPage) => {
 
 /** The sorts a phone's Leads offers, as a desk's headings give them (leads_page's p_sort); Nearest where a search has a centre. */
 const LD_PHONE_SORTS: readonly { by: string; dir: "asc" | "desc"; label: string; near?: boolean }[] = [
+  { by: "stage", dir: "asc", label: "What needs you first" },
   { by: "fit", dir: "asc", label: "Best fit first" },
   { by: "rating", dir: "desc", label: "Highest rated first" },
   { by: "found", dir: "desc", label: "Newest found first" },

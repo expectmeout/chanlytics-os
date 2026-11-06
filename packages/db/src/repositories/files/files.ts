@@ -3,7 +3,7 @@
  * and the service role's own. The doors are doors.ts, and the copy Anthropic holds is read only by the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { FILES_MAX, FILES_BUCKET } from "@chanlytics/contracts";
+import { FILES_MAX, FILES_BUCKET, type FileShelfFilter } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -48,6 +48,52 @@ export async function filesOf(db: Db, tenantId: string): Promise<FileMemberRow[]
   return data ?? [];
 }
 
+/** What each file says of itself and no more, for what counts them: a workspace at its cap is a few KB this way, and a megabyte with its looks. */
+export async function filesTalliedOf(
+  db: Db,
+  tenantId: string,
+): Promise<Pick<FileMemberRow, "status" | "shows" | "source" | "look_status" | "created_at">[]> {
+  const { data, error } = await db
+    .from("files")
+    .select("status, shows, source, look_status, created_at")
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .limit(FILES_MAX);
+  if (error) throw new Error(`files tallied: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * A page of one shelf, newest first, ending just before `before`: by the time and the id, so a file kept while a person scrolls moves
+ * nothing past them and none is read twice, and two kept at one instant still have an order.
+ */
+export async function filesOnShelfOf(
+  db: Db,
+  tenantId: string,
+  shelf: FileShelfFilter,
+  page: { limit: number; before?: { at: string; id: string } | null },
+): Promise<FileMemberRow[]> {
+  let q = db
+    .from("files")
+    .select(MEMBER_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .eq("status", shelf.status);
+  if (shelf.made !== undefined) q = shelf.made ? q.eq("source", "made") : q.neq("source", "made");
+  if (shelf.shows)
+    q = shelf.orUnsorted ? q.or(`shows.is.null,shows.in.(${shelf.shows.join(",")})`) : q.in("shows", [...shelf.shows]);
+  if (page.before) {
+    const { at, id } = page.before;
+    q = q.or(`created_at.lt.${at},and(created_at.eq.${at},id.lt.${id})`);
+  }
+  const { data, error } = await q
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(page.limit);
+  if (error) throw new Error(`files on shelf: ${error.message}`);
+  return data ?? [];
+}
+
 /** One file, under the caller's RLS; null where it is not there for them, or was removed. */
 export async function fileOf(db: Db, id: string): Promise<FileMemberRow | null> {
   const { data, error } = await db
@@ -81,6 +127,28 @@ export async function fileForWork(db: Db, tenantId: string, id: string): Promise
   const { data, error } = await db.from("files").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
   if (error) throw new Error(`file: ${error.message}`);
   return data ?? null;
+}
+
+/** How a post was made, for the service role: a member's session has no grant on it (00553). */
+export async function fileMadeOf(db: Db, tenantId: string, id: string): Promise<FileRow["made"]> {
+  const { data, error } = await db.from("files").select("made").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`file made: ${error.message}`);
+  return data?.made ?? null;
+}
+
+/** How the workspace's newest post that is still here was made, for the service role; null before its first. */
+export async function newestMadeOf(db: Db, tenantId: string): Promise<FileRow["made"]> {
+  const { data, error } = await db
+    .from("files")
+    .select("made")
+    .eq("tenant_id", tenantId)
+    .eq("source", "made")
+    .is("removed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`newest made: ${error.message}`);
+  return data?.made ?? null;
 }
 
 /** Whether this file is here, or a person let it go: either way an import stores no bytes for it. */

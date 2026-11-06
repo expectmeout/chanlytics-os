@@ -17,7 +17,8 @@ import type { TodayBackVM } from "./today-day";
 export interface TodayNeedsRowVM {
   id: string;
   conversationId: string;
-  escalationId: string;
+  /** The hold it is, where it is one; null for a thread the rule says waits with none open (today-facts.ts OwedThread). */
+  escalationId: string | null;
   who: string;
   reason: string;
   waited: string;
@@ -119,6 +120,8 @@ export interface TodayQueueRowVM {
   warn: boolean;
   cta: { label: string; to: string };
   also: { label: string; verb: "snooze" | "resolve"; conversationId: string; escalationId: string } | null;
+  /** How Mark done lets this row go, where it holds no hold to hand back: its thread is archived (today-queue.ts owedRow). */
+  closes?: "archive";
   /**
    * On a `step` only: whose step it is and which note, the deal it moves and the member it is for, so the row's button can
    * mark it done (the person-notes verb the thread header uses) and Not now can move its day without changing whom it is

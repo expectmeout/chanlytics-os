@@ -502,8 +502,9 @@ test("a failed delivery is a warn sentence — never silent", () => {
 });
 
 test("a failed delivery is said on a quiet day too, with its door to the thread", () => {
-  // Nothing came in today and nobody waits, so the day is quiet; the one thing that happened is a reply that never
-  // reached its customer. The quiet day returned the recap with no sentences, and the line went (6 Oct 2026).
+  // Nothing came in today and nobody waits, so the day is quiet; the one thing that happened is a campaign's send that never
+  // reached its customer (a reply's own failure waits on you, thread-move.ts). The quiet day returned the recap with no
+  // sentences, and the line went (6 Oct 2026).
   const m = metrics({ period: { send_failures: 1 } });
   const failed = {
     id: "m9",
@@ -512,7 +513,7 @@ test("a failed delivery is said on a quiet day too, with its door to the thread"
     type: "text",
     body: "Yes, Tuesday at 3 works.",
     media: null,
-    meta: null,
+    meta: { source: "broadcast" },
     status: "failed",
     created_at: "2026-08-27T13:00:00Z",
   };
@@ -530,7 +531,18 @@ test("calm-day sentences do not read the headline back", () => {
   const m = metrics({
     period: { messages_in: 3, answered_by_ai: 3, conversations_active: 2, calls: 1, call_seconds: 60 },
   });
-  const vm = toTodayVM(m, [conv({ state: "open" })], [], [], NOW);
+  const answered = {
+    id: "m2",
+    direction: "outbound",
+    sender: "ai",
+    type: "text",
+    body: "Yes, we do.",
+    media: null,
+    meta: null,
+    status: "delivered",
+    created_at: "2026-08-27T14:01:00Z",
+  };
+  const vm = toTodayVM(m, [conv({ state: "open", messages: [...conv().messages, answered] })], [], [], NOW);
   assert.match(vm.standing.headline, /handled everything/);
   assert.equal(vm.recap.sentences.length, 0);
 });
@@ -1394,7 +1406,8 @@ test("one reading of each escalation: Ask's row and the queue's row agree, and a
     [],
     NOW,
   );
-  assert.deepEqual([handoff.queue.rows[0].conversationId, handoff.queue.rows[0].callId], ["cv-a", null]);
+  const anaRow = handoff.queue.rows.find((r) => r.conversationId === "cv-a");
+  assert.deepEqual([anaRow.conversationId, anaRow.callId], ["cv-a", null]);
   assert.equal(handoff.needsYou.rows[0].quote, "Hi, can I book?", "the customer's own words first");
   const ear = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).queue.rows.find((r) => r.kind === "call");
   assert.deepEqual([ear.callId, ear.conversationId], ["k3", null], "a call worth a listen names its call");

@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { FILE_NAME_MAX, FILE_SHOWS } from "@chanlytics/contracts";
-import { write } from "@/server/route";
+import { read, write } from "@/server/route";
 import { changeFile, fileScope, removeFile } from "@/server/files/file";
+import { fileRecord } from "@/server/files/post/record";
 
 /**
+ * GET /api/v1/files/:id — one file, and for a post the photo it came from and what it was asked to be. Every member reads it.
+ *
  * PATCH /api/v1/files/:id — `{ name?, shows?, who_in_it?, status? }`: what a person says of a file. What they name and shelve
  * stays when the look runs again. Who is in it is a person's word: no one, or they agreed.
  *
@@ -12,6 +15,11 @@ import { changeFile, fileScope, removeFile } from "@/server/files/file";
  *
  * The handles are in src/server/files/file.ts.
  */
+export const GET = read({
+  scope: fileScope,
+  handle: ({ ctx, member, row }) => fileRecord(ctx, member, row),
+});
+
 export const PATCH = write({
   scope: fileScope,
   role: "partner",

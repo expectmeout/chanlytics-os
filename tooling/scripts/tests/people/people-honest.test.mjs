@@ -3025,8 +3025,8 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
   assert.equal(menu.props.groups[0].choose.value, "comfortable", "comfortable until the member says otherwise");
   assert.deepEqual(
     menu.props.groups[1].items.map((i) => `${i.label}${i.disabled ? " (off)" : ""}`),
-    ["Fit all columns", "Reset widths and order (off)"],
-    "a fit for every column, and nothing to put back while no width or place was changed",
+    ["Fit all columns", "Reset widths and order (off)", "Show default columns (off)"],
+    "a fit for every column, and nothing to put back while no width, place or switch was changed",
   );
   assert.deepEqual(
     menuItems(tree),

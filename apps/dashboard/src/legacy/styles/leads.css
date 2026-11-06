@@ -278,7 +278,7 @@
 .ld-reach-email { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; font: inherit; color: var(--ink); cursor: pointer; }
 @media (hover: hover) { .ld-reach-email:hover { text-decoration: underline; } }
 .ld-reach-phone.wrong { text-decoration: line-through; color: var(--ink-faint); }
-.ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; }
+.ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; text-decoration: none; cursor: pointer; }
 /* A thumb's reach without a thumb's height. Every button on a touch screen is 44px tall (legacy.css), so a lead's
    one-line name stood in a 44px box, with the air between it and its sub-line: on the review card and on the
    table's phone card alike. The height comes off the box. The review card's name keeps its reach in an ::after that
@@ -643,6 +643,9 @@ button.ld-slot-btn { cursor: pointer; }
 /* Reach as the table says it (cells/shapes.tsx LeadReachLine): the number over the address, each on a line its own
    words end with an ellipsis in; the number in the ink, the address and "nothing found" in the dim ink. */
 .ld-reach { display: flex; min-width: 0; }
+/* A link out of a cell (Website, Social): quiet at rest, as the column's other words are; a pointer finds it is a link. */
+@media (hover: hover) { .ld-out-link:hover { text-decoration: underline; } }
+.ld-links { display: flex; align-items: center; gap: 5px; min-width: 0; }
 /* The press stands 3px past its words on each side (.ld-slot-btn's padding, taken back by its margin), so the most it
    may be is its line and those: at the line's own width a number that fitted exactly was cut ("(512) 555-01…"). */
 .ld-reach-press { flex: 0 1 auto; min-width: 0; max-width: calc(100% + 6px); }

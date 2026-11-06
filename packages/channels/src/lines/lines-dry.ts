@@ -53,6 +53,7 @@ export function dryProvider(seed = 1): DryProvider {
       rec("findSubaccount", acctOf(master), friendlyName);
       return subaccounts.get(friendlyName) ?? null;
     },
+    readSubaccount: (_master, sid) => Promise.resolve([...subaccounts.values()].find((a) => a.sid === sid) ?? null),
     async findTrunk(acct, domainName) {
       rec("findTrunk", acctOf(acct), domainName);
       const sid = trunks.get(`${acctOf(acct)} ${domainName}`);
@@ -118,6 +119,7 @@ export function dryProvider(seed = 1): DryProvider {
     async deleteTrunk(acct, trunkSid) {
       rec("deleteTrunk", acctOf(acct), trunkSid);
     },
+    deleteCampaign: () => Promise.resolve(),
     async createCredentialList(acct, friendlyName) {
       rec("createCredentialList", acctOf(acct), friendlyName);
       const sid = next("CL");

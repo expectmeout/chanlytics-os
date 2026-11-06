@@ -12,7 +12,6 @@ import type {
   AskLanguage,
   AskMessageVM,
   AskProposalOutcome,
-  PostPlan,
   AskScope,
   AskShowPreview,
   AskSurface,
@@ -50,8 +49,6 @@ export { readLines };
 
 /** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
 const TURN_MS = 300_000;
-/** How long a post's picture is waited for: a photo read and a drawing, on a slow day. */
-const POST_PICTURE_MS = 30_000;
 
 /**
  * What the Line says of a turn whose stream broke before its answer, in the question's language: the wait run out
@@ -283,13 +280,6 @@ export function askApi(client: Api = api()) {
     ...voiceCalls(client),
     ...speechCalls(client),
     send: turnCall(client, head),
-    /** The real picture a post's card shows (POST files/post/preview), or null where it could not be drawn. */
-    postPicture: async (plan: PostPlan): Promise<Blob | null> => {
-      const res = await client
-        .raw("POST files/post/preview", { body: plan, timeoutMs: POST_PICTURE_MS })
-        .catch(() => null);
-      return res?.ok ? res.blob() : null;
-    },
   };
 }
 

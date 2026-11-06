@@ -249,7 +249,7 @@ test.describe("Phone shell on a real workspace", () => {
     // A bucket is a list, never a conversation. Picking Handled or Snoozed opened that bucket's first thread over
     // the rows -- the list gone, a customer nobody asked for on the phone -- and a bucket with nothing in it left
     // neither on the screen.
-    for (const name of ["Handled", "Snoozed"]) {
+    for (const name of ["Waiting", "Handled", "Snoozed"]) {
       const chip = page.locator(".subtab", { hasText: name }).first();
       if ((await chip.count()) === 0) continue;
       await chip.click();
@@ -750,26 +750,43 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * The strip stands as tall as what stands beside it, on its line (Ruben, 4 Nov 2026): it stood 46 under a thumb beside
-   * a coral act of 36, and Reports' period and the Calendar's Settings stood 44 between the two.
+   * What stands beside the strip stands on its line, at the height of what it matches: a coral act as tall as the view
+   * picked in the strip, and an empty capsule as tall as the strip (Ruben, 4 and 6 Nov 2026). At the strip's 36 the coral
+   * read bigger than the tabs beside it. It is still 44 to a finger, by a margin no one sees.
    */
-  test("the strip of views is the height of the act beside it, on its line", async ({ page }) => {
+  test("a coral act is the height of the view picked and a capsule the strip's, on one line", async ({ page }) => {
     const placeOf = (el: Locator) =>
       el.evaluate((node) => {
         const r = node.getBoundingClientRect();
         return { top: Math.round(r.top), height: Math.round(r.height) };
       });
-    for (const [label, hash] of [
-      ["the Inbox", "conversations"],
-      ["People", "clients"],
-      ["the Calendar", "calendar"],
-      ["Reports", "reports"],
-    ] as const) {
+    const actOn = async (label: string, hash: string) => {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
       const act = page.locator(".pg-act-slot").locator("button, a").first();
       await expect(act, `${label} draws an act beside its strip`).toBeVisible();
-      expect(await placeOf(act), `${label}'s act is its strip's height, on its line`).toEqual(
+      return act;
+    };
+    for (const [label, hash] of [
+      ["the Inbox", "conversations"],
+      ["People", "clients"],
+    ] as const) {
+      const act = await actOn(label, hash);
+      expect(await placeOf(act), `${label}'s act is the view picked's height, on its line`).toEqual(
+        await placeOf(page.locator(".pg-slot > nav .stabs-tab.active")),
+      );
+      const pressed = await act.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        return [r.top - 7, r.bottom + 7].map((y) => node.contains(document.elementFromPoint(r.left + r.width / 2, y)));
+      });
+      expect(pressed, `${label}'s act is pressed over and under what it draws`).toEqual([true, true]);
+    }
+    for (const [label, hash] of [
+      ["the Calendar", "calendar"],
+      ["Reports", "reports"],
+    ] as const) {
+      const act = await actOn(label, hash);
+      expect(await placeOf(act), `${label}'s capsule is its strip's height, on its line`).toEqual(
         await placeOf(page.locator(".pg-slot > nav")),
       );
     }

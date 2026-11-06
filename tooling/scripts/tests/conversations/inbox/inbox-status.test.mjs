@@ -232,7 +232,7 @@ test("every state of a real thread is named in the bar under the header, and wha
     lastWord: [
       chat({ state: "open", messages: [wrote("m1", "Open Sunday?", 30), ours("m2", "Closed Sundays.", 29)] }),
       null,
-      /^Handled$/,
+      /^Handledby the receptionist$/,
       /^$/,
     ],
   };
@@ -251,7 +251,8 @@ test("every state of a real thread is named in the bar under the header, and wha
   }
 });
 
-test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They wrote last — no reply yet' sat over 'Auto-sends in 72s'", () => {
+test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They wrote last — no reply yet' sat over 'Auto-sends in 72s'", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const vm = vmOf(chat({ state: "open", messages: [wrote("m1", "Can I move my appointment to Friday?", 2), draft] }));
   assert.equal(vm.lastWord.text, "They wrote last — no reply yet.", "the view model still knows who wrote last");
   const pane = paneOf(vm, { veto: 72 });
@@ -269,18 +270,18 @@ test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They w
     "REGRESSION: 'no reply yet' over a reply about to send",
   );
   assert.ok(!textOf(status).includes("no reply yet"));
-  // The head says it as the thread's one state, in the amber, with its clock (the thread canvas, 1 Nov 2026).
+  // The head says it as the thread's one state, in the coral that means right now, with its clock (contracts tone.ts).
   const standing = find(pane, byTestId("ix-th-standing"));
   assert.equal(textOf(standing), "Sends in 1:12");
-  assert.equal(find(standing, (n) => n.props?.kind === "tone")?.props.value, "warn");
+  assert.equal(find(standing, (n) => n.props?.kind === "thread")?.props.value, "sending");
 });
 
-test("Needs you has one signal: the pill lit in the coral, its wait beside it in the quiet ink -- a red flag in a red-outlined card", () => {
+test("Needs you has one signal: the pill lit in the amber, its wait beside it in the quiet ink -- a red flag in a red-outlined card", () => {
   const signal = (min) => {
     const pane = paneOf(vmOf(chat(), asked(min)));
     const standing = find(pane, byTestId("ix-th-standing"));
     return {
-      pill: !!find(standing, (n) => n.props?.kind === "tone" && n.props?.label === "Needs you"),
+      pill: !!find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "needs_you"),
       flag: !!find(pane, (n) => n.type === Icon && n.props?.name === "flag"),
       wait: find(standing, hasClass("ix-th-standing-meta")),
     };
@@ -288,7 +289,7 @@ test("Needs you has one signal: the pill lit in the coral, its wait beside it in
   const late = signal(40);
   assert.deepEqual([late.pill, late.flag], [true, false], "REGRESSION: a red flag");
   assert.equal(textOf(late.wait), "40m");
-  // The number says how long; a second tone beside the coral was a second signal (the thread canvas, 1 Nov 2026).
+  // The number says how long; a second tone beside the pill was a second signal (the thread canvas, 1 Nov 2026).
   assert.equal(late.wait.props.className, "ix-th-standing-meta tabular", "the wait in the quiet ink");
   assert.equal(textOf(signal(12).wait), "12m");
 });

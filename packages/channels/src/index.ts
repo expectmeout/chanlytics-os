@@ -91,6 +91,8 @@ export type {
 export {
   accountsRequest,
   cleanReply,
+  createLocalPost,
+  deleteLocalPost,
   deleteReplyRequest,
   GBP_ACCOUNTS_URL,
   GBP_INFO_BASE,
@@ -122,6 +124,7 @@ export type {
   GbpLocationDetails,
   GbpPeriod,
   GbpPhoto,
+  GbpPostAsked,
   GbpReview,
   GbpReviewsPage,
 } from "./google/google-profile";

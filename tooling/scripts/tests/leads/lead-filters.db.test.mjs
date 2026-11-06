@@ -1,9 +1,10 @@
 /**
  * The Leads read narrows as the table did (decision 0083, Phase B; migration 00500_the_leads_read_takes_the_page_s_filters.sql):
- * one rule, lead_matches, asked by leads_page, lead_view_counts and lead_bulk's act by view, proved on a real Postgres
+ * one door, lead_view_rows (00554), read by leads_page, lead_view_counts and lead_bulk's act by view, proved on a real Postgres
  * against the answers the browser's filters gave in Phase A (`tooling/scripts/tests/table/goldens/leads-shown.json`,
  * 240 cases of words, the Excluded view's criterion, a fit and the Filter's reaches over the twelve leads of
- * `tooling/scripts/tests/table/_fixtures.mjs`).
+ * `tooling/scripts/tests/table/_fixtures.mjs`). The box's words now also look in the address, which the goldens' never did: the
+ * seeded addresses hold none of their words.
  *
  * The fixture's leads are seeded in their page's order, each found a minute before the last, so leads_page's `found`
  * sort answers them in the goldens' order. A golden holds both classes the fixture has; the read holds one class a
@@ -159,7 +160,7 @@ before(async () => {
           // A number the listing and the site agree on is on two sources (lead-page.ts: phone_agrees).
           phone_sources: r.phone ? (r.phone_agrees ? 2 : 1) : 0,
           phone_wrong: r.phone_wrong,
-          email: r.email,
+          email: r.email ? `${r.id}@fixture-filters.example` : null,
           email_state: r.email_state,
           rating: r.rating,
           reviews: r.reviews,
@@ -216,7 +217,7 @@ test(
           wrong.push(`${key} (${cls}): ${got.join(",")} != ${want.join(",")}`);
       }
     }
-    assert.deepEqual(wrong, [], "lead_matches is the rule the table held");
+    assert.deepEqual(wrong, [], "the door holds the rule the table held");
   },
 );
 

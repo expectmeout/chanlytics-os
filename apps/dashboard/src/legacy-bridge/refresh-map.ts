@@ -39,7 +39,7 @@ import { channelsOverride } from "@/surfaces/channels/surface";
 import { todayOverride } from "@/surfaces/today/override";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
-import { filesOverride } from "@/surfaces/settings/files/surface";
+import { filesOverride } from "@/surfaces/files/surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
@@ -92,7 +92,7 @@ const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? dr
 // What Ask remembers (settings/memory/surface.ts; decision 0070), where Settings › Memory is on screen: a line kept, changed or
 // forgotten there, or by a card's Undo in the Line. Elsewhere the pane reads it as it comes on screen, once it has aged.
 const memoryIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMemoryOverride]) : []);
-// A business's files (settings/files/surface.ts; decision 0099), where the pane is drawn: nothing else a page draws reads them.
+// A business's files (files/surface.ts; decision 0099), where the pane is drawn: nothing else a page draws reads them.
 const filesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([filesOverride]) : []);
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
@@ -669,6 +669,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
+  "POST files/[id]/google": "a post put on Google: its sheet says so from the answer, and the list holds nothing of it",
+  "DELETE files/[id]/google":
+    "a post taken off Google: its sheet says so from the answer, and the list holds nothing of it",
   "POST files/start": "an upload under way is no file yet: the page reads again when it arrives",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.

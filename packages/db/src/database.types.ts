@@ -8882,25 +8882,6 @@ export type Database = {
         Returns: boolean
       }
       lead_list_counts: { Args: { p_tenant_id: string }; Returns: Json }
-      lead_matches: {
-        Args: {
-          p_business: string
-          p_category: string
-          p_city: string
-          p_email: string
-          p_email_state: string
-          p_excluded_by: string
-          p_filters: Json
-          p_fit: string
-          p_phone: string
-          p_phone_sources: number
-          p_phone_wrong: boolean
-          p_postal: string
-          p_region: string
-          p_status_group?: string
-        }
-        Returns: boolean
-      }
       lead_member_exclude: {
         Args: { p_lead_id: string; p_search_id: string }
         Returns: Json
@@ -9137,7 +9118,9 @@ export type Database = {
         Args: { p_lead_ids: string[]; p_tenant_id: string }
         Returns: {
           lead_id: string
+          status_at: string
           status_group: string
+          status_rank: number
         }[]
       }
       lead_suggest_history: { Args: { p_tenant_id: string }; Returns: Json }
@@ -9168,6 +9151,45 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: Json
+      }
+      lead_view_rows: {
+        Args: {
+          p_class?: string
+          p_filters?: Json
+          p_hits?: boolean
+          p_list?: string
+          p_search_id?: string
+          p_status?: boolean
+          p_tenant_id: string
+        }
+        Returns: {
+          business_name: string
+          category: string
+          city: string
+          contacted_at: string
+          distance_m: number
+          email_any: boolean
+          email_ok: boolean
+          excluded_by: string
+          fit: string
+          found_at: string
+          hit: boolean
+          kept: boolean
+          later_at: string
+          lead_id: string
+          member_id: string
+          phone_any: boolean
+          phone_ok: boolean
+          rating: number
+          region: string
+          reviews: number
+          search_id: string
+          stage: string
+          stage_at: string
+          status_at: string
+          status_group: string
+          status_rank: number
+        }[]
       }
       leads_back_today: { Args: { p_tenant_id: string }; Returns: Json }
       leads_page: {
@@ -11187,6 +11209,7 @@ export type Database = {
         Args: {
           p_lead_ids?: string[]
           p_sequence_id?: string
+          p_standing_leads?: boolean
           p_tenant_id: string
         }
         Returns: {

@@ -5,12 +5,14 @@
  * they are, where they stand, how to reach them, how well they are rated and when they were found, each cell the kit's
  * two lines (kit/table/lines.tsx), the fact and then what qualifies it. Stage says the one status a lead has and takes
  * the room the others leave; Reach says the number and the address themselves, where two circles stood for them. Fit
- * and Why it fits stay in the Columns menu, off: the band bar says the fits, the name's card and the peek say why. In
- * the kit's shape (kit/table/columns.ts DataColumn). The six that sort are the six
- * `leads_page` takes, and the server sorts them (the table runs on the read's order); the filters' columns hold the
- * page's narrowings, which the read applies (00500): the Excluded view's chip, the band's fit, the Filter's reach.
+ * and Why it fits stay in the Columns menu, off: the band bar says the fits, the name's card and the peek say why. So
+ * do the rest of what a row holds (more-columns.tsx). In the kit's shape (kit/table/columns.ts DataColumn). The columns
+ * that sort are the sorts `leads_page` takes, and the server sorts them (the table runs on the read's order); the filters'
+ * columns hold the page's narrowings, which the read applies: the Excluded view's chip, the band's fit, the Filter's reach.
  */
 import {
+  LEAD_COLUMN_GROUPS,
+  LEAD_RATED_HINT,
   LEAD_REVIEW_ACT_WORDS,
   leadRowActOf,
   leadStatusOf,
@@ -39,7 +41,8 @@ import {
   ldPlaceRowOf,
   ldTalkingDoor,
 } from "./name-cell";
-import { LeadReachLine } from "./shapes";
+import { LEAD_MORE_COLUMNS } from "./more-columns";
+import { LeadNotChecked, LeadOutLink, leadMailboxLine, leadPhoneLine } from "./shapes";
 import type { LeadCellCtx } from "./types";
 
 /* ------------------------------------------------------------------ the row */
@@ -187,29 +190,9 @@ const stageCell = (l: LeadRowVM, x: LeadCellCtx) => {
 const reachCell = (l: LeadRowVM, x: LeadCellCtx) => (
   <td key="reach" className="ld-reach-cell" data-testid="lead-reach">
     {l.cls === "excluded" ? (
-      <span className="dim">Not checked</span>
+      <LeadNotChecked />
     ) : (
-      <CellLines
-        open
-        top={
-          <LeadReachLine
-            id={l.id}
-            kind="phone"
-            slot={l.slots.phone}
-            onPress={l.slots.phone.value && l.slots.phone.state !== "bad" ? () => x.onCall(l.id) : null}
-            pressLabel="press to call"
-          />
-        }
-        sub={
-          <LeadReachLine
-            id={l.id}
-            kind="mailbox"
-            slot={l.slots.mailbox}
-            onPress={l.slots.mailbox.copy ? () => x.onCopy(l.id) : null}
-            pressLabel="press to copy"
-          />
-        }
-      />
+      <CellLines open top={leadPhoneLine(l, x)} sub={leadMailboxLine(l, x)} />
     )}
   </td>
 );
@@ -231,7 +214,8 @@ const ratedSub = (rated: NonNullable<LeadRowVM["rated"]>) =>
 
 // Every one of Leads' sorts is the server's (leads_page). A first press puts first what a member sorts by that column
 // for: A to Z, the queue, the best rated, the newest, the best fit, the nearest. They all went "the most first", so a press
-// on Business read Z to A, on Fit the long shots, and on Distance the leads with none (6 Nov 2026).
+// on Business read Z to A, on Fit the long shots, and on Distance the leads with none (6 Nov 2026). Business and Stage head
+// the Columns menu; every other column stands under its group's heading there.
 export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[] = [
   {
     key: "business",
@@ -257,6 +241,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "reach",
     label: "Reach",
+    group: LEAD_COLUMN_GROUPS.reach,
     hint: "A half circle is an address not confirmed; a line through is a number marked wrong",
     width: { base: 208, min: 160, max: 280 },
     cell: reachCell,
@@ -264,6 +249,8 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "rating",
     label: "Rated",
+    group: LEAD_COLUMN_GROUPS.good,
+    hint: LEAD_RATED_HINT,
     sort: { first: "desc" },
     align: "end",
     width: { base: 92, min: 76 },
@@ -284,6 +271,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "found",
     label: "Found",
+    group: LEAD_COLUMN_GROUPS.from,
     sort: { first: "desc" },
     align: "end",
     width: { base: 72, min: 56 },
@@ -313,8 +301,9 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "fit",
     label: "Fit",
+    group: LEAD_COLUMN_GROUPS.good,
     sort: { first: "asc" },
-    // The band's fit (D5) is a filter on this column, which the read narrows by (00500 lead_matches).
+    // The band's fit (D5) is a filter on this column, which the read narrows by (lead_view_rows).
     width: { base: 100, min: 84 },
     on: false,
     cell: (l) => (
@@ -326,6 +315,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "why",
     label: "Why it fits",
+    group: LEAD_COLUMN_GROUPS.good,
     width: { base: 280, min: 160, max: 520 },
     on: false,
     cell: (l) => (
@@ -337,6 +327,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "distance",
     label: "Distance",
+    group: LEAD_COLUMN_GROUPS.where,
     sort: { first: "asc" },
     width: { base: 104, min: 88 },
     needs: (x) => !!x.hasCenter,
@@ -350,6 +341,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "source",
     label: "Source",
+    group: LEAD_COLUMN_GROUPS.from,
     width: { base: 128, min: 96, max: 220 },
     on: false,
     cell: (l) => (
@@ -361,17 +353,19 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "website",
     label: "Website",
+    group: LEAD_COLUMN_GROUPS.reach,
     width: { base: 170, min: 120, max: 280 },
     on: false,
     cell: (l) => (
       <td key="website" className="dim cl-cut ld-website-cell">
-        {l.host}
+        {l.card.site ? <LeadOutLink href={l.card.site.href}>{l.host}</LeadOutLink> : null}
       </td>
     ),
   },
   {
     key: "search",
     label: "Search",
+    group: LEAD_COLUMN_GROUPS.from,
     width: { base: 150, min: 108, max: 260 },
     on: false,
     cell: (l) => (
@@ -380,6 +374,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
       </td>
     ),
   },
+  ...LEAD_MORE_COLUMNS,
   // The row's acts, where the eye ends: under a pointer and on the keyboard's cursor (clients.css shows .cl-row-actions
   // then). They take no column: the cell is the row's own right gutter, and the acts float in from it over the row's
   // end, where 84px stood empty at rest and the columns turned off slid under it (5 Nov 2026).
@@ -394,7 +389,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
       </td>
     ),
   },
-  // The page's narrowings the table holds and the read applies (00500 lead_matches, the one rule): the Excluded view's
+  // The page's narrowings the table holds and the read applies (lead_view_rows, the one rule): the Excluded view's
   // chip (a criterion's key), the Filter (a checked email, a checked phone, or both) and the status groups (00552).
   { key: "f_excluded", label: "", hidden: true },
   { key: "f_reach", label: "", hidden: true },

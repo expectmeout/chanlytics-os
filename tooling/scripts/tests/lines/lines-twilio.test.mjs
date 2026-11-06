@@ -26,6 +26,7 @@ function over(answer) {
 const CALLS = {
   createSubaccount: (p) => p.createSubaccount(master, "Harbor"),
   findSubaccount: (p) => p.findSubaccount(master, "Harbor"),
+  readSubaccount: (p) => p.readSubaccount(master, "ACsub"),
   findTrunk: (p) => p.findTrunk(acct, "chanlytics-abc.pstn.twilio.com"),
   findCredentialList: (p) => p.findCredentialList(acct, "Harbor"),
   findCredential: (p) => p.findCredential(acct, "CL1", "line-abc"),
@@ -37,6 +38,7 @@ const CALLS = {
   releaseNumber: (p) => p.releaseNumber(acct, "PN1"),
   createTrunk: (p) => p.createTrunk(acct, { friendlyName: "Harbor", domainName: "chanlytics-abc.pstn.twilio.com" }),
   deleteTrunk: (p) => p.deleteTrunk(acct, "TK1"),
+  deleteCampaign: (p) => p.deleteCampaign(acct, "MG1", "QE1"),
   createCredentialList: (p) => p.createCredentialList(acct, "Harbor"),
   addCredential: (p) => p.addCredential(acct, "CL1", "line-abc", "x"),
   attachCredentialList: (p) => p.attachCredentialList(acct, "TK1", "CL1"),
@@ -99,6 +101,7 @@ test("Twilio: a delete is done at 204 and at 404 (already gone); any other answe
     ["deleteCredential", "delete credential"],
     ["releaseNumber", "release number"],
     ["deleteTrunk", "delete trunk"],
+    ["deleteCampaign", "delete campaign"],
   ]) {
     assert.equal(await CALLS[name](over({ status: 204, body: null }).provider), undefined, `${name} 204`);
     assert.equal(await CALLS[name](over({ status: 404, body: { code: 20404 } }).provider), undefined, `${name} 404`);

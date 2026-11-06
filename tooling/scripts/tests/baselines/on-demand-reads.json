@@ -9,6 +9,11 @@
     "fresh": "Read only when the tab knows no zone yet; the workspace surface's read holds it after.",
     "why": "A day is counted in the workspace's zone, and a page asked for it before the workspace surface landed must not guess it; the surface's own read, heard, is what holds it afterwards."
   },
+  "apps/dashboard/src/surfaces/files/verbs.ts GET files/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a post's sheet opens, for the photo it came from and what it was asked to be; nothing of it is kept once the sheet goes.",
+    "why": "What a post was made from is written once, as it is kept, and never changes. The photo's name it says is read again each time a sheet opens."
+  },
   "apps/dashboard/src/legacy-bridge/activity.ts GET activity": {
     "kind": "on-open",
     "fresh": "Read as Settings > Activity opens and as a filter changes, a page at a time; while it is open, its first page is read again each minute and as the tab comes back, and what is newer is offered above the lines (settings/activity/newer.ts).",

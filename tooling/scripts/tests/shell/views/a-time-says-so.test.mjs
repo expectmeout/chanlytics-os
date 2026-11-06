@@ -112,7 +112,7 @@ test("a thread's one time says so, whichever time it is", () => {
 
 test("the seconds before a reply goes out are a time too", () => {
   const row = rowOf({}, { sendingIn: () => 3 });
-  assert.match(textOf(row), /sending in/);
+  assert.match(textOf(row), /Sends in.*0:03/);
   assert.ok(
     all(row, (n) => String(n.props?.className ?? "").includes("ix-sending")).some(
       (n) => n.props?.["data-when"] !== undefined,

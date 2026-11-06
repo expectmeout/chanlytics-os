@@ -115,17 +115,11 @@ test("a file stands on one shelf: where it waits first, then what it shows", () 
 });
 
 test("the page counts what is kept, says what waits, and what Ask has still to look at", () => {
-  assert.equal(filesSayOf([]), "0 photos");
-  assert.equal(filesSayOf([{ status: "filed" }]), "1 photo");
+  assert.equal(filesSayOf({ kept: 0, waiting: 0, looking: 0 }), "0 photos");
+  assert.equal(filesSayOf({ kept: 1, waiting: 0, looking: 0 }), "1 photo");
+  assert.equal(filesSayOf({ kept: 2, waiting: 1, looking: 0 }), "2 photos, 1 waiting for you");
   assert.equal(
-    filesSayOf([{ status: "filed" }, { status: "filed" }, { status: "inbox" }, { status: "set_aside" }]),
-    "2 photos, 1 waiting for you",
-  );
-  assert.equal(
-    filesSayOf([
-      { status: "filed", look_status: "waiting" },
-      { status: "inbox", look_status: "done" },
-    ]),
+    filesSayOf({ kept: 1, waiting: 1, looking: 1 }),
     "1 photo, 1 waiting for you, Ask is still looking at 1",
   );
 });

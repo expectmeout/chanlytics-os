@@ -15,22 +15,15 @@
  * edge, and the line under the name, where the conversation stands and the one fact People's row says of them.
  */
 import type { ReactElement, ReactNode } from "react";
-import {
-  countdownClock,
-  heldPill,
-  personFaceOf,
-  stateOf,
-  THREAD_PANE_WORDS,
-  threadHeadFactOf,
-  waitedSaid,
-} from "@chanlytics/contracts";
+import { countdownClock, heldPill, personFaceOf, THREAD_PANE_WORDS, threadHeadFactOf } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { holderName } from "../../holder-names";
+import { ixMoveOf, ixMoveWaited, ixWaitSaid } from "../rules";
 import { hasRouteDoor, routeDoor } from "../shell";
-import type { Thread } from "../types";
+import type { RealThread, Thread } from "../types";
 import { channelIconOf } from "./timeline";
 import { visitWordHere } from "../../workspace-word";
 
@@ -108,6 +101,8 @@ interface Standing {
   meta?: string | null;
   /** What the bare wait means, on a hover ("waiting 40m"). */
   title?: string;
+  /** Who gave the last word, in words: not a figure, so not in the figures' face. */
+  words?: boolean;
 }
 
 /** A draft counting down to send, as the head's state says it: the seconds left (none once held) and whether you are away. */
@@ -117,70 +112,61 @@ export interface Countdown {
 }
 
 /**
- * Where a thread stands, lit (the thread canvas, 1 Nov 2026): a hold is "Needs you" in the coral with the wait beside it
- * ("2h"); a draft counting down "Sends in 0:42" in the amber with its clock; a thread nothing waits on "Handled" in the
- * green with its tick; a snooze, a thread somebody has, and a reply that did not send, in their own tones.
+ * Where a thread stands, lit: whose move it is (contracts thread-move.ts), in the tone map's colour and word, with how long
+ * it has stood beside it in the quiet mono ink (the thread canvas's "2h": the pill is the one signal, and the number says
+ * how long). A reply counting down says its clock; a thread that was answered wears the green with its tick, and who gave
+ * the last word beside it. A thread with nothing on it says its wires.
  */
-const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
-  const W = THREAD_PANE_WORDS;
-  if (thread.state === "snoozed")
+const ixStanding = (thread: RealThread, countdown: Countdown): Standing | null => {
+  const move = ixMoveOf(thread);
+  if (move.move === "nothing") return null;
+  if (move.move === "snoozed")
     return {
       pill: <StatePill kind="thread" value="snoozed" lit />,
       meta: `back ${thread.wake || "tomorrow 10:00"}`,
     };
-  if (thread.takenOver) return { pill: <StatePill kind="thread" value="yours" lit /> };
-  if (thread.claimedByOther)
+  if (move.move === "sending")
+    return countdown.remaining == null
+      ? null
+      : {
+          pill: (
+            <StatePill
+              kind="thread"
+              value="sending"
+              lit
+              glyph={<Icon name="clock" size={11} />}
+              label={
+                <>
+                  {THREAD_PANE_WORDS.sendsIn} <span className="tabular">{countdownClock(countdown.remaining)}</span>
+                </>
+              }
+            />
+          ),
+        };
+  if (move.move === "answered" || move.move === "call")
     return {
-      pill: (
-        <StatePill kind="thread" value="theirs" lit label={heldPill("theirs", holderName(thread.assigneeUserId))} />
-      ),
-      meta: thread.waited || null,
-      title: thread.waited ? waitedSaid(thread.waited) : undefined,
+      pill: <StatePill kind="thread" value={move.move} lit glyph={<Icon name="check" size={11} />} />,
+      meta: move.by ? `by ${move.by}` : null,
+      words: true,
     };
-  // Its wait beside it in the quiet mono ink (the canvas's "2h"): the coral pill is the one signal, and the number says
-  // how long.
-  if (thread.state === "escalated")
-    return {
-      pill: <StatePill kind="tone" value="accent" lit label={stateOf("thread", "escalated").label} />,
-      meta: thread.waited || null,
-      title: thread.waited ? waitedSaid(thread.waited) : undefined,
-    };
-  // A draft counting down is where the thread stands: when it sends, as its own line under the bubble says it.
-  if (thread.real && thread.veto && countdown.remaining != null && !thread.resolution)
-    return {
-      pill: (
-        <StatePill
-          kind="tone"
-          value="warn"
-          lit
-          glyph={<Icon name="clock" size={11} />}
-          label={
-            <>
-              {W.sendsIn} <span className="tabular">{countdownClock(countdown.remaining)}</span>
-            </>
-          }
-        />
-      ),
-    };
-  if (thread.state !== "done" || thread.resolution) return null;
-  // Set aside is archived underneath (00539), and is not what the member reads it as: the list it stands in says so.
-  if (thread.archived)
-    return {
-      pill: <StatePill kind="thread" value="archived" label={thread.setAside ? "Set aside" : "Archived"} lit />,
-    };
-  if (thread.veto) return null;
-  // A reply that didn't send, or what they wrote held and closed with nothing sent (contracts unansweredOf), wears the
-  // row's own pill and, beside it, how long they have waited. Every other thread nothing waits on is handled.
-  if (thread.lastWord && thread.lastWord.short)
-    return {
-      pill: <StatePill kind="tone" value={thread.lastWord.tone} lit label={thread.lastWord.short} />,
-      meta: thread.unanswered ? thread.unanswered.waited : thread.lastWord.at || null,
-    };
-  return { pill: <StatePill kind="tone" value="ok" lit glyph={<Icon name="check" size={11} />} label={W.handled} /> };
+  const waited = ixMoveWaited(thread, move);
+  // The words that didn't send say when they were written, by the business's clock ("10:49 AM"), where the read said it.
+  if (move.move === "failed")
+    return { pill: <StatePill kind="thread" value="failed" lit />, meta: thread.lastWord?.at || waited };
+  // Who has it, named from the team where the roster knows them.
+  const label = move.move === "theirs" ? heldPill("theirs", holderName(thread.assigneeUserId)) : undefined;
+  return {
+    pill: <StatePill kind="thread" value={move.move} lit {...(label ? { label } : {})} />,
+    meta: waited,
+    title: waited ? ixWaitSaid(move, waited) : undefined,
+  };
 };
 
 /** Where a real thread stands, as the header's second line says it; null where it stands nowhere worth a word. */
-function whereItStands(thread: Thread, countdown: Countdown = { remaining: null, paused: false }): ReactElement | null {
+function whereItStands(
+  thread: RealThread,
+  countdown: Countdown = { remaining: null, paused: false },
+): ReactElement | null {
   const standing = ixStanding(thread, countdown);
   if (!standing) return null;
   return (
@@ -188,7 +174,7 @@ function whereItStands(thread: Thread, countdown: Countdown = { remaining: null,
       {standing.pill}
       {standing.meta && (
         <span
-          className="ix-th-standing-meta tabular"
+          className={standing.words ? "ix-th-standing-meta ix-th-standing-words" : "ix-th-standing-meta tabular"}
           title={standing.title}
           aria-hidden={standing.title ? true : undefined}
         >

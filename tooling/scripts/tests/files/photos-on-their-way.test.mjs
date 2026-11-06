@@ -1,5 +1,5 @@
 /**
- * Photos on their way (apps/dashboard/src/surfaces/settings/files/sending.ts and verbs.ts, decision 0099), bundled for node with
+ * Photos on their way (apps/dashboard/src/surfaces/files/sending.ts and verbs.ts, decision 0099), bundled for node with
  * the dashboard's own React and run over a browser in memory. Three go at a time, a failed one stays with its picture and its
  * words until the person says, a twin leaves calmly, a dropped line is tried again, and the end is told once.
  */
@@ -45,8 +45,8 @@ URL.revokeObjectURL = (u) => goneUrls.push(u);
 const out = await build({
   stdin: {
     contents:
-      'export * from "../../../../apps/dashboard/src/surfaces/settings/files/sending.ts";\n' +
-      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/settings/files/verbs.ts";\n' +
+      'export * from "../../../../apps/dashboard/src/surfaces/files/sending.ts";\n' +
+      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tooling/scripts/tests/files"),
@@ -306,6 +306,101 @@ test("an add: asked for, sent, proven; the name and kind are said when it is pro
   assert.deepEqual(JSON.parse(of(calls, "/done")[0].body), { name: "IMG_1.jpg", mime: "image/jpeg" });
   const form = of(calls, "storage.example")[0].body;
   assert.equal(form.get("cacheControl"), "31536000", "its bytes never change");
+});
+
+/** A browser's own way to send that can say how far: told what each send does (a status, or "drop"), and every send kept. */
+function aPutThatSays(steps = []) {
+  const puts = [];
+  globalThis.XMLHttpRequest = class {
+    upload = {};
+    headers = {};
+    open(method, url) {
+      this.method = method;
+      this.url = url;
+    }
+    setRequestHeader(name, value) {
+      this.headers[name] = value;
+    }
+    send(body) {
+      puts.push({ method: this.method, url: this.url, headers: this.headers, body });
+      const step = steps.shift() ?? 200;
+      queueMicrotask(() => {
+        if (step === "drop") return this.onerror();
+        for (let loaded = 0; loaded <= 100; loaded++)
+          this.upload.onprogress({ lengthComputable: true, loaded, total: 100 });
+        this.status = step;
+        this.onload();
+      });
+    }
+  };
+  return puts;
+}
+
+test("a photo says how far it has gone, a step at a time and never each packet, by the road that can say", async () => {
+  const calls = theServer({});
+  const puts = aPutThatSays();
+  try {
+    const said = [];
+    assert.deepEqual(await realAdd(realFile("IMG_2.jpg"), (sent) => said.push(sent)), {
+      kept: true,
+      twin: false,
+      id: "f1",
+    });
+    assert.deepEqual(
+      [puts[0].method, puts[0].url, puts[0].headers["x-upsert"]],
+      ["PUT", "https://storage.example/up", "false"],
+    );
+    assert.equal(puts[0].body.get("cacheControl"), "31536000", "the same request");
+    assert.equal(of(calls, "storage.example").length, 0, "not sent twice");
+    assert.ok(said.length <= 51, `a step at a time: ${said.length}`);
+    assert.deepEqual(
+      said,
+      [...said].sort((x, y) => x - y),
+      "only ever forward",
+    );
+    assert.equal(said.at(-1), 1, "and it says when it is all gone");
+    puts.length = 0;
+    await realAdd(realFile("IMG_3.jpg"));
+    assert.equal(puts.length, 0, "one that doesn't ask (a question's photo) goes by fetch");
+    assert.equal(of(calls, "storage.example").length, 1);
+  } finally {
+    delete globalThis.XMLHttpRequest;
+  }
+});
+
+test("a dropped line or a server's failure is sent again by the same road, and a refusal is a refusal", async (t) => {
+  quickly(t);
+  theServer({});
+  const puts = aPutThatSays(["drop", 503, 200]);
+  try {
+    assert.deepEqual(await realAdd(realFile(), () => {}), { kept: true, twin: false, id: "f1" });
+    assert.equal(puts.length, 3);
+    puts.length = 0;
+    delete globalThis.XMLHttpRequest;
+    const refused = aPutThatSays([403]);
+    assert.equal((await realAdd(realFile(), () => {})).kept, false);
+    assert.equal(refused.length, 1, "asked once");
+  } finally {
+    delete globalThis.XMLHttpRequest;
+  }
+});
+
+test("what is on its way says how far, and a photo that failed does not go on saying so", async () => {
+  let finish;
+  let told;
+  S.fileVerbs.add = (_f, onSent) =>
+    new Promise((resolve) => {
+      finish = resolve;
+      told = onSent;
+    });
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => finish);
+  assert.equal(stateNow().photos[0].sent, 0, "going, from nothing");
+  told(0.5);
+  assert.equal(stateNow().photos[0].sent, 0.5);
+  finish({ kept: false, message: "no" });
+  await waitFor(() => stateNow().photos[0].state === "failed");
+  assert.equal(stateNow().photos[0].sent, null);
 });
 
 test("a dropped line is sent again, and past a first try storage's answer is left for the proof to judge", async (t) => {

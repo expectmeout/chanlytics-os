@@ -191,6 +191,10 @@ export function leadAddresseeOf(l: { kind?: string | null; facts?: unknown }): L
   return f.addressee === null ? null : (f.people[f.addressee] ?? null);
 }
 
+/** A company's size as its source gave it ("11 - 50"). A place has none. */
+export const leadSizeOf = (l: { kind?: string | null; facts?: unknown }): string | null =>
+  l.kind === "company" ? leadFactsOf(l.facts).size : null;
+
 /** One person on a company's peek: who, what they do, whether its reach-out writes to them, their public profile. */
 export interface LeadCompanyPersonVM {
   name: string;

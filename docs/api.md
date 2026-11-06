@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-367 handlers in 57 domains.
+370 handlers in 57 domains.
 
 ## activity
 
@@ -915,7 +915,17 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/route.ts`).
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `shelf` | one of `"all"`, `"inbox"`, `"place"`, `"work"`, `"team"`, `"products"`, `"brand"`, `"made"`, `"other"`, `"set_aside"` | no |  |
+| `limit` | integer | no | ≥ 1; ≤ 1000 |
+| `before` | string | no | at least 1 characters; at most 100 characters |
+
+### `GET /api/v1/files/[id]`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/route.ts`).
 
 ### `PATCH /api/v1/files/[id]`
 
@@ -942,6 +952,22 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `name` | string | yes | at most 255 characters |
 | `mime` | one of `"image/jpeg"`, `"image/png"`, `"image/webp"`, `"image/heic"`, `"image/heif"` | yes |  |
+
+### `POST /api/v1/files/[id]/google`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_google` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `summary` | string | yes | at least 1 characters; at most 1500 characters |
+
+### `DELETE /api/v1/files/[id]/google`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_google` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string | yes | at least 1 characters; at most 300 characters |
 
 ### `GET /api/v1/files/[id]/view`
 
@@ -970,12 +996,13 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `book` | boolean | yes |  |
 | `words_at` | one of `"top"`, `"bottom"` | yes |  |
 | `voice` | one of `"classic"`, `"modern"` | yes |  |
+| `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
 
 ### `POST /api/v1/files/post/preview`
 
-Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_post_preview` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -986,9 +1013,10 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `book` | boolean | yes |  |
 | `words_at` | one of `"top"`, `"bottom"` | yes |  |
 | `voice` | one of `"classic"`, `"modern"` | yes |  |
+| `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
-| `shape` | one of `"portrait"`, `"square"`, `"story"` | no |  |
+| `shape` | one of `"portrait"`, `"square"`, `"story"`, `"wide"` | no |  |
 
 ### `POST /api/v1/files/start`
 
@@ -1265,7 +1293,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
 | `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
-| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
+| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"reviews"`, `"contacted"`, `"category"`, `"city"`, `"region"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `after_key` | string | no | at most 80 characters |
 | `after_id` | string (uuid) | no |  |
@@ -1473,7 +1501,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
 | `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
-| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
+| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"reviews"`, `"contacted"`, `"category"`, `"city"`, `"region"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `pile_list` | string (uuid) | no |  |
 | `q` | string | no | at most 80 characters |
@@ -1481,6 +1509,8 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `fit` | one of `"strong"`, `"look"`, `"long"` | no |  |
 | `reach` | array of one of `"email"`, `"phone"` or string | no |  |
 | `status_group` | array of one of `"needs"`, `"in"`, `"none"` or string | no |  |
+| `after_key` | string | no | at most 80 characters |
+| `after_id` | string (uuid) | no |  |
 
 ## lines
 

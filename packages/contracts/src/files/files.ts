@@ -8,11 +8,14 @@
  */
 
 import { DAY_MS, SECOND_MS } from "../shared/time";
+import type { PostPlan } from "./post";
 
 /** The private bucket (00551): `<tenant>/<file>/original.<ext>`, written only by a signed upload or the service role. */
 export const FILES_BUCKET = "files";
 /** The most files a workspace keeps, and file_start's and file_found's own number (00551). */
 export const FILES_MAX = 1000;
+/** How many of a shelf one read answers: a screen or two of tiles, and a person who scrolls reads the next. */
+export const FILES_PAGE = 60;
 /** The most one upload weighs: the bucket's own limit, and the most a signed resize takes as its source ("25MB", on Storage's page). */
 export const FILE_BYTES_MAX = 25_000_000;
 /** The largest picture Storage will resize. Past it no copy can be made, to draw or to look at, so it is not kept. */
@@ -128,9 +131,50 @@ export interface FileDto {
   created_at: string;
 }
 
+/** How the whole library stands, whichever page of it a read holds: what the page says of itself, and the shelves it draws. */
+export interface FilesTally {
+  /** Every file still here, on any shelf. */
+  total: number;
+  kept: number;
+  waiting: number;
+  looking: number;
+  shelves: Partial<Record<Exclude<FileShelf, "all">, number>>;
+}
+
+/**
+ * GET files: a page of one shelf, newest first, and the tally of them all. `shelf` is the one these are from: the shelf asked for, or
+ * where the library opens when none was, or the one asked for was left empty. `next` asks for the page after this; null at the last.
+ */
 export interface FilesPageDto {
   files: FileDto[];
+  shelf: FileShelf;
+  next: string | null;
+  tally: FilesTally;
 }
+
+/** How a post was made (00553): the photo it came from, while that is still here, and what it was asked to be. */
+export interface FileMade {
+  from: { id: string; name: string } | null;
+  plan: PostPlan;
+}
+
+/** A post on the business's Google profile, as it went up: Google's own name for it, and where it can be seen once Google says. */
+export interface FilePosted {
+  name: string;
+  search_url: string | null;
+  at: string;
+}
+
+/** One file, as GET files/[id] answers it. `made` is null on everything but a post, and so is `google`. */
+export interface FileRecordDto {
+  file: FileDto;
+  made: FileMade | null;
+  /** Whether it can go on Google, and whether it is there. */
+  google: { connected: boolean; posted: FilePosted | null } | null;
+}
+
+/** The most words a post on Google may carry (localPosts.create). */
+export const FILE_GOOGLE_WORDS_MAX = 1500;
 
 /** What the look counted of the people in a picture: how many, and how many someone who knows them could recognize. */
 export type FilePeople = { count: number; recognizable: number };
@@ -177,6 +221,19 @@ export const FILE_SHELVES = [
 ] as const;
 export type FileShelf = (typeof FILE_SHELVES)[number];
 
+/** The shelf a kept file stands on, by what it shows. */
+const SHELF_OF_SHOWS = {
+  storefront: "place",
+  interior: "place",
+  work: "work",
+  team: "team",
+  product: "products",
+  menu: "products",
+  logo: "brand",
+  graphic: "brand",
+  other: "other",
+} as const satisfies Record<FileShows, Exclude<FileShelf, "all" | "inbox" | "set_aside" | "made">>;
+
 /** The one shelf a file stands on: its place in the pile first, then what it shows. "all" is no file's own. */
 export function shelfOf(
   f: Pick<FileDto, "status" | "shows"> & { source?: FileSource | undefined },
@@ -184,30 +241,69 @@ export function shelfOf(
   if (f.status === "inbox") return "inbox";
   if (f.status === "set_aside") return "set_aside";
   if (f.source === "made") return "made";
-  switch (f.shows) {
-    case "storefront":
-    case "interior":
-      return "place";
-    case "work":
-      return "work";
-    case "team":
-      return "team";
-    case "product":
-    case "menu":
-      return "products";
-    case "logo":
-    case "graphic":
-      return "brand";
+  return f.shows ? SHELF_OF_SHOWS[f.shows] : "other";
+}
+
+/** What stands on a shelf, as a read asks the database for it: `shelfOf` turned round. A test holds the two equal over every file there can be. */
+export interface FileShelfFilter {
+  status: FileStatus;
+  /** Posts alone where true, and anything but where false; where it is unsaid, both. */
+  made?: boolean;
+  shows?: readonly FileShows[];
+  /** A file nothing has said anything of stands here too. */
+  orUnsorted?: boolean;
+}
+
+export function shelfFilterOf(shelf: FileShelf): FileShelfFilter {
+  switch (shelf) {
+    case "all":
+      return { status: "filed" };
+    case "inbox":
+    case "set_aside":
+      return { status: shelf };
+    case "made":
+      return { status: "filed", made: true };
     default:
-      return "other";
+      return {
+        status: "filed",
+        made: false,
+        shows: FILE_SHOWS.filter((s) => SHELF_OF_SHOWS[s] === shelf),
+        ...(shelf === "other" ? { orUnsorted: true } : {}),
+      };
   }
 }
 
+/** How the library stands, from what each file says of itself. */
+export function filesTallyOf(
+  files: readonly (Pick<FileDto, "status" | "shows" | "look_status"> & { source?: FileSource | undefined })[],
+): FilesTally {
+  const shelves: FilesTally["shelves"] = {};
+  for (const f of files) {
+    const shelf = shelfOf(f);
+    shelves[shelf] = (shelves[shelf] ?? 0) + 1;
+  }
+  return {
+    total: files.length,
+    kept: files.filter((f) => f.status === "filed").length,
+    waiting: files.filter((f) => f.status === "inbox").length,
+    looking: files.filter((f) => f.look_status === "waiting").length,
+    shelves,
+  };
+}
+
+/** Where the library opens: the Inbox while anything waits on a person who can answer it, else Kept where something is, else the first that holds. */
+export function fileShelfOpening(tally: FilesTally, mayAnswer: boolean): FileShelf {
+  if (mayAnswer && tally.waiting > 0) return "inbox";
+  if (tally.kept > 0) return "all";
+  return FILE_SHELVES.find((s) => s !== "all" && tally.shelves[s]) ?? "all";
+}
+
+/** The place in a shelf's order a page ends at, for the next to start from. */
+export const fileCursorOf = (f: Pick<FileDto, "created_at" | "id">): string => `${f.created_at}|${f.id}`;
+
 /** What the page says of the workspace's files, as STATUS.md would: how many, how many wait for a person, how many for the look. */
-export function filesSayOf(files: readonly Pick<FileDto, "status" | "look_status">[]): string {
-  const kept = files.filter((f) => f.status === "filed").length;
-  const waiting = files.filter((f) => f.status === "inbox").length;
-  const looking = files.filter((f) => f.look_status === "waiting").length;
+export function filesSayOf(tally: Pick<FilesTally, "kept" | "waiting" | "looking">): string {
+  const { kept, waiting, looking } = tally;
   return [
     `${kept} ${kept === 1 ? "photo" : "photos"}`,
     ...(waiting ? [`${waiting} waiting for you`] : []),
@@ -217,6 +313,32 @@ export function filesSayOf(files: readonly Pick<FileDto, "status" | "look_status
 
 export const FILE_WORDS = {
   askAbout: "Ask about this photo",
+  makePost: "Make a post",
+  showMore: "Show more",
+  newVersion: "New version",
+  google: {
+    post: "Post to Google",
+    words: "What it says on Google",
+    wordsNeeded: "Say something to go with it.",
+    tooLong: "Google takes up to 1,500 characters.",
+    cancel: "Cancel",
+    posted: "Sent to Google. It can take a few minutes to show.",
+    on: "On your Google profile",
+    see: "See it",
+    down: "Take it down",
+    downAsk: "Take this post off your Google profile?",
+    downNote: "It leaves your profile. The post stays here.",
+    downKeep: "Keep it up",
+    downed: "Taken off your Google profile.",
+    notConnected: "Connect your Business Profile first: posts go through it.",
+    noToken: "The connection to Google was lost. Connect again from Connections.",
+    refused: "Google did not take the post.",
+    noPhoto: "The photo this came from was deleted, so it can't be drawn for Google.",
+    notAPost: "Only a post can go on Google.",
+    notSent: "The post did not go through. Try again.",
+  },
+  madeFrom: "Made from",
+  madeFromGone: "Made with Ask, from a photo since deleted",
   title: "Files",
   add: "Add photos",
   adding: (done: number, of: number) => `Adding ${done} of ${of}`,
@@ -229,6 +351,7 @@ export const FILE_WORDS = {
   notAdded: (n: number) => (n === 1 ? "1 photo wasn't added." : `${n} photos weren't added.`),
   tookFirst: (n: number, of: number) => `Took the first ${n} of ${of}. Add the rest after these.`,
   sending: "Sending…",
+  sentSoFar: (percent: number) => `${percent}% sent`,
   waitingToSend: "Waiting to send",
   tryAll: (n: number) => `Try all ${n}`,
   takeAway: "Remove",

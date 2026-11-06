@@ -698,7 +698,7 @@ const takeEffect = (key, body) => {
     changeRows(body.by === "ids" ? body.ids : "all", BULK_EFFECTS[body.action]);
 };
 /**
- * The read's filters as the server applies them (00500 lead_matches, held to the goldens in lead-filters.db.test.mjs): the
+ * The read's filters as the server applies them (lead_view_rows, held to the goldens in lead-filters.db.test.mjs): the
  * box's words in the name, the kind or the area, the criterion that left a lead out, the fit, and each reach asked. With
  * them, what the view holds (lead_view_counts): its leads, those the filters keep, each criterion's over the view.
  */
@@ -1017,8 +1017,8 @@ afterEach(async () => {
   assert.deepEqual(uploads, [], "and started no recording and no upload by itself");
 });
 
-/** The view the page opens on (decision 0015's address `clients/leads`): all leads, the strongest fit first. */
-const ALL_LEADS = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
+/** The view the page opens on (decision 0015's address `clients/leads`): all leads, what needs you first. */
+const ALL_LEADS = { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" };
 
 /**
  * A page with the surface landed and nothing drawn yet. The wire holds `leads` (`world`'s overrides) and the REAL Leads surface
@@ -1115,10 +1115,10 @@ test("Leads' rows swap in with the kit's rise as a view's rows land, as People's
 
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `lead-${id}`);
 const names = (tree) => all(tree, (n) => n.props?.["data-testid"] === "lead-name").map(textOf);
-// The words of every heading the table draws, less the arrow a sortable one wears (▲ ▼ for the order, ↕ at rest). The table
-// draws the columns that show and no others (a column turned off is not hidden, it is not there), so nothing is filtered here.
+// The words of every heading the table draws, less its arrow: a group's head is a row's, and a column turned off is not there.
+const headingCells = (tree) => all(tree, (n) => n.type === "th" && !n.props.colSpan);
 const headings = (tree) =>
-  all(tree, (n) => n.type === "th")
+  headingCells(tree)
     .map((th) => textOf(th).replace(/[▲▼↕]/g, "").trim())
     .filter(Boolean);
 
@@ -1128,7 +1128,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   assert.deepEqual(
     names(tree),
     ["Zilker Strength Lab", "Barton Creek Coaching", "Lamar Strength Co.", "GigaFit Austin", "Pflugerville Training"],
-    "the surface's order, strongest fit first; the page never re-sorts what it was given",
+    "the surface's order; the page never re-sorts what it was given",
   );
   assert.deepEqual(
     headings(tree),
@@ -1137,11 +1137,11 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   );
   // A heading that sorts is a button wearing a quiet idle caret (↕) until it is the order; Reach and the acts do not sort.
   assert.deepEqual(
-    all(tree, (n) => n.type === "th").map((th) => [th.props["data-key"], textOf(th)]),
+    headingCells(tree).map((th) => [th.props["data-key"], textOf(th)]),
     [
       [undefined, ""],
       ["business", "Business↕"],
-      ["stage", "Stage↕"],
+      ["stage", "Stage▲"],
       ["reach", "Reach"],
       ["rating", "Rated↕"],
       ["found", "Found↕"],
@@ -1151,7 +1151,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   );
   assert.deepEqual(
     all(tree, (n) => n.props?.className === "dtable-sort").map(textOf),
-    ["Business↕", "Stage↕", "Rated↕", "Found↕"],
+    ["Business↕", "Stage▲", "Rated↕", "Found↕"],
     "the headings that sort are buttons",
   );
   // D5: both contacts as two slots, phone then mailbox: the shape carries the state, the control's name carries the
@@ -1274,7 +1274,7 @@ test("the desk's map and Export stand beside Columns as two quiet words, each do
     await flashSaid(flashed);
     assert.deepEqual(
       lastWrite(),
-      { key: "POST /api/v1/leads/export", body: { list: "all", sort: "fit", dir: "asc" } },
+      { key: "POST /api/v1/leads/export", body: { list: "all", sort: "stage", dir: "asc" } },
       "the whole view, in the order the table has by default",
     );
     assert.deepEqual(
@@ -2038,7 +2038,7 @@ test("Show more says it is loading while the next page is on its way, takes no s
   tree = draw();
   assert.deepEqual(
     [textOf(more(tree)).trim(), !!more(tree).props.disabled],
-    ["Loading…", true],
+    ["Loading more…", true],
     "REGRESSION: the button read Show more and stayed live while the page loaded, and read Loading… during an unrelated Keep",
   );
   click(more(tree));
@@ -2065,7 +2065,7 @@ test("leads a refresh found but did not sort in are offered on all leads too, in
   click(pill);
   assert.deepEqual(
     pageReads().map((q) => [q.list, q.sort, q.dir]),
-    [["all", "fit", "asc"]],
+    [["all", "stage", "asc"]],
     "one press reads the view again in its order, as the strip's does",
   );
   await quiesce();
@@ -2169,7 +2169,7 @@ test("REGRESSION: a cold open of Leads still takes the view the workspace rememb
   // The view the page asks for is the one the boot read, held since with nothing changed: nothing is read again for it.
   assert.deepEqual(
     [L().view.sort, L().view.dir, pageReads().length, headings(tree).includes("Website")],
-    ["fit", "asc", 0, false],
+    ["stage", "asc", 0, false],
     "nothing to go on yet: the page's own defaults, as the boot read them",
   );
   // People lands, carrying what this member chose on another computer.
@@ -3113,7 +3113,7 @@ test("the bulk bar acts on the leads loaded and selected: Add them, Not a fit, C
     lastWrite(),
     {
       key: "POST /api/v1/leads/bulk",
-      body: { by: "view", action: "not_a_fit", view: { list: "all", sort: "fit", dir: "asc" } },
+      body: { by: "view", action: "not_a_fit", view: { list: "all", sort: "stage", dir: "asc" } },
     },
     "the view's filters go to the server, never 1,240 ids",
   );
@@ -4088,7 +4088,7 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   await settle();
   assert.deepEqual(
     pageReads().map((q) => [q.search, q.list, q.sort, q.dir]),
-    [[SEARCH_A, "all", "fit", "asc"]],
+    [[SEARCH_A, "all", "stage", "asc"]],
     "the new ones are taken in the order they were read, on the owner's press",
   );
   assert.deepEqual([L().offered, L().rows.length], [0, ROW_DTOS.length + 12], "and they are the rows now");
@@ -4101,8 +4101,8 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   off.onAction("sort_fit");
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   await quiesce();
-  // The surface's, never a re-order on the page: the fit order it read a moment ago, held, with nothing changed since.
-  assert.deepEqual(pageReads(), [], "the fit view read since the last change paints as it was read");
+  // The surface's, never a re-order on the page: an order this tab has not read is asked of the server.
+  assert.equal(pageReads().at(-1).sort, "fit", "the fit view is read, and the rows stay until it lands");
   assert.deepEqual([L().view.sort, L().view.dir], ["fit", "asc"], "Sort by fit is the surface's view of fit");
 });
 
@@ -4274,7 +4274,7 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   // A search whose fits differ, which is the only time a row wears its fit at all (leadBand's `mixed`).
   const open = { ...search(), round: { ...search().round, fits: { strong: 5, look: 2, long: 0 } } };
   await fresh({ leads: { searches: [open], rows: dtos } });
-  // The rows the surface published for them: the page's own view of each (contracts' toLeadRowVM, the search beside it).
+  await leadsView({ sort: "fit", dir: "asc" }); // no head to say what a row says
   const rows = L().rows;
   const tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   const cls = (n) => String(n?.props?.className || "");

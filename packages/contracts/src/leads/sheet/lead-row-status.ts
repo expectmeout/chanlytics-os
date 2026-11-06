@@ -47,7 +47,7 @@ export interface LeadStatusVM {
  * says it (`grouped`, a stage sort's run; leadGroupOf) a row stops repeating it: see underAHead.
  */
 export function leadStatusOf(
-  l: Pick<LeadRowVM, "cls" | "state" | "stageLabel" | "waitsOn" | "fitLabel"> & {
+  l: Pick<LeadRowVM, "cls" | "state" | "stageLabel" | "waitsOn" | "fitLabel" | "fit" | "why"> & {
     /** When a contacted lead was contacted (the read's `contacted_at`), for the line under Contacted; none says none. */
     contactedAt?: string | null;
   },
@@ -56,16 +56,22 @@ export function leadStatusOf(
   grouped = false,
 ): LeadStatusVM {
   const said = statusOf(l, place, clock);
-  return grouped ? underAHead(said, place) : said;
+  return grouped ? underAHead(said, place, l) : said;
 }
 
 /**
- * What a row says once a head has said its group: Not contacted says nothing, Contacted says how long ago, and In sequence
+ * What a row says once a head has said its group: Not contacted says what chooses between the rows, its fit and why (the
+ * queue's order inside the group; the fit's pill by the name then gives way), Contacted says how long ago, and In sequence
  * gives way to its step, with the sequence under it. What needs you still says what it needs: the head says only that it
  * does.
  */
-function underAHead(said: LeadStatusVM, place: SequencePlaceOfDto | null): LeadStatusVM {
-  if (said.by === "stage" && said.tone === "quiet") return { ...said, word: "" };
+function underAHead(
+  said: LeadStatusVM,
+  place: SequencePlaceOfDto | null,
+  l: Pick<LeadRowVM, "fit" | "fitLabel" | "why">,
+): LeadStatusVM {
+  if (said.by === "stage" && said.tone === "quiet")
+    return l.fit ? { ...said, word: l.fitLabel, line: l.why || null } : { ...said, word: "" };
   if (said.by === "stage" && said.word === LEAD_STAGE_WORDS.nurture)
     return { word: said.line ?? "", tone: "quiet", line: null, by: "stage" };
   if (said.by !== "place" || !place || said.tone !== "ok" || said.word === PLACE_NOT_PLANNED_WORD) return said;

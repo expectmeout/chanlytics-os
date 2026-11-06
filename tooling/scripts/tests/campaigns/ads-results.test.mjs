@@ -380,29 +380,30 @@ test("the Overview's one fact says what the ads brought over the same days, with
   assert.deepEqual(ads.reportFacts(R.vm, null, null), plain, "a workspace without ads reads the facts it always did");
 });
 
-test("the demo seam moves the fixtures to the business's today and reads Reports' days as ads end: yesterday", () => {
+test("the seam moves the fixtures to now and reads Reports' days as ads end: yesterday", () => {
   const read = running();
   const sheet = fold(read);
+  const at = Date.parse(read.readAt);
   // Days a member picked are read as picked: the sheet's own 30 days are the lens's, to the dollar.
-  const picked = adsDemoFold({ from: read.window.from, to: read.window.to }, ALL, read.today);
+  const picked = adsDemoFold({ from: read.window.from, to: read.window.to }, ALL, read.today, at);
   assert.deepEqual(picked.figures, sheet.figures);
   assert.deepEqual(picked.byAd, sheet.byAd);
   assert.deepEqual(picked.cameBack, sheet.cameBack);
   assert.equal(picked.pane, sheet.pane);
   // A period by name ends today: the same number of days, ending yesterday, which are the page's 30.
-  const thirty = adsDemoFold("30d", ALL, read.today);
+  const thirty = adsDemoFold("30d", ALL, read.today, at);
   assert.deepEqual(thirty.window, sheet.window);
   assert.deepEqual(thirty.figures, sheet.figures);
-  assert.equal(adsDemoFold("7d", ALL, read.today).window.days, 7);
-  assert.equal(adsDemoFold("7d", ALL, read.today).window.to, read.window.to);
+  assert.equal(adsDemoFold("7d", ALL, read.today, at).window.days, 7);
+  assert.equal(adsDemoFold("7d", ALL, read.today, at).window.to, read.window.to);
   // On any other day the fixtures are moved with it: the same numbers over the same number of days.
-  const later = adsDemoFold("30d", ALL, "2027-02-03");
+  const later = adsDemoFold("30d", ALL, "2027-02-03", Date.parse("2027-02-03T14:19:00Z"));
   assert.deepEqual(later.window, { from: "2027-01-04", to: "2027-02-02", days: 30 });
   assert.deepEqual(later.figures, sheet.figures);
   assert.deepEqual(later.theirs, sheet.theirs);
   // And a scope narrows it as it does the sheet.
   assert.equal(
-    adsDemoFold("30d", platform("meta"), read.today).totals.spent,
+    adsDemoFold("30d", platform("meta"), read.today, at).totals.spent,
     fold(read, platform("meta")).totals.spent,
   );
 });

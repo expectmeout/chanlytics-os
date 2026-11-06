@@ -307,7 +307,9 @@ export async function disconnectProfile(
     const r = await http(revokeRequest(creds.refresh_token)).catch(() => null);
     revoked = !!r && r.status === 200;
   }
-  await db.rpc("drop_google_credentials", { p_tenant_id: tenantId });
+  // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
+  const dropped = await db.rpc("drop_google_credentials", { p_tenant_id: tenantId });
+  if (dropped.error) throw new Error(dropped.error.message);
   const gone = await db.from("google_reviews").delete().eq("tenant_id", tenantId).eq("origin", "profile");
   if (gone.error) throw new Error(gone.error.message);
   const del = await db.from("google_connections").delete().eq("tenant_id", tenantId);

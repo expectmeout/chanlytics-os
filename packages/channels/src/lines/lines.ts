@@ -60,6 +60,8 @@ export interface LineProvider {
     o: { friendlyName: string; domainName: string },
   ): Promise<{ sid: string; domainName: string }>;
   deleteTrunk(acct: ProviderAccount, trunkSid: string): Promise<void>;
+  /** A line's campaign off its Messaging Service: its monthly fee runs until it is deleted. Gone already is done. */
+  deleteCampaign(acct: ProviderAccount, serviceSid: string, campaignSid: string): Promise<void>;
   createCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string }>;
   addCredential(acct: ProviderAccount, listSid: string, username: string, password: string): Promise<{ sid: string }>;
   attachCredentialList(acct: ProviderAccount, trunkSid: string, listSid: string): Promise<void>;
@@ -77,6 +79,13 @@ export interface LineProvider {
    * found" sends the saga on to create a second one.
    */
   findSubaccount(master: ProviderAccount, friendlyName: string): Promise<ProviderAccount | null>;
+  /**
+   * One subaccount as its parent reads it, by SID: how a token lost from the vault comes back. Null when it is closed
+   * or gone, which leaves nothing there to give back (Twilio releases its numbers when it closes, and deletes it 30 days
+   * on). A read that FAILS throws, and so does an open one answered with no token: a release takes null as leave to
+   * forget the row, and that number may still be billed.
+   */
+  readSubaccount(master: ProviderAccount, sid: string): Promise<ProviderAccount | null>;
   findTrunk(acct: ProviderAccount, domainName: string): Promise<{ sid: string; domainName: string } | null>;
   findCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string } | null>;
   findCredential(acct: ProviderAccount, listSid: string, username: string): Promise<{ sid: string } | null>;

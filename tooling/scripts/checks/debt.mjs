@@ -317,6 +317,7 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ["table names outside packages/db", total(tableCalls(by.tables, false)), ""],
     ["SQL functions outside packages/db", total(tableCalls(by.tables, true)), "called by .rpc"],
     ["edge statements naming no workspace", total(by.workspaceless), `in ${keys(by.workspaceless)} files`],
+    ["database errors dropped", total(by["dropped-db-errors"]), `in ${keys(by["dropped-db-errors"])} files`],
     ["service-role reaches, dashboard", total(by["service-role"]), `in ${keys(by["service-role"])} files`],
     ["doors importing db or channels", total(by["route-doors"]), `imports in ${keys(by["route-doors"])} files`],
     ["unnamed durations", total(by.durations), `in ${keys(by.durations)} files`],

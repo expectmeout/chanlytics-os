@@ -189,10 +189,12 @@ const threads = () => [
     msg("p2", "ai", "We're closed Sundays, but Saturday 1:00 PM is open.", "2026-09-18T17:51:00Z", {
       status: "failed",
     }),
+    msg("p3", "ai", "We're closed Sundays, but Saturday 1:00 PM is open.", "2026-09-18T17:52:00Z"),
   ]),
   thread("cv-d", "Dulce Amaro", [
     msg("d0", "in", "Booking for the 12th", "2026-09-09T13:00:00Z", { channel: "sms" }),
     msg("d2", "in", "Can I bring my sister too?", "2026-09-18T17:30:00Z", { channel: "sms" }),
+    msg("d3", "ai", "Of course, I'll add her.", "2026-09-18T17:31:00Z", { channel: "sms" }),
   ]),
   thread(
     "cv-a",
@@ -292,7 +294,12 @@ const quietDay = () =>
         new_contacts: 0,
       },
     }),
-    [thread("cv-old", "Bea Lind", [msg("o1", "in", "Thanks!", "2026-09-17T21:39:00Z")])],
+    [
+      thread("cv-old", "Bea Lind", [
+        msg("o1", "in", "Thanks!", "2026-09-17T21:39:00Z"),
+        msg("o2", "ai", "Any time!", "2026-09-17T21:40:18Z"),
+      ]),
+    ],
     [],
     [],
     NOW,
@@ -1250,9 +1257,17 @@ const tagOf = (row) => textOf(find(row, (n) => classes(n).includes("tz-idea-kind
 const sentenceOf = (row) => byTestId(row, "today-found-sentence");
 const actOf = (row) => byTestId(row, "today-found-act");
 
+const withNobodyAnswered = () =>
+  toTodayVM(
+    metrics(),
+    [...threads(), thread("cv-q", "Quinn Lowe", [msg("q1", "in", "Anyone there?", "2026-09-18T17:30:00Z")])],
+    escalations(),
+    calls(),
+    NOW,
+  );
 test("Ask found ranks what the workspace's own counts say first: each row its tag, its one door and its sentence, the arithmetic and Not today on a press, three drawn and the rest said", () => {
   clear();
-  const vm = busy();
+  const vm = withNobodyAnswered();
   set({ today: vm, headline: headline(), __PEOPLE: people() });
   // Every rule that holds, not the old pane's two (Today in three zones, 2 Nov 2026): Ask found ranks and draws three.
   const { rows: rules } = todayLeaks(headline(), people(), vm.noReply, Number.POSITIVE_INFINITY);

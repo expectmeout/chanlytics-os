@@ -23,6 +23,7 @@ import { useKept } from "../../home/pane-sheet";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPreviewFold } from "../../parts/preview-fold";
 import { CmPane } from "../../parts/split";
+import { PreviewNote } from "../preview-note";
 import type { AdsVerbs } from "../store";
 import { AdCallout } from "./callout";
 import { AdEdit } from "./edit";
@@ -115,6 +116,7 @@ function AdBody({ pane }: { pane: Pane }) {
   const { vm, editing } = pane;
   return (
     <div className="cm-sentence ads-body" data-testid="ads-detail" data-mode={vm.mode}>
+      <PreviewNote />
       <AdCallout callout={vm.callout} onAct={pane.calloutAct} spent={pane.spent} />
       <p className="cm-next" data-testid="ads-next">
         <Icon name="calendar" size={13} />

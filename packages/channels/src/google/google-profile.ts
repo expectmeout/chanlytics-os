@@ -86,6 +86,29 @@ export function deleteReplyRequest(token: string, reviewName: string): PlacesReq
   return { url: `${GBP_V4_BASE}/${reviewName}/reply`, method: "DELETE", headers: bearer(token, true) };
 }
 
+/** A post as a person asked for it. `call` puts Google's own Call button under it, which rings the number on the profile. */
+export interface GbpPostAsked {
+  summary: string;
+  photoUrl: string;
+  languageCode: string;
+  call: boolean;
+}
+
+function localPostRequest(token: string, parent: string, post: GbpPostAsked): PlacesRequest {
+  return {
+    url: `${GBP_V4_BASE}/${parent}/localPosts`,
+    method: "POST",
+    headers: { ...bearer(token, true), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      languageCode: post.languageCode,
+      summary: post.summary,
+      topicType: "STANDARD",
+      media: [{ mediaFormat: "PHOTO", sourceUrl: post.photoUrl }],
+      ...(post.call ? { callToAction: { actionType: "CALL" } } : {}),
+    }),
+  };
+}
+
 export interface GbpAccount {
   /** accounts/{id} */
   name: string;
@@ -341,6 +364,29 @@ export async function replyToReview(
     reply_text: nonBlankOrNull(o?.comment) ?? comment,
     replied_at: nonBlankOrNull(o?.updateTime) ?? new Date().toISOString(),
   };
+}
+
+/**
+ * A post on the location's profile. Google takes it and looks at it first, so `state` starts PROCESSING and `search_url` may not be
+ * there yet; `name` is what it comes down by. Google fetches the photo from `photoUrl` by itself, so that has to be a direct address.
+ */
+export async function createLocalPost(
+  http: PlacesHttp,
+  token: string,
+  parent: string,
+  post: GbpPostAsked,
+): Promise<{ name: string; search_url: string | null; state: string | null }> {
+  const o = recordOrNull(await callProfileApi(http, localPostRequest(token, parent, post)));
+  const name = nonBlankOrNull(o?.name);
+  if (!name) throw new PlacesError(502, "Google answered a post with no name");
+  return { name, search_url: nonBlankOrNull(o?.searchUrl), state: nonBlankOrNull(o?.state) };
+}
+
+/** A post off the profile, by Google's name for it. One already gone is what was asked for. */
+export async function deleteLocalPost(http: PlacesHttp, token: string, name: string): Promise<void> {
+  const r = await http({ url: `${GBP_V4_BASE}/${name}`, method: "DELETE", headers: bearer(token, true) });
+  if (r.status === 404 || (r.status >= 200 && r.status < 300)) return;
+  throw refusal(r.status, r.body);
 }
 
 /** A reply as Google accepts it: words, at most this many characters. */

@@ -1,6 +1,7 @@
 export {
   FILE_BYTES_MAX,
   FILE_CACHE_S,
+  FILE_GOOGLE_WORDS_MAX,
   FILE_LOOK_STATUSES,
   FILE_MIMES,
   FILE_NAME_MAX,
@@ -15,29 +16,39 @@ export {
   FILE_UPLOADS_AT_ONCE,
   FILE_WHO_IN_IT,
   FILE_WORDS,
+  fileCursorOf,
   fileFolderOf,
   fileNameOf,
   filePathOf,
   FILES_BUCKET,
   FILES_MAX,
+  FILES_PAGE,
   fileSaidOf,
+  fileShelfOpening,
   filesSayOf,
+  filesTallyOf,
   fileViewOf,
   inboxCleanOf,
   isFileMime,
   postNameOf,
+  shelfFilterOf,
   shelfOf,
   whoStandsOf,
 } from "./files";
 export type {
   FileDto,
   FileLookStatus,
+  FileMade,
   FileMime,
   FilePeople,
+  FilePosted,
+  FileRecordDto,
   FileShelf,
+  FileShelfFilter,
   FileShows,
   FileSource,
   FilesPageDto,
+  FilesTally,
   FileStatus,
   FileWhoInIt,
   FileWhoStands,
@@ -55,6 +66,35 @@ export {
   fileLookOf,
 } from "./look";
 export type { FileLook, FileLookRead } from "./look";
-export { POST_LIMITS, POST_SHAPES, POST_VOICES, POST_WORDS, postPlanOf } from "./post";
-export type { PostPlan, PostShapeName, PostVoice } from "./post";
-export { postBandOf, postPathOf, postPhotoProblem, postPlanProblem, postWordsProblem } from "./post-check";
+export {
+  POST_LAYOUTS,
+  POST_LIMITS,
+  POST_NO_PHONE,
+  POST_PICTURES,
+  POST_SHAPES,
+  POST_VOICES,
+  POST_WORDS,
+  postPhotoWont,
+  postPlanOf,
+  postPlanTidied,
+  postWordsIn,
+} from "./post";
+export type {
+  PostLanguage,
+  PostLayoutName,
+  PostPhotoWont,
+  PostPicture,
+  PostPlan,
+  PostShapeName,
+  PostUndrawable,
+  PostVoice,
+  PostWords,
+} from "./post";
+export {
+  postBandOf,
+  postPathOf,
+  postPhotoProblem,
+  postPlanProblem,
+  postUndrawable,
+  postWordsProblem,
+} from "./post-check";

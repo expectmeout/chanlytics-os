@@ -5,16 +5,14 @@
  */
 import { CALL_ENDINGS_NEEDING_AN_EAR } from "../voice/call-endings";
 import { addressOf } from "../activity/record-address";
-import { standingOfThread } from "../conversations/standing";
 import { abandonedCall, endedHowOf, neverConnected, reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM, spokenDuration } from "../conversations/call-vm";
 import { reasonLabelOf } from "../conversations/escalations";
 import { messageAuthor } from "../conversations/message-author";
-import { lastExchanged, messageText } from "../conversations/message-words";
-import { isTheirOwnWords, threadChannelWords } from "../conversations/thread-channel";
+import { messageText } from "../conversations/message-words";
+import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, contactMeta } from "../conversations/thread-contact";
-import { isOptedOut } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { ANALYSIS_GRACE_MS } from "../voice/live";
 import { MIN_MS, HOUR_MS } from "../shared/time";
@@ -27,7 +25,7 @@ export const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim()
 
 /** Ask's rows: the same escalations the queue draws, read once. */
 function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
-  return f.escRecords.map((r) => ({
+  const holds = f.escRecords.map((r) => ({
     id: `th-${r.e.conversation_id}`,
     conversationId: r.e.conversation_id,
     escalationId: r.e.id,
@@ -49,6 +47,21 @@ function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
     windowNote: r.closes ? `Reply window closes ${r.closes}` : null,
     to: addressOf({ kind: "hold", conversationId: r.e.conversation_id }),
   }));
+  // Who the rule says waits with no hold open: Ask named a count of three over a list of one.
+  const owed = f.owed.map(({ conv, who, waitedMs, word, quote }) => ({
+    id: `th-${conv.id}`,
+    conversationId: conv.id,
+    escalationId: null,
+    who,
+    reason: word,
+    waited: formatWaited(waitedMs),
+    warn: waitedMs > 30 * MIN_MS,
+    quote,
+    meta: contactMeta(conv, threadChannelWords(conv.messages)),
+    windowNote: null,
+    to: addressOf({ kind: "conversation", id: conv.id }),
+  }));
+  return [...holds, ...owed];
 }
 
 /** Everything Ask reads about who needs you: the count, the rows, and what an empty list means. */
@@ -97,38 +110,16 @@ export function todayWindowClosing(f: TodayFacts): TodayVM["windowClosing"] {
 export const NO_REPLY_AFTER_MS = HOUR_MS;
 
 /**
- * Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the
- * thread (the one rule, standing.ts: a thread a person paused or claimed is not waiting on nobody), and no queue
- * row is about it (an escalation's thread and a closing window's thread are the queue's; nothing on this page is
- * said twice). The identity was in the conversations read all along and only the count survived into the view model.
- * What they wrote last is a person's own words (isTheirOwnWords, the one statement of it): an out-of-office, a
- * list's mail or a form's notification from their address is a program, and a program is not waiting on anybody.
+ * Who is waiting with nothing back: the rule says nobody has answered them (thread-move.ts `unanswered`), an hour ago or
+ * more, and neither a hold's row nor a closing window's is about them. The identity was in the conversations read all
+ * along and only the count survived into the view model.
  */
 export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
-  const { conversations, escSet, closingConvs, now } = f;
-  const closingSet = new Set(closingConvs.map((c) => c.id));
-  return conversations
-    .flatMap((c) => {
-      // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody. Nor is someone who asked to stop:
-      // nothing may be sent to them, so there is no reply to be waiting for (the closing window's own rule, today-facts.ts).
-      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived" || isOptedOut(c)) return [];
-      // No escalation open on it: the queue above holds the escalated threads (escSet).
-      const { standing } = standingOfThread(c, false, now.getTime());
-      if (standing !== "quiet" && standing !== "needs_you") return [];
-      const last = lastExchanged(c.messages);
-      if (!last || !isTheirOwnWords(last)) return [];
-      const lastMs = new Date(last.created_at).getTime();
-      if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
-      return [
-        {
-          conversationId: c.id,
-          who: contactName(c),
-          sinceMs: lastMs,
-          to: addressOf({ kind: "conversation", id: c.id }),
-        },
-      ];
-    })
-    .sort((a, b) => a.sinceMs - b.sinceMs);
+  return f.owed.flatMap(({ conv, move, who, waitedMs }) =>
+    move.move === "unanswered" && move.sinceMs !== undefined && waitedMs >= NO_REPLY_AFTER_MS
+      ? [{ conversationId: conv.id, who, sinceMs: move.sinceMs, to: addressOf({ kind: "conversation", id: conv.id }) }]
+      : [],
+  );
 }
 
 const SENT = ["sent", "delivered", "read"];

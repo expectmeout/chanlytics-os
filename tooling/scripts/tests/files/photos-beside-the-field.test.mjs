@@ -43,10 +43,13 @@ const out = await build({
       'export * from "../../../../apps/dashboard/src/surfaces/ask/line/attached.tsx";\n' +
       'export { arSubmitter } from "../../../../apps/dashboard/src/surfaces/ask/line/turns.tsx";\n' +
       'export { AskQuestion } from "../../../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
-      'export { AskPostCard } from "../../../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
-      'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/settings/files/post-share.ts";\n' +
+      'export { AskPostCard, usePostCard } from "../../../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
+      'export { PostEdit } from "../../../../apps/dashboard/src/surfaces/files/post-edit.tsx";\n' +
+      'export { hearFileAsked, openFile } from "../../../../apps/dashboard/src/surfaces/files/file-asked.ts";\n' +
+      'export { drawnKeyOf, keepDrawn, pictureDrawn } from "../../../../apps/dashboard/src/surfaces/files/post-drawn.ts";\n' +
+      'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/files/post-share.ts";\n' +
       'export { askText } from "../../../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
-      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/settings/files/verbs.ts";\n' +
+      'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tooling/scripts/tests/files"),
@@ -75,6 +78,7 @@ const S = createRequire(import.meta.url)(file);
 fs.rmSync(file, { force: true });
 
 const t = S.askText("en");
+S.postWordsIn = (await import("../../../../packages/contracts/src/files/post.ts")).postWordsIn;
 const FILE = (n) => `ffffffff-0000-4000-8000-00000000000${n}`;
 const photo = (name) => new File([new Uint8Array(4)], name, { type: "image/jpeg" });
 const realAdd = S.fileVerbs.add;
@@ -334,19 +338,21 @@ const postCard = (over = {}) => ({
   id: "c1",
   kind: "post",
   title: "Post: Now booking",
-  summary: "From Storefront dusk. Saved in portrait, square and story.",
+  summary: "From Storefront dusk. Comes in portrait, square and story.",
   payload: { file_id: FILE(1), line: "Now booking" },
   outcome: null,
   ...over,
 });
-const drawnCard = (p) => S.renderToStaticMarkup(S.createElement(S.AskPostCard, { p, t }));
+const DrawnCard = ({ p }) => S.createElement(S.AskPostCard, { p, card: S.usePostCard(p), t, onNav() {} });
+const drawnCard = (p) => S.renderToStaticMarkup(S.createElement(DrawnCard, { p }));
 
 test("before the press the card holds its picture's shape while it comes, and says what it will keep", () => {
   const html = drawnCard(postCard());
-  assert.ok(html.includes("ask-post-waiting"));
+  assert.ok(html.includes("post-waiting"));
   assert.ok(html.includes(`aria-label="${t.postDrawing}"`));
-  assert.ok(html.includes("Saved in portrait, square and story."));
-  assert.ok(!html.includes("post-shapes"), "nothing to choose or download yet");
+  assert.ok(html.includes("Comes in portrait, square and story."), "true before the press and after it");
+  assert.ok(html.includes("post-shape-story"), "every shape can be seen before it is kept");
+  assert.ok(!html.includes("post-download"), "nothing to download yet");
 });
 
 const keptCard = () =>
@@ -377,8 +383,10 @@ test("after the press it is the file itself: portrait shown, the shape to choose
   );
   assert.ok(html.includes('data-shape="portrait"'), "it stands as the shape it is");
   assert.ok(html.includes('alt="Now booking"'));
-  assert.ok(html.includes("Saved in portrait, square and story."));
+  assert.ok(html.includes("Comes in portrait, square and story."));
   for (const shape of ["portrait", "square", "story"]) assert.ok(html.includes(`post-shape-${shape}`), shape);
+  assert.ok(!html.includes("post-edit-open"), "a post kept is changed by making a new version, in Files");
+  assert.ok(html.includes("post-open-files"), "and can be opened there");
   assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1, "one chosen");
   assert.ok(html.includes(`/api/v1/files/${FILE(2)}/view?download&amp;shape=portrait`), "the one on screen");
   assert.ok(!html.includes("download&amp;shape=story"), "not one it is not showing");
@@ -475,6 +483,115 @@ test("a shape's bytes come from its own address, and a read that failed is nothi
   } finally {
     globalThis.window.fetch = realFetch;
   }
+});
+
+test("a card read again says what was saved, not what Ask first proposed: a person may have changed it", () => {
+  const html = drawnCard(
+    postCard({
+      outcome: {
+        state: "done",
+        receipt: "",
+        atMs: 1,
+        made: { kind: "post", id: FILE(2) },
+        undo: { file_id: FILE(2), plan: { file_id: FILE(1), line: "Walk-ins welcome" } },
+      },
+    }),
+  );
+  assert.ok(html.includes('alt="Walk-ins welcome"'));
+  assert.ok(!html.includes('alt="Now booking"'));
+});
+
+test("a file asked for from over its page is opened by the page: the address is no news to one already on screen", () => {
+  const went = [];
+  const opened = [];
+  S.openFile(FILE(5), (r) => went.push(r));
+  assert.deepEqual(went, [`admin/files?do=file:${FILE(5)}`], "the address says it, for a page not on screen yet");
+  assert.deepEqual(opened, []);
+  const stop = S.hearFileAsked((id) => opened.push(id));
+  S.openFile(FILE(6), () => {});
+  assert.deepEqual(opened, [FILE(6)]);
+  stop();
+  S.openFile(FILE(7), () => {});
+  assert.deepEqual(opened, [FILE(6)], "a page gone hears nothing");
+});
+
+test("a Spanish post says its own words, on the card and its presses", () => {
+  const html = drawnCard(
+    postCard({
+      payload: { file_id: FILE(1), line: "Ya abrimos", language: "es" },
+      outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } },
+    }),
+  );
+  for (const word of ["Vertical", "Cuadrado", "Historia", "Descargar", "Abrir en Archivos"])
+    assert.ok(html.includes(word), word);
+  assert.ok(!html.includes("Download"));
+});
+
+test("what can be changed of a post: its words, its layout, its type, where the words stand, and a number only where there is one", () => {
+  const draft = (over) => ({
+    plan: {
+      file_id: FILE(1),
+      line: "Now booking",
+      over: null,
+      under: null,
+      book: false,
+      words_at: "bottom",
+      voice: "classic",
+      layout: "over",
+      language: "en",
+      people_agreed: false,
+    },
+    hasPhone: false,
+    change() {},
+    ...over,
+  });
+  const edit = (d) => S.renderToStaticMarkup(S.createElement(S.PostEdit, { draft: d, says: S.postWordsIn("en") }));
+  const html = edit(draft());
+  for (const id of [
+    "post-line",
+    "post-over",
+    "post-under",
+    "post-layout-band",
+    "post-layout-frame",
+    "post-voice-modern",
+    "post-at-top",
+  ])
+    assert.ok(html.includes(id), id);
+  assert.ok(html.includes('maxLength="60"'), "as long as a phone can read");
+  assert.ok(!html.includes("post-book"), "a business with no number is offered none");
+  assert.ok(edit(draft({ hasPhone: true })).includes("post-book"));
+  assert.match(edit(draft({ plan: { ...draft().plan, layout: "band" } })), /aria-pressed="true"[^>]*post-layout-band/);
+});
+
+test("a picture is known by what can be seen of its plan and its shape: a space being typed draws nothing new", () => {
+  const plan = {
+    file_id: FILE(1),
+    line: "Now booking",
+    over: null,
+    under: null,
+    book: false,
+    words_at: "bottom",
+    voice: "classic",
+    layout: "over",
+    language: "en",
+    people_agreed: false,
+  };
+  assert.equal(S.drawnKeyOf({ ...plan, line: "Now booking " }, "portrait"), S.drawnKeyOf(plan, "portrait"));
+  assert.equal(S.drawnKeyOf({ ...plan, over: " " }, "portrait"), S.drawnKeyOf(plan, "portrait"));
+  assert.notEqual(S.drawnKeyOf(plan, "story"), S.drawnKeyOf(plan, "portrait"));
+  assert.notEqual(S.drawnKeyOf({ ...plan, layout: "band" }, "portrait"), S.drawnKeyOf(plan, "portrait"));
+});
+
+test("a tab keeps a few dozen pictures, and lets the oldest go: memory is not a post's to spend", () => {
+  const before = gone.length;
+  for (let i = 0; i < 30; i++) S.keepDrawn(`k${i}`, { url: `blob:k${i}`, hasPhone: true });
+  assert.equal(gone.length - before, 6, "past twenty-four, each lets one go");
+  assert.equal(S.pictureDrawn("k0"), undefined);
+  assert.equal(S.pictureDrawn("k29").url, "blob:k29");
+  S.keepDrawn("k6", { url: "blob:k6", hasPhone: true });
+  S.keepDrawn("k30", { url: "blob:k30", hasPhone: true });
+  assert.equal(S.pictureDrawn("k7"), undefined, "the one kept again is the newest, so the next goes in its place");
+  assert.ok(S.pictureDrawn("k6"));
 });
 
 test("a card undone or set aside goes back to asking for its picture, never to a file that went", () => {

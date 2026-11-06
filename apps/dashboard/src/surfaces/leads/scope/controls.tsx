@@ -6,7 +6,7 @@
  * right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
 import type { ReactNode } from "react";
-import { LEAD_REACH_FILTERS, LEAD_REACH_WORDS, type LeadReachFilter } from "@chanlytics/contracts";
+import { LEAD_COLUMN_GROUPS, LEAD_REACH_FILTERS, LEAD_REACH_WORDS, type LeadReachFilter } from "@chanlytics/contracts";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
@@ -84,6 +84,9 @@ export const leadReachGroup = (
   },
 });
 
+/** The Columns menu's headings, in the order a member reads a lead by. */
+const COLUMN_HEADINGS: readonly string[] = Object.values(LEAD_COLUMN_GROUPS);
+
 export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
   // Export: a role that may not keeps the button and says why at it (gate's props come last, so its handler is the one that runs).
   const exportPress = p.canExport
@@ -94,7 +97,7 @@ export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
     : { onClick: () => undefined, ...gate("export", "export these leads") };
   return (
     <div className="pg-tools">
-      <TableColumnsMenu state={p.table} columns={p.declared} desk={!p.phone} />
+      <TableColumnsMenu state={p.table} columns={p.declared} desk={!p.phone} groups={COLUMN_HEADINGS} />
       {/* The map and the file stand beside Columns as words, as People's Import and Export do (the ⋯ that folded them
           away is gone, Ruben, 9 Oct 2026). Values ⁄ Signals stood here too: a button to see what a row holds, which the
           Reach column now says in the row (the table review of 5 Nov 2026). */}

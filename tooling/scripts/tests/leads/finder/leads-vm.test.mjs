@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emptyReadSet, groundCitations, leadRowOf, stateLabel } from "@chanlytics/contracts";
+import { emptyReadSet, groundCitations, leadColumnsOf, leadRowOf, stateLabel } from "@chanlytics/contracts";
 import {
   leadsRoute,
   parseLeadsRoute,
@@ -412,6 +412,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     category: "Personal trainer",
     area: "78704 · Austin, TX",
     cls: "qualified",
+    cols: leadColumnsOf(row(), TZ, NOW),
     fit: "strong",
     fitLabel: "Strong fit",
     fitTitle: "Independent studio, one location, coaching only · 5.0 from 16 reviews",

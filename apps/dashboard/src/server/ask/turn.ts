@@ -26,7 +26,7 @@ import type { Member } from "../route";
 import { log } from "@/server/log";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
-import { filesForAsk } from "../readers/files";
+import { filesTallied } from "../readers/files";
 import { memberViews } from "../readers/notifications";
 import { attachedNow, noWordsIn, type AttachedFile } from "../files/attached";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
@@ -114,7 +114,7 @@ export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFa
       () => [],
     ),
     // What the business's files are, in a line. A read that fails says nothing, and the files read still answers.
-    load(rc, filesForAsk, undefined).then(
+    load(rc, filesTallied, undefined).then(
       (r) => r.data.files,
       () => null,
     ),

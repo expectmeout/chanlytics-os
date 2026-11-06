@@ -107,6 +107,7 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     onOpen={p.onPeek}
     filtered={p.filtered}
     onClearFilters={p.onClearFilters}
+    onNearEnd={p.surface.next ? p.onMore : undefined}
     selectable={p.canFind || p.canExport}
     selectMode={p.selectMode}
     onToggleAll={p.onToggleAll}
@@ -335,7 +336,10 @@ const scopeBodyOf = (p: P, phone: boolean, table: ReactElement) => {
   return p.firstDay ? firstDayOf(p, phone) : table;
 };
 
-/** The next page: how many of how many are loaded, and Show more. */
+/**
+ * The next page: how many of how many are loaded, and Show more, which stands for a keyboard and for a read the scroll asked
+ * for that failed. The scroll asks for it two screens before the end (the table's onNearEnd), and says so here.
+ */
 const moreOf = (p: P) => (
   <div className="cl-section-sub ld-more" data-testid="leads-more">
     {p.rows.length.toLocaleString()} of {p.total.toLocaleString()} loaded{" "}
@@ -346,7 +350,7 @@ const moreOf = (p: P) => (
       onClick={p.onMore}
       data-testid="leads-more-btn"
     >
-      {p.loadingMore ? "Loading…" : "Show more"}
+      {p.loadingMore ? "Loading more…" : "Show more"}
     </button>
   </div>
 );

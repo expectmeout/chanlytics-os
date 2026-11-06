@@ -96,7 +96,7 @@ what a page shows them. So a picture needs one place, one name and a written rec
     the photo at Save. Save and Undo are the partner's, as adding a photo is. A Save calls `file_start` first, as an upload does, so
     a library at its cap is told before anything is drawn, and a function that dies between storing the shapes and `file_made` leaves
     nothing for good: the purge empties that folder a day on.
-14. **A kept post is one piece, wherever it is looked at** (`surfaces/settings/files/post-shapes.tsx`, in Ask's card and the Files
+14. **A kept post is one piece, wherever it is looked at** (`surfaces/files/post-shapes.tsx`, in Ask's card and the Files
     sheet): the picture in the shape chosen, the shapes, and what to do with that one. Share opens the device's own sheet, which is
     how a picture reaches Instagram, and on an iPhone how it reaches Photos, since a download lands in Files there. Safari opens that
     sheet only inside the tap, and one that waits on the network first works or not by how fast the network is, so the picture comes
@@ -104,12 +104,48 @@ what a page shows them. So a picture needs one place, one name and a written rec
     none is needed yet: the sheet takes the bytes. When a post is published for its owner, Instagram and Google each fetch from a
     public address, and a short-lived signed link to that one shape should do. A post is never resized: it is drawn at its own size,
     and about 60 KB.
+15. **A post is changed where it stands, for nothing.** Whoever may save it can change its words, its layout, its type and where the
+    words stand, on the card. A pause in the typing draws again (`POST files/post/preview`, on a limit of its own), a newer change lets
+    the last request go, and what the tab has drawn comes back at once (`surfaces/files/post-drawn.ts`, a few dozen pictures, the oldest
+    let go). The picture stands until the next is read whole, then gives way to it (`post-frame.tsx`), and saved, the same picture stays
+    on screen, so a press never answers with an empty frame. What was pressed rides with the card's outcome, so a reload says the words
+    that were saved, not the ones proposed. Four layouts: over the photo, from the margin over it, on a band of the business's colour,
+    or under it in a frame. Words over a photo stand on the scrim; words on a colour take black or white, whichever reads, and of those
+    two one always passes 4.5:1. The process holds a photo for a few minutes, since a file's bytes never change and most of a picture's
+    time was reading it; its row is read first each time, under the caller's RLS, so a file removed is never drawn from memory.
+16. **A photo makes a post in one press.** A kept photo's sheet says Make a post, where a person who may save one can use it: not on a
+    post, nor on what isn't kept yet, nor on a picture with a design of its own (`postPhotoWont`, one reading the model and a person
+    hear in their own words), and not until the sheet's own question of who is in it has been answered, since a press would pay a
+    model to ask the same. It asks Ask in a conversation of its own, in the language Ask last spoke, with the photo already open: the
+    scope brings the picture, so the turn skips the list and the view, and asked only for a post the model proposes plain words at
+    once, since the card can change them for nothing. Ask's chips say the same sentence where it opens on a photo.
+17. **A kept post remembers how it was made.** Its sheet says which photo it came from, a door to that photo while it is here, and
+    New version starts from what the post was asked to be and keeps another file, the first left as it was (`GET files/[id]`,
+    `surfaces/files/post-version.tsx`). A member's session has no grant on `made`, so the service role reads it, after the caller's own
+    read of the row. Beside a picture opened, Ask reads how the newest post looks (`last_post`: its type, its layout, its number), and
+    keeps that unless it is asked for something else. It is told rather than held to it by code: before the first post the model
+    chooses from the business, and it can only know there is none by being told.
+18. **A shelf comes a page at a time, and the server says how the library stands.** `GET files` answers sixty of one shelf, newest
+    first, and a tally of every file, so the page's counts and its shelves are true whichever page it holds. The next page starts just
+    past the last by its time and id, so a file kept while a person scrolls moves nothing past them, and two kept at one instant still
+    have an order. A read again asks for what is on screen, so a shelf chosen and what was scrolled through stay put when the feed says
+    something changed. The Inbox comes whole, since its one press covers all of it and it empties. A shelf is asked of the database
+    by `shelfFilterOf`, which a test holds equal to `shelfOf` over every file there can be. A tally still reads a small row per file:
+    Ask's line and a page's head read four short columns where they read every look, and a count in SQL would need a migration for a
+    read that is a few KB at the cap.
+19. **A kept post goes on the business's Google profile, on a person's press.** A kept post's sheet offers it where the Business
+    Profile is connected and the photo it came from is still here: the picture as Google shows it, drawn at 4:3 from what the post was
+    asked to be, the words that go under it, and one press. It is public as soon as Google has looked at it, so nothing does this by
+    itself, and Ask has no tool for it. The picture is kept in the file's own folder, so the purge that empties a file empties it, and
+    Google is sent a day's address to fetch it. The ledger keeps Google's name for the post (`file.posted`, `file.unposted`), which is
+    how the sheet knows it is up, and how it comes down; a name that isn't this connection's takes nothing down. Campaigns' ads are
+    still a mock, so Google is the first place a post goes.
 
 ## What it costs
 
 - The look: about $0.50 per 1,000 files, on the workspace's usage.
 - A picture Ask opens: about 2.5 cents on Opus the first time (about 2,400 tokens written to the cache), under Ask's own day budget.
-- A post made from a photo: nothing. Code draws it, in about a second on production (2.7 s cold), and a Save takes about 2.4 s.
+- A post made from a photo: nothing. Code draws it, in about 0.9 s on production (2.7 s cold), and a Save takes about 2.5 s.
 - A listing's photo: about $0.007 from Google Places, at most ten a link, on the platform.
 - Storage's transforms: billed per source image past Pro's allowance, on the platform.
 

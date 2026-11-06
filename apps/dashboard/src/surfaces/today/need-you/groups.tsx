@@ -64,7 +64,7 @@ export async function handBackAll(rows: readonly TodayQueueRowVM[]): Promise<Han
   for (const [i, row] of threads.entries()) {
     const r = await commitVerb(
       "thread_verb",
-      { verb: "hand_back", conversation_id: row.conversationId, who: row.who },
+      { verb: row.closes ?? "hand_back", conversation_id: row.conversationId, who: row.who },
       { refresh: i === threads.length - 1 },
     );
     if (r.ok && r.undo) undos.push(r.undo);

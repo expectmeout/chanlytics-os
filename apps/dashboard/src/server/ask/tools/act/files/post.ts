@@ -1,13 +1,15 @@
 import "server-only";
 import { z } from "zod";
 import {
+  POST_LAYOUTS,
   POST_LIMITS,
+  POST_NO_PHONE,
   POST_VOICES,
-  POST_WORDS,
   fileSaidOf,
   isAskMorningQuestion,
   postPhotoProblem,
   postPlanProblem,
+  postWordsIn,
   whoStandsOf,
 } from "@chanlytics/contracts";
 import { load } from "../../../../readers";
@@ -32,7 +34,13 @@ function ownersWords(t: ToolContext, config: unknown): string {
 }
 
 const postInput = z.object({
-  file: z.string().min(1).max(120).describe("The photo's name, from files with action list. Open it with view first."),
+  file: z
+    .string()
+    .min(1)
+    .max(120)
+    .describe(
+      "The photo's name, as files says it. Open it with view first, unless it came with the question, open already.",
+    ),
   line: z
     .string()
     .describe(
@@ -53,6 +61,12 @@ const postInput = z.object({
   voice: z
     .enum(POST_VOICES)
     .describe("classic is a serif, for beauty, food and hospitality; modern is a plain sans, for trades and services."),
+  layout: z
+    .enum(POST_LAYOUTS)
+    .optional()
+    .describe(
+      "How the words stand with the photo: over it (the usual), left over it, on a band of their colour, or under it in a frame. Band or frame where the photo is busy and must stay clear.",
+    ),
   people_agreed: z
     .boolean()
     .optional()
@@ -76,17 +90,19 @@ async function postOutcome(t: ToolContext, input: z.infer<typeof postInput>): Pr
   const words = { line: input.line.trim(), over: input.over?.trim() || null, under: input.under?.trim() || null };
   const wordsProblem = postPlanProblem(words, ownersWords(t, config));
   if (wordsProblem) return refuse(wordsProblem);
-  if (input.book && !(await postPhoneOf(t.ctx, t.tenantId, config))) return refuse(POST_WORDS.noPhone);
+  if (input.book && !(await postPhoneOf(t.ctx, t.tenantId, config))) return refuse(POST_NO_PHONE);
+  const says = postWordsIn(t.language === "es" ? "es" : "en");
   return propose({
     kind: "post",
-    title: POST_WORDS.cardTitle(words.line),
-    summary: POST_WORDS.summary(fileSaidOf(file.name)),
+    title: says.cardTitle(words.line),
+    summary: says.summary(fileSaidOf(file.name)),
     payload: {
       file_id: file.id,
       ...words,
       book: input.book,
       words_at: input.words_at,
       voice: input.voice,
+      layout: input.layout ?? "over",
       language: t.language === "es" ? "es" : "en",
       people_agreed: input.people_agreed === true,
     },
@@ -96,7 +112,7 @@ async function postOutcome(t: ToolContext, input: z.infer<typeof postInput>): Pr
 export const postAct = defineAct({
   name: "propose_post",
   description:
-    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, and choose where the words go after seeing it. The words come from what the owner has said: a price, a number or a promise they have not said is refused, so use theirs or ask them. One photo a post. To change a post, propose another: nothing is lost. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, unless it came with the question, and choose where the words go after seeing it. Asked only for a post, propose one at once: a short plain headline from the photo and what you know of the business, rather than asking what it should say, since the owner can change the words, the type and the layout on the card itself, for nothing. So propose once and don't offer alternatives. A price, a number or a promise they have not said is refused, so leave those out, or use theirs. One photo a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
   kind: "post",
   input: postInput,
   label: "Making a post",

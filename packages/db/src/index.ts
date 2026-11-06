@@ -62,6 +62,7 @@ export {
   emitEvent,
   eventOfDelivery,
   failOpenDelivery,
+  filePostedOf,
   finishBroadcast,
   recordActivation,
   recordEvent,
@@ -596,14 +597,18 @@ export {
 export type { FileFate } from "./repositories/files/doors";
 export {
   fileForWork,
+  fileMadeOf,
   fileOf,
   filesBucket,
   fileSeen,
   filesNamedBy,
   filesOf,
+  filesOnShelfOf,
+  filesTalliedOf,
   filesToLookAgain,
   filesToPurgeAgain,
   keepClaudeCopy,
+  newestMadeOf,
 } from "./repositories/files/files";
 export type { FileMemberRow, FileRow } from "./repositories/files/files";
 export {

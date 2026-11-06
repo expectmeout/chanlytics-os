@@ -40,6 +40,25 @@ const NEEDS = ["waiting", "held", "to_send", "replied", "not_planned"];
 const IN = ["next", "between", "listed", "checking"];
 const NONE = ["never", "done", "left", "contacted"];
 const ALL = [...NEEDS, ...IN, ...NONE];
+/**
+ * The order the queue walks them (00554): what needs you, by what it needs; what is in a sequence, the soonest first; who to
+ * start with, the best reached first; then the longest since contact.
+ */
+const QUEUE = [
+  "replied",
+  "to_send",
+  "waiting",
+  "held",
+  "not_planned",
+  "listed",
+  "checking",
+  "next",
+  "between",
+  "never",
+  "done",
+  "left",
+  "contacted",
+];
 
 let db;
 let A;
@@ -297,16 +316,35 @@ test("a lead stands in the group its place says, and one with no place standing 
   });
 });
 
-test("a stage sort walks needs, in, then the stages' order; newest first inside each", { skip }, async () => {
+test("a lead's place says its rank among what needs you, and its date", { skip }, async () => {
+  const name = nameOf();
+  const got = new Map(ok(await groupsAs(as.owner)).map((r) => [name.get(r.lead_id), r]));
+  assert.deepEqual(
+    ["replied", "to_send", "waiting", "held", "not_planned"].map((k) => got.get(k).status_rank),
+    [0, 1, 2, 3, 4],
+    "who wrote back cools fastest; a list no batch can take waits longest",
+  );
+  for (const k of IN) assert.deepEqual([got.get(k).status_group, got.get(k).status_rank], ["in", 0], k);
+  for (const [k, r] of got) assert.ok(r.status_at, `${k} says when`);
+});
+
+test("no list of leads reads every lead of the workspace", { skip }, async () => {
+  const name = nameOf();
+  const byIds = ok(await groupsAs(as.owner)).map((r) => [name.get(r.lead_id), r.status_group]);
+  const whole = ok(await groupsAs(as.owner, A, null)).map((r) => [name.get(r.lead_id), r.status_group]);
+  assert.deepEqual(new Map(whole), new Map(byIds));
+});
+
+test("a stage sort walks what needs you, what is in a sequence, then who to start with", { skip }, async () => {
   const rows = ok(await page({ p_sort: "stage" }));
-  assert.deepEqual(namesOf(rows), ALL);
+  assert.deepEqual(namesOf(rows), QUEUE);
   assert.deepEqual(
     rows.map((r) => r.status_group),
     [...NEEDS.map(() => "needs"), ...IN.map(() => "in"), ...NONE.map(() => null)],
     "each row says its group, and a lead in none says nothing",
   );
   const back = ok(await page({ p_sort: "stage", p_dir: "desc" }));
-  assert.deepEqual(namesOf(back), [...ALL].reverse(), "the second press walks it the other way");
+  assert.deepEqual(namesOf(back), [...QUEUE].reverse(), "the second press walks it the other way");
 });
 
 test("Show more carries on across a status group boundary with no row twice", { skip }, async () => {
@@ -320,7 +358,11 @@ test("Show more carries on across a status group boundary with no row twice", { 
       const last = rows[rows.length - 1];
       after_ = { p_after_key: last.page_key, p_after_id: last.member_id };
     }
-    assert.deepEqual(walked, dir === "asc" ? ALL : [...ALL].reverse(), `${dir}: every lead once, in the queue's order`);
+    assert.deepEqual(
+      walked,
+      dir === "asc" ? QUEUE : [...QUEUE].reverse(),
+      `${dir}: every lead once, in the queue's order`,
+    );
   }
 });
 
@@ -496,6 +538,47 @@ test("the read stays put beside a neighbour's sends", { skip }, () => {
   );
 });
 
+test("the read stays put beside its own workspace's other sends", { skip }, () => {
+  const tables = ["sequence_sends", "sequence_enrollments"];
+  const seen = rolledBack(`${DECLARE}
+    begin
+      ${workspace("t", "groups-own")}
+      ${sent("t", 20, "page", 0)}
+      select array_agg(l.id) into ids from public.leads l where l.tenant_id = t;
+      ${sent("t", 3000, "rest", 1)}
+      ${measured(tables, "small", "perform count(*) from public.lead_status_groups(t, ids);")}
+      ${sent("t", 3000, "more-a", 2)}
+      ${sent("t", 3000, "more-b", 3)}
+      ${measured(tables, "large", "perform count(*) from public.lead_status_groups(t, ids);")}
+      seen := cost;
+    end;`);
+  assert.ok(seen.small > 0, "the sends are read at all");
+  assert.ok(
+    seen.large <= seen.small * 1.3 + 10,
+    `read ${seen.small} blocks for 20 leads beside 3,000 other sends of their workspace and ${seen.large} beside 9,000: a read that walks the workspace's sends grows with them`,
+  );
+});
+
+test("why a lead is not planned is asked of the hundred longest on a list", { skip }, () => {
+  const seen = rolledBack(`${DECLARE}
+    begin
+      ${workspace("t", "groups-bound")}
+      insert into public.memberships (tenant_id, user_id, role) values (t, '${as.owner.id}', 'owner');
+      perform set_config('request.jwt.claims', '{"sub":"${as.owner.id}","role":"authenticated"}', true);
+      ${listed("t", 150, "stuck")}
+      update public.leads set email_state = 'invalid' where tenant_id = t;
+      select array_agg(l.id) into ids from public.leads l where l.tenant_id = t;
+      select jsonb_build_object('needs', count(*) filter (where g.status_group = 'needs'),
+                                'in', count(*) filter (where g.status_group = 'in'))
+        into seen from public.lead_status_groups(t, ids) g;
+    end;`);
+  assert.deepEqual(
+    seen,
+    { needs: 100, in: 50 },
+    "the rest stand as in a sequence, and a row on the page says its own why",
+  );
+});
+
 test("the read grows with its own queued leads and no faster", { skip }, () => {
   const tables = ["leads", "lead_search_members", "sequence_steps", "sequence_sends"];
   const seen = rolledBack(`${DECLARE}
@@ -518,6 +601,68 @@ test("the read grows with its own queued leads and no faster", { skip }, () => {
     `read ${seen.small} blocks for 100 queued and ${seen.large} for 400: more than what four times the leads cost`,
   );
 });
+
+/* ------------------------------------------------------------------------------------------- what stands, of every lead -- */
+
+test(
+  "what stands of the leads is what the whole read says, and an open send under a newer one is not among it",
+  { skip },
+  async () => {
+    const said = (rows) => rows.map((r) => [r.grp, r.sequence_id, r.lead_id, r.send_id, r.at].join(" ")).sort();
+    const asked = async () => {
+      const stands = ok(await as.owner.c.rpc("sequence_places", { p_tenant_id: A, p_standing_leads: true }));
+      const whole = ok(await as.owner.c.rpc("sequence_places", { p_tenant_id: A }));
+      assert.deepEqual(said(stands), said(whole.filter((r) => r.lead_id && !["done", "left"].includes(r.grp))));
+      return stands;
+    };
+    assert.deepEqual(new Set(namesOf(await asked())), new Set([...NEEDS, ...IN]));
+
+    const { sequence_id, batch_id } = ok(
+      await db.from("sequence_sends").select("sequence_id, batch_id").eq("lead_id", W.next).single(),
+    );
+    const lead = await one(
+      db.from("leads").insert({
+        tenant_id: A,
+        place_id: `ChIJfixtureGroups${stamp}under`,
+        business_name: "Under Bookshop",
+        stage: "ready",
+      }),
+    );
+    const send = { tenant_id: A, sequence_id, lead_id: lead };
+    const under = await one(
+      db.from("sequence_sends").insert({
+        ...send,
+        batch_id,
+        state: "planned",
+        send_at: new Date(Date.now() + 3_600_000).toISOString(),
+        created_at: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    );
+    // A lead has one send a batch, so what came after it is another's.
+    const after = await one(
+      db.from("sequence_batches").insert({
+        tenant_id: A,
+        sequence_id,
+        name: "After",
+        template_id: W.template,
+        template_name: "fixture_groups_1",
+        template_language: "en_US",
+        state: "scheduled",
+        scheduled_for: new Date().toISOString(),
+      }),
+    );
+    ok(
+      await db
+        .from("sequence_sends")
+        .insert({ ...send, batch_id: after, state: "sent", sent_at: new Date().toISOString() }),
+    );
+    const stands = await asked();
+    assert.ok(
+      !stands.some((r) => r.send_id === under),
+      "the newest of a lead there says where it stands, and it was sent",
+    );
+  },
+);
 
 /* ------------------------------------------------------------------------------------- all that match, last: it acts -- */
 

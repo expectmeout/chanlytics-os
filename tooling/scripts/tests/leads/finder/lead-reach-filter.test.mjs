@@ -1,7 +1,7 @@
 /**
  * The Leads table's Filter (Ruben, 30 Oct 2026: "an email list to send a sequence to vs a call list"): a lead with a
  * checked email, a checked phone, or both, read as the Reach column reads it. Since decision 0083's Phase B the rule is
- * the read's (00500 lead_matches), held to what the Reach column draws as Checked in
+ * the read's (lead_view_rows), held to what the Reach column draws as Checked in
  * `tooling/scripts/tests/leads/lead-filters.db.test.mjs`; here, the Filter's kept value, its word and the export's input.
  *
  * Pure: nothing here reads a file or a database (the view's counts read a stand-in for one).

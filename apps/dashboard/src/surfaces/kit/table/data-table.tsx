@@ -9,8 +9,9 @@
  * them. The rows rise in as the table arrives (kit/motion/use-rows-arrive.ts) and swap as the view under it changes (the
  * page's swap motion, over `TABLE_BODIES`); `busy` dims the rows, never the heads.
  */
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent, ReactElement, ReactNode, RefObject, UIEvent } from "react";
+import { isDocumentScroller, movingScrollerOf } from "../motion/page-scroll";
 import { useRowsArrive } from "../motion/use-rows-arrive";
 import { RowGap } from "../rows/row-gap";
 import { useShownRows, type ShownRows } from "../rows/shown-rows";
@@ -31,6 +32,7 @@ import { fitWidthOf } from "./edge";
 import { groupHeadRow, sectionBodies, tableItems, type TableGroup, type TableItem, type TableSection } from "./groups";
 import { tableHead, type HeadActs, type HeadingMenu, type TableNouns } from "./head";
 import { cutWords } from "./lines";
+import { nearEndAsker } from "./near-end";
 import { TableRowMemo, emptyRow, type TableEmpty } from "./rows";
 import type { TableState } from "./state";
 import type { DataTableModel } from "./use-data-table";
@@ -106,6 +108,8 @@ export interface DataTableProps<R extends TableRow, X> {
   classNames?: { wrap?: string; scroll?: string; table?: string };
   /** How the groups' heads are drawn: as the Pipeline's stages (a name in the semibold, its meta giving way), or plainly. */
   groups?: "stages" | null;
+  /** The page's next page, where it has one: asked for as the scroll nears the rows' end (near-end.ts). */
+  onNearEnd?: (() => void) | undefined;
 }
 
 /** Classes joined, the empty ones left out. */
@@ -224,6 +228,29 @@ function useTableElements(
   );
   useDeskWidths({ state, el, ...sizing });
   return { scrollRef, tableRef };
+}
+
+/**
+ * Asks for the next page as what scrolls the list nears its end (near-end.ts), and once as the rows change, since a view
+ * shorter than its box has no scroll to wait for. What scrolls it is found as the rows are (rows/shown-rows.ts): the table's
+ * box on a desk, the window on a phone, whose box stands as tall as what it holds.
+ */
+function useNearEnd<R extends TableRow>(state: TableState, rows: readonly R[], ask: (() => void) | undefined) {
+  const [asker] = useState(nearEndAsker);
+  const latest = useRef(ask);
+  latest.current = ask;
+  const can = !!ask;
+  const at = `${rows[0]?.id ?? ""}|${rows.length}`;
+  useEffect(() => {
+    const box = state.dom.scroll;
+    if (!box || !can) return undefined;
+    const moving = movingScrollerOf(box, { self: true });
+    const heard: EventTarget = isDocumentScroller(moving) ? window : moving;
+    const look = () => asker(moving, at, latest.current);
+    look();
+    heard.addEventListener("scroll", look, { passive: true });
+    return () => heard.removeEventListener("scroll", look);
+  }, [asker, at, can, state.dom]);
 }
 
 /** A row of the table's model, or none where it holds no row by that id. */
@@ -471,6 +498,7 @@ export function DataTable<R extends TableRow, X>(p: DataTableProps<R, X>) {
   const { table, state, rows } = p;
   const s = tableShape(p);
   const { scrollRef, tableRef } = useTableElements(state, p.swapRef ?? null, s);
+  useNearEnd(state, rows, p.onNearEnd);
   if (s.desk) leaveMeasure(state, s.columns, rows);
   const toggle = useRowToggle(table, state);
   const picked = rows.filter((r) => s.sel.has(r.id)).length;

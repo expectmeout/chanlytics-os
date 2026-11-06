@@ -29,6 +29,7 @@ export type {
   LeadCardTab,
   LeadOwnWords,
 } from "./lead-card";
+export { milesLabel } from "./lead-helpers";
 export {
   ideaBasisOf,
   ideaCustomersOf,
@@ -110,6 +111,7 @@ export {
   leadFoundWords,
   leadNamedPeople,
   leadRoleOf,
+  leadSizeOf,
 } from "./lead-kind";
 export type {
   LeadCompanyPersonVM,
@@ -282,6 +284,7 @@ export {
   leadSearchEmptyWords,
   leadSearchWords,
   leadSlots,
+  leadSourceWord,
   leadsRoute,
   leadsRouteUnchipped,
   leadsStanding,
@@ -500,6 +503,7 @@ export type {
   LeadRunState,
   LeadSearchVia,
 } from "./search/sets";
+export { LEAD_EXPORT_WORDS } from "./sheet/lead-export-words";
 export {
   LEAD_NAMED_MAX,
   LEAD_NAMED_NAME_MAX,
@@ -513,6 +517,13 @@ export {
   leadNamedViewsOf,
 } from "./sheet/lead-named-views";
 export type { LeadNamedLayout, LeadNamedNow, LeadNamedView } from "./sheet/lead-named-views";
+export {
+  LEAD_COLUMN_GROUPS,
+  LEAD_RATED_HINT,
+  leadClaimedWord,
+  leadColumnsOf,
+  leadOutcomeWord,
+} from "./sheet/lead-row-columns";
 export { leadFootOf, leadGroupOf, leadRowActOf, leadStatusOf } from "./sheet/lead-row-status";
 export type { LeadRowActKind, LeadRowActVM, LeadStatusTone, LeadStatusVM } from "./sheet/lead-row-status";
 export {

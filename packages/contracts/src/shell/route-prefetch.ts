@@ -72,7 +72,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "clients/get-yes": ["contacts", "segments", "views", "broadcasts"],
   segments: ["contacts", "segments", "views"],
   // Leads is a scope of People with a surface of its own: its searches, and the first page of everyone in its order.
-  leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
+  leads: ["lead-searches", "leads?list=all&sort=stage&dir=asc&limit=500"],
   // The weeks around the business's today, by the route's clock (GET calendar `around`), and the campaigns over the same
   // weeks (GET calendar/runs, the board's marks: Show includes campaigns until the member turns them off).
   calendar: ["calendar?around=today", "calendar/runs?around=today"],
