@@ -915,7 +915,11 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/route.ts`).
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `shelf` | one of `"all"`, `"inbox"`, `"place"`, `"work"`, `"team"`, `"products"`, `"brand"`, `"made"`, `"other"`, `"set_aside"` | no |  |
+| `limit` | integer | no | ≥ 1; ≤ 1000 |
+| `before` | string | no | at least 1 characters; at most 100 characters |
 
 ### `GET /api/v1/files/[id]`
 

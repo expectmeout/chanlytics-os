@@ -265,7 +265,9 @@ function matches(row, filters, defaults = {}) {
                           // because a rotating sweep's whole correctness is "never-done first, then
                           // the oldest" -- and that is a filter, not a shape a source scan can see.
                           op === "or"
-                          ? orClauses(val).some((clause) => {
+                          ? orClauses(val).some(function holds(clause) {
+                              // A keyset's place in an order: this time and past this id (db filesOnShelfOf).
+                              if (clause.startsWith("and(")) return orClauses(clause.slice(4, -1)).every(holds);
                               // The value may hold dots (a phone, a name): the column and the
                               // operator are the first two segments, the rest is the value.
                               const [c, o, ...rest] = clause.split(".");

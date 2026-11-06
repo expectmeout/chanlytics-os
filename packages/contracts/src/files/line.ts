@@ -39,7 +39,7 @@ export function fileShelfSaid(f: Pick<FileDto, "status" | "shows" | "source">): 
  * logo, and how fresh it is. About 40 tokens, and it changes only when the library does, so the cached prefix holds.
  */
 export function filesLineOf(
-  files: readonly Pick<FileDto, "status" | "shows" | "created_at">[],
+  files: readonly Pick<FileDto, "status" | "shows" | "source" | "created_at">[],
   timezone: string,
 ): string {
   if (files.length === 0) return "Files: no photos yet.";

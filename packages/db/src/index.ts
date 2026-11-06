@@ -602,6 +602,8 @@ export {
   fileSeen,
   filesNamedBy,
   filesOf,
+  filesOnShelfOf,
+  filesTalliedOf,
   filesToLookAgain,
   filesToPurgeAgain,
   keepClaudeCopy,

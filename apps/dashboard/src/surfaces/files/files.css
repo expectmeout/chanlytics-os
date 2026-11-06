@@ -212,6 +212,12 @@ span.files-big {
   min-width: 0;
 }
 
+.files-more {
+  display: flex;
+  justify-content: center;
+  padding-block: 8px;
+}
+
 .files-made-from {
   display: flex;
   flex-wrap: wrap;
