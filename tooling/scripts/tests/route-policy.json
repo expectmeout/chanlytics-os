@@ -783,6 +783,20 @@
       "rate": "file_upload",
       "spend": false
     },
+    "POST files/[id]/google": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_google",
+      "spend": false
+    },
+    "DELETE files/[id]/google": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_google",
+      "spend": false
+    },
     "GET files/[id]": {
       "kind": "read",
       "scope": "row",

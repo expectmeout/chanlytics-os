@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-368 handlers in 57 domains.
+370 handlers in 57 domains.
 
 ## activity
 
@@ -953,6 +953,22 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `name` | string | yes | at most 255 characters |
 | `mime` | one of `"image/jpeg"`, `"image/png"`, `"image/webp"`, `"image/heic"`, `"image/heif"` | yes |  |
 
+### `POST /api/v1/files/[id]/google`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_google` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `summary` | string | yes | at least 1 characters; at most 1500 characters |
+
+### `DELETE /api/v1/files/[id]/google`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_google` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string | yes | at least 1 characters; at most 300 characters |
+
 ### `GET /api/v1/files/[id]/view`
 
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
@@ -1000,7 +1016,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
-| `shape` | one of `"portrait"`, `"square"`, `"story"` | no |  |
+| `shape` | one of `"portrait"`, `"square"`, `"story"`, `"wide"` | no |  |
 
 ### `POST /api/v1/files/start`
 

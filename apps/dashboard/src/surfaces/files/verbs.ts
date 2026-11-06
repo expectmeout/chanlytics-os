@@ -13,6 +13,7 @@ import {
   isFileMime,
   type FileMime,
   type FileShows,
+  type PostPicture,
   type PostPlan,
   type PostShapeName,
 } from "@chanlytics/contracts";
@@ -140,7 +141,7 @@ type PostDrawing = { ok: true; picture: Blob; hasPhone: boolean } | { ok: false;
  * The real picture a post would be (POST files/post/preview), for a card and for an editor as its words change. What the server
  * refuses, it says in the post's own language; anything else, a lost line or a stale press, says nothing, and the last picture stands.
  */
-async function postPicture(plan: PostPlan, shape: PostShapeName, signal?: AbortSignal): Promise<PostDrawing> {
+async function postPicture(plan: PostPlan, shape: PostPicture, signal?: AbortSignal): Promise<PostDrawing> {
   const res = await api()
     .raw("POST files/post/preview", { body: { ...plan, shape }, timeoutMs: POST_PICTURE_MS, signal })
     .catch(() => null);
@@ -167,6 +168,8 @@ export const fileVerbs = {
   postPicture,
   record: (id: string) => api()("GET files/[id]", { params: { id } }),
   savePost: (plan: PostPlan) => api()("POST files/post", { body: plan }),
+  postToGoogle: (id: string, summary: string) => api()("POST files/[id]/google", { params: { id }, body: { summary } }),
+  takeOffGoogle: (id: string, name: string) => api()("DELETE files/[id]/google", { params: { id }, body: { name } }),
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),

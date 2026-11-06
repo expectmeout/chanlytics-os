@@ -5,7 +5,8 @@
  */
 import "server-only";
 import { postPlanOf, recordOrNull, type FileRecordDto, type PostPlan } from "@chanlytics/contracts";
-import { fileMadeOf, fileOf, newestMadeOf, type FileMemberRow } from "@chanlytics/db";
+import { fileMadeOf, fileOf, filePostedOf, newestMadeOf, type FileMemberRow } from "@chanlytics/db";
+import { connectionFor } from "@/server/connections/google";
 import { log } from "@/server/log";
 import { fileDtoOf } from "@/server/readers/files";
 import type { Member } from "@/server/route";
@@ -15,9 +16,15 @@ import type { RouteContext } from "@/server/with-route";
 /** GET files/[id]: one file, and for a post what it came from and what it was asked to be. */
 export async function fileRecord(ctx: RouteContext, member: Member, row: FileMemberRow): Promise<FileRecordDto> {
   const file = fileDtoOf(row);
-  if (row.source !== "made") return { file, made: null };
-  const made = recordOrNull(await fileMadeOf(serviceDb(), member.tenantId, row.id));
-  if (!made) return { file, made: null };
+  if (row.source !== "made") return { file, made: null, google: null };
+  const [kept, connection, posted] = await Promise.all([
+    fileMadeOf(serviceDb(), member.tenantId, row.id),
+    connectionFor(ctx.supabase, member.tenantId),
+    filePostedOf(serviceDb(), member.tenantId, row.id),
+  ]);
+  const google = { connected: !!connection?.location_name, posted };
+  const made = recordOrNull(kept);
+  if (!made) return { file, made: null, google };
   // Read under the caller's RLS: a photo removed since, or one they can't see, is no photo to name.
   const from = typeof made.from === "string" ? await fileOf(ctx.supabase, made.from) : null;
   return {
@@ -26,6 +33,7 @@ export async function fileRecord(ctx: RouteContext, member: Member, row: FileMem
       from: from ? { id: from.id, name: from.name } : null,
       plan: postPlanOf(recordOrNull(made.plan) ?? {}),
     },
+    google,
   };
 }
 

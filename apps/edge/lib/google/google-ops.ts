@@ -10,8 +10,8 @@
  * door (which reads the rows in the order the ops need them) applies it.
  */
 import type { Database } from "../packages/db.js";
-import { PLACE_ID, cleanReply, type PlaceDetails } from "../packages/channels.js";
-import type { EdgeRefusal, ReviewReplyMode } from "../packages/contracts.js";
+import { PLACE_ID, cleanReply, type GbpPostAsked, type PlaceDetails } from "../packages/channels.js";
+import { FILE_GOOGLE_WORDS_MAX, type EdgeRefusal, type ReviewReplyMode } from "../packages/contracts.js";
 import type { LogEvent } from "../log.js";
 import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./google-rows.js";
 import type { CheckResult } from "./listing-check.js";
@@ -38,6 +38,13 @@ export interface GoogleBody {
   location_name?: string;
   id?: string;
   comment?: string;
+  /** A post on the profile (op `post`, `unpost`): the file it is, what it says, and the picture Google fetches. */
+  file_id?: string;
+  summary?: string;
+  photo_url?: string;
+  language?: string;
+  call?: boolean;
+  post_name?: string;
 }
 
 /** The listing as the dashboard sees it, or null when the workspace has none. */
@@ -49,7 +56,7 @@ export const UNKNOWN_GOOGLE_OP: DoorAnswer = {
     ok: false,
     error: "unknown_op",
     detail:
-      "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft or hold",
+      "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft, hold, post or unpost",
   },
 };
 
@@ -294,6 +301,43 @@ export function planReply(
       answer: { status: 400, body: { ok: false, error: "bad_request", detail: "comment is required" } },
     };
   return { kind: "reply", id, comment };
+}
+
+const postRefused = (detail: string): { kind: "refuse"; answer: DoorAnswer } => ({
+  kind: "refuse",
+  answer: { status: 400, body: { ok: false, error: "bad_request", detail } },
+});
+
+/** A post asked for, whole, or what is wrong with the asking. Google is asked to fetch the picture, so its address is checked here. */
+export function planPost(
+  fileId: string | null,
+  body: Pick<GoogleBody, "summary" | "photo_url" | "language" | "call">,
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "post"; fileId: string; post: GbpPostAsked } {
+  if (!fileId) return postRefused("file_id is required");
+  const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+  if (!summary || summary.length > FILE_GOOGLE_WORDS_MAX)
+    return postRefused("summary is required, within Google's limit");
+  const photoUrl = typeof body.photo_url === "string" ? body.photo_url : "";
+  if (!photoUrl.startsWith("https://")) return postRefused("photo_url must be an https address");
+  const languageCode = body.language === "es" ? "es" : "en";
+  return { kind: "post", fileId, post: { summary, photoUrl, languageCode, call: body.call === true } };
+}
+
+/** A post to take down, by Google's name for it. */
+export function planUnpost(
+  fileId: string | null,
+  name: unknown,
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "unpost"; fileId: string; name: string } {
+  if (!fileId) return postRefused("file_id is required");
+  if (typeof name !== "string" || !name.includes("/localPosts/")) return postRefused("post_name is required");
+  return { kind: "unpost", fileId, name };
+}
+
+/** What a post's press hears: a post that is not this connection's is as good as not there. */
+export function postAnswer(r: { ok: true } | EdgeRefusal): DoorAnswer {
+  if (r.ok) return { status: 200, body: r };
+  const status = r.error === "not_connected" ? 409 : r.error === "not_found" ? 404 : 502;
+  return { status, body: r };
 }
 
 export function replyAnswer(r: { ok: true } | EdgeRefusal): DoorAnswer {

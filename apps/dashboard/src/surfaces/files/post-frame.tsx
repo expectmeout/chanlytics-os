@@ -5,7 +5,7 @@
  * cropped. The web animations API on the frame itself, cancelled by the next change, and nothing under reduced motion.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { PostShapeName } from "@chanlytics/contracts";
+import type { PostPicture } from "@chanlytics/contracts";
 import { mediaSays } from "../legacy-verbs";
 
 /** The frame's glide and the picture's fade, on the house's ease-out (tokens.css --ease-out). */
@@ -15,7 +15,7 @@ const FRAME_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 interface Layer {
   src: string;
-  shape: PostShapeName;
+  shape: PostPicture;
 }
 
 /** The picture, read and ready to draw. A browser that can't say when it is ready has it when it has loaded. */
@@ -30,7 +30,7 @@ function pictureReady(src: string): Promise<void> {
 
 interface PostFrameProps {
   src: string | null;
-  shape: PostShapeName;
+  shape: PostPicture;
   alt: string;
   /** Said while there is no picture yet, to whoever can't see that it is coming. */
   waiting: string;

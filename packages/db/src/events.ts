@@ -141,6 +141,9 @@ interface TableData {
     said: { name?: string; shows?: string; who_in_it?: string; status?: string };
   };
   "file.kept": { count: number; by: string };
+  /** A post put on the Google profile: Google's name for it, which is how it comes down. */
+  "file.posted": { file_id: string; post_name: string; search_url: string | null; by: string | null };
+  "file.unposted": { file_id: string; post_name: string; by: string | null };
   "file.removed": { file_id: string; by: string };
   "file.set_aside": { count: number };
   "mailbox_connection.unpaused": { address: string; by: string };
@@ -250,6 +253,8 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "file.added": { category: "setup", version: 1 },
   "file.changed": { category: "setup", version: 1 },
   "file.kept": { category: "setup", version: 1 },
+  "file.posted": { category: "setup", version: 1 },
+  "file.unposted": { category: "setup", version: 1 },
   "file.removed": { category: "setup", version: 1 },
   "file.set_aside": { category: "setup", version: 1 },
   "mailbox_connection.unpaused": { category: "setup", version: 1 },
@@ -342,6 +347,32 @@ export async function emitEvent<K extends EmittedKind>(
 ): Promise<void> {
   const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
   if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
+}
+
+/** A post on Google, as the ledger last said of it: where it is, or null where it never went or came down since. */
+export async function filePostedOf(
+  db: Db,
+  tenantId: string,
+  fileId: string,
+): Promise<{ name: string; search_url: string | null; at: string } | null> {
+  const { data, error } = await db
+    .from("events")
+    .select("kind, data, created_at")
+    .eq("tenant_id", tenantId)
+    .in("kind", ["file.posted", "file.unposted"])
+    .eq("data->>file_id", fileId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`file posted: ${error.message}`);
+  if (data?.kind !== "file.posted") return null;
+  const said = data.data as { post_name?: unknown; search_url?: unknown };
+  if (typeof said.post_name !== "string") return null;
+  return {
+    name: said.post_name,
+    search_url: typeof said.search_url === "string" ? said.search_url : null,
+    at: data.created_at,
+  };
 }
 
 /**
