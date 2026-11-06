@@ -2,9 +2,9 @@
  * The demo's Conversations: the calls and chats it lists, one of them live, and the tabs over them (moved from
  * data/conversations-data.jsx, decision 0015, step 3).
  */
-import type { ConversationRow, ConversationTab, ConversationsSurface } from "../types";
+import type { ConversationLine, ConversationTab, ConversationsSurface } from "../types";
 
-const CONVERSATIONS: ConversationRow[] = [
+const CONVERSATIONS: ConversationLine[] = [
   {
     id: "cv-selena-live",
     who: "Selena Cho",

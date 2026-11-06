@@ -66,6 +66,22 @@ const OURS = {
     { prefer: "type-imports", fixStyle: "inline-type-imports", disallowTypeAnnotations: false },
   ],
   "@typescript-eslint/no-import-type-side-effects": "error",
+  // Names follow docs/naming.md. A warning, each held per file by check:debt, until the last of them goes (decision 0105):
+  // types PascalCase with no `I`, no enum (a closed set is an `as const` array), functions camelCase or a component's
+  // PascalCase, variables camelCase, CONSTANT_CASE or a component's. A property is left alone, since the wire says
+  // snake_case, and so is a name a destructure takes from one. It reads no type, so it runs where no program is built too.
+  "@typescript-eslint/naming-convention": [
+    "warn",
+    { selector: "typeLike", format: ["PascalCase"], leadingUnderscore: "allow" },
+    { selector: "interface", format: ["PascalCase"], custom: { regex: "^I[A-Z]", match: false } },
+    { selector: "enum", format: null, custom: { regex: ".*", match: false } },
+    { selector: "function", format: ["camelCase", "PascalCase"], leadingUnderscore: "allow" },
+    { selector: "function", filter: "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$", format: null },
+    { selector: "variable", format: ["camelCase", "UPPER_CASE", "PascalCase"], leadingUnderscore: "allow" },
+    { selector: "variable", modifiers: ["destructured"], format: null },
+    { selector: "parameter", format: ["camelCase"], leadingUnderscore: "allow" },
+    { selector: "parameter", modifiers: ["destructured"], format: null },
+  ],
 };
 
 /** The TypeScript no program is built for (the browser specs, until e2e has a tsconfig): ESLint's recommended set. */

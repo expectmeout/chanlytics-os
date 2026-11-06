@@ -18,7 +18,7 @@ import { carriedReading, carriesMark } from "../seen-carry";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { cvCallsStandAsTheirThread } from "./cv-rules";
-import type { ConversationRow } from "./types";
+import type { ConversationLine } from "./types";
 
 // The pages that have not moved (a person's profile, Ask) still read this under its old name.
 declareSurfaceValue("conversations", "CONVERSATIONS_DATA");
@@ -120,7 +120,7 @@ export const conversationsOverride: SurfaceOverride = {
     const allThreads = [...data.conversations, ...chatExtra].map((c) =>
       toConversationVM(c, openByConv.get(c.id) ?? null, tz),
     );
-    let callRows: ConversationRow[] = [];
+    let callRows: ConversationLine[] = [];
     try {
       if (callsRes instanceof Error) throw callsRes;
       callRows = cvCallsStandAsTheirThread(
@@ -136,7 +136,7 @@ export const conversationsOverride: SurfaceOverride = {
     // Newest first by REAL timestamp. The previous sort localeCompare'd the
     // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at all
     // — a message sent this morning listed below yesterday's calls.
-    const merged: ConversationRow[] = [...threads, ...callRows].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+    const merged: ConversationLine[] = [...threads, ...callRows].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
     const was = surfaceValue("conversations");
     setSurfaceValue("conversations", {
       // A row the read gave as it was keeps its object, so it is not drawn again (shareUnchanged), as the Inbox's threads.
@@ -163,7 +163,7 @@ carriesMark(conversationsOverride, (personId, mark) => {
   const held = surfaceValue("conversations");
   if (!held) return false;
   let moved = false;
-  const one = (c: ConversationRow): ConversationRow => {
+  const one = (c: ConversationLine): ConversationLine => {
     if (c.clientId !== personId || c.unseen === undefined) return c;
     const reading = carriedReading(c, mark);
     if (!reading) return c;

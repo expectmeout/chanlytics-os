@@ -812,7 +812,7 @@ export {
   setMemberPushOff,
   setMemberView,
 } from "./repositories/notices/member-alerts";
-export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
+export type { MemberAlerts } from "./repositories/notices/member-alerts";
 export {
   askCardsTold,
   bookedVisitsOf,

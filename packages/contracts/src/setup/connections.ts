@@ -77,7 +77,7 @@ export interface ConnectionVerb {
   href?: string;
 }
 
-export interface ConnectionRow {
+export interface ConnectionLine {
   kind: ConnectionKind;
   icon: string;
   title: string;
@@ -176,13 +176,13 @@ const ORDER: Record<ConnectionKind, number> = {
 };
 
 /** A row as a builder says it: the group, tone, body and notes are the fold's (row()) unless the builder sets them. */
-export type ConnectionDraft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> & {
-  body?: ConnectionRow["body"];
+export type ConnectionDraft = Omit<ConnectionLine, "group" | "tone" | "body" | "notes"> & {
+  body?: ConnectionLine["body"];
   notes?: ConnectionNote[];
 };
 type Draft = ConnectionDraft;
 
-function row(d: Draft): ConnectionRow {
+function row(d: Draft): ConnectionLine {
   return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
 }
 
@@ -755,7 +755,7 @@ const BROUGHT_BY: Readonly<Partial<Record<ConnectionKind, readonly ImportSource[
  * in the mailbox's sheet, so the Email row folds into the mailbox's, which takes its name. A hosted address that could
  * not take an email in keeps its own row, to say so.
  */
-function foldEmail(rows: ConnectionRow[], i: ConnectionInputs): ConnectionRow[] {
+function foldEmail(rows: ConnectionLine[], i: ConnectionInputs): ConnectionLine[] {
   if (!i.email?.sending?.mailboxes.length) return rows;
   const hosted = rows.find((r) => r.kind === "email");
   if (hosted?.state === "attention") return rows;
@@ -765,7 +765,7 @@ function foldEmail(rows: ConnectionRow[], i: ConnectionInputs): ConnectionRow[] 
 }
 
 /** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */
-export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionRow[] {
+export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionLine[] {
   const facts = connectionFactsOf(i, nowMs);
   const rows = ROW_BUILDERS.map((build) => {
     const r = row(build(i, facts));
@@ -777,7 +777,7 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
 
 export const CONNECTION_GROUP_WORDS: Record<
   ConnectionGroup,
-  { title: string; sub: (rows: ConnectionRow[]) => string }
+  { title: string; sub: (rows: ConnectionLine[]) => string }
 > = {
   connected: {
     title: "Connected",

@@ -18,7 +18,7 @@ import {
   type AppointmentStatus,
   type BookingNoticePorts,
   type NewAppointment,
-  type NoticeLedgerRow,
+  type NoticeLedgerEntry,
   type NoticeOutcome,
   type StoredAppointment,
 } from "@chanlytics/core";
@@ -97,7 +97,7 @@ function byClientStartOf(db: JobContext["db"], tool: string): BookingNoticePorts
 }
 
 /** The ledger's row as the verb reads it. */
-function ledgerOf(row: AppointmentNoticeRow): NoticeLedgerRow {
+function ledgerOf(row: AppointmentNoticeRow): NoticeLedgerEntry {
   if (!isOutcome(row.outcome)) throw new Error(`booking_read: a notice became ${row.outcome}`);
   if (row.hold_reason !== null && !isNoticeHold(row.hold_reason))
     throw new Error(`booking_read: a notice is held for ${row.hold_reason}`);

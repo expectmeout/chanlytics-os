@@ -76,7 +76,7 @@ export interface AppointmentPatch {
  */
 export type NoticeOutcome = "booked" | "changed" | "cancelled" | "held" | "dismissed";
 
-export interface NoticeLedgerRow {
+export interface NoticeLedgerEntry {
   outcome: NoticeOutcome;
   holdReason: NoticeHold | null;
   appointmentId: string | null;
@@ -88,7 +88,7 @@ export interface BookingNoticePorts {
   /** The model's answer, unparsed; null when it answered nothing usable. Throws on a failed call: the ledger's retry. */
   ask(system: string, user: string): Promise<unknown>;
   /** What the ledger already holds for this delivery, or null. */
-  noticeOf(tenantId: string, noticeId: string): Promise<NoticeLedgerRow | null>;
+  noticeOf(tenantId: string, noticeId: string): Promise<NoticeLedgerEntry | null>;
   /** Keep what became of the notice, once per delivery: a second keep for the same delivery replaces the first. */
   keepNotice(p: {
     tenantId: string;

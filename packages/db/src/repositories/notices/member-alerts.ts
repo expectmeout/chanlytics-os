@@ -58,7 +58,7 @@ export async function forgetActivityTokens(db: Db, tokens: readonly string[]): P
 }
 
 /** What a member chose for their phones in one workspace, and their phones, as Settings › Notifications reads them. */
-export interface MemberAlertsRow {
+export interface MemberAlerts {
   /** The kinds their phones are not told (memberships.push_off, 00372), as stored; contracts reads them leniently. */
   pushOff: string[];
   phones: { platform: string; app_version: string | null; last_seen_at: string | null }[];
@@ -74,7 +74,7 @@ const UNDEFINED_COLUMN = "42703";
  * their own phones are what its row policies let them read (memberships_self_select, push_devices_own_select). A read
  * that fails throws, except the one a database without 00372 answers, which reads as no choice yet.
  */
-export async function memberAlertsOf(db: Db, p: { tenantId: string; userId: string }): Promise<MemberAlertsRow> {
+export async function memberAlertsOf(db: Db, p: { tenantId: string; userId: string }): Promise<MemberAlerts> {
   const [mine, phones] = await Promise.all([
     db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
     db

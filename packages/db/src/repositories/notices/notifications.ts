@@ -212,7 +212,7 @@ export async function reviewRowsByGoogleId(
 type HoldRef = { conversationId: string } | { escalationId: string };
 
 /** The rows a hold's notice says (contracts HoldFacts), or null when the thread no longer waits for a person. */
-interface HoldFactsRow {
+interface HoldFactsRead {
   conversationId: string;
   reason: string;
   details: string | null;
@@ -236,7 +236,12 @@ const oneOr = <T>(r: { data: T[] | null; error: { message: string } | null }, wh
  * person, their latest words in the thread and what the receptionist wrote after them, and the pause when it runs.
  * Null when the hold is no longer open: a hold answered before its notice tells nobody. A read that fails throws.
  */
-export async function holdFactsOf(db: Db, tenantId: string, ref: HoldRef, nowMs: number): Promise<HoldFactsRow | null> {
+export async function holdFactsOf(
+  db: Db,
+  tenantId: string,
+  ref: HoldRef,
+  nowMs: number,
+): Promise<HoldFactsRead | null> {
   const holds = db
     .from("escalations")
     .select("id, conversation_id, reason, details")

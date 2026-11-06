@@ -23,7 +23,7 @@ import {
   IMPORT_WORDS,
   importLineOf,
   sourceRowsOf,
-  type ConnectionRow,
+  type ConnectionLine,
   type ImportRowDto,
   type ImportSource,
   type MailboxConnectionDto,
@@ -562,7 +562,7 @@ function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRow
 }
 
 /** The card's words beside its tile: Email, then the one mailbox's address and what came in, or how many there are. */
-function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: number, zone: string) {
+function cardWords(r: ConnectionLine, one: MailboxConnectionDto | null, now: number, zone: string) {
   const w = one ? MAILBOXES.row(one, now, zone) : null;
   return (
     <span className="set-team-body">
@@ -591,7 +591,7 @@ function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: numb
 
 interface EmailCardProps {
   /** The mailbox row, titled Email: the hosted address's row folds into it (contracts connectionRows). */
-  r: ConnectionRow;
+  r: ConnectionLine;
   email: Email;
   /** What was brought in (Setup's imports ledger): the card's Inbox and Contacts. */
   imports: readonly ImportRowDto[] | null | undefined;

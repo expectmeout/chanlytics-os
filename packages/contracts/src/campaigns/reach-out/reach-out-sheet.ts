@@ -672,7 +672,7 @@ export function emailTemplateWords(p: { chainName: string; stepN: number; afterD
 }
 
 /** One email of a reach-out as Templates lists it (R19): its words, and the chain and step that send it. */
-interface EmailTemplateRowVM {
+interface EmailTemplateLine {
   template_id: string;
   step_id: string;
   subject: string | null;
@@ -690,7 +690,7 @@ interface EmailTemplateRowVM {
  * chain's order. How many each has written is its chain's report, read when the row opens (R23), never here: the list
  * costs no count.
  */
-export function emailTemplateRowsOf(chains: readonly ReachOutChainDto[]): EmailTemplateRowVM[] {
+export function emailTemplateRowsOf(chains: readonly ReachOutChainDto[]): EmailTemplateLine[] {
   return chains.flatMap((c) =>
     c.steps.flatMap((s) =>
       s.template_id
