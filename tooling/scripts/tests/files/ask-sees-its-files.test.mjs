@@ -34,6 +34,7 @@ after(() => {
 });
 
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { resultBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
@@ -43,7 +44,9 @@ const { fileIndexLineOf, fileWhoSaid, filesLineOf } = await import(at("packages/
 beforeEach(() => {
   readerCache.clear();
   asked.length = 0;
+  setServiceClient(fakeDb({ files: [] }, {}, {}));
 });
+after(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -231,6 +234,48 @@ test("a name that is no file, and a picture with no copy, are said in words: a t
   assert.deepEqual(said.no_such_file, ["gone"]);
   assert.deepEqual(said.could_not_open, ["no-copy"]);
   assert.deepEqual(out.pictures, [{ name: "good", fileId: "file_abc" }]);
+});
+
+test("a picture opened says how their newest post looks, so the next keeps what they settled on; before their first, nothing", async () => {
+  copiesOf({ [ID(1)]: "file_abc" });
+  const files = [row(1, { name: "good" })];
+  const said = async () => JSON.parse((await tool(files, { action: "view", names: ["good"] })).result);
+  assert.equal((await said()).last_post, undefined, "no post yet");
+  const made = (at, plan, over = {}) => ({
+    id: `${at}`,
+    tenant_id: A,
+    source: "made",
+    removed_at: null,
+    created_at: `2026-11-0${at}T00:00:00Z`,
+    made: { from: ID(1), plan },
+    ...over,
+  });
+  setServiceClient(
+    fakeDb({
+      files: [
+        made(1, { voice: "classic", layout: "over", book: false }),
+        made(2, { voice: "modern", layout: "band", book: true }),
+        made(3, { voice: "classic", layout: "frame", book: false }, { removed_at: "2026-11-04T00:00:00Z" }),
+        made(4, { voice: "classic", layout: "left", book: false }, { tenant_id: "another" }),
+        { ...made(5, {}), source: "upload" },
+      ],
+    }),
+  );
+  readerCache.clear();
+  assert.deepEqual((await said()).last_post, { voice: "modern", layout: "band", book: true }, "the newest still here");
+});
+
+test("a read of how their last post looks that fails costs the turn nothing", async () => {
+  copiesOf({ [ID(1)]: "file_abc" });
+  const db = fakeDb({}, {}, {});
+  db.from = () => {
+    throw new Error("no database");
+  };
+  setServiceClient(db);
+  const out = await tool([row(1, { name: "good" })], { action: "view", names: ["good"] });
+  assert.equal(out.isError, false);
+  assert.equal(JSON.parse(out.result).last_post, undefined);
+  assert.equal(out.pictures.length, 1);
 });
 
 test("an edge that can't be reached leaves the turn standing, with the files said as not opened", async () => {

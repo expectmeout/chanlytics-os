@@ -61,6 +61,7 @@ export const ROUTES = {
   "GET escalations": { method: "GET", path: "/api/v1/escalations" },
   "GET export": { method: "GET", path: "/api/v1/export" },
   "GET files": { method: "GET", path: "/api/v1/files" },
+  "GET files/[id]": { method: "GET", path: "/api/v1/files/[id]" },
   "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
@@ -432,6 +433,7 @@ export type Routes = {
   "GET escalations": typeof import("../../app/api/v1/escalations/route").GET;
   "GET export": typeof import("../../app/api/v1/export/route").GET;
   "GET files": typeof import("../../app/api/v1/files/route").GET;
+  "GET files/[id]": typeof import("../../app/api/v1/files/[id]/route").GET;
   "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;

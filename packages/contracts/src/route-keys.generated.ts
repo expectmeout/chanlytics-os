@@ -64,6 +64,7 @@ export const ROUTE_KEYS = [
   "GET escalations",
   "GET export",
   "GET files",
+  "GET files/[id]",
   "GET files/[id]/view",
   "GET google",
   "GET google/callback",

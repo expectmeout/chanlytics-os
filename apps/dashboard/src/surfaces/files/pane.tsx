@@ -166,7 +166,7 @@ export function PaneFiles({ flash }: { flash: (f: LegacyFlash) => void }) {
           </div>
         </>
       )}
-      {open && <FileSheet key={open.id} file={open} onClose={closeSheet} flash={flash} />}
+      {open && <FileSheet key={open.id} file={open} onClose={closeSheet} open={setOpenId} flash={flash} />}
     </section>
   );
 }

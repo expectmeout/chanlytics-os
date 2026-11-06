@@ -165,6 +165,8 @@ export const fileVerbs = {
   add,
   postBytes,
   postPicture,
+  record: (id: string) => api()("GET files/[id]", { params: { id } }),
+  savePost: (plan: PostPlan) => api()("POST files/post", { body: plan }),
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),

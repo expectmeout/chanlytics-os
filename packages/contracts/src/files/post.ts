@@ -86,6 +86,8 @@ export interface PostWords {
   summary: (fileName: string) => string;
   save: string;
   saved: (name: string) => string;
+  saveNew: string;
+  cancel: string;
   removed: string;
   undo: string;
   notDrawn: string;
@@ -121,6 +123,8 @@ export const POST_WORDS = {
   summary: (fileName: string) => `From ${fileName}. Comes in portrait, square and story.`,
   save: "Save to Files",
   saved: (name: string) => `Saved to Files as ${name}`,
+  saveNew: "Save as new",
+  cancel: "Cancel",
   removed: "Taken out of Files",
   undo: "Undo",
   notDrawn: "The picture could not be drawn. Saving still works.",
@@ -164,6 +168,8 @@ const POST_WORDS_ES: PostWords = {
   summary: (fileName) => `De ${fileName}. En vertical, cuadrado e historia.`,
   save: "Guardar en Archivos",
   saved: (name) => `Guardada en Archivos como ${name}`,
+  saveNew: "Guardar como nueva",
+  cancel: "Cancelar",
   removed: "Quitada de Archivos",
   undo: "Deshacer",
   notDrawn: "No se pudo dibujar la imagen. Aun así puedes guardarla.",
