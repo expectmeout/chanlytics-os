@@ -15,13 +15,13 @@ import {
   type PlatformPartnerWorkspaceDto,
   type StaffRole,
 } from "@chanlytics/contracts";
-import type { PlatformApi } from "@/legacy-bridge/platform";
+import type { PlatformApi } from "@/bridge/platform";
 import { Button } from "../kit/button/button";
 import { Field } from "../kit/field/field";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { FrameFlash } from "../frame-verbs";
 import { WhyAsk } from "./why";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 type Outcome = { ok: boolean; message: string };
 type Standing = (typeof PARTNER_STANDINGS)[number];
 type PartnerStatus = (typeof PARTNER_STATUSES)[number];

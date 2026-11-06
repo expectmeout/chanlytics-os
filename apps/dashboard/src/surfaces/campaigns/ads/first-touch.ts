@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import type { AdsRead } from "@chanlytics/contracts";
 import { firstTouchOf } from "@chanlytics/contracts/ads-page";
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 
 export interface FirstTouchHere {
   /** `read` too where nothing is asked for: there is nothing to wait for. */

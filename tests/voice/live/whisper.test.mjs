@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contracts";
 import { updateLiveCall } from "@chanlytics/channels";
 import { readCode, readRaw } from "../../_source.mjs";
-import { installLegacyReact, fresh, again, find, byTestId } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId } from "../../_stub-react.mjs";
 
 test("the ledger knows a whisper on a call, and the database agrees", () => {
   assert.ok(DECISION_VERBS.includes("whisper"));
@@ -119,14 +119,14 @@ const call = (over = {}) => ({
 });
 
 test("the page offers it only on a live call, behind the gate the server enforces", async () => {
-  installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
   const S = "../../../apps/dashboard/src";
   // The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
   (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
   globalThis.usePPToast = () => [null, () => {}];
   const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
   const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-  const { whisperCall } = await import(`${S}/legacy-bridge/inbox-verbs.ts`);
+  const { whisperCall } = await import(`${S}/bridge/inbox-verbs.ts`);
   // The whisper is the bridge's verb, imported by the page and run for real over the client: this is the wire.
   const sent = [];
   const realFetch = globalThis.fetch;

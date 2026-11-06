@@ -18,7 +18,7 @@ import {
   JOB_KINDS,
   REACH_OUT_DAY_ROUTE,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_stub-react.mjs";
 
 const NOW = Date.parse("2026-09-25T15:00:00Z");
 const kept = (over) => ({
@@ -307,7 +307,7 @@ test("the unread rows the bell does not list are said once, after its own, with 
 
 /* ------------------------------ the popover ------------------------------ */
 
-installLegacyReact();
+installStubReact();
 // The frame's helpers, as the app publishes them, and the bell's popover (surfaces/frame/topbar/notif-popover.tsx), imported.
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { NotifPopover } = await import("../../apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx");

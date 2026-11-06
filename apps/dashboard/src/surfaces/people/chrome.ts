@@ -18,7 +18,7 @@ import {
 } from "@chanlytics/contracts";
 import { demoCode } from "./hooks/demo";
 import { surfaceValue } from "../surface-values";
-import { demoSession } from "../legacy-verbs";
+import { demoSession } from "../frame-verbs";
 import type { PeopleSurface } from "./surface";
 import { heldPerson } from "./person/read";
 import type { SurfaceViews } from "../routes";

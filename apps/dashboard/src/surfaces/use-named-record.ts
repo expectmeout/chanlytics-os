@@ -13,8 +13,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { RecordRef } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { refreshSurfaces } from "@/bridge/surface-runner";
 import { opensRoute } from "./addresses";
 import type { SurfaceKey } from "./surface-values";
 import { useSurfaceSettled } from "./use-surface";

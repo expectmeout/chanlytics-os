@@ -10,7 +10,7 @@
  * drawn from its newest and grown from above, what it had drawn would move (a thread grows only at its end, earlier.ts),
  * and on a phone nothing anchors it.
  */
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 import {
   HELD_BY_ID_MAX,
   inReadingOrder,

@@ -13,7 +13,7 @@ import {
   type LeadSearchPlan,
   type LeadSuggestionsDto,
 } from "@chanlytics/contracts";
-import { askAbout, openAsk, refusalToast } from "../../legacy-verbs";
+import { askAbout, openAsk, refusalToast } from "../../frame-verbs";
 import type { Flash } from "../../people/types";
 import { leadAnswerPlan, leadFinderApprove } from "../finder/amend";
 import type { FinderMore, FinderSet, FinderState } from "../finder/types";

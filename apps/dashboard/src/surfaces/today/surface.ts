@@ -6,9 +6,9 @@
  * 19 Oct 2026). Part of the SurfaceData seam (../surface-data.ts).
  */
 
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 import { toTodayVM, type TodayReadDto } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import type { SurfaceOverride } from "@/bridge/surface-data";
 import { setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 
 /**

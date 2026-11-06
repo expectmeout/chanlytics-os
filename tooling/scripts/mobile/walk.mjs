@@ -56,7 +56,7 @@ function maestro(flow, out) {
 
 /**
  * More pressed again while in front, as a finger does it: a selected tab takes no click, which is why the flow cannot.
- * The page must hear the shell ask for its drawer (legacy-bridge/app-bridge.ts `shell:menu`), and draw it.
+ * The page must hear the shell ask for its drawer (bridge/app-bridge.ts `shell:menu`), and draw it.
  */
 async function moreAgain() {
   const target = (await pagesNow()).find((p) => p.url.includes("#/reports"));

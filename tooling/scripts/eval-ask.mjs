@@ -327,7 +327,7 @@ async function warm(cookie, ws, context) {
  * one. The lines are read to the end, a torn one skipped as the bridge skips it (jsonLines).
  */
 /**
- * The column the Line draws an answer in, as the tab measures and sends it (legacy-bridge/ask/column.ts): a desk's
+ * The column the Line draws an answer in, as the tab measures and sends it (bridge/ask/column.ts): a desk's
  * docked panel or a phone's screen, measured on 18 Oct 2026. A case names `column: "phone"` or "desk"; a desk's is sent
  * where it names none, as every desk's tab does, and none at all with EVAL_COLUMN=none (an older tab, to compare).
  */

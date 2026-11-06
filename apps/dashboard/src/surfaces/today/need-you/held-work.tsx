@@ -6,7 +6,7 @@
  */
 import { useRef } from "react";
 import { NEED_YOU_WORDS as W, sendCountdown } from "@chanlytics/contracts";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { cancelSend } from "../../inbox/verbs";
 import { Button } from "../../kit";
 import { appNavigate, gate } from "../shell";

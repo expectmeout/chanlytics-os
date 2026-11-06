@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, unmount, again, settle, find, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
 
 const {
   DEAL_ACT_HINTS,
@@ -1004,7 +1004,7 @@ test("where the proposal follow-up has them in hand (0006), the card says the da
 
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
@@ -1013,11 +1013,11 @@ Object.assign(W, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
 });
-const L = "../../apps/dashboard/src/legacy";
+const SRC = "../../apps/dashboard/src";
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";
 // The Inbox's reply courier (window.threadVerbs) is asked for through the shell's verbs (person-verbs.ts); everything
 // else the sheet reads is imported, as the sheet imports it.
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 // The Inbox's reply courier, which the app publishes for the sheet (seed-globals, from surfaces/inbox/thread/thread-verbs.tsx).
 W.threadVerbs = (await import("../../apps/dashboard/src/surfaces/inbox/thread/thread-verbs.tsx")).threadVerbs;
 const quietly = async (fn) => {
@@ -1035,11 +1035,11 @@ const { DatePicker } = await import("../../apps/dashboard/src/surfaces/kit/datep
 // The month behind a day's token loads as the sheet first draws one (fields.tsx loadDayPick): loaded here first.
 await (await import(`${PEOPLE}/deal-sheet/fields.tsx`)).loadDayPick();
 const { recFolds } = await import("../../apps/dashboard/src/surfaces/kit/record/registry.ts");
-const { installInboxVerbs } = await quietly(() => import("../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"));
-const { clearReadCaches } = await import("../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { installInboxVerbs } = await quietly(() => import("../../apps/dashboard/src/bridge/inbox-verbs.ts"));
+const { clearReadCaches } = await import("../../apps/dashboard/src/bridge/read-cache.ts");
 // What a write reads again after it lands (loaded by the client on a first write): loaded now, so a write's answer is
 // not waiting on a module's first load while the test waits on the write.
-await quietly(() => import("../../apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+await quietly(() => import("../../apps/dashboard/src/bridge/refresh-map.ts"));
 installInboxVerbs();
 // The host's toasts, as the page's stack would draw them.
 const toasts = [];

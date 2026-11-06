@@ -10,7 +10,7 @@
  * approved). A draft is a read and refreshes nothing. Owner or operator on
  * the server; a viewer's click returns the server's refusal.
  */
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import {
   LANGUAGE_GROUP_WORDS,
   PARAM_SOURCE_HINTS,

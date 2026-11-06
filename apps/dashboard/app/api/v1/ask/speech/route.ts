@@ -18,7 +18,7 @@ import {
  * Today's Listen and an answer's Read aloud: the browser sends the words it shows (the brief's line, or an answer's
  * say) and plays what comes back. No agent, no microphone, no session row: nobody speaks back. Body: { text,
  * purpose, before? } where purpose is `brief` or `answer`, and `before` is the words read just before these, where a
- * reading is asked for as two clips (its first sentence, then the rest: legacy-bridge/ask/speech.ts), so the vendor
+ * reading is asked for as two clips (its first sentence, then the rest: bridge/ask/speech.ts), so the vendor
  * reads the second as carrying on from the first. The text is bounded (ASK_SPEECH_MAX_CHARS) and whitespace-folded
  * here; the edge, which holds the vendor's key, bounds it again. The answer is the audio itself, MP3, streamed as the
  * vendor makes it (door E, apps/edge/api/admin/voice/speech.ts), so the browser hears the first word about when the

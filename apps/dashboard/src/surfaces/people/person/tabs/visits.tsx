@@ -11,7 +11,7 @@ import type { PersonVisitRowVM, PersonVisitsVM } from "@chanlytics/contracts";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
 import { Panel } from "../../../kit/panel/panel";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { VisitActs } from "../../../visit-line";
 import type { PageCtx } from "../ctx";
 

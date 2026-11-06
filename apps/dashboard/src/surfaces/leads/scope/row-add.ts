@@ -5,16 +5,16 @@
  * with why; a refusal, as itself. Nothing is asked of the door before the press.
  */
 import type { ReachOutAddDto } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, type FrameFlash } from "../../frame-verbs";
 import type { AimTarget } from "../sheet/use-aim";
 
 /** Add one lead to the pick. True where it joined. */
 export async function addLeadToPick(p: {
   id: string;
   to: Pick<AimTarget, "rootId" | "name" | "row">;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }): Promise<boolean> {
   const r = await commitVerb("sequence_add", {
     sequence_id: p.to.rootId,

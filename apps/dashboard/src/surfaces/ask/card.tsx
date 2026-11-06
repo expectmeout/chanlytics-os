@@ -12,7 +12,7 @@ import {
   type AskProposalOutcome,
   type SearchCardView,
 } from "@chanlytics/contracts";
-import type { AskApi, CommitResult } from "@/legacy-bridge/ask";
+import type { AskApi, CommitResult } from "@/bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
 import { Button } from "../kit/button/button";
 import { AskPostCard, usePostCard } from "./card-post";

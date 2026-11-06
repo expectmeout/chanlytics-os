@@ -1,5 +1,5 @@
 /**
- * What a tab could not hear or read is said beside its page speed (legacy-bridge/hearing/freshness.ts; the page-open PRD of
+ * What a tab could not hear or read is said beside its page speed (bridge/hearing/freshness.ts; the page-open PRD of
  * 3 Nov 2026, L7; 00509): how long its feed was down, how many times it came back, and each surface's failed reads under
  * the surface's name as a page's part. Only what happened, counts and durations, and forgotten once said.
  */
@@ -9,7 +9,7 @@ import { PageVitalReport } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const { noteFeed, noteReadFailed, freshnessReports } = await importSrc(
-  "apps/dashboard/src/legacy-bridge/hearing/freshness.ts",
+  "apps/dashboard/src/bridge/hearing/freshness.ts",
 );
 
 test("a tab that heard and read everything says nothing", () => {

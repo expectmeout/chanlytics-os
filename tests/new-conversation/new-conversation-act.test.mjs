@@ -8,9 +8,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NEW_CONVERSATION_WORDS, newConversationOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, textOf, press } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false });
+installStubReact({ __DEMO_MODE: false });
 // The standing keeps the minute on a timer (kit/head/dateline.ts), and a test that draws by hand starts none.
 globalThis.setInterval = () => 0;
 globalThis.clearInterval = () => undefined;

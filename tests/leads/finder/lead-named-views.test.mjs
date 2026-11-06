@@ -18,10 +18,10 @@ import {
   leadsRoute,
   parseLeadsRoute,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, find, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, find, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const { LeadsRailViews, useLeadNamedViews } = await importSrc("apps/dashboard/src/surfaces/leads/scope/rail-views.tsx");
 
 const h = (...a) => globalThis.React.createElement(...a);

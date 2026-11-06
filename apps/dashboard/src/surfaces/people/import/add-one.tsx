@@ -21,7 +21,7 @@ import { Icon } from "../../kit/icon/icon";
 import { RecordSwitch } from "../../kit/record/field";
 import { tabDraft } from "../../kit/record/work";
 import { Search } from "../../kit/search/search";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn } from "../../frame-verbs";
 import { plAddExtras, plAddPerson, plAddedWords } from "../lists/doors";
 import type { Flash } from "../types";
 

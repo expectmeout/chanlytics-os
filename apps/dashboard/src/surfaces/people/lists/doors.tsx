@@ -6,7 +6,7 @@
  * or call is added the same way, the desktop's form and the phone's sheet alike.
  */
 import type { ListRule } from "@chanlytics/contracts";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import { addPerson, writePersonNote } from "../people-detail";
 import { lists } from "../people-lists";
 import { plMadeId } from "../words";

@@ -27,7 +27,7 @@ import {
   toPersonRowVM,
   toPersonVM,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, byTestId } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId } from "../../_stub-react.mjs";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
@@ -327,7 +327,7 @@ test("the person's page asks the same function: the same action, and no booking 
 /* ------------------------------ the Calendar's visit sheet ------------------------------ */
 
 const went = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   CHANLY: { nav: (route) => went.push(route) },
 });

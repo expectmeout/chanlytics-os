@@ -72,7 +72,7 @@ globalThis.fetch = (...a) => globalThis.window.fetch(...a);
 
 const { peopleGoing, peopleOverride, peopleSearch } =
   await import("../../../apps/dashboard/src/surfaces/people/surface.ts");
-const { ERASURES_LONGEST_WAIT_MS } = await import("../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+const { ERASURES_LONGEST_WAIT_MS } = await import("../../../apps/dashboard/src/bridge/surface-realtime.ts");
 /** Past the half minute a stream of erasures is waited out (ERASURES_LONGEST_WAIT_MS), or a long press says it early. */
 const GONE_QUIET_MS = 35_000;
 /** Each time the surface said the reads had stopped behind a press (peopleGoing's `gone`). */

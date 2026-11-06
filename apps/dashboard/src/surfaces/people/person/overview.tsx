@@ -17,12 +17,12 @@ import {
   personTabRoute,
 } from "@chanlytics/contracts";
 import type { UpNextRowVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Wash } from "../../kit/motion/wash";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { VisitActs } from "../../visit-line";
 import { PersonDealCard, pdRun } from "../deal/person-deal";
 import { markStepDone, seePersonNote } from "../people-detail";

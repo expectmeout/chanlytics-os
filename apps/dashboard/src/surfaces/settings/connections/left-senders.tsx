@@ -16,11 +16,11 @@ import {
   type MailboxSenderVerdict,
   type MailboxSendersDto,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Switch } from "../../kit/switch/switch";
 import type { DelState } from "../../people/person/ctx";
-import { refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, type FrameFlash } from "../../frame-verbs";
 
 /** How many senders the list draws before it says how many more there are. */
 const SENDERS_DRAWN = 20;
@@ -64,7 +64,7 @@ export function LeftSenders({
   lead = true,
 }: {
   owner: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   /** The senders left in the last day, as Setup read them; null when unread. */
   today: number | null;
   /** Its own address was opened: the list read at once and brought into view. */

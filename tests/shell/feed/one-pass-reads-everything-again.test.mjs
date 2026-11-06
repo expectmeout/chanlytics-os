@@ -1,5 +1,5 @@
 /**
- * One pass reads everything again (legacy-bridge/hearing/passes.ts; the wiring's second audit, lane R9: S2-7, S10-3, S10-7),
+ * One pass reads everything again (bridge/hearing/passes.ts; the wiring's second audit, lane R9: S2-7, S10-3, S10-7),
  * run over a runner stood in for: each read recorded, held open until the test lets it land, and when each surface's last read
  * began kept by the test, on a clock the test holds.
  *
@@ -25,10 +25,8 @@ const setVisibility = (state) => {
   for (const fn of [...docListeners]) fn();
 };
 
-const { passesOf } = await importSrc("apps/dashboard/src/legacy-bridge/hearing/passes.ts");
-const { setStatus, getConnection, setConnection } = await importSrc(
-  "apps/dashboard/src/legacy-bridge/surface-status.ts",
-);
+const { passesOf } = await importSrc("apps/dashboard/src/bridge/hearing/passes.ts");
+const { setStatus, getConnection, setConnection } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 
 const SECOND = 1_000;
 

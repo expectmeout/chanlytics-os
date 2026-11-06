@@ -1,4 +1,4 @@
-import LegacyHost from "@/legacy-bridge/LegacyHost";
+import FrameHost from "@/bridge/FrameHost";
 
 /**
  * The home: sends the tab to its workspace's own address, /w/<slug> — the
@@ -7,5 +7,5 @@ import LegacyHost from "@/legacy-bridge/LegacyHost";
  * the create screen. The shell itself lives under /w/[workspace].
  */
 export default function OsPage() {
-  return <LegacyHost home />;
+  return <FrameHost home />;
 }

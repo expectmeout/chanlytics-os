@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { POST_SHAPES, fileViewOf, type PostShapeName, type PostWords } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
-import { mediaSays } from "../legacy-verbs";
+import { mediaSays } from "../frame-verbs";
 import { PostChoice } from "./post-choice";
 import { PostFrame } from "./post-frame";
 import { postFileOf, sharePostFile, sharesPictures } from "./post-share";

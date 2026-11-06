@@ -11,12 +11,12 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { NOTE_WORDS, clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { unmarkedTimes } from "../../shell/views/_unmarked-times.mjs";
 import { NOW, ZONE, escalation, metrics, msg, peopleWithSteps, thread, waiting } from "../record/_world.mjs";
 
 const went = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),

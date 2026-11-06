@@ -32,13 +32,13 @@
 import { Fragment, useId, useState } from "react";
 import { DEAL_CARD_WORDS, NOTE_WORDS, dealCardsOf } from "@chanlytics/contracts";
 import type { DealAct, DealCardVM, DealQuietVM, DealStepVM, PersonVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { CopyButton } from "../../kit/copy-button/copy-button";
-import { openDealSheet } from "../../legacy-verbs";
+import { openDealSheet } from "../../frame-verbs";
 import { markStepDone } from "../people-detail";
 import { completeStep, type StepSay } from "../../step-done";
 import { openStepSheet, stepSheetOffered } from "./deal-verbs";

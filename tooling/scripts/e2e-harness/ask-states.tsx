@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AskReal } from "@/surfaces/ask/line/line";
-import { holdAsk } from "@/surfaces/legacy-verbs";
+import { holdAsk } from "@/surfaces/frame-verbs";
 import { askWorld, DROPPED, STREAMING, type AskSeed } from "./ask-states-world";
 
 /** Each state, by its address: how its Line is opened, and what is pressed once it stands. */

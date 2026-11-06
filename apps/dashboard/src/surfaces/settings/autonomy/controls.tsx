@@ -10,7 +10,7 @@ import { useId, type ReactNode } from "react";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { RecordTip, RecordToggleGroup } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
-import type { GateProps } from "../../legacy-verbs";
+import type { GateProps } from "../../frame-verbs";
 
 /**
  * A settings row: what it is on the left, the control on the right.

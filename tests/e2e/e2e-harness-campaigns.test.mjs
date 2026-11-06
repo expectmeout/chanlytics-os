@@ -24,7 +24,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   kitPages,
   fresh as freshTree,
   again as drawAgain,
@@ -33,7 +33,7 @@ import {
   byTestId,
   textOf,
   press,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { scenario, WORKSPACE } from "../../tooling/scripts/e2e-harness/scenarios.mjs";
 import { answer } from "../../tooling/scripts/e2e-harness/server.mjs";
@@ -51,10 +51,10 @@ const NOW = Date.parse("2026-09-22T09:00:00Z");
 
 /* ---------------------------------- the page's window ---------------------------------- */
 
-// The page's window is the stub React's (installLegacyReact: window IS globalThis), with the harness's workspace in it, as
+// The page's window is the stub React's (installStubReact: window IS globalThis), with the harness's workspace in it, as
 // the fixture publishes it, and the shell's doors the TSX pages reach through the bridge's verbs.
 const toasts = [];
-installLegacyReact({
+installStubReact({
   location: {
     pathname: `/w/${WORKSPACE.slug}/`,
     hash: "#/broadcasts",
@@ -69,7 +69,7 @@ installLegacyReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
@@ -94,7 +94,7 @@ const { DraftView } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
-const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
+const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
 const { channelsOverride } = await import(`${SRC}/surfaces/channels/surface.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);

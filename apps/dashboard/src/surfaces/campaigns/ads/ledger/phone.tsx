@@ -20,7 +20,7 @@ import type { LinkButtonProps } from "../../../kit/link-button/link-button";
 import { ListRow } from "../../../kit/list-row/list-row";
 import { Panel } from "../../../kit/panel/panel";
 import { cx } from "../../../kit/variants";
-import { gate, routeDoor } from "../../../legacy-verbs";
+import { gate, routeDoor } from "../../../frame-verbs";
 import { cmRowPress } from "../../parts/head";
 import { spends } from "../ask-line";
 import { adsInPreview } from "../shown";

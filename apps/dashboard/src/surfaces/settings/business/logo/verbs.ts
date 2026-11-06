@@ -5,7 +5,7 @@
  */
 import type { ApiResult } from "@/client/api";
 import type { LogoLookupAnswer } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 
 export const logoVerbs = {
   save: (image: string): Promise<ApiResult<{ logo_url: string | null }>> =>

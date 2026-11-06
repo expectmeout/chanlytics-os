@@ -8,9 +8,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { durationWords, reportHourWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 // The kit's charts are TSX (surfaces/kit/charts, decision 0015): imported, and drawn on the same stub React.
 const K = "../../apps/dashboard/src/surfaces/kit/charts";
 const { ckNice, ckNiceSeconds, ckSecondsLabel, ckMonotone, ckRuns, ckEvery, ckHeight, ckTip, ckDescribe, ckTipSide } =

@@ -1,5 +1,5 @@
 /**
- * A question spoken on the Line, answered aloud (apps/dashboard/src/legacy-bridge/ask/aloud.ts), run over a stand-in
+ * A question spoken on the Line, answered aloud (apps/dashboard/src/bridge/ask/aloud.ts), run over a stand-in
  * for the speech module and a clock the test turns. The hold goes the typed way since 5 Oct 2026: the reads are drawn
  * as they run and the voice says none of them. It says one thing while Ask works, the waiting words, once, when
  * ASK_VOICE_FIRST_WORDS_MS pass with no answer begun, in the question's language; then the answer as it lands: after
@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { askAloud } = await import(at("apps/dashboard/src/legacy-bridge/ask/aloud.ts"));
+const { askAloud } = await import(at("apps/dashboard/src/bridge/ask/aloud.ts"));
 const { ASK_VOICE_FIRST_WORDS_MS } = await import("@chanlytics/contracts");
 
 /** The speech module stood in for: each clip loads, plays and ends when the test says; every read recorded. */

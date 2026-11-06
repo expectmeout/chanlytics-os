@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, textOf, settle } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, textOf, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 
@@ -69,7 +69,7 @@ const asked = (over = {}) => ({
 /* -------------------------------- a browser -------------------------------- */
 
 const address = await legacyAddress();
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -109,7 +109,7 @@ const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-va
 
 // First: what the opening thread waits for is said once a tab (module state), by the Inbox's first read.
 test("the thread the first draw opens on waits for what it draws: its reply box's reads, and who they are, their own read or People holding them, whichever is first; said once a tab (the Inbox load review, 28 Oct 2026)", async () => {
-  const { codeOutFor, setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
+  const { codeOutFor, setStatus } = await import(`${S}/bridge/surface-status.ts`);
   const was = globalThis.location.pathname;
   globalThis.location.pathname = "/w/marisas/inbox";
   const asked = [];
@@ -188,9 +188,9 @@ const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
 const { Composer } = await import(`${S}/surfaces/inbox/thread/composer.tsx`);
 const { ixRepaintNotice } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread-pane.tsx");
 const { OWN_VERBS } = await import(`${S}/surfaces/inbox/store.ts`);
-const { AFTER } = await quiet(() => import(`${S}/legacy-bridge/refresh-map.ts`));
-const { installTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
-// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
+const { AFTER } = await quiet(() => import(`${S}/bridge/refresh-map.ts`));
+const { installTabMemory } = await import(`${S}/bridge/tab-memory.ts`);
+// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/frame-verbs.ts).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
@@ -951,7 +951,7 @@ test("REGRESSION: Ask's Edit in the composer names its thread: the box open on t
       (n) => n.type === "textarea",
     );
   drawn();
-  // Sent as the card's press moves to Nina's thread, before Rosa's box is gone (legacy-bridge/ask/commit.ts editReply).
+  // Sent as the card's press moves to Nina's thread, before Rosa's box is gone (bridge/ask/commit.ts editReply).
   hear({ type: "inbox:focus-composer", detail: { text: "On our way.", threadId: "th-nina" } });
   assert.equal(drawn().props.value, "Friday at 3 works for us", "another thread's words never land in this box");
   hear({ type: "inbox:focus-composer", detail: { text: "On our way.", threadId: "th-rosa" } });

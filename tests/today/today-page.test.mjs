@@ -26,7 +26,7 @@ import {
   CHANNELS_DOOR,
 } from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh,
   again,
   all,
@@ -38,12 +38,12 @@ import {
   kitPages,
   quiet,
   redrawWanted,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 import { headline as periodHeadline } from "./_headline.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
-const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 const ZONE = "America/New_York";
 // 4 PM in New York on Friday 18 September 2026.
@@ -53,7 +53,7 @@ const asked = [];
 const flashes = [];
 const failed = new Set();
 const refreshed = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   __surfaceFailed: (k) => failed.has(k),
@@ -74,9 +74,9 @@ const { TodayZones } = await import("../../apps/dashboard/src/surfaces/today/zon
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 // When a run really goes, in the one sentence every receipt says (Today imports it from Campaigns).
 const { bcWhenWords } = await import("../../apps/dashboard/src/surfaces/campaigns/broadcasts/when-words.ts");
-const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
 // The seam's own signal, from the module the TSX reads it through (the stub's own copy is the shell pages'): a surface's rows landed.
-const { surfaceMoved: surfaceLanded } = await import("../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { surfaceMoved: surfaceLanded } = await import("../../apps/dashboard/src/bridge/surface-status.ts");
 // The shell's doors and the surfaces Today borrows, which the TSX reads off the window by name when it draws (surfaces/today/shell.ts).
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
@@ -1713,7 +1713,7 @@ test("the head: Listen is absent where the device cannot play audio, and the sen
   assert.ok(byTestId(said.sentence, "today-head-lead"), "the sentence stands alone");
 });
 
-/** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the pane reads it off window.__ask): the clip lands when the test says. */
+/** Ask's voice stood in for (bridge/ask/speech.ts as the pane reads it off window.__ask): the clip lands when the test says. */
 function speechStub() {
   const spoken = [];
   const stops = [];
@@ -1952,7 +1952,7 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
 
 // LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), so every test above saw the headline unfailed.
 test("a headline whose read failed says so where its week would be, on a phone's card and in a desk's strip; one that landed clears it", async () => {
-  const { setStatus } = await import("../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+  const { setStatus } = await import("../../apps/dashboard/src/bridge/surface-status.ts");
   clear();
   set({ today: busy(), headline: undefined, __PEOPLE: people() });
   setStatus("reports_headline", "seeded");

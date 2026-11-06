@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, textOf, settle } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -55,7 +55,7 @@ const asked = (id) => ({ id: `e-${id}`, reason: "human_token", details: null, st
 
 /* -------------------------------- a browser -------------------------------- */
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -74,7 +74,7 @@ Object.assign(globalThis, {
   clearInterval() {},
 });
 globalThis.document.visibilityState = "hidden";
-// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
+// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/frame-verbs.ts).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -93,9 +93,9 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const S = "../../../apps/dashboard/src";
 const { inboxBulk, inboxVerb } = await quiet(() => import(`${S}/surfaces/inbox/verbs.ts`));
-const { startSurfaces } = await quiet(() => import(`${S}/legacy-bridge/surface-runner.ts`));
+const { startSurfaces } = await quiet(() => import(`${S}/bridge/surface-runner.ts`));
 // Loaded now, so a re-read the courier starts is not held up loading the table.
-const { AFTER } = await quiet(() => import(`${S}/legacy-bridge/refresh-map.ts`));
+const { AFTER } = await quiet(() => import(`${S}/bridge/refresh-map.ts`));
 
 test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox again once every ask is answered -- not after each -- with what was refused named", async () => {
   const seen = [];

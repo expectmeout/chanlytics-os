@@ -24,7 +24,7 @@ import {
   DEAL_ACT_WORDS,
   RECORDING_RETENTION_DAYS,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again as drawOver } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again as drawOver } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
@@ -170,7 +170,7 @@ test("a connected call with no recording says so; a call that never connected sa
 /* ---------------------------------- a browser ---------------------------------- */
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/marisas",
     hash: "",

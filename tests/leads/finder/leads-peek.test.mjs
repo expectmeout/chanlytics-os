@@ -23,7 +23,7 @@ import { LEAD_DOCK_WORDS } from "../../../packages/contracts/src/leads/sheet/lea
 import { LEAD_ASKED_NOT_WRITTEN } from "../../../packages/contracts/src/leads/lead-words.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 let cells = [];
@@ -161,10 +161,10 @@ globalThis.window = {
   // The one colour vocabulary, as the app publishes it: the fit's pill takes its tone from here.
   __chrome: { state: stateOf },
 };
-// The shell's helpers the sheet still asks of the window by way of legacy-verbs: the role gate (`gate`), a thumb's swipe
+// The shell's helpers the sheet still asks of the window by way of frame-verbs: the role gate (`gate`), a thumb's swipe
 // (`touchSwipe`), the refusal toast. The role store is each test's own (roleIs).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// The fit's pill and the Erase question are the kit's (surfaces/kit), which the sheet draws by way of legacy-parts off
+// The fit's pill and the Erase question are the kit's (surfaces/kit), which the sheet draws by way of frame-parts off
 // the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's Menu, found by its type and
 // read by what the sheet hands it (kitItem); the tabs are the kit's capsule (SubTabs, look "capsule"), chosen as its
 // onSelect is called.
@@ -526,7 +526,7 @@ const reset = () => {
 
 /* ======================================================= who they are ==== */
 
-/** Who is looking: the role store the gate reads (legacy-verbs gate, canDo). */
+/** Who is looking: the role store the gate reads (frame-verbs gate, canDo). */
 const roleIs = (role) => {
   globalThis.window.ST_STORE = { can: (a) => role === "owner" || a !== "find", myRole: () => role };
 };

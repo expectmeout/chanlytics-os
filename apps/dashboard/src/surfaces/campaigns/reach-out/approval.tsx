@@ -18,8 +18,8 @@ import type { ReactNode } from "react";
 import { OWN_WORDS_SAID, REACH_OUT_SHEET_WORDS, WHO_GETS_IT_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, HeldChoice, RunPartVM } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { canDo, gateTitle, type LegacyFlash } from "../../legacy-verbs";
+import { commitVerb } from "@/bridge/verbs/commit";
+import { canDo, gateTitle, type FrameFlash } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
@@ -44,7 +44,7 @@ interface Said {
 }
 
 /** The page's toast, which says a Take out's receipt with its Put back; none where the run is read alone. */
-type Flash = ((flash: LegacyFlash) => void) | null;
+type Flash = ((flash: FrameFlash) => void) | null;
 
 /** Each part of a run in the meter's tones: ready green, the coming days at rest, held amber, being checked its outline. */
 const PART_TONES: Record<RunPartVM["key"], "ok" | "rest" | "warn" | "open"> = {

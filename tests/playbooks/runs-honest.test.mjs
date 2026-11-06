@@ -25,7 +25,7 @@ import {
   campaignReportRoute,
 } from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh as freshTree,
   again as drawAgain,
   all,
@@ -34,7 +34,7 @@ import {
   textOf,
   press,
   settle,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -235,11 +235,11 @@ const metrics = {
 
 /* ---------------------------------- the window ---------------------------------- */
 
-// The page's window is the stub React's (installLegacyReact: window IS globalThis), with the shell's doors the TSX pages
-// reach through the bridge's verbs (surfaces/legacy-verbs.ts, legacy-parts.ts) and the workspace its clock reads.
+// The page's window is the stub React's (installStubReact: window IS globalThis), with the shell's doors the TSX pages
+// reach through the bridge's verbs (surfaces/frame-verbs.ts, frame-parts.ts) and the workspace its clock reads.
 const went = [];
 const toasts = [];
-installLegacyReact({
+installStubReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
   usePPToast: () => [null, () => {}],
@@ -255,11 +255,11 @@ installLegacyReact({
   useHotkey: () => {},
 });
 const S = "../../apps/dashboard/src";
-const { installClock } = await import(`${S}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${S}/bridge/zone.ts`);
 installClock();
 // What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work rule (record-fold).
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-const { installPolicyStore } = await import(`${S}/legacy-bridge/policy-store.ts`);
+const { installPolicyStore } = await import(`${S}/bridge/policy-store.ts`);
 installPolicyStore(globalThis.window);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
 const { NeedYou } = await import(`${S}/surfaces/today/zones/need-you.tsx`);

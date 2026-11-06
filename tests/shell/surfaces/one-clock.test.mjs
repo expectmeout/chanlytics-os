@@ -519,7 +519,7 @@ test("REGRESSION: a snooze with no time asked for wakes at ten tomorrow by the b
 });
 
 test("the palette offers the missed-calls question for the business's today", async () => {
-  const { askPalette } = await import("../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
+  const { askPalette } = await import("../../../apps/dashboard/src/bridge/ask/palette.ts");
   const base = { surface: "today", language: "en", needsYou: 0, heldDrafts: 0, liveNow: 0, hasCalendar: false };
   const none = C.buildAskSuggestions({ ...base, missedToday: 0 }).map((s) => s.q);
   const missedQ = C.buildAskSuggestions({ ...base, missedToday: 1 })
@@ -544,7 +544,7 @@ test("the palette offers the missed-calls question for the business's today", as
 });
 
 test("the pages read one clock, the workspace's: a time, a schedule box, when a send really goes", async () => {
-  const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge/zone.ts");
+  const { installClock } = await import("../../../apps/dashboard/src/bridge/zone.ts");
   Object.assign(globalThis.window, { __WORKSPACES: [WORKSPACE], __ACTIVE_WORKSPACE: WORKSPACE.id });
   installClock();
   const clock = globalThis.window.__clock;

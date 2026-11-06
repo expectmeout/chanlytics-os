@@ -1,5 +1,5 @@
 /**
- * One colour at the window's edges on a phone (apps/dashboard/src/legacy/styles/tokens.css, `--surface-page-list`;
+ * One colour at the window's edges on a phone (apps/dashboard/src/styles/tokens.css, `--surface-page-list`;
  * mobile.css, the frame's top; components.css, the band a carried page takes over it): the paper, `--surface-page-fill`,
  * is the document's canvas, what the page's light is at the window's top and at its foot, and the plain colour of every
  * box fixed at an edge.
@@ -24,9 +24,9 @@ import { transform } from "lightningcss";
 import { ROOT } from "../../_source.mjs";
 
 const STYLES = "apps/dashboard/src";
-const TOKENS = "apps/dashboard/src/legacy/styles/tokens.css";
-const MOBILE = "apps/dashboard/src/legacy/styles/mobile.css";
-const COMPONENTS = "apps/dashboard/src/legacy/styles/components.css";
+const TOKENS = "apps/dashboard/src/styles/tokens.css";
+const MOBILE = "apps/dashboard/src/styles/mobile.css";
+const COMPONENTS = "apps/dashboard/src/styles/components.css";
 /** The paper: the one colour. */
 const PAPER = "--surface-page-fill";
 

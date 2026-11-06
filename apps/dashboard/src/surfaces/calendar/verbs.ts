@@ -1,5 +1,5 @@
 /**
- * Calendar, the verbs and the arithmetic (moved from legacy-bridge/calendar.ts, decision 0015: the amendment takes a
+ * Calendar, the verbs and the arithmetic (moved from bridge/calendar.ts, decision 0015: the amendment takes a
  * surface's bridge modules with it). The page imports `calendar`; the Business tab reads it as `window.__calendar`
  * (installCalendar below), and imports the page's two words (words.ts CALENDAR_PAGE).
  *
@@ -22,8 +22,8 @@ import {
   windowFor,
   type CalendarView,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import { api } from "@/bridge/api";
+import { refreshSurfaces } from "@/bridge/surface-runner";
 import { surfaceValue } from "../surface-values";
 import {
   calendarOverride,

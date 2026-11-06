@@ -1,7 +1,7 @@
 /**
  * What a pane of Settings reads that is no surface, kept in the tab and begun before the pane is drawn: Team's partner,
  * Connections' two doors (Meta's and Instagram's), the saved views Profile's answer style is kept in, and the Activity log's
- * first page (legacy-bridge/activity.ts). Each was asked as its pane mounted, and the pane drew without it and again when it
+ * first page (bridge/activity.ts). Each was asked as its pane mounted, and the pane drew without it and again when it
  * landed: Team's partner card came 118 to 306 ms after the pane on every load, warm or not, and the log's first page 0.4 to
  * 0.8 s after its pane, 3,300 to 7,000 px at once (production, the e2e workspace, the Settings load review, 28 Oct 2026).
  *
@@ -12,13 +12,13 @@
  * `admin/<pane>`), which these take.
  */
 import type { ApiResult } from "@/client/api";
-import { activity } from "@/legacy-bridge/activity";
-import { api } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
-import { bootWaitsFor } from "@/legacy-bridge/surface-runner";
-import { ROUTE_WAIT_MS, routeDrawsFor } from "@/legacy-bridge/surface-registry";
-import { firstDrawWaitsFor, surfacesSettled } from "@/legacy-bridge/surface-status";
-import { getActiveWorkspace, reachFor, routeOnScreen } from "@/legacy-bridge/workspace";
+import { activity } from "@/bridge/activity";
+import { api } from "@/bridge/api";
+import { readCache } from "@/bridge/read-cache";
+import { bootWaitsFor } from "@/bridge/surface-runner";
+import { ROUTE_WAIT_MS, routeDrawsFor } from "@/bridge/surface-registry";
+import { firstDrawWaitsFor, surfacesSettled } from "@/bridge/surface-status";
+import { getActiveWorkspace, reachFor, routeOnScreen } from "@/bridge/workspace";
 
 /** One read a pane draws: what the tab last held of it, a read that keeps its answer, and one begun ahead of the pane. */
 interface KeptRead<T> {
@@ -93,7 +93,7 @@ const paneOfAddress = (route: string): { pane: string | null; row: boolean } | n
 
 /**
  * A tab opened on Settings draws its pane whole, once: called once, at module scope, before React and the boot
- * (LegacyApp.tsx), as warmPersonOnScreen is. What the pane reads that is no surface is begun before anything else, and its
+ * (FrameApp.tsx), as warmPersonOnScreen is. What the pane reads that is no surface is begun before anything else, and its
  * first draw waits for that and for the surfaces it draws beside its own (surface-registry ROUTE_DRAWS: the partner the rail
  * names, How it answers' Setup, Connections' Google, Hours' calendar…), each a read the head started with the page's
  * (contracts PREFETCH_READS). Never past the route's wait (surface-status.ts firstDrawWaitsFor), and on a load alone: a move

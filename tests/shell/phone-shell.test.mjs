@@ -33,7 +33,7 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
       cv.includes("    setPhoneOpen(true);") &&
       cv.includes("onSelect={openRow}"),
   );
-  const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  const css = readRaw("apps/dashboard/src/styles/mobile.css");
   assert.ok(css.includes(".ix-back { display: none; }"), "hidden by default");
   // A list held under the thread it opened stays laid out, where it stood (kit motion/held-list.ts, components.css).
   assert.ok(css.includes(".inbox[data-takeover] .ix-list:not([data-held]) { display: none; }"));
@@ -68,7 +68,7 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
     shell.includes("!window.__IN_APP && ("),
     "and only outside the app: inside it the native tab bar stands there (window.__IN_APP, stamped before paint)",
   );
-  const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  const css = readRaw("apps/dashboard/src/styles/mobile.css");
   assert.ok(css.includes(".phone-places { display: none; }"), "desktop never sees it");
   assert.ok(
     css.includes("--bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));") &&
@@ -93,7 +93,7 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
   assert.ok(
     shell.includes('window.addEventListener("shell:menu", onMenu)') &&
       shell.includes('window.addEventListener("shell:top", onTop)'),
-    "the native More tab opens the drawer and a re-tap scrolls to the top (legacy-bridge/app-bridge.ts)",
+    "the native More tab opens the drawer and a re-tap scrolls to the top (bridge/app-bridge.ts)",
   );
   // The ✦'s own lift lives in ask.css with the palette's rules (ask.test.mjs holds it there).
   assert.ok(
@@ -103,7 +103,7 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
   // The status the bridge's floating pill used to carry is the shell's one
   // line under the top bar now, mounted in shell-status.test.mjs; nothing
   // fixed sits over the tab bar.
-  assert.ok(!readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"), "the pill is gone");
+  assert.ok(!readRaw("apps/dashboard/src/bridge/frame.css").includes(".bridge-pill"), "the pill is gone");
 });
 
 test("the installable shell: a public manifest, real icons, full-screen on iOS, a worker that caches nothing", () => {
@@ -147,7 +147,7 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
   const sw = readRaw("apps/dashboard/public/sw.js");
   assert.ok(sw.includes("self.skipWaiting()") && sw.includes("self.clients.claim()"));
   assert.ok(!/caches\.|cache\.put|respondWith/.test(sw), "caches nothing: the workspace is live data");
-  const boot = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  const boot = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(boot.includes("publicEnv.productionBuild"), "no worker on a dev origin");
   assert.ok(boot.includes('navigator.serviceWorker.register("/sw.js")'));
 });

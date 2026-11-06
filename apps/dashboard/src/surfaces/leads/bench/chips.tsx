@@ -3,7 +3,7 @@
  * under Excluded, and what would resolve each group under Needs review.
  */
 import { leadCriterionWords, type LeadReviewGroup, type LeadRowVM } from "@chanlytics/contracts";
-import { holdStill } from "../../legacy-verbs";
+import { holdStill } from "../../frame-verbs";
 
 /**
  * The Excluded view's head: what each criterion left out, most first, each one narrowing the view (§8.7). A chip names its

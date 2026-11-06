@@ -3,7 +3,7 @@
  * what an earlier step makes by (`@step:n`), filled from what the plan made, and that made read back from its cards'
  * outcomes; which steps a card waits for; the plan's group as the Line draws it; and the answer's sentence for a plan's
  * cards. Apart from the plan itself (plan.ts, which reads the starters, the lists and the journey to make the steps), so
- * the browser's commit runner (legacy-bridge/ask/commit.ts) and the Line read these and nothing of how a plan is made.
+ * the browser's commit runner (bridge/ask/commit.ts) and the Line read these and nothing of how a plan is made.
  */
 import type { AskPlanStamp, AskProposal } from "./ask";
 import type { AskLanguage } from "./ask-language";

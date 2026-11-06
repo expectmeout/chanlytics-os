@@ -13,8 +13,8 @@ import type {
   AskSurface,
   AskThreadVM,
 } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { AskApi } from "@/bridge/ask";
+import type { FrameFlash } from "../frame-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard, SegmentBar } from "../kit/charts/card";
 import type { ChartConfig, ChartRow } from "../kit/charts/geometry";
@@ -129,7 +129,7 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
       ],
     },
   ];
-  // What Ask said it would come back to, come due (legacy-bridge/ask/follow-ups.ts): its own line, and pressed, what it
+  // What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it
   // said it would ask itself then, which clears it (the route's `following`).
   const due = A.followUpsDue ? A.followUpsDue() : [];
   if (due.length)
@@ -364,7 +364,7 @@ export const AskReads = ({ traces, since = null, t }: { traces: string[]; since?
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
 // answer's say, its headline then its detail, then its list a line an entry with its marks (contracts answerText): what
 // Copy takes. `spoken` are the same written for the ear, the list an entry a sentence (contracts answerSpoken): what
-// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through hooks.ts useAskSpeech;
+// Read aloud speaks in Ask's one voice (the one-way speech, bridge/ask/speech.ts through hooks.ts useAskSpeech;
 // docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
 // drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
 // the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
@@ -379,7 +379,7 @@ export const AskActs = ({
   words: string;
   spoken: string;
   speech: ReturnType<typeof useAskSpeech>;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   t: LineWords;
 }) => {
   const copy = async () => {

@@ -12,7 +12,7 @@ import { FailedRead } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
 import { RecordBox, RecordSwitch } from "../../../kit/record/field";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { lists } from "../../people-lists";
 import { plMakeListWith, plUndoList } from "../../lists/doors";
 import { clientSegRoute } from "../../person-verbs";

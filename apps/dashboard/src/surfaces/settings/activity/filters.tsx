@@ -30,8 +30,8 @@ import {
   type ActivityMemberDto,
   type ActivitySpan,
 } from "@chanlytics/contracts";
-import { activity } from "@/legacy-bridge/activity";
-import { holdStill } from "../../legacy-verbs";
+import { activity } from "@/bridge/activity";
+import { holdStill } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";

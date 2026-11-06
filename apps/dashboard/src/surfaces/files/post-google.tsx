@@ -8,7 +8,7 @@ import { FILE_GOOGLE_WORDS_MAX, FILE_WORDS, type FilePosted, type PostPlan } fro
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
 import { LineField } from "../kit/line/line";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { FrameFlash } from "../frame-verbs";
 import { usePostDraft } from "./post-draft";
 import { PostFrame } from "./post-frame";
 import { fileVerbs } from "./verbs";
@@ -27,7 +27,7 @@ export function usePostGoogle(
   id: string,
   plan: PostPlan | null,
   saidUp: (posted: FilePosted) => void,
-  flash: (f: LegacyFlash) => void,
+  flash: (f: FrameFlash) => void,
 ) {
   const [words, setWords] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -125,7 +125,7 @@ export function PostOnGoogle({
   /** Whether this person may take it down: a reader sees that it is up, and nothing dead to press. */
   may: boolean;
   saidDown: () => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);

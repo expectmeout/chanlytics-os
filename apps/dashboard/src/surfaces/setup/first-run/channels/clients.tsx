@@ -8,7 +8,7 @@
 import type { ReactNode } from "react";
 import { FIRST_RUN_HELPERS, type FirstRunChannelsVM } from "@chanlytics/contracts";
 import { Sheet } from "../../../kit/sheet/sheet";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import type { FrameFlash } from "../../../frame-verbs";
 import { listBody, useImport } from "../../../people/import/add-list";
 import { plImportFoundWords } from "../../../people/import/plan";
 import { setupVerbs } from "../../surface";
@@ -53,7 +53,7 @@ export function FrClients({
   clients: FirstRunChannelsVM["clients"];
   /** The tool's word as the ledger keeps it (vagaro), for each person's "before" and the record of what came in. */
   tool: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const list = useImport({ flash, via: tool });
   const close = () => {

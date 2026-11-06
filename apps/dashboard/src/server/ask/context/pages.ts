@@ -304,7 +304,7 @@ async function adsAggregate(rc: ReaderContext, view: string | null | undefined):
 
 /**
  * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs, the Library's messages or Ads, whichever the page is
- * (legacy-bridge/ask/context.ts), and its rows are that page's.
+ * (bridge/ask/context.ts), and its rows are that page's.
  */
 export const campaigns: Provider = async (rc, ctx) => {
   if (isAskAdsView(ctx.view)) return { rows: [], aggregate: await adsAggregate(rc, ctx.view) };

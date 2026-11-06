@@ -2,7 +2,7 @@
 // one, before any number is bought.
 //
 // Call it asks the edge for a call (POST receptionist/rehearsals, through the client's seam in
-// legacy-bridge/rehearse/call.ts, which loads the vendor's client on this press so the microphone's prompt comes from
+// bridge/rehearse/call.ts, which loads the vendor's client on this press so the microphone's prompt comes from
 // it). The words come from our own webhook's writes: the rehearsal is read every two seconds while its call runs, and
 // once at its end (GET receptionist/rehearsals/[id]). What a real call would do and a rehearsal does not is said where it
 // happens: the booking link it would have sent, and who a caller asking for a person is put through to.
@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MIN_MS, REHEARSE_WORDS as W, SECOND_MS, type RehearsalTurn } from "@chanlytics/contracts";
-import { startCall, type CallSession } from "@/legacy-bridge/rehearse/call";
+import { startCall, type CallSession } from "@/bridge/rehearse/call";
 import { Button } from "../../../kit/button/button";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { RecordRow } from "../../../kit/record/row";

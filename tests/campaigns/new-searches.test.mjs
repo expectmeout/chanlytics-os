@@ -43,7 +43,7 @@ globalThis.window = {
 globalThis.sessionStorage = globalThis.window.sessionStorage;
 globalThis.localStorage = globalThis.window.localStorage;
 
-const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const SOURCES_MODULE = "apps/dashboard/src/surfaces/campaigns/reach-out/sources.ts";
 const sources = await importSrc(SOURCES_MODULE);
 const settle = () => new Promise((r) => setTimeout(r, 0));

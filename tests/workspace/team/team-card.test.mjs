@@ -13,10 +13,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ROLE_PERMS, roleGate, roleTable, stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 
 const calls = { flash: [], invite: [], setRole: [], remove: [], resend: [], leave: 0, put: [], assign: [], viewAs: [] };
-installLegacyReact({
+installStubReact({
   __chrome: { state: stateOf },
   __ME: { email: "ruben@rjcapital.io", role: "owner" },
   gate: () => ({}),
@@ -37,7 +37,7 @@ const S = "../../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { MoreMenu } = globalThis;
 const { TeamSection } = await import(`${S}/surfaces/settings/team/team.tsx`);
-const { teamVerbs } = await import(`${S}/legacy-bridge/inbox-verbs.ts`);
+const { teamVerbs } = await import(`${S}/bridge/inbox-verbs.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
 const flash = (m) => calls.flash.push(m);

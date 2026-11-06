@@ -15,7 +15,7 @@ import {
   personTabRoute,
 } from "@chanlytics/contracts";
 import type { PersonFigureVM, PersonVM } from "@chanlytics/contracts";
-import { hrefOfRoute } from "@/legacy-bridge/workspace";
+import { hrefOfRoute } from "@/bridge/workspace";
 import { Figure } from "../../kit/figure/figure";
 import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";

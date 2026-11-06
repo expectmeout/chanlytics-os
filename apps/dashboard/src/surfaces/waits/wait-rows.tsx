@@ -32,7 +32,7 @@ import {
 } from "@chanlytics/contracts";
 import { bcLateWords, bcOpensOnItsSheet } from "../campaigns/broadcasts/when-words";
 import { AttnRow } from "../kit/attention/attn-row";
-import { gatedProps } from "../legacy-verbs";
+import { gatedProps } from "../frame-verbs";
 import { gate } from "../shell-doors";
 import {
   broadcastsRead,

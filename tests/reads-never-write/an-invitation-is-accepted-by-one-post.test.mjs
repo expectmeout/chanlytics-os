@@ -66,9 +66,9 @@ const flush = async (turns = 30) => {
   }
 };
 
-const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
-const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
-const { JOINED_EVENT, takeJoinedWords } = await importSrc("apps/dashboard/src/legacy-bridge/invitations/accept.ts");
+const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
+const { workspaceOverride } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
+const { JOINED_EVENT, takeJoinedWords } = await importSrc("apps/dashboard/src/bridge/invitations/accept.ts");
 const forgetPlace = () => {
   // The client shares identical reads for two seconds: a test's read must not be answered with the one before it.
   api().forget();

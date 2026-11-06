@@ -13,14 +13,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, classes, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, classes, textOf, press } from "../_stub-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const W = contracts.NEW_WORDS;
 
 const went = [];
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/studio/campaigns",
     hash: "",
@@ -36,7 +36,7 @@ installLegacyReact({
   clearInterval() {},
 });
 const SRC = "../../apps/dashboard/src";
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 // The shell's own components the sheets draw by name, and its door to a route: the frame's JSX.
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

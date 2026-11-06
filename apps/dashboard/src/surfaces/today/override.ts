@@ -4,10 +4,10 @@
  * is live), after its own page's surfaces, so its code is fetched beside its reads instead of parsed before any page could
  * draw (the loadability review, 19 Oct 2026).
  */
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { surfaceCode } from "@/legacy-bridge/surfaces/code";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
+import { surfaceCode } from "@/bridge/surfaces/code";
+import { declareReads } from "@/bridge/surface-registry";
 import { declareSurfaceValue } from "../surface-values";
 // The Setup card's code, which Today's first draw waits for where Today is the page the tab opens on: said as the frame
 // loads, before its gate first opens (setup-card-code.ts).
@@ -16,7 +16,7 @@ import "./setup-card-code";
 // The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
 declareSurfaceValue("today", "TODAY_DATA");
 
-/** Today's read and the day's making: fetched once, at once where Today is the page opened (legacy-bridge/surfaces/code.ts). */
+/** Today's read and the day's making: fetched once, at once where Today is the page opened (bridge/surfaces/code.ts). */
 const todayCode = surfaceCode("today", () => import("./surface"));
 
 /**

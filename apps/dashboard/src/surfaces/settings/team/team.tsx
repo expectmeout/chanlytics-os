@@ -19,7 +19,7 @@
  * role change is the power to message customers. What each press does is acts.tsx.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -31,8 +31,8 @@ import {
   navigate,
   onRolesChanged,
   viewAsRole,
-  type LegacyFlash,
-} from "../../legacy-verbs";
+  type FrameFlash,
+} from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { alertsHeldFor, saveAlerts, teamActs, teamConfigOf } from "./acts";
 import { TeamInvite } from "./invite";
@@ -42,7 +42,7 @@ import { RolesFoot } from "./roles";
 import { inviteRow, memberRow, type RowActs, type TeamAsk } from "./rows";
 import { PersonSheet } from "./sheet";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** The card's head: its name, how many people (or that they could not be read), and Invite. */
 function teamHead(o: { count: string; invite: ReactNode }): ReactNode {

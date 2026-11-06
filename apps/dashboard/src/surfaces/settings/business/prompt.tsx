@@ -29,8 +29,8 @@
 // shape, not the prompt's.
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { navigate } from "../../legacy-verbs";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import { navigate } from "../../frame-verbs";
 import { Meter } from "../../kit/meter/meter";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -38,7 +38,7 @@ import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { paneOfRow, settingsRowRoute } from "../frame/tabs";
-import { composedPrompt } from "@/legacy-bridge/inbox-verbs";
+import { composedPrompt } from "@/bridge/inbox-verbs";
 
 type PromptChannel = "whatsapp" | "voice";
 type PromptBlock = ReturnType<typeof BUSINESS_TAB.promptBlocks>[number];

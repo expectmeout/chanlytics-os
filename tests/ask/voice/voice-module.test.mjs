@@ -1,5 +1,5 @@
 /**
- * The Line's voice module, run (apps/dashboard/src/legacy-bridge/ask/voice.ts) over a stand-in for the vendor's
+ * The Line's voice module, run (apps/dashboard/src/bridge/ask/voice.ts) over a stand-in for the vendor's
  * client, a recorder for the three voice routes and a timer the test moves by hand. The hold is the one mic (the
  * spec's §3.5 as amended 4 Oct 2026, evening): a press asks for the session (the token freshened, the row minted, the
  * vendor connected with the sealed session, its microphone muted once up), the lift sends the words heard as the
@@ -18,7 +18,7 @@ import { ASK_VOICE_IDLE_MS, ASK_VOICE_UP_WAIT_MS } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { installVoice } = await import(at("apps/dashboard/src/legacy-bridge/ask/voice.ts"));
+const { installVoice } = await import(at("apps/dashboard/src/bridge/ask/voice.ts"));
 
 const WIN = { isSecureContext: true, navigator: { mediaDevices: { getUserMedia: () => {} } } };
 const START = { threadId: null, scope: null, surface: "today", context: null };

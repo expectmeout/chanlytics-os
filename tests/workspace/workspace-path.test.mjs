@@ -31,7 +31,7 @@ const {
   afterBoot,
   bootComing,
   bootStarted,
-} = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+} = await importSrc("apps/dashboard/src/bridge/workspace.ts");
 const { onOnePage, routeHasPage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 const { signInReturnOf: signInReturn } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
 const { callbackPlan, landingAfter } = await importSrc("apps/dashboard/src/server/auth/oauth-callback.ts");
@@ -204,7 +204,7 @@ test("a route with a page of its own goes through the App Router and is heard wh
     assert.deepEqual(asked, [["push", "/w/acme/reports"]], "the router draws the page, so the router is asked");
     assert.deepEqual(w.pushed, [], "the history is the router's: nothing pushed under it");
     assert.deepEqual(heard, [], "the address has not moved yet, so nobody is told");
-    // The router landed: the path says the route, and the frame's follower says so (LegacyHost's AddressFollower).
+    // The router landed: the path says the route, and the frame's follower says so (FrameHost's AddressFollower).
     w.win.location.pathname = "/w/acme/reports";
     notifyAddress();
     assert.deepEqual(heard, ["reports"], "heard once the address says it");

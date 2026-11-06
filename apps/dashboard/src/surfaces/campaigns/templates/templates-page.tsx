@@ -42,7 +42,7 @@ import {
 } from "@chanlytics/contracts";
 import type { ReachOutChainDto } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { canDo, demoSession, gateTitle, navigate, replaceRoute, useLegacyToast } from "../../legacy-verbs";
+import { canDo, demoSession, gateTitle, navigate, replaceRoute, useFrameToast } from "../../frame-verbs";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { tabDraft } from "../../kit/record/work";
@@ -121,7 +121,7 @@ function usePageState() {
   const [q, setQ] = useState("");
   // On a desk the box is the bar's line (page-search.ts); a phone keeps its box over the list.
   const inLine = usePageSearch({ label: BAR_LINE_WORDS.messages, value: q, onValue: setQ, testid: "templates-search" });
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   return {
     doing,
     setDoing,

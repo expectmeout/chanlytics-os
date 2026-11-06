@@ -9,12 +9,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
-const L = "../../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const S = "../../../apps/dashboard/src/surfaces";
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const { LeadImportSheet, useLeadLists } =

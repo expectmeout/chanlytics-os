@@ -1,5 +1,5 @@
 /**
- * Setup (moved from legacy-bridge/setup.ts with the first run, decision 0015 step 10): the facts from /api/v1/setup, the
+ * Setup (moved from bridge/setup.ts with the first run, decision 0015 step 10): the facts from /api/v1/setup, the
  * rows from contracts/setup.ts, the rows this member put off (their saved view, on every device), the verbs the rows and
  * the first run press (`setupVerbs`), the forwarding card's words, and the landing rule -- an owner whose receptionist
  * answers nowhere yet lands on the first run once per session. Every write goes through the typed client; after one lands
@@ -39,9 +39,9 @@ import {
   formatPhoneDisplay,
   agoWords,
 } from "@chanlytics/contracts";
-import { api, read } from "@/legacy-bridge/api";
-import { pageClock } from "@/legacy-bridge/zone";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import { api, read } from "@/bridge/api";
+import { pageClock } from "@/bridge/zone";
+import { refreshSurfaces } from "@/bridge/surface-runner";
 import { saveView } from "../people/people-detail";
 import { setupOverride } from "./override";
 import { setSurfaceValue, surfaceValue } from "../surface-values";

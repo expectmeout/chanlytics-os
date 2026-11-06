@@ -3,7 +3,7 @@
  * decision 0015): plain functions of the page's state (`s`), called in the order JSX made them, so every component draws in
  * its place and keeps its state there.
  */
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";

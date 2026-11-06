@@ -5,22 +5,22 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, byTestId, find, redrawWanted, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { SERIES, dtoWith } from "../reports/people/_people-world.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
+installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const page = await import("@chanlytics/contracts/ads-page");
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
-const { api } = await import(`${S}/legacy-bridge/api.ts`);
+const { api } = await import(`${S}/bridge/api.ts`);
 const { CONFIG } = await import(`${S}/surfaces/campaigns/ads/sample.ts`);
 const { exampleAt } = await import(`${S}/surfaces/campaigns/ads/examples.ts`);
 const { adsOpening, useAdsStore } = await import(`${S}/surfaces/campaigns/ads/store.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { AdAccounts } = await import(`${S}/surfaces/settings/connections/ad-accounts.tsx`);
-const { askOnScreenOf } = await import(`${S}/legacy-bridge/ask/on-screen.ts`);
+const { askOnScreenOf } = await import(`${S}/bridge/ask/on-screen.ts`);
 
 const NOW = Date.parse("2031-03-15T14:05:00Z");
 const KEPT = "ads-mock-scenario";

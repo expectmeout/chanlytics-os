@@ -182,11 +182,11 @@ globalThis.document = {
 };
 win.document = globalThis.document;
 
-const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-const realtime = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const runner = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const shell = await importSrc("apps/dashboard/src/legacy-bridge/shell.ts");
-const workspace = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
+const realtime = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const shell = await importSrc("apps/dashboard/src/bridge/shell.ts");
+const workspace = await importSrc("apps/dashboard/src/bridge/workspace.ts");
 // The routes that have left the shell (a page of their own, drawn inside the frame's chrome), and the seam the Calendar's chrome reads.
 const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
@@ -194,8 +194,8 @@ const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface
 // asked on every draw, since this stub React holds no external store.
 const { needsYouNow } = await importSrc("apps/dashboard/src/surfaces/needs-you.ts");
 win.useNeedsYou = () => needsYouNow();
-const bridgeApi = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
-const readCaches = await importSrc("apps/dashboard/src/legacy-bridge/read-cache.ts");
+const bridgeApi = await importSrc("apps/dashboard/src/bridge/api.ts");
+const readCaches = await importSrc("apps/dashboard/src/bridge/read-cache.ts");
 // A person's page is TSX (surfaces/people/person) drawn by the layout (PAGES): the frame knows People's chrome for it, and
 // the Back the frame gives it, which the page asks for through its verbs.
 const { backToPeople } = await importSrc("apps/dashboard/src/surfaces/people/person-verbs.ts");
@@ -476,12 +476,10 @@ globalThis.React = {
   },
 };
 // The bridge's hook the shell redraws on (surface-status.ts), over this React.
-globalThis.useSurface = (await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts")).surfaceHook(
-  globalThis.React,
-);
+globalThis.useSurface = (await importSrc("apps/dashboard/src/bridge/surface-status.ts")).surfaceHook(globalThis.React);
 // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by: TypeScript, so their
 // hooks are this file's stub's (the "react" module's, set from it).
-(await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
+(await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
 const topbarParts = {
   ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
   ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx")),
@@ -1149,7 +1147,7 @@ test("REGRESSION: a run opened from the Inbox closes back to it by the browser's
     configurable: true,
     get: () => `https://app.example.com${win.location.pathname}${win.location.search || ""}${win.location.hash || ""}`,
   });
-  // The frame as the bridge draws it, filling the doors a page asks for (LegacyApp's fillDoors).
+  // The frame as the bridge draws it, filling the doors a page asks for (FrameApp's fillDoors).
   const draw = () => {
     deep = false;
     frames.begin();
@@ -1267,7 +1265,7 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
 
 test("REGRESSION (N16): an address under soon/ opens a page that has shipped, and a name nothing answers to is not found -- #/soon/calendar said the Calendar was not in this release", async () => {
   shell.installShell(win);
-  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   const from = history.replaced.length;
   const replaced = () => history.replaced.slice(from);
   win.__surfaceState = reg.surfaceStateFor;
@@ -1597,7 +1595,7 @@ test("the frame fills the bridge's doors as it renders (a move, Ask, a person's 
 test("People has no tab strip on a real workspace -- its one real tab is People, and Lists and Leads are views of it; the demo keeps its seeded Deal board, over every view (N24)", async () => {
   // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
   // publishes it; its hooks are this file's stub's.
-  const { useStubHooks } = await import("../../_legacy-react.mjs");
+  const { useStubHooks } = await import("../../_stub-react.mjs");
   useStubHooks(globalThis.React);
   globalThis.ViewTabs = (await importSrc("apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
   // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
@@ -2111,7 +2109,7 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
 });
 
 test("given the router's route, the frame draws that route and no other: an address heard before the router lands moves nothing", () => {
-  // The frame and the page read one clock (LegacyHost hands the frame the route of Next's pathname, the page reads the
+  // The frame and the page read one clock (FrameHost hands the frame the route of Next's pathname, the page reads the
   // same pathname): a pushed entry the router has not drawn yet must not remount the view with the page it is leaving,
   // which on a phone slid People in under Leads' tab before Leads arrived (5 Oct 2026).
   shell.installShell(win);

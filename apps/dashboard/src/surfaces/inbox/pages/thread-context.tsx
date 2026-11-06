@@ -11,7 +11,7 @@ import { ixMoveOf, ixMoveWaited } from "../rules";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
 import { usePeopleMoved } from "../thread/shell-thread";
 import { visitWordHere } from "../../workspace-word";

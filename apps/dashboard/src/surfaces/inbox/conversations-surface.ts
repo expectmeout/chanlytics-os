@@ -1,18 +1,18 @@
 /**
- * Slice 1: the Conversations surface flips to real data (moved from legacy-bridge/surfaces/conversations.ts, decision
+ * Slice 1: the Conversations surface flips to real data (moved from bridge/surfaces/conversations.ts, decision
  * 0015). Fetch → map through the contracts viewmodel → publish the surface's value → dispatch its refresh event.
  * Siblings keep their seeds. Realtime message inserts re-run this apply (debounced in the bridge).
  *
- * Also the tab strip Conversations draws, one tab per wire. Part of the SurfaceData seam (legacy-bridge/surface-data.ts);
+ * Also the tab strip Conversations draws, one tab per wire. Part of the SurfaceData seam (bridge/surface-data.ts);
  * the page reads what it publishes through `useSurface("conversations")`.
  */
-import { read } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
-import { deliveryTicksOnly, isLiveCallTurn, LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import { read } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
+import { deliveryTicksOnly, isLiveCallTurn, LEFT_THE_QUEUE } from "@/bridge/surface-realtime";
 import type { Output } from "@/client/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { declareReads } from "@/bridge/surface-registry";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { routeOnScreen } from "@/bridge/workspace";
 import { toConversationVM, toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
 import { carriedReading, carriesMark } from "../seen-carry";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";

@@ -69,12 +69,12 @@ export type ShellMessage =
   /**
    * Whether this page's tab is the one in front. Each tab is a page of its own, kept open behind the others once visited, and
    * a covered page may still call itself visible: a page behind reads nothing for the live feed but what says itself on the
-   * icon, and reads what it held as it comes in front (the wiring's second audit, S8-9, S10-3; legacy-bridge/hearing/front.ts).
+   * icon, and reads what it held as it comes in front (the wiring's second audit, S8-9, S10-3; bridge/hearing/front.ts).
    */
   | { t: "front"; front: boolean }
   /**
    * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets
-   * it again on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone), so no ask says "forget".
+   * it again on its own before a sign-out (bridge/app-bridge.ts forgetPhone), so no ask says "forget".
    */
   | { t: "device"; token: string; platform: "ios" | "android"; version: string; activity?: string };
 

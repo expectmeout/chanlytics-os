@@ -504,7 +504,7 @@ async function getReport(
     : null;
   const people = peopleRead ? toPeopleReportVM(peopleRead) : null;
   if (!r) return { error: "report unavailable" };
-  // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
+  // The page's own builders over the page's own payload, as the bridge applies them (bridge/surface-data.ts).
   const vm = toReportVM(r.data.report, { profile: r.data.profile });
   const booking = r.data.booking ? toBookingReportVM(r.data.booking) : null;
   const deals = toDealReportVM(r.data.deals, vm.period.within);

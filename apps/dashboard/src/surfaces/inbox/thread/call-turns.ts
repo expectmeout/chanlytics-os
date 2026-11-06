@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { toCallVM } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 import type { CallLine } from "../types";
 
 const turnsKept = new Map<string, CallLine[]>();

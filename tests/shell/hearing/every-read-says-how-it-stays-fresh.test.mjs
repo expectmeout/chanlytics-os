@@ -104,7 +104,7 @@ test("every read outside a registered surface is listed, with how it stays fresh
   assert.deepEqual(
     now.filter((pair) => !(pair in listed)),
     [],
-    `make it a surface the shell registers (LegacyApp.tsx), read it from one, or list it in ${BASELINES_DIR}/${FILE} with its kind, how it stays fresh and why that is enough`,
+    `make it a surface the shell registers (FrameApp.tsx), read it from one, or list it in ${BASELINES_DIR}/${FILE} with its kind, how it stays fresh and why that is enough`,
   );
 });
 

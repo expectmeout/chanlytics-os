@@ -12,10 +12,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh } from "../../_legacy-react.mjs";
+import { installStubReact, fresh } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   usePPToast: () => [null, () => {}],
   // The demo's presence menu is the kit's, drawn by name: a host element is enough to see which listeners the top bar made.
@@ -56,7 +56,7 @@ Object.assign(W, {
   drawRoute: routeTable.drawRoute,
 });
 const { hearPresence } = await importSrc("apps/dashboard/src/surfaces/inbox/store.ts");
-const { SURFACE_STATES } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { SURFACE_STATES } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 /** The events with no sender left, and the name a patched-ahead sidebar once heard its own name change by. */
 const NO_SENDER = [

@@ -15,7 +15,7 @@ import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPane } from "../../parts/split";
 import { PreviewNote } from "../preview-note";

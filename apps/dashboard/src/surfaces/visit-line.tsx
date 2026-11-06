@@ -18,7 +18,7 @@ import {
   type VisitStateVM,
   type VisitWord,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { visitWordHere } from "./workspace-word";
 import { Button } from "./kit/button/button";
 import { Confirm } from "./kit/confirm/confirm";

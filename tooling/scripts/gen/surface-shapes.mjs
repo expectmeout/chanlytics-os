@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * What each surface's value is shaped like, as a fingerprint the surface cache keeps beside its snapshot
- * (apps/dashboard/src/legacy-bridge/surface-cache.ts). A snapshot is painted before React draws, and a page drawn from a
+ * (apps/dashboard/src/bridge/surface-cache.ts). A snapshot is painted before React draws, and a page drawn from a
  * value of another shape can throw or say something the database never did, so the cache was the build's own: every
  * deploy began cold, and on 27 Oct 2026 that was ten first loads of a day for one person (the Today load review). Now each
  * surface's snapshot is kept across a deploy that left its value's type alone, and dropped by one that changed it.
@@ -23,7 +23,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export const OUT = "apps/dashboard/src/legacy-bridge/surfaces/shapes.generated.ts";
+export const OUT = "apps/dashboard/src/bridge/surfaces/shapes.generated.ts";
 const VALUES = "apps/dashboard/src/surfaces/surface-values.ts";
 const TSCONFIG = "apps/dashboard/tsconfig.json";
 

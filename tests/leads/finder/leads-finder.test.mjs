@@ -5,7 +5,7 @@
  * (surfaces/leads/finder: plan-panel.tsx, plan-card.tsx, strip-view.tsx, with strip.ts's view model and amend.ts's two
  * acts), called with the props the page hands it, pressed, and read. Their words come from contracts by import, as the
  * page's do; nothing here publishes a name on the window for them. The two acts that reach out are run against what they
- * reach: Ask's door is a fake held by `holdAsk` (legacy-verbs.ts), and a search's answer is a fake `window.fetch`,
+ * reach: Ask's door is a fake held by `holdAsk` (frame-verbs.ts), and a search's answer is a fake `window.fetch`,
  * so the request it makes is read as it would go over the wire (surface.ts answerSearch). The page itself is proved in leads-honest.test.mjs; here the three components are proved on their own
  * props, so a change to one of them fails here and not four files away. A fresh Find is Ask's, proved in
  * ask-palette.test.mjs: nothing here composes one.
@@ -28,7 +28,7 @@ import {
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { importSrc } from "../../_source.mjs";
-const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).

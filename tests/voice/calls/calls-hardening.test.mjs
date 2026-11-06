@@ -15,14 +15,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toLiveVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../../_source.mjs";
 import { changesOf } from "../../_live-feed.mjs";
-import { installLegacyReact, fresh, again, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, textOf } from "../../_stub-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { wantsRefresh, subscribesToRealtime, DEFAULT_REFRESH_TABLES } = await import(
-  pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/dashboard/src/bridge/surface-realtime.ts")).href
 );
 
 // Live's surface, where it lives since decision 0015 (surfaces/live/surface.ts).
@@ -146,7 +146,7 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
   // "No word from the provider" is the one pill's word for a stale call now: run in state-pill.test.mjs.
   // The page (surfaces/live, TSX since decision 0015), drawn on the legacy stub React over each state a call can be in as it
   // is drawn: the words are the ones it says, not the ones its source holds.
-  installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
   const S = "../../../apps/dashboard/src";
   (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
   globalThis.usePPToast = () => [null, () => {}];

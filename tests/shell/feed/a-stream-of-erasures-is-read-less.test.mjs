@@ -44,9 +44,9 @@ globalThis.CustomEvent ??= class CustomEvent {
     this.detail = init?.detail;
   }
 };
-win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts")).addressApi(win);
+win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
 win.CHANLY = { nav() {}, address: await legacyAddress() };
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const REAL = [];
 for (const { name, file } of registeredSurfaces()) REAL.push((await importSrc(file))[name]);
 

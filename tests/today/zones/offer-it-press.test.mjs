@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { shiftKey, toCalendarVM, TODAY_PHONE_WORDS } from "@chanlytics/contracts";
-import { again, byTestId, press, textOf } from "../../_legacy-react.mjs";
+import { again, byTestId, press, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, W, ZONE, answerWith, dayWith, draw, json, wire } from "./_world.mjs";
 

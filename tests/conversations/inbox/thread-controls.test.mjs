@@ -23,14 +23,14 @@ import {
   stepDayOf,
   zoneDayKey,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, unmount, quiet, redrawWanted } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, unmount, quiet, redrawWanted } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -81,7 +81,7 @@ const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
  */
 const peopleAre = (value) => setSurfaceValue("people", value && { fetchedAt: Date.now(), ...value });
 // The seam's own signal, on the module the header hears it from: a surface's rows landed.
-const { surfaceMoved: surfaceLanded } = await import("../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { surfaceMoved: surfaceLanded } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 after(() => setSurfaceValue("inbox", undefined));
 
 const walk = (n, fn) => {
@@ -810,7 +810,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
   let answer = { ok: true, data: { note: null } };
   let hold = null;
   const events = [];
-  // The surfaces read again (legacy-verbs refreshSurface, through the runner's door).
+  // The surfaces read again (frame-verbs refreshSurface, through the runner's door).
   const readAgain = [];
   const w = globalThis.window;
   const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate, __refreshSurface: w.__refreshSurface };

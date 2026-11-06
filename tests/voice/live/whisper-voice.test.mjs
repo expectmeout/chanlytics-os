@@ -19,7 +19,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, textOf } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -57,7 +57,7 @@ const call = () => ({
 
 const flashed = [];
 const sent = [];
-installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
 // The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

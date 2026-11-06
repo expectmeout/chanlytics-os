@@ -28,7 +28,7 @@ import {
   classes,
   press,
   atWidth,
-} from "../../_legacy-react.mjs";
+} from "../../_stub-react.mjs";
 import {
   BUSINESS_TAB,
   KNOWN,

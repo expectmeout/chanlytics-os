@@ -34,7 +34,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
-import { canDo, gate, navigate } from "../../legacy-verbs";
+import { canDo, gate, navigate } from "../../frame-verbs";
 
 const VERB_TESTID: Record<string, string> = {
   "verb:google-check": "google-check",

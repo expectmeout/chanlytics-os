@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { NEED_YOU_WORDS as W, type GoogleReviewDto } from "@chanlytics/contracts";
-import { draftReply, replyToReview } from "@/legacy-bridge/google";
+import { draftReply, replyToReview } from "@/bridge/google";
 import { Button } from "../../kit";
 import { gate } from "../shell";
 import { Acts, Done, Going, Note, Words, Writing, whoseWords, type WorkProps } from "./parts";

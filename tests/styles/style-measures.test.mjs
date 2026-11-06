@@ -128,7 +128,7 @@ test("a style prop counts on an element or a component; another prop, a style ke
 });
 
 test("the measures see the dashboard's stylesheets and the shell's markup, and leave the tokens alone", () => {
-  const components = "apps/dashboard/src/legacy/styles/components.css";
+  const components = "apps/dashboard/src/styles/components.css";
   const { values: v, classes } = cssOf(components);
   assert.ok(v.font > 0 && v.radius > 0, "components.css parsed, and its written sizes were found");
   assert.ok(classes.btn > 0, "its selectors were read");
@@ -138,7 +138,7 @@ test("the measures see the dashboard's stylesheets and the shell's markup, and l
   assert.equal(styleValues[TOKENS_CSS], undefined, "the tokens are where a literal belongs");
   const primitives = measure("primitives outside the kit");
   assert.ok(primitives[`${components}::btn`] > 0, "the button is a primitive outside the kit");
-  assert.ok(primitives["apps/dashboard/src/legacy/styles/leads.css::btn"] > 0, "a page that restyles it is counted");
+  assert.ok(primitives["apps/dashboard/src/styles/leads.css::btn"] > 0, "a page that restyles it is counted");
   const inline = Object.keys(measure("inline style props"));
   assert.ok(
     inline.some((f) => f.startsWith("apps/dashboard/src/surfaces/ask/")),

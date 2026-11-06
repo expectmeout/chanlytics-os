@@ -30,7 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
-const { UI_ROWS, uiRows } = await import("../../apps/dashboard/src/legacy-bridge/policy-store.ts");
+const { UI_ROWS, uiRows } = await import("../../apps/dashboard/src/bridge/policy-store.ts");
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const FACTS = {
@@ -303,7 +303,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("google_draft: {"));
   // The Autonomy row rides on the Google reader's read, which GET google (google-actions.ts) answers: google-routes.test.mjs
   // runs it for each mode.
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/google.ts");
   // Keyed (decision 0035): a second press while the first is in flight is the same draft, not a second model call.
   assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {}, once: true }'));
 

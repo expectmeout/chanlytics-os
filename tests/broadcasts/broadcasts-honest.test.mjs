@@ -19,7 +19,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   kitPages,
   fresh as freshTree,
   again as drawAgain,
@@ -29,7 +29,7 @@ import {
   textOf,
   press,
   settle,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import { lineBox } from "../shared/_line.mjs";
 
 const { toBroadcastVM, stateOf, numberHealth } = contracts;
@@ -169,11 +169,11 @@ const playbooksSurface = (over = {}) => ({
 
 /* ---------------------------------- the window ---------------------------------- */
 
-// The page's window is the stub React's (installLegacyReact: window IS globalThis), with the shell's doors the TSX
-// pages reach through the bridge's verbs (surfaces/legacy-verbs.ts, legacy-parts.ts) and the workspace its clock reads.
+// The page's window is the stub React's (installStubReact: window IS globalThis), with the shell's doors the TSX
+// pages reach through the bridge's verbs (surfaces/frame-verbs.ts, frame-parts.ts) and the workspace its clock reads.
 const went = [];
 const toasts = [];
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/studio",
     hash: "#/broadcasts",
@@ -191,7 +191,7 @@ installLegacyReact({
   clearInterval() {},
 });
 const SRC = "../../apps/dashboard/src";
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 // What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work
 // rule (record-fold) and the record sheet. The pages themselves are TSX (decision 0015) and imported below.
@@ -237,7 +237,7 @@ const headSaid = () => {
 };
 /** A part of the page, or of its head where the page says it to the frame. */
 const headed = (tree, id) => byTestId(tree, id) ?? byTestId(headSaid(), id);
-const { AFTER } = await import(`${SRC}/legacy-bridge/refresh-map.ts`);
+const { AFTER } = await import(`${SRC}/bridge/refresh-map.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { SubTabs } = await import(`${SRC}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const { Face } = await import(`${SRC}/surfaces/kit/face/face.tsx`);

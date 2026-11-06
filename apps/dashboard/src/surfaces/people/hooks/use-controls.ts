@@ -15,7 +15,7 @@
  * mode, the toast, the claim that "all N that match" are picked, and the box's and the pane's elements.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { canDo } from "../../legacy-verbs";
+import { canDo } from "../../frame-verbs";
 import {
   columnsIn,
   shownColumnsOf,

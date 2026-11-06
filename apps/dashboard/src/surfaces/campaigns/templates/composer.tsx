@@ -17,7 +17,7 @@
 import { useEffect, useRef } from "react";
 import { LIBRARY_STARTER_WORDS } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
-import { canDo } from "../../legacy-verbs";
+import { canDo } from "../../frame-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
 import { composerActs, composerFacts, useComposerState, wroteWords } from "./composer-acts";
 import type { TemplateMade, TemplateTranslation } from "./composer-acts";

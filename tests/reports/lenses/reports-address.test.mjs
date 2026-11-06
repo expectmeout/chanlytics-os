@@ -7,10 +7,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 
 /** The workspace list the shell holds, with the active one: every workspace has the Pipeline (0008, amended 18 Oct 2026). */

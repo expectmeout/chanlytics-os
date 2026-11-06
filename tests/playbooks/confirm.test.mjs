@@ -14,12 +14,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, textOf, classes } from "../_stub-react.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
 const calls = { flash: [], remove: [], cancel: [], arm: [], nav: [] };
-installLegacyReact({
+installStubReact({
   StatStrip: "StatStrip",
   StatCell: "StatCell",
   __chrome: { state: stateOf },
@@ -220,7 +220,7 @@ test("a typed name gates the Yes -- erasure only -- and the page may know a bett
 // The card is TSX (surfaces/settings/team, decision 0015 step 11): its roster is the seam's settings value, and its three
 // doors the bridge's teamVerbs, which a test stands a door in on.
 const { TeamSection } = await import(`${S}/surfaces/settings/team/team.tsx`);
-const { teamVerbs } = await import(`${S}/legacy-bridge/inbox-verbs.ts`);
+const { teamVerbs } = await import(`${S}/bridge/inbox-verbs.ts`);
 Object.assign(teamVerbs, {
   remove: async (id) => {
     calls.remove.push(id);

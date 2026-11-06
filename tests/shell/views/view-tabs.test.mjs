@@ -12,9 +12,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, all, find, classes, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, classes, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 // What the page's own deck asks of a browser (view-deck.ts `viewDeck`): a clock, the motion setting, and the tokens.
 let token = "100%";
 let place = 0;

@@ -11,8 +11,8 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
 globalThis.window = { location: { pathname: "/w/harbor", hash: "#/today" } };
-const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
+const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 reg.installRouteGate();
 const gate = globalThis.window.__surfaceGate;
 

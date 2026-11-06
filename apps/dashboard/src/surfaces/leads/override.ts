@@ -4,21 +4,21 @@
  * page's first load carried Leads' rows, peek and words for a surface read only on its page (the loadability review,
  * 19 Oct 2026).
  */
-import { SURFACE_VALUE_SLOT } from "@/legacy-bridge/surface-cache";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { surfaceCode } from "@/legacy-bridge/surfaces/code";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { SURFACE_VALUE_SLOT } from "@/bridge/surface-cache";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { surfaceCode } from "@/bridge/surfaces/code";
+import { declareReads } from "@/bridge/surface-registry";
 import { declareSurfaceValue } from "../surface-values";
 import type { LeadsSurface } from "./surface-types";
 
-// Ask reads the Leads surface by its old name (legacy-bridge/ask/context.ts, palette.ts) until it moves (decision 0015,
+// Ask reads the Leads surface by its old name (bridge/ask/context.ts, palette.ts) until it moves (decision 0015,
 // step 12): one line, deleted with its last reader.
 declareSurfaceValue("leads", "__LEADS");
 
 /** The rows the tab's cache keeps of the view: what an instant paint needs. */
 const SNAPSHOT_ROWS = 100;
 
-/** Leads' state and read: fetched once, at once where Leads is the page opened (legacy-bridge/surfaces/code.ts). */
+/** Leads' state and read: fetched once, at once where Leads is the page opened (bridge/surfaces/code.ts). */
 const leadsCode = surfaceCode("leads", () => import("./surface"));
 
 export const leadsOverride: SurfaceOverride = {

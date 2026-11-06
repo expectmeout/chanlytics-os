@@ -147,15 +147,15 @@ test("the event names the usual cause rather than making someone guess", () => {
 
 /* ---- the closed-window send uses the workspace's OWN approved template ---- */
 {
-  // The seam and each surface's module beside it (legacy-bridge/surfaces/, and the surfaces that have left the shell),
+  // The seam and each surface's module beside it (bridge/surfaces/, and the surfaces that have left the shell),
   // read as one text.
   const seam = [
-    "apps/dashboard/src/legacy-bridge/surface-data.ts",
+    "apps/dashboard/src/bridge/surface-data.ts",
     "apps/dashboard/src/surfaces/reports/surface.ts",
     "apps/dashboard/src/surfaces/inbox/surface.ts",
     ...fs
-      .readdirSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/surfaces"))
-      .map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
+      .readdirSync(path.join(ROOT, "apps/dashboard/src/bridge/surfaces"))
+      .map((f) => `apps/dashboard/src/bridge/surfaces/${f}`),
   ]
     .map((p) => read(p))
     .join("\n");

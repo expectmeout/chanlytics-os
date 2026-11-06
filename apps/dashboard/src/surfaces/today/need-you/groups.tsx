@@ -5,7 +5,7 @@
  */
 import { useId, type ReactNode } from "react";
 import { NEED_YOU_WORDS as W, type TodayQueueRowVM } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { Panel } from "../../kit/panel/panel";
 
 /**

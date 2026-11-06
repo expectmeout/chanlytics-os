@@ -17,13 +17,13 @@ import {
   type HeldDraftsCount,
   type SequenceEvidenceDto,
 } from "@chanlytics/contracts";
-import { UI_MODES, UI_MODE_WORDS, type UiMode, type UiRow } from "@/legacy-bridge/policy-store";
+import { UI_MODES, UI_MODE_WORDS, type UiMode, type UiRow } from "@/bridge/policy-store";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { Press } from "../../kit/press";
 import { RecordTip } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 
 /** A mode's words: its heading, the clause under it, and what it does. A row with no stored mode says nothing. */
 interface ModeWords {

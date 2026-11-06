@@ -12,7 +12,7 @@ import {
   type CalendarVM,
   type CalendarView,
 } from "@chanlytics/contracts";
-import { askOnScreenKey, demoSession, navigate, replaceRoute, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
+import { askOnScreenKey, demoSession, navigate, replaceRoute, setAskOnScreen, useFrameToast } from "../frame-verbs";
 import { historyBack } from "../kit/sheet/back";
 import { calendarPlaceRoute, keepCalendarView } from "./address";
 import { keptShow, type CalendarShow } from "./runs-surface";
@@ -66,7 +66,7 @@ export function useCalendarState(initialDay: string | null, heldLeft: number) {
   const [monthPick, setMonthPick] = useState<string | null>(null);
   // The day whose campaigns' sheet is open, or null.
   const [runsDay, setRunsDay] = useState<string | null>(null);
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   return {
     anchorKey,
     setAnchorKey,
@@ -230,7 +230,7 @@ export function useVisitAddress(p: VisitAddressAsk) {
   return { open, close };
 }
 
-/** What Ask is told is on screen (legacy-bridge/ask/context.ts): the span drawn and the people its appointments name, in the board's order, forty at most. */
+/** What Ask is told is on screen (bridge/ask/context.ts): the span drawn and the people its appointments name, in the board's order, forty at most. */
 function useAskOnScreen(span: Span, vm: CalendarVM) {
   useEffect(() => {
     const at = vm.days.findIndex((d) => d.key === span.from);
@@ -377,7 +377,7 @@ export function useBoardEffects(p: ReadAsk & { span: Span; vm: CalendarVM }) {
   useWarmAhead(p);
   // The board is kept current by its surface, not by a timer of its own: the runner's clock reads the window again every five
   // minutes on any page that draws it, and makes its now, next and today again each minute (calendar/surface.ts,
-  // legacy-bridge/hearing/clock.ts). A timer here kept the board current and left Today's strip, drawn from the same read, as old
+  // bridge/hearing/clock.ts). A timer here kept the board current and left Today's strip, drawn from the same read, as old
   // as its last read (the wiring's second audit, S2-3).
   const keys = useBoardKeys();
   useEffect(

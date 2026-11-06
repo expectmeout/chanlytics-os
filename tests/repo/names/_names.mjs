@@ -14,7 +14,7 @@ import { ROOT } from "../../_source.mjs";
 
 /** The hand-written TypeScript that ships. A test, a type test and what a script writes are not held. */
 const SHIPPED = repoFiles(["apps", "packages"], { keep: /\.tsx?$/ }).filter(
-  (f) => !/\.test\.|\.type-test\.|(^|\/)test\/|^apps\/dashboard\/src\/legacy\/|^packages\/[^/]+\/(?!src\/)/.test(f),
+  (f) => !/\.test\.|\.type-test\.|(^|\/)test\/|^packages\/[^/]+\/(?!src\/)/.test(f),
 );
 
 /** How far a short name may reach: Google's TypeScript guide's ten lines, and docs/naming.md's. */

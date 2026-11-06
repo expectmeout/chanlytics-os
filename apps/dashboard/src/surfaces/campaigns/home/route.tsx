@@ -27,9 +27,9 @@ import {
   retiredRouteOf,
   routeOfPath,
 } from "@chanlytics/contracts";
-import { aheadWhenIdle } from "@/legacy-bridge/workspace";
+import { aheadWhenIdle } from "@/bridge/workspace";
 import { viewDeck } from "../../kit/motion/view-deck";
-import { refreshSurface, replaceRoute, useLegacyToast } from "../../legacy-verbs";
+import { refreshSurface, replaceRoute, useFrameToast } from "../../frame-verbs";
 import type { CmView } from "../parts/split";
 import { surfaceValue } from "../../surface-values";
 import { useAdsShown } from "../ads/shown";
@@ -104,7 +104,7 @@ export function CampaignsRoute() {
   // The route's second word, as the shell reads its param (`campaigns/messages/welcome` names Messages).
   const param = route.split("/")[1] || null;
   // The mount's toast: a send made in New, which closes as it sends, says so here, with its Stop (route-toast.ts).
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   const adsShown = useAdsShown();
   const landing = retiredRouteOf(route);
   const view: View = isMessagesParam(param) ? "messages" : "sequences";

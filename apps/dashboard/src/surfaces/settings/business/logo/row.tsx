@@ -22,8 +22,8 @@ import { Button } from "../../../kit/button/button";
 import { Face } from "../../../kit/face/face";
 import { MoreMenu } from "../../../kit/more-menu/more-menu";
 import { RecordRow } from "../../../kit/record/row";
-import { gate } from "../../../legacy-verbs";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
+import type { FrameFlash } from "../../../frame-verbs";
 import { activeWorkspaceNow, factsNow, workspacesNow } from "../shell";
 import { blobOf, chosenOk, makePicture, type MadePicture } from "./picture";
 import { logoVerbs } from "./verbs";
@@ -72,7 +72,7 @@ function logoRowWords(busy: "looking" | "saving" | null, draft: Draft | null, sa
   return said;
 }
 
-export function BtLogoRow({ canEdit, flash }: { canEdit: boolean; flash: (flash: LegacyFlash) => void }) {
+export function BtLogoRow({ canEdit, flash }: { canEdit: boolean; flash: (flash: FrameFlash) => void }) {
   const ws = useWorkspace();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<"looking" | "saving" | null>(null);

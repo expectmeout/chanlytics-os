@@ -14,7 +14,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toCallVM, stateOf } from "@chanlytics/contracts";
 import { legacyAddress } from "../../shell/address/_address.mjs";
-import { installLegacyReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_legacy-react.mjs";
+import { installStubReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
@@ -23,7 +23,7 @@ const NOW = new Date("2026-09-14T14:00:00Z");
 /* ---------------------------------- the window ---------------------------------- */
 
 const went = [];
-installLegacyReact({
+installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
@@ -43,7 +43,7 @@ Object.assign(globalThis, {
   },
 });
 globalThis.document.visibilityState = "hidden";
-// The shell's own toast and role gate, which the page draws through the bridge (surfaces/legacy-verbs.ts).
+// The shell's own toast and role gate, which the page draws through the bridge (surfaces/frame-verbs.ts).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 const S = "../../../apps/dashboard/src";
@@ -51,8 +51,8 @@ const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversati
 const { cvPicked, cvWhose } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
 const { pickMark } = await import(`${S}/surfaces/inbox/pages/pick.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-const { AFTER } = await import(`${S}/legacy-bridge/refresh-map.ts`);
-const { installTabMemory, clearTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
+const { AFTER } = await import(`${S}/bridge/refresh-map.ts`);
+const { installTabMemory, clearTabMemory } = await import(`${S}/bridge/tab-memory.ts`);
 installTabMemory(globalThis.window);
 
 /* ---------------------------------- the wire ---------------------------------- */

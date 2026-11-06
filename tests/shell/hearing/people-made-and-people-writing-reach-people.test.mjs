@@ -58,7 +58,7 @@ globalThis.window.fetch = async (url) => {
   return json(404, { ok: false, error: { code: "not_found", message: "no" } });
 };
 
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const { calendarOverride, warmCalendar } = await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts");
 const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");
 const { hearTheirThread } = await importSrc("apps/dashboard/src/surfaces/people/person/their-thread.ts");

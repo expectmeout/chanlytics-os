@@ -25,7 +25,7 @@ import {
   type AskRested,
   type PeopleListsLike,
 } from "@chanlytics/contracts";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import { refreshSurfaces } from "@/bridge/surface-runner";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";

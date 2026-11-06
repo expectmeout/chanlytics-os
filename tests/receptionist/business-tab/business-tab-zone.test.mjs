@@ -12,16 +12,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const W = globalThis.window;
 const SRC = "../../../apps/dashboard/src";
-const { startSurfaces } = await import(`${SRC}/legacy-bridge/surface-runner.ts`);
-const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
-const { AFTER } = await import(`${SRC}/legacy-bridge/refresh-map.ts`);
-const { installIdentity } = await import(`${SRC}/legacy-bridge/identity.ts`);
-const { BUSINESS_TAB } = await import(`${SRC}/legacy-bridge/business-tab.ts`);
+const { startSurfaces } = await import(`${SRC}/bridge/surface-runner.ts`);
+const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
+const { AFTER } = await import(`${SRC}/bridge/refresh-map.ts`);
+const { installIdentity } = await import(`${SRC}/bridge/identity.ts`);
+const { BUSINESS_TAB } = await import(`${SRC}/bridge/business-tab.ts`);
 const { composePromptPreview } = await import(`${SRC}/server/receptionist/prompt-preview.ts`);
 
 const brain = {
@@ -105,7 +105,7 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   // Settings first, the surface the preview rides on; then the three that how customers buy switches (0008), which
   // is saved through the same route: People's lists and column, Reports' Deals section, Today's proposals waiting. The Reviews lens's
   // read, which counts a review on the day it was written in the zone, is forgotten, not read from Settings. The stand-in window is at
-  // Reports (installLegacyReact), so the overview is read there, and with it the Campaigns lens's read the Overview draws for one fact;
+  // Reports (installStubReact), so the overview is read there, and with it the Campaigns lens's read the Overview draws for one fact;
   // Today's headline, whose days are the zone's too, is forgotten there and read as Today comes on screen. Campaigns' moments and Sent's
   // composer (how customers buy shapes them) and the Calendar (its times are the zone's) are read where a page draws them, and Reports
   // draws none of them: each is left for its pages (W-visit-deal-4, S10-6).

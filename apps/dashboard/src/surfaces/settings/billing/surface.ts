@@ -1,5 +1,5 @@
 /**
- * Billing (moved from legacy-bridge/billing.ts with Settings › Billing, decision 0015 step 11): the row as the edge last
+ * Billing (moved from bridge/billing.ts with Settings › Billing, decision 0015 step 11): the row as the edge last
  * wrote it (/api/v1/billing, repainted as the webhook writes), the view model the pane and the Setup row derive from it
  * (contracts/billing.ts), and the verbs -- checkout and portal leave the app for Stripe's pages; resume and sync apply at
  * once, and after they land the refresh map re-reads this surface and Setup's, since the Setup row reads the same facts.
@@ -23,11 +23,11 @@ import {
   type BillingInvoiceDto,
   type CheckoutReturn,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { api, read } from "@/legacy-bridge/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { pageClock } from "@/legacy-bridge/zone";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { api, read } from "@/bridge/api";
+import { declareReads } from "@/bridge/surface-registry";
+import { pageClock } from "@/bridge/zone";
+import { refreshSurfaces } from "@/bridge/surface-runner";
 import { setupOverride } from "@/surfaces/setup/override";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
 

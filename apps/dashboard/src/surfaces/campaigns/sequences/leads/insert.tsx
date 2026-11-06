@@ -22,7 +22,7 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { cx } from "../../../kit/variants";
-import { focusAsDrawn, gate, navigate, type LegacyFlash } from "../../../legacy-verbs";
+import { focusAsDrawn, gate, navigate, type FrameFlash } from "../../../frame-verbs";
 import type { SlotSeats } from "../../templates/slots/slot-seats";
 import { pressed } from "../verbs";
 
@@ -32,7 +32,7 @@ interface InsertProps {
   /** Whether this step offers {{their preview}}, or why not (contracts leadPreviewOfferOf). */
   preview: { offered: boolean; why: string | null };
   seats: SlotSeats;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   /** The name the sequence signs with, as it is typed: saved with the chain. */
   onSigned: (name: string) => void;
 }
@@ -59,7 +59,7 @@ function InsertRow({ row, onPut, onAdd }: { row: LeadInsertRowVM; onPut: () => v
 }
 
 /** The booking link put in from the step: kept in Settings by the settings verb. */
-function BookingLinkField({ flash, onDone }: { flash: (f: LegacyFlash) => void; onDone: () => void }) {
+function BookingLinkField({ flash, onDone }: { flash: (f: FrameFlash) => void; onDone: () => void }) {
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   const save = async () => {

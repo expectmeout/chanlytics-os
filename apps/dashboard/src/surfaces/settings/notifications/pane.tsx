@@ -8,7 +8,7 @@
  */
 import { useRef, useState } from "react";
 import { ALERT_PANE_WORDS as W, alertGrid, bellLineFor, type EmailHeld } from "@chanlytics/contracts/alert-pane";
-import { canDo, gate, meNow, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, meNow, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { businessActs, phoneAct, sectionSaver, teammatesOf, type Config } from "./acts";
 import { addressesOf, ChannelsCard } from "./channels";
@@ -18,7 +18,7 @@ import { alertVerbs } from "./verbs";
 const BROKEN =
   "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change";
 
-export const PaneNotificationsReal = ({ flash }: { flash: (f: LegacyFlash) => void }) => {
+export const PaneNotificationsReal = ({ flash }: { flash: (f: FrameFlash) => void }) => {
   const read = useSurface("settings");
   const alerts = useSurface("alerts");
   const [busy, setBusy] = useState<string | null>(null);

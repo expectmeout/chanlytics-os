@@ -2,14 +2,14 @@
  * The kit's one file download (surfaces/kit/download.ts), which the chart card's CSV and People's export both save through:
  * a CSV with a byte-order mark under its name, its address let go once the save has begun; and inside the phone app, where a
  * WebView cannot save a file made in the page, the same words handed to the app's share sheet through the `app:file` event
- * (legacy-bridge/app-bridge.ts) and nothing saved.
+ * (bridge/app-bridge.ts) and nothing saved.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
+import { installStubReact } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const { downloadCsv } = await importSrc("apps/dashboard/src/surfaces/kit/download.ts");
 const BOM = String.fromCharCode(0xfeff);
 

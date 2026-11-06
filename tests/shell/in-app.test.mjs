@@ -3,7 +3,7 @@
  *
  * The shell says who it is in its WebView's User-Agent, once: "ChanlyticsApp/<version> (ios|android)". One regex
  * reads it, in TypeScript and in the script the document inlines beside the theme's, so the class on <html> and the
- * global the legacy shell reads are stamped before first paint — a tab bar that appears for a frame under the native
+ * global the frame reads are stamped before first paint — a tab bar that appears for a frame under the native
  * one is the jolt this exists to prevent.
  */
 import { test } from "node:test";

@@ -122,6 +122,9 @@ functions that start with their verb (`create_person`, `set_contact_consent`, th
 
 ## The shell
 
-`apps/dashboard/src/legacy` keeps its own names (hash routes, `*_STORE`, `window.__*`, `cl-` classes) until
-decision 0015 moves each surface. Its tests stop those names growing (the `window-globals` measure,
-`repo/shell-names-are-published.test.mjs`); nothing on this page applies inside it.
+The frame and its stylesheets keep a few old names (hash routes, `*_STORE`, `window.__*`, `cl-` classes) until decision 0015
+ends each. Their tests stop those names growing (the `window-globals` measure, `repo/shell-names-are-published.test.mjs`).
+`apps/dashboard/mockup`, the standalone mockup, keeps its own, and nothing on this page applies inside it.
+
+**Nothing that runs is called legacy** (decision 0105). A name in that word is a format the code still reads on purpose, listed by
+name in `repo/names/names-that-lie.test.mjs`.

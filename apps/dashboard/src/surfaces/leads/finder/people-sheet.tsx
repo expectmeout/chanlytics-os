@@ -36,8 +36,8 @@ import { Menu } from "../../kit/menu/menu";
 import { UnsavedAsk, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn, gate, navigate } from "../../legacy-verbs";
-import { api } from "@/legacy-bridge/api";
+import { focusAsDrawn, gate, navigate } from "../../frame-verbs";
+import { api } from "@/bridge/api";
 import type { Flash } from "../../people/types";
 
 const PW = PEOPLE_FIND_WORDS;

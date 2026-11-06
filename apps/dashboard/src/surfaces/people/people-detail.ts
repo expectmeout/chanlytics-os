@@ -14,19 +14,19 @@ import {
   type AskedPurpose,
   MIN_MS,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { commitVerb, type VerbResult } from "@/legacy-bridge/verbs/commit";
+import { api } from "@/bridge/api";
+import { commitVerb, type VerbResult } from "@/bridge/verbs/commit";
 import { ApiError, type ApiResult } from "@/client/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { workspaceZone } from "@/bridge/zone";
 import { codeOnce } from "@/lib/code-once";
-import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
+import { readCache, staleReadCaches } from "@/bridge/read-cache";
 import { holderName } from "../holder-names";
 import { keepSavedView, peopleGoing, peopleLoaded } from "./surface";
-import { declareReads, personRouteId } from "@/legacy-bridge/surface-registry";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { bootWaitsFor } from "@/legacy-bridge/surface-runner";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
+import { declareReads, personRouteId } from "@/bridge/surface-registry";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
+import { bootWaitsFor } from "@/bridge/surface-runner";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 
 /**
  * The profile courier: `personDetail(id)`.
@@ -154,7 +154,7 @@ function personOnScreen(win: Window = window): string | null {
 
 /**
  * A tab opened on a person's page reads them before anything else: called once, at module scope, before React and
- * the surfaces' boot (LegacyApp.tsx). The page's own read, a moment later, shares this one (client/api.ts). Measured
+ * the surfaces' boot (FrameApp.tsx). The page's own read, a moment later, shares this one (client/api.ts). Measured
  * on production (23 Sep 2026): on a reload their read went out beside eight of the boot's and took 1.4 s, against
  * 0.3-0.7 s alone. Off a workspace page nothing is read: a read that names no workspace is refused.
  */
@@ -225,7 +225,7 @@ type DeleteResult = ApiResult<unknown>;
 
 /**
  * A verb's answer as this courier's callers read it: the door's answer, or its refusal. Each writer below commits through
- * its verb's spec (legacy-bridge/verbs, contracts PROPOSAL_SPECS), the walk Ask's cards take too, so the same act makes the
+ * its verb's spec (bridge/verbs, contracts PROPOSAL_SPECS), the walk Ask's cards take too, so the same act makes the
  * same call whichever hand pressed it (the sheets as verbs, 14 Oct 2026).
  */
 function verbAnswer<O>(r: VerbResult): ApiResult<O> {
@@ -317,7 +317,7 @@ export async function deletePeopleMany(ids: string[], notAPersonToo: boolean): P
  */
 function erasedBehind(): void {
   staleReadCaches();
-  void import("@/legacy-bridge/refresh-map").then((m) => m.refreshAfter("DELETE contacts/[id]")).catch(() => {});
+  void import("@/bridge/refresh-map").then((m) => m.refreshAfter("DELETE contacts/[id]")).catch(() => {});
 }
 
 /** The people this tab deleted (deletePerson, notAPerson, deletePeopleMany). */
@@ -568,7 +568,7 @@ export async function recordDeal(
   opts: { refresh?: false | "behind" } = {},
 ): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string; current: DealDto | null }>> {
   // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
-  // people_list's rule), which the verb walk lays on the row at once (legacy-bridge/verbs/effects.ts), and People and
+  // people_list's rule), which the verb walk lays on the row at once (bridge/verbs/effects.ts), and People and
   // Reports are read again behind it, so the sheet closes when the server takes the move rather than once every person
   // has been read again. One intent, however often Save is pressed (decision 0035).
   return verbAnswer(
@@ -620,7 +620,7 @@ export async function passDeals(
   // As the client's own refresh after a write does: the tab's copies of what changed are read again, then the surfaces.
   if (items.length) {
     staleReadCaches();
-    await import("@/legacy-bridge/refresh-map").then((m) => m.refreshAfter("POST contacts/[id]/deal"));
+    await import("@/bridge/refresh-map").then((m) => m.refreshAfter("POST contacts/[id]/deal"));
   }
   return { passed, changed, failed };
 }

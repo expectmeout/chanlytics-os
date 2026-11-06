@@ -8,7 +8,7 @@
  * and a thread's its conversation's).
  */
 import { useEffect, useMemo, useState } from "react";
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 import { cvOnePerPerson, inChannel } from "../cv-rules";
 import type { ConversationLine } from "../types";
 

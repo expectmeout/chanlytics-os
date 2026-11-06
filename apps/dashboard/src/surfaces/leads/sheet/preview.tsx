@@ -8,13 +8,13 @@
 import { useState } from "react";
 import { PREVIEW_LINE_WORDS as W, previewLineOf } from "@chanlytics/contracts";
 import type { ApiResult, Output } from "@/client/api";
-import { api } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
+import { api } from "@/bridge/api";
+import { readCache } from "@/bridge/read-cache";
 import { useSequenceRead } from "../../campaigns/sequences/use-record";
 import { Button } from "../../kit/button/button";
 import { CopyButton } from "../../kit/copy-button/copy-button";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 
 type PreviewAnswer = ApiResult<Output<"GET leads/[id]/preview">>;
 const previews = readCache<PreviewAnswer>("lead_preview", (r) => r.ok);

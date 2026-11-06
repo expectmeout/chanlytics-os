@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { installRoleStore, kitPages, useStubHooks } from "../_legacy-react.mjs";
+import { installRoleStore, kitPages, useStubHooks } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import {
   CONSENT_SOURCES,
@@ -797,7 +797,7 @@ test("the peek says a step no deal card of theirs carries -- about the person, o
 });
 
 test("the Pipeline's route waits for People's rows: it reads nothing else", async () => {
-  const registry = await import("../../apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const registry = await import("../../apps/dashboard/src/bridge/surface-registry.ts");
   assert.equal(registry.routeSurfaceFor("clients", "pipeline"), "people");
   assert.equal(registry.surfaceStateFor("clients", "pipeline"), "real");
   assert.equal(registry.surfaceRetiredTo("pipeline"), "clients", "the retired demo board still lands on People");
@@ -865,7 +865,7 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  // The workspace, as its own surface publishes it: every day on People is said by its clock (legacy-bridge/zone.ts).
+  // The workspace, as its own surface publishes it: every day on People is said by its clock (bridge/zone.ts).
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
 };
@@ -882,10 +882,10 @@ const quietly = async (fn) => {
   }
 };
 const { peopleOverride } = await quietly(() => import("../../apps/dashboard/src/surfaces/people/surface.ts"));
-const { installClock } = await import("../../apps/dashboard/src/legacy-bridge/zone.ts");
+const { installClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
 installClock();
 // The page's own reads: what the tab kept of a person, and the seam's typed value (the mirror is `window.__PEOPLE`).
-const { clearReadCaches } = await import("../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { clearReadCaches } = await import("../../apps/dashboard/src/bridge/read-cache.ts");
 const { setSurfaceValue, surfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 const { personDetail } = await import("../../apps/dashboard/src/surfaces/people/people-detail.ts");
 
@@ -2045,7 +2045,7 @@ test("the sheet says a closed deal when, then why, and a consultation's head and
 });
 
 test("People repaints on a teammate's deal: the surface asks for the deals table, and the database tells the workspace of it", async () => {
-  const { wantsRefresh } = await import("../../apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await import("../../apps/dashboard/src/bridge/surface-realtime.ts");
   assert.equal(wantsRefresh(peopleOverride, "deals"), true);
   assert.equal(wantsRefresh(peopleOverride, "messages"), true, "the default trio still");
   // A call's start and end move a row's last contact and call count (people_list's last call): People hears the calls on its
@@ -2683,7 +2683,7 @@ test("the Pipeline's rail: every group always, what waits only when some does, t
 test("a recorded move lands on the row as the door answers: the Pipeline regroups while People is still being read again", async () => {
   await fresh();
   const { recordDeal } = await import("../../apps/dashboard/src/surfaces/people/people-detail.ts");
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   const before = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes").deal;
   const now = Date.now();
   const dto = (over) => ({
@@ -3463,7 +3463,7 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
 test("the bridge's pass reads each person afresh, records only a deal still a proposal out, tells a change from a failure, and reads People again once after the last whatever it answered", async () => {
   await fresh();
   const { passDeals } = await import("../../apps/dashboard/src/surfaces/people/people-detail.ts");
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   const now = Date.now();
   const dealDto = (id, contact, stage, version) => ({
     id,

@@ -12,7 +12,7 @@ import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { recFolds } from "../../kit/record/registry";
 import { RecordRow } from "../../kit/record/row";
-import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { PaneActivity } from "../activity/pane";
 import { PaneAutonomyReal } from "../autonomy/pane";
@@ -39,7 +39,7 @@ import {
 } from "./tabs";
 import { PaneWorkspace, WorkspaceData } from "./workspace";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /**
  * Each pane, warmed when the pointer, a finger or the keyboard reaches its row: by the time the press lands, its rows are in
@@ -189,7 +189,7 @@ export function SettingsPage({ tab = "", onTab = () => {} }: { tab?: string; onT
   const partner = !!useSurface("partner")?.dto;
   useSurface("settings");
   const gapPane = businessGapPane();
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   // The tab asked for while a pane holds unsaved changes (the fold registry answers: the record kit's open fold, whatever
   // pane drew it): the rail asks before the pane, and the changes with it, are replaced (S22). And while a fold's save is
   // out it asks in other words, kept from the moment it asked: "Leave without saving?" is untrue of a change on its way

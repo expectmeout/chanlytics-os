@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { setupSteps, RECEPTIONIST_MET, REHEARSE_SKIPPED } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { useStubHooks } from "../_legacy-react.mjs";
+import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
 export const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -122,7 +122,7 @@ globalThis.document ??= {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
-// The shell's role gate, refusal toast and the rest of what a surface still asks of it by name (legacy-verbs.ts).
+// The shell's role gate, refusal toast and the rest of what a surface still asks of it by name (frame-verbs.ts).
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // frame-globals publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 export const flashes = [];
@@ -135,7 +135,7 @@ export const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup
 // The Business tab's saver, as the first run imports it (setup/shell.ts): a world stubs its sends in place.
 export const { businessTabSave } = await importSrc("apps/dashboard/src/surfaces/settings/business/saver.ts");
 export const tabSaver = { save: businessTabSave.saver.save, base: businessTabSave.saver.base };
-const { tabMemoryFor, clearTabMemory } = await importSrc("apps/dashboard/src/legacy-bridge/tab-memory.ts");
+const { tabMemoryFor, clearTabMemory } = await importSrc("apps/dashboard/src/bridge/tab-memory.ts");
 
 /** Setup's read as the page draws it: a value, undefined while it is read, null where it failed. */
 export const setSetup = (value) => setSurfaceValue("setup", value);
@@ -175,9 +175,9 @@ export const { billingVerbs, installBilling } = await importSrc(
   "apps/dashboard/src/surfaces/settings/billing/surface.ts",
 );
 installBilling(globalThis.window);
-// And Google's (legacy-bridge/google.ts `googleVerbs`), which Find and Connect it to Google import: a world stubs Google
+// And Google's (bridge/google.ts `googleVerbs`), which Find and Connect it to Google import: a world stubs Google
 // by assigning onto it. Nothing came back from Google unless a test says.
-export const { googleVerbs } = await importSrc("apps/dashboard/src/legacy-bridge/google.ts");
+export const { googleVerbs } = await importSrc("apps/dashboard/src/bridge/google.ts");
 googleVerbs.outcome = () => null;
 // The tab's drafts, read and written through the window's sessionStorage, where the page reads them.
 globalThis.window.__tabMemory = tabMemoryFor(globalThis.window);

@@ -889,7 +889,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(connection.includes("export const DELETE") && connection.includes('op: "disconnect"'));
   const rate = readCode("apps/dashboard/src/server/shared/rate-limit.ts");
   assert.ok(rate.includes("google_reply: {"));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/google.ts");
   assert.ok(
     // The way there, with the first run's way back where it asked (decision 0073, R17: `back: "start"`).
     /window\.location\.assign\(\s*api\(\)\.url\("GET google\/connect"/.test(bridge) &&

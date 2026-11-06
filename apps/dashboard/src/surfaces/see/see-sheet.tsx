@@ -14,10 +14,10 @@
  */
 import { SEE_WORDS, seeHomeOf, seeRefOfRoute, type SeeRef } from "@chanlytics/contracts";
 import { closeSeeOver, openSeeOver } from "./see-over";
-import { goToRoute } from "@/legacy-bridge/workspace";
+import { goToRoute } from "@/bridge/workspace";
 import { Icon } from "../kit/icon/icon";
 import { Button } from "../kit/button/button";
-import type { useLegacyToast } from "../legacy-verbs";
+import type { useFrameToast } from "../frame-verbs";
 import type { SurfaceKey } from "../surface-values";
 import { useReadsHere } from "../use-surface";
 import { BroadcastRun } from "../campaigns/broadcasts/broadcasts-page";
@@ -25,7 +25,7 @@ import { MessageInPlaceWhenRead } from "../campaigns/home/campaigns-code";
 import { PaneSheet } from "../campaigns/home/pane-sheet";
 import { ToSendPart } from "../waits/to-send-part";
 
-type Flash = ReturnType<typeof useLegacyToast>[1];
+type Flash = ReturnType<typeof useFrameToast>[1];
 
 /** What each thing is drawn from: Sent's runs (where it sits among those waiting), its playbook, its message, the number. */
 const READS: Record<SeeRef["kind"], readonly SurfaceKey[]> = {

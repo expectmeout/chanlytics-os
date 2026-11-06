@@ -16,7 +16,7 @@ import {
   phoneVoiceOf,
   phoneVoiceShown,
 } from "@chanlytics/contracts";
-import { unmount, all, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { unmount, all, byTestId, textOf, press } from "../_stub-react.mjs";
 import { W, drawTab, marisa, openFold, redrawTab, saveRow, saving } from "../_business-tab-harness.mjs";
 
 after(() => unmount());

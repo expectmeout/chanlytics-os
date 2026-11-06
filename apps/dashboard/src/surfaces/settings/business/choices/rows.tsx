@@ -32,17 +32,17 @@ import {
   type ChoiceWrite,
   type WalkInsChoice,
 } from "@chanlytics/contracts";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { MoreMenu } from "../../../kit/more-menu/more-menu";
 import { RecordRow } from "../../../kit/record/row";
-import { gate, showTip, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, showTip, type FrameFlash } from "../../../frame-verbs";
 import { btoStoredZone } from "../open";
 import type { Brain, Config } from "../save";
 import { businessTabSave } from "../saver";
 import { policiesNow } from "../shell";
 import { choiceRun } from "./run";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 /** One answer in the menu, as the kit's menu takes it. */
 type MenuItem = NonNullable<Parameters<typeof MoreMenu>[0]["items"]>[number];
 

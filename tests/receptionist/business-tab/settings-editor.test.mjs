@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
-import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 
 const TID = "t-studio";
 

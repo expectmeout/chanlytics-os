@@ -1,7 +1,7 @@
 /**
  * The Reviews override: what customers say in public, read for the Reviews lens alone (contracts `ReviewsReportDto`, `GET
  * reports/reviews`: Google's own read and the ledger of the reviews on record beside it) and folded once into its view model
- * (`toReviewsReportVM`). Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the lens, and the head over it, read what it
+ * (`toReviewsReportVM`). Part of the SurfaceData seam (bridge/surface-data.ts); the lens, and the head over it, read what it
  * publishes through `useFollower("reports_reviews")`, so the sentence at the head and the figures under it come from one fold. Only
  * the fold is kept: nothing reads the answer once the view model says what it was of (`state`).
  *
@@ -18,8 +18,8 @@
  * that makes it wrong from another page (Settings' Google verbs, the workspace's zone) forgets it instead of reading it from there
  * (`forgetReviews`, refresh-map.ts).
  */
-import { read } from "@/legacy-bridge/api";
-import { publishGoogleRead } from "@/legacy-bridge/google";
+import { read } from "@/bridge/api";
+import { publishGoogleRead } from "@/bridge/google";
 import { reportRangeKey, toReviewsReportVM, type ReviewsReportVM } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";

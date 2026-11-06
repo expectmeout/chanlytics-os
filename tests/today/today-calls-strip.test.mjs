@@ -20,13 +20,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { toTodayVM } from "@chanlytics/contracts";
 import { readRaw } from "../_source.mjs";
 import { changesOf } from "../_live-feed.mjs";
-import { installLegacyReact, fresh, all, byTestId } from "../_legacy-react.mjs";
+import { installStubReact, fresh, all, byTestId } from "../_stub-react.mjs";
 
 // The queue and the hero are the TSX surface's (apps/dashboard/src/surfaces/today/pages, decision 0015), drawn on the
 // stub React over the day the seam holds; a stand-in window gives them the frame's door, and a timer that never fires
 // (the rail's clock ticks once a second while a call is up).
 const went = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
@@ -41,7 +41,7 @@ const { todayOverride } = await import("../../apps/dashboard/src/surfaces/today/
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { wantsRefresh, DEFAULT_REFRESH_TABLES } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/surface-realtime.ts")).href
 );
 
 const NOW = new Date("2026-09-04T15:00:00.000Z");
@@ -280,7 +280,7 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
 
 test("the transcript turn is one predicate, isLiveCallTurn, and Today's rule is its negation", async () => {
   const { isLiveCallTurn } = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/surface-realtime.ts")).href
   );
   const turn = { table: "calls", event: "UPDATE", row: { status: "ongoing" } };
   assert.equal(isLiveCallTurn(turn), true, "a call that stays ongoing");
