@@ -90,7 +90,8 @@ const arThreadOf = ({
   const thread = view === "rows" && (!!active || !!quick) && (!showRows || composing || talk.listening);
   const listen = thread && (composing || talk.listening) && !live && !(quick && quick.pending);
   const nowQ = live ? live.q : quick ? quick.q : latest && latest.q ? latest.q.text : "";
-  return { thread, listen, nowQ };
+  const nowFiles = live ? live.files : quick ? [] : (latest?.q?.files ?? []);
+  return { thread, listen, nowQ, nowFiles };
 };
 
 /** A row or a move taken: a conversation opened, Earlier, a place gone to, words to finish, or a question asked. */
@@ -144,6 +145,7 @@ export const arOnKey = ({
   setView,
   activate,
   submit,
+  attached,
 }: Line) => {
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (hold.onKeyDown(e) || arFieldKey(e, query)) return;
@@ -192,8 +194,10 @@ export const arOnKey = ({
     if (e.key === "Enter") {
       e.preventDefault();
       const q = query.trim();
+      // A photo beside the field makes a question of an empty line.
+      if (attached.length && !q) void submit();
       // Typed words are asked, unless the keys moved to a row; in Earlier they only find a conversation to open.
-      if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
+      else if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
       else if (q) void submit(q);
       else if (moves[move]) activate(moves[move]);
     }

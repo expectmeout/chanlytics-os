@@ -18,6 +18,7 @@ import { useAskGrow, useAskLatest, useAskWarm } from "../hooks";
 import { askCalls } from "../shell";
 import { askText } from "../words";
 import { arActs } from "./acts";
+import { arAttach, useArDrop } from "./attached";
 import { arBody, arFoot, arHero, arLineEnd, arLineView } from "./draw";
 import {
   useArClose,
@@ -49,7 +50,11 @@ export const AskReal = ({ open, onClose }: { open: boolean; onClose: () => void 
   ln.route = route;
   // With the param: Leads is People's `leads` param, and the Line on it is the finder (spec F2, F3).
   ln.surface = A ? A.surfaceFor(route.page, route.param) : "other";
+  Object.assign(ln, arAttach(ln));
   Object.assign(ln, arActs(ln));
+  const { dropping, ...dropProps } = useArDrop(ln.attach);
+  ln.dropping = dropping;
+  ln.dropProps = dropProps;
   ln.submit = arSubmitter(ln);
   Object.assign(ln, useArVoice(ln));
   useAskWarm(ln); // and a question on its way warms the model's cache (../hooks.ts)

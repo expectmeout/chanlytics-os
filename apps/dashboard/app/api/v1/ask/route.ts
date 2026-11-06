@@ -16,6 +16,7 @@ import { log } from "@/server/log";
 import { requireUuid } from "@/server/request-guards";
 import { readerContext } from "@/server/readers";
 import type { RouteContext } from "@/server/with-route";
+import { attachedIdsOf } from "@/server/ask/attached";
 import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
 import type { SearchAnswering } from "@/server/ask/prompt";
 import { finishAskTurn, prepareAskTurn, type AskTurnLine } from "@/server/ask/turn";
@@ -24,7 +25,7 @@ import { searchRow } from "@/server/leads/leads";
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
  *
- * Body: { text, thread_id?, scope?, surface?, answering?, following?, column?, workspace? }. The response is a
+ * Body: { text, thread_id?, scope?, surface?, answering?, following?, column?, files?, language?, workspace? }. The response is a
  * stream of JSON lines: {t:"thread", id} first, then {t:"trace"} while a read
  * runs, {t:"say", headline, detail} as the answer's Say is written (a
  * preview), and {t:"final", message} last, with the answer as the Line draws
@@ -55,6 +56,10 @@ import { searchRow } from "@/server/leads/leads";
  *
  * `column: { px, phone }` is the width the Line draws the answer in, as the tab measured it (contracts AskColumn): the
  * model is told it with the question; one not in that shape is none.
+ *
+ * `files: [id]` is what the question came with: the files' ids, ten at most, and the turn sees each picture ahead of the words.
+ * With them a question may have no words of its own, and `language` then says what to answer in, as the words would have. A
+ * thread keeps the ids alone (server/ask/attached.ts). An id in no shape, or of a file not there for the caller, is left out.
  *
  * The answer's row also keeps the turn as the model was sent it, at
  * `content.raw` (server/ask/memory.ts, storedRaw; the Phase 5 plan, D11), for
@@ -207,9 +212,12 @@ export const POST = write({
       column?: unknown;
       opened_ms?: unknown;
       context?: unknown;
+      files?: unknown;
+      language?: unknown;
     } | null;
     const text = questionOf(body?.text);
-    if (!text) throw new AppError("validation", "Ask something.");
+    const files = attachedIdsOf(body?.files);
+    if (!text && files.length === 0) throw new AppError("validation", "Ask something.");
     if (text.length > ASK_MAX_CHARS)
       throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
     const threadId =
@@ -261,6 +269,9 @@ export const POST = write({
       openedMs,
       answering,
       column: askColumnOf(body?.column),
+      files,
+      // Words say their own language; only a question with none is told it.
+      ...(!text && (body?.language === "es" || body?.language === "en") ? { language: body.language } : {}),
     });
 
     await cameBackTo(ctx, member, body?.following);

@@ -209,6 +209,7 @@ export function filesSayOf(files: readonly Pick<FileDto, "status" | "look_status
 }
 
 export const FILE_WORDS = {
+  askAbout: "Ask about this photo",
   title: "Files",
   add: "Add photos",
   adding: (done: number, of: number) => `Adding ${done} of ${of}`,

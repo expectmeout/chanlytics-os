@@ -28,6 +28,7 @@ import {
   runDraftedEmails,
   runTitleOf,
   runsThatWait,
+  fileSaidOf,
   sameQuestion,
   scopeFromRoute,
   stoppedAnswer,
@@ -373,7 +374,7 @@ export function askPalette(win: Window, storage: Storage | null) {
     // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute); a person on
     // any of their tabs is named by their People row (personLabelOf).
     scopeFor: (page: string, param: string | null, label?: string | null) => {
-      const scope = scopeFromRoute(page, param, label, surfaceValue("reach_outs"));
+      const scope = scopeFromRoute(page, param, label, surfaceValue("reach_outs")) ?? fileOnScreen(page, param);
       return scope?.kind === "person" && !label ? { ...scope, label: personLabelOf(scope.id) ?? scope.label } : scope;
     },
     surfaceFor,
@@ -384,6 +385,15 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** Whether the Line's field may take focus as it opens: not on a touch screen, whatever its width (legacy-verbs). */
     focusAsDrawn,
   };
+}
+
+/** The photo open in its sheet on Settings › Files, which stands in the address (`?do=file:<id>`), named as the page names it. */
+function fileOnScreen(page: string, param: string | null): AskScope | null {
+  if (page !== "settings" || !param?.startsWith("files")) return null;
+  const named = new URLSearchParams(window.location.search).get("do");
+  const id = named?.startsWith("file:") ? named.slice(5) : null;
+  const file = id ? surfaceValue("files")?.dto.files.find((f) => f.id === id) : null;
+  return file ? { kind: "file", id: file.id, label: fileSaidOf(file.name) } : null;
 }
 
 /**

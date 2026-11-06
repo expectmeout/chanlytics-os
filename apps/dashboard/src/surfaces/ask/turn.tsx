@@ -6,9 +6,10 @@
  * per place); this file only draws.
  */
 import { useState } from "react";
-import { cardsTogether, wordsLessHolds } from "@chanlytics/contracts";
+import { cardsTogether, fileSaidOf, fileViewOf, wordsLessHolds } from "@chanlytics/contracts";
 import type {
   AskAnswer as Answer,
+  AskAttached,
   AskFigure as Figure,
   AskItem,
   AskLanguage,
@@ -459,11 +460,50 @@ export const AskTurn = ({
 
 // A question in a phone's thread (D2): the person's own words at the right, in the Inbox's sent bubble. The newest
 // carries the id the thread stands at its top (D5, hooks.ts useAskPin).
-export const AskQuestion = ({ text, now = false }: { text: string; now?: boolean }) => (
-  <p className="ask-q" id={now ? "ask-now-q" : undefined} data-testid="ask-q">
-    {text}
-  </p>
+export const AskQuestion = ({
+  text,
+  files,
+  t,
+  now = false,
+}: {
+  text: string;
+  files?: readonly AskAttached[];
+  t: LineWords;
+  now?: boolean;
+}) => (
+  <>
+    {files?.length ? (
+      <div className="ask-q-files" id={now && !text ? "ask-now-q" : undefined} data-testid="ask-q-files">
+        {files.map((f) => (
+          <AskQuestionFile key={f.id} file={f} t={t} />
+        ))}
+      </div>
+    ) : null}
+    {text ? (
+      <p className="ask-q" id={now ? "ask-now-q" : undefined} data-testid="ask-q">
+        {text}
+      </p>
+    ) : null}
+  </>
 );
+
+/** A file a question came with: its picture, which opens at full size; since removed, or one that can't be drawn, it says so. */
+function AskQuestionFile({ file, t }: { file: AskAttached; t: LineWords }) {
+  const [unseen, setUnseen] = useState(false);
+  const said = file.name ? fileSaidOf(file.name) : t.attachGone;
+  if (!file.name || unseen)
+    return (
+      <span className="ask-q-file ask-q-file-unseen" role="img" aria-label={said} data-testid="ask-q-file-unseen">
+        {said}
+      </span>
+    );
+  const view = fileViewOf(file.id);
+  return (
+    <a className="ask-q-file" href={`${view}?w=1280`} target="_blank" rel="noopener" data-testid="ask-q-file">
+      <img src={`${view}?w=480`} alt={said} loading="lazy" decoding="async" onError={() => setUnseen(true)} />
+    </a>
+  );
+}
 
 // A phone's earlier turns, each in full (D1): its question, then its answer with its cards as they were left and its
 // Open, and no next questions (D6: they are the newest answer's). What a card became is kept on the conversation
@@ -480,7 +520,7 @@ export const AskThread = ({
   <div className="ask-thread" data-testid="ask-thread">
     {turns.map((tn, k) => (
       <div key={tn.q.id || k} className="ask-thread-turn">
-        <AskQuestion text={tn.q.text} />
+        <AskQuestion text={tn.q.text} files={tn.q.files} t={t} />
         <AskTurn
           m={tn.a}
           next={false}

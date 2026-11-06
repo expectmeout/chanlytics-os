@@ -105,9 +105,90 @@ body.ask-open .tb-ask .tb-ask-face {
   flex: none;
   order: 9;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   margin: 8px 12px 10px;
-  padding: 0 8px 0 16px;
+  padding: 0 8px;
   border-radius: var(--radius-xl);
+}
+/* The panel with a file over it: the field says it will take it. */
+.ask-line.dropping .ask-stage {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The photos beside the field (line/attached.tsx): a row of small tiles over it, each with its × in the corner; dim while one
+   goes, ringed where it was refused, its words under the row. */
+.ask-attached {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+}
+.ask-attached-row {
+  display: flex;
+  gap: 8px;
+  overflow: auto hidden;
+  padding: 4px 4px 0 0;
+}
+.ask-attached-tile {
+  position: relative;
+  flex: none;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+}
+.ask-attached-pic,
+.ask-attached-unseen {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.ask-attached-unseen {
+  overflow: hidden;
+  padding: 4px;
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ask-attached-tile.sending .ask-attached-pic,
+.ask-attached-tile.sending .ask-attached-unseen {
+  opacity: 0.45;
+}
+.ask-attached-tile.failed {
+  outline: 2px solid var(--danger);
+}
+.ask-attached-tile .ask-attached-away {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-circle);
+  background: var(--ink);
+  color: var(--bg);
+}
+/* A thumb's reach around the small mark, which never holds the row's scroll up. */
+.ask-attached-away::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+@media (hover: hover) {
+  .ask-attached-away:hover {
+    color: var(--bg);
+  }
+}
+.ask-attached-why {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
 }
 .ask-stage-row {
   display: flex;
@@ -175,6 +256,10 @@ body.ask-open .tb-ask .tb-ask-face {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Inside its chip's height: the touch floor for buttons (mobile.css, `html.legacy-on button`) stood it over the chip. */
+.ask-scope .ask-scope-clear {
+  min-height: 0;
 }
 /* The delete question sits under the middle, over the foot. */
 .ask-line .ask-confirm {
@@ -1273,6 +1358,43 @@ body.ask-open .tb-ask .tb-ask-face {
   padding-top: 14px;
 }
 /* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
+/* What a question came with, over its words, on the same edge. */
+.ask-q-files {
+  align-self: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 80%;
+  margin: 0 16px 6px 56px;
+}
+.ask-q-file {
+  display: block;
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--bg-active);
+}
+.ask-q-file:only-child {
+  width: 200px;
+  height: 200px;
+}
+.ask-q-file img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ask-q-file-unseen {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
 .ask-q {
   align-self: flex-end;
   max-width: 80%;
@@ -1677,9 +1799,14 @@ body.ask-open .tb-ask .tb-ask-face {
     font-size: var(--field-text-touch);
     min-height: 44px;
   }
-  .ask-send {
+  .ask-send,
+  .ask-attach {
     width: 36px;
     height: 36px;
+  }
+  /* Beside the + and the one button, the chip leaves the words their room. */
+  .ask-scope {
+    max-width: 110px;
   }
   .ask-row {
     min-height: 48px;

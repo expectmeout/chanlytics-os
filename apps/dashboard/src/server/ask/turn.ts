@@ -5,6 +5,7 @@ import {
   MIN_MS,
   answerText,
   detectLanguage,
+  fileSaidOf,
   filesLineOf,
   nextNotAsked,
   policyClassOffered,
@@ -27,6 +28,7 @@ import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { filesForAsk } from "../readers/files";
 import { memberViews } from "../readers/notifications";
+import { attachedNow, NO_WORDS, type AttachedFile } from "./attached";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
 import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
 import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";
@@ -63,6 +65,8 @@ interface AskTurnAsk {
   language?: AskLanguage;
   /** What the mornings offered lately (decision 0087, contracts latelySaid): a morning's alone, said in the turn's words. */
   lately?: string;
+  /** The ids of the files the question came with: the Line's. One that is not there for the person is left out. */
+  files?: readonly string[];
 }
 
 /** A line the turn's door sends: the thread first, then the turn's own events. */
@@ -83,6 +87,7 @@ interface PreparedTurn {
   ask: AskTurnAsk;
   thread: { id: string; title: string; scope: AskScope | null };
   scope: AskScope | null;
+  attached: AttachedFile[];
   earlier: Pick<TurnInput, "history" | "sinceLastMs" | "chain" | "told" | "cited" | "waiting">;
   /** The thread's turns' cards before this one (memory.ts threadForTurn): what a new search card sets aside. */
   cards: Array<Pick<AskMessageVM, "id" | "proposals">>;
@@ -137,13 +142,30 @@ const BUSY_WORDS = {
   es: "Ask todavía está respondiendo tu última pregunta aquí. Pregunta de nuevo en un momento.",
 };
 
+/** The files a question names that are there for the person, in the order they were attached. */
+async function filesAsked(ctx: RouteContext, tenantId: string, ids: readonly string[]): Promise<AttachedFile[]> {
+  if (ids.length === 0) return [];
+  const found = await attachedNow(ctx, tenantId, ids);
+  return ids.flatMap((id) => found.get(id) ?? []);
+}
+
 export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: AskTurnAsk): Promise<PreparedTurn> {
   const { text, threadId, answering } = ask;
   const tenantId = member.tenantId;
 
+  // What it came with, as those files are now, before anything is kept: a question of no words needs one that is there.
+  const attached = await filesAsked(ctx, tenantId, ask.files ?? []);
+  if (!text && attached.length === 0) throw new AppError("validation", "Ask something.");
+
   // The thread, before anything else: a question that could not be saved is
-  // not answered, so a person never sees an answer they cannot find again.
-  const asked = { tenantId, threadId, text, scope: ask.scope, answering };
+  // not answered, so a person never sees an answer they cannot find again. One of no words is titled by what it came with.
+  const asked = {
+    tenantId,
+    threadId,
+    text: text || fileSaidOf(attached[0]?.name ?? ""),
+    scope: ask.scope,
+    answering,
+  };
   let kept = await threadForTurn(ctx, asked);
   // A question asked while the thread's last one is still being answered (another tab, or a question sent the moment
   // after a Stop, before the stopped turn is saved) waits for that answer, so the thread is stored question, answer,
@@ -157,7 +179,11 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
   }
   // The thread's earlier turns: their lines, what they told and cited, the time since, and the chain while warm.
   const { thread, scope, offered, cards, ...earlier } = kept;
-  await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
+  await appendMessage(ctx, thread.id, tenantId, "user", {
+    text,
+    ...(attached.length ? { files: attached.map((f) => f.id) } : {}),
+    ...(answering ? { answering } : {}),
+  });
 
   // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
   // the same person does not read them again. The GET routes keep nothing.
@@ -172,9 +198,10 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     ask,
     thread,
     scope,
+    attached,
     earlier,
     cards,
-    offered: [...offered, text],
+    offered: text ? [...offered, text] : offered,
     rc,
     facts,
     timezone,
@@ -236,6 +263,7 @@ export async function finishAskTurn(
     ask,
     thread: turn,
     scope,
+    attached,
     earlier,
     cards,
     offered,
@@ -265,7 +293,8 @@ export async function finishAskTurn(
     scope,
     surface,
     ...earlier,
-    text: askTurnText(text, answering),
+    text: askTurnText(text, answering) || NO_WORDS[language === "es" ? "es" : "en"],
+    attached,
     openedMs,
     context,
     spoken: ask.spoken ?? false,

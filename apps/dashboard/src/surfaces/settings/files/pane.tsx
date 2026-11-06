@@ -35,18 +35,13 @@ import { Notice } from "../../kit/notice/notice";
 import { Press } from "../../kit/press";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Segmented } from "../../kit/segmented/segmented";
-import { doAsked } from "../../kit/sheet/back";
-import { canDo, gate, gateTitle, refreshSurface, type LegacyFlash } from "../../legacy-verbs";
+import { afterSheetCloses, doAsked } from "../../kit/sheet/back";
+import { askAbout, canDo, gate, gateTitle, refreshSurface, type LegacyFlash } from "../../legacy-verbs";
+import { Icon } from "../../kit/icon/icon";
 import { useSurface } from "../../use-surface";
 import { addPhotos, clearSaid, takeAway, tryAgain, tryAll, useSending, type SendingPhoto } from "./sending";
-import { fileVerbs, type FileChange } from "./verbs";
+import { FILE_PICKS, fileVerbs, type FileChange } from "./verbs";
 import "./files.css";
-
-/**
- * What the picker offers, a HEIC by its name too. Asked for only JPEG, a phone converts by itself; what an iPhone hands over
- * when asked for HEIC as well is what the first real uploads will show, and the server takes either.
- */
-const PICKS = "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
 
 /** A picture where it can be drawn. One Storage can't draw keeps its ground and says its name, never a broken glyph. */
 function Picture({ src, alt, name, big = false }: { src: string; alt: string; name: string; big?: boolean }) {
@@ -176,7 +171,7 @@ interface SheetPress {
 }
 
 /** The sheet's foot: where it stands in the pile, its original, and Delete behind a question. A reader has the original alone. */
-function FileActs({ file, may, busy, say, remove }: SheetPress & { remove: () => void }) {
+function FileActs({ file, may, busy, say, remove, ask }: SheetPress & { remove: () => void; ask: () => void }) {
   const [asking, setAsking] = useState(false);
   if (asking)
     return (
@@ -197,14 +192,22 @@ function FileActs({ file, may, busy, say, remove }: SheetPress & { remove: () =>
       {W.download}
     </Button>
   );
+  const askAboutIt = (
+    <Button variant="quiet" onClick={ask} data-testid="fl-ask">
+      <Icon name="three" size={13} />
+      {W.askAbout}
+    </Button>
+  );
   if (!may)
     return (
       <div className="files-acts" data-foot-acts="">
+        {askAboutIt}
         {download}
       </div>
     );
   return (
     <div className="files-acts" data-foot-acts="">
+      {askAboutIt}
       {file.status === "inbox" && (
         <Button onClick={() => say({ status: "filed" })} disabled={busy} data-testid="fl-keep">
           {W.keep}
@@ -361,6 +364,8 @@ function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => voi
   const press: SheetPress = { file, may, busy, say };
   const says = lookSaysOf(file);
   const said = fileSaidOf(file.name);
+  // The sheet goes as Ask comes, "this photo" the one it held: the picture is in the turn, and the chip says which.
+  const ask = () => afterSheetCloses(onClose, () => askAbout({ about: { kind: "file", id: file.id, label: said } }));
   return (
     <RecordSheet
       id="file"
@@ -369,7 +374,7 @@ function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => voi
       closeLabel={W.close}
       backCloses={`file:${file.id}`}
       testid="fl-sheet"
-      foot={<FileActs {...press} remove={() => void remove()} />}
+      foot={<FileActs {...press} remove={() => void remove()} ask={ask} />}
     >
       <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
       {says && <p className="files-says">{says}</p>}
@@ -535,7 +540,7 @@ export function PaneFiles({ flash }: { flash: (f: LegacyFlash) => void }) {
           </span>
         )}
       </div>
-      <input ref={picker} type="file" accept={PICKS} multiple hidden onChange={chosen} data-testid="fl-picker" />
+      <input ref={picker} type="file" accept={FILE_PICKS} multiple hidden onChange={chosen} data-testid="fl-picker" />
       {sending.said && (
         <Notice
           label={sending.said}

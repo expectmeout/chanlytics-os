@@ -2,6 +2,7 @@ import "server-only";
 import { fenced, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
 import type { GatewayBlockStart } from "./sse";
+import { openedPicture, pictureBlocks } from "./tools/context";
 import { log } from "@/server/log";
 
 /**
@@ -260,13 +261,7 @@ export interface CallOutcome {
 function resultContent(out: CallOutcome["out"]): unknown {
   const words = fenced("record", out.result);
   if (!out.pictures?.length) return words;
-  return [
-    { type: "text", text: words },
-    ...out.pictures.flatMap((p) => [
-      { type: "text", text: `The file ${p.name}:` },
-      { type: "image", source: { type: "file", file_id: p.fileId } },
-    ]),
-  ];
+  return [{ type: "text", text: words }, ...pictureBlocks(out.pictures.map(openedPicture))];
 }
 
 /**
