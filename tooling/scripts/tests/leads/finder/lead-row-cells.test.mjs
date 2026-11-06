@@ -264,8 +264,13 @@ const menuPage = (over = {}) => {
 const switchesIn = (menu) => menu.groups.flatMap((g) => g.toggles?.items ?? []);
 const itemsIn = (menu) => menu.groups.flatMap((g) => g.items ?? []);
 
-test("Stage's first press walks what needs you first", () => {
-  assert.deepEqual(LEAD_COLUMNS.find((c) => c.key === "stage").sort, { first: "asc" });
+test("a heading's first press puts first what a member sorts by it for", () => {
+  // In the read's words: A to Z, what needs you, the best rated, the best fit, the nearest. Found's `desc` is the newest, as
+  // the page says a date (surface.ts readDir walks its key the other way; leads-bridge.test.mjs runs it).
+  assert.deepEqual(
+    Object.fromEntries(LEAD_COLUMNS.filter((c) => c.sort && !c.hidden).map((c) => [c.key, c.sort.first])),
+    { business: "asc", stage: "asc", rating: "desc", found: "desc", fit: "asc", distance: "asc" },
+  );
 });
 
 test("Stage's menu holds three switches with the view's counts and Hide column; Reach's the two the Filter held", () => {

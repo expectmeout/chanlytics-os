@@ -214,7 +214,6 @@ const reachCell = (l: LeadRowVM, x: LeadCellCtx) => (
   </td>
 );
 
-/** Every one of Leads' sorts is the server's (leads_page): a first press goes the most first, as it always went. */
 /**
  * How many rated, under the score: the count, then its noun apart (contracts' words open on the count: "1,284
  * reviews"), so a table at its compact height keeps the number whole and lets the noun go, the heading being Rated.
@@ -230,13 +229,14 @@ const ratedSub = (rated: NonNullable<LeadRowVM["rated"]>) =>
     rated.reviews
   );
 
-const BY_SERVER = { first: "desc" } as const;
-
+// Every one of Leads' sorts is the server's (leads_page). A first press puts first what a member sorts by that column
+// for: A to Z, the queue, the best rated, the newest, the best fit, the nearest. They all went "the most first", so a press
+// on Business read Z to A, on Fit the long shots, and on Distance the leads with none (6 Nov 2026).
 export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[] = [
   {
     key: "business",
     label: "Business",
-    sort: BY_SERVER,
+    sort: { first: "asc" },
     fill: true,
     // Its own width while Stage takes the room, and its least before the table scrolls sideways (kit/table/widths.ts).
     width: { base: 344, min: 264, max: 640 },
@@ -264,7 +264,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "rating",
     label: "Rated",
-    sort: BY_SERVER,
+    sort: { first: "desc" },
     align: "end",
     width: { base: 92, min: 76 },
     cell: (l) => (
@@ -284,7 +284,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "found",
     label: "Found",
-    sort: BY_SERVER,
+    sort: { first: "desc" },
     align: "end",
     width: { base: 72, min: 56 },
     cell: (l) => (
@@ -313,7 +313,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "fit",
     label: "Fit",
-    sort: BY_SERVER,
+    sort: { first: "asc" },
     // The band's fit (D5) is a filter on this column, which the read narrows by (00500 lead_matches).
     width: { base: 100, min: 84 },
     on: false,
@@ -337,7 +337,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
   {
     key: "distance",
     label: "Distance",
-    sort: BY_SERVER,
+    sort: { first: "asc" },
     width: { base: 104, min: 88 },
     needs: (x) => !!x.hasCenter,
     on: false,
