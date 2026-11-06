@@ -11,6 +11,7 @@ import { useCode } from "@/lib/use-code";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../legacy-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
@@ -63,7 +64,7 @@ function WeekLine() {
   if (period)
     return (
       <a className="tz-week" {...routeDoor(period.to)} data-testid="today-period">
-        <span>{period.text}</span>
+        <span {...SAYS_WHEN}>{period.text}</span>
         <Icon name="chevron" size={11} />
       </a>
     );
@@ -123,7 +124,7 @@ export function PhonePins() {
 /** The page says it is done: on a phone the last thing above the tab bar. */
 export function TodayEnd() {
   return (
-    <p className="tz-end" data-testid="today-end">
+    <p className="tz-end" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />
       {P.end}
     </p>

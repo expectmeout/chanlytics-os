@@ -32,12 +32,18 @@ import { getActiveWorkspace, routeOnScreen } from "./workspace";
 import { drawsTheScreen } from "./surface-registry";
 import { SURFACE_SHAPES } from "./surfaces/shapes.generated";
 import { publicEnv } from "@/lib/public-env";
-import { DAY_MS, FIRST_ROWS_OLDEST_MS, FIRST_ROWS_SLOT } from "@chanlytics/contracts";
+import {
+  clearKept,
+  deviceSealed,
+  dropExpiredKept,
+  sealDevice,
+  slotsKept,
+  SURFACES_SLOT,
+} from "@/client/kept-on-device";
+import { DAY_MS } from "@chanlytics/contracts";
 
-// Storage slot names (not a credential — the secret scanner reads "KEY" as one): one per workspace, by the address's word.
-const CACHE_PREFIX = "chanlytics.surfaces.v2:";
-/** The slot of the workspace the address names; the home's own where it names none. */
-const slotName = (): string => `${CACHE_PREFIX}${getActiveWorkspace() ?? "-"}`;
+/** The slot of the workspace the address names, one per workspace by the address's word; the home's own where it names none. */
+const slotName = (): string => `${SURFACES_SLOT}${getActiveWorkspace() ?? "-"}`;
 /** The oldest snapshot drawn: a day. Older, the page waits for its reads as a first visit does. */
 const MAX_AGE_MS = DAY_MS;
 
@@ -194,19 +200,9 @@ function setSlot(raw: string): void {
   try {
     local.setItem(name, raw);
   } catch {
-    for (const other of slotsOf(local)) if (other !== name) local.removeItem(other);
+    for (const other of slotsKept(local, SURFACES_SLOT)) if (other !== name) local.removeItem(other);
     local.setItem(name, raw);
   }
-}
-
-/** Every workspace's slot this browser holds, or every copy of a phone's first screen (contracts shell/first-rows.ts). */
-function slotsOf(local: Storage, prefix: string = CACHE_PREFIX): string[] {
-  const names: string[] = [];
-  for (let i = 0; i < local.length; i++) {
-    const name = local.key(i);
-    if (name?.startsWith(prefix)) names.push(name);
-  }
-  return names;
 }
 
 /** What this tab has cached and not written yet: the freshest copy, so every read here looks at it first. */
@@ -214,13 +210,6 @@ let pending: CacheBlob | null = null;
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
 let waitingSince = 0;
 let hideHeard = false;
-/**
- * Signing out closed the cache: nothing this page reads from now on is kept. A sign-out clears the rows and then posts
- * the form, inside the app after up to two seconds for the phone to be forgotten, while the runner still runs; a read
- * landing in between was written back by the next snapshot, and the next person to sign in on that tab was painted the
- * last one's rows before the tenant guard could look (defect 52). Closed for the page's life: a sign-out leaves it.
- */
-let sealed = false;
 
 function current(): CacheBlob | null {
   return pending ?? readCacheBlob();
@@ -255,7 +244,7 @@ export function flushSurfaceCache(): void {
 }
 
 function keep(blob: CacheBlob): void {
-  if (sealed) return;
+  if (deviceSealed()) return;
   const now = Date.now();
   if (!pending) waitingSince = now;
   pending = blob;
@@ -284,28 +273,11 @@ function flushWhenIdle(): void {
   else flushSurfaceCache();
 }
 
-/** When a slot was written, read from its head alone: `savedAt` is written second, so a slot of 2 MB is never parsed for it. */
-const SAVED_AT = /"savedAt":(\d+)/;
-/** When a copy of a phone's first screen was kept: `at` is written first, for this (contracts KeptFirstRows). */
-const KEPT_AT = /"at":(\d+)/;
-
-/**
- * Every workspace's slot past its day, removed: never drawn (MAX_AGE_MS), and it held a workspace's messages on the device
- * until the next sign-in cleared it (the page-open PRD, N8). A slot whose head says no time is not ours to judge, and stays.
- * And every copy of a phone's first screen past its own day, which holds the same words.
- */
+/** Every slot past its age removed (client/kept-on-device.ts), every workspace's, as a load begins. */
 export function dropExpiredSlots(now: number = Date.now()): void {
   try {
     const local = cacheStore();
-    if (!local) return;
-    for (const name of slotsOf(local)) {
-      const at = SAVED_AT.exec(local.getItem(name)?.slice(0, 200) ?? "")?.[1];
-      if (at !== undefined && now - Number(at) >= MAX_AGE_MS) local.removeItem(name);
-    }
-    for (const name of slotsOf(local, FIRST_ROWS_SLOT)) {
-      const at = KEPT_AT.exec(local.getItem(name)?.slice(0, 40) ?? "")?.[1];
-      if (at !== undefined && now - Number(at) >= FIRST_ROWS_OLDEST_MS) local.removeItem(name);
-    }
+    if (local) dropExpiredKept(local, now);
   } catch {
     /* storage refused: nothing kept to drop */
   }
@@ -369,7 +341,7 @@ export function snapshotSurface(
   trim?: (snap: Record<string, unknown>) => Record<string, unknown>,
   value?: SurfaceKey,
 ): void {
-  if ((!globals.length && !value) || sealed) return;
+  if ((!globals.length && !value) || deviceSealed()) return;
   const kept = current();
   // Rows join only a cache of the same workspace, by both its names: the address's, and the one the server resolved
   // where both have said it. Any other cache is another workspace's, and these rows start one of their own.
@@ -398,7 +370,7 @@ export function resnapshotHere(key: string, globals: string[], value?: SurfaceKe
 // Only into an entry already cached for this tenant: a new one could carry no tenant, and the runner's guard skips those.
 export function resnapshotSurface(key: string, globals: string[], tenant: string | null, value?: SurfaceKey): void {
   const blob = current();
-  if (sealed || !ofThisAddress(blob) || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
+  if (deviceSealed() || !ofThisAddress(blob) || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
   const snap = globalsNow(globals);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
@@ -421,12 +393,12 @@ export function clearSurfaceCache(): void {
   pending = null;
   parsedCopy = null;
   try {
-    // Every workspace's rows this browser kept: whoever comes next, signed in again or someone else, starts cold. This
-    // address's by its name too, whatever the store says of its length.
+    // Every workspace's rows this browser kept, and this address's by its name too, whatever the store says of its length.
     const local = cacheStore();
-    if (local)
-      for (const name of new Set([slotName(), ...slotsOf(local), ...slotsOf(local, FIRST_ROWS_SLOT)]))
-        local.removeItem(name);
+    if (local) {
+      local.removeItem(slotName());
+      clearKept(local);
+    }
   } catch {
     /* nothing to clear */
   }
@@ -449,8 +421,5 @@ export function clearSurfaceCache(): void {
  */
 export function sealSurfaceCache(): void {
   clearSurfaceCache();
-  sealed = true;
+  sealDevice();
 }
-
-/** Whether nothing this page reads may be kept any more (sealSurfaceCache): nor what it draws (surfaces/frame/first-rows.ts). */
-export const surfaceCacheSealed = (): boolean => sealed;

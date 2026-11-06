@@ -39,6 +39,7 @@ import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import { Button, Meter } from "../../kit";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../legacy-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
@@ -129,13 +130,15 @@ function dayCells(cells: readonly TodayZoneCellVM[]) {
           {...routeDoor(c.to)}
           data-testid={i === 0 ? "today-day-first" : undefined}
         >
-          <span className="tpd-eyebrow" data-now={c.now || undefined}>
+          <span className="tpd-eyebrow" data-now={c.now || undefined} {...SAYS_WHEN}>
             {c.eyebrow}
           </span>
-          <span className="tpd-when tabular">{c.when}</span>
+          <span className="tpd-when tabular" {...SAYS_WHEN}>
+            {c.when}
+          </span>
           <span className="tpd-what">{c.what}</span>
           {c.fact ? (
-            <span className="tpd-fact" data-testid="today-day-fact">
+            <span className="tpd-fact" data-testid="today-day-fact" {...SAYS_WHEN}>
               {c.fact}
             </span>
           ) : null}
@@ -145,16 +148,28 @@ function dayCells(cells: readonly TodayZoneCellVM[]) {
   );
 }
 
-/** A line's words: its glyph where it has one, its title, and what it says under it. Called, not drawn. */
-function dayLineWords(l: { glyph: string | null; title: string; sub: string }) {
+/**
+ * A line's words: its glyph where it has one, its title, and what it says under it. Called, not drawn. What it says under its
+ * title is a time more often than not; `timed` says the title is too (an hour freed: "Open · 45 min", which may be over by now).
+ */
+function dayLineWords(l: { glyph: string | null; title: string; sub: string }, timed = false) {
   return (
     <>
-      <b>
+      <b {...(timed ? SAYS_WHEN : undefined)}>
         {l.glyph ? <Icon name={l.glyph} size={12} /> : null}
         {l.title}
       </b>
-      <span>{l.sub}</span>
+      <span {...SAYS_WHEN}>{l.sub}</span>
     </>
+  );
+}
+
+/** A line's time, in the column they all stand in. Called, not drawn. */
+function dayLineTime(time: string) {
+  return (
+    <span className="tpd-tm tabular" {...SAYS_WHEN}>
+      {time}
+    </span>
   );
 }
 
@@ -162,12 +177,12 @@ function dayLineWords(l: { glyph: string | null; title: string; sub: string }) {
 function dayLine(l: TodayZoneLineVM) {
   return l.to ? (
     <a key={l.key} className="tpd-li" {...routeDoor(l.to)} data-kind={l.kind}>
-      <span className="tpd-tm tabular">{l.time}</span>
+      {dayLineTime(l.time)}
       <span className="tpd-tx">{dayLineWords(l)}</span>
     </a>
   ) : (
     <div key={l.key} className="tpd-li" data-kind={l.kind} data-open={l.open || undefined}>
-      <span className="tpd-tm tabular">{l.time}</span>
+      {dayLineTime(l.time)}
       <span className="tpd-tx">{dayLineWords(l)}</span>
     </div>
   );
@@ -209,8 +224,8 @@ function OpenLine({ line, onOffered }: { line: TodayZoneLineVM; onOffered: (visi
   const sub = said ? (said.ok ? offeredWords(said) : said.why) : line.sub;
   return (
     <div className="tpd-li" data-kind="open" data-open="true" data-testid="today-day-open">
-      <span className="tpd-tm tabular">{line.time}</span>
-      <span className="tpd-tx">{dayLineWords({ ...line, sub })}</span>
+      {dayLineTime(line.time)}
+      <span className="tpd-tx">{dayLineWords({ ...line, sub }, true)}</span>
       {line.freed && !said?.ok ? (
         <Button
           variant="secondary"
@@ -238,7 +253,7 @@ function wentOutRow({ run, at }: WentOut) {
       {...routeDoor(runRoute(run.id, run.sequence_id))}
       data-testid="today-day-went"
     >
-      <span className="tpd-tm tabular">{at}</span>
+      {dayLineTime(at)}
       <span className="tpd-tx">
         {dayLineWords({
           glyph: "check",
@@ -269,7 +284,7 @@ function SendRow({
   const stopWords = runStopWords("scheduled");
   return (
     <div className="tpd-li" data-testid="today-day-send">
-      <span className="tpd-tm tabular">{clock ? clock.time(g.atMs) : ""}</span>
+      {dayLineTime(clock ? clock.time(g.atMs) : "")}
       {/* Its words open its run, over Today, as Going today's row did. */}
       <a className="tpd-tx" {...routeDoor(g.to)} data-testid="today-day-send-open">
         {dayLineWords({ glyph: "bolt", title: g.name, sub: g.sentence })}
@@ -330,7 +345,11 @@ function dayHead(title: string, note: string) {
       <h2 className="tpd-title" id="today-day-title">
         {title}
       </h2>
-      {note ? <span className="tpd-note">{note}</span> : null}
+      {note ? (
+        <span className="tpd-note" {...SAYS_WHEN}>
+          {note}
+        </span>
+      ) : null}
       <a className="tpd-door" {...routeDoor("calendar")}>
         {P.calendar}
         <Icon name="chevron" size={12} />
@@ -420,6 +439,7 @@ function dayBar(zone: TodayZoneDayVM, clock: ReturnType<typeof workspaceClock>) 
       aria-label={[zone.note, bar.now !== null && clock ? `now ${clock.time(Date.now())}` : ""]
         .filter(Boolean)
         .join("; ")}
+      {...(bar.now === null ? {} : SAYS_WHEN)}
     />
   );
 }

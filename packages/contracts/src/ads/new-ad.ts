@@ -9,7 +9,18 @@
  */
 import { appointmentWords } from "../journey/appointment-word";
 import type { AppointmentWord } from "../journey/appointment-word";
-import type { AdBudget, AdCopy, AdDoor, AdMedia, AdPlatform, AdRead, AdTheirs, AdsConfig, AdsRead } from "./ads";
+import type {
+  AdBudget,
+  AdCopy,
+  AdDoor,
+  AdFilePick,
+  AdMedia,
+  AdPlatform,
+  AdRead,
+  AdTheirs,
+  AdsConfig,
+  AdsRead,
+} from "./ads";
 import { addDays } from "./ads";
 import { ADS_DEFAULT_CURRENCY, currencySymbol, moneyOf, perDayOf } from "./money";
 import { adModel } from "./drawer";
@@ -43,6 +54,7 @@ import {
   platformsFor,
   sentenceParts,
   smallestPreset,
+  filePickOf,
 } from "./vm-base";
 import type { DoorVM, SentencePart, StandRowVM } from "./vm-base";
 import { PLATFORM_OWNER, REVIEW_WITHIN, dayShort, dayWord } from "./words";
@@ -60,6 +72,8 @@ export interface AdDraft {
   serviceId: string;
   /** The post the ad is made from, or null for a photo (or a video) of the owner's own. */
   postId: string | null;
+  /** The picture from Files it shows, where it shows a photo and no post; null for none picked yet. */
+  file: AdFilePick | null;
   postMode: "as-is" | "new-words";
   /** Meta: a photo, or a vertical video for Reels and Stories. TikTok's is always a video; Google's shows neither. */
   format: "photo" | "video";
@@ -114,6 +128,7 @@ function baseDraft(read: AdsRead): AdDraft {
     platform,
     serviceId: read.services.at(0)?.id ?? "",
     postId: post ? post.id : null,
+    file: null,
     postMode: "as-is",
     format,
     areaMiles: ADS_DEFAULT_MILES,
@@ -170,6 +185,7 @@ export function newAdFrom(ad: AdRead, how: "copy" | "again" | "google", read: Ad
     platform,
     serviceId: service ? service.id : base.serviceId,
     postId,
+    file: !onGoogle && ad.media.kind === "file" ? filePickOf(ad.media) : null,
     format: onGoogle ? "photo" : formatOf(ad, platform, read),
     areaMiles: milesOf(ad, base.areaMiles),
     mode: onGoogle ? "total" : ad.budget.mode,
@@ -198,7 +214,8 @@ export function starterCopy(o: {
 }): AdCopy {
   const { service, price, business, door } = o;
   const w = appointmentWords(o.word);
-  const priced = `${service}, ${price}`;
+  // A Service with no price note says its name alone.
+  const priced = price ? `${service}, ${price}` : service;
   const text: Record<AdDoor, string> = {
     whatsapp: `Book your first ${w.one} at ${business.name}. Message us on WhatsApp and we'll send you open times.`,
     call: `Call ${business.name} and we'll go through the open times.`,
@@ -275,7 +292,8 @@ function noTheirs(platform: AdPlatform): AdTheirs {
 function mediaOf(draft: AdDraft): AdMedia {
   if (draft.platform === "google") return { kind: "none" };
   if (draft.postId !== null) return { kind: "post", postId: draft.postId };
-  return draft.format === "video" ? { kind: "video", label: "", vertical: true } : { kind: "photo", label: "" };
+  if (draft.format === "video") return { kind: "video", label: "", vertical: true };
+  return draft.file ? { kind: "file", ...draft.file } : { kind: "photo", label: "" };
 }
 
 /**

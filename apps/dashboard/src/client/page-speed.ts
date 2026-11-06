@@ -99,9 +99,22 @@ export function partBegins(begun: PartBegun): void {
   speedInstalled.speed.partBegins(begun, speedInstalled.inputAt(performance.now()));
 }
 
-/** A part's rows are drawn (usePartShown). */
+/** Who hears a part's rows drawn, beside the measures (hearPartReady). */
+const partHeard = new Set<(page: string, part: string) => void>();
+
+/**
+ * Hear each part's rows drawn, in the very draw that puts them on the screen: what stands in for a page until its rows are there
+ * goes by it (surfaces/frame/first-rows.ts), so the measures need know nothing of it. Answers the stop.
+ */
+export function hearPartReady(fn: (page: string, part: string) => void): () => void {
+  partHeard.add(fn);
+  return () => void partHeard.delete(fn);
+}
+
+/** A part's rows are drawn (usePartShown): said to the measures, where they are installed, and to whoever hears it. */
 export function partReady(page: string, part: string, key: string): void {
   speedInstalled?.speed.partReady(page, part, key);
+  for (const fn of partHeard) fn(page, part);
 }
 
 /**

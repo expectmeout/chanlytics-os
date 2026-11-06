@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { shiftKey, toCalendarVM } from "@chanlytics/contracts";
 import { all, byTestId, classes, textOf } from "../_legacy-react.mjs";
+import { unmarkedTimes } from "../shell/views/_unmarked-times.mjs";
 import { NOW, W, ZONE, dayWith, draw } from "./_world.mjs";
 
 const { DayZone } = await import("../../../../apps/dashboard/src/surfaces/today/zones/day.tsx");
@@ -18,13 +19,13 @@ const fri = (hh, mm = 0) => new Date(Date.UTC(2026, 8, 18, hh + 4, mm)).toISOStr
 const ROSA = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
 
 /** A visit on Friday, half an hour from `hh:mm`. */
-const visit = (id, name, hh, mm) => ({
+const visit = (id, name, hh, mm, facts) => ({
   id: `e-${id}`,
   start: fri(hh, mm),
   end: fri(hh, mm + 30),
   title: `${name} · Cut`,
   all_day: false,
-  person: { id: `p-${id}`, name },
+  person: { id: `p-${id}`, name, ...(facts ? { facts } : {}) },
 });
 
 /**
@@ -35,7 +36,7 @@ function busyEvening() {
   const from = "2026-09-14";
   const days = Array.from({ length: 7 }, (_, i) => ({ key: shiftKey(from, i), items: [], windows: [] }));
   days[4].items.push(
-    visit("ana", "Ana Reyes", 16, 30),
+    visit("ana", "Ana Reyes", 16, 30, { last_visit_at: "2026-08-18T16:00:00Z" }),
     visit("ben", "Ben Cho", 17, 0),
     visit("cy", "Cy Tran", 17, 30),
     visit("di", "Di Moss", 18, 0),
@@ -93,6 +94,23 @@ test("a busy evening on a desk: Offer it stays among the five lines, the plain v
   assert.equal(linesOf(tree).length, 5, "five lines on a desk");
   assert.ok(!textOf(byTestId(tree, "today-day-rest")).includes("Gus Lee"), "the last plain visit gives up its seat");
   assert.match(textOf(byTestId(tree, "today-day-foot")), /1 more/, "and the foot says it, the Calendar's");
+});
+
+test("every time the day says, says so: a copy some minutes old draws none of them (decision 0101)", () => {
+  const tree = dayOver(busyEvening());
+  assert.match(textOf(byTestId(tree, "today-day-first")), /Last here Aug 18/, "the fixture says a visit's one fact");
+  assert.deepEqual(unmarkedTimes(tree), []);
+});
+
+test("what the day says of now says so too: each cell's word for where it stands, and the bar with now on it", () => {
+  const tree = dayOver(busyEvening());
+  const drawn = (name) => all(tree, (n) => typeof n.type === "string" && classes(n).includes(name));
+  const words = drawn("tpd-eyebrow");
+  assert.ok(words.length > 0, "the fixture draws the two cells");
+  for (const word of words) assert.notEqual(word.props["data-when"], undefined, `"${textOf(word)}" over a blank time`);
+  const [bar] = drawn("tpd-bar");
+  assert.ok(all(bar, (n) => classes(n).includes("meter-mark")).length > 0, "the fixture's bar has now on it");
+  assert.notEqual(bar.props["data-when"], undefined, "now would stand where it stood an hour ago");
 });
 
 test("no calendar linked: the one row that links one, and the day says so", () => {

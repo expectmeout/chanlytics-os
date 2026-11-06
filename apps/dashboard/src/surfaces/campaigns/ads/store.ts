@@ -27,6 +27,7 @@ import type { AdDraft, AdsExample, AskApply, AskVM } from "@chanlytics/contracts
 import type { LegacyFlash } from "../../legacy-verbs";
 import { rememberAdNames } from "./crumb-names";
 import { exampleAt, withAccount } from "./examples";
+import { adsOwnHere } from "./own";
 import { CONFIG, accountChecks } from "./sample";
 
 /** What a verb answers: it worked, and here is its Undo; or it was declined, and here is why in words. */
@@ -241,11 +242,14 @@ function keepExample(example: AdsExample): void {
 /** How long the mock takes to read an account again ("Try again"): a beat, so the page is seen reading before it has read. */
 const READ_AGAIN_MS = 1200;
 
+/** An example as it is drawn right now: of the workspace's own business, in its preview. */
+const exampleNow = (example: AdsExample): AdsRead => exampleAt(example, Date.now(), adsOwnHere());
+
 /** The page's one store: the read of the example chosen, the config, and the verbs. Changing the example resets the read. */
 export function useAdsStore() {
   const [state, setState] = useState<{ example: AdsExample; read: AdsRead }>(() => ({
     example: "running",
-    read: exampleAt("running", Date.now()),
+    read: exampleNow("running"),
   }));
   const latest = useRef(state.read);
   const reading = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,7 +267,7 @@ export function useAdsStore() {
   };
   const select = (example: AdsExample) => {
     stopReading();
-    const read = exampleAt(example, Date.now());
+    const read = exampleNow(example);
     latest.current = read;
     setState({ example, read });
   };
@@ -272,7 +276,7 @@ export function useAdsStore() {
   useEffect(() => {
     const saved = savedExample();
     if (!saved || saved === "running") return;
-    const read = exampleAt(saved, Date.now());
+    const read = exampleNow(saved);
     latest.current = read;
     setState({ example: saved, read });
   }, []);

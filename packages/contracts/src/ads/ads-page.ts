@@ -202,7 +202,7 @@ export { areaOfValue, areaValueOf, editFootOf, editOf, raiseOf, zipIssue } from 
 export type { AmountOption, AreaOption, EditFootVM, EditVM, EndOption, OwnAmount } from "./drawer-edit";
 export { draftAd, newAdDefaults, newAdFrom, newAdModel, newestPostFor, starterCopy } from "./new-ad";
 export type { AdDraft, NewAdVM, PresetVM } from "./new-ad";
-export { adFollowOn } from "./new-ad-parts";
+export { adFileNotes, adFollowOn } from "./new-ad-parts";
 export type { CheckRowVM } from "./new-ad-parts";
 export { adsFactOf, adsResultsOf } from "./results/results";
 export type {

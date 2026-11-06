@@ -27,6 +27,7 @@ import { Button } from "../../kit/button/button";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { Panel } from "../../kit/panel/panel";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../legacy-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
@@ -69,7 +70,7 @@ function sinceRow(r: TodaySinceVM["rows"][number]) {
         <b>{r.title}</b>
         {r.sub ? <span>{r.sub}</span> : null}
       </span>
-      <time>{r.at}</time>
+      <time {...SAYS_WHEN}>{r.at}</time>
     </>
   );
   return r.to ? (
@@ -99,7 +100,7 @@ function SinceLine({ since }: { since: TodaySinceVM }) {
         onClick={() => setOpen(!open)}
         data-testid="today-since"
       >
-        <b>{since.when}</b>
+        <b {...SAYS_WHEN}>{since.when}</b>
         {since.bits.map((b) => (
           <em key={b}>{b}</em>
         ))}

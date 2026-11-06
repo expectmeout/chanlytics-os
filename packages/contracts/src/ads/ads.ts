@@ -56,12 +56,19 @@ export type AdBudget = { mode: "total"; amountMinor: number } | { mode: "daily";
 /** Where it shows: a circle (Meta, Google) or ZIP codes (TikTok). */
 export type AdArea = { kind: "radius"; miles: number } | { kind: "zips"; zips: string[] };
 
-/** What the ad shows: a post as it is, a photo, a video (vertical for Reels and TikTok), or nothing (Google Search). */
+/**
+ * What the ad shows: a post as it is, a photo, a picture from the business's Files (one it kept, or a post Ask made, decision 0099),
+ * a video (vertical for Reels and TikTok), or nothing (Google Search).
+ */
 export type AdMedia =
   | { kind: "post"; postId: string }
   | { kind: "photo"; label: string }
+  | { kind: "file"; fileId: string; name: string; made: boolean }
   | { kind: "video"; label: string; vertical: boolean }
   | { kind: "none" };
+
+/** A picture picked from the business's Files, as much of it as an ad keeps. */
+export type AdFilePick = Omit<Extract<AdMedia, { kind: "file" }>, "kind">;
 
 /** When it runs: all hours, or only while the business is open (Meta: only with a total). */
 export type AdSchedule = "always" | "open-hours";
