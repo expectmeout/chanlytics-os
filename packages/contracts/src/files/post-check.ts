@@ -17,7 +17,7 @@ export const postBandOf = (phone: string, language: "en" | "es"): string =>
   `${language === "es" ? "Reserva" : "Book"} · ${phone}`;
 
 /** What the bundled fonts can draw: Western Latin, its punctuation, and the euro. No emoji. */
-const DRAWABLE = /^[ -~ -ÿ–—‘’“”•…€™]*$/;
+const DRAWABLE = /^[\u0020-\u007E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026\u20AC\u2122]*$/;
 const CONTACT = /https?:|www\.|@|\b[\w-]+\.(?:com|net|org|io|co|us|app|salon|shop)\b/i;
 /** A run this long is a phone number, which the band says instead. */
 const LONG_NUMBER = /\d[\d\s().-]{6,}\d/;
@@ -59,15 +59,13 @@ export function postWordsProblem(words: string, owner: string, limit: number): s
   if (namesMoney(text) && !namesMoney(owner))
     return "it offers money (a discount, a deposit, a payment term) the owner has not offered. Use their words, or ask them";
   const promise = PROMISES.find((p) => p.test(text) && !p.test(owner));
-  if (promise) return `it makes a promise the owner has not made ("${promise.exec(text)?.[0]}"). Use their words, or ask them`;
+  if (promise)
+    return `it makes a promise the owner has not made ("${promise.exec(text)?.[0]}"). Use their words, or ask them`;
   return null;
 }
 
 /** The first problem with a plan's words, naming the part it is in, or null. */
-export function postPlanProblem(
-  plan: Pick<PostPlan, "line" | "over" | "under">,
-  owner: string,
-): string | null {
+export function postPlanProblem(plan: Pick<PostPlan, "line" | "over" | "under">, owner: string): string | null {
   const parts = [
     ["line", plan.line, POST_LIMITS.line],
     ["over", plan.over, POST_LIMITS.over],
@@ -82,11 +80,7 @@ export function postPlanProblem(
 }
 
 /** What a file needs before a post is made from it, in a sentence for the model, or null. */
-export function postPhotoProblem(f: {
-  status: string;
-  source: string;
-  shows: string | null;
-}): string | null {
+export function postPhotoProblem(f: { status: string; source: string; shows: string | null }): string | null {
   if (f.source === "made") return "that is a post Ask already made, with its words on it. Use the photo it came from";
   if (f.status !== "filed") return "it waits in the Inbox or was set aside: it is the owner's to keep first";
   if (f.shows === "graphic" || f.shows === "logo") return "it already has words or a design on it, so more would clash";

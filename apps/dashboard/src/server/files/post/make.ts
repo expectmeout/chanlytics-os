@@ -191,9 +191,9 @@ export async function makePost(
   const [portrait, square, story] = await Promise.all(POST_SHAPES.map((shape) => drawn(plan, material, shape)));
   const id = randomUUID();
   await storeShapes(member.tenantId, id, {
-    portrait: portrait as Buffer,
-    square: square as Buffer,
-    story: story as Buffer,
+    portrait: portrait,
+    square: square,
+    story: story,
   });
   const look = recordOrNull(file.look);
   // Nothing else would ever let these bytes go: no row names them until the door answers.
@@ -201,8 +201,8 @@ export async function makePost(
     tenantId: member.tenantId,
     id,
     name: fileNameOf(plan.line, 5) || "post",
-    bytes: (portrait as Buffer).length,
-    fingerprint: fileFingerprintOf((portrait as Buffer).subarray(0, FINGERPRINT_BYTES), (portrait as Buffer).length),
+    bytes: portrait.length,
+    fingerprint: fileFingerprintOf(portrait.subarray(0, FINGERPRINT_BYTES), portrait.length),
     width: POST_SIZES.portrait.width,
     height: POST_SIZES.portrait.height,
     look: {
