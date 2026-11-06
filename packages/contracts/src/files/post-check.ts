@@ -5,7 +5,14 @@
  */
 import { namesMoney, priceBreach, priceFigures } from "../config/policy";
 import { fileFolderOf } from "./files";
-import { POST_LIMITS, type PostPlan, type PostShapeName } from "./post";
+import {
+  POST_LIMITS,
+  postPhotoWont,
+  type PostPhotoWont,
+  type PostPlan,
+  type PostShapeName,
+  type PostUndrawable,
+} from "./post";
 
 /** Where a shape of a made file is kept: portrait is the file's original, the others stand beside it. */
 export function postPathOf(tenantId: string, fileId: string, shape: PostShapeName): string {
@@ -39,6 +46,24 @@ const PROMISES: readonly RegExp[] = [
 
 const numbersIn = (s: string): string[] => s.match(/\d+(?:[.,]\d+)?/g) ?? [];
 
+/** Why these words can't go on a picture, whoever wrote them, or null. */
+export function postUndrawable(words: string, limit: number): PostUndrawable | null {
+  const text = words.trim();
+  if (Array.from(text).length > limit) return "long";
+  if (!DRAWABLE.test(text)) return "character";
+  if (POST_CONTACT.test(text)) return "contact";
+  if (LONG_NUMBER.test(text)) return "number";
+  return null;
+}
+
+/** The same, said to the model, which can do something about it. */
+const UNDRAWABLE_TO_MODEL: Readonly<Record<PostUndrawable, (limit: number) => string>> = {
+  long: (limit) => `it is over ${limit} characters, too long to read on a phone`,
+  character: () => "it holds a character the post's fonts cannot draw, such as an emoji",
+  contact: () => "a link, an email or a handle does not go in the words",
+  number: () => "a phone number does not go in the words: set book to true and code adds theirs",
+};
+
 /**
  * What is wrong with some words a post would say, in a sentence for the model, or null. `owner` is what the owner has said: their
  * questions in this thread and what they wrote in Settings. Nothing is a stranger's word here: not what a customer wrote, a
@@ -47,10 +72,8 @@ const numbersIn = (s: string): string[] => s.match(/\d+(?:[.,]\d+)?/g) ?? [];
 export function postWordsProblem(words: string, owner: string, limit: number): string | null {
   const text = words.trim();
   if (!text) return "it is empty";
-  if (Array.from(text).length > limit) return `it is over ${limit} characters, too long to read on a phone`;
-  if (!DRAWABLE.test(text)) return "it holds a character the post's fonts cannot draw, such as an emoji";
-  if (POST_CONTACT.test(text)) return "a link, an email or a handle does not go in the words";
-  if (LONG_NUMBER.test(text)) return "a phone number does not go in the words: set book to true and code adds theirs";
+  const undrawable = postUndrawable(text, limit);
+  if (undrawable) return UNDRAWABLE_TO_MODEL[undrawable](limit);
   if (priceBreach(text, new Set(priceFigures(owner))))
     return "it names a price or a share the owner has not said. Use their figure, or ask them";
   const said = new Set(numbersIn(owner));
@@ -79,10 +102,14 @@ export function postPlanProblem(plan: Pick<PostPlan, "line" | "over" | "under">,
   return null;
 }
 
+const PHOTO_WONT_TO_MODEL: Readonly<Record<PostPhotoWont, string>> = {
+  made: "that is a post Ask already made, with its words on it. Use the photo it came from",
+  unkept: "it waits in the Inbox or was set aside: it is the owner's to keep first",
+  design: "it already has words or a design on it, so more would clash",
+};
+
 /** What a file needs before a post is made from it, in a sentence for the model, or null. */
-export function postPhotoProblem(f: { status: string; source: string; shows: string | null }): string | null {
-  if (f.source === "made") return "that is a post Ask already made, with its words on it. Use the photo it came from";
-  if (f.status !== "filed") return "it waits in the Inbox or was set aside: it is the owner's to keep first";
-  if (f.shows === "graphic" || f.shows === "logo") return "it already has words or a design on it, so more would clash";
-  return null;
+export function postPhotoProblem(f: Parameters<typeof postPhotoWont>[0]): string | null {
+  const wont = postPhotoWont(f);
+  return wont ? PHOTO_WONT_TO_MODEL[wont] : null;
 }

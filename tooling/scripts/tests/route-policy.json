@@ -815,7 +815,7 @@
       "kind": "write",
       "scope": "workspace",
       "role": "partner",
-      "rate": "file_upload",
+      "rate": "file_post_preview",
       "spend": false
     },
     "POST files/post": {

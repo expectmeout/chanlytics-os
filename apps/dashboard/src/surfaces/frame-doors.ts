@@ -24,6 +24,8 @@ import type { GoOptions } from "@/legacy-bridge/workspace";
 /** What Ask is opened with: a question to ask, or to finish with `mode` "compose"; a conversation to open; and the scope its chip opens on. */
 interface AskAbout {
   prompt?: string;
+  /** A question a page words itself, in both languages: the Line asks the one it last spoke, since a press has no words to read one from. */
+  prompts?: Readonly<Record<"en" | "es", string>>;
   mode?: string;
   thread?: string;
   about?: AskScope;
@@ -35,6 +37,10 @@ interface AskAbout {
   links?: Array<{ label: string; to: string }>;
   actions?: Array<{ label: string; run?: () => unknown }>;
 }
+
+/** The words a door asks in: a page's own in the language the Line last spoke, else the one question it was handed. */
+export const askedWords = (d: Pick<AskAbout, "prompt" | "prompts">, language: string): string | undefined =>
+  d.prompts ? d.prompts[language === "es" ? "es" : "en"] : d.prompt;
 
 /**
  * What the frame holds for every page: its own move, its Ask, a person's Back to the People view they were opened from, and

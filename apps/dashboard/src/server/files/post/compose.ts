@@ -2,14 +2,27 @@
  * A post made from a photo, by code (decision 0099, step 3): the seam over the two libraries, so nothing else in the tree imports
  * either. sharp does the pixels; satori lays the words out as paths, which sharp then draws, so no font is needed where the code
  * runs. No model touches a pixel, and it costs nothing, so a card can show the real picture and a change of mind is free.
+ *
+ * Raw pixels go between the steps: an encode between them cost more than any step did (250 ms a picture against 140, measured).
  */
 import { readFile } from "node:fs/promises";
 import satori from "satori";
-import sharp from "sharp";
-import { postCrop, postLayout, SCRIM_UNDER_WORDS, SHADE_AT_MOST, type PostLayoutInput, type PostNode } from "./layout";
+import sharp, { type OutputInfo, type Raw } from "sharp";
+import {
+  postCrop,
+  postLayout,
+  postPhotoBox,
+  SCRIM_UNDER_WORDS,
+  SHADE_AT_MOST,
+  wordsOverPhoto,
+  type PostLayoutInput,
+  type PostNode,
+} from "./layout";
 
 /** How a post leaves here: small enough to send, with no sign of the phone that took the photo. */
 const POST_JPEG_QUALITY = 86;
+/** A picture only looked at while its words change: a third of the time to encode, and the same to the eye on a card. */
+const DRAFT_JPEG_QUALITY = 82;
 /** How soft the photo goes under the words, and how softly that begins. */
 const SOFT_BLUR_PX = 16;
 const SOFT_EDGE_PX = 12;
@@ -46,30 +59,53 @@ export const asPng = (bytes: Buffer): Promise<Buffer | null> =>
 interface PostAsked extends PostLayoutInput {
   photo: Buffer;
   subject: readonly [number, number, number, number] | null;
+  /** Only looked at, while its words change: encoded quickly. What is kept never is. */
+  draft: boolean;
+}
+
+/** Pixels between two steps. */
+type Pixels = { data: Buffer; info: OutputInfo };
+
+const rawOf = ({ info }: Pixels) => ({ raw: { width: info.width, height: info.height, channels: info.channels } });
+
+/** A photo's size as it stands upright: a phone keeps some on their side, with a word saying so. */
+async function uprightSizeOf(photo: Buffer): Promise<{ width: number; height: number }> {
+  const { width, height, orientation } = await sharp(photo).metadata();
+  return (orientation ?? 1) >= 5 ? { width: height, height: width } : { width, height };
 }
 
 /** The post, as a JPEG. */
 export async function composePost(asked: PostAsked): Promise<Buffer> {
-  const { photo, subject, ...layout } = asked;
+  const { photo, subject, draft, ...layout } = asked;
   const { shape, wordsAt } = layout;
-  const upright = await sharp(photo).rotate().toBuffer({ resolveWithObject: true });
-  const crop = postCrop(upright.info, shape, subject, wordsAt);
-  const page = await satori(postLayout(layout) as PostNode & Parameters<typeof satori>[0], {
-    width: shape.width,
-    height: shape.height,
-    fonts: await fontsHeld(),
-  });
-  const fitted = await sharp(upright.data)
-    .extract(crop)
-    .resize(shape.width, shape.height, { fit: "fill" })
-    .removeAlpha()
-    .png()
-    .toBuffer();
-  const layer = await sharp(Buffer.from(page)).png().toBuffer();
-  return sharp(fitted)
-    .composite([{ input: await softenedUnderWords(fitted, layer) }, { input: layer }])
-    .jpeg({ quality: POST_JPEG_QUALITY, mozjpeg: true })
-    .toBuffer();
+  const over = wordsOverPhoto(layout.layout);
+  const place = postPhotoBox(layout);
+  const crop = postCrop(await uprightSizeOf(photo), place, subject, over ? wordsAt : null);
+  const [fitted, page] = await Promise.all([
+    sharp(photo)
+      .rotate()
+      .extract(crop)
+      .resize(place.width, place.height, { fit: "fill" })
+      .toColourspace("srgb")
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true }),
+    satori(postLayout(layout) as PostNode & Parameters<typeof satori>[0], {
+      width: shape.width,
+      height: shape.height,
+      fonts: await fontsHeld(),
+    }),
+  ]);
+  const layer = await sharp(Buffer.from(page)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const words = { input: layer.data, ...rawOf(layer) };
+  // Words over the photo stand on it softened; words beside it leave it sharp, placed on a page they cover the rest of.
+  const drawn = over
+    ? sharp(fitted.data, rawOf(fitted)).composite([{ ...(await softenedLayer(fitted, layer)) }, words])
+    : sharp({ create: { width: shape.width, height: shape.height, channels: 3, background: "#000" } }).composite([
+        { input: fitted.data, ...rawOf(fitted), left: place.left, top: place.top },
+        words,
+      ]);
+  return drawn.jpeg(draft ? { quality: DRAFT_JPEG_QUALITY } : { quality: POST_JPEG_QUALITY, mozjpeg: true }).toBuffer();
 }
 
 /**
@@ -77,13 +113,19 @@ export async function composePost(asked: PostAsked): Promise<Buffer> {
  * copy, seen only through what the layer darkens most. The layer's own alpha says where: the scrim under the words and the words
  * themselves, past the light shade the mark stands in, which it leaves sharp.
  */
-async function softenedUnderWords(fitted: Buffer, layer: Buffer): Promise<Buffer> {
+async function softenedLayer(fitted: Pixels, layer: Pixels): Promise<{ input: Buffer; raw: Raw }> {
   const seenFrom = Math.round(SHADE_AT_MOST * 255);
   const gain = 255 / (Math.round(SCRIM_UNDER_WORDS * 255) - seenFrom);
-  const mask = await sharp(layer)
+  const mask = await sharp(layer.data, rawOf(layer))
     .extractChannel("alpha")
     .linear(gain, -seenFrom * gain)
     .blur(SOFT_EDGE_PX)
-    .toBuffer();
-  return sharp(fitted).blur(SOFT_BLUR_PX).joinChannel(mask).png().toBuffer();
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const soft = await sharp(fitted.data, rawOf(fitted))
+    .blur(SOFT_BLUR_PX)
+    .joinChannel(mask.data, rawOf(mask))
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return { input: soft.data, ...rawOf(soft) };
 }

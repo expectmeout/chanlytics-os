@@ -108,20 +108,19 @@ let frames = [];
 let dirty = false;
 let lastTree = null;
 const frameFor = (key) => ({ key, hook: 0, kids: {}, effects: [] });
-/**
- * One setter a cell, as React keeps one for a state's life: an effect that names it runs again for nothing else. A timer
- * of a world already gone (a toast's) sets nothing, as React does for what it no longer draws.
- */
-const setters = new Map();
-const setterOf = (k) => {
-  if (!setters.has(k)) {
-    setters.set(k, (v) => {
-      if (!cells.has(k)) return;
+// One setter a cell of a world, as React keeps one for a state's life: an effect that names it runs again for nothing else. A
+// timer of a world already gone (a toast's) sets nothing, as React does for what it no longer draws, whatever stands there now.
+const setters = new WeakMap();
+const setterOf = (k, world = cells) => {
+  const own = setters.get(world) ?? setters.set(world, new Map()).get(world);
+  if (!own.has(k)) {
+    own.set(k, (v) => {
+      if (world !== cells || !cells.has(k)) return;
       cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
       dirty = true;
     });
   }
-  return setters.get(k);
+  return own.get(k);
 };
 const slot = () => {
   const f = frames[frames.length - 1];

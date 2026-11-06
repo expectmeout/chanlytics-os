@@ -1,8 +1,8 @@
 /**
  * Campaigns › Ads (MOCKUP): paid ads on Facebook and Instagram, Google and TikTok, measured in conversations and appointments.
- * Drawn in a demo session only (campaigns/home/route.tsx), from a sample until the wiring lane reads real ads; every press goes
- * through the store's verbs (store.ts) and says its answer in a toast, and nothing leaves the browser. A quiet "Example" pill
- * (also the Menu that chooses the example) says so, always.
+ * Drawn in a demo session or a workspace's preview (shown.ts, campaigns/home/route.tsx), from a sample until the wiring lane reads
+ * real ads; every press goes through the store's verbs (store.ts) and says its answer in a toast, and nothing leaves the browser. A
+ * quiet "Example" pill (also the Menu that chooses the example) says so, always, and a preview says it in words under the head.
  *
  * The store holds the read once, and the page hands `read` and `verbs` down: the drawer and New ad keep no copy of an ad. Ten
  * examples (examples.ts): ads running (the default), ads that need the owner, finished ones, no calendar link, one being made,
@@ -55,6 +55,7 @@ import { ChooseCards, NoAdsCard, V0Page } from "./hero";
 import { AdsLedger } from "./ledger/ledger";
 import { AdsPhone } from "./ledger/phone";
 import { NewAd } from "./new/new-ad";
+import { PreviewNote } from "./preview-note";
 import { ResultsSheet } from "./results/results-sheet";
 import { PaneLine, ReadNotes } from "./standing";
 import { tellOf, useAdsStore } from "./store";
@@ -294,6 +295,7 @@ export function AdsPage({ param }: AdsPageProps) {
         sub={<HeadSentence head={vm.head} />}
         right={<HeadActs mode={vm.mode} onNew={acts.onNew} />}
       />
+      <PreviewNote />
       <AdsUnder vm={vm} phone={phone} />
       <PaneLine
         said={vm.pane}

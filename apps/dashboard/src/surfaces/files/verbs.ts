@@ -13,6 +13,7 @@ import {
   isFileMime,
   type FileMime,
   type FileShows,
+  type PostPlan,
   type PostShapeName,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
@@ -26,6 +27,8 @@ export const FILE_PICKS = "image/jpeg,image/png,image/webp,image/heic,image/heif
 /** How long to wait before each new try: a phone between masts is back in seconds. */
 const SEND_AGAIN_AFTER_MS = [3 * SECOND_MS, 10 * SECOND_MS] as const;
 const DONE_AGAIN_AFTER_MS = [2 * SECOND_MS, 5 * SECOND_MS, 10 * SECOND_MS] as const;
+/** How long a post's picture is waited for: a photo read and a drawing, on a slow day. */
+const POST_PICTURE_MS = 30 * SECOND_MS;
 
 const waited = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -38,18 +41,57 @@ function mimeOf(file: File): FileMime | null {
   return !file.type && /\.(heic|heif)$/i.test(file.name) ? "image/heic" : null;
 }
 
+/** How often a photo's progress is said at most, so a fast line does not draw the grid for every packet. */
+const SENT_STEP = 0.02;
+
+/**
+ * The PUT itself. A fetch can't say how far an upload has gone in every browser, so one that wants to know goes by XMLHttpRequest, and
+ * one that does not, or a browser with none, by fetch: the same request, read the same way.
+ */
+function putBytes(
+  address: string,
+  form: FormData,
+  onSent?: (sent: number) => void,
+): Promise<{ ok: boolean; status: number }> {
+  const headers = { "x-upsert": "false" };
+  if (!onSent || typeof XMLHttpRequest === "undefined")
+    return window.fetch(address, { method: "PUT", body: form, headers });
+  return new Promise((resolve, reject) => {
+    const put = new XMLHttpRequest();
+    let said = 0;
+    put.open("PUT", address);
+    for (const [name, value] of Object.entries(headers)) put.setRequestHeader(name, value);
+    put.upload.onprogress = (e) => {
+      if (!e.lengthComputable || e.total === 0) return;
+      const sent = e.loaded / e.total;
+      if (sent - said < SENT_STEP && sent < 1) return;
+      said = sent;
+      onSent(sent);
+    };
+    put.onload = () => resolve({ ok: put.status >= 200 && put.status < 300, status: put.status });
+    put.onerror = () => reject(new Error("no answer"));
+    put.ontimeout = () => reject(new Error("no answer"));
+    put.send(form);
+  });
+}
+
 /**
  * The bytes, to the address the door signed: the form storage's own client sends a Blob in. A network failure or a server's is
  * tried again. Past a first try anything else goes on to done, which proves the bytes either way: storage's answer to a photo
  * that did arrive before the line dropped is not one we need to recognise.
  */
-async function sendBytes(address: string, file: File, mime: FileMime): Promise<boolean> {
+async function sendBytes(
+  address: string,
+  file: File,
+  mime: FileMime,
+  onSent?: (sent: number) => void,
+): Promise<boolean> {
   for (let tried = 0; ; tried++) {
     const form = new FormData();
     form.append("cacheControl", String(FILE_CACHE_S));
     form.append("", new Blob([file], { type: mime }), file.name);
     try {
-      const res = await window.fetch(address, { method: "PUT", body: form, headers: { "x-upsert": "false" } });
+      const res = await putBytes(address, form, onSent);
       if (res.ok || (tried > 0 && res.status < 500)) return true;
       if (res.status < 500) return false;
     } catch {
@@ -72,13 +114,13 @@ async function proven(id: string, name: string, mime: FileMime) {
   }
 }
 
-async function add(file: File): Promise<AddSaid> {
+async function add(file: File, onSent?: (sent: number) => void): Promise<AddSaid> {
   const mime = mimeOf(file);
   if (!mime) return { kept: false, message: W.wrongType };
   if (file.size > FILE_BYTES_MAX) return { kept: false, message: W.tooBig };
   const started = await api()("POST files/start", { body: { mime, bytes: file.size } });
   if (!started.ok) return { kept: false, message: started.message };
-  if (!(await sendBytes(started.data.upload_url, file, mime))) return { kept: false, message: W.notSaved };
+  if (!(await sendBytes(started.data.upload_url, file, mime, onSent))) return { kept: false, message: W.notSaved };
   const done = await proven(started.data.id, file.name, mime);
   if (!done.ok) return { kept: false, message: done.message };
   return { kept: true, twin: done.data.twin, id: done.data.file_id };
@@ -91,6 +133,28 @@ export interface FileChange {
   status?: "filed" | "set_aside";
 }
 
+/** What came of asking for a post's picture: the picture and whether the business has a number to print, or what refused it. */
+type PostDrawing = { ok: true; picture: Blob; hasPhone: boolean } | { ok: false; refused: string | null };
+
+/**
+ * The real picture a post would be (POST files/post/preview), for a card and for an editor as its words change. What the server
+ * refuses, it says in the post's own language; anything else, a lost line or a stale press, says nothing, and the last picture stands.
+ */
+async function postPicture(plan: PostPlan, shape: PostShapeName, signal?: AbortSignal): Promise<PostDrawing> {
+  const res = await api()
+    .raw("POST files/post/preview", { body: { ...plan, shape }, timeoutMs: POST_PICTURE_MS, signal })
+    .catch(() => null);
+  if (!res) return { ok: false, refused: null };
+  if (res.ok)
+    return res.blob().then(
+      (picture) => ({ ok: true, picture, hasPhone: res.headers.get("x-post-phone") !== "0" }),
+      () => ({ ok: false, refused: null }),
+    );
+  const said = (await res.json().catch(() => null)) as { error?: { message?: unknown } } | null;
+  const message = said?.error?.message;
+  return { ok: false, refused: res.status === 400 && typeof message === "string" ? message : null };
+}
+
 /** A kept post's shape, its bytes: what a phone's sheet is handed. Null where they did not come. */
 async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null> {
   const res = await window.fetch(`${fileViewOf(id)}?shape=${shape}`).catch(() => null);
@@ -100,6 +164,7 @@ async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null>
 export const fileVerbs = {
   add,
   postBytes,
+  postPicture,
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),

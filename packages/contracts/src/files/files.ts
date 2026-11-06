@@ -217,6 +217,7 @@ export function filesSayOf(files: readonly Pick<FileDto, "status" | "look_status
 
 export const FILE_WORDS = {
   askAbout: "Ask about this photo",
+  makePost: "Make a post",
   title: "Files",
   add: "Add photos",
   adding: (done: number, of: number) => `Adding ${done} of ${of}`,
@@ -229,6 +230,7 @@ export const FILE_WORDS = {
   notAdded: (n: number) => (n === 1 ? "1 photo wasn't added." : `${n} photos weren't added.`),
   tookFirst: (n: number, of: number) => `Took the first ${n} of ${of}. Add the rest after these.`,
   sending: "Sending…",
+  sentSoFar: (percent: number) => `${percent}% sent`,
   waitingToSend: "Waiting to send",
   tryAll: (n: number) => `Try all ${n}`,
   takeAway: "Remove",

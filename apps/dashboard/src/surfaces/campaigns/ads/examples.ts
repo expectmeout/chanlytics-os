@@ -14,8 +14,12 @@
  *   v0           nothing connected: how new people first reached the business
  *   reading      running, while Meta's and Google's numbers are being read
  *   failed       running, but Meta's numbers could not be read since yesterday evening
+ *
+ * The fixtures stay dated 11 Oct 2026, so a test reads them as they are written; a page draws one as of now (`exampleAt`).
  */
+import { addDays, daysBetween, zoneDayKey } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPersonRead, AdRead, AdsRead } from "@chanlytics/contracts";
+import { dayShort } from "@chanlytics/contracts/ads-page";
 import type { AdsExample } from "@chanlytics/contracts/ads-page";
 import {
   BUSINESS,
@@ -212,3 +216,34 @@ export const EXAMPLE_READS: Record<AdsExample, () => AdsRead> = {
   reading,
   failed: readFailed,
 };
+
+// ---------------------------------------------------------------------------------------------------------------------
+// An example, as of now
+
+/** A day and a moment as a read writes them (ads.ts): `2026-10-11`, `2026-10-11T09:19:00-04:00`. */
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_MOMENT = /^\d{4}-\d{2}-\d{2}T/;
+
+/**
+ * A fixture as it reads at `now`. Each day moves by the whole days to the business's today, and each moment by the time since the
+ * fixture was read, so it was read just now and nothing it says has happened is still to come (9:19 AM, seen at 8:29). They are found
+ * by their shape and not by name, so a date a later field adds cannot be left behind. An ad's name is the one place a fixture says a
+ * day in words: a new ad's says the day it starts.
+ */
+function movedTo(read: AdsRead, now: number): AdsRead {
+  const days = daysBetween(read.today, zoneDayKey(now, read.timezone));
+  const since = now - Date.parse(read.readAt);
+  const moved = JSON.parse(JSON.stringify(read), (_key, value: unknown) => {
+    if (typeof value !== "string") return value;
+    if (ISO_DAY.test(value)) return addDays(value, days);
+    return ISO_MOMENT.test(value) ? new Date(Date.parse(value) + since).toISOString() : value;
+  }) as AdsRead;
+  const named = (ad: AdRead): AdRead => ({
+    ...ad,
+    name: ad.name.replace(dayShort(addDays(ad.startDay, -days)), dayShort(ad.startDay)),
+  });
+  return { ...moved, ads: moved.ads.map(named) };
+}
+
+/** An example as of `now`: the one read every page draws of it, so an ad says the same days on each. */
+export const exampleAt = (example: AdsExample, now: number): AdsRead => movedTo(EXAMPLE_READS[example](), now);

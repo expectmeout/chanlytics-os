@@ -1,69 +1,135 @@
 /**
  * A post's card (decision 0099, step 3): the real picture, drawn by the server from the same plan its Save keeps, so what the owner
- * sees is what they get. Before the press it is asked for once a tab; after it, it is the file itself, as the Files sheet draws it.
+ * sees is what they get. Whoever may save it can change it here, for nothing, and the picture answers as they type. Saved, it is the
+ * file itself, and the picture they were looking at stays on screen: nothing is read again to show what is already there.
  */
-import { useEffect, useState } from "react";
-import { POST_WORDS, postNameOf, postPlanOf, type AskProposal } from "@chanlytics/contracts";
-import { PostShapes } from "../files/post-shapes";
-import { askCalls } from "./shell";
+import { useState } from "react";
+import {
+  POST_SHAPES,
+  postNameOf,
+  postPlanOf,
+  postPlanTidied,
+  postWordsIn,
+  recordOrNull,
+  type AskProposal,
+  type PostPlan,
+} from "@chanlytics/contracts";
+import { Button } from "../kit/button/button";
+import { openFile } from "../files/file-asked";
+import { PostChoice } from "../files/post-choice";
+import { usePostDraft } from "../files/post-draft";
+import { drawnKeyOf, pictureDrawn } from "../files/post-drawn";
+import { PostEdit } from "../files/post-edit";
+import { PostFrame } from "../files/post-frame";
+import { PostActs, postShapeAddress } from "../files/post-shapes";
+import { canDo } from "./shell";
 import type { LineWords } from "./words";
 
-/** The pictures this tab has been shown, by card: a thread drawn again does not draw them again on the server. */
-const picturesShown = new Map<string, Promise<string | null>>();
+/** The file a card made, once it is saved. */
+const fileSavedBy = (p: AskProposal): string | null =>
+  p.outcome?.state === "done" ? (p.outcome.made?.id ?? null) : null;
 
-function postPictureOf(p: AskProposal): Promise<string | null> {
-  const held = picturesShown.get(p.id);
-  if (held) return held;
-  const A = askCalls();
-  const asked = A
-    ? A.postPicture(postPlanOf(p.payload)).then((blob) => (blob ? URL.createObjectURL(blob) : null))
-    : Promise.resolve(null);
-  picturesShown.set(p.id, asked);
-  return asked;
+/** The card as a press sends it and its head says it: what was changed here, over what Ask proposed. */
+function asChanged(p: AskProposal, plan: PostPlan): AskProposal {
+  // While the headline is empty the head says what it did: a card is never called nothing.
+  const title = plan.line.trim() ? postWordsIn(plan.language).cardTitle(plan.line.trim()) : p.title;
+  return { ...p, title, payload: { ...p.payload, ...postPlanTidied(plan) } };
 }
 
-/** The card's picture: the real one before the press, the file itself after it. */
-export function AskPostCard({ p, t }: { p: AskProposal; t: LineWords }) {
-  const kept = p.outcome?.state === "done" ? (p.outcome.made?.id ?? null) : null;
-  const [picture, setPicture] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    if (kept) return undefined;
-    let live = true;
-    void postPictureOf(p).then((address) => {
-      if (!live) return;
-      setPicture(address);
-      setFailed(!address);
-    });
-    return () => {
-      live = false;
-    };
-    // The card's id is the plan's: a card is never asked for another picture.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.id, kept]);
-  const summary = <p className="ask-card-summary">{p.summary}</p>;
-  if (kept)
-    return (
-      <div className="ask-post" data-testid="ask-post">
-        <PostShapes id={kept} name={postNameOf(asTitle(p))} alt={asTitle(p)} shareFailed={t.postShareFailed}>
-          {summary}
-        </PostShapes>
-      </div>
-    );
+/** The plan a card stands for: what its press saved, where it has been pressed, else what Ask proposed. */
+const planOfCard = (p: AskProposal): PostPlan => postPlanOf(recordOrNull(p.outcome?.undo?.plan) ?? p.payload);
+
+/** What a post's card holds for its AskCard: its draft, and what the press sends and may do. Null for any other kind of card. */
+export function usePostCard(p: AskProposal) {
+  const isPost = p.kind === "post";
+  const draft = usePostDraft(planOfCard(p), isPost && !fileSavedBy(p));
+  if (!isPost) return null;
+  const says = postWordsIn(draft.plan.language);
+  return {
+    draft,
+    says,
+    card: asChanged(p, draft.plan),
+    press: { label: says.save, disabled: !draft.plan.line.trim() || draft.refused !== null },
+  };
+}
+
+/** The card's picture and what a person does with it: changes it before the press, takes it away after. */
+export function AskPostCard({
+  p,
+  card,
+  t,
+  onNav,
+}: {
+  p: AskProposal;
+  card: NonNullable<ReturnType<typeof usePostCard>>;
+  t: LineWords;
+  onNav: (to: string) => void;
+}) {
+  const { draft, says } = card;
+  const kept = fileSavedBy(p);
+  const [editing, setEditing] = useState(false);
+  const [unseen, setUnseen] = useState(false);
+  // Saved, what this tab drew of exactly these words is the same picture, so it stays on screen and none is read again.
+  const src = kept
+    ? (pictureDrawn(drawnKeyOf(draft.plan, draft.shape))?.url ?? postShapeAddress(kept, draft.shape))
+    : draft.picture;
+  const alt = draft.plan.line || p.title;
+  const open = !kept && editing;
   return (
-    <div className="ask-post" data-testid="ask-post">
-      {picture ? (
-        <img className="ask-post-picture" src={picture} alt={asTitle(p)} data-testid="ask-post-picture" />
-      ) : failed ? (
+    <div className="ask-post" data-testid="ask-post" data-editing={open ? "true" : undefined}>
+      {unseen ? (
+        <p className="post-said" data-testid="post-gone">
+          {says.gone}
+        </p>
+      ) : draft.undrawn && !src ? (
         <p className="ask-card-note" data-testid="ask-post-failed">
-          {POST_WORDS.notDrawn}
+          {says.notDrawn}
         </p>
       ) : (
-        <div className="ask-post-picture ask-post-waiting" role="img" aria-label={t.postDrawing} />
+        <PostFrame
+          src={src}
+          shape={draft.shape}
+          alt={alt}
+          waiting={t.postDrawing}
+          drawing={draft.drawing && !!draft.picture}
+          onUnseen={() => setUnseen(true)}
+        />
       )}
-      {summary}
+      <p className="ask-card-summary">{p.summary}</p>
+      <div className="post-row">
+        <PostChoice
+          label={says.shapesSaid}
+          options={POST_SHAPES}
+          words={says.shapes}
+          value={draft.shape}
+          choose={draft.choose}
+          testid="post-shape"
+        />
+        {!kept && canDo("settings") ? (
+          <Button
+            size="sm"
+            variant="quiet"
+            aria-expanded={editing}
+            onClick={() => setEditing((e) => !e)}
+            data-testid="post-edit-open"
+          >
+            {editing ? says.editDone : says.edit}
+          </Button>
+        ) : null}
+      </div>
+      {open ? <PostEdit draft={draft} says={says} /> : null}
+      {!kept && (draft.refused || !draft.plan.line.trim()) ? (
+        <p className="ask-card-note" role="alert" data-testid="post-refused">
+          {draft.refused ?? says.needsLine}
+        </p>
+      ) : null}
+      {kept && !unseen ? (
+        <PostActs id={kept} name={postNameOf(draft.plan.line)} shape={draft.shape} says={says}>
+          <Button size="sm" variant="quiet" onClick={() => openFile(kept, onNav)} data-testid="post-open-files">
+            {says.openInFiles}
+          </Button>
+        </PostActs>
+      ) : null}
     </div>
   );
 }
-
-const asTitle = (p: AskProposal): string => (typeof p.payload.line === "string" ? p.payload.line : p.title);

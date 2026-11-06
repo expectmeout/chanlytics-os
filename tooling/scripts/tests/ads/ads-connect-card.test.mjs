@@ -2,12 +2,14 @@
  * The "Ad accounts" card in Settings › Connections (surfaces/settings/connections/ad-accounts.tsx), drawn on the stub React over
  * the Ads page's fixtures and pressed: what each row says, Disconnect refused while an ad runs (with a door to Ads) and asked
  * before it is done when none does, Connect connecting nothing and saying so, Change account and Choose, and the owner's setting.
- * The words are contracts' (ads-connect.test.mjs holds them); this holds that the card draws and does what it says.
+ * The words are contracts' (ads-connect.test.mjs holds them); this holds that the card draws and does what it says. The clock stands
+ * at the moment the fixtures were read: the store moves an example to now (`exampleAt`), so here it says what they are written with.
  */
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../_legacy-react.mjs";
 
+mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-11T09:19:00-04:00") });
 installLegacyReact();
 (await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { AdAccounts } = await import("../../../../apps/dashboard/src/surfaces/settings/connections/ad-accounts.tsx");

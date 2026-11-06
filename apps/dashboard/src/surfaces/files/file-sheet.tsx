@@ -4,7 +4,16 @@
  * door's refresh reads the list again.
  */
 import { useState } from "react";
-import { FILE_WORDS as W, POST_WORDS, fileSaidOf, fileViewOf, type FileDto } from "@chanlytics/contracts";
+import {
+  FILE_WORDS as W,
+  MAKE_POST_ASK,
+  POST_WORDS,
+  fileSaidOf,
+  fileViewOf,
+  postPhotoWont,
+  whoStandsOf,
+  type FileDto,
+} from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
 import { Icon } from "../kit/icon/icon";
@@ -26,7 +35,15 @@ function lookSaysOf(file: FileDto): string | null {
 }
 
 /** The sheet's foot: where it stands in the pile, its original, and Delete behind a question. A reader has the original alone. */
-function FileActs({ file, may, busy, say, remove, ask }: SheetPress & { remove: () => void; ask: () => void }) {
+function FileActs({
+  file,
+  may,
+  busy,
+  say,
+  remove,
+  ask,
+  makePost,
+}: SheetPress & { remove: () => void; ask: () => void; makePost: () => void }) {
   const [asking, setAsking] = useState(false);
   if (asking)
     return (
@@ -62,8 +79,15 @@ function FileActs({ file, may, busy, say, remove, ask }: SheetPress & { remove: 
         {download}
       </div>
     );
+  // Who is in it is asked in this sheet first, for nothing: a press would pay a model to ask the same.
+  const makesPost = !postPhotoWont(file) && whoStandsOf(file).is !== "ask";
   return (
     <div className="files-acts" data-foot-acts="">
+      {makesPost && (
+        <Button onClick={makePost} data-testid="fl-make-post">
+          {W.makePost}
+        </Button>
+      )}
       {askAboutIt}
       {file.status === "inbox" && (
         <Button onClick={() => say({ status: "filed" })} disabled={busy} data-testid="fl-keep">
@@ -113,7 +137,10 @@ function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => voi
   const says = lookSaysOf(file);
   const said = fileSaidOf(file.name);
   // The sheet goes as Ask comes, "this photo" the one it held: the picture is in the turn, and the chip says which.
-  const ask = () => afterSheetCloses(onClose, () => askAbout({ about: { kind: "file", id: file.id, label: said } }));
+  const about = { kind: "file", id: file.id, label: said } as const;
+  const ask = () => afterSheetCloses(onClose, () => askAbout({ about }));
+  // A conversation of its own, so a post costs only what a post reads, whatever Ask was last asked.
+  const makePost = () => afterSheetCloses(onClose, () => askAbout({ about, prompts: MAKE_POST_ASK, fresh: true }));
   return (
     <RecordSheet
       id="file"
@@ -122,10 +149,10 @@ function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => voi
       closeLabel={W.close}
       backCloses={`file:${file.id}`}
       testid="fl-sheet"
-      foot={<FileActs {...press} remove={() => void remove()} ask={ask} />}
+      foot={<FileActs {...press} remove={() => void remove()} ask={ask} makePost={makePost} />}
     >
       {file.source === "made" ? (
-        <PostShapes id={file.id} name={file.name} alt={file.line ?? said} shareFailed={POST_WORDS.shareFailed} />
+        <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />
       ) : (
         <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
       )}

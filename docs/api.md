@@ -970,12 +970,13 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `book` | boolean | yes |  |
 | `words_at` | one of `"top"`, `"bottom"` | yes |  |
 | `voice` | one of `"classic"`, `"modern"` | yes |  |
+| `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
 
 ### `POST /api/v1/files/post/preview`
 
-Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_post_preview` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -986,6 +987,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `book` | boolean | yes |  |
 | `words_at` | one of `"top"`, `"bottom"` | yes |  |
 | `voice` | one of `"classic"`, `"modern"` | yes |  |
+| `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
 | `shape` | one of `"portrait"`, `"square"`, `"story"` | no |  |

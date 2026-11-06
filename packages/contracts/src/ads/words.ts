@@ -336,6 +336,11 @@ export const EXAMPLE = {
   /** The pill's word. */
   pill: "Example",
   note: "Example data. Nothing here is real.",
+  /** What a workspace's preview says wherever it draws the sample: the word that names it, and what that means. */
+  preview: {
+    word: "Preview.",
+    said: "These ads, numbers and people are examples. Nothing is connected, spent or saved.",
+  },
   label: "Choose the example",
   choices: {
     running: "Ads running",
