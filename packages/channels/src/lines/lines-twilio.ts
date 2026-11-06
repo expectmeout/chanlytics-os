@@ -189,6 +189,14 @@ async function readSubaccount(http: TwilioHttp, master: ProviderAccount, sid: st
   return { sid, token };
 }
 
+// Twilio does not say what closing a closed subaccount answers, so a refusal is read before it is believed.
+async function closeSubaccount(http: TwilioHttp, master: ProviderAccount, sid: string) {
+  const a = await http(master, "POST", twilioUrls.subaccount(sid), { Status: "closed" });
+  if ((a.status >= 200 && a.status < 300) || a.status === 404) return;
+  if ((await readSubaccount(http, master, sid)) === null) return;
+  throw new TwilioError(a.status, a.body, "close subaccount");
+}
+
 async function findTrunk(http: TwilioHttp, acct: ProviderAccount, domainName: string) {
   for (const t of rowsOf(need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"), "trunks")) {
     const sid = str(t, "sid");
@@ -472,6 +480,7 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     createSubaccount: (master, friendlyName) => createSubaccount(http, master, friendlyName),
     findSubaccount: (master, friendlyName) => findSubaccount(http, master, friendlyName),
     readSubaccount: (master, sid) => readSubaccount(http, master, sid),
+    closeSubaccount: (master, sid) => closeSubaccount(http, master, sid),
     findTrunk: (acct, domainName) => findTrunk(http, acct, domainName),
     findCredentialList: (acct, friendlyName) => findCredentialList(http, acct, friendlyName),
     findCredential: (acct, listSid, username) => findCredential(http, acct, listSid, username),

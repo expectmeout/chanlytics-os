@@ -5,7 +5,7 @@ import { platformLineAct } from "@/server/platform/platform";
 /**
  * POST /api/v1/platform/lines/release — give a workspace's number back.
  *
- * Releases the number, drops the trunk and the campaign and forgets the line. The routing row it
+ * Releases the number, drops the trunk and the campaign, closes the subaccount and forgets the line. The routing row it
  * created is switched off rather than deleted, so calls keep their history.
  *
  * Permanent: the number goes back to the carrier's pool and cannot be reclaimed.

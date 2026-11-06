@@ -30,7 +30,7 @@ import {
   type LineReleaseWarned,
 } from "../packages/contracts.js";
 import { deletePhoneNumber, TwilioError, type ProviderAccount, type RetellConfig } from "../packages/channels.js";
-import { emitEvent, tenantDb } from "../packages/db.js";
+import { dropLineCredentials, emitEvent, tenantDb } from "../packages/db.js";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -102,7 +102,7 @@ async function giveBackAtCarrier(
  * What a line holds off the carrier, as its subaccount; a line with none has nothing there. A token on file the carrier
  * refuses (rotated in Twilio's console, or its subaccount closed) gets one read as the parent, as if none were on file:
  * refusing it for ever would hold the number and mail the platform every quarter hour. Any other refusal says nothing of
- * the token, and stops the release.
+ * the token, and stops the release. Last the parent closes the subaccount: each is one line's, and it cannot bill once closed.
  */
 async function releaseAtCarrier(
   choice: LineProviderChoice,
@@ -120,14 +120,16 @@ async function releaseAtCarrier(
     const tokenRefused = e instanceof TwilioError && (e.status === 401 || e.status === 403);
     if (!token || !tokenRefused) throw e;
     const read = await accountToReleaseFrom(choice, sid, undefined, released);
-    if (read) await giveBackAtCarrier(choice, row, read, released);
+    if (!read) return;
+    await giveBackAtCarrier(choice, row, read, released);
   }
+  await choice.provider.closeSubaccount(choice.master, sid);
 }
 
 /**
- * Give one line's number back: Retell's copy of it, the number, the trunk and the campaign at the carrier, the routing
- * rows switched off (never deleted: calls keep their history), the row forgotten, the ledger written. A step that fails
- * stops it and the row stays, so the next try finds what is left.
+ * Give one line's number back: Retell's copy of it, the number, the trunk, the campaign and the subaccount at the carrier,
+ * the routing rows switched off (never deleted: calls keep their history), the token out of Vault, the row forgotten, the
+ * ledger written. A step that fails stops it and the row stays, so the next try finds what is left.
  */
 export async function releaseLine(
   db: Db,
@@ -170,6 +172,13 @@ export async function releaseLine(
   const rows = await releaseRoutingRows(db, tenantId, line);
   Object.assign(released, rows.released);
   if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
+  try {
+    // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
+    await dropLineCredentials(db, line.id);
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    return { ok: false, status: 503, error: "write_failed", detail, released };
+  }
   const del = await tenantDb(db, tenantId).from("lines").delete().eq("id", line.id);
   if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
   await emitEvent(db, tenantId, "line.released", "line", line.id, {
@@ -187,7 +196,7 @@ export async function releaseLine(
 const ENDED_STATUSES = BILLING_STATUSES.filter((s) => !receptionistOn(s));
 
 /**
- * At most this many releases a tick: each is a Retell call and up to six carrier calls inside the sweep's 60 seconds, and
+ * At most this many releases a tick: each is a Retell call and up to seven carrier calls inside the sweep's 60 seconds, and
  * the stuck-lines half runs first. A backlog drains over the quarter hours.
  */
 const MAX_RELEASES_PER_TICK = 2;
