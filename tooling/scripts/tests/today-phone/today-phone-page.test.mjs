@@ -12,6 +12,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { NOTE_WORDS, clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
+import { unmarkedTimes } from "../shell/views/_unmarked-times.mjs";
 import { NOW, ZONE, escalation, metrics, msg, peopleWithSteps, thread, waiting } from "../today-record/_world.mjs";
 
 const went = [];
@@ -133,6 +134,15 @@ test("on a phone the day's four figures stand in Today so far, each by its short
     "and the whole name is the figure's title",
   );
   phone = true;
+});
+
+test("every time Today's blocks say, says so: a copy some minutes old draws none of them (decision 0101)", () => {
+  phone = true;
+  set(threeWaiting());
+  const queue = draw(NeedYou);
+  assert.match(textOf(queue), /\d+h/, "the fixture says a wait");
+  assert.deepEqual(unmarkedTimes(queue), []);
+  assert.deepEqual(unmarkedTimes(draw(PhoneSoFar)), []);
 });
 
 test("Need you holds each wait to the business's own target, and the open card says why it was handed over in words", () => {

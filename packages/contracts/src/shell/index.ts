@@ -100,24 +100,31 @@ export { ClientErrorInput } from "./client-error-schema";
 export type { ClientErrorInputDto } from "./client-error-schema";
 export {
   dropFirstRows,
+  FIRST_ROWS_AT_ATTR,
   FIRST_ROWS_ATTR,
+  FIRST_ROWS_END_ATTR,
+  FIRST_ROWS_ENDS,
   FIRST_ROWS_ID,
+  FIRST_ROWS_MISS_ATTR,
+  FIRST_ROWS_MISSES,
   FIRST_ROWS_MOST_CHARS,
   FIRST_ROWS_OLDEST_MS,
   FIRST_ROWS_PAGES,
+  FIRST_ROWS_PART,
   FIRST_ROWS_SHEETS_ATTR,
   FIRST_ROWS_SLOT,
   FIRST_ROWS_TEST,
   FIRST_ROWS_WHEN_ATTR,
   FIRST_ROWS_WIDEST_PX,
+  firstRowsEndPart,
+  firstRowsMissPart,
   firstRowsOfPath,
   firstRowsScript,
   firstRowsSlot,
   firstRowsStand,
-  homeBootScript,
-  LAST_WORKSPACE_STORAGE,
 } from "./first-rows";
-export type { KeptFirstRows } from "./first-rows";
+export type { FirstRowsEnd, FirstRowsMiss, KeptFirstRows } from "./first-rows";
+export { homeBootScript, LAST_WORKSPACE_STORAGE } from "./home-boot";
 export {
   cleanDisplayName,
   DISPLAY_NAME_MAX,

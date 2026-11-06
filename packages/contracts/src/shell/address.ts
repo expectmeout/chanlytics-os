@@ -151,7 +151,7 @@ function campaignsLandingOf(path: string, param: string): string | null {
 }
 
 /** A route as the shell names it: the product's word at its head (`people/c1`) is the route's own name (`clients/c1`). */
-function shellRoute(route: string): string {
+export function shellRoute(route: string): string {
   const head = headOf(route);
   const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
   return name === undefined ? route : name + route.slice(head.length);

@@ -4,28 +4,38 @@
  *
  * A copy is the frame's own elements as they stand, cloned and cut down to the screen: no second way of drawing a row, so a row
  * kept looks as a row looks. It holds what is on the screen and no more: nothing a list holds further down, nothing kept hidden
- * (People's other scopes, under React's Activity), nothing with an id or a test id, and no sidebar, which a phone's drawer draws
- * again. It is only made of a page at rest: at its top, on its own bare address, with nothing typed, picked or opened over it.
+ * (People's other scopes, under React's Activity), no id, which the app looks its own elements up by (the place a page's act is
+ * drawn into), and no sidebar, which a phone's drawer draws again. Its test ids stay: the stylesheets draw by them (Today's setup
+ * card, dashboard-a-v2.css), and no suite sees a copy but its own spec. It is only made of a page at rest: at its top, on its own
+ * bare address, with nothing typed, picked or opened over it.
  */
 import { useEffect } from "react";
 import {
   dropFirstRows,
+  FIRST_ROWS_AT_ATTR,
   FIRST_ROWS_ATTR,
+  FIRST_ROWS_END_ATTR,
   FIRST_ROWS_ID,
+  FIRST_ROWS_MISS_ATTR,
   FIRST_ROWS_MOST_CHARS,
   FIRST_ROWS_PAGES,
+  FIRST_ROWS_PART,
   FIRST_ROWS_SHEETS_ATTR,
   FIRST_ROWS_TEST,
-  FIRST_ROWS_WHEN_ATTR,
   FIRST_ROWS_WIDEST_PX,
+  firstRowsEndPart,
+  firstRowsMissPart,
   firstRowsOfPath,
   firstRowsSlot,
   firstRowsStand,
+  movedAddress,
   SECOND_MS,
+  type FirstRowsEnd,
+  type FirstRowsMiss,
   type KeptFirstRows,
 } from "@chanlytics/contracts";
-import { speedHost } from "@/client/page-speed";
-import { surfaceCacheSealed } from "@/legacy-bridge/surface-cache";
+import { deviceSealed } from "@/client/kept-on-device";
+import { hearPartReady, speedHost } from "@/client/page-speed";
 import { isDemoFrame } from "./frame-window";
 
 /** The frame itself, never the outline under it. */
@@ -42,7 +52,10 @@ const LEFT_OUT = [
   "template",
   '[style*="display: none"]',
 ].join(",");
-/** A screen that is not at rest: a press, a pick or a read under way, or something open over the page. */
+/**
+ * A screen that is not at rest: a press, a pick or a read under way, something open over the page, or a reply counting down to going
+ * out, whose seconds standing still would be untrue at any age (Today's row, the Inbox's). The copy from before it stays.
+ */
 const NOT_AT_REST = [
   ".route-reading",
   '[aria-busy="true"]',
@@ -50,12 +63,12 @@ const NOT_AT_REST = [
   ".side-wrap.open",
   ".selected",
   "[data-dock]",
+  ".ny-going",
+  ".ix-sending",
 ].join(",");
-/** Where a screen says a time or a day, which a copy's age may have made untrue (contracts FIRST_ROWS_WHEN_ATTR). */
-const SAYS_WHEN = ".ix-thread-time, .pl-card-last, .pg-dateline, .tpd-when";
 /** How long after a page's rows are drawn its copy is made: it costs a few milliseconds, never under a first press. */
 const KEPT_AFTER_MS = 2 * SECOND_MS;
-/** How long after the frame has mounted the picture may stand: a page that never says it is drawn must still be seen. */
+/** How long after the app's code has run the picture may stand: a page that never says it is drawn must still be seen. */
 const FRAME_HOLDS_MS = 8 * SECOND_MS;
 
 /** A browser a person drives, or a suite's own spec (contracts FIRST_ROWS_TEST). */
@@ -123,10 +136,8 @@ function copyOfScreen(root: Element, rows: string): string | null {
     if (row.getBoundingClientRect().top >= below) kept[i]?.remove();
   });
   copy.querySelectorAll(LEFT_OUT).forEach((n) => n.remove());
-  copy.querySelectorAll(SAYS_WHEN).forEach((n) => n.setAttribute(FIRST_ROWS_WHEN_ATTR, ""));
   for (const n of [copy, ...Array.from(copy.querySelectorAll("*"))]) {
     n.removeAttribute("id");
-    n.removeAttribute("data-testid");
     n.removeAttribute("data-hover");
   }
   const html = copy.outerHTML;
@@ -136,7 +147,7 @@ function copyOfScreen(root: Element, rows: string): string | null {
 /** The screen kept, where it is a page that keeps one and stands at rest. Never throws: a copy is an optimisation. */
 function keepNow(): void {
   try {
-    if (surfaceCacheSealed() || document.getElementById(FIRST_ROWS_ID) || !mayKeep()) return;
+    if (deviceSealed() || document.getElementById(FIRST_ROWS_ID) || !mayKeep()) return;
     const at = firstRowsOfPath(location.pathname);
     const page = at && FIRST_ROWS_PAGES[at.word];
     const sheets = document.documentElement.getAttribute(FIRST_ROWS_SHEETS_ATTR);
@@ -184,60 +195,104 @@ function pressAgain(press: string): void {
   found?.click();
 }
 
-/** The picture gone in this draw, its one measure said, and the press made on it made on the page once that is painted. */
-export function letGoFirstRows(): void {
+/** A report of the copy, once a load by its part (contracts FIRST_ROWS_PART): a READY of the page it is of. */
+function say(page: string, part: string, value: number, drawn: boolean): void {
+  speedHost()?.fieldData.note({
+    id: `${part}-${Math.round(performance.timeOrigin)}`,
+    name: "READY",
+    page,
+    part,
+    value,
+    ...(drawn ? { warm: true } : {}),
+  });
+}
+
+/** A copy that was drawn, said to the field data: when it was painted, and how it ended and after how long. None unpainted. */
+function sayDrawn(word: string, how: FirstRowsEnd): void {
+  const page = FIRST_ROWS_PAGES[word];
+  const painted = Number(document.documentElement.getAttribute(FIRST_ROWS_AT_ATTR));
+  if (!page || !(painted > 0)) return;
+  say(page.page, FIRST_ROWS_PART, painted, true);
+  say(page.page, firstRowsEndPart(how), Math.round(Math.max(0, performance.now() - painted)), true);
+}
+
+/** The picture gone in this draw, what became of it said, and the press made on it made on the page once that is painted. */
+function letGoFirstRows(how: FirstRowsEnd): void {
   if (typeof document === "undefined" || !firstRowsStand(document)) return;
   const picture = document.getElementById(FIRST_ROWS_ID);
   if (!picture) return;
   const press = picture.getAttribute("data-press");
-  const painted = Number(picture.getAttribute("data-at"));
   const word = document.documentElement.getAttribute(FIRST_ROWS_ATTR);
   dropFirstRows(document);
-  const page = word ? FIRST_ROWS_PAGES[word] : undefined;
-  if (page && painted > 0)
-    speedHost()?.fieldData.note({
-      id: `first-rows-${Math.round(performance.timeOrigin)}`,
-      name: "READY",
-      page: page.page,
-      part: "first-rows",
-      value: painted,
-      warm: true,
-    });
+  if (word) sayDrawn(word, how);
   if (press) requestAnimationFrame(() => pressAgain(press));
 }
 
 /**
- * A page's part drawn with its rows (surfaces/use-surface.ts usePartShown): where it is the first part of a page that keeps its
- * first screen, the picture goes in this draw, and the screen is kept again in a moment.
+ * A page's part drawn with its rows, as the measures hear it (client/page-speed.ts hearPartReady, in the draw that puts them on
+ * the screen): where it is the first part of a page that keeps its first screen, the picture goes in this draw, and the screen
+ * is kept again in a moment.
  */
-export function firstRowsDrawn(page: string, part: string): void {
+function firstRowsDrawn(page: string, part: string): void {
   if (typeof document === "undefined") return;
   if (!Object.values(FIRST_ROWS_PAGES).some((p) => p.page === page && p.part === part)) return;
-  letGoFirstRows();
+  letGoFirstRows("page");
   keepSoon();
 }
 
 /** Whether the picture standing is of the route the frame is on: another route has no rows of its to wait for. */
-export function firstRowsOfRoute(page: string, param: string | null): boolean {
+function firstRowsOfRoute(page: string, param: string | null): boolean {
   if (typeof document === "undefined" || !firstRowsStand(document)) return false;
   const word = document.documentElement.getAttribute(FIRST_ROWS_ATTR);
   const kept = word ? FIRST_ROWS_PAGES[word] : undefined;
   return !!kept && kept.route === page && !param;
 }
 
+/**
+ * The route the frame is on, as it draws it: the rows a phone last showed wait for that route's own, and a route that is another's,
+ * or that cannot be read, says so itself, on the screen.
+ */
+export function firstRowsMeetRoute(page: string, param: string | null, unavailable: boolean): void {
+  if (unavailable) letGoFirstRows("unavailable");
+  else if (!firstRowsOfRoute(page, param)) letGoFirstRows("other-route");
+}
+
 /** A screen drawn in the frame's place (a handover, the create screen): no page will come to take the picture's place. */
 export function useFirstRowsLetGo(): void {
-  useEffect(letGoFirstRows, []);
+  useEffect(() => letGoFirstRows("no-frame"), []);
 }
 
 /**
- * The screen kept as the page is put away: a phone often closes what it has put away, with no other word. And the picture let
- * go once the app's code has run for FRAME_HOLDS_MS, whatever the page did.
+ * What the document did before the app's code came, said to the field data: a copy it let go itself, or why it drew none, on a phone
+ * at a page that keeps one. No stamp there is `none`: nothing kept, or a slot it could not read. Never throws: a report is no one's wait.
+ */
+function sayWhatTheDocumentDid(): void {
+  try {
+    // A hash address says its page in the hash, which the frame moves to the path only once it is drawn (`/w/acme#/inbox`).
+    const moved = location.hash ? movedAddress(location) : null;
+    const at = firstRowsOfPath((moved ?? location.pathname).split(/[?#]/)[0] ?? "");
+    const page = at && FIRST_ROWS_PAGES[at.word];
+    if (!at || !page || window.innerWidth > FIRST_ROWS_WIDEST_PX || firstRowsStand(document)) return;
+    const html = document.documentElement;
+    if (html.getAttribute(FIRST_ROWS_END_ATTR)) return sayDrawn(at.word, "held-20s");
+    const why = (html.getAttribute(FIRST_ROWS_MISS_ATTR) ?? "none") as FirstRowsMiss;
+    say(page.page, firstRowsMissPart(why), 0, false);
+  } catch {
+    /* a document with nothing to say: a test's stand-in */
+  }
+}
+
+/**
+ * The picture let go in the draw that puts its page's rows on the screen, or once the app's code has run for FRAME_HOLDS_MS,
+ * whatever the page did; and the screen kept as the page is put away: a phone often closes what it has put away, with no other
+ * word. At the frame's module scope, before anything is drawn, once the measures are installed to hear it (LegacyApp).
  */
 export function installFirstRows(win: Window = window): void {
-  setTimeout(letGoFirstRows, FRAME_HOLDS_MS);
+  hearPartReady(firstRowsDrawn);
+  setTimeout(() => letGoFirstRows("held-8s"), FRAME_HOLDS_MS);
   win.addEventListener("pagehide", keepNow);
   win.document.addEventListener("visibilitychange", () => {
     if (win.document.visibilityState === "hidden") keepNow();
   });
+  sayWhatTheDocumentDid();
 }

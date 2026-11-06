@@ -31,6 +31,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";
 import { CellLines } from "../../kit/table/lines";
 import type { ColCtx, PeopleCellCtx } from "../types";
@@ -650,12 +651,12 @@ const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attentio
       // A stop the pill does not say (the State cell's, on a desktop): the first of the card's facts.
       stopToldBesideState(p) ? <StoppedMark key="stopped" testid="row-stopped" /> : null,
       line ? (
-        <span key="visit" className="pl-card-visit" data-testid="row-next-visit">
+        <span key="visit" className="pl-card-visit" data-testid="row-next-visit" {...SAYS_WHEN}>
           <Icon name="calendar" size={11} />
           {[line.day, line.time, line.state ? line.state.text : ""].filter(Boolean).join(" · ")}
         </span>
       ) : null,
-      <span key="last" className="pl-card-last">
+      <span key="last" className="pl-card-last" {...SAYS_WHEN}>
         {p.lastContact.label}
       </span>,
     ],
