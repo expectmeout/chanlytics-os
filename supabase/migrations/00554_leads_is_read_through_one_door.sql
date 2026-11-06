@@ -164,8 +164,8 @@ begin
            null, null, rp.place, rp.read_at, rp.intent, null, null::jsonb,
            jsonb_build_object('intent', rp.intent, 'summary', rp.summary, 'conversation_id', rp.conversation_id)
       from replied rp
-      -- Each is one row a person a sequence and already in that order: this walks the two side by side.
-      left join enrolled e on e.state = 'in' and e.sequence_id = rp.sequence_id and e.person = rp.person
+      -- Each is one row a person a sequence and already in that order: this walks the two side by side. What stands never asks.
+      left join enrolled e on not $4 and e.state = 'in' and e.sequence_id = rp.sequence_id and e.person = rp.person
   )
   -- Who wrote back shows there alone, not again where their place stands.
   select r.grp, r.sequence_id, r.contact_id, r.lead_id, r.enrollment_id, r.send_id, r.batch_id, r.place, r.at, r.why,

@@ -628,16 +628,34 @@ test(
         stage: "ready",
       }),
     );
-    const send = { tenant_id: A, sequence_id, batch_id, lead_id: lead };
+    const send = { tenant_id: A, sequence_id, lead_id: lead };
     const under = await one(
       db.from("sequence_sends").insert({
         ...send,
+        batch_id,
         state: "planned",
         send_at: new Date(Date.now() + 3_600_000).toISOString(),
         created_at: new Date(Date.now() - 60_000).toISOString(),
       }),
     );
-    ok(await db.from("sequence_sends").insert({ ...send, state: "sent", sent_at: new Date().toISOString() }));
+    // A lead has one send a batch, so what came after it is another's.
+    const after = await one(
+      db.from("sequence_batches").insert({
+        tenant_id: A,
+        sequence_id,
+        name: "After",
+        template_id: W.template,
+        template_name: "fixture_groups_1",
+        template_language: "en_US",
+        state: "scheduled",
+        scheduled_for: new Date().toISOString(),
+      }),
+    );
+    ok(
+      await db
+        .from("sequence_sends")
+        .insert({ ...send, batch_id: after, state: "sent", sent_at: new Date().toISOString() }),
+    );
     const stands = await asked();
     assert.ok(
       !stands.some((r) => r.send_id === under),

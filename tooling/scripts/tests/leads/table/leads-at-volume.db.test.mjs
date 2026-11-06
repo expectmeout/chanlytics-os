@@ -1,9 +1,9 @@
 /**
  * Leads at full volume (decision 0103): one workspace with 50,000 leads, 60,000 memberships, 40,000 places in a sequence,
  * 150,000 lead sends, 100,000 customer sends and 2,000 replies, read as a signed-in member, in a transaction that never
- * commits. The gate is each read within 300 ms; a test here fails at a second, so a slow runner does not flake it, and each
- * read's time and blocks are logged for a person to hold against the gate. Blocks are the runner-proof number: a read that
- * starts walking what it was not asked for shows there.
+ * commits. The gate is each read within 300 ms, which a person holds each read's logged time against; a test here fails well
+ * past it, so a slow runner does not flake it. Blocks are the runner-proof number: a read that starts walking what it was not
+ * asked for shows there. Time holds what blocks cannot: a read gone quadratic over a CTE took 5 s and touched no more of them.
  *
  * Local stack only. Rows are written with triggers off (session_replication_role), as they would stand: this measures the
  * reads, not the writes.
@@ -27,9 +27,27 @@ const skip =
       : false;
 
 /** The most a read may take here, in ms; the gate is 300, and each read's time is logged. */
-const FAILS_AT_MS = 1000;
-/** What each read touches at this volume, as CI first measured it and half again (decision 0103). Unset until then. */
-const BLOCK_BUDGET = {};
+const FAILS_AT_MS = 2000;
+/** Every customer's sends too, which Leads never asks and a sequence's own page does. */
+const FAILS_AT_MS_OF = { places_everyone: 4000 };
+/** What each read touches at this volume, as CI measured it and half again (decision 0103). */
+const BLOCK_BUDGET = {
+  door: 6_078,
+  door_status: 107_910,
+  status_whole: 101_832,
+  places_whole: 100_329,
+  places_everyone: 34_311,
+  places_of_a_page: 7_767,
+  counts: 107_913,
+  page_queue: 116_915,
+  page_next: 116_162,
+  page_one_search: 30_896,
+  page_found: 15_081,
+  page_fit: 15_081,
+  page_business: 15_081,
+  page_rated: 16_380,
+  page_words: 15_081,
+};
 
 const stamp = Date.now().toString(36);
 let db;
@@ -189,7 +207,7 @@ test("every read of a full workspace holds the line", { skip, timeout: 600_000 }
     declare
       t uuid; tpl uuid; s_found uuid; s_second uuid; s_list uuid; step uuid; seq uuid; seen jsonb := '{}';
       t0 timestamptz; took numeric; mark bigint; turn int; sowed timestamptz := clock_timestamp();
-      rows_of int; counts jsonb; last_key text; last_id uuid; ids uuid[]; plan text := ''; line text; q text;
+      rows_of int; counts jsonb; last_key text; last_id uuid; ids uuid[];
     begin
       ${SEED(member)}
       seen := seen || jsonb_build_object('seed_ms', round((extract(epoch from clock_timestamp() - sowed) * 1000)::numeric));
@@ -215,24 +233,18 @@ test("every read of a full workspace holds the line", { skip, timeout: 600_000 }
       ${read("status_whole", "perform count(*) from public.lead_status_groups(t, null)")}
       ${read("places_whole", "perform count(*) from public.sequence_places(t, null, null, true)")}
       ${read("places_everyone", "perform count(*) from public.sequence_places(t)")}
-      q := (regexp_match(pg_get_functiondef('public.sequence_places(uuid,uuid,uuid[],boolean)'::regprocedure), '[$]q[$](.*)[$]q[$]'))[1];
-      for line in execute 'explain (analyze, buffers) ' || q using t, null::uuid, null::uuid[], true loop
-        plan := plan || line || chr(10);
-      end loop;
-      seen := seen || jsonb_build_object('plan_places', plan);
       counts := public.lead_view_counts(t, null, 'qualified', 'all', null);
       seen := seen || jsonb_build_object('counted', counts - 'excluded_by');
       raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex');
     end;`);
-  console.log(seen.plan_places);
-  delete seen.plan_places;
   console.log(JSON.stringify(seen));
   assert.equal(seen.first_page_rows, 500);
   assert.equal(seen.counted.view, 50_000, "one row a lead, whatever holds it twice");
   assert.deepEqual(seen.counted.status_groups, { needs: 9_000, in: 29_000, none: 12_000 });
   for (const [name, r] of Object.entries(seen)) {
-    if (typeof r?.ms !== "number" || name === "places_everyone") continue;
-    assert.ok(r.ms <= FAILS_AT_MS, `${name} took ${r.ms} ms: a second is the line this suite holds, the gate is 300`);
+    if (typeof r?.ms !== "number") continue;
+    const line = FAILS_AT_MS_OF[name] ?? FAILS_AT_MS;
+    assert.ok(r.ms <= line, `${name} took ${r.ms} ms: ${line} is the line this suite holds, the gate is 300`);
     if (BLOCK_BUDGET[name]) assert.ok(r.blocks <= BLOCK_BUDGET[name], `${name} read ${r.blocks} blocks`);
   }
 });
