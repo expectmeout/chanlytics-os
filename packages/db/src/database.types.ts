@@ -11208,8 +11208,8 @@ export type Database = {
       sequence_places: {
         Args: {
           p_lead_ids?: string[]
-          p_leads_only?: boolean
           p_sequence_id?: string
+          p_standing_leads?: boolean
           p_tenant_id: string
         }
         Returns: {

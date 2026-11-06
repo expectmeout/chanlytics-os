@@ -30,9 +30,9 @@ execute`, so a null argument folds away and a list of leads is an index conditio
 production's default of 3.5 MB spills their sorts to disk.
 
 **Where a lead stands is computed, not stored.** Storing it means triggers on the send path, and a stored status can drift. A
-whole-view read of the queue reads the workspace's lead sends once (`p_leads_only`) and none of its customers'. A named search hands
-its own leads to that read; All leads reads it whole. Why a queued lead is not planned costs about 0.3 ms a lead, so it is asked of
-the hundred longest on a list.
+whole-view read of the queue asks only what stands (`p_standing_leads`): a lead's open sends, each the newest of its lead there, through
+an index of open sends alone, so what was sent long ago costs it nothing. A named search hands its own leads to that read; All leads
+reads it whole. Why a queued lead is not planned costs about 0.3 ms a lead, so it is asked of the hundred longest on a list.
 
 **The queue is how the page opens** (`sort=stage, dir=asc`), and a saved view that names a sort keeps it. The API's own default stays
 `fit`, so Ask is unaffected. Inside its groups: wrote back, then yours to send, OKs, holds, not planned, each oldest first; in a

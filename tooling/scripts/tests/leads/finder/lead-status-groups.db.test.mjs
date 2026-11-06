@@ -602,6 +602,50 @@ test("the read grows with its own queued leads and no faster", { skip }, () => {
   );
 });
 
+/* ------------------------------------------------------------------------------------------- what stands, of every lead -- */
+
+test(
+  "what stands of the leads is what the whole read says, and an open send under a newer one is not among it",
+  { skip },
+  async () => {
+    const said = (rows) => rows.map((r) => [r.grp, r.sequence_id, r.lead_id, r.send_id, r.at].join(" ")).sort();
+    const asked = async () => {
+      const stands = ok(await as.owner.c.rpc("sequence_places", { p_tenant_id: A, p_standing_leads: true }));
+      const whole = ok(await as.owner.c.rpc("sequence_places", { p_tenant_id: A }));
+      assert.deepEqual(said(stands), said(whole.filter((r) => r.lead_id && !["done", "left"].includes(r.grp))));
+      return stands;
+    };
+    assert.deepEqual(new Set(namesOf(await asked())), new Set([...NEEDS, ...IN]));
+
+    const { sequence_id, batch_id } = ok(
+      await db.from("sequence_sends").select("sequence_id, batch_id").eq("lead_id", W.next).single(),
+    );
+    const lead = await one(
+      db.from("leads").insert({
+        tenant_id: A,
+        place_id: `ChIJfixtureGroups${stamp}under`,
+        business_name: "Under Bookshop",
+        stage: "ready",
+      }),
+    );
+    const send = { tenant_id: A, sequence_id, batch_id, lead_id: lead };
+    const under = await one(
+      db.from("sequence_sends").insert({
+        ...send,
+        state: "planned",
+        send_at: new Date(Date.now() + 3_600_000).toISOString(),
+        created_at: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    );
+    ok(await db.from("sequence_sends").insert({ ...send, state: "sent", sent_at: new Date().toISOString() }));
+    const stands = await asked();
+    assert.ok(
+      !stands.some((r) => r.send_id === under),
+      "the newest of a lead there says where it stands, and it was sent",
+    );
+  },
+);
+
 /* ------------------------------------------------------------------------------------- all that match, last: it acts -- */
 
 test("all that match under a status filter acts on those rows alone", { skip }, async () => {
