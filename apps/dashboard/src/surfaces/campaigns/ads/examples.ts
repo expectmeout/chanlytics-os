@@ -187,11 +187,11 @@ function v0(): AdsRead {
     firstTouch: {
       since: "2026-10-03",
       rows: [
-        { label: "An ad", n: 5, own: true },
-        { label: "WhatsApp", n: 3, own: false },
-        { label: "Phone", n: 2, own: false },
-        { label: "Text", n: 2, own: false },
-        { label: "Not recorded", n: 2, own: false },
+        { label: "An ad", n: 5, own: true, recorded: true },
+        { label: "WhatsApp", n: 3, own: false, recorded: true },
+        { label: "Phone", n: 2, own: false, recorded: true },
+        { label: "Text", n: 2, own: false, recorded: true },
+        { label: "Not recorded", n: 2, own: false, recorded: false },
       ],
     },
   };
@@ -240,7 +240,8 @@ function swapsOf(swaps: ReadonlyMap<string, string>): (word: string) => string {
 /**
  * A fixture as a workspace's preview draws it: the business the workspace says it is, its zone, its word for an appointment and its
  * Services, around the same example ads and people. The accounts stay plainly examples, since none is connected, and nothing is made
- * up for it: no posts and no rating, where neither has been read. What it has not said reads as what is missing.
+ * up for it: no posts, no rating and no first-touch counts, where none has been read (the page reads its own: first-touch.ts). What it
+ * has not said reads as what is missing.
  */
 function ownedBy(read: AdsRead, own: AdsOwn): AdsRead {
   const w = appointmentWords(own.appointmentWord);
@@ -267,6 +268,7 @@ function ownedBy(read: AdsRead, own: AdsOwn): AdsRead {
     ads: owned.ads.map((ad) => ({ ...ad, shownAs: { ...ad.shownAs, handle: null } })),
     posts: [],
     rating: null,
+    firstTouch: null,
     neverQuotePrices: own.neverQuotePrices,
     services: own.services.length > 0 ? own.services : owned.services,
   };

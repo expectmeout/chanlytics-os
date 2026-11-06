@@ -299,8 +299,11 @@ export interface AdsRead {
   rating: { stars: string; reviews: number; asOf: string } | null;
   /** Whether the receptionist is set to never quote prices. */
   neverQuotePrices: boolean;
-  /** Before any ad: how new people first reached the business (People's first touch), or null. */
-  firstTouch: { since: string; rows: { label: string; n: number; own: boolean }[] } | null;
+  /**
+   * Before any ad: how new people first reached the business (People's first touch), or null where that has not been read. `own` is
+   * the way in that is an ad; `recorded` is false on the row of those whose way in was not kept.
+   */
+  firstTouch: { since: string; rows: { label: string; n: number; own: boolean; recorded: boolean }[] } | null;
 }
 
 /** What the platforms return as choices and estimates; fixed per account, not per ad. */

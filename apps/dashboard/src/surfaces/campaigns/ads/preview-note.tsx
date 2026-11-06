@@ -7,9 +7,9 @@ import { EXAMPLE } from "@chanlytics/contracts/ads-page";
 import { Notice } from "../../kit/notice/notice";
 import { adsInPreview } from "./shown";
 
-export function PreviewNote({ className }: { className?: string }) {
+export function PreviewNote({ said = EXAMPLE.preview.said, className }: { said?: string; className?: string }) {
   if (!adsInPreview()) return null;
-  const { word, said } = EXAMPLE.preview;
+  const { word } = EXAMPLE.preview;
   return (
     <Notice
       className={className}

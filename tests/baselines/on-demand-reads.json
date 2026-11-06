@@ -9,6 +9,11 @@
     "fresh": "Read only when the tab knows no zone yet; the workspace surface's read holds it after.",
     "why": "A day is counted in the workspace's zone, and a page asked for it before the workspace surface landed must not guess it; the surface's own read, heard, is what holds it afterwards."
   },
+  "apps/dashboard/src/surfaces/campaigns/ads/first-touch.ts GET reports/people": {
+    "kind": "on-open",
+    "fresh": "Read as the Ads page comes to what is true of a workspace today, nothing connected, and again each time a person comes back to it; nothing of it is kept once the page goes.",
+    "why": "The page says how new people first came over the last 30 days, which moves slowly, and its door goes to Reports › People, whose own surface hears the feed. Reports' surface follows the period Reports shows, which is not this page's."
+  },
   "apps/dashboard/src/surfaces/campaigns/ads/new/kept-files.ts GET files": {
     "kind": "on-open",
     "fresh": "Read as New ad's photo section is drawn, a few at a time, and again each time a person comes back to that step; nothing of it is kept once the composer goes.",
