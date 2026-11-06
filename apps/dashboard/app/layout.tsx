@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import {
+  firstRowsScript,
+  homeBootScript,
   inAppBootScript,
   outlineBootScript,
   routePrefetchScript,
@@ -106,6 +108,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geist.variable} ${geistMono.variable}`}
     >
       <head>
+        {/* The home sends a tab on to its workspace before anything else here has been fetched or run (contracts homeBootScript).
+            An async module, inline, as the route's reads below: a plain inline script waits for every stylesheet before it. */}
+        <script type="module" async dangerouslySetInnerHTML={{ __html: homeBootScript() }} />
         <link rel="preload" href="/fonts/MonaSans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
@@ -120,7 +125,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             inline fetches nothing. A browser without modules skips it, and the page asks for its reads itself. */}
         <script type="module" async dangerouslySetInnerHTML={{ __html: routePrefetchScript() }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* After what the document draws: the rows a phone last showed, over the outline, in the first paint (contracts
+            firstRowsScript). A plain inline script, as the head's above: they hold the parser for the stylesheets already, so this
+            waits for nothing more. An async module runs when it may, and a phone drew the outline for 80 ms ahead of the rows. */}
+        <script dangerouslySetInnerHTML={{ __html: firstRowsScript() }} />
+      </body>
     </html>
   );
 }

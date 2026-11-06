@@ -21,7 +21,7 @@ import type { ApiRefusal } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { canDo, gateTitle, type LegacyFlash } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
-import { Face, faceTileOf } from "../../kit/face/face";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Meter } from "../../kit/meter/meter";
@@ -183,7 +183,7 @@ function RoRunMail({ vm }: { vm: RunWords }) {
       </p>
       <article className="ro-mail" data-testid="ro-run-words">
         <div className="ro-mail-head">
-          <Face person={{ name: mail.name }} tile={faceTileOf(mail.name)} />
+          <Face person={{ name: mail.name }} tile />
           <span className="ro-mail-who">
             <b>{mail.name}</b>
             <small data-testid="ro-run-reader">{mail.as}</small>
@@ -336,7 +336,7 @@ function RoRunList({
         {open
           ? vm.list.map((x) => (
               <div key={x.id} className="ro-whor" data-testid="ro-run-person">
-                <Face person={{ name: x.name }} tile={faceTileOf(x.name)} />
+                <Face person={{ name: x.name }} tile />
                 <div className="ro-whor-main">
                   <RoName name={x.name} leadId={x.leadId} testid="ro-person-lead" />
                   {x.opening ? (

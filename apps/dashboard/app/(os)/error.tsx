@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MIN_MS, routeOfAddress } from "@chanlytics/contracts";
+import { dropFirstRows, MIN_MS, routeOfAddress } from "@chanlytics/contracts";
 import { REPORT_WORDS } from "@chanlytics/contracts";
 import { REPORT_AFTER_KEY, lastClientError, reportClientError } from "@/client/client-error";
 
@@ -30,6 +30,8 @@ function reportAfterReload() {
 
 export default function OsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
+    // The rows a phone last showed never stand over this card (contracts shell/first-rows.ts).
+    dropFirstRows(document);
     reportClientError("os", error, routeOfAddress(window.location), error.digest ?? null);
     if (CHUNK_ERROR.test(error.message)) {
       try {

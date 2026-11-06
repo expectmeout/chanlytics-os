@@ -18,6 +18,7 @@
  * until then (Ruben's recording, 2 Nov 2026). People's rows land clean under the same fade, so a table keeps it.
  */
 import { useCallback, useRef } from "react";
+import { firstRowsStand } from "@chanlytics/contracts";
 import { onAPhone } from "../../legacy-verbs";
 import { cameBack } from "./held-list";
 
@@ -74,6 +75,8 @@ export function useRowsArrive<T extends HTMLElement = HTMLTableElement>(
     (el: T | null) => {
       if (!el || arrived.current) return;
       arrived.current = true;
+      // Rows that land where the rows a phone last showed stand (contracts shell/first-rows.ts) have arrived already.
+      if (typeof document !== "undefined" && firstRowsStand(document)) return;
       if (!cameBack(el) && (fadesOnPhone || !onAPhone())) fadeRowsIn(el, rows);
     },
     [rows, fadesOnPhone],

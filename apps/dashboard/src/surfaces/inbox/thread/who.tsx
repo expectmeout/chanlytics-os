@@ -25,7 +25,7 @@ import {
   waitedSaid,
 } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
-import { Face, faceHueOf } from "../../kit/face/face";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { holderName } from "../../holder-names";
@@ -41,22 +41,29 @@ interface IxWhoProps {
   avatar: string;
   photo?: string | null;
   priority?: string | null;
-  /** The face in their own hue (the thread's head; contracts' name picks it), where it is the house's grey. */
-  hued?: boolean;
+  /** The face at the thread head's 40px (inbox.css), where a call's head keeps the kit's 36. */
+  large?: boolean;
   /** What stands on the face's edge: the wire the conversation is on (header.tsx wireBadge). */
   badge?: ReactNode;
   children?: ReactNode;
 }
 
 /** The face, with the wire's badge on its edge where it has one. Called, not drawn. */
-function whoFace({ who, avatar, photo = null, priority = null, hued = false, badge = null }: IxWhoProps): ReactElement {
+function whoFace({
+  who,
+  avatar,
+  photo = null,
+  priority = null,
+  large = false,
+  badge = null,
+}: IxWhoProps): ReactElement {
   const drawn = (
     <Face
       person={{ name: who, initials: avatar }}
       size="lg"
       photo={photo ?? undefined}
       priority={priority}
-      {...(hued ? { hue: faceHueOf(who), className: "ix-th-who-round" } : {})}
+      {...(large ? { className: "ix-th-who-round" } : {})}
     />
   );
   // A badge stands on the face's edge, outside the circle that clips its picture: the two in a box of their own.

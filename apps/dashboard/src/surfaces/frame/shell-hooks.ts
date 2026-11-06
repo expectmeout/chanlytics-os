@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { firstRowsStand } from "@chanlytics/contracts";
 import type { watchKeyboard } from "../kit/motion/keyboard";
 import { frameChrome, frameShell, frameSurfaceState, fromWindow, isDemoFrame } from "./frame-window";
 import { parseRoute, routeFailed, routeReady, shellAddress, type RouteAt, type ShellRoute } from "./shell-routes";
@@ -421,15 +422,19 @@ export function useViewFade(
     // The tab bar's move, taken by the first view to arrive after it, if it arrived while the move is still the last ask.
     const cut = placed.current !== null && performance.now() - placed.current < PLACE_CUT_MS;
     placed.current = null;
+    // Under the rows a phone last showed (contracts shell/first-rows.ts) the page has arrived already: it takes their place
+    // whole, in one frame, with no fade of its own to begin as they go.
+    const underCopy = firstRowsStand(document);
     viewRef.current = {
       key: viewKey,
       page,
       reading: routeLoading && !onStrip && !inPlace,
       place,
-      stay: !routeLoading && prev.key !== null && ((prev.page === page && !prev.reading) || cut) && !slide,
+      stay:
+        underCopy || (!routeLoading && prev.key !== null && ((prev.page === page && !prev.reading) || cut) && !slide),
       // Landing where its own reading view stood: the page's words fade in, and a head drawn in the view stays as it
       // stood (components.css `data-landed`): Today's greeting faded out and in again as Today was read (31 Oct 2026).
-      landed: !routeLoading && prev.reading && prev.page === page,
+      landed: !underCopy && !routeLoading && prev.reading && prev.page === page,
       slide,
     };
   }

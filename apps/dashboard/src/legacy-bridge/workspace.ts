@@ -19,6 +19,7 @@
 import {
   MIN_MS,
   canonicalRoute,
+  LAST_WORKSPACE_STORAGE,
   movedAddress,
   routeOfAddress,
   routeOfHash,
@@ -30,7 +31,7 @@ import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 import { inPlace } from "../surfaces/see/see-over";
 
-const LAST_KEY = "chanlytics.workspace";
+const LAST_KEY = LAST_WORKSPACE_STORAGE;
 
 /** The workspace a path names, /w/<slug or id>, or null off a workspace page. */
 export function pathWorkspace(pathname: string): string | null {

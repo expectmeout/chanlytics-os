@@ -79,6 +79,7 @@ function TableRowView<R extends TableRow, X>(p: RowProps<R, X>) {
     <tr
       ref={p.measure}
       data-index={p.index}
+      data-row-id={row.id}
       aria-rowindex={p.rowIndex}
       id={rowId}
       className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${own}`}

@@ -605,8 +605,9 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
 
 /* The tile: as wide and as tall as its caller asks (cells/tile.tsx, --tile), unless what holds it sets its own
    (--tile-fit: a table at its compact height). The photo, else initials on one quiet ground. A photo that fails to load falls back to the tile. Initials
-   are a name's letters, not a state: the tones picked by hash drew a red "CH" that read as a failure. */
-.ld-tile { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; flex: none; width: var(--tile-fit, var(--tile, 48px)); height: var(--tile-fit, var(--tile, 48px)); display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--tint); color: var(--tint-ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
+   are a name's letters, not a state: the tones picked by hash drew a red "CH" that read as a failure, and the six tints
+   of a kind of business said nothing a reader could use (Ruben, 6 Nov 2026), so it is a face's own fill. */
+.ld-tile { position: relative; flex: none; width: var(--tile-fit, var(--tile, 48px)); height: var(--tile-fit, var(--tile, 48px)); display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--face-fill); color: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
 button.ld-tile { cursor: pointer; }
 button.ld-tile:focus-visible { box-shadow: var(--focus-ring); }
 .ld-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -866,11 +867,11 @@ button.ld-slot-btn { cursor: pointer; }
 .ld-lb-name { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
 .ld-lb-sub { font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-lb-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
-.ld-lb-photo { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; display: grid; place-items: center; background: var(--tint); color: var(--tint-ink); overflow: hidden; }
+.ld-lb-photo { position: relative; display: grid; place-items: center; background: var(--bg-active); color: var(--ink-muted); overflow: hidden; }
 .ld-lb-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: oklch(0 0 0 / 0.85); display: block; }
 .ld-lb-photo.no-img img { display: none; }
 .ld-lb-initials { font-family: var(--font-mono); font-size: 72px; font-weight: 500; letter-spacing: .04em; opacity: .85; }
-.ld-lb-nophoto { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; font-size: var(--text-xs); color: var(--tint-ink); opacity: .8; }
+.ld-lb-nophoto { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; font-size: var(--text-xs); color: var(--ink-muted); opacity: .8; }
 .ld-lb-side { border-left: 1px solid var(--line); padding: 16px 18px; overflow: auto; display: flex; flex-direction: column; gap: 18px; }
 .ld-lb-line { font-size: var(--text-sm); color: var(--ink); }
 .ld-lb-quiet { font-size: var(--text-xs); color: var(--ink-dim); margin-top: 2px; }
@@ -1192,7 +1193,7 @@ button.ld-slot-btn { cursor: pointer; }
 
 /* ====================================================================
    Glass: Leads (the plan's step 5.4, canvases L1, L-phone-list and the panel boards; reviewed against them 2 October
-   2026). The list is People's two panes (clients.css, P1) with a lead's own cells: a 40px tile in the kind's tint, the
+   2026). The list is People's two panes (clients.css, P1) with a lead's own cells: a 40px tile on a face's fill, the
    name at 600 with its state's words beside it, the stage as a 3px bar down the row's edge; Find leads the one accent.
    The lead's panel is the pane the rules above make, read down as the canvas reads: the tile as a chip on the band
    with glass circles for Close and Expand, the stage one capsule, the checks on 16px rounds, the steps numbered, the
@@ -1201,34 +1202,26 @@ button.ld-slot-btn { cursor: pointer; }
    buttons, the hover card) are reached by their place.
    ==================================================================== */
 
-/* The six tints (tokens.css --tile-tint-N, from contracts leadTintOf), which a row's tile wears. */
-.ld-row-name > .tint-1 { --tint: var(--tile-tint-1); --tint-ink: var(--tile-tint-ink); }
-.ld-row-name > .tint-2 { --tint: var(--tile-tint-2); --tint-ink: var(--tile-tint-ink); }
-.ld-row-name > .tint-3 { --tint: var(--tile-tint-3); --tint-ink: var(--tile-tint-ink); }
-.ld-row-name > .tint-4 { --tint: var(--tile-tint-4); --tint-ink: var(--tile-tint-ink); }
-.ld-row-name > .tint-5 { --tint: var(--tile-tint-5); --tint-ink: var(--tile-tint-ink); }
-.ld-row-name > .tint-6 { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
-
 @media (width > 900px) {
   /* The list's name sits where People's does (P1): close under the controls, the pane's 18px at its sides. */
   .main-scroll .ld-list-head {
     margin: 0;
     padding: 4px 18px 12px;
   }
-  /* The tile (L1): 40px with the inset's corners in the kind's tint (People's face rule, clients.css, would lay the
-     face's fill over it), its initials at the small step; the size is the column's inline style, so the look says it
-     with weight, but for a table at its compact height, which says its own (--tile-fit). The name at 600, the kind and
-     the distance under it at the extra-small. */
+  /* The tile (L1): 40px with the inset's corners, on a face's fill and ring as People's face wears them, its initials at
+     the small step; the size is the column's inline style, so the look says it with weight, but for a table at its
+     compact height, which says its own (--tile-fit). The name at 600, the kind and the distance under it at the
+     extra-small. */
   .main-scroll .ld-row-name > :first-child {
     width: var(--tile-fit, 40px) !important;
     height: var(--tile-fit, 40px) !important;
     border-radius: var(--radius-lg);
-    background: var(--tint);
-    box-shadow: none;
+    background: var(--face-fill);
+    box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);
     letter-spacing: 0.02em;
-    color: var(--tint-ink);
+    color: var(--ink);
   }
   .main-scroll .ld-biz-cell .cl-row-fullname .ld-biz-name {
     font-weight: var(--weight-semibold);
