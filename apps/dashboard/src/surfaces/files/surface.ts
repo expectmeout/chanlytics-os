@@ -36,7 +36,7 @@ let onScreen: { shelf?: FileShelf; limit?: number } = {};
 const readAsked = ({ shelf, limit }: typeof onScreen) =>
   shelf ? read("GET files", { query: { shelf, ...(limit ? { limit } : {}) } }) : read("GET files");
 
-/** Another shelf. What it holds replaces what stood, unless something newer was onScreen for meanwhile. */
+/** Another shelf. What it holds replaces what stood, unless something newer was asked for meanwhile. */
 export async function showFilesShelf(shelf: FileShelf): Promise<void> {
   const ask = (onScreen = { shelf });
   const dto = await readAsked(ask);
