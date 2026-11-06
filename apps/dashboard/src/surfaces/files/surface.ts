@@ -34,7 +34,7 @@ export interface FilesSurface {
 let asked: { shelf?: FileShelf; limit?: number } = {};
 
 const readAsked = ({ shelf, limit }: typeof asked) =>
-  shelf ? read("GET files", { query: { shelf, ...(limit ? { limit: String(limit) } : {}) } }) : read("GET files");
+  shelf ? read("GET files", { query: { shelf, ...(limit ? { limit } : {}) } }) : read("GET files");
 
 /** Another shelf. What it holds replaces what stood, unless something newer was asked for meanwhile. */
 export async function showFilesShelf(shelf: FileShelf): Promise<void> {
