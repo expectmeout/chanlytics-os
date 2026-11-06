@@ -659,7 +659,7 @@ test("past status and search every op needs a database and a workspace on record
   ]);
   // And the held reply's stop (decision 0064, step 6): twelve.
   const list =
-    "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft or hold";
+    "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft, hold, post or unpost";
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, { ok: false, error: "unknown_op", detail: list }]);
   assert.deepEqual(await answer(await knock({})), [400, { ok: false, error: "unknown_op", detail: list }]);
   assert.deepEqual(await answer(await knock("not json")), [400, { ok: false, error: "unknown_op", detail: list }]);

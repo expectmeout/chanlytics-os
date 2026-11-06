@@ -14,6 +14,7 @@ import {
   whoStandsOf,
   type FileDto,
   type FileMade,
+  type FilePosted,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
@@ -24,6 +25,7 @@ import { afterSheetCloses } from "../kit/sheet/back";
 import { askAbout, canDo, type LegacyFlash } from "../legacy-verbs";
 import { FileChoices, FileReads, FileWho, NameField, type SheetPress } from "./file-fields";
 import { Picture } from "./photo";
+import { PostGoogle, PostGoogleActs, PostOnGoogle, usePostGoogle } from "./post-google";
 import { PostShapes } from "./post-shapes";
 import { PostVersion, PostVersionActs, usePostVersion } from "./post-version";
 import { fileVerbs, type FileChange } from "./verbs";
@@ -36,21 +38,26 @@ function lookSaysOf(file: FileDto): string | null {
   return file.line;
 }
 
-/** How a post was made, read as its sheet opens: `made` isn't on the list a page reads. Nothing is said until it comes. */
-function useMade(file: FileDto): FileMade | null {
+/** How a post was made and where it is up, read as its sheet opens: neither is on the list a page reads. Nothing is said until it comes. */
+function usePostRecord(file: FileDto) {
   const [made, setMade] = useState<FileMade | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [posted, setPosted] = useState<FilePosted | null>(null);
   const isPost = file.source === "made";
   useEffect(() => {
     if (!isPost) return undefined;
     let live = true;
     void fileVerbs.record(file.id).then((r) => {
-      if (live && r.ok) setMade(r.data.made);
+      if (!live || !r.ok) return;
+      setMade(r.data.made);
+      setConnected(r.data.google?.connected ?? false);
+      setPosted(r.data.google?.posted ?? null);
     });
     return () => {
       live = false;
     };
   }, [file.id, isPost]);
-  return made;
+  return { made, connected, posted, setPosted };
 }
 
 /** Where a post came from, a door to that photo while it is here; anything else says the road that brought it. */
@@ -78,7 +85,14 @@ function FileActs({
   ask,
   makePost,
   newVersion,
-}: SheetPress & { remove: () => void; ask: () => void; makePost: () => void; newVersion: (() => void) | null }) {
+  toGoogle,
+}: SheetPress & {
+  remove: () => void;
+  ask: () => void;
+  makePost: () => void;
+  newVersion: (() => void) | null;
+  toGoogle: (() => void) | null;
+}) {
   const [asking, setAsking] = useState(false);
   if (asking)
     return (
@@ -128,6 +142,11 @@ function FileActs({
           {W.newVersion}
         </Button>
       )}
+      {toGoogle && (
+        <Button variant="quiet" onClick={toGoogle} data-testid="fl-to-google">
+          {W.google.post}
+        </Button>
+      )}
       {askAboutIt}
       {file.status === "inbox" && (
         <Button onClick={() => say({ status: "filed" })} disabled={busy} data-testid="fl-keep">
@@ -166,11 +185,12 @@ function FileSheet({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const may = canDo("settings");
-  const made = useMade(file);
+  const { made, connected, posted, setPosted } = usePostRecord(file);
   const version = usePostVersion((id, words) => {
     flash({ msg: <>{words}</> });
     open(id);
   });
+  const going = usePostGoogle(file.id, made?.plan ?? null, setPosted, flash);
   const change = async (body: FileChange): Promise<string | null> => {
     setBusy(true);
     const r = await fileVerbs.change(file.id, body);
@@ -207,6 +227,8 @@ function FileSheet({
       foot={
         version.open ? (
           <PostVersionActs version={version} />
+        ) : going.open ? (
+          <PostGoogleActs google={going} />
         ) : (
           <FileActs
             {...press}
@@ -215,18 +237,21 @@ function FileSheet({
             makePost={makePost}
             // From the photo it came from: with that gone, there is nothing to draw it again from.
             newVersion={made?.from ? () => version.begin(made.plan) : null}
+            toGoogle={may && connected && !posted && made?.from ? going.begin : null}
           />
         )
       }
     >
       {version.open ? (
         <PostVersion version={version} />
+      ) : going.open && made ? (
+        <PostGoogle google={going} plan={made.plan} />
       ) : file.source === "made" ? (
         <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />
       ) : (
         <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
       )}
-      {!version.open && (
+      {!version.open && !going.open && (
         <>
           {says && <p className="files-says">{says}</p>}
           {file.looks_like_stock && file.status === "inbox" && <Notice label={W.stock} fact={W.stock} line />}
@@ -242,6 +267,9 @@ function FileSheet({
               <FileReads file={file} />
             )}
             <FileFrom file={file} made={made} open={open} />
+            {posted && (
+              <PostOnGoogle id={file.id} posted={posted} may={may} saidDown={() => setPosted(null)} flash={flash} />
+            )}
             {/* Under what was pressed, and read out: a press that did nothing says so where the eye and a screen reader are. */}
             {problem && (
               <div role="alert">

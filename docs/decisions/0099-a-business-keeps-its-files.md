@@ -133,6 +133,13 @@ what a page shows them. So a picture needs one place, one name and a written rec
     by `shelfFilterOf`, which a test holds equal to `shelfOf` over every file there can be. A tally still reads a small row per file:
     Ask's line and a page's head read four short columns where they read every look, and a count in SQL would need a migration for a
     read that is a few KB at the cap.
+19. **A kept post goes on the business's Google profile, on a person's press.** A kept post's sheet offers it where the Business
+    Profile is connected and the photo it came from is still here: the picture as Google shows it, drawn at 4:3 from what the post was
+    asked to be, the words that go under it, and one press. It is public as soon as Google has looked at it, so nothing does this by
+    itself, and Ask has no tool for it. The picture is kept in the file's own folder, so the purge that empties a file empties it, and
+    Google is sent a day's address to fetch it. The ledger keeps Google's name for the post (`file.posted`, `file.unposted`), which is
+    how the sheet knows it is up, and how it comes down; a name that isn't this connection's takes nothing down. Campaigns' ads are
+    still a mock, so Google is the first place a post goes.
 
 ## What it costs
 

@@ -23,6 +23,7 @@ import {
   postWordsIn,
   recordOrNull,
   type PostPlan,
+  type PostPicture,
   type PostShapeName,
 } from "@chanlytics/contracts";
 import { fileFingerprintOf, FINGERPRINT_BYTES } from "@chanlytics/channels";
@@ -51,7 +52,7 @@ export const postPlanInput = z.object({
 });
 
 /** A photo a post may be made from, or the words that say why not. */
-async function photoFor(ctx: RouteContext, plan: PostPlan): Promise<FileMemberRow> {
+export async function photoFor(ctx: RouteContext, plan: PostPlan): Promise<FileMemberRow> {
   const file = await fileOf(ctx.supabase, plan.file_id);
   if (!file) throw new AppError("not_found", W.gone, 404);
   const wont = postPhotoWont(file);
@@ -67,7 +68,12 @@ async function photoFor(ctx: RouteContext, plan: PostPlan): Promise<FileMemberRo
   return file;
 }
 
-const postDrawn = (plan: PostPlan, material: PostMaterial, shape: PostShapeName, draft: boolean): Promise<Buffer> =>
+export const postDrawn = (
+  plan: PostPlan,
+  material: PostMaterial,
+  shape: PostPicture,
+  draft: boolean,
+): Promise<Buffer> =>
   composePost({
     photo: material.photo,
     subject: material.subject,
@@ -90,7 +96,7 @@ const postDrawn = (plan: PostPlan, material: PostMaterial, shape: PostShapeName,
 export async function previewPost(
   ctx: RouteContext,
   member: Member,
-  plan: PostPlan & { shape?: PostShapeName | undefined },
+  plan: PostPlan & { shape?: PostPicture | undefined },
 ): Promise<Response> {
   const file = await photoFor(ctx, plan);
   const material = await materialOf(ctx, member, file);

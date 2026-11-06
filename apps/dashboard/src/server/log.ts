@@ -131,6 +131,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "export.workspace",
   "fact_answer_failed",
   "file_decoder_answered",
+  "file_google_store_failed",
   "file_post_let_go_failed",
   "file_post_logo_failed",
   "file_post_look_failed",

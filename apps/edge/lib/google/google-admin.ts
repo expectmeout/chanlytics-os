@@ -72,12 +72,17 @@ import {
   chosenLocation,
   bindFailedAnswer,
   chosenAnswer,
+  planPost,
   planReply,
+  planUnpost,
+  postAnswer,
   replyAnswer,
   refreshAnswer,
   type GoogleBody,
   type ListingView,
 } from "./google-ops.js";
+
+import { postOnProfile, unpostOnProfile } from "./local-posts.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -105,11 +110,13 @@ type OnListing = (c: GoogleCall, conn: ConnectionRow | null, row: ListingRow | n
  */
 const ON_WORKSPACE: Record<"link" | "connect" | "draft" | "hold", OnWorkspace> = { link, connect, draft, hold };
 
-const ON_CONNECTION: Record<"locations" | "choose" | "disconnect" | "reply", OnConnection> = {
+const ON_CONNECTION: Record<"locations" | "choose" | "disconnect" | "reply" | "post" | "unpost", OnConnection> = {
   locations,
   choose,
   disconnect,
   reply,
+  post: postOp,
+  unpost: unpostOp,
 };
 
 const ON_LISTING: Record<"unlink" | "refresh", OnListing> = { unlink, refresh: refreshOp };
@@ -282,6 +289,23 @@ async function reply(c: GoogleCall): Promise<Response> {
   const r = await replyOnProfile(c.db, c.tenantId, plan.id, plan.comment);
   if (r.ok) c.L.info("google_replied", { id: plan.id });
   return respond(replyAnswer(r));
+}
+
+/** A person's press puts a post on the profile, or takes one off: the dashboard's route has said they may. */
+async function postOp(c: GoogleCall): Promise<Response> {
+  const plan = planPost(reviewIdOf(c.body.file_id), c.body);
+  if (plan.kind === "refuse") return respond(plan.answer);
+  const r = await postOnProfile(c.db, c.tenantId, { fileId: plan.fileId, by: c.userId, post: plan.post });
+  if (r.ok) c.L.info("google_posted", { file_id: plan.fileId });
+  return respond(postAnswer(r));
+}
+
+async function unpostOp(c: GoogleCall): Promise<Response> {
+  const plan = planUnpost(reviewIdOf(c.body.file_id), c.body.post_name);
+  if (plan.kind === "refuse") return respond(plan.answer);
+  const r = await unpostOnProfile(c.db, c.tenantId, { fileId: plan.fileId, by: c.userId, name: plan.name });
+  if (r.ok) c.L.info("google_unposted", { file_id: plan.fileId });
+  return respond(postAnswer(r));
 }
 
 /* ------------------------------------------------------- unlink, refresh */
