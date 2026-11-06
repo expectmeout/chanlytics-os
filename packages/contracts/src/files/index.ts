@@ -32,8 +32,10 @@ export {
 export type {
   FileDto,
   FileLookStatus,
+  FileMade,
   FileMime,
   FilePeople,
+  FileRecordDto,
   FileShelf,
   FileShows,
   FileSource,

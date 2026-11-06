@@ -8,6 +8,7 @@
  */
 
 import { DAY_MS, SECOND_MS } from "../shared/time";
+import type { PostPlan } from "./post";
 
 /** The private bucket (00551): `<tenant>/<file>/original.<ext>`, written only by a signed upload or the service role. */
 export const FILES_BUCKET = "files";
@@ -132,6 +133,18 @@ export interface FilesPageDto {
   files: FileDto[];
 }
 
+/** How a post was made (00553): the photo it came from, while that is still here, and what it was asked to be. */
+export interface FileMade {
+  from: { id: string; name: string } | null;
+  plan: PostPlan;
+}
+
+/** One file, as GET files/[id] answers it. `made` is null on everything but a post. */
+export interface FileRecordDto {
+  file: FileDto;
+  made: FileMade | null;
+}
+
 /** What the look counted of the people in a picture: how many, and how many someone who knows them could recognize. */
 export type FilePeople = { count: number; recognizable: number };
 
@@ -218,6 +231,9 @@ export function filesSayOf(files: readonly Pick<FileDto, "status" | "look_status
 export const FILE_WORDS = {
   askAbout: "Ask about this photo",
   makePost: "Make a post",
+  newVersion: "New version",
+  madeFrom: "Made from",
+  madeFromGone: "Made with Ask, from a photo since deleted",
   title: "Files",
   add: "Add photos",
   adding: (done: number, of: number) => `Adding ${done} of ${of}`,

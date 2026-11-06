@@ -83,6 +83,28 @@ export async function fileForWork(db: Db, tenantId: string, id: string): Promise
   return data ?? null;
 }
 
+/** How a post was made, for the service role: a member's session has no grant on it (00553). */
+export async function fileMadeOf(db: Db, tenantId: string, id: string): Promise<FileRow["made"]> {
+  const { data, error } = await db.from("files").select("made").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`file made: ${error.message}`);
+  return data?.made ?? null;
+}
+
+/** How the workspace's newest post that is still here was made, for the service role; null before its first. */
+export async function newestMadeOf(db: Db, tenantId: string): Promise<FileRow["made"]> {
+  const { data, error } = await db
+    .from("files")
+    .select("made")
+    .eq("tenant_id", tenantId)
+    .eq("source", "made")
+    .is("removed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`newest made: ${error.message}`);
+  return data?.made ?? null;
+}
+
 /** Whether this file is here, or a person let it go: either way an import stores no bytes for it. */
 export async function fileSeen(db: Db, tenantId: string, fingerprint: string): Promise<boolean> {
   const [live, letGo] = await Promise.all([

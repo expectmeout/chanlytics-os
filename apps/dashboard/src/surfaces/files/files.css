@@ -212,6 +212,13 @@ span.files-big {
   min-width: 0;
 }
 
+.files-made-from {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
 .files-acts {
   display: flex;
   flex-wrap: wrap;

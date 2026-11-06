@@ -3,7 +3,7 @@
  * foot. Settings loads no Base UI popup, so the sheet is the house's (kit/record/sheet). Each change is saved as it is made, and the
  * door's refresh reads the list again.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FILE_WORDS as W,
   MAKE_POST_ASK,
@@ -13,6 +13,7 @@ import {
   postPhotoWont,
   whoStandsOf,
   type FileDto,
+  type FileMade,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
@@ -24,6 +25,7 @@ import { askAbout, canDo, type LegacyFlash } from "../legacy-verbs";
 import { FileChoices, FileReads, FileWho, NameField, type SheetPress } from "./file-fields";
 import { Picture } from "./photo";
 import { PostShapes } from "./post-shapes";
+import { PostVersion, PostVersionActs, usePostVersion } from "./post-version";
 import { fileVerbs, type FileChange } from "./verbs";
 
 /** What the sheet says the look saw, or how it stands. A refused picture a person has since kept waits for no one. */
@@ -32,6 +34,38 @@ function lookSaysOf(file: FileDto): string | null {
   if (file.look_status === "refused") return file.status === "inbox" ? W.refused : W.notRead;
   if (file.look_status === "failed") return W.notRead;
   return file.line;
+}
+
+/** How a post was made, read as its sheet opens: `made` isn't on the list a page reads. Nothing is said until it comes. */
+function useMade(file: FileDto): FileMade | null {
+  const [made, setMade] = useState<FileMade | null>(null);
+  const isPost = file.source === "made";
+  useEffect(() => {
+    if (!isPost) return undefined;
+    let live = true;
+    void fileVerbs.record(file.id).then((r) => {
+      if (live && r.ok) setMade(r.data.made);
+    });
+    return () => {
+      live = false;
+    };
+  }, [file.id, isPost]);
+  return made;
+}
+
+/** Where a post came from, a door to that photo while it is here; anything else says the road that brought it. */
+function FileFrom({ file, made, open }: { file: FileDto; made: FileMade | null; open: (id: string) => void }) {
+  if (file.source !== "made" || !made) return <p className="files-from">{W.sources[file.source]}</p>;
+  const { from } = made;
+  if (!from) return <p className="files-from">{W.madeFromGone}</p>;
+  return (
+    <p className="files-from files-made-from">
+      {W.madeFrom}
+      <Button size="sm" variant="quiet" onClick={() => open(from.id)} data-testid="fl-made-from">
+        {fileSaidOf(from.name)}
+      </Button>
+    </p>
+  );
 }
 
 /** The sheet's foot: where it stands in the pile, its original, and Delete behind a question. A reader has the original alone. */
@@ -43,7 +77,8 @@ function FileActs({
   remove,
   ask,
   makePost,
-}: SheetPress & { remove: () => void; ask: () => void; makePost: () => void }) {
+  newVersion,
+}: SheetPress & { remove: () => void; ask: () => void; makePost: () => void; newVersion: (() => void) | null }) {
   const [asking, setAsking] = useState(false);
   if (asking)
     return (
@@ -88,6 +123,11 @@ function FileActs({
           {W.makePost}
         </Button>
       )}
+      {newVersion && (
+        <Button onClick={newVersion} data-testid="fl-new-version">
+          {W.newVersion}
+        </Button>
+      )}
       {askAboutIt}
       {file.status === "inbox" && (
         <Button onClick={() => say({ status: "filed" })} disabled={busy} data-testid="fl-keep">
@@ -112,10 +152,25 @@ function FileActs({
 }
 
 export /** What a person says of one file. Each change is saved as it is made, and the door's refresh reads the list again. */
-function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => void; flash: (f: LegacyFlash) => void }) {
+function FileSheet({
+  file,
+  onClose,
+  open,
+  flash,
+}: {
+  file: FileDto;
+  onClose: () => void;
+  open: (id: string) => void;
+  flash: (f: LegacyFlash) => void;
+}) {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const may = canDo("settings");
+  const made = useMade(file);
+  const version = usePostVersion((id, words) => {
+    flash({ msg: <>{words}</> });
+    open(id);
+  });
   const change = async (body: FileChange): Promise<string | null> => {
     setBusy(true);
     const r = await fileVerbs.change(file.id, body);
@@ -149,34 +204,53 @@ function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => voi
       closeLabel={W.close}
       backCloses={`file:${file.id}`}
       testid="fl-sheet"
-      foot={<FileActs {...press} remove={() => void remove()} ask={ask} makePost={makePost} />}
+      foot={
+        version.open ? (
+          <PostVersionActs version={version} />
+        ) : (
+          <FileActs
+            {...press}
+            remove={() => void remove()}
+            ask={ask}
+            makePost={makePost}
+            // From the photo it came from: with that gone, there is nothing to draw it again from.
+            newVersion={made?.from ? () => version.begin(made.plan) : null}
+          />
+        )
+      }
     >
-      {file.source === "made" ? (
+      {version.open ? (
+        <PostVersion version={version} />
+      ) : file.source === "made" ? (
         <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />
       ) : (
         <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
       )}
-      {says && <p className="files-says">{says}</p>}
-      {file.looks_like_stock && file.status === "inbox" && <Notice label={W.stock} fact={W.stock} line />}
-      {file.issues.length > 0 && <p className="files-says files-issues">{file.issues.join(" ")}</p>}
-      <div className="files-fields">
-        {may ? (
-          <>
-            <NameField file={file} change={change} />
-            <FileChoices file={file} busy={busy} say={say} />
-            <FileWho file={file} busy={busy} say={say} />
-          </>
-        ) : (
-          <FileReads file={file} />
-        )}
-        <p className="files-from">{W.sources[file.source]}</p>
-        {/* Under what was pressed, and read out: a press that did nothing says so where the eye and a screen reader are. */}
-        {problem && (
-          <div role="alert">
-            <Notice label={problem} fact={problem} line testid="fl-problem" />
+      {!version.open && (
+        <>
+          {says && <p className="files-says">{says}</p>}
+          {file.looks_like_stock && file.status === "inbox" && <Notice label={W.stock} fact={W.stock} line />}
+          {file.issues.length > 0 && <p className="files-says files-issues">{file.issues.join(" ")}</p>}
+          <div className="files-fields">
+            {may ? (
+              <>
+                <NameField file={file} change={change} />
+                <FileChoices file={file} busy={busy} say={say} />
+                <FileWho file={file} busy={busy} say={say} />
+              </>
+            ) : (
+              <FileReads file={file} />
+            )}
+            <FileFrom file={file} made={made} open={open} />
+            {/* Under what was pressed, and read out: a press that did nothing says so where the eye and a screen reader are. */}
+            {problem && (
+              <div role="alert">
+                <Notice label={problem} fact={problem} line testid="fl-problem" />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </RecordSheet>
   );
 }

@@ -119,12 +119,18 @@ what a page shows them. So a picture needs one place, one name and a written rec
     model to ask the same. It asks Ask in a conversation of its own, in the language Ask last spoke, with the photo already open: the
     scope brings the picture, so the turn skips the list and the view, and asked only for a post the model proposes plain words at
     once, since the card can change them for nothing. Ask's chips say the same sentence where it opens on a photo.
+17. **A kept post remembers how it was made.** Its sheet says which photo it came from, a door to that photo while it is here, and
+    New version starts from what the post was asked to be and keeps another file, the first left as it was (`GET files/[id]`,
+    `surfaces/files/post-version.tsx`). A member's session has no grant on `made`, so the service role reads it, after the caller's own
+    read of the row. Beside a picture opened, Ask reads how the newest post looks (`last_post`: its type, its layout, its number), and
+    keeps that unless it is asked for something else. It is told rather than held to it by code: before the first post the model
+    chooses from the business, and it can only know there is none by being told.
 
 ## What it costs
 
 - The look: about $0.50 per 1,000 files, on the workspace's usage.
 - A picture Ask opens: about 2.5 cents on Opus the first time (about 2,400 tokens written to the cache), under Ask's own day budget.
-- A post made from a photo: nothing. Code draws it, in about a second on production (2.7 s cold), and a Save takes about 2.4 s.
+- A post made from a photo: nothing. Code draws it, in about 0.9 s on production (2.7 s cold), and a Save takes about 2.5 s.
 - A listing's photo: about $0.007 from Google Places, at most ten a link, on the platform.
 - Storage's transforms: billed per source image past Pro's allowance, on the platform.
 

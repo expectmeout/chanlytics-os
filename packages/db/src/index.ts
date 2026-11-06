@@ -596,6 +596,7 @@ export {
 export type { FileFate } from "./repositories/files/doors";
 export {
   fileForWork,
+  fileMadeOf,
   fileOf,
   filesBucket,
   fileSeen,
@@ -604,6 +605,7 @@ export {
   filesToLookAgain,
   filesToPurgeAgain,
   keepClaudeCopy,
+  newestMadeOf,
 } from "./repositories/files/files";
 export type { FileMemberRow, FileRow } from "./repositories/files/files";
 export {

@@ -10,6 +10,7 @@ import {
   type FileForAsk,
 } from "@chanlytics/contracts";
 import { fileCopiesOf } from "../../../files/copies";
+import { newestPostLookOf } from "../../../files/post/record";
 import { load } from "../../../readers";
 import { filesForAsk } from "../../../readers/files";
 import { PICTURES, defineActions, readAction, type ToolContext } from "../context";
@@ -55,8 +56,11 @@ async function picturesOpened(t: ToolContext, names: readonly string[]) {
     t.endsAt === undefined ? undefined : t.endsAt - Date.now(),
   );
   const shown = found.filter((f) => copies.has(f.id));
+  // How their newest post looks, so the next keeps what they settled on: read only where a post may come of it.
+  const lastPost = shown.length ? await newestPostLookOf(t.tenantId) : null;
   return {
     shown: shown.map((f) => ({ name: f.name, shelf: fileShelfSaid(f), who: fileWhoSaid(f) })),
+    ...(lastPost ? { last_post: lastPost } : {}),
     ...(missing.length ? { no_such_file: missing, hint: "Names come from files with action list." } : {}),
     ...(found.length > shown.length
       ? { could_not_open: found.filter((f) => !copies.has(f.id)).map((f) => f.name) }
@@ -76,7 +80,7 @@ export const filesTool = defineActions({
   name: "files",
   description:
     "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees.",
-  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search.",
+  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
   actions: {
     list: readAction({
       input: z.object({
