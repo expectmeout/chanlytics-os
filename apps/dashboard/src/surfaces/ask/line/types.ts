@@ -77,6 +77,7 @@ export interface AskedHow {
 /** What the shell sends as it opens the Line (`askAbout`, frame-doors.ts). */
 export interface AskedSeed {
   prompt?: string;
+  prompts?: Readonly<Record<"en" | "es", string>>;
   mode?: string;
   thread?: string;
   about?: AskScope | string | boolean;

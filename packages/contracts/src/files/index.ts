@@ -62,6 +62,7 @@ export {
   POST_SHAPES,
   POST_VOICES,
   POST_WORDS,
+  postPhotoWont,
   postPlanOf,
   postPlanTidied,
   postWordsIn,
@@ -69,6 +70,7 @@ export {
 export type {
   PostLanguage,
   PostLayoutName,
+  PostPhotoWont,
   PostPlan,
   PostShapeName,
   PostUndrawable,

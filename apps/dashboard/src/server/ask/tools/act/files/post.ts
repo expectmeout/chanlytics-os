@@ -34,7 +34,13 @@ function ownersWords(t: ToolContext, config: unknown): string {
 }
 
 const postInput = z.object({
-  file: z.string().min(1).max(120).describe("The photo's name, from files with action list. Open it with view first."),
+  file: z
+    .string()
+    .min(1)
+    .max(120)
+    .describe(
+      "The photo's name, as files says it. Open it with view first, unless it came with the question, open already.",
+    ),
   line: z
     .string()
     .describe(
@@ -106,7 +112,7 @@ async function postOutcome(t: ToolContext, input: z.infer<typeof postInput>): Pr
 export const postAct = defineAct({
   name: "propose_post",
   description:
-    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, and choose where the words go after seeing it. The words come from what the owner has said: a price, a number or a promise they have not said is refused, so use theirs or ask them. One photo a post. The owner can change the words, the type and the layout on the card itself, for nothing, so propose once and don't offer alternatives. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, unless it came with the question, and choose where the words go after seeing it. Asked only for a post, propose one at once: a short plain headline from the photo and what you know of the business, rather than asking what it should say, since the owner can change the words, the type and the layout on the card itself, for nothing. So propose once and don't offer alternatives. A price, a number or a promise they have not said is refused, so leave those out, or use theirs. One photo a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
   kind: "post",
   input: postInput,
   label: "Making a post",

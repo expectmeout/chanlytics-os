@@ -20,12 +20,12 @@ const { POST_SIZES, SCRIM_UNDER_WORDS, postCrop, postLayout, postPhotoBox, words
   at("apps/dashboard/src/server/files/post/layout.ts")
 );
 const { composePost } = await import(at("apps/dashboard/src/server/files/post/compose.ts"));
+const { MAKE_POST_ASK, buildAskSuggestions } = await import(at("packages/contracts/src/ask/ask-suggestions.ts"));
 const { postPathOf, postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } = await import(
   at("packages/contracts/src/files/post-check.ts")
 );
-const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPlanOf, postPlanTidied, postWordsIn } = await import(
-  at("packages/contracts/src/files/post.ts")
-);
+const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } =
+  await import(at("packages/contracts/src/files/post.ts"));
 const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
@@ -408,6 +408,54 @@ test("a post is made from a photo: what waits, what already has words, and what 
   assert.match(postPhotoProblem({ status: "filed", source: "upload", shows: "graphic" }), /already has words/);
   assert.match(postPhotoProblem({ status: "filed", source: "upload", shows: "logo" }), /already has words/);
   assert.match(postPhotoProblem({ status: "filed", source: "made", shows: "graphic" }), /already made/);
+});
+
+test("why a photo can't be a post is one reading: the model is told what to do about it, and a person is told in the post's language", () => {
+  const cases = [
+    [{ status: "filed", source: "made", shows: "graphic" }, "made"],
+    [{ status: "inbox", source: "website", shows: "work" }, "unkept"],
+    [{ status: "set_aside", source: "upload", shows: "work" }, "unkept"],
+    [{ status: "filed", source: "upload", shows: "graphic" }, "design"],
+    [{ status: "filed", source: "upload", shows: "logo" }, "design"],
+    [{ status: "filed", source: "upload", shows: "work" }, null],
+    [{ status: "filed", source: "upload", shows: null }, null],
+  ];
+  for (const [file, wont] of cases) {
+    assert.equal(postPhotoWont(file), wont, JSON.stringify(file));
+    assert.equal(postPhotoProblem(file) === null, wont === null, "the model hears of the same photos");
+  }
+  for (const language of ["en", "es"])
+    for (const wont of ["made", "unkept", "design"])
+      assert.ok(postWordsIn(language).photoWont[wont], `${language}: ${wont} is said to a person`);
+  assert.notEqual(postWordsIn("es").photoWont.unkept, postWordsIn("en").photoWont.unkept);
+});
+
+test("a photo in Ask's scope is offered what it is good for, and a post to whoever may act, in the person's language", () => {
+  const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false };
+  const scope = { kind: "file", id: "f1", label: "Storefront" };
+  const of = (language, canAct) => buildAskSuggestions({ ...quiet, surface: "settings", language, scope, canAct });
+  assert.deepEqual(
+    of("en", true)
+      .slice(0, 2)
+      .map((s) => s.q),
+    [MAKE_POST_ASK.en, "What is this photo good for?"],
+    "the scope's own come first, in what the Line shows when it opens: the sentence its sheet's press asks, then the question",
+  );
+  assert.deepEqual(
+    of("es", true)
+      .slice(0, 2)
+      .map((s) => s.q),
+    [MAKE_POST_ASK.es, "¿Para qué sirve esta foto?"],
+  );
+  assert.equal(of("en", true)[0].kind, "ask", "asked at once: there is nothing to finish, and the card is the press");
+  assert.equal(of("en", false)[0].q, "What is this photo good for?", "a viewer is offered no card, only the question");
+  assert.ok(!of("en", false).some((s) => s.q === MAKE_POST_ASK.en));
+  assert.ok(
+    !buildAskSuggestions({ ...quiet, surface: "settings", language: "en", canAct: true }).some(
+      (s) => s.q === MAKE_POST_ASK.en,
+    ),
+    "with no photo in hand, no post is offered",
+  );
 });
 
 /* ------------------------------------------------------------------------- the act */

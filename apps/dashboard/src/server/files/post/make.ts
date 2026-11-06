@@ -18,7 +18,7 @@ import {
   postBandOf,
   postNameOf,
   postPathOf,
-  postPhotoProblem,
+  postPhotoWont,
   postUndrawable,
   postWordsIn,
   recordOrNull,
@@ -54,8 +54,8 @@ export const postPlanInput = z.object({
 async function photoFor(ctx: RouteContext, plan: PostPlan): Promise<FileMemberRow> {
   const file = await fileOf(ctx.supabase, plan.file_id);
   if (!file) throw new AppError("not_found", W.gone, 404);
-  const problem = postPhotoProblem(file);
-  if (problem) throw new AppError("validation", `This photo can't be used: ${problem}.`);
+  const wont = postPhotoWont(file);
+  if (wont) throw new AppError("validation", postWordsIn(plan.language).photoWont[wont]);
   for (const [words, limit] of [
     [plan.line, POST_LIMITS.line],
     [plan.over, POST_LIMITS.over],

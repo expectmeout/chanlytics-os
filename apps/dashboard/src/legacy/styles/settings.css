@@ -2204,6 +2204,7 @@ html.legacy-on .bt-link { position: relative; }
    words do (.set-conn > .set-row-stack). The dot rows are Ads' standing's (ads.css: .ads-dots, .ads-dotline), and an amber
    one says the step that mends it on a line of its own, under the dot's words. */
 .set-ads-facts { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+.set-ads-note { margin-bottom: var(--space-3); }
 .set-ads-stack { gap: var(--space-2); }
 .set-ads-ready { padding-top: var(--space-1); }
 .set-ads-ready .ads-dotline { flex-wrap: wrap; row-gap: 0; }

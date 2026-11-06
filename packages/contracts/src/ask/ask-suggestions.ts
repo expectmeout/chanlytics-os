@@ -65,6 +65,13 @@ export interface SuggestionInput {
  */
 export const SET_UP_CAMPAIGNS = { en: "Set up my campaigns", es: "Prepara mis campañas" } as const;
 
+/**
+ * What a photo's press asks, in each language: its chip here, and its sheet's own door (surfaces/files/file-sheet.tsx). Here and not
+ * with a post's words, which only Ask's chunk and Files load, since this module is on every page. The scope brings the picture, so
+ * the words only have to say what to do with it.
+ */
+export const MAKE_POST_ASK = { en: "Make a post from this photo", es: "Haz una publicación con esta foto" } as const;
+
 const T = {
   en: {
     needs: "Who needs me right now?",
@@ -106,6 +113,8 @@ const T = {
     offerIdea: "What should go out this month?",
     whyWaiting: "Why is {name} waiting?",
     working: "What's working?",
+    makePost: MAKE_POST_ASK.en,
+    photoFor: "What is this photo good for?",
   },
   es: {
     needs: "¿Quién me necesita ahora?",
@@ -147,6 +156,8 @@ const T = {
     offerIdea: "¿Qué debería salir este mes?",
     whyWaiting: "¿Por qué espera {name}?",
     working: "¿Qué está funcionando?",
+    makePost: MAKE_POST_ASK.es,
+    photoFor: "¿Para qué sirve esta foto?",
   },
 } as const;
 
@@ -245,6 +256,11 @@ function askChips(
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
+  if (s && s.kind === "file") {
+    // Asked at once, as a lead search is: it proposes a card, and nothing is done until that is pressed. Whoever may act is offered it.
+    if (input.canAct) add(t.makePost, "ask", "edit");
+    add(t.photoFor, "ask", "sparkle");
+  }
   // A page's own chips come first (Leads', Campaigns'), and whether they leave a win-back no act to offer.
   const winBackSaid = pageChips(input, t, add);
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
