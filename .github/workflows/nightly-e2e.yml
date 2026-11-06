@@ -1,11 +1,18 @@
 name: Nightly e2e
 
-# The end-to-end suite against the deployed app, every morning.
+# The end-to-end suite against the deployed app, every night.
 #
 # Every user-facing bug this project has shipped was found by loading the page
 # and looking; the suite encodes that class of bug, and until now it ran only
-# when somebody remembered to run it. 09:00 UTC is 05:00 in New York — before
-# the salon opens, after the night's deploys.
+# when somebody remembered to run it.
+#
+# It runs against production, so it asks for an hour nobody is working, and the
+# hour it asks for is not the hour it gets: GitHub starts a schedule here 3.4 to
+# 10.3 hours late, whichever hour it asks for (every daily workflow's last 25
+# runs, read 6 Nov 2026). Asked for at 09:00, it started between 15:11 and 19:18
+# UTC, in the working day, and production's database rebooted during it on 1, 4
+# and 6 Nov. Asked for at 23:17, it starts between about 02:40 and 09:35 UTC, the
+# small hours in New York, and well before the Sunday weeklies its group shares.
 #
 # Two halves. The credential-free specs (the auth gate, no fabricated data)
 # run on every schedule. The signed-in specs need a session minted with a
@@ -20,7 +27,7 @@ name: Nightly e2e
 # no issue is filed or closed for a run that covered only part of the suite.
 on:
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "17 23 * * *"
   workflow_dispatch:
     inputs:
       credential_free_only:
@@ -134,7 +141,7 @@ jobs:
       # "true" for a dispatch that asked for the credential-free half alone; "false" on the schedule.
       CREDENTIAL_FREE: ${{ inputs.credential_free_only && 'true' || 'false' }}
     # issues: write is the whole point of the steps that say what happened -- a
-    # red run at 09:00 that nobody is told about is the failure this suite
+    # red run in the night that nobody is told about is the failure this suite
     # exists to prevent, one level up.
     permissions:
       contents: read
@@ -251,7 +258,7 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
-  # Somebody has to be told. The run starts at 09:00 with nobody watching,
+  # Somebody has to be told. The run starts in the night with nobody watching,
   # and its whole purpose is to notice things. One issue, not one a night:
   # a red run comments on it (the old per-night issues fold into it the
   # first time), a green run closes it, and the second red run in a row
