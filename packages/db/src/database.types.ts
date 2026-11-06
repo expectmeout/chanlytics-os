@@ -8878,6 +8878,7 @@ export type Database = {
           p_phone_wrong: boolean
           p_postal: string
           p_region: string
+          p_status_group?: string
         }
         Returns: boolean
       }
@@ -9113,6 +9114,13 @@ export type Database = {
         Args: { p_tenant_id: string; p_usd: number }
         Returns: Json
       }
+      lead_status_groups: {
+        Args: { p_lead_ids: string[]; p_tenant_id: string }
+        Returns: {
+          lead_id: string
+          status_group: string
+        }[]
+      }
       lead_suggest_history: { Args: { p_tenant_id: string }; Returns: Json }
       lead_suggestions_write: {
         Args: {
@@ -9217,6 +9225,7 @@ export type Database = {
           shares: Json
           sort_key: string
           stage: string
+          status_group: string
           street: string
           tiktok_url: string
           version: number

@@ -2955,8 +2955,8 @@ test("the next step is a column after State: its words and its day, the day mark
     "nothing in the step's cell wears the visit's class",
   );
   assert.ok(
-    find(cell, (n) => classes(n).includes("cl-row-step")),
-    "the step's box is named for the step",
+    find(cell, (n) => classes(n).includes("cl-row-step-words")),
+    "the step's words are named for the step, on the kit's two lines",
   );
   const order = (t) =>
     all(t, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).map((tr) => tr.props.id);

@@ -6,8 +6,11 @@
  *
  * A cell draws its own `<td>`; the row marks on it the column it is (`data-col`) and, for the fill column, that it is
  * pinned at the left edge (`data-pin`), so where a column stands is the kit's in one place.
+ *
+ * One row is in the tab order on a desk: the cursor's (the first until there is one), with the controls its cells drew.
+ * Every other row's controls are taken out of it (`setRowTabs`), and are still a pointer's to press.
  */
-import { cloneElement, memo } from "react";
+import { cloneElement, memo, useLayoutEffect } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 import { warmsOnReach } from "../../legacy-verbs";
 import { EmptyState } from "../empty/empty";
@@ -32,6 +35,43 @@ const placed = (td: ReactElement<{ className?: string }>, c: AnyDataColumn, pinE
     "data-col": c.key,
     ...(c.fill ? { "data-pin": "start" } : c.key === pinEnd ? { "data-pin": "end" } : {}),
   });
+
+/** What in a row a Tab stops at: its controls, and anything a cell put in the order itself. */
+const ROW_STOPS = "button, a[href], input, select, textarea, [tabindex]";
+
+/** A control of a row, as much of it as its place in the tab order is read and written by. */
+interface RowStop {
+  dataset: Record<string, string | undefined>;
+  getAttribute: (name: string) => string | null;
+  setAttribute: (name: string, value: string) => void;
+  removeAttribute: (name: string) => void;
+}
+
+/**
+ * A row's controls in the tab order, or out of it (the table review of 5 Nov 2026): a lead's row held up to nine
+ * stops, so a list of thirty was 270 presses of Tab to cross. Out of it, each control keeps what it had beside it
+ * (`data-tab`), which is put back as the cursor reaches its row. A press on one still lands: focus then takes the cursor
+ * to its row (the row's onFocus), and the row is in the order from that draw on.
+ */
+export const setRowTabs = (
+  row: { querySelectorAll?: (q: string) => Iterable<RowStop> } | null,
+  inOrder: boolean,
+): void => {
+  // An element that cannot be asked for what it holds (a stand-in for the document, a test's) has nothing to order.
+  if (!row || typeof row.querySelectorAll !== "function") return;
+  for (const stop of row.querySelectorAll(ROW_STOPS)) {
+    const kept = stop.dataset.tab;
+    if (inOrder) {
+      if (kept === undefined) continue;
+      if (kept === "") stop.removeAttribute("tabindex");
+      else stop.setAttribute("tabindex", kept);
+      delete stop.dataset.tab;
+    } else if (kept === undefined) {
+      stop.dataset.tab = stop.getAttribute("tabindex") ?? "";
+      stop.setAttribute("tabindex", "-1");
+    }
+  }
+};
 
 export interface RowProps<R extends TableRow, X> {
   row: R;
@@ -66,12 +106,17 @@ function TableRowView<R extends TableRow, X>(p: RowProps<R, X>) {
   // What a card's face says of the selection: a ring while one is under way, the ink with its tick for this one in it.
   const pick: RowPick = selected ? "chosen" : selecting ? "choose" : undefined;
   const own = [card?.rowClass, p.rowClass ? p.rowClass(row) : ""].filter(Boolean).join(" ");
+  const rowId = `${words.id ?? words.one}-${row.id}`;
+  // After each draw of the row, since a cell may have drawn a control since. A phone's cards have no cursor to walk.
+  useLayoutEffect(() => {
+    if (typeof document !== "undefined") setRowTabs(document.getElementById(rowId), p.tabStop || !!card);
+  });
   return (
     <tr
       ref={p.measure}
       data-index={p.index}
       aria-rowindex={p.rowIndex}
-      id={`${words.id ?? words.one}-${row.id}`}
+      id={rowId}
       className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${own}`}
       aria-selected={selectable ? selected : undefined}
       data-card={card ? "" : undefined}

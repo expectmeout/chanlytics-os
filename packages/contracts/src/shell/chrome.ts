@@ -475,6 +475,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "People", keys: ["Esc"], does: "Clear the selection" },
   { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
   { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
+  { group: "People", keys: ["A"], does: "Do what the lead under the cursor offers (on Leads)" },
   // The pile, on Leads (00426): its rail by key, left to right, and its Undo; drawn nowhere but here.
   { group: "The pile, on Leads", keys: ["A"], does: "Add the lead to its sequence, or keep it" },
   { group: "The pile, on Leads", keys: ["L"], does: "Later: it comes back at the end" },

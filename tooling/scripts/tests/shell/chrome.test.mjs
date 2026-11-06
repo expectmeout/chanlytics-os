@@ -159,6 +159,7 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
       ["Esc", "Clear the selection"],
       ["F", "Find leads (on Leads)"],
       ["C", "Call the lead under the cursor (on Leads)"],
+      ["A", "Do what the lead under the cursor offers (on Leads)"],
     ],
     "People's keys, the ones its table's foot named: the sheet listed only /",
   );

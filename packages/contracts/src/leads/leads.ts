@@ -18,10 +18,12 @@ import {
   LEAD_FITS,
   LEAD_OPERATION_KINDS,
   LEAD_REACH_FILTERS,
+  LEAD_STATUS_GROUPS,
   LEAD_STAGES,
   type LeadEmailState,
   type LeadFit,
   type LeadReachFilter,
+  type LeadStatusGroup,
 } from "./search/sets";
 import {
   LEAD_ERASE_WORDS,
@@ -49,6 +51,8 @@ export {
   LEAD_CALL_OUTCOMES,
   LEAD_NOT_A_FIT_WHYS,
   LEAD_STAGE_WORDS,
+  LEAD_STATUS_GROUP_WORDS,
+  LEAD_HEADING_WORDS,
   LEAD_CLOSED_WORDS,
   LEAD_FIT_WORDS,
   LEAD_EMAIL_WORDS,
@@ -138,6 +142,8 @@ export {
   LEAD_SLOT_WORDS,
   leadSlots,
   leadReachOf,
+  leadStatusGroupsOf,
+  LEAD_REACH_NONE_WORDS,
   LEAD_REACH_WORDS,
   leadReachWord,
   leadTintOf,
@@ -206,8 +212,16 @@ export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadR
  * here first fails `schema-sets.ts:122` with `Type 'false' does not satisfy the constraint 'true'` until the
  * generated set carries the two new kinds. Nothing below re-declares a stored set.
  */
-export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES };
-export type { LeadEmailState, LeadFit, LeadReachFilter }; // A's, re-exported so a page reads one name
+export {
+  LEAD_CLOSED_REASONS,
+  LEAD_EMAIL_STATES,
+  LEAD_FITS,
+  LEAD_OPERATION_KINDS,
+  LEAD_REACH_FILTERS,
+  LEAD_STAGES,
+  LEAD_STATUS_GROUPS,
+};
+export type { LeadEmailState, LeadFit, LeadReachFilter, LeadStatusGroup }; // A's, re-exported so a page reads one name
 /**
  * The first day of Leads, before a workspace has kept one search or holds one lead (§8.9; redrawn 7 Oct 2026 as one
  * question and the door to Ask, canvas "Leads, the first day", option A). `ask` is what the door says, in the place a
@@ -342,6 +356,7 @@ export const LEAD_WORDS = {
    * Searches here. The third is the sequences' own lists (00496), each named for its sequence: the leads added to it.
    */
   viewsHeading: "Views",
+  savedHeading: "Saved",
   searchesHeading: "Searches",
   sequencesHeading: "Sequences",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.

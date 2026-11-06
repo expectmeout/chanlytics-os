@@ -386,10 +386,16 @@ const tableHeading = (c, t) => {
       `${words}<span class="dtable-arrow" aria-hidden="true"${here ? "" : ' data-idle="true"'}>` +
       `${here ? (t.sortDir === "asc" ? "▲" : "▼") : "↕"}</span></button>`
     : `<span class="dtable-words">${words}</span>`;
+  // A heading a page gave a menu (head.tsx): its caret, lit while a filter in it is on.
+  const menu = t.menus?.[c.key];
+  const caret = menu
+    ? `<button type="button" class="dtable-menu" aria-label="${c.label}: filter and hide" aria-haspopup="menu" aria-expanded="false"${menu === "on" ? ' data-on=""' : ""}>${icon("chevron-down", 11)}</button>`
+    : "";
   return (
     `<th data-key="${c.key}"${tableAttr("data-align", c.align)}${tableAttr("data-pin", pin)}${c.sorts ? ' data-sorts=""' : ""}` +
+    `${menu ? ' data-menu=""' : ""}${menu === "on" ? ' data-filtering=""' : ""}` +
     `${tableAttr("aria-sort", here ? (t.sortDir === "asc" ? "ascending" : "descending") : undefined)}` +
-    `${movable ? ' draggable="true"' : ""}${tableAttr("data-drop", t.drop?.[c.key])}>${inner}` +
+    `${movable ? ' draggable="true"' : ""}${tableAttr("data-drop", t.drop?.[c.key])}>${inner}${caret}` +
     `${t.desk && !c.fixed && c.label ? tableEdge(c, { dragging: t.dragging === c.key }) : ""}</th>`
   );
 };
@@ -444,6 +450,30 @@ const tableGroup = (g, t, span) =>
  * (`data-dragging`), a heading a column is dropped on (`data-drop`), a member's widths (`data-sizing`), and the head's
  * box with some of the rows picked (`data-gx-indeterminate`, which the gallery's script makes the box's state).
  */
+/** A cell's two lines (kit/table/lines.tsx): the fact, then what qualifies it; a number's stand at the column's end. */
+const tableLines = (top, sub = null, end = false, open = false) =>
+  `<span class="dtable-lines"${end ? ' data-end=""' : ""}${open ? ' data-open=""' : ""}>` +
+  `<span class="dtable-line-top">${top}</span>` +
+  `${sub ? `<span class="dtable-line-sub">${sub}</span>` : ""}</span>`;
+/**
+ * A table of such cells at a row height: two lines, one fact alone left open, a line its column cuts, and a number's
+ * at the column's end; its box as it stands once rows have passed under its heads (data-under).
+ */
+const dtableLines = (density) =>
+  `<div class="dtable-wrap" data-density="${density}"><div class="dtable-scroll" data-under>` +
+  `<table class="dtable" aria-label="People" data-fixed="true" data-density="${density}" data-sizing="fill">` +
+  `<colgroup><col data-col="name" /><col data-col="stands" width="260" /><col data-col="visits" width="120" /></colgroup>` +
+  `<thead><tr><th data-key="name" data-pin="start"><span class="dtable-words">Person</span></th>` +
+  `<th data-key="stands"><span class="dtable-words">Where they stand</span></th>` +
+  `<th data-key="visits" data-align="end"><span class="dtable-words">Visits</span></th></tr></thead>` +
+  `<tbody data-dims>${TABLE_PEOPLE.map(
+    (r, i) =>
+      `<tr data-index="${i}" id="person-${r.id}" tabindex="${i === 0 ? 0 : -1}">` +
+      `<td data-col="name" data-pin="start">${r.name}</td>` +
+      `<td data-col="stands">${tableLines(r.note, i === 2 ? null : "What qualifies it, on a line its column cuts where it ends", false, i === 2)}</td>` +
+      `<td data-col="visits">${tableLines(r.visits, "visits", true)}</td></tr>`,
+  ).join("")}</tbody></table></div><div class="dtable-foot"><span>3 people</span></div></div>`;
+
 const dtable = ({
   desk = true,
   rows = TABLE_PEOPLE,
@@ -459,12 +489,14 @@ const dtable = ({
   total = rows.length,
   shown = rows.length,
   scrolled = false,
+  under = false,
   more = false,
   dragging = null,
   drop = null,
   sized = false,
+  menus = null,
 } = {}) => {
-  const t = { desk, selectable, picked, cursor, sortBy, sortDir, dragging, drop };
+  const t = { desk, selectable, picked, cursor, sortBy, sortDir, dragging, drop, menus };
   const columns = desk ? TABLE_COLUMNS : [{ key: "card", label: "Person", fill: true }];
   const span = columns.length + (selectable ? 1 : 0);
   const count = groups ? groups.reduce((n, g) => n + g.rows.length, 0) : rows.length;
@@ -503,7 +535,7 @@ const dtable = ({
       `${rows.length === 0 ? empty : ""}</tbody>`;
   return (
     `<div class="dtable-wrap${picked.length > 0 ? " selecting" : ""}"${desk ? ` data-density="${density}"` : ""}>` +
-    `<div class="dtable-scroll" data-testid="people-table-scroll"${scrolled ? " data-scrolled" : ""}${more ? " data-more" : ""}>` +
+    `<div class="dtable-scroll" data-testid="people-table-scroll"${scrolled ? " data-scrolled" : ""}${under ? " data-under" : ""}${more ? " data-more" : ""}>` +
     `<table class="dtable" aria-label="People"${tableAttr("aria-rowcount", indexed ? rows.length + 1 : undefined)}` +
     `${desk ? ` data-fixed="true" data-density="${density}"` : ""}${groups ? ' data-grouped="true"' : ""}` +
     `${stages ? ' data-groups="stages"' : ""}${sized ? ' data-sizing="sized"' : desk ? ' data-sizing="fill"' : ""}>` +
@@ -3080,7 +3112,11 @@ export const FAMILIES = [
         }),
       },
       { id: "dtable-empty", width: "desk", html: dtable({ rows: [], selectable: false, filtered: true, total: 12 }) },
-      { id: "dtable-groups", width: "desk", html: dtable({ groups: TABLE_STAGES, stages: true, selectable: false }) },
+      {
+        id: "dtable-groups",
+        width: "desk",
+        html: dtable({ groups: TABLE_STAGES, stages: true, selectable: false, under: true }),
+      },
       { id: "dtable-long", width: "desk", html: dtable({ rows: TABLE_MANY, selectable: false, shown: 40 }) },
       { id: "dtable-cards", width: "phone", html: dtable({ desk: false, cursor: "a1", picked: ["b2"] }) },
       {
@@ -3088,6 +3124,24 @@ export const FAMILIES = [
         width: "phone",
         html: dtable({ desk: false, groups: TABLE_STAGES, stages: true, selectable: false }),
       },
+    ],
+  },
+  {
+    family: "Table's heading menus",
+    about:
+      "A heading a page gave a menu wears a caret: at rest, and lit while a filter in it is on. The menu is the kit's.",
+    entries: [{ id: "dtable-menus", width: "desk", html: dtable({ menus: { state: "on", visits: "rest" } }) }],
+  },
+  {
+    family: "Table's two lines",
+    about:
+      "A cell's two lines (surfaces/kit/table/lines.tsx): the fact, then what qualifies it a step smaller in the dim " +
+      "ink, each on a line of its own and cut in its own column; one fact alone; a number's at the column's end; and, " +
+      "at the compact height, the second beside the first. The box wears data-under, as it does once rows have passed " +
+      "under its heads, which then paint the pane's solid.",
+    entries: [
+      { id: "dtable-lines", width: "desk", html: dtableLines("comfortable") },
+      { id: "dtable-lines-compact", width: "desk", html: dtableLines("compact") },
     ],
   },
   {

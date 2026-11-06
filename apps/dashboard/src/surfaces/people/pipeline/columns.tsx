@@ -14,7 +14,8 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { plNameCell } from "../cells/columns";
 import { plRowCard } from "../cells/row-card";
-import type { DataCard, DataColumn, RowPick } from "../../kit/table/columns";
+import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";
+import { Lines } from "../../kit/table/lines";
 import type { TableCtx } from "../types";
 import { P } from "./pipe";
 import { PipelineRowMenu, PipelineTrack } from "./row";
@@ -59,7 +60,7 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "value",
       label: w.value,
       sort: { first: "desc" },
-      width: { base: 112, min: 96 },
+      width: { base: 120, min: 96 },
       cell: (r) => (
         <td key="value" className="tabular pipe-value" data-testid="pipe-value">
           {r.value || ""}
@@ -70,7 +71,7 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "stage",
       label: w.stage,
       sort: { first: "asc" },
-      width: { base: 180, min: 150, max: 280 },
+      width: { base: 188, min: 150, max: 280 },
       cell: (r) => (
         <td key="stage" className="dim tabular pipe-stage">
           <span className="pipe-stage-in">
@@ -84,7 +85,7 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "next",
       label: w.next,
       sort: { first: "asc" },
-      width: { base: 160, min: 130, max: 280 },
+      width: { base: 168, min: 130, max: 280 },
       cell: (r) => (
         <td
           key="next"
@@ -94,10 +95,10 @@ const pipeColumns = (): PipelineColumn[] => {
           data-testid="pipe-next"
         >
           {r.next ? (
-            <span className="pipe-next-in">
-              <span className="pipe-next-words">{r.next.words}</span>
-              <span className="pipe-next-when">{r.next.when}</span>
-            </span>
+            <Lines
+              top={<span className="pipe-next-words">{r.next.words}</span>}
+              sub={<span className="pipe-next-when">{r.next.when}</span>}
+            />
           ) : null}
         </td>
       ),
@@ -116,7 +117,7 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "valid",
       label: w.valid,
-      width: { base: 112, min: 96 },
+      width: { base: 120, min: 96 },
       on: false,
       cell: (r) => {
         // The row's own deal (0029): a client's row has no day to stand until, whatever their proposal's is.
@@ -142,7 +143,7 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "actions",
       label: <span className="rec-sr">{w.acts}</span>,
-      width: { base: 84 },
+      width: { base: ROW_ACTS_PX },
       fixed: true,
       cell: (r, x) => (
         <td key="actions" className="cl-actions-cell">
@@ -180,17 +181,29 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
       key: "stage",
       label: w.chip,
       sort: { first: "asc" },
-      width: { base: 180, min: 150, max: 280 },
+      width: { base: 188, min: 150, max: 280 },
       cell: (r) => (
         <td key="stage" className="pipe-stands" data-testid="pipe-stands">
-          <span className="pipe-stands-in">
-            {r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}
-            {r.inStage ? (
-              <span className="pipe-stands-sub tabular" data-testid="pipe-in-stage">
-                {r.inStage}
-              </span>
-            ) : null}
-          </span>
+          {r.chip || r.inStage ? (
+            <Lines
+              top={
+                r.chip ? (
+                  <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" />
+                ) : (
+                  <span className="tabular" data-testid="pipe-in-stage">
+                    {r.inStage}
+                  </span>
+                )
+              }
+              sub={
+                r.chip && r.inStage ? (
+                  <span className="tabular" data-testid="pipe-in-stage">
+                    {r.inStage}
+                  </span>
+                ) : null
+              }
+            />
+          ) : null}
         </td>
       ),
     },

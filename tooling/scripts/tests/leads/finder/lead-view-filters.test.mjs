@@ -63,6 +63,19 @@ test("a chip the grammar does not hold is dropped, never read as another", () =>
   assert.deepEqual(parseLeadsRoute("clients/leads:r-phone:r-email:r-phone").chips, { reach: ["email", "phone"] });
 });
 
+test("a status group survives the address, each once in the queue's order; an unknown one is no filter", () => {
+  const route = leadsRoute({ list: "ready", chips: { reach: ["email"], status_group: ["in", "needs"] }, peek: LEAD });
+  assert.equal(
+    route,
+    `clients/leads:l-ready:r-email:t-needs:t-in:p-${LEAD}`,
+    "after the reaches, before the open lead",
+  );
+  assert.deepEqual(parseLeadsRoute(route).chips, { reach: ["email"], status_group: ["needs", "in"] });
+  assert.deepEqual(parseLeadsRoute("clients/leads:t-late").chips, {}, "a group nobody knows is no filter");
+  assert.deepEqual(parseLeadsRoute("clients/leads:t-none:t-needs:t-none").chips, { status_group: ["needs", "none"] });
+  assert.equal(leadsRouteUnchipped(route), `clients/leads:l-ready:p-${LEAD}`, "a selection outlives it, as any chip");
+});
+
 test("a selection belongs to the view without its chips: a narrowing keeps it, a new search or list does not", () => {
   const view = leadsRoute({ searchId: SEARCH, list: "ready" });
   const chipped = leadsRoute({ searchId: SEARCH, list: "ready", chips: { fit: "strong", reach: ["email"] } });

@@ -102,9 +102,24 @@ export async function readLeadOne(
 /** A count the database answered, or none when it is not a whole number of rows. */
 const rowCount = (v: Json | undefined): number => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : 0);
 
+/** What 00552 adds to a view's counts, where the database said it. */
+const statusCountsOf = (o: {
+  [key: string]: Json | undefined;
+}): Pick<LeadViewCountsDto, "status_groups" | "with_email" | "with_phone"> => {
+  const g = o.status_groups;
+  return g && typeof g === "object" && !Array.isArray(g)
+    ? {
+        status_groups: { needs: rowCount(g.needs), in: rowCount(g.in), none: rowCount(g.none) },
+        with_email: rowCount(o.with_email),
+        with_phone: rowCount(o.with_phone),
+      }
+    : {};
+};
+
 /**
  * What a view of Leads holds (00500 lead_view_counts, decision 0083 Phase B), under the caller's row security as
- * leads_page reads: its members, how many its filters keep, and each criterion's count over the view without them.
+ * leads_page reads: its members, how many its filters keep, and each criterion's count over the view without them; and,
+ * from 00552, each status group's count and how many can be reached each way, which a database before it does not say.
  */
 export async function leadViewCounts(
   db: Db,
@@ -124,6 +139,7 @@ export async function leadViewCounts(
     view: rowCount(o.view),
     matching: rowCount(o.matching),
     excluded_by: Object.fromEntries(Object.entries(by).map(([k, n]) => [k, rowCount(n)])),
+    ...statusCountsOf(o),
   };
 }
 

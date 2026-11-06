@@ -186,6 +186,7 @@ export {
   LEAD_ERASE_WORDS,
   LEAD_FIT_WORDS,
   LEAD_FITS,
+  LEAD_HEADING_WORDS,
   LEAD_LEFT_OUT_WORD,
   LEAD_LIST_WORDS,
   LEAD_LISTS,
@@ -212,6 +213,7 @@ export {
   LEAD_PRIOR_MIN_PLACES,
   LEAD_QUESTION_WAIT_LINE,
   LEAD_REACH_FILTERS,
+  LEAD_REACH_NONE_WORDS,
   LEAD_REACH_WORDS,
   LEAD_READ_SOURCES,
   LEAD_REMOVE_KEEPS,
@@ -225,6 +227,8 @@ export {
   LEAD_SOURCE_WORD,
   LEAD_STAGE_WORDS,
   LEAD_STAGES,
+  LEAD_STATUS_GROUP_WORDS,
+  LEAD_STATUS_GROUPS,
   LEAD_SUGGEST_DAYS,
   LEAD_SUGGEST_UNAVAILABLE,
   LEAD_SUPPRESSING_WHY,
@@ -281,6 +285,7 @@ export {
   leadsRoute,
   leadsRouteUnchipped,
   leadsStanding,
+  leadStatusGroupsOf,
   leadTileSrc,
   leadTintOf,
   leadTodayLine,
@@ -334,6 +339,7 @@ export type {
   LeadSlotState,
   LeadSort,
   LeadStage,
+  LeadStatusGroup,
   LeadSuggestionsDto,
   LeadViewCountsDto,
   LeadWeekRow,
@@ -495,6 +501,21 @@ export type {
   LeadRunState,
   LeadSearchVia,
 } from "./search/sets";
+export {
+  LEAD_NAMED_MAX,
+  LEAD_NAMED_NAME_MAX,
+  LEAD_NAMED_PAGE,
+  LEAD_NAMED_WORDS,
+  LEAD_STARTER_VIEWS,
+  leadNamedActive,
+  leadNamedAdd,
+  leadNamedChanged,
+  leadNamedRouteFor,
+  leadNamedViewsOf,
+} from "./sheet/lead-named-views";
+export type { LeadNamedLayout, LeadNamedNow, LeadNamedView } from "./sheet/lead-named-views";
+export { LEAD_ROW_ACT_WORDS, leadFootOf, leadGroupOf, leadRowActOf, leadStatusOf } from "./sheet/lead-row-status";
+export type { LeadRowActKind, LeadRowActVM, LeadStatusTone, LeadStatusVM } from "./sheet/lead-row-status";
 export {
   LEAD_SHEET_WORDS,
   leadPickerRowsOf,

@@ -119,6 +119,11 @@ export interface TableStateArgs {
   railRow?: string | null;
   /** The page's own keys in its view, with their defaults (the Pipeline's `{ layout }`). */
   extraDefaults?: View | null;
+  /**
+   * A view as it was saved, read as the page's cells are now (Leads' `leadViewNow`): what a page lets go of a view made
+   * for cells it has since redrawn. Asked of each copy as it is read, this device's and the workspace's; none by default.
+   */
+  viewNow?: (saved: View) => View;
 }
 
 /** What the table's DOM leaves for the acts that measure it: the box that scrolls, and the measure Fit all asks for. */
@@ -236,7 +241,8 @@ function useSavedView(
     if (viewKnown.current || !a.landed) return;
     viewKnown.current = true;
     if (viewTouched.current || !a.saved) return;
-    const parts = fromView(a.saved, columns, partsNow(atoms, own, columns, first), a.extraDefaults);
+    const saved = a.viewNow ? a.viewNow(a.saved) : a.saved;
+    const parts = fromView(saved, columns, partsNow(atoms, own, columns, first), a.extraDefaults);
     savedKey.current = viewKey(toView(parts, railRow.current));
     takeView({ atoms, own }, parts, { columns, then });
   }, [a.landed]); // eslint-disable-line react-hooks/exhaustive-deps -- once, as the copy lands
@@ -356,7 +362,9 @@ export function useTableState(a: TableStateArgs) {
   const { columns, first } = a;
   const then = a.sortThen ?? NO_THEN;
   const [made] = useState(() => {
-    const remembered = { ...a.store.load(a.scope), ...((a.landed && a.saved) || {}) };
+    const now = a.viewNow ?? ((v: View) => v);
+    // Each copy by itself: this device's may be new where the workspace's is still from before.
+    const remembered = { ...now(a.store.load(a.scope)), ...((a.landed && a.saved && now(a.saved)) || {}) };
     const parts = fromView(remembered, columns, first, a.extraDefaults);
     const row = a.railRow !== undefined ? (remembered.list as string) || "all" : undefined;
     return {
@@ -422,6 +430,15 @@ export function useTableState(a: TableStateArgs) {
       own.density.set(d);
     },
     ...sizingActs(atoms, dom, touch, sizingBefore),
+    /**
+     * A layout taken whole (a named view): what it names moves, in one batch, and what it does not stands, widths among
+     * them. Saved as any change the member made is.
+     */
+    takeLayout: (layout: View) => {
+      touch();
+      const merged = { ...toView(partsNow(atoms, own, columns, first)), ...layout };
+      takeView({ atoms, own }, fromView(merged, columns, first, a.extraDefaults), { columns, then });
+    },
     /** One of the page's own keys, chosen: theirs, saved with the rest of the view. */
     setExtra: (patch: View) => {
       touch();

@@ -9,7 +9,14 @@ import type { LeadPeoplePlan } from "./search/people-plan";
 import { planWho } from "./search/sentence";
 import { planMinutes } from "./search/cards";
 import { LEAD_CLASSES, LEAD_LISTS, leadAllowanceFact, type LeadClass, type LeadList, outcomeMove } from "./lead-words";
-import { LEAD_FITS, LEAD_REACH_FILTERS, type LeadFit, type LeadReachFilter } from "./search/sets";
+import {
+  LEAD_FITS,
+  LEAD_REACH_FILTERS,
+  LEAD_STATUS_GROUPS,
+  type LeadFit,
+  type LeadReachFilter,
+  type LeadStatusGroup,
+} from "./search/sets";
 import type { LeadStageInput } from "./lead-plan-schema";
 
 /** The door's arguments (lead_set_stage). The door judges what converts; this only spells the ask. */
@@ -76,19 +83,21 @@ export const LEAD_WORDS_MAX = 80;
 
 /**
  * The chips a view carries in its route (decision 0083, Phase B, in release C's grammar,
- * `2026-09-19-lead-finder-C-extras.md` item 2): the criterion that left a lead out, a fit, and each reach the Filter asks.
- * The box's words are not a chip: they are typed, and stay in the view's place.
+ * `2026-09-19-lead-finder-C-extras.md` item 2): the criterion that left a lead out, a fit, each reach the Filter asks, and
+ * each status group a heading's menu asks (00552). The box's words are not a chip: they are typed, and stay in the view's
+ * place. A chip's name is the name the read takes it by.
  */
 export interface LeadChips {
   excluded_by?: string;
   fit?: LeadFit;
   reach?: LeadReachFilter[];
+  status_group?: LeadStatusGroup[];
 }
 
 /**
- * "clients/leads:s-<search>:l-<list>:c-<class>:x-<criterion>:f-<fit>:r-email:r-phone:p-<lead>". Ask cites a view with
- * neither id as a page (ask/citations.ts isPageRoute); one with a search's or a lead's id names that row, and grounds
- * only where it was read. The chips come after the class, each once and the reaches in their set's order, so one view
+ * "clients/leads:s-<search>:l-<list>:c-<class>:x-<criterion>:f-<fit>:r-email:r-phone:t-needs:t-in:p-<lead>". Ask cites a
+ * view with neither id as a page (ask/citations.ts isPageRoute); one with a search's or a lead's id names that row, and
+ * grounds only where it was read. The chips come after the class, each once and in their sets' order, so one view
  * has one route. The lead that is open (`p-`) comes last, so a view's own route is a prefix of the route with a lead
  * open over it: the view is what a read is keyed by, and the open lead is never part of that key.
  */
@@ -107,27 +116,38 @@ export function leadsRoute(v: {
   if (chips.excluded_by && LEAD_CRITERION_KEY.test(chips.excluded_by)) parts.push(`x-${chips.excluded_by}`);
   if (chips.fit) parts.push(`f-${chips.fit}`);
   for (const r of LEAD_REACH_FILTERS) if (chips.reach?.includes(r)) parts.push(`r-${r}`);
+  for (const g of LEAD_STATUS_GROUPS) if (chips.status_group?.includes(g)) parts.push(`t-${g}`);
   if (v.peek) parts.push(`p-${v.peek}`);
   return parts.join(":");
 }
 
 /**
  * The filters a view asks of the read, or null when it asks none (leads_page's p_filters, lead_view_counts'): the box's
- * words trimmed, the criterion, the fit, and the reaches each once in the set's order. The pile asks none (#1978).
+ * words trimmed, the criterion, the fit, and the reaches and status groups each once in their sets' order. The pile asks
+ * none (#1978).
  */
 export function leadFiltersOf(v: {
   q?: string | null;
   excluded_by?: string | null;
   fit?: LeadFit | null;
   reach?: readonly LeadReachFilter[] | null;
-}): { q?: string; excluded_by?: string; fit?: LeadFit; reach?: LeadReachFilter[] } | null {
+  status_group?: readonly LeadStatusGroup[] | null;
+}): {
+  q?: string;
+  excluded_by?: string;
+  fit?: LeadFit;
+  reach?: LeadReachFilter[];
+  status_group?: LeadStatusGroup[];
+} | null {
   const q = (v.q ?? "").trim().slice(0, LEAD_WORDS_MAX);
   const reach = LEAD_REACH_FILTERS.filter((r) => v.reach?.includes(r));
+  const groups = LEAD_STATUS_GROUPS.filter((g) => v.status_group?.includes(g));
   const out = {
     ...(q ? { q } : {}),
     ...(v.excluded_by && LEAD_CRITERION_KEY.test(v.excluded_by) ? { excluded_by: v.excluded_by } : {}),
     ...(v.fit ? { fit: v.fit } : {}),
     ...(reach.length ? { reach } : {}),
+    ...(groups.length ? { status_group: groups } : {}),
   };
   return Object.keys(out).length ? out : null;
 }
@@ -136,7 +156,7 @@ export function leadFiltersOf(v: {
 export function leadsRouteUnchipped(route: string): string {
   return route
     .split(":")
-    .filter((s) => !/^[xfr]-/.test(s))
+    .filter((s) => !/^[xfrt]-/.test(s))
     .join(":");
 }
 
@@ -157,6 +177,7 @@ export function parseLeadsRoute(route: string): {
     peek: null as string | null,
   };
   const reach = new Set<string>();
+  const groups = new Set<string>();
   for (const s of segs) {
     const dash = s.indexOf("-");
     if (dash < 1) continue;
@@ -167,10 +188,13 @@ export function parseLeadsRoute(route: string): {
     else if (seg === "x" && LEAD_CRITERION_KEY.test(val)) out.chips.excluded_by = val;
     else if (seg === "f" && (LEAD_FITS as readonly string[]).includes(val)) out.chips.fit = val as LeadFit;
     else if (seg === "r") reach.add(val);
+    else if (seg === "t") groups.add(val);
     else if (seg === "p" && /^[0-9a-f-]{36}$/.test(val)) out.peek = val;
   }
   const reaches = LEAD_REACH_FILTERS.filter((r) => reach.has(r));
   if (reaches.length) out.chips.reach = reaches;
+  const standing = LEAD_STATUS_GROUPS.filter((g) => groups.has(g));
+  if (standing.length) out.chips.status_group = standing;
   return out;
 }
 

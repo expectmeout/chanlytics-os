@@ -8677,6 +8677,7 @@ declare
   v_m      record;
   v_a      jsonb;
   v_stop   jsonb;
+  v_groups jsonb := '{}'::jsonb;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -8727,14 +8728,29 @@ begin
   v_reason := case p_action when 'not_a_fit' then 'not_a_fit' else null end;
 
   -- The same rows the page would show: the selection, or the view with its
-  -- filters (lead_matches over the view's own q, excluded_by, fit and reach,
-  -- 00500) and no paging. lead_member_shown and lead_in_list hold the rest.
+  -- filters (lead_matches over the view's own q, excluded_by, fit, reach and
+  -- status groups, 00500, 00552) and no paging. lead_member_shown and
+  -- lead_in_list hold the rest.
   if p_ids is not null then
     select coalesce(array_agg(l.id), '{}') into v_ids
       from public.leads l
      where l.tenant_id = p_tenant_id and l.id = any (p_ids)
        and l.erased_at is null and l.blanked_at is null;
   else
+    -- A status filter asks the view's own leads' groups first (lead_status_groups, one read, as the page's).
+    if jsonb_typeof(p_view->'status_group') = 'array' then
+      select coalesce(jsonb_object_agg(g.lead_id::text, g.status_group), '{}'::jsonb) into v_groups
+        from public.lead_status_groups(p_tenant_id, (
+               select array_agg(distinct m.lead_id)
+                 from public.lead_search_members m
+                 join public.leads l on l.id = m.lead_id
+                where m.tenant_id = p_tenant_id
+                  and (p_view->>'search' is null or m.search_id = (p_view->>'search')::uuid)
+                  and m.class = coalesce(p_view->>'class', 'qualified')
+                  and public.lead_member_shown(m.class, m.counted)
+                  and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_view->>'list', 'all'))
+                  and m.blanked_at is null and l.blanked_at is null and l.erased_at is null)) g;
+    end if;
     select coalesce(array_agg(distinct m.lead_id), '{}') into v_ids
       from public.lead_search_members m
       join public.leads l on l.id = m.lead_id
@@ -8745,7 +8761,8 @@ begin
        and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_view->>'list', 'all'))
        and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
        and public.lead_matches(p_view, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
-                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong);
+                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong,
+                               v_groups->>(m.lead_id::text));
   end if;
   if coalesce(array_length(v_ids, 1), 0) = 0 then
     return jsonb_build_object('done', 0, 'op_id', null, 'version', 1);
@@ -9921,10 +9938,10 @@ COMMENT ON FUNCTION public.lead_list_counts(p_tenant_id uuid) IS 'The six number
 
 
 --
--- Name: lead_matches(jsonb, text, text, text, text, text, text, text, text, text, text, smallint, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: lead_matches(jsonb, text, text, text, text, text, text, text, text, text, text, smallint, boolean, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) RETURNS boolean
+CREATE FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean, p_status_group text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE sql STABLE PARALLEL SAFE
     SET search_path TO 'public'
     AS $$
@@ -9933,7 +9950,9 @@ CREATE FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category
            nullif(p_filters->>'excluded_by', '') as excluded_by,
            nullif(p_filters->>'fit', '') as fit,
            coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'email', false) as email,
-           coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'phone', false) as phone
+           coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'phone', false) as phone,
+           case when jsonb_typeof(p_filters->'status_group') = 'array' and jsonb_array_length(p_filters->'status_group') > 0
+                then p_filters->'status_group' end as status_groups
   )
   select p_filters is null or (
            (f.q = ''
@@ -9945,16 +9964,17 @@ CREATE FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category
            and (f.fit is null or p_fit is not distinct from f.fit)
            and (not f.email or (nullif(p_email, '') is not null and p_email_state = 'ok'))
            and (not f.phone or (nullif(p_phone, '') is not null and not coalesce(p_phone_wrong, false)
-                                and coalesce(p_phone_sources, 1) >= 2)))
+                                and coalesce(p_phone_sources, 1) >= 2))
+           and (f.status_groups is null or f.status_groups ? coalesce(p_status_group, 'none')))
     from f
 $$;
 
 
 --
--- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean, p_status_group text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) IS 'Whether a lead''s membership meets the Leads page''s filters ({q, excluded_by, fit, reach: [email|phone]}; null asks nothing): the words, lower-cased and trimmed, in the business''s name, its kind or its area (postal · city, state, as contracts lead-row.ts writes it); the criterion that left it out; its fit; and each reach asked, checked as contracts leadSlots draws a checked slot (an address whose mailbox exists, email_state ok; a number not marked wrong on two sources). The one rule leads_page, lead_view_counts and lead_bulk ask (decision 0083, Phase B).';
+COMMENT ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean, p_status_group text) IS 'Whether a lead''s membership meets the Leads page''s filters ({q, excluded_by, fit, reach: [email|phone], status_group: [needs|in|none]}; null asks nothing): the words, lower-cased and trimmed, in the business''s name, its kind or its area (postal · city, state, as contracts lead-row.ts writes it); the criterion that left it out; its fit; each reach asked, checked as contracts leadSlots draws a checked slot (an address whose mailbox exists, email_state ok; a number not marked wrong on two sources); and whether it stands in any status group asked, p_status_group (lead_status_groups'' answer, null being none). The one rule leads_page, lead_view_counts and lead_bulk ask (decision 0083, Phase B; 00552).';
 
 
 --
@@ -12582,6 +12602,45 @@ COMMENT ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) IS '
 
 
 --
+-- Name: lead_status_groups(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) RETURNS TABLE(lead_id uuid, status_group text)
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  with placed as materialized (
+    -- The place a lead's row says (sequence_places_of's rule): what stands first, then the latest.
+    select distinct on (r.lead_id) r.lead_id, r.sequence_id, r.grp
+      from public.sequence_places(p_tenant_id, null, coalesce(p_lead_ids, '{}'::uuid[])) r
+     where r.lead_id is not null
+     order by r.lead_id, case when r.grp in ('done', 'left') then 1 else 0 end, r.at desc nulls last
+  ),
+  -- On a list and no batch can take it: the row says Not planned. An address still being checked is no reason (contracts
+  -- placeNotPlannedOf): it joins the batch after that.
+  not_planned as materialized (
+    select w.lead_id
+      from (select array_agg(p.lead_id) as leads, array_agg(p.sequence_id) as sequences
+              from placed p where p.grp = 'queued' having count(*) > 0) x
+     cross join lateral public.sequence_queued_why_not(p_tenant_id, x.leads, x.sequences) w
+     where w.why is not null and w.why <> 'checking'
+  )
+  select p.lead_id,
+         case when p.grp in ('waiting', 'held', 'to_send', 'replied') or n.lead_id is not null then 'needs' else 'in' end
+    from placed p
+    left join not_planned n on n.lead_id = p.lead_id
+   where p.grp not in ('done', 'left')
+$$;
+
+
+--
+-- Name: FUNCTION lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) IS 'Where each lead stands in the queue Leads works from (00552): needs (its place waits on the member: an OK, a hold, an email theirs to send, a reply, or on a list no batch can take it), in (any other place that stands). A lead it leaves out stands in neither: never in a sequence, or only done or left. The place is the one the row says (sequence_places_of''s rule). Under the caller''s row security; why a lead is not planned is sequence_queued_why_not''s to say, so a partner with no second factor is never told it. The one rule leads_page, lead_view_counts and lead_bulk ask.';
+
+
+--
 -- Name: lead_suggest_history(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13144,9 +13203,8 @@ CREATE FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid DEFAU
     SET search_path TO 'public'
     AS $$
   with v as (
-    select m.lead_id, m.excluded_by,
-           public.lead_matches(p_filters, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
-                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong) as hit
+    select m.lead_id, m.excluded_by, l.business_name, l.category, l.postal_code, l.city, l.region, m.fit,
+           l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong
       from public.lead_search_members m
       join public.leads l on l.id = m.lead_id
      where m.tenant_id = p_tenant_id
@@ -13155,13 +13213,40 @@ CREATE FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid DEFAU
        and public.lead_member_shown(m.class, m.counted)
        and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_list, 'all'))
        and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
+  ),
+  grouped as materialized (
+    select g.lead_id, g.status_group
+      from (select array_agg(distinct v.lead_id) as ids from v having count(*) > 0) x
+     cross join lateral public.lead_status_groups(p_tenant_id, x.ids) g
+  ),
+  r as materialized (
+    select v.lead_id, v.excluded_by, coalesce(g.status_group, 'none') as status_group,
+           -- Every filter but the status filter: a heading's menu says each group's count while one of them is picked.
+           public.lead_matches(p_filters - 'status_group', v.business_name, v.category, v.postal_code, v.city, v.region, v.excluded_by, v.fit,
+                               v.email, v.email_state, v.phone_e164, v.phone_sources, v.phone_wrong) as kept,
+           public.lead_matches(p_filters, v.business_name, v.category, v.postal_code, v.city, v.region, v.excluded_by, v.fit,
+                               v.email, v.email_state, v.phone_e164, v.phone_sources, v.phone_wrong, g.status_group) as hit,
+           v.email, v.email_state, v.phone_e164, v.phone_sources, v.phone_wrong
+      from v
+      left join grouped g on g.lead_id = v.lead_id
   )
   select jsonb_build_object(
-           'view', (select count(distinct v.lead_id) from v),
-           'matching', (select count(distinct v.lead_id) from v where v.hit),
+           'view', (select count(distinct r.lead_id) from r),
+           'matching', (select count(distinct r.lead_id) from r where r.hit),
            'excluded_by', coalesce((select jsonb_object_agg(x.excluded_by, x.n)
-                                      from (select v.excluded_by, count(distinct v.lead_id) as n from v
-                                             where v.excluded_by is not null group by v.excluded_by) x), '{}'::jsonb))
+                                      from (select r.excluded_by, count(distinct r.lead_id) as n from r
+                                             where r.excluded_by is not null group by r.excluded_by) x), '{}'::jsonb),
+           'status_groups', jsonb_build_object(
+             'needs', (select count(distinct r.lead_id) from r where r.kept and r.status_group = 'needs'),
+             'in', (select count(distinct r.lead_id) from r where r.kept and r.status_group = 'in'),
+             'none', (select count(distinct r.lead_id) from r where r.kept and r.status_group = 'none')),
+           -- How many of the rows every filter keeps can be reached each way, by the rule the Reach filter asks.
+           'with_email', (select count(distinct r.lead_id) from r
+                           where r.hit and public.lead_matches('{"reach": ["email"]}'::jsonb, null, null, null, null, null, null, null,
+                                                               r.email, r.email_state, null, null, null)),
+           'with_phone', (select count(distinct r.lead_id) from r
+                           where r.hit and public.lead_matches('{"reach": ["phone"]}'::jsonb, null, null, null, null, null, null, null,
+                                                               null, null, r.phone_e164, r.phone_sources, r.phone_wrong)))
 $$;
 
 
@@ -13169,7 +13254,7 @@ $$;
 -- Name: FUNCTION lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) IS 'What a view of Leads holds, under the caller''s row security, by the rules leads_page reads (lead_member_shown, lead_in_list, nothing blanked or erased), each lead once as the page draws it and lead_bulk acts on it: {view: its leads, matching: those meeting p_filters (lead_matches; "Select all N that match"), excluded_by: {criterion: n} over the view without the filters (the Excluded view''s chips)}. 00500, decision 0083 Phase B.';
+COMMENT ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) IS 'What a view of Leads holds, under the caller''s row security, by the rules leads_page reads (lead_member_shown, lead_in_list, nothing blanked or erased), each lead once as the page draws it and lead_bulk acts on it: {view: its leads, matching: those meeting p_filters (lead_matches; "Select all N that match"), excluded_by: {criterion: n} over the view without the filters (the Excluded view''s chips), status_groups: {needs, in, none} under every filter but the status filter itself (a heading''s menu; 00552), with_email and with_phone: of those meeting p_filters, how many can be reached each way (the foot; 00552)}. 00500, decision 0083 Phase B.';
 
 
 --
@@ -13346,7 +13431,7 @@ COMMENT ON FUNCTION public.leads_note_set_aside() IS 'Writes lead.set_aside { st
 -- Name: leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid, p_filters jsonb DEFAULT NULL::jsonb) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid, kind text, facts jsonb)
+CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid, p_filters jsonb DEFAULT NULL::jsonb) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid, kind text, facts jsonb, status_group text)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -13354,6 +13439,25 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
     select coalesce(p_dir, 'asc') = 'desc' as descending,
            case when p_after_id is not null then p_after_key else split_part(coalesce(p_after_key, ''), '|', 1) end as after_k,
            coalesce(p_after_id::text, nullif(split_part(coalesce(p_after_key, ''), '|', 2), '')) as after_id
+  ),
+  -- Each lead's status group (00552), over the whole view and only where this call needs it: a stage sort walks by it, and
+  -- a status filter asks it. Any other read names nothing here and reads no place.
+  shown as materialized (
+    select distinct m.lead_id
+      from public.lead_search_members m
+      join public.leads l on l.id = m.lead_id
+     where (coalesce(p_sort, 'found') = 'stage' or jsonb_typeof(p_filters->'status_group') = 'array')
+       and m.tenant_id = p_tenant_id
+       and (p_search_id is null or m.search_id = p_search_id)
+       and m.class = coalesce(p_class, 'qualified')
+       and public.lead_member_shown(m.class, m.counted)
+       and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_list, 'all'))
+       and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
+  ),
+  grouped as materialized (
+    select g.lead_id, g.status_group
+      from (select array_agg(s.lead_id) as ids from shown s having count(*) > 0) x
+     cross join lateral public.lead_status_groups(p_tenant_id, x.ids) g
   ),
   base as (
     select m.id as member_id, m.lead_id, l.place_id, m.search_id, m.round_id, m.class, m.excluded_by, m.fit, m.reason, m.distance_m,
@@ -13368,6 +13472,7 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
            public.lead_chain_of(l.tenant_id, l.id) as chain_id,
            -- A place or a company, and a company's people (00430).
            l.kind, l.facts,
+           g.status_group,
            case coalesce(p_sort, 'found')
              when 'fit' then (case m.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
                              || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
@@ -13379,7 +13484,9 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
                              || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
              when 'rating' then lpad(coalesce((l.rating * 10)::integer, 0)::text, 3, '0')
                              || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
-             when 'stage' then (case l.stage when 'ready' then '0' when 'nurture' then '1' when 'converted' then '2' else '3' end)
+             -- The queue (00552): what needs you, what is in a sequence, then the rest, each in the stages' order.
+             when 'stage' then (case g.status_group when 'needs' then '0' when 'in' then '1' else '2' end)
+                             || (case l.stage when 'ready' then '0' when 'nurture' then '1' when 'converted' then '2' else '3' end)
                              || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
              -- The pile (00426): undecided first, then put off for later (the oldest first), then the decided: on the list
              -- it adds to, or with a reach-out already (lead_chain_of: one lead, one reach-out), or no longer Ready; within
@@ -13399,6 +13506,7 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
            end as k
       from public.lead_search_members m
       join public.leads l on l.id = m.lead_id
+      left join grouped g on g.lead_id = m.lead_id
      where m.tenant_id = p_tenant_id
        and (p_search_id is null or m.search_id = p_search_id)
        and m.class = coalesce(p_class, 'qualified')
@@ -13407,7 +13515,7 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
        and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
        -- The page's filters (lead_matches, the one rule).
        and public.lead_matches(p_filters, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
-                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong)
+                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong, g.status_group)
   )
   select b.member_id, b.lead_id, b.place_id, b.search_id, b.round_id, b.class, b.excluded_by, b.fit, b.reason, b.distance_m,
          b.counted, b.counted_month, b.judgment, b.shares,
@@ -13418,7 +13526,7 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
          b.k as page_key,
          b.k || '|' || b.member_id::text as sort_key,
          b.about, b.hours, b.image_url, b.price, b.reviews_dist, b.facebook_url, b.linkedin_url, b.tiktok_url, b.claimed, b.maps_url, b.rank, b.neighborhood, b.mark_path,
-         b.later_at, b.chain_id, b.kind, b.facts
+         b.later_at, b.chain_id, b.kind, b.facts, b.status_group
     from base b, args a
    where p_after_key is null
       or (a.descending and (b.k, b.member_id::text) < (a.after_k, a.after_id))
@@ -13435,7 +13543,7 @@ $$;
 -- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list) and to the page''s filters (p_filters, lead_matches: the words, the criterion, the fit, the reaches; 00500), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00430). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list) and to the page''s filters (p_filters, lead_matches: the words, the criterion, the fit, the reaches, the status groups; 00500, 00552), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage (00552: the queue: what needs you, what is in a sequence, then the rest, each in the stages'' order, the newest first), and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), what the lead is with a company''s people (kind, facts: 00430), and, only where the sort or a filter asks, its status group (status_group, lead_status_groups; null being none). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
 
 
 --
@@ -49993,12 +50101,12 @@ GRANT ALL ON FUNCTION public.lead_list_counts(p_tenant_id uuid) TO service_role;
 
 
 --
--- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean, p_status_group text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) TO authenticated;
-GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean, p_status_group text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean, p_status_group text) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean, p_status_group text) TO service_role;
 
 
 --
@@ -50428,6 +50536,15 @@ GRANT ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) TO service_rol
 
 REVOKE ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) TO service_role;
 
 
 --

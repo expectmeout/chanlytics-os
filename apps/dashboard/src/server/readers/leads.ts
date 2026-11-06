@@ -38,7 +38,7 @@ export const leads: Reader<LeadsQuery, Awaited<ReturnType<typeof leadsPage>>> = 
   async read(rc, q) {
     const data = await leadsPage(rc.ctx, rc.tenantId, q, { month: ROLE_PERMS[rc.role]?.find === true });
     // Each row is cited open over the view it was read in, its chips with it (decision 0083, Phase B).
-    const chips = { excluded_by: q.excluded_by, fit: q.fit, reach: q.reach };
+    const chips = { excluded_by: q.excluded_by, fit: q.fit, reach: q.reach, status_group: q.status_group };
     const view = { searchId: q.search ?? null, list: q.list, cls: q.class ?? null, chips };
     return {
       data,
