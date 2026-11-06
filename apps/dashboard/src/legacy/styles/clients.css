@@ -4162,28 +4162,9 @@ a.cl-prof-vrow:focus-visible {
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-/* A business's tile: the inset's corners in its kind's tint (contracts leadTintOf), as Leads draws it. */
+/* A business's tile: the inset's corners, as Leads draws it, on a face's own fill. */
 .cl-prof-brand {
   border-radius: var(--surface-inset-radius);
-  color: var(--tile-tint-ink);
-}
-.cl-prof-brand[data-tint="1"] {
-  background: var(--tile-tint-1);
-}
-.cl-prof-brand[data-tint="2"] {
-  background: var(--tile-tint-2);
-}
-.cl-prof-brand[data-tint="3"] {
-  background: var(--tile-tint-3);
-}
-.cl-prof-brand[data-tint="4"] {
-  background: var(--tile-tint-4);
-}
-.cl-prof-brand[data-tint="5"] {
-  background: var(--tile-tint-5);
-}
-.cl-prof-brand[data-tint="6"] {
-  background: var(--tile-tint-6);
 }
 /* Works at: one row, the whole row the press, its tile, two lines and the door's chevron. */
 .cl-prof-rail-section > .cl-prof-works-row {

@@ -16,6 +16,10 @@
  * face a ring, and that this one is in it, the face the ink with its tick. The press itself is the page's (a box lies
  * over the face, a thumb wide and unseen); the face only shows where it stands.
  *
+ * A face wears no colour of its own. A person's circle took one of six hues from their name, and a business's tile one of
+ * four, and neither meant anything on a page where every other colour does (Ruben, 5 Nov 2026): the pill beside it says
+ * where they stand.
+ *
  * A face is decoration, hidden from a screen reader: the name beside it says who. `className` is for the page's
  * layout, and comes last; the ref reaches the element.
  *
@@ -32,50 +36,8 @@ const faceClasses = variants({
   variants: {
     holds: { initials: "", glyph: "face-glyph" },
     size: { sm: "face-sm", lg: "face-lg", xl: "face-xl" },
-    tile: {
-      a: "face-tile face-tile-a",
-      b: "face-tile face-tile-b",
-      c: "face-tile face-tile-c",
-      d: "face-tile face-tile-d",
-    },
-    hue: {
-      a: "face-hue face-hue-a",
-      b: "face-hue face-hue-b",
-      c: "face-hue face-hue-c",
-      d: "face-hue face-hue-d",
-      e: "face-hue face-hue-e",
-      f: "face-hue face-hue-f",
-    },
   },
 });
-
-/** The four hues a tile is drawn in. */
-export type FaceTile = "a" | "b" | "c" | "d";
-
-/** The hue a name's tile is drawn in: the same name, the same hue, on every row that draws it. */
-export function faceTileOf(name: string): FaceTile {
-  let n = 0;
-  for (const ch of name) n = (n + ch.charCodeAt(0)) % 4;
-  return (["a", "b", "c", "d"] as const)[n] ?? "a";
-}
-
-/** The six soft hues a person's circle is drawn in. */
-export type FaceHue = "a" | "b" | "c" | "d" | "e" | "f";
-const FACE_HUES: readonly FaceHue[] = ["a", "b", "c", "d", "e", "f"];
-
-/**
- * The hue a person's circle is drawn in: the same name, however it is cased, the same hue on every row and head that draws
- * them. Six hues and the name hashed whole (FNV-1a), where four and the sum of its letters made one row in four the hue
- * of the row above it, and names of one length and letters alike fell together.
- */
-export function faceHueOf(name: string): FaceHue {
-  let h = 0x811c9dc5;
-  for (const ch of name.trim().toLowerCase()) {
-    h ^= ch.codePointAt(0) ?? 0;
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return FACE_HUES[h % FACE_HUES.length] ?? "a";
-}
 
 /**
  * A person, by what the page knows of them: their name as it says it (the number or the address itself when nobody has
@@ -110,10 +72,8 @@ export type FaceProps = FaceHolds & {
   size?: "sm" | "lg" | "xl";
   priority?: string | null;
   pick?: "choose" | "chosen";
-  /** Drawn as a tile, a rounded square in one of four hues (a business on a run's screen), where it is a circle. */
-  tile?: FaceTile;
-  /** A person's circle in one of six soft hues, its initials in the hue's ink (the thread's head; faceHueOf picks it). */
-  hue?: FaceHue;
+  /** Drawn as a tile, a rounded square (a business on a run's screen), where a person's is a circle. */
+  tile?: boolean;
 } & FaceSpan;
 
 /** A picture that does not load stands aside, and the initials under it show again, as People's row does. */
@@ -148,14 +108,14 @@ export function Face({
   size,
   priority,
   pick,
-  tile,
-  hue,
+  tile = false,
   className,
   ...span
 }: FaceProps) {
   const held = heldOf({ initials, glyph, person });
   const classes = cx(
-    faceClasses({ holds: held.glyph === undefined ? "initials" : "glyph", size, tile, hue }),
+    faceClasses({ holds: held.glyph === undefined ? "initials" : "glyph", size }),
+    tile && "face-tile",
     className,
   );
   return (

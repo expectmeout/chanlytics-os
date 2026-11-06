@@ -146,7 +146,6 @@ export {
   LEAD_REACH_NONE_WORDS,
   LEAD_REACH_WORDS,
   leadReachWord,
-  leadTintOf,
   LEAD_TILE_PX,
   leadTileSrc,
 } from "./lead-facts";

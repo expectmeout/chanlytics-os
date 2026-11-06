@@ -32,14 +32,14 @@ function _faceTakes(
     // A lead's own mark is an address; a row's checkbox is the two words, or nothing.
     Holds<Exactly<FaceProps["mark"], string | undefined>>,
     Holds<Exactly<FaceProps["pick"], "choose" | "chosen" | undefined>>,
-    Holds<Exactly<FaceProps["tile"], "a" | "b" | "c" | "d" | undefined>>,
-    Holds<Exactly<FaceProps["hue"], "a" | "b" | "c" | "d" | "e" | "f" | undefined>>,
+    Holds<Exactly<FaceProps["tile"], boolean | undefined>>,
   ];
   Face({ initials: "AR" });
-  // A business on a run's screen: a tile in its hue.
-  Face({ person: { name: "Luma Aesthetics" }, tile: "d" });
-  // A person in a thread's head: a circle in their hue.
-  Face({ person: { name: "Maya Chen" }, size: "lg", hue: "a" });
+  // A business on a run's screen: a tile, where a person's is a circle.
+  Face({ person: { name: "Luma Aesthetics" }, tile: true });
+  Face({ person: { name: "Maya Chen" }, size: "lg" });
+  // @ts-expect-error A face wears no colour of its own: nothing picks one.
+  Face({ person: { name: "Maya Chen" }, hue: "a" });
   Face({ initials: "AR", photo: "https://example.com/aisha.jpg", ref: span, className: "pl-face" });
   Face({ glyph });
   Face({ glyph, photo: "https://example.com/logo.png" });

@@ -1,6 +1,6 @@
 /**
  * The tile (D5, D6), moved from legacy/pages/leads-cells.jsx (decision 0015): the business's own mark where it has one,
- * else the listing's photo, else initials on a tint the kind of business decides. The three are stacked rather than
+ * else the listing's photo, else initials on a face's own fill. The three are stacked rather than
  * chosen, so a mark that fails to load simply uncovers the photo under it and a photo that fails uncovers the initials --
  * no state, and never a broken frame.
  */
@@ -21,7 +21,7 @@ export const LeadTile = ({
     const t = e && e.currentTarget;
     if (t && t.style) t.style.display = "none";
   };
-  const cls = `ld-tile tint-${l.tile.tint}`;
+  const cls = "ld-tile";
   // Its size as the caller asks it, said as a property the stylesheet reads (leads.css .ld-tile), so a table at its
   // compact height can set its own over it: a width written here outranks every rule.
   const sized = { "--tile": `${size}px` } as CSSProperties;
