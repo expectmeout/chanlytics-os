@@ -4856,6 +4856,32 @@ COMMENT ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) IS 'Service
 
 
 --
+-- Name: drop_line_credentials(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.drop_line_credentials(p_line_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_name text := 'line-creds-' || p_line_id::text;
+  v_id   uuid;
+begin
+  select id into v_id from vault.secrets where name = v_name;
+  if v_id is null then return false; end if;
+  delete from vault.secrets where id = v_id;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION drop_line_credentials(p_line_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.drop_line_credentials(p_line_id uuid) IS 'Service-role only: deletes a line''s provider secrets from Vault. Called when the line is given back, before its row goes.';
+
+
+--
 -- Name: drop_mailbox_credentials(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -49301,6 +49327,14 @@ GRANT ALL ON FUNCTION public.delete_my_account() TO service_role;
 
 REVOKE ALL ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION drop_line_credentials(p_line_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.drop_line_credentials(p_line_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.drop_line_credentials(p_line_id uuid) TO service_role;
 
 
 --

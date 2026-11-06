@@ -263,8 +263,8 @@ async function retry(c: LineCall): Promise<Response> {
 /* ------------------------------------------------------------- release */
 
 /**
- * Give the number back (Retell's copy, the number, the trunk, the campaign), forget the line; the routing rows it created
- * are switched off, never deleted (calls keep their history). The steps are line-release.ts's, which the lines sweep also
+ * Give the number back (Retell's copy, the number, the trunk, the campaign, the subaccount), drop its token, forget the
+ * line; the routing rows it created are switched off, never deleted (calls keep their history). The steps are line-release.ts's, which the lines sweep also
  * runs for a workspace whose subscription ended.
  */
 async function releaseOp(c: LineCall): Promise<Response> {

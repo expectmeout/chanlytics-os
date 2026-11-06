@@ -4,7 +4,8 @@
  * released -- wait, warn once, a week, release -- including a grace set late and a workspace that resumed. The sweep
  * that acts on it runs in cron-doors-b.test.mjs. And a release whose credentials read fails, or that finds no token on
  * file, run over a database in memory (apps/edge/lib/lines/line-release.ts): each skipped the carrier and forgot a number
- * still billed. And one holding a token the carrier refuses, which never finished.
+ * still billed. And one holding a token the carrier refuses, which never finished. And what a release leaves behind: its
+ * subaccount closed last, and its token out of Vault before the row goes.
  */
 import "../fixtures/pin-utc.mjs";
 import { test } from "node:test";
@@ -177,6 +178,7 @@ const carrier = () => {
     ownedNumber: async () => assert.fail("the row holds the number's SID: nothing to look up"),
     releaseNumber: async (acct, sid) => void calls.push(["number", acct.sid, acct.token, sid]),
     deleteTrunk: async (acct, sid) => void calls.push(["trunk", acct.sid, acct.token, sid]),
+    closeSubaccount: async (master, sid) => void calls.push(["closed", master.sid, master.token, sid]),
   };
   return { calls, choice: { name: "twilio", provider, master: MASTER } };
 };
@@ -207,7 +209,7 @@ test("a credentials read that fails is a refusal: the carrier is not skipped pas
   assert.deepEqual(c.calls, [], "and no carrier call without the account's token");
 
   // The vault answers again: the row it left is what the next try works from.
-  const vault = { get_line_credentials: () => ({ auth_token: "sub-token" }) };
+  const vault = { get_line_credentials: () => ({ auth_token: "sub-token" }), drop_line_credentials: () => true };
   const again = await releaseLine(fakeDb(tables, {}, vault), c.choice, null, A, tables.lines[0]);
   assert.deepEqual(again, {
     ok: true,
@@ -216,6 +218,7 @@ test("a credentials read that fails is a refusal: the carrier is not skipped pas
   assert.deepEqual(c.calls, [
     ["number", SUB, "sub-token", "PN0001"],
     ["trunk", SUB, "sub-token", "TK0001"],
+    ["closed", "ACmaster", "master-token", SUB],
   ]);
   assert.deepEqual(tables.lines, []);
 });
@@ -239,8 +242,15 @@ const twilio = (read) => {
   return { calls, choice: { name: "twilio", provider, master: MASTER } };
 };
 const OPEN = { status: 200, body: { sid: SUB, auth_token: "read-by-parent", status: "active" } };
+const CLOSE = ["ACmaster", "master-token", "POST", READ_SUBACCOUNT];
 const release = (tables, onFile, choice) =>
-  releaseLine(fakeDb(tables, {}, { get_line_credentials: () => onFile }), choice, null, A, tables.lines[0]);
+  releaseLine(
+    fakeDb(tables, {}, { get_line_credentials: () => onFile, drop_line_credentials: () => true }),
+    choice,
+    null,
+    A,
+    tables.lines[0],
+  );
 
 test("no token on file: the parent reads it, and the number and the trunk go back as the subaccount before the row is forgotten", async () => {
   for (const [why, onFile] of [
@@ -263,6 +273,7 @@ test("no token on file: the parent reads it, and the number and the trunk go bac
         ["ACmaster", "master-token", "GET", READ_SUBACCOUNT],
         [SUB, "read-by-parent", "DELETE", DELETE_NUMBER],
         [SUB, "read-by-parent", "DELETE", DELETE_TRUNK],
+        CLOSE,
       ],
       `${why}: REGRESSION when empty: the row went with the number still bought, so we paid for it every month with nothing pointing at it`,
     );
@@ -401,6 +412,7 @@ test("a token on file the carrier refuses: the parent reads it once, and the num
         ["ACmaster", "master-token", "GET", READ_SUBACCOUNT],
         [SUB, "read-by-parent", "DELETE", DELETE_NUMBER],
         [SUB, "read-by-parent", "DELETE", DELETE_TRUNK],
+        CLOSE,
       ],
       why,
     );
@@ -531,6 +543,7 @@ test("a campaign on the line comes off after the number and the trunk: its month
     [SUB, "sub-token", "DELETE", DELETE_NUMBER],
     [SUB, "sub-token", "DELETE", DELETE_TRUNK],
     [SUB, "sub-token", "DELETE", DELETE_CAMPAIGN],
+    CLOSE,
   ]);
   assert.deepEqual(tables.lines, []);
   assert.deepEqual(
@@ -549,6 +562,7 @@ test("a Messaging Service with no campaign filed has nothing to delete: no call 
   assert.deepEqual(c.calls, [
     [SUB, "sub-token", "DELETE", DELETE_NUMBER],
     [SUB, "sub-token", "DELETE", DELETE_TRUNK],
+    CLOSE,
   ]);
 });
 
@@ -571,6 +585,74 @@ test("a campaign the carrier will not delete, a suspended one say: a refusal nam
     ok: true,
     released: { number: "PN0001", trunk: "TK0001", campaign: "QE0001", channel_disabled: VOICE },
   });
+  assert.deepEqual(tables.lines, []);
+});
+
+test("a subaccount its parent cannot close: a refusal naming it and what came off, the row stays, and the next try finishes", async () => {
+  const tables = boughtLine(FILED);
+  const c = wire((_, method) => {
+    if (method === "DELETE") return DONE;
+    return method === "POST" ? { status: 500, body: { code: 20500, message: "internal error" } } : OPEN;
+  });
+  assert.deepEqual(await release(tables, ON_FILE, c.choice), {
+    ok: false,
+    status: 502,
+    error: "provider_refused",
+    detail: "releasing at the provider: close subaccount: internal error (Twilio 20500)",
+    released: { number: "PN0001", trunk: "TK0001", campaign: "QE0001" },
+  });
+  stands(tables, "the subaccount would not close");
+
+  assert.equal((await release(tables, ON_FILE, twilio(OPEN).choice)).ok, true);
+  assert.deepEqual(tables.lines, []);
+});
+
+test("the line's token leaves Vault before the row goes: nothing is left to open a subaccount nobody points at", async () => {
+  const tables = boughtLine();
+  const asked = [];
+  const vault = {
+    get_line_credentials: () => ON_FILE,
+    drop_line_credentials: (args) => {
+      asked.push([args, tables.lines.length]);
+      return true;
+    },
+  };
+  const c = twilio(OPEN);
+  const r = await releaseLine(fakeDb(tables, {}, vault), c.choice, null, A, tables.lines[0]);
+  assert.equal(r.ok, true);
+  assert.deepEqual(asked, [[{ p_line_id: LINE }, 1]], "for this line, with the row still there to find it by");
+  assert.deepEqual(tables.lines, []);
+});
+
+test("Vault refusing to drop the token: a refusal and the row stays, and the next try reads the subaccount closed, and finishes", async () => {
+  const tables = boughtLine();
+  const vaultDown = {
+    get_line_credentials: () => ON_FILE,
+    drop_line_credentials: () => {
+      throw new Error("vault unavailable");
+    },
+  };
+  const c = twilio(OPEN);
+  assert.deepEqual(await releaseLine(fakeDb(tables, {}, vaultDown), c.choice, null, A, tables.lines[0]), {
+    ok: false,
+    status: 503,
+    error: "write_failed",
+    detail: "dropping the line's token: vault unavailable",
+    released: { number: "PN0001", trunk: "TK0001", channel_disabled: VOICE },
+  });
+  assert.deepEqual(
+    tables.lines.map((l) => l.id),
+    [LINE],
+    "the row is what a token left in Vault would be found by",
+  );
+  assert.deepEqual(tables.events, [], "no line.released until it has all gone");
+
+  // The first try closed it, so the token on file is refused and the parent says so.
+  const closed = { status: 200, body: { sid: SUB, auth_token: "still-answered", status: "closed" } };
+  const again = wire((_, method) => (method === "DELETE" ? REFUSED : closed));
+  const finished = await release(tables, ON_FILE, again.choice);
+  assert.equal(finished.ok, true);
+  assert.equal(finished.released.subaccount_gone, true);
   assert.deepEqual(tables.lines, []);
 });
 
@@ -664,11 +746,13 @@ test("a dry-run line keeps releasing, with a token on file and with none, reachi
   const dry = () => ({ name: "dry", provider: dryProvider(1), master: { sid: "ACdryrun", token: "dry" } });
 
   const held = boughtLine({ provider: "dry", ...FILED });
-  assert.deepEqual(await release(held, { auth_token: "tok" }, dry()), {
+  const heldBy = dry();
+  assert.deepEqual(await release(held, { auth_token: "tok" }, heldBy), {
     ok: true,
     released: { number: "PN0001", trunk: "TK0001", campaign: "QE0001", channel_disabled: VOICE },
   });
   assert.deepEqual(held.lines, []);
+  assert.deepEqual(heldBy.provider.calls.at(-1), { op: "closeSubaccount", args: ["ACdryrun", SUB] });
 
   // A provider made for this request knows no subaccount of an earlier one, so it reads as gone, and the row still goes.
   const lost = boughtLine({ provider: "dry" });
