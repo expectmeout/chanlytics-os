@@ -4,7 +4,7 @@ import { log } from "@/server/log";
 import { load, type ReaderContext } from "../../readers";
 import { shape as shapeReader } from "../../readers/shape";
 import { fileCopiesOf } from "../../files/copies";
-import { attachedPictures } from "../attached";
+import { attachedPictures } from "../../files/attached";
 import { shapeBlock, type BuiltContext } from "../context";
 import { remembered, rememberedBlock } from "../companion/remembered";
 import { crossPagePlan, scopedRead } from "../cross-page";

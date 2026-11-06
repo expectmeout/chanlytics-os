@@ -40,7 +40,7 @@ import { stableSystem, systemBlocks, systemHash, type WorkspaceFacts } from "./p
 import { buildContext, type BuiltContext, type SearchResultBlock } from "./context";
 import { readBlock } from "./cross-page";
 import { firstReads, questionPictures, readsIn, shapeOf, type FirstReads } from "./loop/first-reads";
-import type { AttachedFile } from "./attached";
+import type { AttachedFile } from "../files/attached";
 import { sayAsWritten } from "./loop/say";
 import { wordsBlock } from "./loop/words";
 import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
@@ -143,7 +143,7 @@ export interface TurnInput {
   /** The thread's cards no one has pressed yet (memory.ts threadForTurn): none is made a second time (turn-end.ts notAgain). */
   waiting?: AskProposal[];
   text: string;
-  /** The files the question came with (attached.ts): their pictures go in ahead of its words. */
+  /** The files the question came with (server/files/attached.ts): their pictures go in ahead of its words. */
   attached?: readonly AttachedFile[];
   /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
   openedMs?: number | null;

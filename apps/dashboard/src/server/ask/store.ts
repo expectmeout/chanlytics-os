@@ -17,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
-import { attachedNow, fileIdsOf, type AttachedFile } from "./attached";
+import { attachedNow, fileIdsOf, type AttachedFile } from "../files/attached";
 import { answeringOf, askTurnText, titleFromQuestion } from "./prompt";
 import { log } from "@/server/log";
 

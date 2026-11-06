@@ -28,7 +28,7 @@ import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { filesForAsk } from "../readers/files";
 import { memberViews } from "../readers/notifications";
-import { attachedNow, noWordsIn, type AttachedFile } from "./attached";
+import { attachedNow, noWordsIn, type AttachedFile } from "../files/attached";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
 import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
 import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";

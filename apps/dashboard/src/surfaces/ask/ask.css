@@ -128,7 +128,7 @@ body.ask-open .tb-ask .tb-ask-face {
   overflow: auto hidden;
   padding: 4px 4px 0 0;
 }
-.ask-attached-tile {
+.ask-attached-photo {
   position: relative;
   flex: none;
   display: block;
@@ -152,14 +152,14 @@ body.ask-open .tb-ask .tb-ask-face {
   color: var(--ink-muted);
   overflow-wrap: anywhere;
 }
-.ask-attached-tile.sending .ask-attached-pic,
-.ask-attached-tile.sending .ask-attached-unseen {
+.ask-attached-photo.sending .ask-attached-pic,
+.ask-attached-photo.sending .ask-attached-unseen {
   opacity: 0.45;
 }
-.ask-attached-tile.failed {
+.ask-attached-photo.failed {
   outline: 2px solid var(--danger);
 }
-.ask-attached-tile .ask-attached-away {
+.ask-attached-photo .ask-attached-away {
   position: absolute;
   top: -4px;
   right: -4px;

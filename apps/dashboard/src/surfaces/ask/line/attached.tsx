@@ -31,10 +31,10 @@ export const allArrived = (photos: readonly AttachedPhoto[]): boolean => photos.
 export const photosAsked = (photos: readonly AttachedPhoto[]): AskAttached[] =>
   photos.flatMap((p) => (p.id ? [{ id: p.id, name: p.file.name }] : []));
 
-const pictureOf = (file: File): string | null =>
+const heldPictureOf = (file: File): string | null =>
   typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : null;
 
-const letGoOf = (p: AttachedPhoto): void => {
+const letPictureGo = (p: AttachedPhoto): void => {
   if (p.picture) URL.revokeObjectURL(p.picture);
 };
 
@@ -65,7 +65,7 @@ export const arAttach = ({ attached, setAttached, flash, t }: Line) => {
     const photos = taken.map((file): AttachedPhoto => ({
       key: nextKey++,
       file,
-      picture: pictureOf(file),
+      picture: heldPictureOf(file),
       state: "sending",
       id: null,
       message: null,
@@ -75,7 +75,7 @@ export const arAttach = ({ attached, setAttached, flash, t }: Line) => {
   };
   const detach = (key: number) =>
     setAttached((now) => {
-      for (const p of now) if (p.key === key) letGoOf(p);
+      for (const p of now) if (p.key === key) letPictureGo(p);
       return now.filter((p) => p.key !== key);
     });
   const attachAgain = (key: number) => {
@@ -86,7 +86,7 @@ export const arAttach = ({ attached, setAttached, flash, t }: Line) => {
   };
   const clearAttached = () =>
     setAttached((now) => {
-      for (const p of now) letGoOf(p);
+      for (const p of now) letPictureGo(p);
       return [];
     });
   return { attach, detach, attachAgain, clearAttached };
@@ -152,7 +152,7 @@ function AttachedTile({ photo, t, detach }: { photo: AttachedPhoto; t: LineWords
   const [unseen, setUnseen] = useState(!photo.picture);
   return (
     <span
-      className={`ask-attached-tile ${photo.state}`}
+      className={`ask-attached-photo ${photo.state}`}
       title={photo.file.name}
       data-testid={`ask-attached-${photo.state}`}
     >
