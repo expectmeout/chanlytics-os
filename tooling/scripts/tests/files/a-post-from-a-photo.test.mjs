@@ -443,15 +443,22 @@ test("a photo in Ask's scope is offered what it is good for, and a post to whoev
   const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false };
   const scope = { kind: "file", id: "f1", label: "Storefront" };
   const of = (language, canAct) => buildAskSuggestions({ ...quiet, surface: "settings", language, scope, canAct });
-  const post = (list) => list.find((s) => s.kind === "act" && s.q === MAKE_POST_ASK[list.lang]);
-  const en = Object.assign(of("en", true), { lang: "en" });
-  const es = Object.assign(of("es", true), { lang: "es" });
-  assert.equal(en[0].q, "What is this photo good for?", "the scope's own question comes first");
-  assert.equal(es[0].q, "¿Para qué sirve esta foto?");
-  assert.equal(post(en).label, "Make a post", "the row says it short, and asks the sentence the press asks");
-  assert.equal(post(es).q, MAKE_POST_ASK.es);
-  assert.equal(post(es).compose, false, "a post is asked at once: there is nothing to finish");
-  assert.ok(!of("en", false).some((s) => s.q === MAKE_POST_ASK.en), "a viewer is offered no card");
+  assert.deepEqual(
+    of("en", true)
+      .slice(0, 2)
+      .map((s) => s.q),
+    [MAKE_POST_ASK.en, "What is this photo good for?"],
+    "the scope's own come first, in what the Line shows when it opens: the sentence its sheet's press asks, then the question",
+  );
+  assert.deepEqual(
+    of("es", true)
+      .slice(0, 2)
+      .map((s) => s.q),
+    [MAKE_POST_ASK.es, "¿Para qué sirve esta foto?"],
+  );
+  assert.equal(of("en", true)[0].kind, "ask", "asked at once: there is nothing to finish, and the card is the press");
+  assert.equal(of("en", false)[0].q, "What is this photo good for?", "a viewer is offered no card, only the question");
+  assert.ok(!of("en", false).some((s) => s.q === MAKE_POST_ASK.en));
   assert.ok(
     !buildAskSuggestions({ ...quiet, surface: "settings", language: "en", canAct: true }).some(
       (s) => s.q === MAKE_POST_ASK.en,

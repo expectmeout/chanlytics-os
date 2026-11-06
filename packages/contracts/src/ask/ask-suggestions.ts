@@ -107,9 +107,8 @@ const T = {
     offerIdea: "What should go out this month?",
     whyWaiting: "Why is {name} waiting?",
     working: "What's working?",
+    makePost: MAKE_POST_ASK.en,
     photoFor: "What is this photo good for?",
-    actPost: "Make a post",
-    actPostQ: MAKE_POST_ASK.en,
   },
   es: {
     needs: "¿Quién me necesita ahora?",
@@ -151,9 +150,8 @@ const T = {
     offerIdea: "¿Qué debería salir este mes?",
     whyWaiting: "¿Por qué espera {name}?",
     working: "¿Qué está funcionando?",
+    makePost: MAKE_POST_ASK.es,
     photoFor: "¿Para qué sirve esta foto?",
-    actPost: "Hacer una publicación",
-    actPostQ: MAKE_POST_ASK.es,
   },
 } as const;
 
@@ -252,7 +250,11 @@ function askChips(
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
-  if (s && s.kind === "file") add(t.photoFor, "ask", "sparkle");
+  if (s && s.kind === "file") {
+    // Asked at once, as a lead search is: it proposes a card, and nothing is done until that is pressed. Whoever may act is offered it.
+    if (input.canAct) add(t.makePost, "ask", "edit");
+    add(t.photoFor, "ask", "sparkle");
+  }
   // A page's own chips come first (Leads', Campaigns'), and whether they leave a win-back no act to offer.
   const winBackSaid = pageChips(input, t, add);
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
@@ -291,7 +293,6 @@ function actChips(
     act(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
     act(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
   }
-  if (s && s.kind === "file") act(t.actPost, t.actPostQ, "edit");
   act(t.actRemember, t.actRememberQ, "sparkle", true);
   if (input.surface === "settings" || input.surface === "today") act(t.actClose, t.actCloseQ, "calendar", true);
   if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
