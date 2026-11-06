@@ -21,7 +21,7 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { Face, faceHueOf } from "../../kit/face/face";
+import { Face } from "../../kit/face/face";
 import { askAbout, refreshSurface, routeDoor } from "../../legacy-verbs";
 import { ROUTES } from "../constants";
 import { carryNotAPerson } from "../carried-reply";
@@ -394,7 +394,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
           label: thread.who,
           title: W.profile,
           meta: W.personLine(row?.email ?? null, row?.firstContact ? sinceWords(row) : "") || undefined,
-          glyph: <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" hue={faceHueOf(thread.who)} />,
+          glyph: <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" />,
           hint: (
             <span className="ix-more-profile">
               <Icon name="chevron" size={13} />
@@ -603,7 +603,7 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
         who={thread.who}
         avatar={thread.avatar}
         priority={thread.priority}
-        hued
+        large
         badge={thread.real ? wireBadge(thread, channelLabels || {}) : null}
       >
         {headerName(thread, personTo)}

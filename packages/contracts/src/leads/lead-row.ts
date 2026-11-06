@@ -1,10 +1,10 @@
 /**
- * One lead as a row: its slots, its tint, its band, and the card the page draws. Moved whole from leads.ts (Reach out Part 2.5), which
+ * One lead as a row: its slots, its band, and the card the page draws. Moved whole from leads.ts (Reach out Part 2.5), which
  * re-exports it.
  */
 import { clockDate, clockDateYear, clockTime } from "../shared/clock";
 import type { LeadCounts, LeadRowDto, LeadSearchDto } from "./lead-dtos";
-import { leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWhere } from "./lead-facts";
+import { leadSlots, leadTileSrc, leadTodayLine, leadUndoable, leadWhere } from "./lead-facts";
 import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
 import { isLeadList } from "./lead-import";
@@ -146,10 +146,9 @@ export interface LeadRowVM {
   rated: { score: string; count: string; reviews: string } | null;
   /** The spread of reviews, one to five stars, or null when the listing did not say. */
   spread: [number, number, number, number, number] | null;
-  /** The tile: the business's own mark, else the listing's photo, else initials on a tint the kind decides. */
+  /** The tile: the business's own mark, else the listing's photo, else initials. */
   tile: {
     initials: string;
-    tint: number;
     image: string | null;
     /** The whole photograph the peek's band draws, so the row can ask for it before it is opened. */
     band: string | null;
@@ -341,7 +340,6 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     spread,
     tile: {
       initials: initialsOf(r.business_name),
-      tint: leadTintOf(r.category),
       image: leadTileSrc(r.image_url),
       band: r.image_url ?? null,
       logo: r.mark_url ?? null,

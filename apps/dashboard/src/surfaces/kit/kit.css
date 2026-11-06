@@ -5493,56 +5493,10 @@ a.list-row {
   letter-spacing: 0.01em;
   color: var(--ink);
 }
-/* A face drawn as a tile (the run-to-leads canvas's businesses): a rounded square in its hue, its initials white, after
-   the canvases' avatar so its hue and its ring hold over the avatar's fill. */
+/* A face drawn as a tile (the run-to-leads canvas's businesses): the avatar's own ground, in a rounded square where a
+   person's is a circle. After the canvases' avatar, so its corners hold. */
 .face-tile {
-  border: 0;
   border-radius: var(--radius-tile);
-  box-shadow: var(--tile-ring);
-  font-weight: var(--weight-semibold);
-  color: var(--tile-ink);
-}
-.face-tile-a {
-  background: var(--tile-a);
-}
-.face-tile-b {
-  background: var(--tile-b);
-}
-.face-tile-c {
-  background: var(--tile-c);
-}
-.face-tile-d {
-  background: var(--tile-d);
-}
-/* A person's face in their hue (the thread canvas, 1 Nov 2026: the thread's head, its sheet and the rail beside it): the
-   circle in one of six soft hues, the initials in its ink, picked by the name (face.tsx faceHueOf), so a person wears
-   one hue wherever these draw them. */
-.face-hue {
-  box-shadow: none;
-}
-.face-hue-a {
-  background: var(--face-hue-a);
-  color: var(--face-hue-a-ink);
-}
-.face-hue-b {
-  background: var(--face-hue-b);
-  color: var(--face-hue-b-ink);
-}
-.face-hue-c {
-  background: var(--face-hue-c);
-  color: var(--face-hue-c-ink);
-}
-.face-hue-d {
-  background: var(--face-hue-d);
-  color: var(--face-hue-d-ink);
-}
-.face-hue-e {
-  background: var(--face-hue-e);
-  color: var(--face-hue-e-ink);
-}
-.face-hue-f {
-  background: var(--face-hue-f);
-  color: var(--face-hue-f-ink);
 }
 
 /* ---- What pops over the page (every canvas's popover) ----

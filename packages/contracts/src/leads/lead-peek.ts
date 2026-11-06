@@ -9,7 +9,6 @@ import {
   leadHoursShort,
   leadSlots,
   leadTileSrc,
-  leadTintOf,
   leadTodayLine,
   leadWhere,
 } from "./lead-facts";
@@ -82,13 +81,12 @@ export interface LeadPeekVM {
   claimed: boolean | null;
   /* ---- D5: the peek re-cut ---- */
   /**
-   * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials
-   * on a tint the kind decides. The photograph has ONE home, here -- the band paints it under the mark and the
+   * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials.
+   * The photograph has ONE home, here -- the band paints it under the mark and the
    * lightbox opens it on its own. While it rode beside the tile the two surfaces drifted over which one wins (D6).
    */
   tile: {
     initials: string;
-    tint: number;
     /** The listing's photo as the row's tile draws it (leadTileSrc): already in the browser from the list, so the
      *  band shows it at once, softened, while its own size arrives. */
     image: string | null;
@@ -340,10 +338,9 @@ function checksSummaryOf(checks: ReadonlyArray<{ answer: string }>): string {
   ].join(" · ");
 }
 
-/** The tile a row draws: its initials on its category's tint, its photo, the band behind it, its logo. */
+/** The tile a row draws: its initials, its photo, the band behind it, its logo. */
 const leadTileOf = (r: LeadRowDto) => ({
   initials: initialsOf(r.business_name),
-  tint: leadTintOf(r.category),
   image: leadTileSrc(r.image_url),
   band: r.image_url ?? null,
   logo: r.mark_url ?? null,

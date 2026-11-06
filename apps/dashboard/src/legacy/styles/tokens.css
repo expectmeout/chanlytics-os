@@ -356,14 +356,6 @@
   --text-read: 15px;
   --text-heard: 20px;
   --sheet-phone-xl: 18px;
-  /* A face drawn as a tile (the run-to-leads canvas's businesses): a rounded square in one of four hues, its initials
-     white over it, a hairline of light inside its edge. The same in both themes: a tile is its own ground. */
-  --tile-a: linear-gradient(140deg, lab(52% 30 40), lab(34% 24 26));
-  --tile-b: linear-gradient(140deg, lab(48% -10 -28), lab(30% 4 -30));
-  --tile-c: linear-gradient(140deg, lab(55% -26 18), lab(32% -12 10));
-  --tile-d: linear-gradient(140deg, lab(56% 34 -18), lab(34% 26 -20));
-  --tile-ink: lab(98% 0 0 / 0.92);
-  --tile-ring: inset 0 0 0 1px lab(100% 0 0 / 0.12);
   --radius-tile: 10px;
   /* A run to leads' decision (the run-to-leads canvas): how many go, the one number the screen is for. */
   --text-decision: 44px;
@@ -375,15 +367,6 @@
   --tracking-normal: -0.003em;
   /* A person's face on a row: a well of the ground's lilac grey, as an inset is, on a white card. */
   --face-fill: oklch(0.5 0.02 275 / 0.08);
-  /* A lead's tile and its peek's band: six tints, one per kind of business (contracts leadTintOf), the gradients
-     the canvas paints (L1), the initials in white on them. Classic keeps its one quiet ground. */
-  --tile-tint-1: linear-gradient(135deg, oklch(0.738 0.071 67), oklch(0.551 0.063 64));
-  --tile-tint-2: linear-gradient(135deg, oklch(0.722 0.098 2), oklch(0.473 0.074 348));
-  --tile-tint-3: linear-gradient(135deg, oklch(0.686 0.076 257), oklch(0.463 0.071 256));
-  --tile-tint-4: linear-gradient(135deg, oklch(0.672 0.094 5), oklch(0.42 0.074 2));
-  --tile-tint-5: linear-gradient(135deg, oklch(0.714 0.037 242), oklch(0.455 0.038 246));
-  --tile-tint-6: linear-gradient(135deg, oklch(0.706 0.016 145), oklch(0.455 0.021 148));
-  --tile-tint-ink: oklch(1 0 0 / 0.92);
   /* The ground, a step under it and over it, and what a press washes it with (derived: the canvases draw none). */
   --bg: oklch(0.962 0.005 275);
   --bg-sunken: oklch(0.945 0.006 275);
@@ -432,20 +415,6 @@
   --ok-soft: oklch(0.571 0.12 155 / 0.12);
   --danger-ink: oklch(0.45 0.17 27);
   --info-ink: oklch(0.43 0.1 235);
-  /* A person's face in their hue (kit.css .face-hue-*; the thread canvas, 1 Nov 2026): six soft circles, lilac, sea,
-     sky, sand, rose and sage, each with its ink at 6:1 or better. */
-  --face-hue-a: oklch(0.928 0.026 293);
-  --face-hue-a-ink: oklch(0.42 0.1 287);
-  --face-hue-b: oklch(0.935 0.02 178);
-  --face-hue-b-ink: oklch(0.42 0.06 178);
-  --face-hue-c: oklch(0.93 0.02 256);
-  --face-hue-c-ink: oklch(0.42 0.08 256);
-  --face-hue-d: oklch(0.93 0.03 66);
-  --face-hue-d-ink: oklch(0.44 0.08 56);
-  --face-hue-e: oklch(0.93 0.025 355);
-  --face-hue-e-ink: oklch(0.44 0.09 355);
-  --face-hue-f: oklch(0.935 0.03 135);
-  --face-hue-f-ink: oklch(0.42 0.07 140);
 
   /* The page: its ground, and the light, three soft pools where the canvases put them, each its tint (a desk's layers
      paint one each, components.css .pg-light). */
@@ -686,18 +655,6 @@
      4.8 there. Blue's are Classic's, set again over the light side's. */
   --danger-ink: oklch(0.74 0.15 27);
   --info-ink: oklch(0.72 0.12 235);
-  --face-hue-a: oklch(0.34 0.05 293);
-  --face-hue-a-ink: oklch(0.88 0.06 293);
-  --face-hue-b: oklch(0.34 0.04 178);
-  --face-hue-b-ink: oklch(0.88 0.05 178);
-  --face-hue-c: oklch(0.34 0.045 256);
-  --face-hue-c-ink: oklch(0.88 0.05 256);
-  --face-hue-d: oklch(0.34 0.045 66);
-  --face-hue-d-ink: oklch(0.88 0.06 66);
-  --face-hue-e: oklch(0.34 0.045 355);
-  --face-hue-e-ink: oklch(0.88 0.06 355);
-  --face-hue-f: oklch(0.34 0.04 135);
-  --face-hue-f-ink: oklch(0.88 0.06 135);
 
   --pool-a-tint: oklch(0.737 0.103 267 / 0.2);
   --pool-b-tint: oklch(0.955 0.026 55 / 0.05);
