@@ -8,7 +8,7 @@
  */
 import type { SchemaSet } from "@chanlytics/contracts";
 import crypto from "node:crypto";
-import { callOutcomeWords, isE164 } from "@chanlytics/contracts";
+import { callOutcomeWords, isE164, MISSED_CALL_LINE, UNCONNECTED_DIAL_LINE } from "@chanlytics/contracts";
 import { answerObject, providerFetch, type ProviderReply } from "../provider-fetch";
 
 const API = "https://api.retellai.com";
@@ -186,8 +186,7 @@ export function normalizeCall(c: RetellCall): NormalizedCall {
   };
 }
 
-/** The line a missed call leaves in the customer's thread: what the text receptionist and the next call read back. */
-export const MISSED_CALL_LINE = "Missed call — they rang and it never connected.";
+export { MISSED_CALL_LINE } from "@chanlytics/contracts";
 
 /** The one-line note a call leaves in the customer's cross-channel thread. */
 export function callSummaryLine(
@@ -197,8 +196,7 @@ export function callSummaryLine(
 ): string {
   // A call that never connected is a missed call in the thread too, so the receptionist's memory, the next call's
   // context and the person's history all know they rang (it used to leave no line at all).
-  if (n.status === "not_connected")
-    return n.direction === "inbound" ? MISSED_CALL_LINE : "Outbound call — it never connected.";
+  if (n.status === "not_connected") return n.direction === "inbound" ? MISSED_CALL_LINE : UNCONNECTED_DIAL_LINE;
   const mins = n.durationMs ? Math.max(1, Math.round(n.durationMs / 60000)) : null;
   const head = n.direction === "inbound" ? "Inbound call" : "Outbound call";
   const dur = mins ? ` · ${mins} min` : "";

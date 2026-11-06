@@ -495,7 +495,18 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
     INBOX_VIEWS: [],
     CHANNEL_LABELS: {},
     INBOX_BASELINE: {},
-    THREADS: [{ id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" }],
+    THREADS: [
+      {
+        id: "th-a",
+        real: true,
+        who: "Emily Chen",
+        state: "escalated",
+        needsYou: true,
+        move: { move: "needs_you", list: "escalated" },
+        tags: [],
+        whoMeta: "",
+      },
+    ],
   });
   cells = [];
   frames.begin();

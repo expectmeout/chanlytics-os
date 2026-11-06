@@ -7,6 +7,7 @@
  * past the desk's breakpoint (inbox.css .ix-context): the header's door is the way there on anything narrower.
  */
 import { addressOf, threadPersonFactsOf, WORKS_AT_WORDS, type ThreadPersonFact } from "@chanlytics/contracts";
+import { ixMoveOf, ixMoveWaited } from "../rules";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
@@ -57,10 +58,12 @@ function factsList(facts: ReadonlyArray<ThreadPersonFact>, lead: ReadonlyArray<T
  * they agreed to.
  */
 function contextFacts(thread: RealThread, facts: ThreadPersonFact[]) {
+  const move = ixMoveOf(thread);
+  const waited = ixMoveWaited(thread, move) ?? thread.waited;
   const waits: ThreadPersonFact[] =
-    thread.state === "escalated"
+    thread.state === "escalated" || move.list === "escalated"
       ? [
-          ...(thread.waited ? [{ key: "waiting" as const, label: CONTEXT_WORDS.waiting, value: thread.waited }] : []),
+          ...(waited ? [{ key: "waiting" as const, label: CONTEXT_WORDS.waiting, value: waited }] : []),
           ...(thread.holdLine ? [{ key: "why" as const, label: CONTEXT_WORDS.why, value: thread.holdLine }] : []),
         ]
       : [];

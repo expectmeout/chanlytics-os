@@ -53,6 +53,8 @@ export const ASK_DEFINITIONS: Record<string, string> = {
     "A thread another member of the team has taken over: theirs to answer. The receptionist stays quiet on it until they hand it back.",
   "held draft":
     "A reply the receptionist wrote but did not send: either it was not sure enough (below the confidence dial) or the reply policy holds every draft for a short window. It sends itself when the window ends unless someone edits, holds or takes over.",
+  "waiting on them":
+    "The next move is theirs: nothing has come back yet from what was sent, and nothing is owed to them.",
   answering: "The receptionist is replying on its own on that thread.",
   snoozed: "A thread put aside until a chosen time; it wakes on its own.",
   "opted out": "The customer asked not to be messaged. Nothing goes out to them except a reply to something they send.",

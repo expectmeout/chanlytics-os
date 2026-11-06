@@ -75,8 +75,11 @@ export const snapOf = (t: Thread): Snap => ({
 export const patched = (x: Thread, patch: Partial<Omit<SeededThread, "real">>): Thread =>
   ({ ...x, ...patch }) as Thread;
 
-/** The bucket a thread that is there sits in: a thread always has a state, so never nothing. */
-const bucketOf = (t: Thread): string => ixBucketOf(t) ?? "";
+/** The tab a thread that is there opens in: a thread always has a state, so never nothing; archived is in none, and stands beside Handled. */
+const bucketOf = (t: Thread): string => {
+  const own = ixBucketOf(t);
+  return own === "out" ? "done" : (own ?? "");
+};
 
 /** Replace one thread by id: the page's one way to change a thread it holds. */
 type Mutate = (id: string, fn: (t: Thread) => Thread) => void;
@@ -266,7 +269,7 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
     initialThreadId ||
       (
         THREADS.find((x) => ixSending(x)) ||
-        THREADS.find((x) => x.state === "needs" || (x.real && x.needsYou)) ||
+        THREADS.find((x) => x.state === "needs" || (x.real && ixWaitsOnYou(x))) ||
         THREADS[0]
       )?.id ||
       null,

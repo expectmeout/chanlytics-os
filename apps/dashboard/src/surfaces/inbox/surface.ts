@@ -60,8 +60,7 @@ revivesFromCache("inbox", (held) => {
 });
 
 /**
- * Slice 2: the Inbox flips to the real escalations queue. Open escalations + needs_human conversations land in the
- * "escalated" bucket (the mockup's built-in take-over/hand-back UX), snoozed in "snoozed", the rest in "done".
+ * Slice 2: the Inbox flips to the real escalations queue, each thread in the list the rule says (contracts thread-move.ts).
  * Approval cards/confidence/$ stay hidden — v1.1 material, never fabricated.
  */
 interface EscalationRow extends EscalationDto {

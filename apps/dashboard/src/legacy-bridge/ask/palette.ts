@@ -73,7 +73,7 @@ interface Run {
 }
 
 export interface PaletteGlobals {
-  INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; needsYou?: boolean }> };
+  INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; move?: { list: string } }> };
   /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
   __LIVE?: FeedLive;
   __PEOPLE?: { rows?: Array<{ id: string; name: string }>; hasDeals?: boolean } | null;
@@ -160,7 +160,7 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
       label: `${t.who} — thread`,
       to: `inbox/${t.id}`,
       kind: "thread",
-      sub: t.needsYou ? "needs you" : undefined,
+      sub: t.move?.list === "escalated" ? "needs you" : undefined,
     });
   }
   for (const p of w.__PEOPLE?.rows ?? []) out.push({ label: p.name, to: `clients/${p.id}`, kind: "person" });
