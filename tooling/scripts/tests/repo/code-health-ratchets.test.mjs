@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { ROUTES, lineMapOf, suiteFiles, testLength } from "../_measures.mjs";
+import { BEHIND_THE_DOORS, ROUTES, lineMapOf, suiteFiles, testLength } from "../_measures.mjs";
 import { ROOT } from "../_source.mjs";
 import {
   parse,
@@ -25,6 +25,7 @@ import {
   resumesUnasked,
   linesOf,
   fixedWaitsIn,
+  droppedDbErrorsIn,
 } from "../_ast.mjs";
 
 // The measure the limits above rest on, kept honest: if the compiler ever stops
@@ -370,5 +371,138 @@ test("the counted-waits measure counts waits of a fixed count of turns or time, 
   assert.deepEqual(
     fixedWaitsIn(sf).map((w) => w.line),
     marked,
+  );
+});
+
+// The dropped-error measure on a module written for it. supabase-js answers a failed statement with `{ error }` and never
+// throws, so each line marked `yes` leaves a failed statement looking like a done write or an empty read: a write or an
+// rpc awaited with its result unread; a destructure that leaves `error` out, out of a `Promise.all` too; `(await …).data`;
+// and a result held by a name that is read field by field and never for `.error`. Everything else here has the error in
+// hand, hands the result or the statement on to what reads it, or is no statement on the database.
+test("the dropped-error measure counts a database result whose error nobody can read, and nothing else", () => {
+  const lines = [
+    "async function all() {",
+    'await db.from("lines").update({ a: 1 }).eq("id", id); // yes',
+    'await tenantDb(db, t).from("lines").insert({ a: 1 }); // yes',
+    'await c.db.from("lines").upsert(row, { onConflict: "id" }).select("id"); // yes',
+    'if (gone) await db.from("lines").delete().eq("id", id); // yes',
+    'try { await db.from("lines").delete().eq("id", id); } catch { log(); } // yes',
+    "await db // yes",
+    '  .from("lines")',
+    "  .delete();",
+    'await db.rpc("drop_it", { p: 1 }); // yes',
+    'await rpc("drop_it"); // yes',
+    'await (db as never).rpc("drop_it" as never); // yes',
+    "await Promise.all([",
+    '  db.from("lines").update({ a: 1 }), // yes',
+    '  db.rpc("drop_it"), // yes',
+    '  db.from("lines").select("id"),',
+    '  db.from("lines").update({ a: 1 }).then(check),',
+    "  emit(),",
+    "]);",
+    'await Promise.allSettled([db.from("lines").delete().eq("id", 1)]); // yes',
+    'const { data } = await db.from("lines").select("id").maybeSingle(); // yes',
+    'const { data: row } = await db.from("lines").select("id").single(); // yes',
+    'const { data: n } = await db.rpc("count_it"); // yes',
+    'const { count } = await db.from("lines").select("*", { count: "exact", head: true }); // yes',
+    'const { data: back } = (await db.from("lines").update({ a: 1 }).select()) as Row; // yes',
+    'const { data: d1, error } = await db.from("lines").select("id");',
+    'const { data: d2, error: e2 } = await db.rpc("count_it");',
+    'const { error: e3 } = await db.from("lines").update({ a: 1 });',
+    'const res = await db.from("lines").update({ a: 1 }); // yes',
+    'const held = await db.from("lines").select("id").single(); // yes',
+    "use(held.data);",
+    'const ran = await db.rpc("count_it"); // yes',
+    "use(ran.data, ran.count);",
+    'const cast = await db.from("lines").select("id"); // yes',
+    "use((cast as Row).data, cast!.count);",
+    'const seen = await db.from("lines").select("id");',
+    "if (seen.error) throw seen.error;",
+    'const asked = await db.rpc("count_it");',
+    "use(asked.error?.message, (asked as Row).data);",
+    'const passed = await db.from("lines").select("id");',
+    "check(passed);",
+    'const within = await db.from("lines").select("id");',
+    "use(within.data, { within });",
+    'const later = await db.from("lines").select("id");',
+    "const { data: d8, error: e8 } = later;",
+    'const thrown = await db.from("lines").select("id").throwOnError();',
+    "use(thrown.data);",
+    "const other = await listed();",
+    "use(other.data);",
+    'const shadowed = await db.from("lines").select("id"); // yes',
+    "use(shadowed.data, list.map((shadowed) => shadowed.error), { shadowed: 1 }.shadowed, you.shadowed);",
+    'const over = await db.from("lines").select("id"); // yes',
+    "use(over.data);",
+    "{ const over = await listed(); use(over.error); }",
+    'const under = await db.from("lines").select("id");',
+    "if (under.error) log();",
+    "{ const under = await listed(); use(under.data); }",
+    "const [",
+    "  { data: a1 }, // yes",
+    "  { data: a2, error: a3 },",
+    "  a4, // yes",
+    "  ,",
+    "  a5,",
+    "  { data: a6 },",
+    "  a7, // yes",
+    "] = await Promise.all([",
+    '  db.from("lines").select("id"),',
+    '  db.from("lines").select("id"),',
+    '  db.rpc("count_it"),',
+    "  skipped(),",
+    '  db.from("lines").select("id"),',
+    "  listed(),",
+    '  db.from("lines").select("id"),',
+    "]);",
+    "use(a4.data, a5.error);",
+    'const [{ data: b1 }, { data: b2 }] = await Promise.all([db.from("lines").select("id"), db.rpc("count_it")]); // yes yes',
+    'const [{ data: b3, error: b4 }] = await Promise.allSettled([db.from("lines").select("id")]);',
+    "const [x1, x2] = await listed();",
+    'const [x3, x4] = await Promise.all([db.from("lines").select("id").then(check)]);',
+    'const c1 = (await db.from("lines").select("id")).data; // yes',
+    'use((await db.rpc("count_it")).data ?? []); // yes',
+    'const c2 = (await db.from("lines").select("id")).error;',
+    "const c3 = (await listed()).data;",
+    'const c4 = (await db.rpc("count_it").then(check)).data;',
+    'const both = await Promise.all([db.from("lines").update({ a: 1 })]);',
+    'await db.from("lines").update({ a: 1 }).throwOnError();',
+    'const { data: d3 } = await db.from("lines").select("id").throwOnError();',
+    'await db.from("lines").update({ a: 1 }).then(check);',
+    'await db.rpc("drop_it").then(check).catch(log);',
+    'await db.rpc("drop_it").catch(log);',
+    'const { data: d4 } = await db.from("lines").select("id").then(check);',
+    'await teamCall(db.rpc("team_leave"), "leave");',
+    'await retry(() => db.from("lines").update({ a: 1 }));',
+    'const { data: d5 } = await fetchIt(db.from("lines"));',
+    'await db.from("lines").select("id");',
+    'await cache.delete("key");',
+    "await saved.update({ a: 1 });",
+    "const { data: d6 } = await Array.from(list).pop();",
+    'const { rows } = await pool.query("select 1");',
+    "for (const { data: d7 } of await listed()) use(d7);",
+    'return db.from("lines").update({ a: 1 });',
+    "}",
+  ];
+  const marked = lines.flatMap((l, i) => (l.match(/\byes\b/g) ?? []).map(() => i + 1));
+  assert.deepEqual(droppedDbErrorsIn(fixture("apps/edge/lib/x.ts", lines)), marked);
+});
+
+// A measure that quietly read nothing would hold every number at zero: each tree is read, and what never runs is not.
+test("the dropped-error measure reads every tree behind the doors, and no test", () => {
+  for (const [tree, least] of [
+    ["apps/edge/api/", 40],
+    ["apps/edge/lib/", 100],
+    ["apps/dashboard/app/api/", 80],
+    ["apps/dashboard/src/server/", 100],
+    ["packages/core/src/", 50],
+    ["packages/db/src/", 50],
+    ["packages/jobs/src/", 5],
+    ["packages/channels/src/", 30],
+  ])
+    assert.ok(BEHIND_THE_DOORS.filter((f) => f.startsWith(tree)).length >= least, `${tree} is read`);
+  assert.deepEqual(
+    BEHIND_THE_DOORS.filter((f) => /(^|\/)test\/|\.test\.|\.type-test\./.test(f)),
+    [],
   );
 });

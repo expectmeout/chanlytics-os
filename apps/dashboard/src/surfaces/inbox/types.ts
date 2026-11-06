@@ -16,6 +16,7 @@ import type {
   SeenReading,
   Standing,
   TemplateHolds,
+  ThreadMove,
 } from "@chanlytics/contracts";
 
 /** The states a seeded thread is in; a real thread is only ever escalated, snoozed or done. */
@@ -246,6 +247,7 @@ export interface SeededThread extends ThreadBase {
   archived?: undefined;
   lastWord?: undefined;
   unanswered?: undefined;
+  move?: undefined;
   needsYou?: undefined;
   heldDraft?: undefined;
   hasChat?: undefined;
@@ -398,6 +400,8 @@ export interface ConversationRow {
   messageId?: string;
   whoShort?: string;
   answeredBy?: string | null;
+  /** Who owes the next move, on a chat (contracts thread-move.ts); a call has its own story. */
+  move?: ThreadMove;
   hasChat?: boolean;
   durationSec?: number | null;
   recordingState?: CallVM["recordingState"];

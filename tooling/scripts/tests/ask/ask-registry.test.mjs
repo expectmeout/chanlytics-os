@@ -161,7 +161,7 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  */
 const NEEDS_YOU_LIST_WORDS = [
   "needs_you (handed to a person)",
-  "needs_you (what waits on you, as the Inbox counts it: a hold nobody has taken, or a reply counting down that can still be stopped)",
+  "needs_you (what waits on you, as the Inbox counts it: someone asked for a person, nobody answered them, a reply that did not send, or a reply counting down that can still be stopped)",
 ];
 /** The tool PR 4.5 gave an action, search: that action's words, fields and example are all that moved in it. */
 const SEARCHED = "inbox";
@@ -391,7 +391,13 @@ test("PR 4.5 gave inbox one action, search, and moved nothing else it says: less
     const was = PR_4_3[role].find((x) => x.name === SEARCHED);
     assert.equal(
       t.description,
-      was.description.replace(...NEEDS_YOU_LIST_WORDS).replace(` ${d.tail}`, ` ${d.actions.search.words} ${d.tail}`),
+      was.description
+        .replace(...NEEDS_YOU_LIST_WORDS)
+        .replace(
+          "waiting (taken over by a person)",
+          "waiting (the next move is theirs or a teammate's: threads a person holds, and ones with no reply yet)",
+        )
+        .replace(` ${d.tail}`, ` ${d.actions.search.words} ${d.tail}`),
       `${role}: the search's words, between the thread's and the tail, and needs_you as the Inbox counts it`,
     );
     const { words, days, ...rest } = t.input_schema.properties;

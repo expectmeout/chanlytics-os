@@ -19,14 +19,20 @@ export const REAL_BUCKETS: InboxBucket[] = [
   {
     id: "escalated",
     label: INBOX_BUCKET_WORDS.escalated,
-    hint: "The receptionist stopped and asked for a human",
+    hint: "Yours to do: someone asked for a person, nobody answered them, or a reply didn't send",
     icon: "flag",
     accent: true,
   },
   {
+    id: "waiting",
+    label: INBOX_BUCKET_WORDS.waiting,
+    hint: "The next move is theirs, or a teammate's: your follow-up list",
+    icon: "users",
+  },
+  {
     id: "done",
     label: INBOX_BUCKET_WORDS.done,
-    hint: "Answered by the receptionist, or a teammate has it — nothing for you to do",
+    hint: "Answered, closed or gone quiet: nothing for you to do",
     icon: "check",
   },
   { id: "snoozed", label: INBOX_BUCKET_WORDS.snoozed, hint: "Hidden until they wake", icon: "clock" },
