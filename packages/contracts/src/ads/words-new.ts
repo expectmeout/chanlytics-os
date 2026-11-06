@@ -79,6 +79,12 @@ export const NEW_AD = {
     addPhoto: "Add a photo",
     addVideo: "Add a video",
     photoHint: "Upright 4:5, at least 1440 x 1800 suggested",
+    /** A picture from the business's Files, or a post Ask made. */
+    files: {
+      label: "A photo from your Files",
+      none: "Nothing is kept in your Files yet.",
+      door: "Open Files",
+    },
     postUse: "How the post is used",
     asIs: "Use the post as it is",
     newWords: "Use its photo with new words",

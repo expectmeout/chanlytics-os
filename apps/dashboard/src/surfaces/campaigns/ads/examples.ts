@@ -15,12 +15,15 @@
  *   reading      running, while Meta's and Google's numbers are being read
  *   failed       running, but Meta's numbers could not be read since yesterday evening
  *
- * The fixtures stay dated 11 Oct 2026, so a test reads them as they are written; a page draws one as of now (`exampleAt`).
+ * The fixtures stay as they are written, dated 11 Oct 2026 and of a made-up studio, so a test reads them so; a page draws one as of
+ * now, and in a workspace's preview as that business's (`exampleAt`).
  */
-import { addDays, daysBetween, zoneDayKey } from "@chanlytics/contracts";
+import { addDays, appointmentWords, daysBetween, zoneDayKey } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPersonRead, AdRead, AdsRead } from "@chanlytics/contracts";
-import { dayShort } from "@chanlytics/contracts/ads-page";
+import { EXAMPLE, dayShort } from "@chanlytics/contracts/ads-page";
 import type { AdsExample } from "@chanlytics/contracts/ads-page";
+import { DEMO_ZONE } from "../../demo-zone";
+import type { AdsOwn } from "./own";
 import {
   BUSINESS,
   NEAR_ME,
@@ -218,7 +221,56 @@ export const EXAMPLE_READS: Record<AdsExample, () => AdsRead> = {
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
-// An example, as of now
+// An example, as a page draws it
+
+/** A fixture with every word in it run through `each`, whichever field holds it, so a field added later cannot be left behind. */
+const everyWord = <T>(fixture: T, each: (word: string) => string): T =>
+  JSON.parse(JSON.stringify(fixture), (_key, word: unknown) => (typeof word === "string" ? each(word) : word)) as T;
+
+/**
+ * Words for words, in one pass: what goes in is never swapped again, so a business called Harbor Street keeps its name, and the
+ * longest goes first, so the studio's street is not found inside its name.
+ */
+function swapsOf(swaps: ReadonlyMap<string, string>): (word: string) => string {
+  const fromFirst = [...swaps.keys()].sort((a, b) => b.length - a.length);
+  const any = new RegExp(fromFirst.map((from) => from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+  return (word) => word.replace(any, (from) => swaps.get(from) ?? from);
+}
+
+/**
+ * A fixture as a workspace's preview draws it: the business the workspace says it is, its zone, its word for an appointment and its
+ * Services, around the same example ads and people. The accounts stay plainly examples, since none is connected, and nothing is made
+ * up for it: no posts and no rating, where neither has been read. What it has not said reads as what is missing.
+ */
+function ownedBy(read: AdsRead, own: AdsOwn): AdsRead {
+  const w = appointmentWords(own.appointmentWord);
+  const said = swapsOf(
+    new Map([
+      [BUSINESS.page, own.page ?? own.site ?? BUSINESS.site],
+      [BUSINESS.name, own.name],
+      [BUSINESS.address, own.address ?? EXAMPLE.preview.yourAddress],
+      [BUSINESS.street, own.street ?? EXAMPLE.preview.yourAddress],
+      [BUSINESS.hours, own.hours ?? EXAMPLE.preview.yourHours],
+      [BUSINESS.site, own.site ?? BUSINESS.site],
+      [BUSINESS.line, own.line ?? BUSINESS.line],
+      [DEMO_ZONE, own.timezone ?? DEMO_ZONE],
+      ["appointments", w.many],
+      ["appointment", w.one],
+      ["Appointments", w.Many],
+      ["Appointment", w.Title],
+    ]),
+  );
+  const accounts = everyWord(read.accounts, (word) => word.replaceAll(BUSINESS.name, EXAMPLE.pill));
+  const owned = everyWord({ ...read, accounts }, said);
+  return {
+    ...owned,
+    ads: owned.ads.map((ad) => ({ ...ad, shownAs: { ...ad.shownAs, handle: null } })),
+    posts: [],
+    rating: null,
+    neverQuotePrices: own.neverQuotePrices,
+    services: own.services.length > 0 ? own.services : owned.services,
+  };
+}
 
 /** A day and a moment as a read writes them (ads.ts): `2026-10-11`, `2026-10-11T09:19:00-04:00`. */
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -227,17 +279,15 @@ const ISO_MOMENT = /^\d{4}-\d{2}-\d{2}T/;
 /**
  * A fixture as it reads at `now`. Each day moves by the whole days to the business's today, and each moment by the time since the
  * fixture was read, so it was read just now and nothing it says has happened is still to come (9:19 AM, seen at 8:29). They are found
- * by their shape and not by name, so a date a later field adds cannot be left behind. An ad's name is the one place a fixture says a
- * day in words: a new ad's says the day it starts.
+ * by their shape and not by name. An ad's name is the one place a fixture says a day in words: a new ad's says the day it starts.
  */
 function movedTo(read: AdsRead, now: number): AdsRead {
   const days = daysBetween(read.today, zoneDayKey(now, read.timezone));
   const since = now - Date.parse(read.readAt);
-  const moved = JSON.parse(JSON.stringify(read), (_key, value: unknown) => {
-    if (typeof value !== "string") return value;
-    if (ISO_DAY.test(value)) return addDays(value, days);
-    return ISO_MOMENT.test(value) ? new Date(Date.parse(value) + since).toISOString() : value;
-  }) as AdsRead;
+  const moved = everyWord(read, (word) => {
+    if (ISO_DAY.test(word)) return addDays(word, days);
+    return ISO_MOMENT.test(word) ? new Date(Date.parse(word) + since).toISOString() : word;
+  });
   const named = (ad: AdRead): AdRead => ({
     ...ad,
     name: ad.name.replace(dayShort(addDays(ad.startDay, -days)), dayShort(ad.startDay)),
@@ -245,5 +295,8 @@ function movedTo(read: AdsRead, now: number): AdsRead {
   return { ...moved, ads: moved.ads.map(named) };
 }
 
-/** An example as of `now`: the one read every page draws of it, so an ad says the same days on each. */
-export const exampleAt = (example: AdsExample, now: number): AdsRead => movedTo(EXAMPLE_READS[example](), now);
+/** An example as of `now`, and the business's where it has one (own.ts): the one read every page draws, so an ad says the same on each. */
+export function exampleAt(example: AdsExample, now: number, own: AdsOwn | null): AdsRead {
+  const read = EXAMPLE_READS[example]();
+  return movedTo(own ? ownedBy(read, own) : read, now);
+}

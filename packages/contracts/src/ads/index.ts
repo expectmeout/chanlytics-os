@@ -25,6 +25,7 @@ export type {
   AdCopy,
   AdDay,
   AdDoor,
+  AdFilePick,
   AdMedia,
   AdNeeds,
   AdNeedsCode,

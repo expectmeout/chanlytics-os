@@ -9,6 +9,11 @@
     "fresh": "Read only when the tab knows no zone yet; the workspace surface's read holds it after.",
     "why": "A day is counted in the workspace's zone, and a page asked for it before the workspace surface landed must not guess it; the surface's own read, heard, is what holds it afterwards."
   },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/kept-files.ts GET files": {
+    "kind": "on-open",
+    "fresh": "Read as New ad's photo section is drawn, a few at a time, and again each time a person comes back to that step; nothing of it is kept once the composer goes.",
+    "why": "It is what a person is choosing from while they choose. A picture kept meanwhile shows at the next draw, and the ad keeps what was picked. The Files page's own surface holds the shelf it was left on and opens on the Inbox, whose photos are not yet the business's to run."
+  },
   "apps/dashboard/src/surfaces/files/verbs.ts GET files/[id]": {
     "kind": "on-open",
     "fresh": "Read as a post's sheet opens, for the photo it came from and what it was asked to be; nothing of it is kept once the sheet goes.",

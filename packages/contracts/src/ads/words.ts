@@ -340,6 +340,9 @@ export const EXAMPLE = {
   preview: {
     word: "Preview.",
     said: "These ads, numbers and people are examples. Nothing is connected, spent or saved.",
+    /** Where a workspace has not said: what its preview says in place of the sample's. */
+    yourAddress: "your address",
+    yourHours: "your hours",
   },
   label: "Choose the example",
   choices: {

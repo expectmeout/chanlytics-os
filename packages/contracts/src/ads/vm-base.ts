@@ -14,6 +14,7 @@ import type {
   AdCheckId,
   AdCopy,
   AdDoor,
+  AdFilePick,
   AdPlatform,
   AdRead,
   AdArea,
@@ -163,6 +164,9 @@ export const checkOk = (acct: AdAccountRead | undefined, id: AdCheckId): boolean
 
 /** Whether Chanlytics can count an ad's people: a Google ad's calls are Google's count, not matched to anyone. */
 export const counted = (ad: AdRead): boolean => countedDoor(ad.door);
+
+/** What an ad's picture from Files keeps of it. */
+export const filePickOf = ({ fileId, name, made }: AdFilePick): AdFilePick => ({ fileId, name, made });
 
 /** Whether the platform has approved an ad at least once: until then nothing is spent and nothing is counted. */
 export const started = (ad: AdRead): boolean => ad.approvedDay !== null;

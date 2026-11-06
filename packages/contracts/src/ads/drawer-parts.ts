@@ -7,7 +7,7 @@
 import { appointmentWords } from "../journey/appointment-word";
 import { REPORT_MIN_N } from "../reports/report-tiles";
 import { durationWords } from "../shared/clock";
-import type { AdDoor, AdPersonRead, AdPlatform, AdRead, AdTheirs, AdsRead } from "./ads";
+import type { AdDoor, AdFilePick, AdPersonRead, AdPlatform, AdRead, AdTheirs, AdsRead } from "./ads";
 import { addDays, daysBetween } from "./ads";
 import { moneyOf } from "./money";
 import { ADS_FRESH_DAYS, ADS_WINDOW_DAYS } from "./rules";
@@ -18,6 +18,7 @@ import {
   costEach,
   countCtx,
   counted,
+  filePickOf,
   adServiceOf,
   settling,
   started,
@@ -365,6 +366,8 @@ export interface PreviewVM {
   caption: string;
   /** Feed | Story | Reel; none where the frame is one shape. */
   frames: string[];
+  /** The picture from Files the ad shows, where it shows one: else the frame's flat tile. */
+  picture: AdFilePick | null;
   thread: ThreadVM;
   /** The amber line where the ad quotes a price and the receptionist never does. */
   warn: string | null;
@@ -425,6 +428,7 @@ export function adPreviewOf(ad: AdRead, read: AdsRead): PreviewVM {
     cta,
     caption: search ? PREVIEW.googleCaption(b.line) : PREVIEW.drawn(PLATFORM_OWNER[ad.platform]),
     frames: frame === "feed" ? [...PREVIEW.frames] : [],
+    picture: ad.media.kind === "file" ? filePickOf(ad.media) : null,
     thread: adThreadOf(ad, read),
     warn: read.neverQuotePrices && adQuotes({ ...c, headline }, note) ? PREVIEW.neverQuote : null,
   };
