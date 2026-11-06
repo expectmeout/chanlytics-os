@@ -3,13 +3,15 @@
  * and e2e: kebab-case that says what the file holds; PascalCase only for a component's file (.tsx); a leading
  * underscore only for a test helper under tests; a framework's own names are its own (Expo Router's
  * `_layout.tsx` and `+native-intent.tsx`). The role files a folder repeats on purpose (`surface.ts`, `verbs.ts`,
- * `ports.ts`, `sample.ts`) are kebab-case like the rest. Built output is not held.
+ * `ports.ts`, `sample.ts`, `types.ts`) are kebab-case like the rest. Built output is not held. A name that says nothing of
+ * what is in it (`utils`, `helpers`) is refused too.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
+import { isGenericStem } from "../repo/names/_names.mjs";
 
 const files = execFileSync("git", ["ls-files", "apps", "packages", "tooling", "e2e"], { cwd: ROOT, encoding: "utf8" })
   .split("\n")
@@ -48,6 +50,30 @@ test("every file is named as docs/naming.md says: kebab-case, PascalCase for a c
     broken.map(([f, why]) => `${f}: ${why}`),
     [],
     "rename the file, or say in docs/naming.md why its kind is named otherwise",
+  );
+});
+
+/** Named before the rule (6 November 2026), all in the browser's code: each goes when its surface next moves, and none joins. */
+const GENERIC_BEFORE_THE_RULE = new Set([
+  "apps/dashboard/src/surfaces/frame/constants.ts",
+  "apps/dashboard/src/surfaces/inbox/constants.ts",
+  "apps/dashboard/src/surfaces/reports/lenses/shared.tsx",
+  "apps/dashboard/src/surfaces/settings/business/gestures/common.tsx",
+  "apps/dashboard/src/surfaces/settings/shared.ts",
+  "apps/dashboard/src/surfaces/today/helpers.ts",
+]);
+
+test("a file's name says what it holds: no utils, helpers, common or constants", () => {
+  const generic = files.filter((f) => isGenericStem(stemOf(f)));
+  assert.deepEqual(
+    generic.filter((f) => !GENERIC_BEFORE_THE_RULE.has(f)),
+    [],
+    "name it for what is in it (docs/naming.md); a folder of its own says more than `utils` does",
+  );
+  assert.deepEqual(
+    [...GENERIC_BEFORE_THE_RULE].filter((f) => !generic.includes(f)),
+    [],
+    "take it off GENERIC_BEFORE_THE_RULE: it has a name now",
   );
 });
 

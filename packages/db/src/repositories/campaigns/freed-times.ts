@@ -14,7 +14,7 @@ import {
   offeringHorizon,
   parseTenantConfig,
   type FreedTimeCalendar,
-  type FreedTimeRow,
+  type FreedTimeLine,
   type SequenceMode,
 } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
@@ -41,7 +41,7 @@ export async function freedTimeFactsOf(
   tenantId: string,
   appointmentId: string,
   nowMs: number,
-): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null> {
+): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null> {
   const [appt, tenant, cfg] = await Promise.all([
     db
       .from("appointments")

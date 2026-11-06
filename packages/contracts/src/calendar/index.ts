@@ -258,9 +258,9 @@ export {
 export type {
   FreedTimeCalendar,
   FreedTimeEvent,
+  FreedTimeLine,
   FreedTimeOffer,
   FreedTimeRefusal,
-  FreedTimeRow,
   FreedTimeVerdict,
   StandingTime,
 } from "./visit/freed-time";

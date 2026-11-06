@@ -454,7 +454,7 @@ export type LifecycleRowResults =
   | "uncounted";
 
 /** One row of the ledger: a campaign, or one of First contact's own (the receptionist, the call's text). */
-export interface LifecycleRow {
+export interface LifecycleLine {
   id: string;
   kind: "receptionist" | "call_text" | "playbook" | "list" | "offer" | "chain" | "sent_once";
   name: string;
@@ -494,7 +494,7 @@ export interface LifecycleGroup {
   glyph: LifecycleGlyph;
   /** "3 campaigns · 2 on · 1 paused", or what an empty moment says of itself ("Off", "Needs your calendar"). */
   meta: string;
-  rows: readonly LifecycleRow[];
+  rows: readonly LifecycleLine[];
   /** Turn on (the hinted one where it is); the calendar's door; "Find businesses to write to"; none on a moment holding its one campaign. */
   add: LifecycleAct | null;
 }

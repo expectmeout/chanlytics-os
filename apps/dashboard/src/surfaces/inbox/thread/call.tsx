@@ -19,13 +19,13 @@ import { CallReview } from "../../settings/business/rehearse/review";
 import { canDo, demoSession } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
 import { conversationsData } from "../store";
-import type { CallLine, ConversationRow } from "../types";
+import type { CallLine, ConversationLine } from "../types";
 import { useCallTurns } from "./call-turns";
 import { threadScroller, threadShown } from "./scroller";
 
 // The call a note stands for, from the calls Conversations reads: one GET calls page, which every surface boots with.
 // A call older than that page is drawn from its note alone.
-export const tlCallFor = (messageId: string | null | undefined): ConversationRow | null => {
+export const tlCallFor = (messageId: string | null | undefined): ConversationLine | null => {
   if (!messageId) return null;
   const rows = conversationsData().CONVERSATIONS || [];
   return rows.find((c) => c.callId && c.messageId === messageId) || null;
@@ -91,7 +91,7 @@ interface CallWords {
 }
 
 /** What the call is called and how it went, from the call itself where it has been read, else from the note it left. */
-function callWords(call: ConversationRow | null, note: string | null): CallWords {
+function callWords(call: ConversationLine | null, note: string | null): CallWords {
   if (!call) {
     const said = tlNoteOf(note);
     return {
@@ -124,7 +124,7 @@ function callWords(call: ConversationRow | null, note: string | null): CallWords
 }
 
 /** The recording and the transcript's file, which are the routes' own addresses. */
-function callLinks(call: ConversationRow | null, lines: CallLine[] | null) {
+function callLinks(call: ConversationLine | null, lines: CallLine[] | null) {
   // The recording is the route's own address: it redirects to a link signed for each request, so a seek or a play after a
   // long pause is signed afresh (calls/[id]/recording). The route names the workspace as every read does.
   const real = !!(call && call.real && !demoSession() && hasHref());
@@ -227,7 +227,7 @@ function callPlayer(h: PlayerHold) {
 
 /** Everything the card's parts draw from: the state `ThreadCall` holds, what the call says, and what pressing does. */
 interface CallDraw extends CallWords {
-  call: ConversationRow | null;
+  call: ConversationLine | null;
   at: string;
   src: string | null;
   file: string | null;
@@ -551,7 +551,7 @@ function callOpened(c: CallDraw) {
 }
 
 interface ThreadCallProps {
-  call?: ConversationRow | null;
+  call?: ConversationLine | null;
   note?: string | null;
   at: string;
   mid?: string;
@@ -563,7 +563,7 @@ interface ThreadCallProps {
 // has. `open`: its lines shown -- the thread's newest spoken entry, or the call Conversations opened it at. On the side
 // it came from, for its direction; drawn across the thread, for it is neither side's words.
 /** The call Review this call judges: a real call, outside a demo, for whoever may change what the receptionist is told. */
-function callReviewIdOf(call: ConversationRow | null): string | null {
+function callReviewIdOf(call: ConversationLine | null): string | null {
   return call && call.real && call.callId && !demoSession() && canDo("settings") ? call.callId : null;
 }
 

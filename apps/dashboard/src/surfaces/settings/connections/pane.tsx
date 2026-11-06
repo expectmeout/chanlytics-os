@@ -17,7 +17,7 @@ import {
   tryItLink,
   type ConnectionGroup,
   type ChannelVM,
-  type ConnectionRow as Row,
+  type ConnectionLine as Row,
   type LineCodeDto,
   type SetupDto,
 } from "@chanlytics/contracts";

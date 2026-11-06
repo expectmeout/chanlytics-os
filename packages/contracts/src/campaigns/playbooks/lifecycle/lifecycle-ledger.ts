@@ -45,7 +45,7 @@ import type {
   LifecycleNeeds,
   LifecyclePlaybook,
   LifecyclePlaybooks,
-  LifecycleRow,
+  LifecycleLine,
   LifecycleRowResults,
   LifecycleSource,
   LifecycleStage,
@@ -222,7 +222,7 @@ interface RowAt {
 }
 
 /** A row's status, in lifecycleStateOf's order: a run waiting for the owner is shown whether or not the campaign is paused. */
-function rowStatusOf(p: LifecyclePlaybook): LifecycleRow["status"] {
+function rowStatusOf(p: LifecyclePlaybook): LifecycleLine["status"] {
   if (p.off) return "not_here";
   if (p.totals.waiting) return "waiting";
   return p.state !== "running" ? "paused" : "on";
@@ -240,7 +240,11 @@ function rowHintOf(p: LifecyclePlaybook, word: AppointmentWord): string {
   return t ? triggerWords(t, word).hint : p.triggerLabel;
 }
 
-function rowNextOf(p: LifecyclePlaybook, status: LifecycleRow["status"], input: LifecycleInput): LifecycleRow["next"] {
+function rowNextOf(
+  p: LifecyclePlaybook,
+  status: LifecycleLine["status"],
+  input: LifecycleInput,
+): LifecycleLine["next"] {
   if (status === "waiting") return { words: LIFECYCLE_WORDS.coming.waiting, atMs: input.nowMs };
   if (status === "paused") return { words: lifecycleStateOf(p).words, atMs: null };
   if (status !== "on") return NO_NEXT;
@@ -266,7 +270,7 @@ function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
 }
 
 /** A campaign on a moment, on a list, or the month's offer. */
-function playbookRow(p: LifecyclePlaybook, at: RowAt): LifecycleRow {
+function playbookRow(p: LifecyclePlaybook, at: RowAt): LifecycleLine {
   const s = lifecycleStateOf(p);
   const status = rowStatusOf(p);
   const hint = rowHintOf(p, at.word);
@@ -301,7 +305,7 @@ function playbookRow(p: LifecyclePlaybook, at: RowAt): LifecycleRow {
  * The receptionist: First contact's own row, never counted. It opens what it is told, Settings › Business (Ruben, 11 Oct
  * 2026: every row opens something; this one was the one that did nothing).
  */
-function receptionistRow(stage: LifecycleStage): LifecycleRow {
+function receptionistRow(stage: LifecycleStage): LifecycleLine {
   return {
     id: "receptionist",
     kind: "receptionist",
@@ -329,11 +333,11 @@ function receptionistRow(stage: LifecycleStage): LifecycleRow {
  * over the page it is pressed on, its home the Library open on it (`campaigns/messages/<name>`; Ruben, 11 Oct 2026: never a
  * page of its own); where there is none yet, the Library, where one is written.
  */
-function callTextRow(library: LifecycleInput["library"], caps: string): LifecycleRow {
+function callTextRow(library: LifecycleInput["library"], caps: string): LifecycleLine {
   const W = LIFECYCLE_WORDS.callText;
   const found = library ? bookingTemplate(library) : null;
   // Unread says nothing here: a library that could not be read is the page's failed read (failedOf), in this row's place.
-  const [status, stateWords, tone]: [LifecycleRow["status"], string, LifecycleTone] = !library
+  const [status, stateWords, tone]: [LifecycleLine["status"], string, LifecycleTone] = !library
     ? ["off", "", "plain"]
     : found
       ? ["always", W.on, "ok"]
@@ -361,7 +365,7 @@ function callTextRow(library: LifecycleInput["library"], caps: string): Lifecycl
 }
 
 /** The month's offer where none is made and it is offered: a line that turns it on, not a campaign. */
-function offOfferRow(caps: string): LifecycleRow {
+function offOfferRow(caps: string): LifecycleLine {
   const name = LIFECYCLE_WORDS.monthsOffer.name;
   const hint = `Every ${PLAYBOOK_DEFAULTS.cadenceDays} days, to a yes to offers`;
   return {
@@ -390,7 +394,7 @@ function offOfferRow(caps: string): LifecycleRow {
  * A freed time where none is made and it is offered (decision 0082: a calendar is connected): a line that turns it on, as
  * the month's offer's does. It reaches a yes to messages: it answers the person's own ask, as the follow-up does.
  */
-function offFreedTimeRow(caps: string): LifecycleRow {
+function offFreedTimeRow(caps: string): LifecycleLine {
   const { name, hint } = LIFECYCLE_WORDS.freedTime;
   return {
     id: "slot_opened",
@@ -471,7 +475,7 @@ function chainResumeOf(c: Pick<ReachOutChainDto, "name" | "root_id">): Lifecycle
 function chainRow(
   c: ReachOutChainDto,
   at: { input: LifecycleInput; ready: ChannelsReady | null; caps: string },
-): LifecycleRow {
+): LifecycleLine {
   const W = LIFECYCLE_WORDS.ledger;
   const paused = c.state !== "running";
   // A run waiting is shown whether or not the reach-out is paused, as a campaign's is (lifecycleChainStateOf).
@@ -479,7 +483,7 @@ function chainRow(
   // A going run's held emails, said where no run waits for approval (a waiting run is the thing to answer first).
   const held = waitingRun ? null : chainHeldOf(c.root_id, at.input.broadcasts);
   const heldRun = held && held.n > 0 ? held.runId : null;
-  const status: LifecycleRow["status"] = waitingRun ? "waiting" : paused ? "paused" : "on";
+  const status: LifecycleLine["status"] = waitingRun ? "waiting" : paused ? "paused" : "on";
   const state = lifecycleChainStateOf(c);
   const stateWords = state.words;
   const feeds = c.fed_by === "list" ? W.ownList : `Cold email${c.search ? ` to ${c.search.name}` : ""}`;
@@ -523,7 +527,7 @@ function chainRow(
 }
 
 /** A one-off send of the period, or a run of a playbook since deleted: its run's door in Sent. */
-function sentOnceRow(s: LifecycleSource, at: { input: LifecycleInput; caps: string }): LifecycleRow {
+function sentOnceRow(s: LifecycleSource, at: { input: LifecycleInput; caps: string }): LifecycleLine {
   const W = LIFECYCLE_WORDS.ledger.sentOnce;
   const hint = W.hint(s.lastAt ? clockNear(Date.parse(s.lastAt), at.input.tz, at.input.nowMs) : null);
   return {
@@ -549,11 +553,11 @@ function sentOnceRow(s: LifecycleSource, at: { input: LifecycleInput; caps: stri
 }
 
 /** A campaign, as every "how many campaigns" counts it: not First contact's own rows, nor the month's offer before it is made. */
-export const isLedgerCampaign = (r: LifecycleRow): boolean =>
+export const isLedgerCampaign = (r: LifecycleLine): boolean =>
   r.kind !== "receptionist" && r.kind !== "call_text" && !(r.kind === "offer" && r.status === "off");
 
 /** A group's line under its caption: how its campaigns stand, else what it says of itself. */
-function groupMetaOf(rows: readonly LifecycleRow[], otherwise: string): string {
+function groupMetaOf(rows: readonly LifecycleLine[], otherwise: string): string {
   const campaigns = rows.filter(isLedgerCampaign);
   if (campaigns.length === 0) return otherwise;
   const t = { on: 0, waiting: 0, paused: 0, off: 0 };
@@ -683,14 +687,14 @@ export type LedgerStatus = (typeof LEDGER_STATUSES)[number];
  * Paused is paused; a one-off send, the receptionist and the call's text stand under All alone (the counts are
  * campaigns', `countsOf`).
  */
-export function ledgerRowIn(row: Pick<LifecycleRow, "kind" | "status" | "tone">, status: LedgerStatus): boolean {
+export function ledgerRowIn(row: Pick<LifecycleLine, "kind" | "status" | "tone">, status: LedgerStatus): boolean {
   if (status === "all") return true;
   if (row.kind === "sent_once" || row.kind === "receptionist" || row.kind === "call_text") return false;
   return status === "needs" ? row.tone === "warn" : row.status === "paused";
 }
 
 /** The status tabs' counts: campaigns only. Needs you is the one amber: a run waiting, or an archived list (decision 13). */
-function countsOf(rows: readonly LifecycleRow[]): LifecycleLedger["counts"] {
+function countsOf(rows: readonly LifecycleLine[]): LifecycleLedger["counts"] {
   const campaigns = rows.filter(isLedgerCampaign);
   return {
     all: campaigns.length,

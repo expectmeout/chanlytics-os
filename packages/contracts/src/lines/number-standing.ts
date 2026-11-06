@@ -226,7 +226,7 @@ const PAYMENT_ACT: Record<PaymentTrouble, string> = { missing: "Add a card", fai
  */
 export const PAYMENT_HOLD_WORD = "Payment needed";
 
-interface StandingRow {
+interface StandingLine {
   stateWords: typeof PAYMENT_HOLD_WORD | "Needs attention";
   sentence: string;
   act: { label: string; href: string } | null;
@@ -239,7 +239,7 @@ interface StandingRow {
  * rest. Nothing else of Meta's is repeated: its notes, its calling problems, and a limit or a review the notes say in
  * Chanlytics' words (standingNotes).
  */
-export function standingRow(s: NumberStanding): StandingRow | null {
+export function standingRow(s: NumberStanding): StandingLine | null {
   const payment = paymentTrouble(s);
   if (payment) {
     const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
