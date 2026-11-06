@@ -22,8 +22,8 @@ import {
   homeBootScript,
   LAST_WORKSPACE_STORAGE,
   PRIMARY_PART,
-} from "../../../../packages/contracts/src/index.ts";
-import { importSrc } from "../_source.mjs";
+} from "../../../../../packages/contracts/src/index.ts";
+import { importSrc } from "../../_source.mjs";
 
 const { homeHref, workspaceHref } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 

@@ -7,6 +7,7 @@
  * (People's other scopes, under React's Activity), nothing with an id or a test id, and no sidebar, which a phone's drawer draws
  * again. It is only made of a page at rest: at its top, on its own bare address, with nothing typed, picked or opened over it.
  */
+import { useEffect } from "react";
 import {
   dropFirstRows,
   FIRST_ROWS_ATTR,
@@ -224,14 +225,17 @@ export function firstRowsOfRoute(page: string, param: string | null): boolean {
   return !!kept && kept.route === page && !param;
 }
 
-/** The picture let go after the frame has stood FRAME_HOLDS_MS, whatever the page did. Answers what cancels it. */
-export function firstRowsHeldByFrame(): () => void {
-  const t = setTimeout(letGoFirstRows, FRAME_HOLDS_MS);
-  return () => clearTimeout(t);
+/** A screen drawn in the frame's place (a handover, the create screen): no page will come to take the picture's place. */
+export function useFirstRowsLetGo(): void {
+  useEffect(letGoFirstRows, []);
 }
 
-/** The screen kept as the page is put away: a phone often closes what it has put away, with no other word. */
+/**
+ * The screen kept as the page is put away: a phone often closes what it has put away, with no other word. And the picture let
+ * go once the app's code has run for FRAME_HOLDS_MS, whatever the page did.
+ */
 export function installFirstRows(win: Window = window): void {
+  setTimeout(letGoFirstRows, FRAME_HOLDS_MS);
   win.addEventListener("pagehide", keepNow);
   win.document.addEventListener("visibilitychange", () => {
     if (win.document.visibilityState === "hidden") keepNow();

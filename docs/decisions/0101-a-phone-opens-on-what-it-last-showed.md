@@ -26,8 +26,8 @@ page's measure counted, since each starts with its own document.
 3. **The page takes its place in one frame.** `usePartShown` lets the copy go in the draw that puts the page's rows on the screen,
    before the paint (`firstRowsDrawn`): the Inbox's and People's first part, Today's last, since its first would leave the rest of
    the copy's page yet to come. What arrives under the copy plays no entrance (`useViewFade`, `useRowsArrive`), and is laid out but not
-   painted. A route that is another's or cannot be read lets it go at once; the frame holds it for 8 s at most, and the document for
-   20 s where no frame came.
+   painted. A route that is another's or cannot be read lets it go at once, as a handover and the create screen do, drawn in the
+   frame's place; the app's code holds it for 8 s at most, and the document for 20 s where no code came.
 4. **It is a picture.** Inert, and a press on it is the page's: a finger on a row lights it, and a press on a row or a place of the
    tab bar is made again on the page once the page is there. Any other press and any drag do nothing yet.
 5. **It says nothing it may have made untrue.** Kept as the surface cache's rows are: cleared by the same calls at every sign-in,
@@ -46,7 +46,7 @@ page speed; `FIRST_ROWS_TEST` lets its own spec in.
 
 ## Tests
 
-`tooling/scripts/tests/shell/first-rows.test.mjs` runs both scripts over a stand-in for a document: where a copy may be drawn and where
+`tooling/scripts/tests/shell/views/first-rows.test.mjs` runs both scripts over a stand-in for a document: where a copy may be drawn and where
 not, what it stamps, a press, and the home against `homeHref`. `e2e/shell/first-rows.spec.ts`, a phone in a browser: the copy against
 the frame part by part, nothing moving at the handover, a press made again, nothing left once a session ends.
 
