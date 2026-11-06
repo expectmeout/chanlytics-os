@@ -15,7 +15,7 @@ import { materialOf } from "./material";
 import { photoFor, postDrawn } from "./make";
 import { fileRecord } from "./record";
 
-const W = FILE_WORDS.google;
+const ON_GOOGLE = FILE_WORDS.google;
 
 /** Long enough for Google to come for it, whenever it does. */
 const PICTURE_LINK_S = DAY_MS / SECOND_MS;
@@ -31,12 +31,12 @@ async function pictureForGoogle(ctx: RouteContext, member: Member, fileId: strin
   const stored = await bucket().upload(path, picture, { contentType: "image/jpeg", upsert: true });
   if (stored.error) {
     log.error("file_google_store_failed", { tenant_id: member.tenantId, error: stored.error.message });
-    throw new AppError("internal", W.notSent, 503);
+    throw new AppError("internal", ON_GOOGLE.notSent, 503);
   }
   const signed = await bucket().createSignedUrl(path, PICTURE_LINK_S);
   if (signed.error || !signed.data) {
     log.error("file_google_store_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
-    throw new AppError("internal", W.notSent, 503);
+    throw new AppError("internal", ON_GOOGLE.notSent, 503);
   }
   return signed.data.signedUrl;
 }
@@ -44,14 +44,14 @@ async function pictureForGoogle(ctx: RouteContext, member: Member, fileId: strin
 /** What the edge said, in a person's words. */
 function refusedBy(a: { status: number; body?: Record<string, unknown> | null }): AppError {
   const reason = typeof a.body?.error === "string" ? a.body.error : "failed";
-  if (reason === "not_connected") return new AppError("conflict", W.notConnected, 409);
-  if (reason === "no_token") return new AppError("conflict", W.noToken, 409);
+  if (reason === "not_connected") return new AppError("conflict", ON_GOOGLE.notConnected, 409);
+  if (reason === "no_token") return new AppError("conflict", ON_GOOGLE.noToken, 409);
   if (reason === "not_found") return new AppError("not_found", FILE_WORDS.gone, 404);
   if (reason === "google_refused") {
     const detail = typeof a.body?.detail === "string" ? ` ${a.body.detail.slice(0, 200)}` : "";
-    return new AppError("internal", `${W.refused}${detail}`, 502);
+    return new AppError("internal", `${ON_GOOGLE.refused}${detail}`, 502);
   }
-  return new AppError("internal", W.notSent, 502);
+  return new AppError("internal", ON_GOOGLE.notSent, 502);
 }
 
 /** POST files/[id]/google: the post goes up. What it says is a person's, and goes as they typed it. */
@@ -61,9 +61,9 @@ export async function postFileToGoogle(
   row: FileMemberRow,
   input: { summary: string },
 ): Promise<{ name: string; search_url: string | null; state: string | null }> {
-  if (row.source !== "made") throw new AppError("validation", W.notAPost);
+  if (row.source !== "made") throw new AppError("validation", ON_GOOGLE.notAPost);
   const { made } = await fileRecord(ctx, member, row);
-  if (!made?.from) throw new AppError("validation", W.noPhoto);
+  if (!made?.from) throw new AppError("validation", ON_GOOGLE.noPhoto);
   const photoUrl = await pictureForGoogle(ctx, member, row.id, made.plan);
   const a = await edgeGoogle(
     {

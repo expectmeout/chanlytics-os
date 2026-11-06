@@ -13,7 +13,7 @@ import { usePostDraft } from "./post-draft";
 import { PostFrame } from "./post-frame";
 import { fileVerbs } from "./verbs";
 
-const W = FILE_WORDS.google;
+const ON_GOOGLE = FILE_WORDS.google;
 
 /** What goes under the picture to begin with: what the picture says, as a sentence a person can change. */
 const wordsToBeginWith = (plan: PostPlan): string =>
@@ -40,7 +40,7 @@ export function usePostGoogle(
     setBusy(false);
     if (!r.ok) return setProblem(r.message);
     setWords(null);
-    flash({ msg: <>{W.posted}</> });
+    flash({ msg: <>{ON_GOOGLE.posted}</> });
     saidUp({ name: r.data.name, search_url: r.data.search_url, at: new Date().toISOString() });
   };
   return {
@@ -68,7 +68,8 @@ type PostGoogleDraft = ReturnType<typeof usePostGoogle>;
 /** The sheet's body: the picture as Google will show it, and what it will say. The picture is real, and costs nothing, as a card's is. */
 export function PostGoogle({ google, plan }: { google: PostGoogleDraft; plan: PostPlan }) {
   const draft = usePostDraft(plan, true, "wide");
-  const note = google.problem ?? (google.tooLong ? W.tooLong : google.words.trim() ? null : W.wordsNeeded);
+  const note =
+    google.problem ?? (google.tooLong ? ON_GOOGLE.tooLong : google.words.trim() ? null : ON_GOOGLE.wordsNeeded);
   return (
     <div className="post-version" data-testid="post-google">
       <PostFrame
@@ -79,7 +80,7 @@ export function PostGoogle({ google, plan }: { google: PostGoogleDraft; plan: Po
         drawing={draft.drawing && !!draft.picture}
       />
       <label className="post-say">
-        <span className="post-say-label">{W.words}</span>
+        <span className="post-say-label">{ON_GOOGLE.words}</span>
         <LineField
           className="post-say-box post-say-long"
           rows={3}
@@ -102,10 +103,10 @@ export function PostGoogleActs({ google }: { google: PostGoogleDraft }) {
   return (
     <div className="files-acts" data-foot-acts="">
       <Button onClick={google.send} disabled={!google.canSend} data-testid="post-google-send">
-        {W.post}
+        {ON_GOOGLE.post}
       </Button>
       <Button variant="quiet" onClick={google.cancel} disabled={google.busy} data-testid="post-google-cancel">
-        {W.cancel}
+        {ON_GOOGLE.cancel}
       </Button>
     </div>
   );
@@ -135,16 +136,16 @@ export function PostOnGoogle({
     setBusy(false);
     setAsking(false);
     if (!r.ok) return setProblem(r.message);
-    flash({ msg: <>{W.downed}</> });
+    flash({ msg: <>{ON_GOOGLE.downed}</> });
     saidDown();
   };
   if (asking)
     return (
       <Confirm
-        question={W.downAsk}
-        detail={W.downNote}
-        yes={W.down}
-        no={W.downKeep}
+        question={ON_GOOGLE.downAsk}
+        detail={ON_GOOGLE.downNote}
+        yes={ON_GOOGLE.down}
+        no={ON_GOOGLE.downKeep}
         danger
         busy={busy}
         onYes={() => void down()}
@@ -155,7 +156,7 @@ export function PostOnGoogle({
   return (
     <>
       <div className="files-made-from" data-testid="post-on-google">
-        <span className="files-from">{W.on}</span>
+        <span className="files-from">{ON_GOOGLE.on}</span>
         {posted.search_url ? (
           <Button
             size="sm"
@@ -165,12 +166,12 @@ export function PostOnGoogle({
             rel="noreferrer"
             data-testid="post-google-see"
           >
-            {W.see}
+            {ON_GOOGLE.see}
           </Button>
         ) : null}
         {may ? (
           <Button size="sm" variant="quiet" onClick={() => setAsking(true)} data-testid="post-google-down">
-            {W.down}
+            {ON_GOOGLE.down}
           </Button>
         ) : null}
       </div>

@@ -115,8 +115,8 @@ const ON_CONNECTION: Record<"locations" | "choose" | "disconnect" | "reply" | "p
   choose,
   disconnect,
   reply,
-  post,
-  unpost,
+  post: postOp,
+  unpost: unpostOp,
 };
 
 const ON_LISTING: Record<"unlink" | "refresh", OnListing> = { unlink, refresh: refreshOp };
@@ -292,7 +292,7 @@ async function reply(c: GoogleCall): Promise<Response> {
 }
 
 /** A person's press puts a post on the profile, or takes one off: the dashboard's route has said they may. */
-async function post(c: GoogleCall): Promise<Response> {
+async function postOp(c: GoogleCall): Promise<Response> {
   const plan = planPost(reviewIdOf(c.body.file_id), c.body);
   if (plan.kind === "refuse") return respond(plan.answer);
   const r = await postOnProfile(c.db, c.tenantId, { fileId: plan.fileId, by: c.userId, post: plan.post });
@@ -300,7 +300,7 @@ async function post(c: GoogleCall): Promise<Response> {
   return respond(postAnswer(r));
 }
 
-async function unpost(c: GoogleCall): Promise<Response> {
+async function unpostOp(c: GoogleCall): Promise<Response> {
   const plan = planUnpost(reviewIdOf(c.body.file_id), c.body.post_name);
   if (plan.kind === "refuse") return respond(plan.answer);
   const r = await unpostOnProfile(c.db, c.tenantId, { fileId: plan.fileId, by: c.userId, name: plan.name });

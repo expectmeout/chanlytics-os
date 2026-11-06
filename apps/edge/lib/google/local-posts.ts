@@ -19,7 +19,7 @@ async function asTheOwner(db: Db, tenantId: string, now: Date) {
   return { ok: true as const, token: t.token, parent: reviewParent(conn.account_name, conn.location_name) };
 }
 
-const saidOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const googleSaid = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export async function postOnProfile(
   db: Db,
@@ -33,7 +33,7 @@ export async function postOnProfile(
   try {
     made = await createLocalPost(http, owner.token, owner.parent, asked.post);
   } catch (e) {
-    return { ok: false, error: "google_refused", detail: saidOf(e) };
+    return { ok: false, error: "google_refused", detail: googleSaid(e) };
   }
   await emitEvent(db, tenantId, "file.posted", "workspace", tenantId, {
     file_id: asked.fileId,
@@ -57,7 +57,7 @@ export async function unpostOnProfile(
   try {
     await deleteLocalPost(http, owner.token, asked.name);
   } catch (e) {
-    return { ok: false, error: "google_refused", detail: saidOf(e) };
+    return { ok: false, error: "google_refused", detail: googleSaid(e) };
   }
   await emitEvent(db, tenantId, "file.unposted", "workspace", tenantId, {
     file_id: asked.fileId,
