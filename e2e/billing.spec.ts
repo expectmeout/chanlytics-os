@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
-import { activeWorkspace, scoped, apiGet } from "./workspace";
+import { apiGet } from "./workspace";
 
 /**
  * Billing on a real workspace: the route answers honestly about what this
  * deployment can charge and never carries a Stripe id it could act on; the
- * pane says the arrangement; a workspace on a direct arrangement is
- * refused Checkout. Read-only: nothing here opens Stripe or changes a
- * subscription.
+ * pane says the arrangement. That a direct arrangement is refused Checkout only
+ * production can answer (e2e/production/walk.spec.ts). Read-only: nothing here
+ * opens Stripe or changes a subscription.
  */
 test.describe("Billing on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -50,31 +50,6 @@ test.describe("Billing on a real workspace", () => {
     } else {
       await expect(page.getByTestId("billing-invoices")).toBeVisible();
     }
-  });
-
-  test("Checkout is refused for a direct arrangement, and says so", async ({ page, baseURL }) => {
-    const { data } = await (await apiGet(page, "/api/v1/billing")).json();
-    test.skip(
-      data.billing.account.mode !== "direct",
-      "the live workspace pays by card; the refusal is for direct arrangements",
-    );
-    // Named, as the client names it. Unscoped, this POST was refused with a
-    // 400 by the ambiguity guard and the spec read it as a billing failure.
-    const ws = await activeWorkspace(page);
-    const res = await page.request.post(scoped("/api/v1/billing/checkout", ws), {
-      headers: { origin: baseURL!, "content-type": "application/json" },
-      data: {},
-    });
-    const body = await res.json();
-    // 409, exactly. STATUS_OF.direct = 409 on the edge (api/admin/billing.ts:30)
-    // and the route maps a 409 through unchanged, so this is deterministic —
-    // and the looser [403, 409, 503] it replaced would have swallowed the two
-    // regressions worth catching: a 403 means the test account lost owner, a
-    // 503 means the edge is unreachable. The body is in the message because a
-    // bare status assertion threw away the sentence naming the refusal.
-    expect(res.status(), `checkout answered ${res.status()}: ${JSON.stringify(body)}`).toBe(409);
-    expect(body.ok).toBe(false);
-    expect(body.error.message).toContain("direct arrangement");
   });
 
   test("the first run shows no billing row for a direct arrangement, on any step it has reached", async ({ page }) => {

@@ -152,29 +152,79 @@ test("every pull request runs the tests of what it changed, and a label starts t
   assert.ok(!/Typecheck|Secret scan|Migrations replay/.test(suite), "no required check's name");
 });
 
-test("the nightly's node suite runs in four parts with their own cap, its coverage judged across them, the specs after it whatever it said, and one report says which half was red", () => {
+test("the nightly's node suite runs in four parts with their own cap, its coverage judged across them, the specs and the production check after it whatever it said, and one report says which was red", () => {
   const y = workflow("nightly-e2e.yml");
-  const suite = y.slice(y.indexOf("  suite:"), y.indexOf("  coverage:"));
+  const suite = job(y, "suite");
   assert.ok(suite.includes("timeout-minutes: 45") && suite.includes("part: [1, 2, 3, 4]"));
   assert.ok(suite.includes("fail-fast: false"), "a red part does not hide another part's failures");
   assert.ok(suite.includes("run: pnpm test -- --test-shard=${{ matrix.part }}/4"), "every file, in one of four parts");
   assert.ok(suite.includes("TEST_LCOV: coverage-part.lcov") && suite.includes("if-no-files-found: error"));
   // Every part's report, judged as one against the floors, only when every part passed.
-  const coverage = y.slice(y.indexOf("  coverage:"), y.indexOf("  e2e:"));
+  const coverage = job(y, "coverage");
   assert.ok(coverage.includes("needs: suite") && coverage.includes("needs.suite.result == 'success'"));
   const parts = coverage.match(/parts\/coverage-part-(\d)\/coverage-part\.lcov/g) ?? [];
   assert.equal(new Set(parts).size, 4, "the judge reads the four parts' reports, named");
   assert.ok(coverage.includes("node tooling/scripts/checks/coverage.mjs "));
-  const e2e = y.slice(y.indexOf("  e2e:"), y.indexOf("  report:"));
+  const whole = job(y, "whole");
   assert.ok(
-    e2e.includes("needs: suite") && e2e.includes("if: ${{ !cancelled() }}"),
-    "after, never beside, never skipped",
+    whole.includes("needs: suite") && whole.includes("if: ${{ !cancelled() && !inputs.credential_free_only }}"),
+    "after, never beside, never skipped on a night",
   );
-  assert.ok(!/run: pnpm test\b/.test(e2e), "the suite runs once");
-  const report = y.slice(y.indexOf("  report:"));
-  assert.ok(report.includes("needs: [suite, coverage, e2e]") && report.includes("always()"));
-  assert.ok(report.includes("SUITE: ${{ needs.suite.result }}") && report.includes("SPECS: ${{ needs.e2e.result }}"));
+  assert.ok(!/run: pnpm test\b/.test(whole), "the suite runs once");
+  const production = job(y, "production");
+  assert.ok(
+    production.includes("needs: whole") && production.includes("if: ${{ !cancelled() }}"),
+    "a red whole suite never hides production",
+  );
+  const report = job(y, "report");
+  assert.ok(report.includes("needs: [suite, coverage, whole, production]") && report.includes("always()"));
+  for (const said of ["SUITE: ${{ needs.suite.result }}", "WHOLE: ${{ needs.whole.result }}"])
+    assert.ok(report.includes(said), said);
+  assert.ok(report.includes("PRODUCTION: ${{ needs.production.result }}"), "the report says which was red");
   assert.ok(report.includes("COVERAGE: ${{ needs.coverage.result }}"), "a floor missed is the suite's red");
+});
+
+test("the nightly's node suite and its whole suite hold no live secret, and the whole suite cannot reach production", () => {
+  const y = workflow("nightly-e2e.yml");
+  const [suite, whole] = [job(y, "suite"), job(y, "whole")];
+  for (const held of [suite, whole]) assert.ok(!held.includes("secrets."), "no live secret");
+  assert.ok(!suite.includes("SUPABASE_"), "no database: it wrote and deleted on production with the service key");
+  assert.ok(
+    workflow("nightly-database.yml").includes("run: pnpm test:db"),
+    "the suites that need one run every night on their own stack",
+  );
+  assert.ok(whole.includes("E2E_BASE_URL: http://127.0.0.1:3100"));
+  assert.ok(whole.includes("EDGE_URL: http://127.0.0.1:3101"), "unset, the app calls production's edge");
+  assert.ok(
+    whole.includes("127.0.0.1 app.chanlytics.com chanlytics-messaging.vercel.app"),
+    "production's hostnames resolve to the runner, so a mistake fails here",
+  );
+  assert.ok(
+    whole.includes("/api/version") && whole.includes("VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}"),
+    "the app it tests is this commit",
+  );
+  assert.ok(whole.includes("e2e-workspace.mjs --apply"), "seeded before any spec");
+  assert.ok(whole.includes('REQUIRE_SERVICE_CREDENTIALS: "1"'), "the skip ceiling bites only on a run that says so");
+});
+
+test("only the nightly's production check holds production's key, it runs a short list, and it creates no workspace", () => {
+  const y = workflow("nightly-e2e.yml");
+  const production = job(y, "production");
+  assert.ok(!y.replace(production, "").includes("secrets.E2E_SERVICE_ROLE_KEY"), "the key is this job's alone");
+  assert.ok(production.includes("E2E_BASE_URL: https://app.chanlytics.com"));
+  assert.ok(production.includes('E2E_PRODUCTION: "1"'));
+  assert.ok(
+    production.includes(
+      "run: pnpm e2e e2e/production e2e/coverage.spec.ts e2e/auth/auth-gate.spec.ts e2e/auth/signup.spec.ts e2e/shell/csp.spec.ts",
+    ),
+  );
+  assert.ok(
+    !production.includes("workspace-create"),
+    "the whole suite makes and deletes its workspace on its own stack",
+  );
+  assert.ok(production.includes("ask-day.mjs --check"), "Ask's day is read here");
+  assert.match(production, /concurrency:\n\s+group: nightly-e2e/, "the weeklies write this workspace too");
+  assert.ok(production.includes("timeout-minutes: 20"));
 });
 
 test("every job says how long it may run: a step that hangs is ended at its cap, not at GitHub's six hours", () => {
