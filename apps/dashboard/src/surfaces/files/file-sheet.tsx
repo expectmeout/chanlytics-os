@@ -25,7 +25,7 @@ import { askAbout, canDo, type LegacyFlash } from "../legacy-verbs";
 import { FileChoices, FileReads, FileWho, NameField, type SheetPress } from "./file-fields";
 import { Picture } from "./photo";
 import { PostShapes } from "./post-shapes";
-import { PostVersion } from "./post-version";
+import { PostVersion, PostVersionActs, usePostVersion } from "./post-version";
 import { fileVerbs, type FileChange } from "./verbs";
 
 /** What the sheet says the look saw, or how it stands. A refused picture a person has since kept waits for no one. */
@@ -167,7 +167,10 @@ function FileSheet({
   const [busy, setBusy] = useState(false);
   const may = canDo("settings");
   const made = useMade(file);
-  const [versioning, setVersioning] = useState(false);
+  const version = usePostVersion((id, words) => {
+    flash({ msg: <>{words}</> });
+    open(id);
+  });
   const change = async (body: FileChange): Promise<string | null> => {
     setBusy(true);
     const r = await fileVerbs.change(file.id, body);
@@ -202,33 +205,28 @@ function FileSheet({
       backCloses={`file:${file.id}`}
       testid="fl-sheet"
       foot={
-        versioning ? undefined : (
+        version.open ? (
+          <PostVersionActs version={version} />
+        ) : (
           <FileActs
             {...press}
             remove={() => void remove()}
             ask={ask}
             makePost={makePost}
             // From the photo it came from: with that gone, there is nothing to draw it again from.
-            newVersion={made?.from ? () => setVersioning(true) : null}
+            newVersion={made?.from ? () => version.begin(made.plan) : null}
           />
         )
       }
     >
-      {versioning && made ? (
-        <PostVersion
-          plan={made.plan}
-          close={() => setVersioning(false)}
-          saved={(id, words) => {
-            flash({ msg: <>{words}</> });
-            open(id);
-          }}
-        />
+      {version.open ? (
+        <PostVersion version={version} />
       ) : file.source === "made" ? (
         <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />
       ) : (
         <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
       )}
-      {!versioning && (
+      {!version.open && (
         <>
           {says && <p className="files-says">{says}</p>}
           {file.looks_like_stock && file.status === "inbox" && <Notice label={W.stock} fact={W.stock} line />}
