@@ -122,7 +122,7 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     handled: "plain",
     booked: "ok",
     decided: "ok",
-    // Whose move it is (conversations/thread-move.ts): the head, the row and Conversations wear these, and pass no tone by
+    // Whose move it is (waits/thread-move.ts): the head, the row and Conversations wear these, and pass no tone by
     // hand, which is how Needs you came to be coral on the head and amber on the row.
     failed: "danger",
     wrote_again: "warn",

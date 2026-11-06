@@ -50,7 +50,7 @@ import {
   type EscalationDto,
 } from "./escalations";
 import type { InboxThreadVM } from "./inbox-thread-vm";
-import { moveComesTo, moveWaits, threadMoveNow, threadMoveOf, type ThreadMove } from "./thread-move";
+import { moveComesTo, moveWaits, threadMoveNow, threadMoveOf } from "../waits/thread-move";
 
 /** Archived, and set aside while it stays so: a new message that came in anyway reopens it, an ordinary thread again. */
 const archivedOf = (dto: ConversationDto): Pick<InboxThreadVM, "archived" | "setAside"> =>
@@ -546,8 +546,7 @@ export function toInboxThreadVM(
   const moments = threadMoments(dto, escalation, state);
   const ask = askOf(escalation, lastInbound);
 
-  const move = threadMoveOf(dto, escalation, now.getTime());
-  const { lastWord, unanswered } = quietWordsOf(dto, state, move, tz, now);
+  const moveWords = moveWordsOf(dto, escalation, state, tz, now);
   const preview = previewOf(dto.messages);
 
   return {
@@ -563,15 +562,13 @@ export function toInboxThreadVM(
     whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
     avatar: initialsOf(who),
     state,
-    move,
     takenOver,
     needsYou,
     claimedByOther,
     assigneeUserId: dto.assignee_user_id ?? null,
     ask,
     ...archivedOf(dto),
-    lastWord,
-    unanswered,
+    ...moveWords,
     heldDraft,
     ...(heldDraft
       ? {
@@ -612,9 +609,7 @@ export function toInboxThreadVM(
           : reasonSummaryOf(escalation.reason)
         : takenOver
           ? HELD_WORDS.yours.sentence
-          : lastWord
-            ? lastWord.text
-            : "The receptionist answered this on its own. Nothing is owed.",
+          : (moveWords.lastWord?.text ?? "The receptionist answered this on its own. Nothing is owed."),
     ...holdWordsOf(escalation, claimedByOther, tz, now.getTime()),
     ...moments,
     ...inboxThreadClock(moments, tz, now.getTime()),
@@ -687,19 +682,21 @@ function bubbleWhen(iso: string, tz: string, now: Date): { at: string; day: stri
 }
 
 /**
- * A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1), or that nobody has
- * answered what they wrote. And the dock's words for that, where the thread is there or the clock will bring it there. None
- * for a thread that is not quiet, or archived.
+ * Whose move it is (thread-move.ts), and a quiet thread's one line: who had the last word, and whether a reply didn't send
+ * (lastWordOf, I1), or that nobody has answered what they wrote. And the dock's words for that, where the thread is there or
+ * the clock will bring it there. No words for a thread that is not quiet, or archived.
  */
-function quietWordsOf(
+function moveWordsOf(
   dto: ConversationDto,
+  escalation: EscalationDto | null,
   state: InboxThreadVM["state"],
-  move: ThreadMove,
   tz: string,
   now: Date,
-): Pick<InboxThreadVM, "lastWord" | "unanswered"> {
-  if (state !== "done" || dto.state === "archived") return { lastWord: null, unanswered: null };
+): Pick<InboxThreadVM, "move" | "lastWord" | "unanswered"> {
+  const move = threadMoveOf(dto, escalation, now.getTime());
+  if (state !== "done" || dto.state === "archived") return { move, lastWord: null, unanswered: null };
   return {
+    move,
     lastWord: move.move === "unanswered" ? { text: UNANSWERED_LINE } : lastWordOf(dto, tz, now),
     unanswered: moveComesTo(move, "unanswered") ? unansweredOf(dto, tz, now) : null,
   };

@@ -7,7 +7,7 @@ import type { BookingRequestCardVM } from "../calendar/visit/booking-request";
 import type { HoldAct } from "./escalations";
 import type { MediaVM } from "./message-media";
 import type { ThreadChannel } from "./thread-channel";
-import type { ThreadMove } from "./thread-move";
+import type { ThreadMove } from "../waits/thread-move";
 
 /* ---- Inbox ThreadVM (Blueprint §7): escalations + conversations mapped into
    the mockup's thread shape. Fed fields only — approvals/confidence/$ are

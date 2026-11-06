@@ -12,7 +12,7 @@ other, and a failed send was red or amber depending on where it was read.
 
 ## Decision
 
-**One rule answers it.** `threadMoveOf` (contracts `conversations/thread-move.ts`), first match wins: snoozed; set aside or
+**One rule answers it.** `threadMoveOf` (contracts `waits/thread-move.ts`), first match wins: snoozed; set aside or
 archived; they asked to stop; a reply of ours that never reached them; they wrote again while you held it; a teammate has
 it; you have it; an open hold nobody has; a reply counting down; then who had the last word. Every thread gets a positive
 reason for its word. The head, the row, the tabs, the counts, Conversations and Ask read it. Nothing new is stored.

@@ -4,7 +4,7 @@
  * build the bands from them; today-brief.ts composes the view model.
  */
 import { NEEDS_YOU_WORD, standingOfThread, THREAD_MOVE_WORDS } from "../conversations/standing";
-import { threadMoveOf, type ThreadMove } from "../conversations/thread-move";
+import { threadMoveOf, type ThreadMove } from "../waits/thread-move";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import { waitsOnAPerson, YOURS_STILL_WAIT, type EscalationDto } from "../conversations/escalations";

@@ -16,7 +16,7 @@ import { mediaVM, type MediaVM } from "./message-media";
 import { sentFactsOf, messageWords, lastExchanged } from "./message-words";
 import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
 import { readingOf, standingOfThread, type Standing } from "./standing";
-import { threadMoveOf, type ThreadMove } from "./thread-move";
+import { threadMoveOf, type ThreadMove } from "../waits/thread-move";
 import type { EscalationDto } from "./escalations";
 
 /* ---- the mockup's conversation shape ---- */

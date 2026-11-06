@@ -375,7 +375,7 @@ test("the wire's rule and the Inbox's rule are one: each thread waits exactly wh
   );
 });
 
-/* ---- what the rule owes, with no hold to read it from (conversations/thread-move.ts) ---- */
+/* ---- what the rule owes, with no hold to read it from (waits/thread-move.ts) ---- */
 
 const reply = (id, min, status) => ({ ...queued(id, min, 0), status, meta: null, channel_ts: ago(min) });
 

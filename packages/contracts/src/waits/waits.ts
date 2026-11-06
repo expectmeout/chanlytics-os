@@ -1,7 +1,7 @@
 /**
  * What waits on a person, counted once (decision 0048, point 1).
  *
- * Three things wait on the owner. A hold is a thread the rule puts in Needs you (conversations/thread-move.ts): someone
+ * Three things wait on the owner. A hold is a thread the rule puts in Needs you (thread-move.ts): someone
  * asked for a person and nobody has them, nobody answered what they wrote, or a reply of ours never reached them; not
  * snoozed, not a teammate's, and never a customer's STOP, which is news and no wait (escalations.ts waitsOnAPerson). A held send is the
  * receptionist's reply counting down to go in the owner's name, which can still be stopped (standing.ts replyWaitsOnYou).
@@ -29,7 +29,7 @@ import { RUN_GOING_STATES } from "../broadcasts/broadcasts";
 
 /** One thread as the count reads it, however the page holds the thread: a view model, or a conversation off the wire. */
 export interface WaitingThread {
-  /** It is yours to do (conversations/thread-move.ts moveWaits). */
+  /** It is yours to do (thread-move.ts moveWaits). */
   needsYou: boolean;
   /** The reply counting down to send, when the thread has one: when it goes, and whether this tab has just held it. */
   send?: { endsAtMs: number; held?: boolean } | null;

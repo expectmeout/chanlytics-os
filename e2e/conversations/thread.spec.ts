@@ -173,10 +173,10 @@ test.describe("The thread, in the nightly's own workspace", () => {
     await test.step("the seeded thread is quiet: the receptionist answered and nobody asked for a person", async () => {
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Handled");
-      // The receptionist's reply wears its spark, and a quiet thread says nothing over it: no standing line, and nobody
-      // asked for a person (#1660: the sentence for the ordinary state stood over every thread).
+      // The receptionist's reply wears its spark, the head says Handled because it answered (waits/thread-move.ts), and nobody
+      // asked for a person.
       await expect(pane.locator(".tl-msg .tl-stamp-spark").last()).toBeVisible();
-      await expect(pane.getByTestId("ix-th-standing")).toHaveCount(0);
+      await expect(pane.getByTestId("ix-th-standing")).toContainText("Handled");
       await expect(pane.getByTestId("ix-needs-you")).toHaveCount(0);
     });
 

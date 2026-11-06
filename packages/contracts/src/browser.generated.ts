@@ -169,7 +169,6 @@ export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords
 export { formatWaited, inboxThreadClock, shortTime, waitedSaid, waitedSince } from "./conversations/thread-clock";
 export { contactMeta, contactName, emailStoppedWords, initialsOf, isEmailStopped, isIdentifierName, personFaceOf, shortName } from "./conversations/thread-contact";
 export { inReadingOrder, isOptedOut, LIST_MESSAGES_EACH, memberMetaOf, messageAt } from "./conversations/thread-dto";
-export { moveComesTo, moveWaits, threadMoveNow, threadMoveOf } from "./conversations/thread-move";
 export { amountTotalsWords, amountWords, parseAmount } from "./deals/deal-amount";
 export { CONSULT_FOLLOW_DAYS, consultationHappened, consultationHeld, consultationsWithoutProposal, consultServiceOf, consultsHeldWords, dealStageOf, isConsultationTitle, noProposalSince } from "./deals/deal-consultations";
 export { toDealReportVM } from "./deals/deal-report";
@@ -513,6 +512,7 @@ export { bellFeed, bellOlderOf, holdMarksOf } from "./waits/hold-rows";
 export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeStillWaits, settledNoticeIds } from "./waits/notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends";
 export { noticeTone } from "./waits/notice-tones";
+export { moveComesTo, moveWaits, threadMoveNow, threadMoveOf } from "./waits/thread-move";
 export { toSendAllOf, toSendEveryOf, toSendRunsOf } from "./waits/to-send";
 export { WAIT_ROW_WORDS, waitRowsOf } from "./waits/wait-rows";
 export { heldReplyNotice, WAIT_ACT_WORDS, WAIT_KINDS, WAIT_RULES, waitEndsWords, waitRuleOf } from "./waits/wait-rules";

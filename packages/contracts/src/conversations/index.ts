@@ -136,5 +136,3 @@ export {
 export type { EmailStopBearing } from "./thread-contact";
 export { inReadingOrder, isOptedOut, LIST_MESSAGES_EACH, memberMetaOf, messageAt } from "./thread-dto";
 export type { ConversationDto, LastHoldDto, MessageDto } from "./thread-dto";
-export { moveComesTo, moveWaits, threadMoveNow, threadMoveOf } from "./thread-move";
-export type { ThreadList, ThreadMove } from "./thread-move";

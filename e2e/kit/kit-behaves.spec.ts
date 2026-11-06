@@ -762,7 +762,6 @@ const subTabsKeys: Check = async (page) => {
     }, here);
   await page.locator(`${here} [aria-selected="true"]`).focus();
   for (const [key, focus, picked] of [
-    ["ArrowRight", "Waiting", "Needs you"],
     ["ArrowRight", "Handled", "Needs you"],
     ["ArrowRight", "Snoozed", "Needs you"],
     ["ArrowRight", "Needs you", "Needs you"],

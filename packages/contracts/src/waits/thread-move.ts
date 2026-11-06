@@ -11,16 +11,16 @@
  *
  * Pure: a page hands in the thread as the wire holds it, its open hold and the clock.
  */
+import { NEVER_CONNECTED_LINES } from "../conversations/call-dto";
+import type { EscalationDto } from "../conversations/escalations";
+import { isAutomatedSend, messageAuthor } from "../conversations/message-author";
+import { draftSendsAtMs, heldDraftOf, lastExchanged, reachedCustomer } from "../conversations/message-words";
+import { standingOfThread, type StandingVerdict, type ThreadMoveKey } from "../conversations/standing";
+import { isChatMessage, isTheirOwnWords } from "../conversations/thread-channel";
+import { isOptedOut, messageAt, type ConversationDto, type MessageDto } from "../conversations/thread-dto";
 import { QUIET_AFTER_DAYS } from "../people/person-state";
 import { DAY_MS, MIN_MS } from "../shared/time";
-import type { WaitingThread } from "../waits/waits";
-import { NEVER_CONNECTED_LINES } from "./call-dto";
-import type { EscalationDto } from "./escalations";
-import { isAutomatedSend, messageAuthor } from "./message-author";
-import { draftSendsAtMs, heldDraftOf, lastExchanged, reachedCustomer } from "./message-words";
-import { standingOfThread, type StandingVerdict, type ThreadMoveKey } from "./standing";
-import { isChatMessage, isTheirOwnWords } from "./thread-channel";
-import { isOptedOut, messageAt, type ConversationDto, type MessageDto } from "./thread-dto";
+import type { WaitingThread } from "./waits";
 
 /** The list a thread stands in: an Inbox tab's id, or `out`, which no tab lists (archived: search and a link still find it). */
 export type ThreadList = "escalated" | "waiting" | "done" | "snoozed" | "aside" | "out";
