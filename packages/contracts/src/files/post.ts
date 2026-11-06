@@ -95,6 +95,8 @@ export interface PostWords {
   wordsAtSaid: string;
   wordsAt: Record<PostPlan["words_at"], string>;
   band: string;
+  bandOn: string;
+  bandOff: string;
   undrawable: Record<PostUndrawable, string>;
 }
 
@@ -126,12 +128,14 @@ export const POST_WORDS = {
   layouts: { over: "Over photo", left: "Left", band: "Band", frame: "Frame" },
   wordsAtSaid: "Words",
   wordsAt: { top: "Top", bottom: "Bottom" },
-  band: "Phone number",
+  band: "Number",
+  bandOn: "On the post",
+  bandOff: "Left off",
   undrawable: {
     long: "That's too long to read on a phone.",
     character: "That has a character the post can't draw, such as an emoji.",
     contact: "Links and emails don't go on a post.",
-    number: "Turn on Phone number rather than typing it.",
+    number: "Put your number on with the button below, rather than typing it.",
   },
 } as const satisfies PostWords;
 
@@ -163,11 +167,13 @@ const POST_WORDS_ES: PostWords = {
   wordsAtSaid: "Texto",
   wordsAt: { top: "Arriba", bottom: "Abajo" },
   band: "Teléfono",
+  bandOn: "En la publicación",
+  bandOff: "Sin teléfono",
   undrawable: {
     long: "Es demasiado largo para leerlo en un teléfono.",
     character: "Tiene un carácter que la publicación no puede dibujar, como un emoji.",
     contact: "Los enlaces y correos no van en una publicación.",
-    number: "Activa Teléfono en vez de escribirlo.",
+    number: "Pon tu teléfono con el botón de abajo, en vez de escribirlo.",
   },
 };
 

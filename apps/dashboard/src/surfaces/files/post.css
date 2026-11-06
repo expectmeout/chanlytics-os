@@ -78,7 +78,14 @@
 .post-acts {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+
+.post-choose-said {
+  min-width: 56px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
 }
 
 /* The shapes and the way out come as the press lands, where they will stay. */

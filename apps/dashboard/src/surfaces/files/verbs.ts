@@ -41,18 +41,57 @@ function mimeOf(file: File): FileMime | null {
   return !file.type && /\.(heic|heif)$/i.test(file.name) ? "image/heic" : null;
 }
 
+/** How often a photo's progress is said at most, so a fast line does not draw the grid for every packet. */
+const SENT_STEP = 0.02;
+
+/**
+ * The PUT itself. A fetch can't say how far an upload has gone in every browser, so one that wants to know goes by XMLHttpRequest, and
+ * one that does not, or a browser with none, by fetch: the same request, read the same way.
+ */
+function putBytes(
+  address: string,
+  form: FormData,
+  onSent?: (sent: number) => void,
+): Promise<{ ok: boolean; status: number }> {
+  const headers = { "x-upsert": "false" };
+  if (!onSent || typeof XMLHttpRequest === "undefined")
+    return window.fetch(address, { method: "PUT", body: form, headers });
+  return new Promise((resolve, reject) => {
+    const put = new XMLHttpRequest();
+    let said = 0;
+    put.open("PUT", address);
+    for (const [name, value] of Object.entries(headers)) put.setRequestHeader(name, value);
+    put.upload.onprogress = (e) => {
+      if (!e.lengthComputable || e.total === 0) return;
+      const sent = e.loaded / e.total;
+      if (sent - said < SENT_STEP && sent < 1) return;
+      said = sent;
+      onSent(sent);
+    };
+    put.onload = () => resolve({ ok: put.status >= 200 && put.status < 300, status: put.status });
+    put.onerror = () => reject(new Error("no answer"));
+    put.ontimeout = () => reject(new Error("no answer"));
+    put.send(form);
+  });
+}
+
 /**
  * The bytes, to the address the door signed: the form storage's own client sends a Blob in. A network failure or a server's is
  * tried again. Past a first try anything else goes on to done, which proves the bytes either way: storage's answer to a photo
  * that did arrive before the line dropped is not one we need to recognise.
  */
-async function sendBytes(address: string, file: File, mime: FileMime): Promise<boolean> {
+async function sendBytes(
+  address: string,
+  file: File,
+  mime: FileMime,
+  onSent?: (sent: number) => void,
+): Promise<boolean> {
   for (let tried = 0; ; tried++) {
     const form = new FormData();
     form.append("cacheControl", String(FILE_CACHE_S));
     form.append("", new Blob([file], { type: mime }), file.name);
     try {
-      const res = await window.fetch(address, { method: "PUT", body: form, headers: { "x-upsert": "false" } });
+      const res = await putBytes(address, form, onSent);
       if (res.ok || (tried > 0 && res.status < 500)) return true;
       if (res.status < 500) return false;
     } catch {
@@ -75,13 +114,13 @@ async function proven(id: string, name: string, mime: FileMime) {
   }
 }
 
-async function add(file: File): Promise<AddSaid> {
+async function add(file: File, onSent?: (sent: number) => void): Promise<AddSaid> {
   const mime = mimeOf(file);
   if (!mime) return { kept: false, message: W.wrongType };
   if (file.size > FILE_BYTES_MAX) return { kept: false, message: W.tooBig };
   const started = await api()("POST files/start", { body: { mime, bytes: file.size } });
   if (!started.ok) return { kept: false, message: started.message };
-  if (!(await sendBytes(started.data.upload_url, file, mime))) return { kept: false, message: W.notSaved };
+  if (!(await sendBytes(started.data.upload_url, file, mime, onSent))) return { kept: false, message: W.notSaved };
   const done = await proven(started.data.id, file.name, mime);
   if (!done.ok) return { kept: false, message: done.message };
   return { kept: true, twin: done.data.twin, id: done.data.file_id };

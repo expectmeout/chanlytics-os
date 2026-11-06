@@ -104,6 +104,15 @@ what a page shows them. So a picture needs one place, one name and a written rec
     none is needed yet: the sheet takes the bytes. When a post is published for its owner, Instagram and Google each fetch from a
     public address, and a short-lived signed link to that one shape should do. A post is never resized: it is drawn at its own size,
     and about 60 KB.
+15. **A post is changed where it stands, for nothing.** Whoever may save it can change its words, its layout, its type and where the
+    words stand, on the card. A pause in the typing draws again (`POST files/post/preview`, on a limit of its own), a newer change lets
+    the last request go, and what the tab has drawn comes back at once (`surfaces/files/post-drawn.ts`, a few dozen pictures, the oldest
+    let go). The picture stands until the next is read whole, then gives way to it (`post-frame.tsx`), and saved, the same picture stays
+    on screen, so a press never answers with an empty frame. What was pressed rides with the card's outcome, so a reload says the words
+    that were saved, not the ones proposed. Four layouts: over the photo, from the margin over it, on a band of the business's colour,
+    or under it in a frame. Words over a photo stand on the scrim; words on a colour take black or white, whichever reads, and of those
+    two one always passes 4.5:1. The process holds a photo for a few minutes, since a file's bytes never change and most of a picture's
+    time was reading it; its row is read first each time, under the caller's RLS, so a file removed is never drawn from memory.
 
 ## What it costs
 

@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { FILE_WORDS as W, fileSaidOf, fileViewOf, type FileDto } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
+import { Meter } from "../kit/meter/meter";
 import { Press } from "../kit/press";
 import type { LegacyFlash } from "../legacy-verbs";
 import { takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
@@ -12,6 +13,7 @@ import { takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
 export /** A picture where it can be drawn. One Storage can't draw keeps its ground and says its name, never a broken glyph. */
 function Picture({ src, alt, name, big = false }: { src: string; alt: string; name: string; big?: boolean }) {
   const [broken, setBroken] = useState(false);
+  const [arrived, setArrived] = useState(false);
   if (broken)
     return (
       <span
@@ -30,6 +32,12 @@ function Picture({ src, alt, name, big = false }: { src: string; alt: string; na
       alt={alt}
       loading={big ? undefined : "lazy"}
       decoding="async"
+      data-arrived={arrived ? "true" : undefined}
+      // One the browser already holds has loaded before this draw: the ref sees it, so it never waits for an event that came.
+      ref={(img) => {
+        if (img?.complete && img.naturalWidth > 0 && !arrived) setArrived(true);
+      }}
+      onLoad={() => setArrived(true)}
       onError={() => setBroken(true)}
     />
   );
@@ -62,6 +70,18 @@ function OnItsWay({ photo, flash }: { photo: SendingPhoto; flash: (f: LegacyFlas
       <span className="files-state">
         {failed ? photo.file.name : photo.state === "sending" ? W.sending : W.waitingToSend}
       </span>
+      {photo.sent !== null && !failed ? (
+        <Meter
+          className="files-sent"
+          size="sm"
+          parts={[
+            { share: photo.sent, tone: "ink" },
+            { share: 1 - photo.sent, tone: "ground" },
+          ]}
+          aria-label={W.sentSoFar(Math.round(photo.sent * 100))}
+          data-testid="fl-sent"
+        />
+      ) : null}
       {failed && (
         <>
           <span className="files-why">{photo.message}</span>

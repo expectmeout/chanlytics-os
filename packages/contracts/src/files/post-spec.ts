@@ -21,8 +21,10 @@ export const postSpec: ProposalSpecAboveOperator = {
     window: "ten_minutes",
     record: (p, data) => {
       const id = asText(rec(data).file_id);
-      // The same picture pressed twice is one file, and what was already there is not this press's to take back.
-      return id && rec(data).twin !== true ? { file_id: id, language: postPlanOf(p.payload).language } : null;
+      // The same picture pressed twice is one file, and what was already there is not this press's to take back. What was pressed
+      // rides with it: a person may have changed the card first, and a reload reads the words that were saved, not the ones proposed.
+      const plan = postPlanOf(p.payload);
+      return id && rec(data).twin !== true ? { file_id: id, language: plan.language, plan } : null;
     },
     call: (u) => ({ route: "DELETE files/[id]", params: { id: asText(u.file_id) }, goneIsDone: true }),
     receipt: (_data, record) => postWordsIn(record.language as PostLanguage).removed,

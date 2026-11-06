@@ -8,13 +8,17 @@ import {
   POST_SHAPES,
   postNameOf,
   postPlanOf,
+  postPlanTidied,
   postWordsIn,
+  recordOrNull,
   type AskProposal,
   type PostPlan,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
+import { openFile } from "../files/file-asked";
 import { PostChoice } from "../files/post-choice";
-import { usePostDraft, type PostDraft } from "../files/post-draft";
+import { usePostDraft } from "../files/post-draft";
+import { drawnKeyOf, pictureDrawn } from "../files/post-drawn";
 import { PostEdit } from "../files/post-edit";
 import { PostFrame } from "../files/post-frame";
 import { PostActs, postShapeAddress } from "../files/post-shapes";
@@ -26,13 +30,18 @@ const keptOf = (p: AskProposal): string | null => (p.outcome?.state === "done" ?
 
 /** The card as a press sends it and its head says it: what was changed here, over what Ask proposed. */
 function asChanged(p: AskProposal, plan: PostPlan): AskProposal {
-  return { ...p, title: postWordsIn(plan.language).cardTitle(plan.line), payload: { ...p.payload, ...plan } };
+  // While the headline is empty the head says what it did: a card is never called nothing.
+  const title = plan.line.trim() ? postWordsIn(plan.language).cardTitle(plan.line.trim()) : p.title;
+  return { ...p, title, payload: { ...p.payload, ...postPlanTidied(plan) } };
 }
+
+/** The plan a card stands for: what its press saved, where it has been pressed, else what Ask proposed. */
+const startOf = (p: AskProposal): PostPlan => postPlanOf(recordOrNull(p.outcome?.undo?.plan) ?? p.payload);
 
 /** What a post's card holds for its AskCard: its draft, and what the press sends and may do. Null for any other kind of card. */
 export function usePostCard(p: AskProposal) {
   const isPost = p.kind === "post";
-  const draft = usePostDraft(postPlanOf(p.payload), isPost && !keptOf(p));
+  const draft = usePostDraft(startOf(p), isPost && !keptOf(p));
   if (!isPost) return null;
   const says = postWordsIn(draft.plan.language);
   return {
@@ -42,10 +51,6 @@ export function usePostCard(p: AskProposal) {
     press: { label: says.save, disabled: !draft.plan.line.trim() || draft.refused !== null },
   };
 }
-
-/** What a kept card shows of a shape: the picture on screen for the one it drew, its own file for the rest. */
-const keptPicture = (kept: string, draft: PostDraft, unsaved: string | null): string =>
-  draft.shape === "portrait" && unsaved ? unsaved : postShapeAddress(kept, draft.shape);
 
 /** The card's picture and what a person does with it: changes it before the press, takes it away after. */
 export function AskPostCard({
@@ -63,11 +68,10 @@ export function AskPostCard({
   const kept = keptOf(p);
   const [editing, setEditing] = useState(false);
   const [unseen, setUnseen] = useState(false);
-  // The portrait this card drew, held for the press: saved, it is the same picture, so none is read again.
-  const [drewPortrait, setDrewPortrait] = useState<string | null>(null);
-  if (!kept && draft.shape === "portrait" && draft.picture && !draft.drawing && draft.picture !== drewPortrait)
-    setDrewPortrait(draft.picture);
-  const src = kept ? keptPicture(kept, draft, drewPortrait) : draft.picture;
+  // Saved, what this tab drew of exactly these words is the same picture, so it stays on screen and none is read again.
+  const src = kept
+    ? (pictureDrawn(drawnKeyOf(draft.plan, draft.shape))?.url ?? postShapeAddress(kept, draft.shape))
+    : draft.picture;
   const alt = draft.plan.line || p.title;
   const open = !kept && editing;
   return (
@@ -120,12 +124,7 @@ export function AskPostCard({
       ) : null}
       {kept && !unseen ? (
         <PostActs id={kept} name={postNameOf(draft.plan.line)} shape={draft.shape} says={says}>
-          <Button
-            size="sm"
-            variant="quiet"
-            onClick={() => onNav(`admin/files?do=file:${kept}`)}
-            data-testid="post-open-files"
-          >
+          <Button size="sm" variant="quiet" onClick={() => openFile(kept, onNav)} data-testid="post-open-files">
             {says.openInFiles}
           </Button>
         </PostActs>

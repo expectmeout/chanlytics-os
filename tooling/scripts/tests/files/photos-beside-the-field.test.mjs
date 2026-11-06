@@ -45,6 +45,7 @@ const out = await build({
       'export { AskQuestion } from "../../../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
       'export { AskPostCard, usePostCard } from "../../../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
       'export { PostEdit } from "../../../../apps/dashboard/src/surfaces/files/post-edit.tsx";\n' +
+      'export { hearFileAsked, openFile } from "../../../../apps/dashboard/src/surfaces/files/file-asked.ts";\n' +
       'export { drawnKeyOf, keepDrawn, pictureDrawn } from "../../../../apps/dashboard/src/surfaces/files/post-drawn.ts";\n' +
       'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/files/post-share.ts";\n' +
       'export { askText } from "../../../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
@@ -482,6 +483,36 @@ test("a shape's bytes come from its own address, and a read that failed is nothi
   } finally {
     globalThis.window.fetch = realFetch;
   }
+});
+
+test("a card read again says what was saved, not what Ask first proposed: a person may have changed it", () => {
+  const html = drawnCard(
+    postCard({
+      outcome: {
+        state: "done",
+        receipt: "",
+        atMs: 1,
+        made: { kind: "post", id: FILE(2) },
+        undo: { file_id: FILE(2), plan: { file_id: FILE(1), line: "Walk-ins welcome" } },
+      },
+    }),
+  );
+  assert.ok(html.includes('alt="Walk-ins welcome"'));
+  assert.ok(!html.includes('alt="Now booking"'));
+});
+
+test("a file asked for from over its page is opened by the page: the address is no news to one already on screen", () => {
+  const went = [];
+  const opened = [];
+  S.openFile(FILE(5), (r) => went.push(r));
+  assert.deepEqual(went, [`admin/files?do=file:${FILE(5)}`], "the address says it, for a page not on screen yet");
+  assert.deepEqual(opened, []);
+  const stop = S.hearFileAsked((id) => opened.push(id));
+  S.openFile(FILE(6), () => {});
+  assert.deepEqual(opened, [FILE(6)]);
+  stop();
+  S.openFile(FILE(7), () => {});
+  assert.deepEqual(opened, [FILE(6)], "a page gone hears nothing");
 });
 
 test("a Spanish post says its own words, on the card and its presses", () => {

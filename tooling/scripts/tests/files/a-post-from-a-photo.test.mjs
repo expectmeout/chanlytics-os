@@ -550,7 +550,11 @@ test("Save is one call, and its Undo takes back only what that press made", () =
   assert.equal(postSpec.receipt({ payload: { language: "en" } }, made), "Saved to Files as now-booking");
   assert.equal(postSpec.undo.label(CARD), "Deshacer");
   assert.equal(postSpec.made(CARD, made), "f2");
-  assert.deepEqual(postSpec.undo.record(CARD, made, { settings: null }), { file_id: "f2", language: "es" });
+  assert.deepEqual(postSpec.undo.record(CARD, made, { settings: null }), {
+    file_id: "f2",
+    language: "es",
+    plan: postPlanOf(CARD.payload),
+  });
   assert.equal(postSpec.undo.receipt({}, { language: "es" }), "Quitada de Archivos");
   assert.equal(postSpec.undo.record(CARD, { ...made, twin: true }, { settings: null }), null, "it was already there");
   const undo = postSpec.undo.call({ file_id: "f2" }, { settings: null });

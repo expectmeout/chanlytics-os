@@ -82,6 +82,7 @@ export function PostEdit({ draft, says }: { draft: PostDraft; says: PostWords })
         value={plan.layout}
         choose={(layout) => change({ layout })}
         testid="post-layout"
+        said
       />
       <PostChoice
         label={says.voiceSaid}
@@ -90,6 +91,7 @@ export function PostEdit({ draft, says }: { draft: PostDraft; says: PostWords })
         value={plan.voice}
         choose={(voice) => change({ voice })}
         testid="post-voice"
+        said
       />
       <PostChoice
         label={says.wordsAtSaid}
@@ -98,17 +100,21 @@ export function PostEdit({ draft, says }: { draft: PostDraft; says: PostWords })
         value={plan.words_at}
         choose={(words_at) => change({ words_at })}
         testid="post-at"
+        said
       />
       {hasPhone ? (
-        <Button
-          size="sm"
-          variant={plan.book ? "soft" : "quiet"}
-          aria-pressed={plan.book}
-          onClick={() => change({ book: !plan.book })}
-          data-testid="post-book"
-        >
-          {says.band}
-        </Button>
+        <div className="post-choose">
+          <span className="post-choose-said">{says.band}</span>
+          <Button
+            size="sm"
+            variant={plan.book ? "soft" : "quiet"}
+            aria-pressed={plan.book}
+            onClick={() => change({ book: !plan.book })}
+            data-testid="post-book"
+          >
+            {plan.book ? says.bandOn : says.bandOff}
+          </Button>
+        </div>
       ) : null}
     </div>
   );

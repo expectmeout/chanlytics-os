@@ -8,11 +8,26 @@ interface PostChoiceProps<T extends string> {
   value: T;
   choose: (value: T) => void;
   testid: string;
+  /** Says its label as well as being named by it, where the options alone don't say what they choose. */
+  said?: boolean;
 }
 
-export function PostChoice<T extends string>({ label, options, words, value, choose, testid }: PostChoiceProps<T>) {
+export function PostChoice<T extends string>({
+  label,
+  options,
+  words,
+  value,
+  choose,
+  testid,
+  said = false,
+}: PostChoiceProps<T>) {
   return (
     <div className="post-choose" role="group" aria-label={label}>
+      {said ? (
+        <span className="post-choose-said" aria-hidden="true">
+          {label}
+        </span>
+      ) : null}
       {options.map((option) => (
         <Button
           key={option}
