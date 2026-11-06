@@ -1,5 +1,5 @@
 import "server-only";
-import { waitingSearchWords, type AskReadSet } from "@chanlytics/contracts";
+import { isAskAdsView, waitingSearchWords, type AskReadSet } from "@chanlytics/contracts";
 import type { BuiltContext, SearchResultBlock } from "../context";
 import { withSkillGuides } from "../cross-page";
 import { turnWords } from "../prompt";
@@ -28,6 +28,7 @@ export function wordsBlock(
     personLabel: input.personLabel,
     scope: input.scope,
     surface: input.surface,
+    onAds: isAskAdsView(input.context?.view),
     timezone: input.timezone,
     closures: input.facts.closures,
     focus,

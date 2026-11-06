@@ -239,6 +239,27 @@ test("Campaigns is Sequences (decision 0060): its rows are the list's in its ord
   assert.deepEqual(ctx({}, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
 });
 
+test("Ads: the page says what it shows, in a word and no row; it is never asked about as Sequences, and an address Sequences draws is", () => {
+  holding("sequences", { sequences: [{ id: U(1), name: "Win back", starts: "moment" }] });
+  const onAds = (view) => ({ __askOnScreen: { key: "ads", ids: [], view } });
+  const today = ctx(onAds("ads"), "campaigns/ads");
+  assert.deepEqual(
+    [today.surface, today.view, today.rows],
+    ["campaigns", "ads", []],
+    "REGRESSION: it was sent Sequences' rows",
+  );
+  assert.equal(ctx(onAds("ads:example"), "campaigns/ads").view, "ads:example");
+  assert.equal(ctx(onAds("ads:example"), "campaigns/ads:new").view, "ads:example", "New ad too");
+  assert.equal(ctx(onAds("anything else"), "campaigns/ads").view, "ads", "a word it does not know is no example");
+  const notDrawn = ctx({}, "campaigns/ads");
+  assert.deepEqual([notDrawn.view, notDrawn.rows.length], ["sequences", 1], "the flag off: the address is Sequences");
+  assert.equal(
+    ctx(onAds("ads"), "campaigns/sequences").view,
+    "sequences",
+    "and a word left over is not believed elsewhere",
+  );
+});
+
 test("a link kept from the home to a reach-out names the page at its address, for its chain, never a campaign no read holds", () => {
   // The address names the chain's first step, which no campaigns read holds: the chains read say it is a reach-out.
   setSurfaceValue("reach_outs", [{ root_id: U(5), name: "Movers in Austin" }]);

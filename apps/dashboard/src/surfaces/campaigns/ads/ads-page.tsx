@@ -23,8 +23,8 @@
 import "./ads.css";
 import "./drawer/drawer.css";
 import "./new/new.css";
-import { useMemo, useState } from "react";
-import { ADS_WORDS, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
+import { useEffect, useMemo, useState } from "react";
+import { ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdPlatform, AdsAddress } from "@chanlytics/contracts";
 import {
   CHOOSE,
@@ -40,7 +40,7 @@ import {
 import type { AdDraft, AdsGroupBy, AdsVM, AskVM, HeadVM } from "@chanlytics/contracts/ads-page";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { afterMove, askAbout, gate, useLegacyToast } from "../../legacy-verbs";
+import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, useLegacyToast } from "../../legacy-verbs";
 import { CmHead } from "../parts/head";
 import {
   pressRowOpener,
@@ -241,6 +241,19 @@ interface AdsPageProps {
   param: string;
 }
 
+/**
+ * Ask is told what this page shows, in a word: what is true of the workspace, or an example, whose ads, numbers and people must never
+ * be said as theirs. Taken back as the page goes, so an address of it Sequences draws is asked about as Sequences.
+ */
+function useAskKnowsThePage(today: boolean) {
+  useEffect(() => {
+    setAskOnScreen({ key: "ads", ids: [], view: today ? ASK_ADS_VIEW.today : ASK_ADS_VIEW.example });
+    return () => {
+      if (askOnScreenKey() === "ads") setAskOnScreen(null);
+    };
+  }, [today]);
+}
+
 /** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
 const opensOnOfAddress = (address: AdsAddress) =>
   address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
@@ -255,6 +268,7 @@ export function AdsPage({ param }: AdsPageProps) {
   const [hushed, setHushed] = useState<string | null>(null);
   const today = example === "v0" && adsInPreview();
   const touch = useFirstTouch(today);
+  useAskKnowsThePage(today);
   const vm = useMemo(
     () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
     [read, touch.firstTouch, config, groupBy],

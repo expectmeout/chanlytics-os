@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
 import { CONNECT, EXAMPLE, V0, firstTouchOf } from "../../packages/contracts/src/ads/ads-page";
+import { ASK_ADS_VIEW } from "../../packages/contracts/src/ask/ask-context";
 
 /**
  * Campaigns › Ads in a workspace's preview, in a real browser. The node suite draws every part of this page on a stub React, and
@@ -197,6 +198,35 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
     await expect(page.getByTestId("ads-lens").getByTestId(NOTE)).toHaveText(
       `${EXAMPLE.preview.word} ${EXAMPLE.preview.said}`,
     );
+    expect(errors).toEqual([]);
+  });
+
+  test("Ask is told what the page shows, in a word and no row, and offers questions about ads; no model is asked", async ({
+    page,
+  }) => {
+    const errors = thrown(page);
+    const told: { surface?: string; route?: string; view?: string; rows?: unknown[] }[] = [];
+    page.on("request", (r) => {
+      if (r.method() === "POST" && /\/api\/v1\/ask\/warm(\?|$)/.test(r.url())) told.push(r.postDataJSON());
+    });
+    const warmed = page.waitForResponse((r) => /\/api\/v1\/ask\/warm(\?|$)/.test(r.url()));
+    await page.goto("/#/campaigns/ads");
+    await expect(page.getByTestId("ads-v0")).toBeVisible();
+    await page.getByTestId("ads-ask-door").click();
+    await expect.poll(() => told.at(-1)?.view).toBe(ASK_ADS_VIEW.today);
+    expect(told.at(-1)?.surface).toBe("campaigns");
+    expect(told.at(-1)?.rows, "nothing of Sequences, and no row of the sample").toEqual([]);
+    expect((await warmed).ok(), "the server reads the page for it").toBe(true);
+    await expect(page.getByText("Can I run an ad yet?")).toBeVisible();
+    await expect(page.getByText("Set up my campaigns")).toBeHidden();
+    await expect(page.getByPlaceholder("Describe what should go out, and when")).toBeHidden();
+
+    await page.keyboard.press("Escape");
+    await chooseExample(page, EXAMPLE.choices.running);
+    await expect(page.getByTestId("ads-ledger")).toBeVisible();
+    await page.getByTestId("ads-ask-door").click();
+    await expect.poll(() => told.at(-1)?.view).toBe(ASK_ADS_VIEW.example);
+    expect(told.at(-1)?.rows).toEqual([]);
     expect(errors).toEqual([]);
   });
 

@@ -47,6 +47,7 @@ import {
   runRoute,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "@/surfaces/surface-values";
+import { askOnScreenOf } from "./on-screen";
 import { needsYouParts } from "@/surfaces/needs-you";
 import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
 import { pageClock } from "@/legacy-bridge/zone";
@@ -313,6 +314,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         leadSearches: (w.__LEADS?.searches ?? []).map((s) => s.asked),
         // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
         campaigns: campaignsRead(),
+        // On Campaigns' Ads page, as the page says it: its chips are about ads.
+        onAds: askOnScreenOf(w)?.key === "ads",
       });
     },
     /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */

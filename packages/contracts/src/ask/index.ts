@@ -99,7 +99,7 @@ export type {
   AskSourceRef,
 } from "./ask-answer";
 export { askCallOutcome, callJumpSub } from "./ask-calls";
-export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask-context";
+export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./ask-context";
 export type { AskContextRowKind, PageContext, PageContextRow } from "./ask-context";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./ask-fast-paths";
 export type { AskIntent, FastCall } from "./ask-fast-paths";

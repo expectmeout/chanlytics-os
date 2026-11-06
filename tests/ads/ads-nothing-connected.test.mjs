@@ -20,6 +20,7 @@ const { exampleAt } = await import(`${S}/surfaces/campaigns/ads/examples.ts`);
 const { adsOpening, useAdsStore } = await import(`${S}/surfaces/campaigns/ads/store.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { AdAccounts } = await import(`${S}/surfaces/settings/connections/ad-accounts.tsx`);
+const { askOnScreenOf } = await import(`${S}/legacy-bridge/ask/on-screen.ts`);
 
 const NOW = Date.parse("2031-03-15T14:05:00Z");
 const KEPT = "ads-mock-scenario";
@@ -255,6 +256,25 @@ test("an address that names an ad opens the example's ads and reads nothing of t
   const p = previewPage(() => ({ series: seriesOf(NO_AD), now: null }), "ads:ad:spring");
   assert.equal(byTestId(p.tree, "ads-v0"), null);
   assert.equal(route.asked.length, 0);
+});
+
+test("the page tells Ask what it shows, in a word and no row: what is true, or an example", () => {
+  const said = () => {
+    const s = askOnScreenOf(globalThis.window);
+    return s && [s.key, s.view, s.ids];
+  };
+  previewPage(() => ({ series: seriesOf(NO_AD), now: null }));
+  assert.deepEqual(said(), ["ads", "ads", []]);
+  underSession(false, "running", () => {
+    fresh();
+    AdsPage({ param: "ads" });
+  });
+  assert.deepEqual(said(), ["ads", "ads:example", []]);
+  underSession(true, "v0", () => {
+    fresh();
+    AdsPage({ param: "ads" });
+  });
+  assert.deepEqual(said(), ["ads", "ads:example", []], "a demo's nothing connected is an example too");
 });
 
 test("a demo draws its sample and reads nothing", () => {

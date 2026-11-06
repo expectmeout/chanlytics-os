@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  ASK_ADS_VIEW,
   addressOf,
   campaignRunsOn,
   chainResultsOf,
@@ -19,15 +20,18 @@ import {
   type AskContextRowKind,
   type LifecycleRowResults,
   emailTemplateRowsOf,
+  isAskAdsView,
   isLibrarySample,
   libraryCount,
   runRoute,
   sequenceRoute,
 } from "@chanlytics/contracts";
+import { toPeopleReportVM } from "@chanlytics/contracts/report-lens";
+import { log } from "@/server/shared/log";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
 import type { ReportWindow } from "@chanlytics/db";
-import { report as reportReader, reportWindowFor } from "../../readers/report";
+import { peopleReport, report as reportReader, reportWindowFor } from "../../readers/report";
 import { playbooks as playbooksReader, reachOutChains } from "../../readers/playbooks";
 import { broadcasts as broadcastsReader } from "../../readers/broadcasts";
 import { chainLastDays, lastDaysBySource, lastDaysOf } from "../../readers/campaign-report";
@@ -266,10 +270,44 @@ async function ledgerRows(rc: ReaderContext, ctx: Parameters<Provider>[1]) {
 }
 
 /**
- * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs or the Library's messages, whichever the
- * page is (legacy-bridge/ask/context.ts), and its rows are that page's.
+ * How new people first came over the last 30 days, in the words and the order Reports › People says them, as the Ads page draws
+ * them. Its failure costs this line and not what the page's aggregate says around it, which needs no read.
+ */
+async function firstCameWords(rc: ReaderContext): Promise<string> {
+  const unread = "how new people first came could not be read just now";
+  try {
+    const window = await reportWindowFor(rc, { period: "30d" });
+    const lens = toPeopleReportVM((await load(rc, peopleReport, window)).data);
+    if (!lens.windowAvailable) return unread;
+    const { rows, empty } = lens.firstCame;
+    if (rows.length === 0) return `last 30 days: ${empty ?? "nobody new reached them"}`;
+    return `how new people first came, last 30 days: ${rows.map((r) => `${r.label} ${r.value}`).join(", ")}`;
+  } catch (e) {
+    log.error("ask_context_read_failed", { surface: "campaigns", tenant_id: rc.tenantId, error: e });
+    return unread;
+  }
+}
+
+/**
+ * Campaigns › Ads, which holds no row: what is true of every preview, needing no read, what is on screen as the page says it, and the
+ * one thing it counts, read here and never from the tab. The sample is the browser's and reaches the model as nothing but this word.
+ */
+async function adsAggregate(rc: ReaderContext, view: string | null | undefined): Promise<string> {
+  return aggregateOf([
+    "Campaigns › Ads, a preview: no ad account is connected, no ad of theirs exists, nothing runs and nothing is spent",
+    view === ASK_ADS_VIEW.example
+      ? "on screen now is an example they chose from the page's menu: its ads, numbers and people are made up"
+      : "on screen now is their own",
+    await firstCameWords(rc),
+  ]);
+}
+
+/**
+ * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs, the Library's messages or Ads, whichever the page is
+ * (legacy-bridge/ask/context.ts), and its rows are that page's.
  */
 export const campaigns: Provider = async (rc, ctx) => {
+  if (isAskAdsView(ctx.view)) return { rows: [], aggregate: await adsAggregate(rc, ctx.view) };
   const got = ctx.view?.startsWith("playbooks")
     ? await ledgerRows(rc, ctx)
     : ctx.view === "broadcasts"

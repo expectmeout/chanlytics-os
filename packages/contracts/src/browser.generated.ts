@@ -32,7 +32,7 @@ export { answerBlocks, answerCopy, answerPlain, answerRuns, answerSpoken, answer
 export { ASK_ATTACHED_MAX, ASK_CAPS, ASK_CORE_TOOLS_CHARS_CEILING, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_SCOPE_KINDS, ASK_SELECTION_MAX, ASK_SPEECH_MAX_CHARS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_SURFACES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, askCardLapsed, askColumnOf, isVoiceEndReason, scopeFromRoute, SPEECH_PURPOSES, VOICE_END_REASONS } from "./ask/ask";
 export { answerForCards, answerFromV1, answerWords, ASK_ANSWER_CAPS, callsAnswer, clip, failedAnswer, needsAnswer, normalizeAnswer, oneDoor, openingsAnswer, proseAnswer, storedAnswer, v1FromAnswer } from "./ask/ask-answer";
 export { askCallOutcome, callJumpSub } from "./ask/ask-calls";
-export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/ask-context";
+export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./ask/ask-context";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./ask/ask-fast-paths";
 export { ASK_PAGES, askJump, askPages } from "./ask/ask-jump";
 export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./ask/ask-language";

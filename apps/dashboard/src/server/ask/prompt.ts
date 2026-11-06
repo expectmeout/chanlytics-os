@@ -443,6 +443,8 @@ export interface TurnFacts {
   timezone: string;
   closures: WorkspaceFacts["closures"];
   now?: Date;
+  /** They are on Campaigns › Ads (PageContext.view): a word of the tab's, which picks a line and is believed for nothing else. */
+  onAds?: boolean;
   /** The page's data rode in before these words (context.ts). */
   context?: boolean;
   /** Reads made for this question, of another page, rode in before these words (cross-page.ts). */
@@ -529,6 +531,17 @@ function rowName(r: AskScope): string {
 const CAMPAIGNS_LINE =
   "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe an offer, a promotion, a setup, or a message at a moment or to a list are sequences to propose, as the rule \"Setting up sequences is a few cards\" says. Pausing, resuming, renaming, or a new hour, cap, gap or cadence, new words, a step, a last day or its mode (how its batches are decided) of one that exists is a change to that sequence, by the id the page's rows carry, and cold email to leads is a sequence too. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
 
+/**
+ * The Ads line, in place of the Campaigns line on that page, in the turn's words as that line is. Until the Ads read is wired (0049)
+ * no tool makes or reads an ad, and the page's examples are made up, so what it must never do is say one as theirs.
+ */
+const ADS_LINE =
+  "They are on Campaigns › Ads, where a business will run paid ads on Facebook and Instagram, Google and TikTok from its own ad accounts. It is a preview: no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent, whatever the page shows, and no tool makes or changes an ad. Asked to make, run, pause, pay for or connect anything here, say so plainly and that connecting an account comes next, then offer what they can do today: a sequence to the people they have, or a post. An example on this page is made up: never say one of its ads, numbers or people as theirs. Someone is counted as coming from an ad only when Meta names the ad in their first message on WhatsApp or Instagram, so an ad that rings a phone, or one elsewhere, is not counted.";
+
+/** An ad as a scope, which has no read until 0049: asked to read it first, the model had nothing to read and only its name to go on. */
+const AD_SCOPE_LINE =
+  "It is an example on the page, made up, and no ad of theirs, and there is nothing to read about it: say so first, then answer about how ads would work here or what they can do today.";
+
 /** Said once a card of the thread was approved since the last answer (A4): the shape is minutes old; campaigns are read. */
 const AFTER_APPROVAL_LINE =
   "Cards were approved since the workspace's shape above was read: for what runs now, read the sequences again, never the shape.";
@@ -600,15 +613,18 @@ export function turnWords(t: TurnFacts): string {
     lines.push(
       'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a lead search to propose, once the searches they have are read; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it, and "this search" is the one the scope names.',
     );
-  else if (t.surface === "campaigns") lines.push(CAMPAIGNS_LINE);
+  else if (t.surface === "campaigns") lines.push(t.onAds ? ADS_LINE : CAMPAIGNS_LINE);
   else if (t.surface) lines.push(`They are on the ${t.surface} page.`);
   // Every row a scope names is read by its id (cross-page.ts scopedRead) and rides in with the question; one whose read
   // failed, like a page, is read by the model. The page they are on, at its own address, rode in as the page.
-  const read = t.scopeRead
-    ? "It was read for this question and is in the search results before these words (read://): answer from it, and read again only for what it does not hold."
-    : t.scopeOnPage && t.context
-      ? "It is the page they are on, in the search results before these words (page://): answer from its rows, and read only for what they do not hold."
-      : "Read it before answering about it.";
+  const read =
+    t.scope?.kind === "ad"
+      ? AD_SCOPE_LINE
+      : t.scopeRead
+        ? "It was read for this question and is in the search results before these words (read://): answer from it, and read again only for what it does not hold."
+        : t.scopeOnPage && t.context
+          ? "It is the page they are on, in the search results before these words (page://): answer from its rows, and read only for what they do not hold."
+          : "Read it before answering about it.";
   if (t.scope)
     lines.push(
       `They are looking at ${rowName(t.scope)} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,
