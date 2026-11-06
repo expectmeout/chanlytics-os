@@ -23,6 +23,8 @@ import {
   promptSafeName,
   type TenantConfig,
   calendarFeedKeyOf,
+  ASK_ADS_VIEW,
+  isAskAdsView,
 } from "@chanlytics/contracts";
 import type { MembershipRole, Note } from "@chanlytics/contracts";
 import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
@@ -443,8 +445,8 @@ export interface TurnFacts {
   timezone: string;
   closures: WorkspaceFacts["closures"];
   now?: Date;
-  /** They are on Campaigns › Ads (PageContext.view): a word of the tab's, which picks a line and is believed for nothing else. */
-  onAds?: boolean;
+  /** The view the page says it is set to (PageContext.view): a word of the tab's, which picks a line and is believed for nothing else. */
+  pageView?: string | null;
   /** The page's data rode in before these words (context.ts). */
   context?: boolean;
   /** Reads made for this question, of another page, rode in before these words (cross-page.ts). */
@@ -533,10 +535,19 @@ const CAMPAIGNS_LINE =
 
 /**
  * The Ads line, in place of the Campaigns line on that page, in the turn's words as that line is. Until the Ads read is wired (0049)
- * no tool makes or reads an ad, and the page's examples are made up, so what it must never do is say one as theirs.
+ * no tool makes or reads an ad. What is on screen is said by what the page says it shows, and never in general: told "whatever the page
+ * shows" and warned of examples while none was on screen, the model told an owner their own counts were an example (a real turn, 6 Nov).
  */
 const ADS_LINE =
-  "They are on Campaigns › Ads, where a business will run paid ads on Facebook and Instagram, Google and TikTok from its own ad accounts. It is a preview: no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent, whatever the page shows, and no tool makes or changes an ad. Asked to make, run, pause, pay for or connect anything here, say so plainly and that connecting an account comes next, then offer what they can do today: a sequence to the people they have, or a post. An example on this page is made up: never say one of its ads, numbers or people as theirs. Someone is counted as coming from an ad only when Meta names the ad in their first message on WhatsApp or Instagram, so an ad that rings a phone, or one elsewhere, is not counted.";
+  "They are on Campaigns › Ads, where a business will run paid ads on Facebook and Instagram, Google and TikTok from its own ad accounts. It is a preview: no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent, and no tool makes or changes an ad. Asked to make, run, pause, pay for or connect anything here, say so plainly and that connecting an account comes next, then offer what they can do today: a sequence to the people they have, or a post. Someone is counted as coming from an ad only when Meta names the ad in their first message on WhatsApp or Instagram, so an ad that rings a phone, or one elsewhere, is not counted.";
+
+/** What the Ads page shows now, by the word it said (ASK_ADS_VIEW). */
+const ADS_ON_SCREEN = {
+  [ASK_ADS_VIEW.today]:
+    "What the page shows now is theirs and true: that nothing is connected, and how new people first reached them. No example is on screen, so never call any of it one.",
+  [ASK_ADS_VIEW.example]:
+    "What the page shows now is an example they chose from its menu, and it is made up: never say one of its ads, numbers or people as theirs.",
+};
 
 /** An ad as a scope, which has no read until 0049: asked to read it first, the model had nothing to read and only its name to go on. */
 const AD_SCOPE_LINE =
@@ -613,7 +624,12 @@ export function turnWords(t: TurnFacts): string {
     lines.push(
       'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a lead search to propose, once the searches they have are read; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it, and "this search" is the one the scope names.',
     );
-  else if (t.surface === "campaigns") lines.push(t.onAds ? ADS_LINE : CAMPAIGNS_LINE);
+  else if (t.surface === "campaigns")
+    lines.push(
+      isAskAdsView(t.pageView)
+        ? `${ADS_LINE} ${t.pageView === ASK_ADS_VIEW.example ? ADS_ON_SCREEN[ASK_ADS_VIEW.example] : ADS_ON_SCREEN[ASK_ADS_VIEW.today]}`
+        : CAMPAIGNS_LINE,
+    );
   else if (t.surface) lines.push(`They are on the ${t.surface} page.`);
   // Every row a scope names is read by its id (cross-page.ts scopedRead) and rides in with the question; one whose read
   // failed, like a page, is read by the model. The page they are on, at its own address, rode in as the page.
