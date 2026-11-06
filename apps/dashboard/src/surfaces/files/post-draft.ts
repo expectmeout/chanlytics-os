@@ -34,15 +34,13 @@ export interface PostDraft<S extends PostPicture = PostShapeName> {
 type Answer = { key: string; picture: PostDrawn | null; refused: string | null };
 
 /** `drawing` says whether to draw at all: a post kept shows its own file, and is never drawn again. */
-export function usePostDraft(start: PostPlan, wanted: boolean): PostDraft;
-export function usePostDraft<S extends PostPicture>(start: PostPlan, wanted: boolean, startShape: S): PostDraft<S>;
-export function usePostDraft(
+export function usePostDraft<S extends PostPicture = PostShapeName>(
   start: PostPlan,
   wanted: boolean,
-  startShape: PostPicture = "portrait",
-): PostDraft<PostPicture> {
+  startShape: S = "portrait" as S,
+): PostDraft<S> {
   const [plan, setPlan] = useState(start);
-  const [shape, setShape] = useState<PostPicture>(startShape);
+  const [shape, setShape] = useState<S>(startShape);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [last, setLast] = useState<PostDrawn | null>(null);
   const key = drawnKeyOf(plan, shape);
