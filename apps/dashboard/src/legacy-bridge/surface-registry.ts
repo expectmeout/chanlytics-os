@@ -142,6 +142,9 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "campaigns/sequences": "sequences", // its Sequences view (0060) is its own list: the gate waits for it, never the home's moments
   // Messages, at its address and at its old route: the templates ride on the settings surface; the page waits for it like Settings does.
   "campaigns/messages": "settings",
+  // Ads, where it is drawn: the gate waits for the read that says whether it is, never for Sequences' list it does not draw. Where it
+  // is not, the address is Sequences, whose list is read as the view comes on screen.
+  "campaigns/ads": "settings",
   messages: "settings",
   outbound: "playbooks",
   calendar: "calendar",

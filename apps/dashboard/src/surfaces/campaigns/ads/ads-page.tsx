@@ -1,12 +1,14 @@
 /**
- * Campaigns › Ads (MOCKUP): paid ads on Facebook and Instagram, Google and TikTok, measured in conversations and appointments.
- * Drawn in a demo session or a workspace's preview (shown.ts, campaigns/home/route.tsx), from a sample until the wiring lane reads
- * real ads; every press goes through the store's verbs (store.ts) and says its answer in a toast, and nothing leaves the browser. A
- * quiet "Example" pill (also the Menu that chooses the example) says so, always, and a preview says it in words under the head.
+ * Campaigns › Ads: paid ads on Facebook and Instagram, Google and TikTok, measured in conversations and appointments. Drawn in a
+ * demo session or a workspace's preview (shown.ts, campaigns/home/route.tsx). A preview opens on what is true of the workspace today,
+ * nothing connected, with its own counts (first-touch.ts); a demo opens on ads running. Every other state is a MOCKUP, from a sample
+ * until the wiring lane reads real ads: every press goes through the store's verbs (store.ts) and says its answer in a toast, and
+ * nothing leaves the browser. The pill (also the Menu that chooses the example) says which it is, always, and a preview says it in
+ * words under the head.
  *
  * The store holds the read once, and the page hands `read` and `verbs` down: the drawer and New ad keep no copy of an ad. Ten
- * examples (examples.ts): ads running (the default), ads that need the owner, finished ones, no calendar link, one being made,
- * a connected account with no ad yet, an account to choose, nothing connected (v0), and the accounts being read or unreadable.
+ * examples (examples.ts): ads running, ads that need the owner, finished ones, no calendar link, one being made, a connected account
+ * with no ad yet, an account to choose, nothing connected (v0), and the accounts being read or unreadable.
  * On a desk: the frame's head (the sentence, Ask, New ad), the money-calm line, the pane line (the window, the Example pill, the
  * three platforms), a line under it for an account that could not be read, four figures with their one quiet line and its
  * doors (how it is counted, Results), the Ask line, the ledger by what an ad asks people to do or by platform, and three tiles.
