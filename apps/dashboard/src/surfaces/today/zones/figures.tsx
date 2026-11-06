@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { TODAY_PHONE_WORDS, type TodayFigureId, type TodayFigureVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { surfaceValue } from "../../surface-values";
 import { appNavigate, doorGlyph, useMoved } from "../shell";
 
@@ -44,7 +45,9 @@ const TodayFigure = ({ f, i, open, setOpen }: FigureProps) => {
         {f.of ? <small className="tc-fig-of"> of {f.of}</small> : null}
       </span>
       <span className="tc-fig-w">{TODAY_PHONE_WORDS.figure[f.id]}</span>
-      <span className="tc-fig-m">{f.meta}</span>
+      <span className="tc-fig-m" {...SAYS_WHEN}>
+        {f.meta}
+      </span>
     </>
   );
   return (

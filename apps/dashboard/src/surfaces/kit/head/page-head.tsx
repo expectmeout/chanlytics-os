@@ -9,6 +9,7 @@
  * the page's layout, and comes last.
  */
 import type { ReactNode } from "react";
+import { SAYS_WHEN } from "../says-when";
 import { cx } from "../variants";
 
 interface PageHeadProps {
@@ -31,7 +32,11 @@ export function PageHead({ dateline, title, sentence, stacked, beside, after, cl
   const name = <h1 className="pg-title">{title}</h1>;
   return (
     <header className={cx("pg-head", stacked && "pg-head-stacked", className)}>
-      {dateline ? <p className="pg-dateline">{dateline}</p> : null}
+      {dateline ? (
+        <p className="pg-dateline" {...SAYS_WHEN}>
+          {dateline}
+        </p>
+      ) : null}
       <div className="pg-line">
         {beside ? (
           <div className="pg-titled">
@@ -41,7 +46,11 @@ export function PageHead({ dateline, title, sentence, stacked, beside, after, cl
         ) : (
           name
         )}
-        {sentence ? <p className="pg-sentence">{sentence}</p> : null}
+        {sentence ? (
+          <p className="pg-sentence" {...SAYS_WHEN}>
+            {sentence}
+          </p>
+        ) : null}
         {after ? <div className="pg-after">{after}</div> : null}
       </div>
     </header>

@@ -91,6 +91,14 @@ function SpeedCards({ P, speed }: { P: PlatformApi; speed: ConsoleHealth["speed"
           testid="platform-speed-parts"
         />
       )}
+      {where.firstRows.length > 0 && (
+        <SpeedCard
+          title="A phone's first paint"
+          sentence={where.firstRowsSentence}
+          lines={where.firstRows}
+          testid="platform-speed-first-rows"
+        />
+      )}
       {spots.length > 0 && (
         <SpeedCard
           title="What a person waits on"

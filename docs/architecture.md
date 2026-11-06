@@ -519,7 +519,8 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
 
 - _On a phone it opens on what it last showed._ A copy of the screen as it was left, drawn by the document before any of the
   app's code and replaced by the page in one frame (decision 0101: `packages/contracts/src/shell/first-rows.ts`,
-  `apps/dashboard/src/surfaces/frame/first-rows.ts`). A new page joins by a row in `FIRST_ROWS_PAGES`, and needs nothing of it.
+  `apps/dashboard/src/surfaces/frame/first-rows.ts`). A new page joins by a row in `FIRST_ROWS_PAGES`, and what it says of a time
+  carries `SAYS_WHEN`, as the kit's and each page's own do (`apps/dashboard/src/surfaces/kit/says-when.ts`).
 - _Its first reads leave from the document's head._ `packages/contracts/src/shell/route-prefetch.ts` (`PREFETCH_READS`)
   names what each page opens on, spelled as the client spells it; the head starts them before a script has loaded, and the
   page's own read takes the answer in place of a fetch (`apps/dashboard/src/client/api.ts`). A read that needs something
