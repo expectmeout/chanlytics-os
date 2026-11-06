@@ -97,6 +97,8 @@ interface LeadPageRow {
   /** A place or a company, and a company's people (00430). */
   kind?: string | null;
   facts?: unknown;
+  /** Where it stands in the queue, where the read asked (00552): needs, in, or null in neither. */
+  status_group?: string | null;
 }
 
 /**
@@ -276,6 +278,7 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     // What the lead is, and a company's people (00430).
     kind: r.kind ?? "place",
     facts: r.facts ?? null,
+    status_group: r.status_group === "needs" || r.status_group === "in" ? r.status_group : null,
     last_outcome: r.last_outcome,
     last_note: r.last_note,
     contacted_at: r.contacted_at,

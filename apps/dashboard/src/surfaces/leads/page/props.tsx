@@ -13,6 +13,7 @@ import {
   leadMonthPlanFacts,
   leadFiltersOf,
   leadReachOf,
+  leadStatusGroupsOf,
   leadReviewGroups,
   leadSearchEmptyWords,
   leadsRoute,
@@ -45,6 +46,7 @@ import {
 } from "../surface";
 import { AddsGoTo } from "../sheet/adds-go-to";
 import type { LeadLists } from "../reach-out/lists";
+import type { LeadNamed } from "../scope/rail-views";
 import type { LeadRail } from "../scope/rail";
 import type { LeadActs } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
@@ -106,6 +108,8 @@ export type LeadsPage = Controls &
     bulkAdd: BulkAdd | null;
     /** Add opened at New, for the search's own picker once it has chosen the leads shown. */
     bulkAsk: () => void;
+    /** The rail's Saved section (scope/rail-views.tsx). */
+    named: LeadNamed;
   };
 
 /**
@@ -281,7 +285,7 @@ const widen = (p: LeadsPage) => {
 
 /** The band, the map, the bench and the list's empty state. */
 export const leadsBandProps = (p: LeadsPage) => {
-  const { mapOpen, leadShown, openSearch, leadView, leads, setValues } = p;
+  const { mapOpen, leadShown, openSearch, leadView, leads } = p;
   const ownList = isOwnList(openSearch);
   return {
     band: p.band,
@@ -317,14 +321,17 @@ export const leadsBandProps = (p: LeadsPage) => {
       const on = p.reach.some((x) => x === f);
       p.setReach(leadReachOf(on ? p.reach.filter((x) => x !== f) : [...p.reach, f]));
     },
-    values: p.values,
-    onValues: (v: boolean) => {
-      setValues(v);
-      try {
-        if (window.localStorage) window.localStorage.setItem("leads.values", v ? "1" : "0");
-      } catch {
-        /* a private window: the choice lives for the page */
-      }
+    // The status groups a heading's menu flips (00552), and what the view counts of them.
+    statusGroups: p.statusGroups,
+    onStatusGroup: (g: string) => {
+      const on = p.statusGroups.some((x) => x === g);
+      p.setStatusGroups(leadStatusGroupsOf(on ? p.statusGroups.filter((x) => x !== g) : [...p.statusGroups, g]));
+    },
+    statusCounts: leads.viewCounts?.status_groups ?? null,
+    // A heading's filters off, the rail's list and the box's words left as they stand.
+    onClearHeadings: () => {
+      p.setReach([]);
+      p.setStatusGroups([]);
     },
     empty: emptyOf(p),
   };
@@ -364,7 +371,7 @@ const bulkViewOf = (p: LeadsPage) => {
     ...(leadView.cls ? { class: leadView.cls } : {}),
     sort: sortBy,
     dir: sortDir,
-    ...leadFiltersOf({ q: p.q, excluded_by: p.chip, fit: p.fitChip, reach: p.reach }),
+    ...leadFiltersOf({ q: p.q, excluded_by: p.chip, fit: p.fitChip, reach: p.reach, status_group: p.statusGroups }),
   } as Extract<LeadsBulkInput, { by: "view" }>["view"];
 };
 
@@ -434,6 +441,7 @@ export const leadsBulkProps = (p: LeadsPage) => {
     // filters go with it, so the file is the email list or the call list on screen.
     onExport: () => p.exportLeads(bulkView),
     ...railDoors(p),
+    named: p.named,
     chip: p.chip,
     onPickChip: p.setChip,
     onNeedsYou: (id: string) => nav(leadsRoute({ searchId: id, list: "all", cls: "excluded" })),

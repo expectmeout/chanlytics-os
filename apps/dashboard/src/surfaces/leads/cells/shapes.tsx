@@ -3,7 +3,7 @@
  * so a state is never colour alone (§6.7).
  */
 import type { ReactNode } from "react";
-import type { LeadRowVM } from "@chanlytics/contracts";
+import { LEAD_REACH_NONE_WORDS, formatPhoneLocal, type LeadRowVM } from "@chanlytics/contracts";
 import { LeadTip, ldPlacePop } from "./hover";
 
 /** The SVG's own props, the same for every shape. */
@@ -94,6 +94,74 @@ export const LeadSlot = ({
         </button>
       ) : (
         <span className="ld-slot-btn" tabIndex={0} aria-label={label} aria-describedby={tipId}>
+          {body}
+        </span>
+      )}
+      <LeadTip id={tipId}>{slot.tip}</LeadTip>
+    </span>
+  );
+};
+
+/**
+ * One line of a table's Reach (the table review of 5 Nov 2026): the number, or the address, as a person reads it, where
+ * a circle stood for it. The value is the signal, and one that is simply fine wears no mark: an address not confirmed
+ * wears the half circle, one still being checked the turning arc, a number marked wrong is struck through (leads.css),
+ * and nothing found says so in words. So the column still survives greyscale (§6.7). The word and the value are the
+ * control's name; the sentence is its tip. Pressing a number dials, pressing an address copies; a line with nothing to
+ * press is plain words, in no tab order: what it says ("No email found") is all there is to it.
+ */
+export const LeadReachLine = ({
+  id,
+  kind,
+  slot,
+  onPress,
+  pressLabel,
+}: {
+  id: string;
+  kind: "phone" | "mailbox";
+  slot: LeadRowVM["slots"]["phone"];
+  onPress: (() => void) | null;
+  pressLabel: string;
+}) => {
+  const tipId = `${id}-${kind}-tip`;
+  const who = kind === "phone" ? "Phone" : "Email";
+  const said = slot.value ? (kind === "phone" ? (formatPhoneLocal(slot.value) ?? slot.value) : slot.value) : null;
+  const label = said ? `${who}: ${slot.word}, ${said}${onPress ? ` — ${pressLabel}` : ""}` : `${who}: ${slot.word}`;
+  const marked = slot.state === "part" || slot.state === "checking";
+  const body = (
+    <>
+      <span className={kind === "phone" ? "ld-reach-words tabular" : "ld-reach-words"}>
+        {said ?? (slot.state === "none" ? LEAD_REACH_NONE_WORDS[kind] : slot.word)}
+      </span>
+      {marked ? (
+        <span className={`ld-slot-shape${slot.state === "checking" ? " spin" : ""}`}>
+          <svg {...svgProps(11)}>{LD_SLOT_SHAPES[slot.state]}</svg>
+        </span>
+      ) : null}
+    </>
+  );
+  return (
+    <span
+      className={`ld-hover ld-reach ld-reach-${kind} ld-slot-${slot.state}`}
+      data-testid={`lead-slot-${kind}`}
+      onMouseEnter={ldPlacePop}
+      onFocus={ldPlacePop}
+    >
+      {onPress ? (
+        <button
+          type="button"
+          className="ld-slot-btn ld-reach-press"
+          aria-label={label}
+          aria-describedby={tipId}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPress();
+          }}
+        >
+          {body}
+        </button>
+      ) : (
+        <span className="ld-slot-btn ld-reach-press" aria-label={label} aria-describedby={tipId}>
           {body}
         </span>
       )}

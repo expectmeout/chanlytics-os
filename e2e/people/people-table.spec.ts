@@ -193,7 +193,7 @@ test.describe("The kit's table on a real workspace", () => {
     const rows = page.locator(".cl-table tbody tr[id^='lead-']");
     const picked = page.locator(".cl-table tbody tr[aria-selected='true']");
     const flip = async (word: string) => {
-      await page.getByTestId("leads-filter").click();
+      await page.getByTestId("table-menu-reach").click();
       await page.getByRole("menuitemcheckbox", { name: word }).click();
       await page.keyboard.press("Escape");
       // A filter is a read (0083 B), and the rows are the last answer until it lands: the page says so from the press,

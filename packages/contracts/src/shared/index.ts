@@ -102,6 +102,7 @@ export { sumOf } from "./numbers";
 export {
   areaCodeOf,
   formatPhoneDisplay,
+  formatPhoneLocal,
   FORWARD_IS_HANDOFF,
   HANDOFF_FORWARDS_BACK,
   handoffE164,

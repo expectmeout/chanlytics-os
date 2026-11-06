@@ -603,9 +603,10 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
    carry that a pill does not is its place in the line: the name gives way first, the tags never squeeze. */
 .ld-biz-cell .cl-row-fullname .pill { flex: none; }
 
-/* The tile: the photo, else initials on one quiet ground. A photo that fails to load falls back to the tile. Initials
+/* The tile: as wide and as tall as its caller asks (cells/tile.tsx, --tile), unless what holds it sets its own
+   (--tile-fit: a table at its compact height). The photo, else initials on one quiet ground. A photo that fails to load falls back to the tile. Initials
    are a name's letters, not a state: the tones picked by hash drew a red "CH" that read as a failure. */
-.ld-tile { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; flex: none; display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--tint); color: var(--tint-ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
+.ld-tile { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; flex: none; width: var(--tile-fit, var(--tile, 48px)); height: var(--tile-fit, var(--tile, 48px)); display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--tint); color: var(--tint-ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
 button.ld-tile { cursor: pointer; }
 button.ld-tile:focus-visible { box-shadow: var(--focus-ring); }
 .ld-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -638,15 +639,46 @@ button.ld-slot-btn { cursor: pointer; }
 .ld-slot-checking .ld-slot-btn, .ld-slot-checking > .ld-slot-shape { color: var(--lead-wait); }
 .ld-slot-value { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink); white-space: nowrap; }
 .ld-slot-bad .ld-slot-value { text-decoration: line-through; color: var(--ink-dim); }
+/* Reach as the table says it (cells/shapes.tsx LeadReachLine): the number over the address, each on a line its own
+   words end with an ellipsis in; the number in the ink, the address and "nothing found" in the dim ink. */
+.ld-reach { display: flex; min-width: 0; }
+/* The press stands 3px past its words on each side (.ld-slot-btn's padding, taken back by its margin), so the most it
+   may be is its line and those: at the line's own width a number that fitted exactly was cut ("(512) 555-01…"). */
+.ld-reach-press { flex: 0 1 auto; min-width: 0; max-width: calc(100% + 6px); }
+.ld-reach-words { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
+.ld-reach-mailbox .ld-reach-words, .ld-slot-none .ld-reach-words { color: var(--ink-dim); }
+.ld-slot-bad .ld-reach-words { text-decoration: line-through; color: var(--ink-dim); }
+/* Compact (the row height the Columns menu offers, Leads' too since 5 Nov 2026): a row is one line, as tall as
+   People's (the row's own 62px let go). The tile is a face's size, 28px, with a small square's corners and initials.
+   The business's name is the line, and where it is stands beside it and gives way first: People's compact gives a name
+   a slot of 150 to 220px (clients.css), which cut a business's name short of its own cell. */
+@media (width > 900px) {
+  .leads-scope .pl-table-wrap[data-density="compact"] { --tile-fit: 28px; }
+  .leads-scope .pl-table-wrap[data-density="compact"] .cl-table tbody tr.ld-row { height: auto; }
+  .leads-scope .pl-table-wrap[data-density="compact"] .ld-row-name > :first-child { border-radius: var(--radius-sm); font-size: var(--text-2xs); }
+  .leads-scope .pl-table-wrap[data-density="compact"] .cl-row-fullname { flex: 0 1 auto; min-width: 0; }
+  .leads-scope .pl-table-wrap[data-density="compact"] .ld-sub { display: block; flex: 1 99 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* Beside a name with too little room left for it, where the business is waits for a wider column (People's rule for
+     a person's words, clients.css, on the same container): it showed "P…". And how many rated says its number alone,
+     the heading being Rated: "16", where "16 reviews" was cut to "16 re…". */
+  @container pl-name (width < 300px) { .leads-scope .pl-table-wrap[data-density="compact"] .ld-sub { display: none; } }
+  .leads-scope .pl-table-wrap[data-density="compact"] .ld-rated-noun { display: none; }
+}
+/* The rail's Saved section (scope/rail-views.tsx): Save this view stands as a row's words do, and a name is asked for in
+   a row's place. */
+.ld-view-save { display: block; padding: 6px 10px; }
+.ld-view-naming { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 0; }
+.ld-view-naming > :first-child { flex: 1 1 0; min-width: 0; }
+/* The row's one act says its words whole up to this, then ends in an ellipsis (an add names its sequence). */
+.ld-row-act-words { display: block; max-width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ld-values.on { color: var(--accent); }
 
 /* Rated: the score and its count apart, because one without the other says nothing. */
 .ld-rated-cell { font-variant-numeric: tabular-nums; overflow: visible; }
 .ld-rated-score { font-family: var(--font-mono); font-size: 13px; color: var(--ink); }
-.ld-rated-count { margin-left: 6px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-found-cell { overflow: visible; }
-.ld-found-cell > span[tabindex] { border-radius: var(--radius-xs); }
-.ld-found-cell > span[tabindex]:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.ld-found-cell span[tabindex] { border-radius: var(--radius-xs); }
+.ld-found-cell span[tabindex]:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 
 /* The hover vocabulary: a tip is a chip you can never click; a card is raised and stays while you are inside it.
    Both wait in the DOM, and a scrolling list shows neither. */
@@ -1185,10 +1217,11 @@ button.ld-slot-btn { cursor: pointer; }
   }
   /* The tile (L1): 40px with the inset's corners in the kind's tint (People's face rule, clients.css, would lay the
      face's fill over it), its initials at the small step; the size is the column's inline style, so the look says it
-     with weight. The name at 600, the kind and the distance under it at the extra-small. */
+     with weight, but for a table at its compact height, which says its own (--tile-fit). The name at 600, the kind and
+     the distance under it at the extra-small. */
   .main-scroll .ld-row-name > :first-child {
-    width: 40px !important;
-    height: 40px !important;
+    width: var(--tile-fit, 40px) !important;
+    height: var(--tile-fit, 40px) !important;
     border-radius: var(--radius-lg);
     background: var(--tint);
     box-shadow: none;
@@ -1596,8 +1629,6 @@ html.legacy-on .lw .lw-now-edit, .lw .lw-now-edit { position: relative; flex: no
 /* The sheet's small steps. */
 
 /* The picker and New as steps of the same sheet, and the dock's asks. */
-.lw-place { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
-.lw-place-l { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
 /* On a phone the primary act takes the room the glyphs leave, its words cut short, so ▾ beside it always shows; each
    glyph says its word under it (the canvas's PhoneHalf), the two centred on the primary's middle and each as wide as its
    word, so the rim, both words and the primary stand one even 15px apart (Ruben, 2 Nov 2026: one width for both left 14,

@@ -2115,10 +2115,27 @@
      column's, whose name card climbs out of it, and a lead's hover cells, whose cards are drawn inside them. */
   .pl-table[data-fixed] tbody td:not([data-pin="start"], .ld-hover, :has(.ld-hover)) { overflow: hidden; }
   .pl-table[data-fixed] td.cl-cut { overflow: hidden; text-overflow: ellipsis; }
+  /* The row's acts take no column (the table review of 5 Nov 2026): their cell is the row's right gutter, and they float
+     in from it over the row's end, a capsule on the pane's solid, under a pointer and on the keyboard's cursor. At rest
+     they are not there to press, so what they lie over is. Where nothing can point (a tablet) they show on the cursor's
+     row alone: drawn on every row they would lie over every row's end. */
+  .pl-table[data-fixed] tbody td.cl-actions-cell { overflow: visible; }
+  .pl-table[data-fixed] .cl-row-actions {
+    position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+    align-items: center; gap: 2px; padding: 3px;
+    border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--surface-pane-solid);
+    pointer-events: none;
+  }
+  .pl-table[data-fixed] .cl-row-actions:empty { display: none; }
+  .pl-table[data-fixed] tbody tr:is(:hover, .focused) .cl-row-actions, .pl-table[data-fixed] .cl-row-actions:focus-within { pointer-events: auto; }
   /* A visit's day and hours end in an ellipsis in their column. */
   .pl-table[data-fixed] .cl-row-visit { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   /* Where a cell's words end the cell does: an ellipsis, never into the next column. */
-  .pl-table[data-fixed] :is(.cl-row-step-when, .cl-row-last-when, .cl-row-last-by, .cl-row-reach-wire, .cl-row-reach-id:not(.tabular), .cl-row-reach-may, .ld-stage-cell .cl-row-meta) { overflow: hidden; text-overflow: ellipsis; }
+  .pl-table[data-fixed] :is(.cl-row-reach-wire, .cl-row-reach-id:not(.tabular), .cl-row-reach-may) { overflow: hidden; text-overflow: ellipsis; }
+  /* The name keeps the room of a cell's two lines (the kit's --dtable-two-lines) whether or not it has words under it,
+     so a name alone stands on the first line, where every cell's fact stands, and not at the row's middle (a deal's
+     row stood its name 9px under its Stage, 5 Nov 2026). */
+  .pl-table-wrap:not([data-density="compact"]) .pl-table[data-fixed] .cl-row-name-block { min-height: var(--dtable-two-lines); }
   /* Compact: a row is one line. What the second line said goes beside the first (their words after the name, a step's
      day after its words, a contact's speaker after its time), and what is only a reason (the State's detail and the
      reach's stopped mail) is the cell's tip. */
@@ -2139,12 +2156,12 @@
     .pl-table-wrap[data-density="compact"] .cl-row-words { display: none; }
     .pl-table-wrap[data-density="compact"] .cl-row-fullname { flex: 1 1 auto; }
   }
-  .pl-table-wrap[data-density="compact"] :is(.cl-row-reach, .cl-row-step, .cl-row-last) { flex-direction: row; align-items: baseline; gap: 8px; }
+  .pl-table-wrap[data-density="compact"] .cl-row-reach { flex-direction: row; align-items: baseline; gap: 8px; }
   /* The wire's word stays whole and the address gives way: "Em…" beside the whole address said neither. */
   .pl-table-wrap[data-density="compact"] .cl-row-reach-wire { flex-shrink: 0; }
   .pl-table-wrap[data-density="compact"] :is(.cl-row-state-detail, .cl-row-reach-may) { display: none; }
   /* On one line the secondary words give way first, so the primary ones are what stays whole. */
-  .pl-table-wrap[data-density="compact"] :is(.cl-row-step-when, .cl-row-last-by, .cl-row-reach-id) { flex-shrink: 8; }
+  .pl-table-wrap[data-density="compact"] .cl-row-reach-id { flex-shrink: 8; }
 }
 
 /* ---- Where your attention matters, redrawn to the mockup ------------------
@@ -2341,13 +2358,11 @@
    warn ink once it has come: said in words too, so never by the colour alone. Named for the step, never "next":
    .cl-row-next is the next visit's day in the Visits cell, and a rule of that name here broke that day onto a line
    of its own. */
-.cl-row-step { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cl-row-step-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); color: var(--ink); }
-.cl-row-step-when { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+/* The step's words over its day, and the last contact's time over who spoke, are the kit's two lines (table/lines.tsx),
+   which set their sizes, their gap and where each is cut. What stays here is what only this page knows: a step's words
+   in the ink, and its day in the warn ink once it has come. */
+.cl-row-step-words { color: var(--ink); }
 .cl-step-cell[data-due]:not([data-due="ahead"]) .cl-row-step-when { color: var(--warn-ink); font-weight: var(--weight-medium); }
-/* The last contact: when, over who, so the column the table is sorted by reads by its time. */
-.cl-row-last { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
-.cl-row-last-by { font-size: var(--text-xs); color: var(--ink-dim); }
 .cl-row-words { margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-state-detail { display: block; margin-top: 3px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
@@ -2638,7 +2653,6 @@
 .cl-table td.pipe-valid.is-lapsed { color: var(--warn-ink); }
 /* Their next step (0007, amended): what, then when in the dim small type the table keeps for dates, the day in the
    warn ink once it has come. The list's cell, the phone card's fact and the board card's line say it alike. */
-.pipe-next-in { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; max-width: 30ch; vertical-align: baseline; }
 .pipe-next-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .pipe-next-when { flex: none; font-size: 11.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pipe-card-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; }
@@ -2994,7 +3008,7 @@
    the Inbox's is (I1): it was faint on every row at rest. A screen with no pointer cannot reach a row, so there the box
    and the row's acts and its "Name them" stay drawn. */
 @media (hover: none) {
-  .cl-row-actions, .cl-row-name-them { opacity: 1; }
+  .cl-row-name-them { opacity: 1; }
 }
 
 @media (max-width: 900px) {
@@ -4629,16 +4643,6 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
 @media (width > 900px) {
   /* Where a deal stands, in words (canvas D1, pipeline/columns.tsx pipeGlassColumns): the chip's words over how long it
      has stood there, in the dim ink. */
-  .main-scroll .pipe-stands-in {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .main-scroll .pipe-stands-sub {
-    font-size: var(--text-sm);
-    color: var(--ink-dim);
-  }
   /* The row keeps the pane's height (min-height 0), so a peek longer than the pane scrolls in its body and its foot holds
      still at the pane's foot, never past the window's edge. */
   .main-scroll :is(.pipe-scope, .pp-scope) .cl-main.has-peek {

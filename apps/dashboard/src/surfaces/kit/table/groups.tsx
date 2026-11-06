@@ -3,6 +3,11 @@
  * groups on a phone. Each group is its own `<tbody>` under a header row that names it, counts it and folds it; every row
  * of a group is drawn (a group is a page of rows), in the order its page gives (contracts' for the Pipeline), and
  * folding a group holds its head still under the pointer (kit/motion/hold-still.ts holdStill).
+ *
+ * A long list can't afford that: sections draw every row. So a table may also say which group each row stands in
+ * (`groupOf`, the table review of 5 Nov 2026), and a head becomes one more item of its windowed list (`tableItems`):
+ * measured as a row is, and kept drawn however far the list is scrolled, so the sticky rule holds it under the heading
+ * while its group scrolls. That is what lets a row stop repeating its group's word.
  */
 import type { ReactElement, ReactNode } from "react";
 import { holdStill } from "../../legacy-verbs";
@@ -17,6 +22,67 @@ export interface TableSection<R extends TableRow> {
   collapsed?: boolean;
   onToggle?: (() => void) | null;
   toggle?: ReactNode;
+}
+
+/** What a page says of the group a row stands in: its key, its words, and the view's count of it, where that was read. */
+export interface TableGroup {
+  key: string;
+  label: ReactNode;
+  count?: number | null;
+}
+
+/** One item of a table's windowed list: a group's head, or a row by where it stands in the rows. */
+export type TableItem =
+  { kind: "head"; key: string; label: ReactNode; count: number | null } | { kind: "row"; rowIndex: number };
+
+/**
+ * The rows with a head before each run of a group; without `groupOf`, exactly the rows. A key that comes back gets no
+ * second head: the read orders the rows, and a lead whose group changed since stays where it stands until the next one.
+ * Show more carries on under the last head, since a page starting in the same group is the same run.
+ */
+export function tableItems<R extends TableRow>(
+  rows: readonly R[],
+  groupOf: ((row: R) => TableGroup | null) | null | undefined,
+): TableItem[] {
+  const seen = new Set<string>();
+  const out: TableItem[] = [];
+  rows.forEach((r, rowIndex) => {
+    const group = groupOf ? groupOf(r) : null;
+    if (group && !seen.has(group.key)) {
+      seen.add(group.key);
+      out.push({ kind: "head", key: group.key, label: group.label, count: group.count ?? null });
+    }
+    out.push({ kind: "row", rowIndex });
+  });
+  return out;
+}
+
+/** A head among a body's windowed rows: no id, so a fit measures no head and the keys walk over it, and nothing folds. */
+export function groupHeadRow(p: {
+  item: Extract<TableItem, { kind: "head" }>;
+  span: number;
+  /** Where it stands in the list as the window counts it, and where a screen reader does. */
+  index: number;
+  rowIndex: number;
+  measure: (el: Element | null) => void;
+}): ReactElement {
+  return (
+    <tr
+      key={`head-${p.item.key}`}
+      ref={p.measure}
+      data-index={p.index}
+      aria-rowindex={p.rowIndex}
+      className="dtable-group"
+      data-testid="table-group"
+    >
+      <th colSpan={p.span}>
+        <span className="dtable-group-line">
+          <span className="dtable-group-label">{p.item.label}</span>
+          {p.item.count === null ? null : <span className="tally">{p.item.count}</span>}
+        </span>
+      </th>
+    </tr>
+  );
 }
 
 /** The groups' bodies: a header row (a `<th scope="rowgroup">` across every column, with no id), then its rows unless folded. */

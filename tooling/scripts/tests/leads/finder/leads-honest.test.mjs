@@ -1132,8 +1132,8 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   );
   assert.deepEqual(
     headings(tree),
-    ["Business", "Reach", "Rated", "Found", "Actions"],
-    "D5's three columns and when it was found, then the row's acts (a heading read aloud as Actions, drawn with no words); Fit, Why it fits, Stage, Distance, Source, Website and Search are the Columns menu's, and not drawn",
+    ["Business", "Stage", "Reach", "Rated", "Found", "Actions"],
+    "who, where they stand (on since 5 Nov 2026), how to reach them, how they are rated and when found, then the row's acts (a heading read aloud as Actions, drawn with no words); Fit, Why it fits, Stage, Distance, Source, Website and Search are the Columns menu's, and not drawn",
   );
   // A heading that sorts is a button wearing a quiet idle caret (↕) until it is the order; Reach and the acts do not sort.
   assert.deepEqual(
@@ -1141,6 +1141,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
     [
       [undefined, ""],
       ["business", "Business↕"],
+      ["stage", "Stage↕"],
       ["reach", "Reach"],
       ["rating", "Rated↕"],
       ["found", "Found↕"],
@@ -1150,7 +1151,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   );
   assert.deepEqual(
     all(tree, (n) => n.props?.className === "dtable-sort").map(textOf),
-    ["Business↕", "Rated↕", "Found↕"],
+    ["Business↕", "Stage↕", "Rated↕", "Found↕"],
     "the headings that sort are buttons",
   );
   // D5: both contacts as two slots, phone then mailbox: the shape carries the state, the control's name carries the
@@ -1181,13 +1182,13 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   );
   assert.match(
     labelOf(slot("l1", "phone")),
-    /^Phone: Checked, \+1/,
-    "Maps and their website agree on the number: Checked",
+    /^Phone: Checked, \(\d{3}\) \d{3}-\d{4}/,
+    "Maps and their website agree on the number: Checked, and it is said as a person reads it",
   );
   assert.equal(
-    byTestId(rowOf(tree, "l4"), "lead-stage"),
-    null,
-    "Stage is a column off by default (D5): a row wears its state as a tag instead, and on a desktop the cell is not built at all",
+    textOf(byTestId(rowOf(tree, "l4"), "lead-stage")),
+    "Filtered outChain",
+    "Stage says where a lead stands, once: a left-out one, with the criterion that left it out on the line under it",
   );
   // The page asks the band once, at mount, and listens: a phone is a page opened on one.
   await fresh();
@@ -1203,10 +1204,10 @@ test("the Leads scope draws the rows the surface read, in the order it read them
     true,
     "the table calls its rows leads",
   );
-  assert.equal(
+  assert.notEqual(
     textOf(byTestId(rowOf(tree, "l4"), "lead-sub")),
     "Chain",
-    "Excluded's one line is the criterion that left it out, in the owner's words",
+    "said once: the criterion is Stage's line, and the name's line says where the business is",
   );
   assert.ok(byTestId(rowOf(tree, "l1"), "lead-photo"), "the tile is a button that expands the photo");
   // D6: the business own mark sits over the listing photo, so a mark that fails to load uncovers what is under it.
@@ -1226,11 +1227,11 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   assert.equal(byTestId(rowOf(tree, "l1"), "lead-card-name"), null, "not drawn before anyone reaches it");
 });
 
-test("the desk's map, Values / Signals and Export stand beside Columns as three quiet words, each doing its own act -- the ⋯ that folded them is gone", async () => {
+test("the desk's map and Export stand beside Columns as two quiet words, each doing its own act, and no button stands between a row and what it holds", async () => {
   await fresh();
   let tree = draw();
   const acts = (t) => find(seen(t), (n) => n.props?.className === "pl-file-acts");
-  const ids = ["leads-map-toggle", "leads-values-toggle", "leads-export"];
+  const ids = ["leads-map-toggle", "leads-export"];
   const word = (id) => textOf(byTestId(acts(tree), id));
   assert.ok(acts(tree), "the file acts stand in the controls row");
   assert.equal(byTestId(tree, "leads-file-menu"), null, "no ⋯ menu folds them away");
@@ -1239,40 +1240,30 @@ test("the desk's map, Values / Signals and Export stand beside Columns as three 
     false,
     "and none is drawn for the kit's menu to open",
   );
-  assert.deepEqual(ids.map(word), ["Map", "Values", "Export"]);
+  assert.deepEqual(ids.map(word), ["Map", "Export"]);
   assert.deepEqual(
     ids.map((id) => byTestId(acts(tree), id).props["data-tip"]),
-    [
-      "See these leads on the ground",
-      "Show the numbers and addresses in the rows",
-      "Download these leads as a CSV file",
-    ],
+    ["See these leads on the ground", "Download these leads as a CSV file"],
     "what each does is said under a pointer, where the old menu's items said it in a title",
   );
-  try {
-    // Map: the map stands where the table stood, and the button says Table to go back.
-    click(byTestId(acts(tree), "leads-map-toggle"));
-    tree = draw();
-    assert.ok(byTestId(tree, "lead-map"), "Map opens the map");
-    assert.equal(word("leads-map-toggle"), "Table", "and offers the way back");
-    click(byTestId(acts(tree), "leads-map-toggle"));
-    tree = draw();
-    assert.equal(byTestId(tree, "lead-map"), null, "Table puts the rows back");
-    assert.equal(word("leads-map-toggle"), "Map");
-    // Values: the numbers and addresses behind each shape join the row, and the button says Signals to take them away.
-    const valuesDrawn = () => all(tree, (n) => /\bld-slot-value\b/.test(String(n.props?.className || ""))).length;
-    assert.equal(valuesDrawn(), 0, "a row's contacts are shapes alone to begin with");
-    click(byTestId(acts(tree), "leads-values-toggle"));
-    tree = draw();
-    assert.ok(valuesDrawn() > 0, "Values writes the numbers and addresses in the rows");
-    assert.equal(word("leads-values-toggle"), "Signals");
-    click(byTestId(acts(tree), "leads-values-toggle"));
-    tree = draw();
-    assert.equal(valuesDrawn(), 0, "Signals takes them out again");
-    assert.equal(word("leads-values-toggle"), "Values");
-  } finally {
-    globalThis.localStorage.removeItem("leads.values");
-  }
+  // Map: the map stands where the table stood, and the button says Table to go back.
+  click(byTestId(acts(tree), "leads-map-toggle"));
+  tree = draw();
+  assert.ok(byTestId(tree, "lead-map"), "Map opens the map");
+  assert.equal(word("leads-map-toggle"), "Table", "and offers the way back");
+  click(byTestId(acts(tree), "leads-map-toggle"));
+  tree = draw();
+  assert.equal(byTestId(tree, "lead-map"), null, "Table puts the rows back");
+  assert.equal(word("leads-map-toggle"), "Map");
+  // REGRESSION (5 Nov 2026): a Values button wrote the numbers and addresses into the rows, in a column they then ran
+  // out of, over the rating. A row's Reach says them itself: the number as a person reads it, over the address.
+  assert.equal(byTestId(tree, "leads-values-toggle"), null, "no Values button");
+  const reach = byTestId(rowOf(tree, "l1"), "lead-reach");
+  const lines = all(reach, (n) => /^dtable-line-(top|sub)$/.test(String(n.props?.className || "")));
+  assert.equal(lines.length, 2, "two lines, each cut in its own column");
+  const said = lines.map((line) => textOf(find(line, (n) => /\bld-reach-words\b/.test(String(n.props?.className)))));
+  assert.match(said[0], /^\(\d{3}\) \d{3}-\d{4}$/, "the number");
+  assert.match(said[1], /^hello@/, "over the address");
   // Export: a press that POSTs this view (it marks what it took, so it is no link) and saves the file the answer holds, by the
   // kit's one download: on the phone app the same event reaches the share sheet. The page stays where it is.
   const saved = takeFiles();
@@ -1313,9 +1304,8 @@ test("Export, for a role that may not take the file, stays on the page, says why
   click(exportIt);
   assert.deepEqual(wrote(), [], "a press exports nothing");
   assert.deepEqual(navigated, [], "and sends the browser nowhere");
-  // The map and Values are not the file: a role that may not export may still look.
+  // The map is not the file: a role that may not export may still look.
   assert.equal(byTestId(seen(tree), "leads-map-toggle").props["data-gated"], undefined);
-  assert.equal(byTestId(seen(tree), "leads-values-toggle").props["data-gated"], undefined);
 });
 
 test("a press on a gated Export shows the reason at the button, as every gate does (a finger has no hover)", async () => {
@@ -1386,9 +1376,9 @@ test("with no search kept and no lead held the first day stands alone: the quest
   // beside it) is drawn with the table and with it alone: the three buttons are always there on a day a table stands (the
   // desk's controls test below), so their being absent here is the first day's, not the buttons'.
   assert.deepEqual(
-    ["leads-map-toggle", "leads-values-toggle", "leads-export"].map((id) => byTestId(tree, id)),
-    [null, null, null],
-    "no map, no Values and no Export over no leads",
+    ["leads-map-toggle", "leads-export"].map((id) => byTestId(tree, id)),
+    [null, null],
+    "no map and no Export over no leads",
   );
   assert.equal(
     menus.some((m) => m.title === "Columns"),
@@ -2147,7 +2137,7 @@ test("the Leads view is saved with its list, sort and columns every time, over t
     held[0],
     {
       page: "leads",
-      view: { list: "all", sortBy: "fit", sortDir: "asc", columns: { website: true, source: true } },
+      view: { list: "all", sortBy: "fit", sortDir: "asc", columns: { website: true, source: true }, cells: 2 },
       land: held[0].land,
     },
     "every key the page owns, the list included",
@@ -2161,7 +2151,7 @@ test("the Leads view is saved with its list, sort and columns every time, over t
   assert.equal(held.length, 2);
   assert.deepEqual(
     held[1].view,
-    { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true, source: true } },
+    { list: "all", sortBy: "rating", sortDir: "desc", columns: { website: true, source: true }, cells: 2 },
     "the latest view, whole",
   );
   held[1].land({ ok: true });
@@ -4290,19 +4280,21 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   const cls = (n) => String(n?.props?.className || "");
   const tagOf = (id, testid) => byTestId(rowOf(tree, id), testid);
 
-  assert.equal(tagOf("p1", "lead-state-tag"), null, "Ready is the silent default and wears no tag");
-  for (const [id, tone] of [
-    ["p2", "info"],
-    ["p3", "ok"],
-    ["p4", "warn"],
+  // One status, in Stage (contracts leadStatusOf): the name wears no tag while the column is drawn.
+  assert.equal(tagOf("p1", "lead-state-tag"), null, "the name wears no tag");
+  assert.equal(cls(tagOf("p1", "lead-status")), "dim", "Not contacted is the quiet default: a word, and no dot");
+  for (const [id, tone, word] of [
+    ["p2", "info", "Contacted"],
+    ["p3", "ok", "Talking"],
+    ["p4", "warn", "Needs review"],
   ]) {
-    const tag = tagOf(id, "lead-state-tag");
-    assert.equal(cls(tag), `pill pill-${tone}`, `${id}: the shared pill, in the registry's tone`);
-    assert.equal(textOf(tag), rows.find((r) => r.id === id).stateTag, `${id}: saying the row's own words`);
+    const pill = tagOf(id, "lead-status");
+    assert.equal(cls(pill), `pill pill-${tone}`, `${id}: the shared pill, in the registry's tone`);
+    assert.equal(textOf(pill), word, `${id}: one word`);
   }
-  assert.match(textOf(tagOf("p2", "lead-state-tag")), /^Contacted · /, "and Contacted still says how long ago");
+  assert.match(textOf(tagOf("p2", "lead-stage")), /^Contacted\d+[mhd] ago$/, "and how long ago is the line under it");
   for (const id of ["p5", "p6"])
-    assert.equal(cls(tagOf(id, "lead-state-tag")), "pill", `${id}: out is plain, so its pill carries no tone`);
+    assert.equal(cls(tagOf(id, "lead-status")), "pill", `${id}: out is plain, so its pill carries no tone`);
 
   assert.equal(cls(tagOf("p1", "lead-fit-tag")), "pill pill-ok", "a strong fit is a good outcome, not an urgent one");
   assert.equal(cls(tagOf("p7", "lead-fit-tag")), "pill", "a look is plain");
@@ -4325,13 +4317,14 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
     null,
     "with the column, only the column says it",
   );
-  // It gives way only where the column says the same thing. Needs review is not a stage, a left-out lead's Stage cell is
-  // empty, and Contacted says how long ago: those keep their tag with the column on.
+  // The column says every state now (Contacted with how long ago, Needs review, Filtered out with why), so no tag
+  // stays beside the name while it is drawn.
   for (const id of ["p2", "p4", "p6"]) {
     const l = rows.find((r) => r.id === id);
-    assert.ok(
+    assert.equal(
       tagIn(business.cell(l, { ...rowNode.props.ctx, stageShown: true })),
-      `${id} keeps its tag: the column does not say it`,
+      null,
+      `${id}: said once, by the column`,
     );
   }
   assert.equal(
@@ -4494,8 +4487,9 @@ test("a converted lead whose person became a client reads Client, on the desktop
   const tagOf = (id) => byTestId(rowOf(tree, id), "lead-state-tag");
   assert.equal(textOf(tagOf("c1")), "Client", "the stage word of the deal, never a word for a person");
   assert.equal(cls(tagOf("c1")), "pill pill-ok", "the deal pill's own tone");
-  assert.equal(textOf(tagOf("c2")), rows[1].stateTag, "a proposal still out is not a client: the lead's own word");
-  assert.equal(textOf(tagOf("c3")), rows[2].stateTag, "no person, no deal: the lead's own word");
+  const statusOf = (id) => byTestId(rowOf(tree, id), "lead-status");
+  assert.equal(textOf(statusOf("c2")), rows[1].stateTag, "a proposal still out is not a client: the lead's own word");
+  assert.equal(textOf(statusOf("c3")), rows[2].stateTag, "no person, no deal: the lead's own word");
   // The rows reach the cell through its context, not the global. The page's rows are memoised (React.memo, which
   // this stub React lacks, so every row is drawn each time here) and the context is what they compare: on a cold
   // load of Leads the rows paint before the people land, and a cell that read window.__PEOPLE kept saying Converted
@@ -4507,7 +4501,8 @@ test("a converted lead whose person became a client reads Client, on the desktop
   );
   assert.ok(rowNode, "the table draws its rows as the kit's TableRowView");
   assert.equal(rowNode.props.ctx.peopleRows, people, "REGRESSION: the cell context carried nothing from People");
-  const business = LEAD_COLUMNS.find((c) => c.key === "business");
+  // The Stage column's cell: where a lead stands is said there, a client's door with it (5 Nov 2026).
+  const business = LEAD_COLUMNS.find((c) => c.key === "stage");
   const pillOf = (td, testid) => find(td, (n) => n.props?.testid === testid);
   surfaceValue("people").rows = [];
   const withRows = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }), "lead-state-tag");
@@ -4528,10 +4523,10 @@ test("a converted lead whose person became a client reads Client, on the desktop
   assert.equal(doorOf(business.cell(rows[1], { ...rowNode.props.ctx, peopleRows: people })), null);
   assert.equal(doorOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: [] })), null);
   surfaceValue("people").rows = people;
-  const without = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: [] }), "lead-state-tag");
+  const without = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: [] }), "lead-status");
   assert.equal(
     without.props.kind,
-    "lead_row_state",
+    "lead_stage",
     "REGRESSION: the cell read the global, so a context without the rows said Client",
   );
 

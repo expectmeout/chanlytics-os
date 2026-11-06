@@ -47,6 +47,8 @@ interface ControlsArgs<R extends TableRow, X, C> {
   sortThen?: SortThen;
   railRow?: string | null;
   extraDefaults?: View | null;
+  /** A saved view read as the page's cells are now (kit/table/state.ts `viewNow`). */
+  viewNow?: (saved: View) => View;
 }
 
 /** A desk's columns where a phone draws cards. */
@@ -113,6 +115,7 @@ export function usePlControls<R extends TableRow, X, C>(args: ControlsArgs<R, X,
     store: VIEW_STORE,
     railRow: args.railRow,
     extraDefaults: args.extraDefaults,
+    viewNow: args.viewNow,
   });
   // "Select all 1,240 that match": the bulk bar hands the view's filters to the server instead of a list of ids. A claim
   // about the server's view, not the table's state (kit/table/state.ts).

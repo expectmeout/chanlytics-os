@@ -13,6 +13,7 @@ import {
   type LeadEmailState,
   type LeadMemberClass,
   type LeadRoundEnding,
+  type LeadStatusGroup,
 } from "./search/sets";
 import { LEAD_ENDING_WORDS } from "./search/endings";
 import type { Tone } from "../shell/tone";
@@ -63,6 +64,23 @@ export const LEAD_STAGE_WORDS: Record<LeadStage, string> = {
   converted: "Talking",
   archived: "Closed",
 };
+
+/** The status groups in the owner's words: a heading's menu and the group heads say these. */
+export const LEAD_STATUS_GROUP_WORDS: Record<LeadStatusGroup, string> = {
+  needs: "Needs you",
+  in: "In a sequence",
+  none: "Not in a sequence",
+};
+
+/**
+ * What a heading's menu and the foot say around them. Needs you here counts leads, and Today's Need you counts decisions
+ * (one OK may cover nine leads): the caption keeps the two numbers from being read as one.
+ */
+export const LEAD_HEADING_WORDS = {
+  caption: "Needs you: leads waiting on you.",
+  hide: "Hide column",
+  clear: "Clear filters",
+} as const;
 
 export const LEAD_CLOSED_WORDS: Record<(typeof LEAD_CLOSED_REASONS)[number], string> = {
   said_no: "Said no",
