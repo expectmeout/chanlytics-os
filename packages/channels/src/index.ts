@@ -124,6 +124,7 @@ export type {
   GbpLocationDetails,
   GbpPeriod,
   GbpPhoto,
+  GbpPostAsked,
   GbpReview,
   GbpReviewsPage,
 } from "./google/google-profile";
