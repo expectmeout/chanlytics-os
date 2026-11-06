@@ -184,6 +184,8 @@ test("the opening check is graded weekly once it is switched on, and by hand: th
   assert.ok(
     say.includes('--match "The opening check"') && say.includes("--state green") && say.includes('--assignee "$OWNER"'),
   );
+  assert.ok(run.includes("> opening-check.txt 2>&1"), "what the run prints, why checks got no answer with it, is kept");
+  assert.equal(say.split("--body-file opening-check.txt").length - 1, 2, "and is the body of either red issue");
 });
 
 test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 plan, D4), apart from the suite: its verdict is its own step and its own issue, titled by whether Ask crossed a line or the check could not run (I2:2), and never turns the suite red", () => {
