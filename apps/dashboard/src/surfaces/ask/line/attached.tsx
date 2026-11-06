@@ -7,7 +7,7 @@ import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent
 import { ASK_ATTACHED_MAX, type AskAttached } from "@chanlytics/contracts";
 import { refreshSurface } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { LinePress } from "../../kit/line/line";
+import { LineFiles, LinePress } from "../../kit/line/line";
 import { FILE_PICKS, fileVerbs, type AddSaid } from "../../settings/files/verbs";
 import type { LineWords } from "../words";
 import type { Line } from "./types";
@@ -142,7 +142,7 @@ export function AskAttachPress({ t, attach }: { t: LineWords; attach: (files: re
       >
         <Icon name="plus" size={15} />
       </LinePress>
-      <input ref={picker} type="file" accept={FILE_PICKS} multiple hidden onChange={chosen} data-testid="ask-picker" />
+      <LineFiles ref={picker} accept={FILE_PICKS} multiple onChange={chosen} data-testid="ask-picker" />
     </>
   );
 }

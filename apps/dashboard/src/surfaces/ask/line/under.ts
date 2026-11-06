@@ -193,16 +193,35 @@ export const arOnKey = ({
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      const q = query.trim();
-      // A photo beside the field makes a question of an empty line.
-      if (attached.length && !q) void submit();
-      // Typed words are asked, unless the keys moved to a row; in Earlier they only find a conversation to open.
-      else if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
-      else if (q) void submit(q);
-      else if (moves[move]) activate(moves[move]);
+      arEnter({ query, attached, submit, showRows, rows, sel, view, activate, moves, move });
     }
   };
   return onKey;
+};
+
+/** Enter on the line: what it stands on, or what is typed. */
+const arEnter = ({
+  query,
+  attached,
+  submit,
+  showRows,
+  rows,
+  sel,
+  view,
+  activate,
+  moves,
+  move,
+}: Pick<
+  Line,
+  "query" | "attached" | "submit" | "showRows" | "rows" | "sel" | "view" | "activate" | "moves" | "move"
+>) => {
+  const q = query.trim();
+  // A photo beside the field makes a question of an empty line.
+  if (attached.length && !q) void submit();
+  // Typed words are asked, unless the keys moved to a row; in Earlier they only find a conversation to open.
+  else if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
+  else if (q) void submit(q);
+  else if (moves[move]) activate(moves[move]);
 };
 /** The hero as it stands: shrunk with the question under it, at rest, and the standing pills. */
 export const arHeroState = ({

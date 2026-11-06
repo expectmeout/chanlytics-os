@@ -5,7 +5,7 @@
  * needs to.
  */
 import "server-only";
-import { ASK_ATTACHED_MAX, UUID, recordOrNull, type FileDto } from "@chanlytics/contracts";
+import { ASK_ATTACHED_MAX, UUID, recordOrNull, type AskLanguage, type FileDto } from "@chanlytics/contracts";
 import { filesNamedBy } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import type { AskedPicture } from "./tools/context";
@@ -52,7 +52,5 @@ export const attachedPictures = (files: readonly AttachedFile[], copies: Readonl
   });
 
 /** The words for a question that came with files and none of its own, so the model is asked something, in the person's language. */
-export const NO_WORDS = {
-  en: "(No words, only the attached file.)",
-  es: "(Sin palabras, solo el archivo adjunto.)",
-};
+export const noWordsIn = (language: AskLanguage): string =>
+  language === "es" ? "(Sin palabras, solo el archivo adjunto.)" : "(No words, only the attached file.)";

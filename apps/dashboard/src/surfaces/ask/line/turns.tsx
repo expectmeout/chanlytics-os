@@ -59,6 +59,33 @@ const arKept = async (c: Conversation): Promise<Conversation> => {
   return { ...c, kept: null, ...(th ? { id: th.id, title: th.title } : {}) };
 };
 
+/** The thread whose first question this one repeats, opened with the chip it is asked with, not the twin's stored scope. */
+const arTwinOf = async (
+  { A, threads, threadsReady, openThread, setScope }: Line,
+  q: string,
+  chip: AskScope | null,
+): Promise<Conversation | null> => {
+  const list = await (threadsReady.current || Promise.resolve(threads));
+  const twin = list.find((th) => A.sameQuestion(th.title, q));
+  if (!twin) return null;
+  const opened = await openThread(twin);
+  if (chip) setScope(chip);
+  return opened;
+};
+
+/** What a question goes with: what stands beside the field; a Retry brings what it first came with, and a page's own search goes alone. */
+const arFilesAsked = (attached: Line["attached"], how: AskedHow | undefined): readonly AskAttached[] =>
+  how?.files ?? (how?.fresh ? [] : photosAsked(attached));
+
+/** The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes. */
+const arPageNow = (A: Line["A"], q: string, base: Conversation | null): PageContext | null => {
+  try {
+    return A.context ? A.context(arRoute(), q, base && base.messages) : null;
+  } catch {
+    return null;
+  }
+};
+
 // One turn: the question goes in, the words stream back, the answer lands. A quick question needs no model (arQuickTurn).
 // A question that repeats a thread's first question resumes that thread rather than opening a twin. `turn` is what the
 // stream writes and the landing reads: its thread's id, the final message, and what it has said. Asking (as opening
@@ -69,8 +96,6 @@ export const arSubmitter = (ln: Line) => {
     query,
     live,
     active,
-    threads,
-    threadsReady,
     turnSeq,
     scope,
     surface,
@@ -85,20 +110,17 @@ export const arSubmitter = (ln: Line) => {
     setView,
     setLang,
     setQuick,
-    setScope,
-    openThread,
   } = ln;
   const submit = async (qArg?: unknown, chipArg?: AskScope | null, how?: AskedHow) => {
     const q = (typeof qArg === "string" ? qArg : query).trim(),
       chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip; `how.spoken` marks a question the recogniser heard
     if (live) return;
-    // What stands beside the field goes with the question, once it has arrived; a Retry brings what it first came with, and a page's own search goes alone.
     const fromField = !how?.files && !how?.fresh;
     if (fromField && !allArrived(attached)) {
       flash({ msg: <>{t.attachWait}</> });
       return;
     }
-    const files = how?.files ?? (fromField ? photosAsked(attached) : []);
+    const files = arFilesAsked(attached, how);
     if (!q && files.length === 0) return;
     arLetGo(inputRef.current);
     speech.stop();
@@ -113,24 +135,11 @@ export const arSubmitter = (ln: Line) => {
     if (pending) return arQuickTurn(ln, q, pending, spoken);
     setQuick(null);
     let base = held && held.kept ? await arKept(held) : held; // asked once a quick turn is kept, which it reads
-    if (!base && !files.length) {
-      const list = await (threadsReady.current || Promise.resolve(threads));
-      const twin = list.find((th) => A.sameQuestion(th.title, q));
-      if (twin) {
-        base = await openThread(twin);
-        if (chip) setScope(chip);
-      } // the chip it is asked with, not the twin's stored scope
-    }
+    if (!base && !files.length) base = await arTwinOf(ln, q, chip);
     const { thread, turn } = arBeginTurn(ln, { q, files, chip, base, how: { spoken } });
     // Spoken: Ask's voice says it is working, once, if the answer has not begun by then (ask/aloud.ts).
     if (spoken) speech.wait(A.language(q), () => turn.spoke || !!turn.final || turn.mine !== turnSeq.current);
-    // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes.
-    let context: PageContext | null = null;
-    try {
-      context = A.context ? A.context(arRoute(), q, base && base.messages) : null;
-    } catch {
-      /* none: the question still goes */
-    }
+    const context = arPageNow(A, q, base);
     await A.send(
       {
         text: q,

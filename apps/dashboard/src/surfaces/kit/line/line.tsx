@@ -75,6 +75,11 @@ export function LinePress({ kind, selected, on, className, children, ...element 
   );
 }
 
+/** What a press of `attach` opens: the device's own picker, drawn by the device and never by the page. */
+export function LineFiles(props: Omit<ComponentPropsWithRef<"input">, "type" | "hidden" | "className">) {
+  return <input {...props} type="file" hidden />;
+}
+
 /** The field: one line that grows with its words, and takes the accent in its placeholder while a mic listens. */
 export type LineFieldProps = { listening?: boolean } & ComponentPropsWithRef<"textarea">;
 

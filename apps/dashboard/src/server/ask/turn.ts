@@ -28,7 +28,7 @@ import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { filesForAsk } from "../readers/files";
 import { memberViews } from "../readers/notifications";
-import { attachedNow, NO_WORDS, type AttachedFile } from "./attached";
+import { attachedNow, noWordsIn, type AttachedFile } from "./attached";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
 import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
 import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";
@@ -251,6 +251,26 @@ async function setAsideReplaced(
   }
 }
 
+/** The answer as its row keeps it: what the Line draws again and the history reads, and the turn as the model was sent it. */
+function answerRowOf(result: TurnResult, v1: ReturnType<typeof v1FromAnswer>, proposals: AskProposal[]) {
+  return {
+    v: 2,
+    answer: result.answer,
+    ...v1,
+    proposals,
+    language: result.answer.language,
+    ungrounded: result.ungrounded,
+    tools: result.tools,
+    latency_ms: result.latencyMs,
+    failed: result.failed,
+    ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
+    model: result.model,
+    rounds: result.rounds,
+    shape: result.shape,
+    raw: storedRaw(toldWithArrived(result.raw, proposals)),
+  };
+}
+
 export async function finishAskTurn(
   p: PreparedTurn,
   emit: (ev: AskTurnLine) => void,
@@ -263,7 +283,6 @@ export async function finishAskTurn(
     ask,
     thread: turn,
     scope,
-    attached,
     earlier,
     cards,
     offered,
@@ -293,8 +312,8 @@ export async function finishAskTurn(
     scope,
     surface,
     ...earlier,
-    text: askTurnText(text, answering) || NO_WORDS[language === "es" ? "es" : "en"],
-    attached,
+    text: askTurnText(text, answering) || noWordsIn(language),
+    attached: p.attached,
     openedMs,
     context,
     spoken: ask.spoken ?? false,
@@ -334,27 +353,9 @@ export async function finishAskTurn(
         : p,
     ),
   );
-  const content = {
-    v: 2,
-    answer: result.answer,
-    ...v1,
-    proposals,
-    language: result.answer.language,
-    ungrounded: result.ungrounded,
-    tools: result.tools,
-    latency_ms: result.latencyMs,
-    failed: result.failed,
-    ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
-    model: result.model,
-    rounds: result.rounds,
-    shape: result.shape,
-  };
   let saved: { id: string; created_at: string } | null = null;
   try {
-    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", {
-      ...content,
-      raw: storedRaw(toldWithArrived(result.raw, proposals)),
-    });
+    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", answerRowOf(result, v1, proposals));
     // A thread keeps its first question as its title; an answer moves it up the list, and it keeps the scope
     // this turn ran with (the Phase 5 plan, D9), so the next question sent with none is asked about the same.
     await touchThread(ctx, turn.id, scope);
