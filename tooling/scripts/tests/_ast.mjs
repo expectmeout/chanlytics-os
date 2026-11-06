@@ -585,6 +585,134 @@ const isRpcCall = (m) =>
   ts.isStringLiteralLike(m.arguments[0]) &&
   /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text);
 
+/** The links that answer a chain's failed statement: a `.then` or a `.catch` has it in hand, `.throwOnError()` throws it. */
+const ERROR_ANSWERED_BY = new Set(["then", "catch", "throwOnError"]);
+
+/**
+ * What a chain asks of the database, read from its outermost link in: `write` (`.from(…)` with a row write), `read`
+ * (`.from(…)` with none) or `rpc`. Null for a chain that answers its own error and for anything else: a call handed the
+ * statement (`teamCall(db.rpc("x"))`) reads what it was handed, and `Array.from(…)` is no table.
+ */
+function dbStatementOf(chain) {
+  let writes = false;
+  for (let n = bare(chain); ts.isCallExpression(n);) {
+    const link = bare(n.expression);
+    if (!ts.isPropertyAccessExpression(link)) return isRpcCall(n) ? "rpc" : null;
+    const word = link.name.text;
+    if (ERROR_ANSWERED_BY.has(word)) return null;
+    if (word === "rpc" && n.arguments.length) return "rpc";
+    const on = bare(link.expression);
+    if (word === "from" && n.arguments.length) {
+      if (ts.isIdentifier(on) && NOT_A_TABLE.has(on.text)) return null;
+      return writes ? "write" : "read";
+    }
+    writes ||= ROW_WRITES.has(word);
+    n = on;
+  }
+  return null;
+}
+
+/** What an `await` holds, each on its own: the statements written in a `Promise.all([…])` or `Promise.allSettled([…])`, else itself. */
+function awaitedEach(awaited) {
+  const call = bare(awaited);
+  if (!ts.isCallExpression(call) || !ts.isPropertyAccessExpression(call.expression)) return [call];
+  const { expression: on, name } = call.expression;
+  const list = bare(call.arguments[0]);
+  const all = ts.isIdentifier(on) && on.text === "Promise" && (name.text === "all" || name.text === "allSettled");
+  return all && list && ts.isArrayLiteralExpression(list) ? list.elements : [call];
+}
+
+/** Each name a file declares, by the node it is visible in (scopeOf), a parameter's by its function: how a use finds its own. */
+function namesDeclaredIn(sf) {
+  const scopes = new Map();
+  const bind = (name, scope) => {
+    if (ts.isIdentifier(name)) scopes.set(scope, (scopes.get(scope) ?? new Map()).set(name.text, name));
+    else for (const el of name.elements) if (!ts.isOmittedExpression(el)) bind(el.name, scope);
+  };
+  const walk = (n) => {
+    if (ts.isVariableDeclaration(n)) bind(n.name, scopeOf(n));
+    else if (ts.isParameter(n)) bind(n.name, n.parent);
+    ts.forEachChild(n, walk);
+  };
+  walk(sf);
+  return scopes;
+}
+
+/**
+ * Whether a result held by a name drops its error: every use of the name reads a field of it, and none reads `.error`. A
+ * result handed on whole (to a call, a return, another destructure) is read by what it goes to, so it is not counted.
+ */
+function heldWithoutItsError(name, scope, declared) {
+  const isOwn = (m) => {
+    for (let s = m.parent; s; s = s.parent) {
+      const nearest = declared.get(s)?.get(m.text);
+      if (nearest) return nearest === name;
+    }
+    return false;
+  };
+  // A property's or a declaration's own name is no use of the result; `{ r }` is one.
+  const merelyNames = (m) =>
+    (m.parent.name === m && !ts.isShorthandPropertyAssignment(m.parent)) || m.parent.propertyName === m;
+  const uses = [];
+  const walk = (m) => {
+    if (ts.isIdentifier(m) && m.text === name.text && !merelyNames(m) && isOwn(m)) uses.push(m);
+    ts.forEachChild(m, walk);
+  };
+  walk(scope);
+  return uses.every((use) => {
+    let at = use;
+    while (bare(at.parent) !== at.parent) at = at.parent;
+    return ts.isPropertyAccessExpression(at.parent) && at.parent.expression === at && at.parent.name.text !== "error";
+  });
+}
+
+/** What an expression awaits, under its parentheses and casts; null when it is no `await`. */
+function awaitedIn(e) {
+  const held = bare(e);
+  return held && ts.isAwaitExpression(held) ? held.expression : null;
+}
+
+/**
+ * The line of each database result whose error is dropped. supabase-js answers a failed statement with `{ error }` and
+ * never throws, and `tenantDb` throws only on misuse, so a `try` around it catches nothing and nothing else says it failed.
+ * A write or an rpc awaited as a statement, whose result nobody reads, looks done. A read looks like no row when `error`
+ * is left out of its destructure (one out of a `Promise.all` too), when it is `(await …).data`, and when a name holds the
+ * result and is read only for other fields. A model cannot hold this class (a trial on 6 Nov 2026 scored the real cases as
+ * it scored fixed code), so this does.
+ */
+export function droppedDbErrorsIn(sf) {
+  const lines = [];
+  const found = (n) => lines.push(sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1);
+  let declared = null;
+  const drops = (name, decl) => {
+    if (ts.isObjectBindingPattern(name))
+      return !name.elements.some((e) => (e.propertyName ?? e.name).getText(sf) === "error");
+    declared ??= namesDeclaredIn(sf);
+    return ts.isIdentifier(name) && heldWithoutItsError(name, scopeOf(decl), declared);
+  };
+  const visit = (m) => {
+    const unread = ts.isExpressionStatement(m) ? awaitedIn(m.expression) : null;
+    if (unread) {
+      for (const e of awaitedEach(unread)) {
+        const asks = dbStatementOf(e);
+        if (asks === "write" || asks === "rpc") found(e);
+      }
+    }
+    const bound = ts.isVariableDeclaration(m) ? awaitedIn(m.initializer) : null;
+    if (bound && ts.isArrayBindingPattern(m.name)) {
+      const each = awaitedEach(bound);
+      m.name.elements.forEach((el, i) => {
+        if (!ts.isOmittedExpression(el) && each[i] && dbStatementOf(each[i]) && drops(el.name, m)) found(el);
+      });
+    } else if (bound && dbStatementOf(bound) && drops(m.name, m)) found(m);
+    const field = ts.isPropertyAccessExpression(m) && m.name.text !== "error" ? awaitedIn(m.expression) : null;
+    if (field && dbStatementOf(field)) found(m);
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return lines;
+}
+
 /** The dashboard's service-role client: RLS off, its tenant fence written by hand at each place that takes it. */
 const SERVICE_ROLE = new Set(["serviceDb", "serviceDbIfConfigured"]);
 
