@@ -102,7 +102,7 @@ export const filesTallied: Reader<
 };
 
 /** What a page of the library is asked for. Nothing asked is where it opens, at a page's length. */
-export interface FilesAsked {
+interface FilesAsked {
   shelf?: FileShelf | undefined;
   limit?: number | undefined;
   before?: string | undefined;

@@ -31,16 +31,16 @@ export interface FilesSurface {
  * the read the document's head started (contracts route-prefetch), so a first visit waits for no second one. A new object each move,
  * so a read that answers after a newer move is known by it.
  */
-let asked: { shelf?: FileShelf; limit?: number } = {};
+let onScreen: { shelf?: FileShelf; limit?: number } = {};
 
-const readAsked = ({ shelf, limit }: typeof asked) =>
+const readAsked = ({ shelf, limit }: typeof onScreen) =>
   shelf ? read("GET files", { query: { shelf, ...(limit ? { limit } : {}) } }) : read("GET files");
 
-/** Another shelf. What it holds replaces what stood, unless something newer was asked for meanwhile. */
+/** Another shelf. What it holds replaces what stood, unless something newer was onScreen for meanwhile. */
 export async function showFilesShelf(shelf: FileShelf): Promise<void> {
-  const ask = (asked = { shelf });
+  const ask = (onScreen = { shelf });
   const dto = await readAsked(ask);
-  if (ask === asked) setSurfaceValue("files", { dto, fetchedAt: Date.now() });
+  if (ask === onScreen) setSurfaceValue("files", { dto, fetchedAt: Date.now() });
 }
 
 /** The next page of the shelf on show, after what is there. A read again then asks for all of it at once, as long as it now is. */
@@ -52,7 +52,7 @@ export async function showMoreFiles(): Promise<void> {
   const now = surfaceValue("files")?.dto;
   if (now?.shelf !== shelf || now.next !== next) return;
   const files = [...now.files, ...more.files];
-  asked = { shelf, limit: files.length };
+  onScreen = { shelf, limit: files.length };
   setSurfaceValue("files", { dto: { ...more, files }, fetchedAt: Date.now() });
 }
 
@@ -66,10 +66,10 @@ export const filesOverride: SurfaceOverride = {
   maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
   ...declareReads("files", { reads: ["file"], fresh: "its-page" }),
   apply: async () => {
-    const ask = asked;
+    const ask = onScreen;
     try {
       const dto = await readAsked(ask);
-      if (ask === asked) setSurfaceValue("files", { dto, fetchedAt: Date.now() });
+      if (ask === onScreen) setSurfaceValue("files", { dto, fetchedAt: Date.now() });
     } catch (e) {
       // A read again that failed leaves what is on screen: the grid, and any sheet open over it, stand.
       if (!surfaceValue("files")) setSurfaceValue("files", null);
