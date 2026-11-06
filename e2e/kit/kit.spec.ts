@@ -44,7 +44,10 @@ import {
  * it (STILL), and read with it off. The presses are forced by the browser's own devtools protocol
  * (CSS.forcePseudoState), so this runs in Chromium, the config's one browser.
  *
- * Production has no gallery: the nightly skips this with a reason its skip ceiling does not count (skip-ceiling.ts).
+ * A pull request that changes the kit's own files runs checks 1, 2, 5 and 6, which take seconds, by their titles (ci.yml,
+ * the `kit` job; repo/settings/kit-paths-changed.test.mjs holds the two together), and nightly-kit.yml runs it whole.
+ * Production has no gallery: the nightly against it skips this with a reason its skip ceiling does not count
+ * (skip-ceiling.ts).
  */
 test.skip(process.env.E2E_SCENARIO !== "kit", KIT_SKIP_REASON);
 

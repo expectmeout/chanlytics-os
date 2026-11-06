@@ -1,7 +1,7 @@
 /**
- * The kit's gallery (tooling/scripts/e2e-harness/kit-gallery.mjs), held without a browser. No workflow runs a browser
- * spec on a pull request (ci.yml names none, and the nightly runs against production, where there is no gallery), so
- * what can be held here is: e2e/kit/kit.spec.ts holds the rest when it runs on the harness.
+ * The kit's gallery (tooling/scripts/e2e-harness/kit-gallery.mjs), held without a browser. What can be held here is:
+ * e2e/kit/kit.spec.ts holds the rest on the harness, its four quick checks on a pull request that changes the kit's own
+ * files (ci.yml, the `kit` job) and the whole spec each night (nightly-kit.yml).
  *
  * - Every name in classes.json, a class or a modifier, is drawn by a kit entry, and a kit entry names only the
  *   registry's names, the gallery's own layout (gx-*) and the names UNLISTED says it carries: one there that the
