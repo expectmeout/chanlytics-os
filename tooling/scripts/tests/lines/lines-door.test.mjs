@@ -237,7 +237,7 @@ function use(tables, rpcs = {}, faults = {}) {
   return db;
 }
 /** The vault, answering the subaccount's token for any line. */
-const VAULT = { get_line_credentials: () => ({ auth_token: "sub-token" }) };
+const VAULT = { get_line_credentials: () => ({ auth_token: "sub-token" }), drop_line_credentials: () => true };
 const SUB_AUTH = `Basic ${Buffer.from("ACsub0000000000000000000000000000:sub-token").toString("base64")}`;
 const reads = (db, table) => db.seen.filter((s) => s.table === table && s.op === "select");
 const writes = (db, table) =>
@@ -792,6 +792,7 @@ test("release gives the number and the trunk back, switches both routing rows of
     ],
   });
   use(tables, {
+    ...VAULT,
     get_line_credentials: (args) => {
       asked.push(args);
       return { auth_token: "sub-token" };
@@ -829,8 +830,7 @@ test("release gives the number and the trunk back, switches both routing rows of
     "disabled",
     "switched off, never deleted: calls keep their history",
   );
-  // The texting row the saga recorded under `facts.sms_channel_id` goes off
-  // with it, rather than staying active beside a number nobody holds.
+  // The texting row `facts.sms_channel_id` names goes off with it, not active beside a number nobody holds.
   assert.equal(
     tables.tenant_channels.find((c) => c.id === "ch-sms").status,
     "disabled",
@@ -853,9 +853,8 @@ test("release gives the number and the trunk back, switches both routing rows of
 });
 
 test("release finds a number the row lost the receipt for and gives it back — at the carrier, over the wire; a refused lookup is not 'we do not own it'", async () => {
-  // The window is real: `number_sid` is written after the purchase answers, so a
-  // saga killed between the two left the number bought and the row silent. This
-  // used to skip straight to deleting the row, and we paid for it every month.
+  // The window is real: `number_sid` is written after the purchase answers, so a saga killed between the two left the
+  // number bought and the row silent. This used to skip straight to deleting the row, and we paid for it every month.
   const tables = world({
     lines: [unfiled({ provider: "twilio", voice_state: "failed", step: "number", number_sid: null, trunk_sid: null })],
   });
@@ -864,7 +863,7 @@ test("release finds a number the row lost the receipt for and gives it back — 
   const carrier = wire((req) => {
     if (req.method === "GET" && req.url.startsWith(twilioUrls.incomingNumbers(sub)))
       return { status: 200, body: { incoming_phone_numbers: [{ sid: "PNlost", phone_number: NUMBER }] } };
-    if (req.method === "DELETE") return { status: 204 };
+    if (req.method !== "GET") return { status: 204 };
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   try {
@@ -883,12 +882,13 @@ test("release finds a number the row lost the receipt for and gives it back — 
     [
       ["GET", `${twilioUrls.incomingNumbers(sub)}?PhoneNumber=%2B13055550100&PageSize=1`],
       ["DELETE", twilioUrls.incomingNumber(sub, "PNlost")],
+      ["POST", twilioUrls.subaccount(sub)],
     ],
-    "looked up by the number, released by the SID it answered",
+    "looked up by the number, released by the SID it answered, and the subaccount closed last",
   );
   assert.ok(
-    carrier.seen.every((r) => r.headers.Authorization === SUB_AUTH),
-    "as the workspace's subaccount, never the master",
+    carrier.seen.slice(0, -1).every((r) => r.headers.Authorization === SUB_AUTH),
+    "as the workspace's subaccount; only the closing is the master's",
   );
   assert.equal(tables.lines.length, 0);
 

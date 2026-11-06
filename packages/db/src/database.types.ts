@@ -8399,6 +8399,7 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: boolean
       }
+      drop_line_credentials: { Args: { p_line_id: string }; Returns: boolean }
       drop_mailbox_credentials: {
         Args: { p_connection_id: string }
         Returns: boolean

@@ -86,7 +86,7 @@ export {
   releaseQueuedSend,
 } from "./jobs";
 export type { AssembleDecision, JobToRequeue } from "./jobs";
-export { businessOnRecordOf, filedNamesOf, ownLineOf } from "./lines";
+export { businessOnRecordOf, dropLineCredentials, filedNamesOf, ownLineOf } from "./lines";
 export { DB_REQUEST_HEADER, namedFetch, observeDb, touchOfCall } from "./observe";
 export type { DbLog, DbObserver, DbTouch } from "./observe";
 export { migrationHead, platformDay } from "./ops";

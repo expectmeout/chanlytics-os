@@ -27,6 +27,7 @@ const CALLS = {
   createSubaccount: (p) => p.createSubaccount(master, "Harbor"),
   findSubaccount: (p) => p.findSubaccount(master, "Harbor"),
   readSubaccount: (p) => p.readSubaccount(master, "ACsub"),
+  closeSubaccount: (p) => p.closeSubaccount(master, "ACsub"),
   findTrunk: (p) => p.findTrunk(acct, "chanlytics-abc.pstn.twilio.com"),
   findCredentialList: (p) => p.findCredentialList(acct, "Harbor"),
   findCredential: (p) => p.findCredential(acct, "CL1", "line-abc"),
@@ -93,6 +94,43 @@ test("Twilio: a create answered without its sid is a refusal, never a thing half
     CALLS.createSubaccount(over({ status: 201, body: { sid: "ACsub" } }).provider),
     /without sid\/auth_token/,
     "a subaccount without its token is no subaccount",
+  );
+});
+
+test("Twilio: closing a subaccount is one POST as its parent, done when it answers, when it is gone, and when a refusal turns out to be one already closed", async () => {
+  const url = "https://api.twilio.com/2010-04-01/Accounts/ACsub.json";
+  const closes = over({ status: 200, body: { sid: "ACsub", status: "closed" } });
+  assert.equal(await CALLS.closeSubaccount(closes.provider), undefined);
+  assert.deepEqual(closes.calls, [{ acct: "ACmaster", method: "POST", url, form: { Status: "closed" } }]);
+
+  const gone = over({ status: 404, body: { code: 20404 } });
+  assert.equal(await CALLS.closeSubaccount(gone.provider), undefined);
+  assert.equal(gone.calls.length, 1, "nothing to ask again");
+
+  const refused = { status: 400, body: { code: 20001, message: "cannot change" } };
+  for (const read of [
+    { status: 200, body: { sid: "ACsub", auth_token: "s", status: "closed" } },
+    { status: 404, body: { code: 20404 } },
+  ]) {
+    const already = over((method) => (method === "POST" ? refused : read));
+    assert.equal(await CALLS.closeSubaccount(already.provider), undefined, JSON.stringify(read));
+    assert.deepEqual(
+      already.calls.map((c) => [c.acct, c.method]),
+      [
+        ["ACmaster", "POST"],
+        ["ACmaster", "GET"],
+      ],
+    );
+  }
+
+  const open = over((method) =>
+    method === "POST" ? refused : { status: 200, body: { sid: "ACsub", auth_token: "s", status: "active" } },
+  );
+  await assert.rejects(
+    CALLS.closeSubaccount(open.provider),
+    (e) =>
+      e instanceof TwilioError && e.status === 400 && e.message === "close subaccount: cannot change (Twilio 20001)",
+    "still open: the refusal stands, and the row stays",
   );
 });
 
