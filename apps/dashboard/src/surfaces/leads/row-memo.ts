@@ -16,7 +16,7 @@ export function keptRows(held: readonly LeadRowDto[], fresh: ReadonlyMap<string,
 
 /** What of a search a row's words read (what a review waits on, the term it was found for), as one text, made once a search. */
 const plans = new WeakMap<LeadSearchDto, string>();
-const planOf = (search: LeadSearchDto | null): string => {
+const planWordsOf = (search: LeadSearchDto | null): string => {
   if (!search) return "";
   const held = plans.get(search);
   if (held !== undefined) return held;
@@ -26,7 +26,7 @@ const planOf = (search: LeadSearchDto | null): string => {
 };
 
 /** A row's words, and what they were made from. */
-const made = new WeakMap<LeadRowDto, { vm: LeadRowVM; minute: number; tz: string; plan: string }>();
+const madeWords = new WeakMap<LeadRowDto, { vm: LeadRowVM; minute: number; tz: string; plan: string }>();
 
 /** Each row's words, made again only for a row that changed, a search that changed, or a new minute. */
 export function leadRowsOf(
@@ -36,11 +36,11 @@ export function leadRowsOf(
   const minute = Math.floor(at.now.getTime() / MIN_MS);
   return rows.map((r) => {
     const search = at.searchOf(r.search_id);
-    const plan = planOf(search);
-    const was = made.get(r);
+    const plan = planWordsOf(search);
+    const was = madeWords.get(r);
     if (was && was.minute === minute && was.tz === at.tz && was.plan === plan) return was.vm;
     const vm = leadRowOf(r, at.tz, at.now, search);
-    made.set(r, { vm, minute, tz: at.tz, plan });
+    madeWords.set(r, { vm, minute, tz: at.tz, plan });
     return vm;
   });
 }

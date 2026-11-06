@@ -6,7 +6,7 @@
  * walked may land twice or not at all; the walk lasts seconds.
  */
 import type { ApiResult } from "@/client/api";
-import { api } from "@/legacy-bridge/api";
+import { leadCall } from "./surface";
 import type { LeadsExportView } from "./surface-types";
 import { readDir } from "./view-query";
 
@@ -23,7 +23,7 @@ interface LeadsExportChunk {
 }
 
 /** The file: its name and its text, the leads it holds, how many the view keeps, and whether it holds them all. */
-export interface LeadsExportWalk {
+interface LeadsExportWalk {
   file: string;
   csv: string;
   rows: number;
@@ -42,7 +42,7 @@ export function exportLeadsFile(
   view: LeadsExportView,
   after: Cursor | null = null,
 ): Promise<ApiResult<LeadsExportChunk>> {
-  return api()("POST leads/export", {
+  return leadCall<LeadsExportChunk>("POST leads/export", {
     body: { ...view, dir: readDir(view), ...(after ? { after_key: after.key, after_id: after.id } : {}) },
     refresh: false,
   });

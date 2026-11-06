@@ -112,7 +112,7 @@ export const LeadSlot = ({
  * control's name; the sentence is its tip. Pressing a number dials, pressing an address copies; a line with nothing to
  * press is plain words, in no tab order: what it says ("No email found") is all there is to it.
  */
-export const LeadReachLine = ({
+const LeadReachLine = ({
   id,
   kind,
   slot,

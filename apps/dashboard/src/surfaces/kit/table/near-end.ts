@@ -5,10 +5,10 @@
  */
 
 /** How many screens before its end a list asks for more. */
-export const NEAR_END_SCREENS = 2;
+const NEAR_END_SCREENS = 2;
 
 /** What a scrolling box says of itself. */
-export interface ScrollBox {
+interface ScrollBox {
   scrollHeight: number;
   scrollTop: number;
   clientHeight: number;

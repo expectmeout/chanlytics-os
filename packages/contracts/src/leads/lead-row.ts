@@ -224,8 +224,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const excludedBy = m.excluded_by ? leadCriterionWords(m.excluded_by) : null;
   const rating = ratingLabel(r.rating, r.reviews);
   const rated = leadRatingOf(r);
-  // Qualified wears its fit band; Needs review wears the judge's reason, which
-  // is what it is waiting on; Excluded wears the criterion that left it out.
+  // Qualified wears its fit band; Needs review the judge's reason, what it waits on; Excluded the criterion that left it out.
   const fitLabel =
     m.class === "excluded"
       ? (excludedBy ?? m.reason)

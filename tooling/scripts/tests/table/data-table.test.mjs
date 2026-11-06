@@ -28,7 +28,7 @@ const {
 } = await importSrc("apps/dashboard/src/surfaces/kit/table/columns.ts");
 const { useShownRows } = await importSrc("apps/dashboard/src/surfaces/kit/rows/shown-rows.ts");
 const { tableItems } = await importSrc("apps/dashboard/src/surfaces/kit/table/groups.tsx");
-const { nearEndAsker, nearsEnd } = await importSrc("apps/dashboard/src/surfaces/kit/table/near-end.ts");
+const { nearEndAsker, nearsEnd } = await import("../../../../apps/dashboard/src/surfaces/kit/table/near-end.ts");
 
 const h = (...a) => globalThis.React.createElement(...a);
 

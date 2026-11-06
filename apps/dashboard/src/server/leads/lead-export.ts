@@ -80,7 +80,7 @@ const leadCsvLine = (r: LeadRowDto): string => LEAD_CSV_COLUMNS.map(([, pick]) =
 const EXPORT_CHUNK: ExportBudget = { bytes: 3_000_000, ms: 8 * SECOND_MS };
 
 /** What a chunk may hold before it stops at the end of a page. */
-export interface ExportBudget {
+interface ExportBudget {
   bytes: number;
   ms: number;
 }

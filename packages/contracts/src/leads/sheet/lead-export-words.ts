@@ -3,13 +3,13 @@
  * says how far it has come, and one that stops partway saves what it holds and says so.
  */
 
-const count = (n: number): string => n.toLocaleString("en-US");
-const leads = (n: number): string => `${count(n)} ${n === 1 ? "lead" : "leads"}`;
+const inThousands = (n: number): string => n.toLocaleString("en-US");
+const leadsCounted = (n: number): string => `${inThousands(n)} ${n === 1 ? "lead" : "leads"}`;
 const ofAll = (done: number, of: number | null): string =>
-  of === null ? count(done) : `${count(done)} of ${count(of)}`;
+  of === null ? inThousands(done) : `${inThousands(done)} of ${inThousands(of)}`;
 
 export const LEAD_EXPORT_WORDS = {
   going: (done: number, of: number | null): string => `Exporting ${ofAll(done, of)}…`,
-  done: (rows: number): string => `Exported ${leads(rows)}.`,
+  done: (rows: number): string => `Exported ${leadsCounted(rows)}.`,
   part: (done: number, of: number | null): string => `Saved ${ofAll(done, of)}. The rest did not export.`,
 } as const;

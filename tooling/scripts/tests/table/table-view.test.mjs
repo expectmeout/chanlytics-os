@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, again, settle } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 
 installLegacyReact();
 const { fromView, toView, viewKey, extraOf } = await importSrc("apps/dashboard/src/surfaces/kit/table/view.ts");
@@ -274,12 +275,12 @@ test("the way back from the switches: every column to whether it starts shown, s
   draw({ store: r.store, saved: null, landed: true });
   held.toggleColumn("email");
   held.toggleColumn("next");
-  await settle();
+  await until(() => r.sent.at(-1)?.columns?.next === false, "the two switches are saved");
   assert.deepEqual(r.sent.at(-1).columns, { email: true, next: false });
   assert.deepEqual(choicesFrom(COLS, held.atoms.columnVisibility.get()), { email: true, next: false });
   held.showDefaults();
-  await settle();
   assert.deepEqual(choicesFrom(COLS, held.atoms.columnVisibility.get()), {}, "nothing differs from the page's own");
+  await until(() => r.sent.at(-1)?.columns?.next === undefined, "the way back is saved");
   assert.deepEqual(r.sent.at(-1).columns, {}, "and the view saved keeps no choice, so a new default reaches it");
 });
 

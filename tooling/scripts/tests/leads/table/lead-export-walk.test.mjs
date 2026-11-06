@@ -6,10 +6,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../../_fake-db.mjs";
-import { importSrc } from "../../_source.mjs";
 
-const { exportChunk, exportLeads } = await importSrc("apps/dashboard/src/server/leads/lead-export.ts");
-const { walkLeadsExport } = await importSrc("apps/dashboard/src/surfaces/leads/export-walk.ts");
+const { exportChunk, exportLeads } = await import("../../../../../apps/dashboard/src/server/leads/lead-export.ts");
+const { walkLeadsExport } = await import("../../../../../apps/dashboard/src/surfaces/leads/export-walk.ts");
 
 const NOTHING_SAID = { progress: () => assert.fail("a file of one chunk says nothing meanwhile") };
 const VIEW = { list: "all", sort: "stage", dir: "asc" };
