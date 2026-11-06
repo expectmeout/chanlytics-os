@@ -249,7 +249,9 @@ test.describe("Files, from a photo to a post", () => {
       await expect(card).toBeVisible();
       await page.getByTestId("ask-card").getByRole("button", { name: "Undo", exact: true }).click();
       await expect
-        .poll(async () => (await page.request.get(scoped(`/api/v1/files/${made.at(0) ?? ""}`, workspace))).status(), { timeout: 30_000 })
+        .poll(async () => (await page.request.get(scoped(`/api/v1/files/${made.at(0) ?? ""}`, workspace))).status(), {
+          timeout: 30_000,
+        })
         .toBe(404);
       const version2 = await page.request.get(scoped(`/api/v1/files/${made.at(1) ?? ""}`, workspace));
       expect(version2.ok(), "the version stays").toBeTruthy();
