@@ -109,9 +109,9 @@ test.describe("A conversation begins from the Inbox, on a phone", () => {
     await expect(act).toBeVisible({ timeout: 30_000 });
     const box = await act.boundingBox();
     if (!box) throw new Error("the act has no box");
-    // A capsule with its mark and its first word, 36px as People's scopes draw theirs: a bare plus in a circle said
+    // A capsule with its mark and its first word, 28px as People's scopes draw theirs: a bare plus in a circle said
     // nothing of what it makes (Ruben, 8 October 2026). The rest of the name is kept for a screen reader alone.
-    expect(Math.round(box.height), "a 36px capsule").toBe(36);
+    expect(Math.round(box.height), "a 28px capsule").toBe(28);
     expect(box.width, "it holds a word, so it is wider than the circle it was").toBeGreaterThan(60);
     await expect(act.locator(".pg-act-keep")).toHaveText("New");
     const rest = await act.locator(".pg-act-rest").boundingBox();
