@@ -157,7 +157,14 @@ export function PostOnGoogle({
       <div className="files-made-from" data-testid="post-on-google">
         <span className="files-from">{W.on}</span>
         {posted.search_url ? (
-          <Button size="sm" variant="quiet" href={posted.search_url} data-testid="post-google-see">
+          <Button
+            size="sm"
+            variant="quiet"
+            href={posted.search_url}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="post-google-see"
+          >
             {W.see}
           </Button>
         ) : null}
