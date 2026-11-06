@@ -1385,10 +1385,38 @@ body.ask-open .tb-ask .tb-ask-face {
     animation: none;
   }
 }
-.ask-post-kept {
+/* A kept post (settings/files/post-shapes.tsx), in this card and the Files sheet: this sheet is on every page. */
+.post-shapes {
+  display: grid;
+  gap: 10px;
+}
+.post-picture {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  background: var(--bg-active);
+}
+.post-picture[data-shape="square"] {
+  aspect-ratio: 1;
+}
+/* A story stands narrower, so its whole height is on a phone's screen at once. */
+.post-picture[data-shape="story"] {
+  max-width: 240px;
+  aspect-ratio: 9 / 16;
+}
+.post-choose,
+.post-acts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+.post-gone {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
 }
 /* What a question came with, over its words, on the same edge. */
 .ask-q-files {

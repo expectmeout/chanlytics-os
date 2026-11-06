@@ -97,6 +97,9 @@ export function fileNameOf(text: string, words?: number): string {
   return Array.from(said).slice(0, FILE_NAME_MAX).join("").replace(/-+$/, "");
 }
 
+/** What a post goes by: its line, shortened as a name. */
+export const postNameOf = (line: string): string => fileNameOf(line, 5) || "post";
+
 /** A name as a person reads it: "storefront-dusk-street" says Storefront dusk street. What they type goes back through fileNameOf. */
 export function fileSaidOf(name: string): string {
   const [first = "", ...rest] = Array.from(name.replaceAll("-", " "));

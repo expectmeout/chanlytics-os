@@ -15,7 +15,7 @@ import {
   POST_SHAPES,
   POST_VOICES,
   WORKSPACE_LOGOS_BUCKET,
-  fileNameOf,
+  postNameOf,
   filePathOf,
   postBandOf,
   postPathOf,
@@ -27,7 +27,15 @@ import {
   type PostShapeName,
 } from "@chanlytics/contracts";
 import { fileFingerprintOf, FINGERPRINT_BYTES } from "@chanlytics/channels";
-import { fileChange, fileMade, fileOf, workspaceLookOf, type FileMemberRow, type Json } from "@chanlytics/db";
+import {
+  fileChange,
+  fileMade,
+  fileOf,
+  fileStart,
+  workspaceLookOf,
+  type FileMemberRow,
+  type Json,
+} from "@chanlytics/db";
 import { log } from "@/server/log";
 import { load, readerContext } from "@/server/readers";
 import * as readers from "@/server/readers/facts";
@@ -183,6 +191,11 @@ export async function makePost(
   plan: PostPlan,
 ): Promise<{ file_id: string; name: string; twin: boolean }> {
   const file = await photoFor(ctx, plan);
+  const id = randomUUID();
+  // The fair word at the cap, before anything is drawn, and the purge that empties this folder a day on if it never becomes a file:
+  // a function that dies between storing the shapes and the door below can't take them back itself.
+  const started = await fileStart(ctx.supabase, member.tenantId, id);
+  if (started.error) throw doorRefusal(started.error);
   if (plan.people_agreed) {
     const { error } = await fileChange(ctx.supabase, { tenantId: member.tenantId, id: file.id, whoInIt: "agreed" });
     if (error) throw doorRefusal(error);
@@ -193,18 +206,17 @@ export async function makePost(
     postDrawn(plan, material, "square"),
     postDrawn(plan, material, "story"),
   ]);
-  const id = randomUUID();
   await storeShapes(member.tenantId, id, {
     portrait: portrait,
     square: square,
     story: story,
   });
   const look = recordOrNull(file.look);
-  // Nothing else would ever let these bytes go: no row names them until the door answers.
+  // No row names these bytes until the door answers: let them go now, and not a day on.
   const answered = await fileMade(serviceDb(), {
     tenantId: member.tenantId,
     id,
-    name: fileNameOf(plan.line, 5) || "post",
+    name: postNameOf(plan.line),
     bytes: portrait.length,
     fingerprint: fileFingerprintOf(portrait.subarray(0, FINGERPRINT_BYTES), portrait.length),
     width: POST_SIZES.portrait.width,

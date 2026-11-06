@@ -115,8 +115,9 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   // A made file holds a shape each; anything else has its one picture, whatever is asked.
   const shape = file.source === "made" ? POST_SHAPES.find((s) => s === url.searchParams.get("shape")) : undefined;
   const path = shape ? postPathOf(file.tenant_id, file.id, shape) : filePathOf(file.tenant_id, file.id, mime);
+  // A post is drawn at its own size, and small: a resize would only count it against Storage's allowance of source images.
   const opts =
-    !download && (asked !== null || FILE_TYPES[mime] === "heic")
+    !download && file.source !== "made" && (asked !== null || FILE_TYPES[mime] === "heic")
       ? { transform: { width: widthOf(asked), resize: "contain" as const } }
       : {};
   const link = await bucket().createSignedUrl(path, VIEW_LINK_S, opts);
