@@ -85,6 +85,8 @@ function postOn(read: AdsRead, platform: AdPlatform, format: AdDraft["format"]):
 /** A change to the draft, and what it moves: the platform follows the door, the post the platform and the kind of media. */
 function applyPatch(draft: AdDraft, patch: Partial<AdDraft>, basis: Basis): AdDraft {
   let next: AdDraft = { ...draft, ...patch };
+  // An ad shows a post or a picture from Files, not both.
+  if (patch.postId) next = { ...next, file: null };
   if (patch.door !== undefined && patch.door !== draft.door) {
     next = { ...next, platform: platformsFor(patch.door).at(0) ?? "meta" };
   }

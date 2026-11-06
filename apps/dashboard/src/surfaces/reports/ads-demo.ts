@@ -15,13 +15,14 @@ import { RESULTS, adsFactOf, adsResultsOf } from "@chanlytics/contracts/ads-page
 import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
 import { exampleAt } from "../campaigns/ads/examples";
+import { adsOwnHere } from "../campaigns/ads/own";
 import { CONFIG } from "../campaigns/ads/sample";
 
 /** The Ads results over the days Reports shows (`range`, at the business's `today`), narrowed to a scope. */
 export function adsDemoFold(range: ReportRange, scope: AdsScope, today: string, now: number): AdsResultsVM {
   const win = reportWindowOf(range, today);
   const days = win.live ? { from: addDays(win.from, -1), to: addDays(win.to, -1) } : { from: win.from, to: win.to };
-  return adsResultsOf(exampleAt("running", now), CONFIG, { ...days, scope });
+  return adsResultsOf(exampleAt("running", now, adsOwnHere()), CONFIG, { ...days, scope });
 }
 
 /** The one Worth-knowing fact the Overview makes of them, with its door to Ads; null where the ads brought and spent nothing. */

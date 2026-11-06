@@ -5,6 +5,8 @@
  * and what Chanlytics set. new-ad.ts builds the draft and the model around them. Pure; nothing is sent, and no sentence is
  * typed here: words-new.ts holds them.
  */
+import { FILE_WORDS, whoStandsOf } from "../files/files";
+import type { FileDto } from "../files/files";
 import { appointmentWords } from "../journey/appointment-word";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { AdPlatform, AdRead, AdSchedule, AdShownAs, AdsConfig, AdsRead } from "./ads";
@@ -359,6 +361,21 @@ function priceRows(ad: AdRead, read: AdsRead): CheckRowVM[] {
     rows.push(plainRow(CHECKS.priceDiffers({ said: first, note: note || NEW_AD.step2.quoted }), "warn"));
   }
   return rows.length > 0 ? rows : [plainRow(CHECKS.price)];
+}
+
+/**
+ * What to know of a picture from Files before an ad shows it, in the words Files says it: whether those in it agreed to be shown,
+ * whether it looks like stock, and what the look said hurts it.
+ */
+export function adFileNotes(
+  file: Pick<FileDto, "who_in_it" | "look_status" | "people" | "looks_like_stock" | "issues">,
+): string[] {
+  const who = whoStandsOf(file);
+  return [
+    ...(who.is === "ask" ? [FILE_WORDS.whoAsk(who.seen)] : []),
+    ...(file.looks_like_stock ? [FILE_WORDS.stock] : []),
+    ...file.issues,
+  ];
 }
 
 /** The rows that apply to this ad, in owner words: amber with the reason where the ad needs a look. */

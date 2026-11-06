@@ -4,15 +4,18 @@
  * one with the platform's safe zones faintly inset (top 14%, bottom 35%, sides 6%); a Google ad is a search result of three
  * headlines joined by " | " and two lines, no stars and no coloured link; a TikTok ad is a 9:16 video with its words. Under it,
  * the chat a tap opens (`ChatStart`: the business's greeting, the message ready for them as grey text in a composer row,
- * and an example reply), the call, or the form with its consent box unticked. Placeholder photos are flat tiles.
+ * and an example reply), the call, or the form with its consent box unticked. A picture from the business's Files is drawn as it is
+ * (a post Ask made, in the frame's own shape); any other photo is a flat tile.
  * The drawer folds it under its first words (parts/preview-fold.tsx); New ad draws it in its second step.
  */
 import { useState } from "react";
-import type { AdDoor } from "@chanlytics/contracts";
+import { fileSaidOf, fileViewOf } from "@chanlytics/contracts";
+import type { AdDoor, AdFilePick } from "@chanlytics/contracts";
 import { PREVIEW, SHOWN } from "@chanlytics/contracts/ads-page";
 import type { PreviewVM, ThreadVM } from "@chanlytics/contracts/ads-page";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
+import { postShapeAddress } from "../../../files/post-shapes";
 import { MessagePreview } from "../../parts/message-preview";
 
 /** The shapes a Meta feed ad is shown in. */
@@ -60,9 +63,33 @@ function Photo({ label, glyph }: { label: string; glyph: string }) {
   );
 }
 
+/** How wide a photo in the frame is asked for: the frame's width, for a sharp screen. */
+const FRAME_PHOTO_WIDTH = 720;
+
+/** The picture from Files the ad shows, filling the tile's place; one that cannot be drawn leaves the tile. */
+function FramePicture({ picture, kind }: { picture: AdFilePick; kind: FrameKind }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return <Photo label={SHOWN.photo} glyph="content" />;
+  const shaped = postShapeAddress(picture.fileId, kind === "feed" ? "portrait" : "story");
+  return (
+    <img
+      className="ads-photo ads-photo-pic"
+      src={picture.made ? shaped : `${fileViewOf(picture.fileId)}?w=${FRAME_PHOTO_WIDTH}`}
+      alt={fileSaidOf(picture.name)}
+      decoding="async"
+      onError={() => setBroken(true)}
+      data-testid="ads-frame-picture"
+    />
+  );
+}
+
 /** A Facebook or Instagram ad: in the feed, 4:5, or a Story or a Reel, 9:16 with its safe zone. */
 function FeedFrame({ preview, kind }: { preview: PreviewVM; kind: FrameKind }) {
-  const photo = <Photo label={SHOWN.photo} glyph="content" />;
+  const photo = preview.picture ? (
+    <FramePicture key={preview.picture.fileId} picture={preview.picture} kind={kind} />
+  ) : (
+    <Photo label={SHOWN.photo} glyph="content" />
+  );
   if (kind === "feed") {
     return (
       <figure className="ads-frame" data-kind="feed">
