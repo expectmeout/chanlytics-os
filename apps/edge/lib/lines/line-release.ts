@@ -29,7 +29,7 @@ import {
   type LineReleaseBilling,
   type LineReleaseWarned,
 } from "../packages/contracts.js";
-import { deletePhoneNumber, type RetellConfig } from "../packages/channels.js";
+import { deletePhoneNumber, type ProviderAccount, type RetellConfig } from "../packages/channels.js";
 import { emitEvent, tenantDb } from "../packages/db.js";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./line-resume.js";
@@ -44,6 +44,27 @@ type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
 export type LineReleaseResult =
   | { ok: true; released: Record<string, unknown> }
   | { ok: false; status: 502 | 503; error: EdgeErrorCode; detail: string; released: Record<string, unknown> };
+
+/**
+ * The account a release acts as at the carrier: the line's subaccount, by the token on file. With none on file (the saga
+ * keeps the token before the SID, so only a secret lost from Vault gets here) its parent reads the token: forgetting the
+ * row now would leave the number billed with nothing pointing at it, and the parent cannot act in its place, since a
+ * trunk answers only to the subaccount's own credentials. Null when the parent says the subaccount is closed or gone,
+ * which leaves nothing to give back, and closing it is a person's way out of a line still stuck. A read that fails
+ * throws, and the row stays.
+ */
+async function accountToReleaseFrom(
+  choice: LineProviderChoice,
+  sid: string,
+  token: string | undefined,
+  released: Record<string, unknown>,
+): Promise<ProviderAccount | null> {
+  if (token) return { sid, token };
+  const read = await choice.provider.readSubaccount(choice.master, sid);
+  if (read) released.token_read_as_parent = true;
+  else released.subaccount_gone = true;
+  return read;
+}
 
 /**
  * Give one line's number back: Retell's copy of it, the number and the trunk at the carrier, the routing rows switched
@@ -78,8 +99,8 @@ export async function releaseLine(
       creds.data && typeof creds.data === "object" && !Array.isArray(creds.data)
         ? (creds.data as { auth_token?: string }).auth_token
         : undefined;
-    if (line.subaccount_sid && token) {
-      const acct = { sid: line.subaccount_sid, token };
+    const acct = line.subaccount_sid ? await accountToReleaseFrom(choice, line.subaccount_sid, token, released) : null;
+    if (acct) {
       // A NUMBER WE MAY OWN WITHOUT KNOWING. The row's `number_sid` is written
       // after the purchase answers, so a saga killed in that window leaves the
       // number bought and the row silent -- and this used to skip straight past
