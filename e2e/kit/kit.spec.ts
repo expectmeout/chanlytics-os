@@ -44,12 +44,22 @@ import {
  * it (STILL), and read with it off. The presses are forced by the browser's own devtools protocol
  * (CSS.forcePseudoState), so this runs in Chromium, the config's one browser.
  *
- * Production has no gallery: the nightly skips this with a reason its skip ceiling does not count (skip-ceiling.ts).
+ * A pull request that changes the kit's own files runs checks 1, 2, 5 and 6, which take seconds, by their titles (ci.yml,
+ * the `kit` job; repo/settings/kit-paths-changed.test.mjs holds the two together), and nightly-kit.yml runs it whole.
+ * Production has no gallery: the nightly against it skips this with a reason its skip ceiling does not count
+ * (skip-ceiling.ts).
  */
 test.skip(process.env.E2E_SCENARIO !== "kit", KIT_SKIP_REASON);
 
 const KIT_SHEET = "surfaces/kit/kit.css";
 const MINUTE_MS = 60_000;
+/**
+ * What a check that walks every entry may take, past the harness's two minutes for a test: on a busy machine each of
+ * these ran out of that, or of ten for the contrast, before it had judged anything (6 Nov 2026, 279 entries), and a
+ * limit reached says nothing about the kit.
+ */
+const WALKS_THE_GALLERY_MS = 20 * MINUTE_MS;
+const SHOOTS_THE_GALLERY_MS = 40 * MINUTE_MS;
 const STILL_ID = "kit-still";
 /** Every name classes.json holds: the kit's classes, and the modifiers kit.css names beside them (.active, .icon…). */
 const LISTS: { classes: string[]; modifiers?: string[] } = JSON.parse(
@@ -227,7 +237,7 @@ const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegEx
       "Phase 4's step for the frame (0015 step 13), where legacy.css leaves with the shell and the kit keeps its own floor",
     runs: /^phone /,
     failure:
-      /^(?:btn-touch|notice)[a-z-]*: .* min-height: planting --control-h-touch changed nothing \(min-height at 44px\)/,
+      /^(?:btn-touch|btn-thread|notice)[a-z-]*: .* min-height: planting --control-h-touch changed nothing \(min-height at 44px\)/,
   },
 ];
 /**
@@ -308,6 +318,7 @@ test("every selector of every rule of kit.css is drawn by an entry, a press's wi
   browser,
   baseURL,
 }) => {
+  test.setTimeout(WALKS_THE_GALLERY_MS);
   const seen: SeenSelector[][] = [];
   const unread = new Set<string>();
   let rules = 0;
@@ -333,6 +344,7 @@ test("each entry reads its tokens, a press rule's with the presses forced, in ev
   browser,
   baseURL,
 }) => {
+  test.setTimeout(WALKS_THE_GALLERY_MS);
   const found: { run: string; text: string }[] = [];
   const reads: string[] = [];
   let exempt = 0;
@@ -412,8 +424,8 @@ test("every word an entry draws reads 4.5:1, a large one 3:1, on the ground unde
   browser,
   baseURL,
 }) => {
-  // Each entry is shot on its own, four runs over: longer than the harness's two minutes for a test.
-  test.setTimeout(10 * MINUTE_MS);
+  // Each entry is shot on its own, four runs over.
+  test.setTimeout(SHOOTS_THE_GALLERY_MS);
   const failures: string[] = [];
   const counts: string[] = [];
   await eachRun(browser, baseURL, GLASS, async (page, run) => {
@@ -494,6 +506,7 @@ test("check 3 names a token overridden in whole or in part, one not defined, a p
   browser,
   baseURL,
 }) => {
+  test.setTimeout(WALKS_THE_GALLERY_MS);
   const { context, page } = await open(browser, baseURL, "desk");
   try {
     // A kit rule that reads a role passes where its entry stands; a page's rule over it is named.

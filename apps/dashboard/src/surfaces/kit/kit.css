@@ -6656,9 +6656,6 @@ textarea.rec-input,
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-.pill-lit > .live-dot {
-  display: none;
-}
 .pill-lit.pill-accent {
   background: var(--accent-soft);
   color: var(--accent-ink);
@@ -7960,8 +7957,8 @@ textarea.rec-input,
   height: 60px;
   border: 0;
   border-radius: var(--radius-bubble);
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--primary-fill);
+  color: var(--primary-ink);
   font: inherit;
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);

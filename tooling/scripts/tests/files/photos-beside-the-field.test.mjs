@@ -44,6 +44,7 @@ const out = await build({
       'export { arSubmitter } from "../../../../apps/dashboard/src/surfaces/ask/line/turns.tsx";\n' +
       'export { AskQuestion } from "../../../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
       'export { AskPostCard } from "../../../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
+      'export { postFileOf, sharePostFile, sharesPictures } from "../../../../apps/dashboard/src/surfaces/settings/files/post-share.ts";\n' +
       'export { askText } from "../../../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
       'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/settings/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
@@ -345,17 +346,135 @@ test("before the press the card holds its picture's shape while it comes, and sa
   assert.ok(html.includes("ask-post-waiting"));
   assert.ok(html.includes(`aria-label="${t.postDrawing}"`));
   assert.ok(html.includes("Saved in portrait, square and story."));
-  assert.ok(!html.includes("ask-post-kept"), "nothing to download yet");
+  assert.ok(!html.includes("post-shapes"), "nothing to choose or download yet");
 });
 
-test("after the press it is the file itself, each shape to download", () => {
-  const html = drawnCard(
-    postCard({ outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } } }),
+const keptCard = () =>
+  drawnCard(postCard({ outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } } }));
+
+/** Runs with this device: whether it takes files in its sheet, and whether it is held by a finger. */
+function onDevice({ canShare, touch = false }, run) {
+  const media = globalThis.window.matchMedia;
+  globalThis.window.matchMedia = (q) => ({
+    matches: q.includes("coarse") && touch,
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  if (canShare) Object.defineProperty(navigator, "canShare", { configurable: true, value: canShare });
+  try {
+    return run();
+  } finally {
+    globalThis.window.matchMedia = media;
+    delete navigator.canShare;
+  }
+}
+
+test("after the press it is the file itself: portrait shown, the shape to choose, and that shape to download", () => {
+  const html = keptCard();
+  assert.ok(
+    html.includes(`src="/api/v1/files/${FILE(2)}/view?shape=portrait"`),
+    "the shape itself, never a resize of it",
   );
-  assert.ok(html.includes(`src="/api/v1/files/${FILE(2)}/view?w=1280"`));
+  assert.ok(html.includes('data-shape="portrait"'), "it stands as the shape it is");
   assert.ok(html.includes('alt="Now booking"'));
-  for (const shape of ["portrait", "square", "story"])
-    assert.ok(html.includes(`/api/v1/files/${FILE(2)}/view?download&amp;shape=${shape}`), shape);
+  assert.ok(html.includes("Saved in portrait, square and story."));
+  for (const shape of ["portrait", "square", "story"]) assert.ok(html.includes(`post-shape-${shape}`), shape);
+  assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1, "one chosen");
+  assert.ok(html.includes(`/api/v1/files/${FILE(2)}/view?download&amp;shape=portrait`), "the one on screen");
+  assert.ok(!html.includes("download&amp;shape=story"), "not one it is not showing");
+});
+
+test("Share stands where the device takes a picture, whatever its width: first under a finger, beside Download at a desk", () => {
+  assert.ok(!keptCard().includes("post-share"), "a device with no such sheet has Download alone");
+  assert.ok(!onDevice({ canShare: () => false }, keptCard).includes("post-share"));
+  const finger = onDevice({ canShare: () => true, touch: true }, keptCard);
+  assert.ok(finger.indexOf("post-share") < finger.indexOf("post-download"));
+  const desk = onDevice({ canShare: () => true }, keptCard);
+  assert.ok(desk.indexOf("post-download") < desk.indexOf("post-share"));
+  assert.match(
+    finger,
+    /disabled=""[^>]*data-testid="post-share"/,
+    "it waits for the picture, which comes before the tap",
+  );
+});
+
+test("a device that throws on being asked has no sheet", () => {
+  const thrown = () => {
+    throw new TypeError("no");
+  };
+  assert.equal(onDevice({ canShare: thrown }, S.sharesPictures), false);
+  assert.equal(onDevice({ canShare: () => true }, S.sharesPictures), true);
+  assert.equal(S.sharesPictures(), false, "and where nothing answers");
+});
+
+test("the sheet opens in the tap's own turn, since Safari refuses one that waited; a person closing it is no failure", async () => {
+  const shared = [];
+  let answer = () => Promise.resolve();
+  Object.defineProperty(navigator, "share", {
+    configurable: true,
+    value: (data) => {
+      shared.push(data);
+      return answer();
+    },
+  });
+  try {
+    const file = photo("a.jpg");
+    const went = S.sharePostFile(file);
+    assert.equal(shared.length, 1, "asked before anything was waited for");
+    assert.deepEqual(shared[0].files, [file]);
+    assert.equal(await went, "went");
+    answer = () => Promise.reject(new DOMException("closed", "AbortError"));
+    assert.equal(await S.sharePostFile(file), "closed");
+    answer = () => Promise.reject(new DOMException("no gesture", "NotAllowedError"));
+    assert.equal(await S.sharePostFile(file), "failed", "said, never a press that did nothing");
+  } finally {
+    delete navigator.share;
+  }
+});
+
+test("the picture for the sheet comes once a tab under a name a person can read, and is asked again after it did not come", async () => {
+  const realShape = S.fileVerbs.postBytes;
+  const asked = [];
+  let bytes = null;
+  S.fileVerbs.postBytes = async (id, shape) => {
+    asked.push([id, shape]);
+    return bytes;
+  };
+  try {
+    assert.equal(await S.postFileOf(FILE(3), "now-booking", "story"), null, "nothing came");
+    bytes = new Blob(["jpeg"]);
+    const file = await S.postFileOf(FILE(3), "now-booking", "story");
+    assert.deepEqual([file.name, file.type], ["now-booking-story.jpg", "image/jpeg"]);
+    assert.equal(await S.postFileOf(FILE(3), "now-booking", "story"), file);
+    assert.deepEqual(asked, [
+      [FILE(3), "story"],
+      [FILE(3), "story"],
+    ]);
+  } finally {
+    S.fileVerbs.postBytes = realShape;
+  }
+});
+
+test("a shape's bytes come from its own address, and a read that failed is nothing", async () => {
+  const realFetch = globalThis.window.fetch;
+  const asked = [];
+  let answer = async () => new Response("jpeg");
+  globalThis.window.fetch = (address) => {
+    asked.push(address);
+    return answer();
+  };
+  try {
+    assert.equal(await (await S.fileVerbs.postBytes(FILE(4), "square")).text(), "jpeg");
+    assert.deepEqual(asked, [`/api/v1/files/${FILE(4)}/view?shape=square`], "the kept address, not a download's");
+    answer = async () => new Response("gone", { status: 404 });
+    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
+    answer = async () => {
+      throw new Error("no signal");
+    };
+    assert.equal(await S.fileVerbs.postBytes(FILE(4), "square"), null);
+  } finally {
+    globalThis.window.fetch = realFetch;
+  }
 });
 
 test("a card undone or set aside goes back to asking for its picture, never to a file that went", () => {

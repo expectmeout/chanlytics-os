@@ -179,8 +179,8 @@
   --saturate-md: 1.25;
 
   /* The colour as small text on the page. In light, --ok and --accent read 3.3:1 and 3.8:1 there; these read 4.5:1 or
-     more, on a tint too (the Calendar's open times and today, C4). Dark keeps its own, which already do. */
-  --ok-ink: oklch(0.51 0.13 155);
+     more, on a tint too (the Calendar's open times and today, C4; a lit pill). Dark keeps its own, which already do. */
+  --ok-ink: oklch(0.48 0.12 155);
   --danger: oklch(0.6 0.2 27);
   --danger-soft: oklch(0.6 0.2 27 / 0.12);
   --danger-fg: oklch(0.99 0 0);
@@ -392,7 +392,7 @@
   --ink-faint: oklch(0.328 0.021 278 / 0.45);
 
   /* Coral, amber and green, each with its soft ground and, where the canvases give one, its words; and the words of red
-     and blue, which the canvases do not draw. Green's words stay Classic's --ok-ink, which reads 4.8:1 on this ground.
+     and blue, which the canvases do not draw. Green's words are --ok-ink, above: 4.6:1 on its soft ground over the pool.
      Coral is a step deeper than the canvases' (0.633), so that white words on it and the coral words a page writes read
      no worse than Classic's (white on it 4.3:1, Classic 3.9); amber a hair deeper (0.737) for the same reason, where a
      page still writes it as words. Each tone's words are deeper than the canvases' (coral's 0.532, amber's 0.508) and
@@ -636,7 +636,7 @@
 
   --ink: oklch(0.968 0.003 286);
   --ink-muted: oklch(0.946 0.012 286 / 0.72);
-  --ink-dim: oklch(0.946 0.012 286 / 0.66);
+  --ink-dim: oklch(0.946 0.012 286 / 0.68); /* 0.66 read 4.49:1 on a phone's glass capsule */
   --ink-faint: oklch(0.946 0.012 286 / 0.38);
 
   --accent: oklch(0.719 0.175 29);

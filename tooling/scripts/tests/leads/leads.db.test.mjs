@@ -436,6 +436,14 @@ test(
       ["Fixture 6", "Fixture 4", "Fixture 3", "Fixture 2"],
       "best first",
     );
+    // The key's own order is the newest first: what a page saying "the newest first" asks (surfaces/leads/surface.ts readDir).
+    const foundIn = (rows) => rows.map((r) => Math.floor(Date.parse(r.found_at) / 1000));
+    const newest = foundIn(ok(await page({ p_class: "qualified", p_sort: "found", p_list: "all", p_dir: "asc" })));
+    assert.deepEqual(
+      newest,
+      newest.toSorted((a, b) => b - a),
+      "found's asc is the newest first",
+    );
     assert.deepEqual(
       names(ok(await page({ p_class: "qualified", p_sort: "stage", p_list: "all", p_dir: "asc", p_limit: 200 }))),
       ["Fixture 6", "Fixture 3", "Fixture 4", "Fixture 2"],

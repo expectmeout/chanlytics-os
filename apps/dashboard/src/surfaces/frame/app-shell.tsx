@@ -17,6 +17,7 @@ import { isAdsParam } from "@chanlytics/contracts";
 import type { fillDoors as FillDoors } from "../frame-doors";
 import type { HeadFirst } from "../kit/head/standing";
 import type { SurfaceRoute } from "../routes";
+import { firstRowsOfRoute, letGoFirstRows } from "./first-rows";
 import { frameChrome, frameSurfaceHook, fromWindow } from "./frame-window";
 import { drawRoute } from "./route-table";
 import { appChrome, firstRunScreen, sharedViewer } from "./shell-chrome";
@@ -167,6 +168,11 @@ export function ChanlyticsApp({
     placed.current = performance.now();
   }, [placed]);
   const fade = useViewFade(at, drawn.mountKey as string, gate.routeLoading, placed);
+  // The rows a phone last showed wait for this route's own (first-rows.ts): a route that is another's, or that cannot be
+  // read, says so itself, on the screen.
+  useLayoutEffect(() => {
+    if (gate.surfaceUnavailable || !firstRowsOfRoute(page, param)) letGoFirstRows();
+  }, [gate.surfaceUnavailable, page, param]);
   usePageFocus(page, gate.routeLoading);
   // The frame is mounted and listening (useNavDrawer above): the native app's bridge replays a menu ask that arrived while
   // this was still compiling (legacy-bridge/app-bridge.ts). After the route effect, so the first route's close runs first.

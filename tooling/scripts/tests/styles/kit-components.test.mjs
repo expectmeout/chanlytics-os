@@ -406,8 +406,9 @@ const BUTTONS = {
   "btn-thread": () => [
     h(Button, { size: "touch", variant: "outline" }, glyph(), "Hand back"),
     h(Button, { size: "sm", variant: "soft", "aria-expanded": false }, "Signature", glyph()),
+    h(Button, { size: "sm", variant: "soft", "aria-expanded": true }, "Signature", glyph()),
     h(Button, { iconOnly: true, size: "touch", variant: "soft", "aria-label": "More" }, glyph()),
-    h(Button, { size: "lg", variant: "ink" }, "Send now"),
+    h(Button, { size: "lg", variant: "ink" }, glyph(), "Send now"),
   ],
   // A walk's ‹ ›: the chevron, the first one turned (kit.css .icon-turned).
   "btn-icon-turned": () => [

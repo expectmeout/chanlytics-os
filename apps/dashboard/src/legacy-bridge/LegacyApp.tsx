@@ -108,6 +108,7 @@ import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { installIdentity } from "./identity";
 import { fillDoors } from "../surfaces/frame-doors";
 import { ChanlyticsApp } from "@/surfaces/frame/app-shell";
+import { installFirstRows, useFirstRowsLetGo } from "@/surfaces/frame/first-rows";
 import { SURFACE_LABELS, installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 // The handover, which the shell asks on every boot, is its own small module; the create screen is fetched as it is drawn.
@@ -129,6 +130,7 @@ import { publicEnv } from "@/lib/public-env";
 const createScreenCode = codeOnce(() => import("./CreateWorkspace"));
 
 function CreateWorkspace(props: ComponentProps<typeof import("./CreateWorkspace").default>) {
+  useFirstRowsLetGo();
   const { loaded: screen, failed, retry } = useCode(createScreenCode, true);
   if (screen) return <screen.default {...props} />;
   if (failed) return <FailedRead kind="line" what="this page" onRetry={retry} testid="create-workspace-failed" />;
@@ -223,6 +225,9 @@ if (getActiveWorkspace()) {
   });
   // What the tab could not hear or read goes beside its page speed (hearing/freshness.ts; the page-open PRD, L7).
   installFreshnessReports();
+  // A phone's screen kept as it is put away, for the next visit's first paint, and what stands of the last let go in time
+  // (surfaces/frame/first-rows.ts).
+  installFirstRows();
 }
 
 // The mockup's own data-before-mount contract (boot gate): the shell's contracts and the seeded charter, which the frame's

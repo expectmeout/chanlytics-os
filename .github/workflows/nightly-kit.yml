@@ -1,0 +1,81 @@
+name: Nightly kit
+
+# Both of the interface kit's browser specs, whole, on the local harness, every morning.
+#
+# A pull request that changes the kit's own files runs four of e2e/kit/kit.spec.ts's checks (ci.yml, the `kit` job): the
+# whole spec takes 10.7 minutes on a quiet laptop, past Ruben's ten for a push. Before this nothing ran the rest, or
+# e2e/kit/kit-behaves.spec.ts, but a person, and reds piled up unseen. It also catches what no path filter can: a page's
+# stylesheet over a kit rule, a component that parts from its gallery family.
+#
+# Its own workflow, not a job in nightly-e2e.yml: that one runs against production with live credentials and has been
+# red for weeks for reasons of its own, so a red kit would be one more line in its issue, and a dispatch of it spends
+# an hour on the node suite and the production specs first. Here the harness serves the gallery from the checkout: no
+# deployment, no service's secret, and only the report may write, and only issues.
+#
+# A run asked for by hand on a branch proves that branch's kit on Linux, and files nothing.
+on:
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  specs:
+    name: Both kit specs, whole
+    runs-on: ubuntu-latest
+    # The most any job here may take (workflow-rules.test.mjs). kit.spec.ts took 10.7 minutes on a quiet laptop and over
+    # 22 at 100% of its CPU, and kit-behaves.spec.ts comes after it.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:install
+      - run: pnpm e2e:local -- e2e/kit/kit.spec.ts e2e/kit/kit-behaves.spec.ts --scenario=kit
+      # Everything on the harness's pages is made up, so this report holds no workspace's data; a week is for reading it.
+      - uses: actions/upload-artifact@v7
+        if: failure() || cancelled()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  # One issue, not one a night, as nightly-e2e.yml files its own: a red run comments on it, a green run closes it, and
+  # it is the owner's, because GitHub tells an assignee of every comment. A run the cap cancelled is a run nobody heard
+  # from: it is red too, and only a job of its own speaks after a cancellation. Nothing pages: a kit that drifted is for
+  # the morning, and no customer sees the gallery.
+  report:
+    name: Say what the night came to
+    needs: specs
+    if: ${{ always() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Say so, where a person will see it
+        shell: bash
+        run: |
+          kit=(--title "The kit's specs are red" --match "The kit's specs are red")
+          if [ "$SPECS" = "success" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state green "${kit[@]}"
+          else
+            echo "Both kit specs on the harness: $SPECS. A failed run's log names each class, selector, token or word it caught, and its report is kept for a week; a cancelled run hit its cap or was cancelled by hand before it finished. Run them here with corepack pnpm e2e:local -- e2e/kit/kit.spec.ts e2e/kit/kit-behaves.spec.ts --scenario=kit" > kit.md
+            node tooling/scripts/ops/rolling-issue.mjs --state red "${kit[@]}" --body-file kit.md --assignee "$OWNER"
+          fi
+        env:
+          SPECS: ${{ needs.specs.result }}
+          # The red issue is the owner's: GitHub tells an assignee of every comment, and nobody else was told.
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

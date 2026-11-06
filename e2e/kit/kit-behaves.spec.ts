@@ -28,10 +28,12 @@ import { kitSkeleton, trappedUnder, type SkeletonAsk } from "./kit-behaves-check
  *    is held: each is portaled to the body, under no ancestor that makes a containing block, and stands by its control.
  * And each check is shown to fail when what it checks is broken, on a fault planted in the page, never on disk (one
  * fault for a check, not one for every line of it). It waits by condition, never for a fixed time; a React or Base UI
- * warning in the console fails the run it came in. No CI job runs this spec: the harness page is compiled by the
- * dashboard's tsc, and a pull request that changes a component, or Base UI's version, shows this run.
+ * warning in the console fails the run it came in. It runs each night (nightly-kit.yml) and on no pull request: the
+ * harness page is compiled by the dashboard's tsc, and a pull request that changes a component, or Base UI's version,
+ * shows this run.
  *
- * Production has no gallery: the nightly skips this with a reason its skip ceiling does not count (skip-ceiling.ts).
+ * Production has no gallery: the nightly against it skips this with a reason its skip ceiling does not count
+ * (skip-ceiling.ts).
  */
 test.skip(process.env.E2E_SCENARIO !== "kit", KIT_SKIP_REASON);
 
@@ -129,6 +131,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     ready: "section.sheet.sheet-rests",
   },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
+  { entry: "menu-kit-who", bring: (p) => p.getByTestId("menu-who-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-lines", bring: (p) => p.getByTestId("menu-lines-open").click(), ready: ".more-menu .more-head" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },

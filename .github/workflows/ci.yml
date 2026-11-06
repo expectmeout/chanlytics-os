@@ -116,6 +116,52 @@ jobs:
         env:
           EXPO_PUBLIC_SITE_ORIGIN: https://example.com
 
+  # The kit's gallery in a browser, when a pull request changes what these checks read. e2e/kit/kit.spec.ts ran only
+  # when a person ran it, and 15 undrawn selectors appeared in the five days to 4 Nov 2026, each on a pull request of its
+  # own. The whole spec is 10.7 minutes on a quiet laptop, past the ten below before a runner has set up, so this runs
+  # the four checks that take seconds, by the names kit-paths-changed.test.mjs holds to the spec's titles; the tokens'
+  # and the contrast's walks, most of its time, run each night with the rest (nightly-kit.yml). As `mobile` does, its
+  # first step asks whether the change touches what they read (tooling/scripts/e2e-harness/kit-paths-changed.mjs: about 15%
+  # of main's commits), every step after it waits for a yes, and the job reports either way, in seconds when the answer
+  # is no. A run asked for by hand is a yes. The cap is Ruben's ten. It is a part of no gate: he decides when it may
+  # block. The browser is not cached: of the install's 155 seconds on the nightly's runner, apt's packages took 145 and
+  # the browser's download 9 (5 Nov 2026).
+  kit:
+    name: Kit gallery (classes, selectors, toast, rings)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # the commit before this one too: the question is asked of this change's own files
+          fetch-depth: 2
+      - name: Could this change have reached what the gallery's fast checks read?
+        id: changed
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "Asked for by hand, so the checks run."
+            echo "kit=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only HEAD^1 HEAD | node tooling/scripts/e2e-harness/kit-paths-changed.mjs >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v6
+        if: steps.changed.outputs.kit == 'true'
+      - uses: actions/setup-node@v7
+        if: steps.changed.outputs.kit == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.changed.outputs.kit == 'true'
+      - run: pnpm e2e:install
+        if: steps.changed.outputs.kit == 'true'
+      - run: pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit --grep "every class in classes.json|every selector of every rule|a toast raised over|every control an entry draws"
+        if: steps.changed.outputs.kit == 'true'
+
   # Ruben, 10 Oct 2026: a push is through CI in under ten minutes. What was one job of fifteen steps in a row (seven
   # minutes of checks before a test ran, then the build) is four that run side by side once `scope` has answered, and
   # the check branch protection requires by name, Typecheck, is the last: a gate that passes when every part passed or

@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import { FIRST_RUN_ROUTE, HANDOVER_WORDS, handoverUntilWords, type OpenHandoverDto } from "@chanlytics/contracts";
+import { useFirstRowsLetGo } from "@/surfaces/frame/first-rows";
 import { api } from "../api";
 import { switchWorkspace } from "../surface-data";
 
@@ -22,6 +23,7 @@ function Handover({ handover, onDone }: { handover: OpenHandoverDto; onDone: () 
   const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const H = HANDOVER_WORDS;
+  useFirstRowsLetGo();
 
   const accept = async () => {
     if (busy) return;

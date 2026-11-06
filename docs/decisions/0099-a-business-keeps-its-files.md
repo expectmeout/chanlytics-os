@@ -93,13 +93,23 @@ what a page shows them. So a picture needs one place, one name and a written rec
     Save stores a shape each in the file's folder (`original.jpg` is the portrait) and keeps the row through `file_made`, so the
     library lists it, Ask can open it, and deleting it lets them all go. No look runs on it: what it says is written at once, and who
     is in it is the photo's. Someone recognizable whom no one has said agreed waits for the owner's word in the thread, which goes on
-    the photo at Save. Save and Undo are the partner's, as adding a photo is.
+    the photo at Save. Save and Undo are the partner's, as adding a photo is. A Save calls `file_start` first, as an upload does, so
+    a library at its cap is told before anything is drawn, and a function that dies between storing the shapes and `file_made` leaves
+    nothing for good: the purge empties that folder a day on.
+14. **A kept post is one piece, wherever it is looked at** (`surfaces/settings/files/post-shapes.tsx`, in Ask's card and the Files
+    sheet): the picture in the shape chosen, the shapes, and what to do with that one. Share opens the device's own sheet, which is
+    how a picture reaches Instagram, and on an iPhone how it reaches Photos, since a download lands in Files there. Safari opens that
+    sheet only inside the tap, and one that waits on the network first works or not by how fast the network is, so the picture comes
+    before the tap. Whether Share stands is asked of the device, never of how wide it is. There is no public address for a post, and
+    none is needed yet: the sheet takes the bytes. When a post is published for its owner, Instagram and Google each fetch from a
+    public address, and a short-lived signed link to that one shape should do. A post is never resized: it is drawn at its own size,
+    and about 60 KB.
 
 ## What it costs
 
 - The look: about $0.50 per 1,000 files, on the workspace's usage.
 - A picture Ask opens: about 2.5 cents on Opus the first time (about 2,400 tokens written to the cache), under Ask's own day budget.
-- A post made from a photo: nothing. Code draws it, in about half a second.
+- A post made from a photo: nothing. Code draws it, in about a second on production (2.7 s cold), and a Save takes about 2.4 s.
 - A listing's photo: about $0.007 from Google Places, at most ten a link, on the platform.
 - Storage's transforms: billed per source image past Pro's allowance, on the platform.
 
@@ -133,9 +143,25 @@ three, and read out words on their signs and the colours of their walls, none of
 The same day, one question with a photo attached, a HEIC to begin with: one round, no reads, $0.34. Ask said what colour stood above
 the sign and which side the light window was on, neither of which is in the note.
 
+## What the first real post proved
+
+On production, 6 November 2026, in the test workspace.
+
+- sharp's native code and the font files reach Vercel's function with no setting of ours. A picture took 2.7 s cold and about 1 s
+  warm, a Save 2.4 s, and the three shapes read back at 1080 by 1350, 1080 by 1080 and 1080 by 1920. Deleting one left no row and no
+  object.
+- A real turn on "make a post from our storefront photo saying we're open this Saturday" took four rounds and $0.52. Ask found the
+  tool, listed the files, opened the picture and proposed. Its first card said "Saturday, November 7", and the check refused the 7
+  because the owner had not said it, so it took the line off and proposed again. The date was true, read from the clock: if owners
+  want dates on posts, code should print them.
+- It warned, unasked, that the sign in the picture read another business's name and that Files flags it as possibly stock, and it
+  asked for the hours and did not guess them.
+
 ## What is left to prove
 
-- A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line, in Files and in the Line.
+- A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line, in Files and in the Line. Share
+  from a post, twice on one page, to Instagram and to Save Image; a post from a photo the camera just took; and the sheet's Ask about
+  this photo, which has had no real turn.
 - That a real phone reuses the cached redirect.
 - The file_purge a start leaves itself, a day on: `file_never_filed` in the logs for bytes that never became a file.
 - A real Google profile's media list and a real listing's photos, on the first real connection. Whether Places names the business

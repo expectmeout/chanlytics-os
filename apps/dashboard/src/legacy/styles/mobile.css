@@ -955,7 +955,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .pg-light,
   .frame-top::before,
   .frame-top::after,
-  .carry-ground {
+  .carry-ground,
+  .first-rows {
     background-color: var(--surface-page-fill);
     background-image: var(--surface-page-ground);
     background-repeat: no-repeat;
