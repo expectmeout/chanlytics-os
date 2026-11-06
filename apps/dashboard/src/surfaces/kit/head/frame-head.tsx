@@ -15,6 +15,7 @@ import { knownZone } from "@/legacy-bridge/zone";
 import { pageDatelineParts, pageDatelineShort, useMinute } from "./dateline";
 import { watchFrameTop, watchPageEdges } from "./frame-top";
 import { watchPageGive } from "../motion/page-give";
+import { SAYS_WHEN } from "../says-when";
 import { PageHead } from "./page-head";
 import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
@@ -162,7 +163,7 @@ function PageDateline() {
   const { day, time } = (hour ? pageDatelineShort : pageDatelineParts)(now, zone ?? "UTC");
   return (
     <>
-      <p className="pg-dateline" data-hour={hour || undefined}>
+      <p className="pg-dateline" data-hour={hour || undefined} {...SAYS_WHEN}>
         {day}
         <span className="pg-dateline-time"> · {time}</span>
       </p>

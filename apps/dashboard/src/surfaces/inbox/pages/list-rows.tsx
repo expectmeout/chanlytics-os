@@ -16,6 +16,7 @@ import {
 import { Face } from "../../kit/face/face";
 import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
@@ -86,7 +87,7 @@ function rowWaited(t: Thread): { figure: string; said: string } | null {
 function rowTime(t: Thread, sending: number | null) {
   if (sending != null) {
     return (
-      <span className="pill pill-accent ix-wait ix-sending tabular">
+      <span className="pill pill-accent ix-wait ix-sending tabular" {...SAYS_WHEN}>
         <span className="ix-veto-dot" aria-hidden="true" /> {THREAD_PANE_WORDS.sendsIn} {countdownClock(sending)}
       </span>
     );
@@ -98,21 +99,27 @@ function rowTime(t: Thread, sending: number | null) {
     // The figure for the eye, and the whole of it for a screen reader, which read "2h" alone as nothing.
     return (
       <>
-        <span className="ix-thread-time ix-thread-wait tabular" title={waited.said} aria-hidden="true">
+        <span className="ix-thread-time ix-thread-wait tabular" title={waited.said} aria-hidden="true" {...SAYS_WHEN}>
           {waited.figure}
         </span>
-        <span className="ix-wait-said">{waited.said}</span>
+        <span className="ix-wait-said" {...SAYS_WHEN}>
+          {waited.said}
+        </span>
       </>
     );
   }
   if (t.state === "snoozed" && t.wake) {
     return (
-      <span className="pill ix-wait tabular">
+      <span className="pill ix-wait tabular" {...SAYS_WHEN}>
         <Icon name="clock" size={9} /> {t.wake}
       </span>
     );
   }
-  return <span className="ix-thread-time tabular">{t.lastAt}</span>;
+  return (
+    <span className="ix-thread-time tabular" {...SAYS_WHEN}>
+      {t.lastAt}
+    </span>
+  );
 }
 
 /**
@@ -268,7 +275,7 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
       {t.resolution && (
         <div className={`ix-thread-resolution ${t.resolution.declined ? "declined" : ""}`}>
           <Icon name={t.resolution.declined ? "x" : "check"} size={10} />
-          You: {t.resolution.action} · {t.resolution.at}
+          You: {t.resolution.action} · <span {...SAYS_WHEN}>{t.resolution.at}</span>
         </div>
       )}
       {words.text && (

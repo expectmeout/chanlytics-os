@@ -517,6 +517,89 @@ test("the card: each page by its moves and loads, slowest first; the parts drawn
   );
 });
 
+/** A row of page_speed() over every way in, every device and held or not: what a report's part comes to on a page. */
+const firstPaint = (page, part, samples, p75 = 0) => ({
+  metric: "READY",
+  page,
+  part,
+  how: "all",
+  device: "all",
+  warm: "all",
+  samples,
+  p75,
+  waits_on: null,
+});
+
+test("the first paint's card: how often a phone opened on its rows, and why not", () => {
+  const vm = pageSpeedWords({
+    rows: [
+      firstPaint("inbox", "first-rows", 32, 300),
+      firstPaint("inbox", "first-rows-none", 2),
+      firstPaint("inbox", "first-rows-sheets", 6),
+      firstPaint("inbox", "first-rows-end-page", 30, 700),
+      firstPaint("inbox", "first-rows-end-held-8s", 2, 8000),
+    ],
+    spots: [],
+  });
+  assert.equal(
+    vm.firstRowsSentence,
+    "How often a phone opened on the rows it last showed, and why not when it did not.",
+  );
+  assert.deepEqual(vm.firstRows, [
+    {
+      key: "first-rows.inbox",
+      label: "Inbox · 8 in 10",
+      value: "8 in 10",
+      tone: "ok",
+      hint: "Drew it in 300 ms · stood 700 ms · not drawn: styles changed 6, none kept 2 · let go early: held 8 s 2 · 40 opens",
+    },
+  ]);
+});
+
+test("the first paint warns under 8 in 10, and a page that never drew one says only why", () => {
+  const vm = pageSpeedWords({
+    rows: [
+      firstPaint("people", "first-rows", 10, 300),
+      firstPaint("people", "first-rows-aged", 15),
+      firstPaint("today", "first-rows-none", 25),
+    ],
+    spots: [],
+  });
+  assert.deepEqual(
+    vm.firstRows.map((l) => [l.label, l.tone, l.hint]),
+    [
+      ["People · 4 in 10", "warn", "Drew it in 300 ms · not drawn: too old 15 · 25 opens"],
+      ["Today · 0 in 10", "warn", "Not drawn: none kept 25 · 25 opens"],
+    ],
+  );
+});
+
+test("too few opens say nothing of a page's first paint, and a read that failed holds no lines", () => {
+  const few = pageSpeedWords({
+    rows: [firstPaint("inbox", "first-rows", 15, 300), firstPaint("inbox", "first-rows-none", 4)],
+    spots: [],
+  });
+  assert.deepEqual(few.firstRows, [], "19 opens: an anecdote, never 8 in 10");
+  assert.deepEqual(pageSpeedWords({ rows: [], spots: [] }).firstRows, []);
+  assert.deepEqual(pageSpeedWords(null).firstRows, []);
+});
+
+test("what a copy reports is no part drawn last: a miss is a count, and an end is how long it stood", () => {
+  const vm = pageSpeedWords({
+    rows: [
+      firstPaint("inbox", "first-rows", 40, 300),
+      firstPaint("inbox", "first-rows-none", 40),
+      firstPaint("inbox", "first-rows-end-page", 40, 700),
+    ],
+    spots: [],
+  });
+  assert.deepEqual(
+    vm.parts.map((p) => [p.label, p.value]),
+    [["Inbox · the first paint", "300 ms"]],
+    "the paint itself is a part, and the card says it in words",
+  );
+});
+
 test("a step put off on the numbers says its number against its line, and warns once past it", () => {
   const people = (p75, samples = PAGE_SPEED_MIN) => ({
     metric: "READY",

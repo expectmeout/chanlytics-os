@@ -9,23 +9,27 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   dropFirstRows,
+  FIRST_ROWS_AT_ATTR,
   FIRST_ROWS_ATTR,
+  FIRST_ROWS_END_ATTR,
+  FIRST_ROWS_ENDS,
   FIRST_ROWS_ID,
+  FIRST_ROWS_MISS_ATTR,
+  FIRST_ROWS_MISSES,
   FIRST_ROWS_OLDEST_MS,
   FIRST_ROWS_PAGES,
+  FIRST_ROWS_PART,
   FIRST_ROWS_SHEETS_ATTR,
   FIRST_ROWS_TEST,
+  firstRowsEndPart,
+  firstRowsMissPart,
   firstRowsOfPath,
   firstRowsScript,
   firstRowsSlot,
   firstRowsStand,
-  homeBootScript,
-  LAST_WORKSPACE_STORAGE,
   PRIMARY_PART,
 } from "../../../../../packages/contracts/src/index.ts";
-import { importSrc } from "../../_source.mjs";
-
-const { homeHref, workspaceHref } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+import { PAGE_NAME } from "../../../../../packages/contracts/src/shell/vitals-pages.ts";
 
 const SHEETS = ["/_next/static/a.css", "/_next/static/b.css"];
 const NOW = 1_800_000_000_000;
@@ -176,33 +180,12 @@ test("a copy of Today is drawn at the workspace's bare address, and for an hour,
   );
 });
 
-/** The home's script at an address, with `last` remembered: where it sent the tab. */
-function fromHome({ pathname = "/", search = "", hash = "", last = "acme", storageThrows = false }) {
-  let went = null;
-  const location = { pathname, search, hash, replace: (to) => void (went = to) };
-  const localStorage = {
-    getItem: (k) => {
-      if (storageThrows) throw new Error("blocked");
-      return k === LAST_WORKSPACE_STORAGE ? last : null;
-    },
-  };
-  new Function("location", "localStorage", homeBootScript())(location, localStorage);
-  return went;
-}
-
-test("the home sends a tab on to the workspace it remembers before anything of the app has run, as the home itself would", () => {
-  assert.equal(fromHome({}), workspaceHref("acme"));
-  assert.equal(fromHome({ last: "café & co" }), workspaceHref("café & co"));
-  assert.equal(fromHome({}), homeHref("acme", null, ""));
-});
-
-test("what is not the bare home, or remembers nothing, is left to the home's own code", () => {
-  assert.equal(fromHome({ last: null }), null, "a first sign-in, or a cleared browser");
-  assert.equal(fromHome({ pathname: "/w/acme" }), null);
-  assert.equal(fromHome({ pathname: "/login" }), null);
-  assert.equal(fromHome({ search: "?w=other" }), null, "a deep link names its own workspace");
-  assert.equal(fromHome({ hash: "#/inbox" }), null);
-  assert.equal(fromHome({ storageThrows: true }), null);
+test("each page's route and field name come from the address's word, stated once", () => {
+  assert.deepEqual(Object.fromEntries(Object.entries(FIRST_ROWS_PAGES).map(([w, p]) => [w, [p.route, p.page]])), {
+    inbox: ["inbox", "inbox"],
+    people: ["clients", "people"],
+    today: ["today", "today"],
+  });
 });
 
 test("every document says which stylesheets it has, in one word for one set and another for another", () => {
@@ -227,7 +210,52 @@ test("a copy kept here, under these sheets, at this width, is drawn over the out
   assert.ok("class:legacy-on" in r.html.attrs, "the page's rules read what the frame stamps");
   assert.ok("data-page-top" in r.html.attrs);
   r.frames.forEach((f) => f());
-  assert.equal(r.picture.attrs["data-at"], "412", "it says when it was painted");
+  assert.equal(r.html.attrs[FIRST_ROWS_AT_ATTR], "412", "it says when it was painted");
+});
+
+test("a copy that could not be drawn says why, for the frame to report", () => {
+  const why = (at) => run({ kept: copy(), ...at }).html.attrs[FIRST_ROWS_MISS_ATTR];
+  assert.equal(why({ search: "?see=x" }), "address");
+  assert.equal(why({ hash: "#/today" }), "address");
+  assert.equal(why({ width: 430 }), "width");
+  assert.equal(why({ sheets: ["/_next/static/z.css"] }), "sheets");
+  assert.equal(why({ kept: copy({ at: NOW - FIRST_ROWS_OLDEST_MS }) }), "aged");
+  assert.equal(why({ kept: copy({ at: NOW + 60_000 }) }), "aged", "a clock moved back: no age to go by");
+});
+
+test("a copy drawn says no reason, and nor does a load that could never have had one", () => {
+  const why = (at) => run({ kept: copy(), ...at }).html.attrs[FIRST_ROWS_MISS_ATTR];
+  assert.equal(why({}), undefined, "drawn");
+  assert.equal(why({ width: 1280, kept: copy({ width: 1280 }) }), undefined, "a desk keeps no copy");
+  assert.equal(why({ pathname: "/w/acme/calendar" }), undefined, "a page that keeps none");
+  assert.equal(why({ pathname: "/w/acme/inbox/th-1" }), undefined, "an address that is no page's own");
+  assert.equal(why({ pathname: "/login" }), undefined);
+  assert.equal(why({ webdriver: true }), undefined, "a browser a suite drives");
+  assert.equal(why({ raw: "" }), undefined, "nothing kept is the frame's word, with no stamp to spend on it");
+  assert.equal(why({ raw: "not json" }), undefined, "and so is a slot it cannot read");
+});
+
+test("a copy the document let go itself says so, for the frame to report when the code comes", () => {
+  const r = run({ kept: copy() });
+  assert.equal(r.html.attrs[FIRST_ROWS_END_ATTR], undefined);
+  r.timers[0].f();
+  assert.equal(r.html.attrs[FIRST_ROWS_END_ATTR], "held-20s");
+  assert.equal(r.timers[0].ms, 20_000);
+});
+
+test("every word a copy reports is one the table takes: a part it refused would be a report lost, in silence", () => {
+  const parts = [
+    FIRST_ROWS_PART,
+    ...FIRST_ROWS_MISSES.map(firstRowsMissPart),
+    ...FIRST_ROWS_ENDS.map(firstRowsEndPart),
+  ];
+  assert.equal(parts.length, 1 + 5 + 6);
+  assert.equal(new Set(parts).size, parts.length, "no two say one thing");
+  for (const part of parts) assert.match(part, PAGE_NAME);
+});
+
+test("the document's script stays small: it is inline in every document", () => {
+  assert.ok(firstRowsScript().length <= 2456, `${firstRowsScript().length} chars`);
 });
 
 test("a copy is drawn only where it may be", () => {

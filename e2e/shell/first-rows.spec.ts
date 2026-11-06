@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { motionSettled } from "../signals";
+import { notATimeSelector, SAYS_A_TIME } from "./says-a-time";
 
 /**
  * The rows a phone last showed are drawn before the app's code has run (contracts shell/first-rows.ts, the load speed review of
@@ -28,7 +29,11 @@ const PARTS: Record<string, string[]> = {
     ".tab-bar-tab",
   ],
   people: [".frame-top", ".pg-head-slot", ".stabs", ".pl-card-row", ".list-row-name", ".tab-bar", ".tab-bar-tab"],
+  // The setup card's own parts where the workspace shows it: dashboard-a-v2.css draws them by their test ids.
+  today: [".frame-top", ".pg-head-slot", ".tq", ".setup-card-title", ".setup-card-left", ".tab-bar", ".tab-bar-tab"],
 };
+/** What says a page's copy is up: a block of its rows. */
+const ROWS: Record<string, string> = { inbox: ".ix-thread", people: ".pl-card-row", today: ".tq" };
 
 type Rect = [number, number, number, number];
 
@@ -76,15 +81,13 @@ test.describe("the rows a phone last showed", () => {
       .toBeGreaterThan(0);
   }
 
-  for (const word of ["inbox", "people"]) {
+  for (const word of ["inbox", "people", "today"]) {
     test(`${word}: the document draws the copy where the frame draws the page`, async ({ page }) => {
       await visited(page, word);
       await page.route(CODE, (r) => r.abort());
       await page.goto(`/w/${slug}/${word}`, { waitUntil: "load" });
       await expect(page.locator(PICTURE)).toBeAttached();
-      await expect(
-        page.locator(`${PICTURE} ${word === "inbox" ? ".ix-thread" : ".pl-card-row"}`).first(),
-      ).toBeVisible();
+      await expect(page.locator(`${PICTURE} ${ROWS[word]}`).first()).toBeVisible();
       const picture = await boxesUnder(page, PICTURE, PARTS[word] ?? []);
       await page.unroute(CODE);
 
@@ -106,6 +109,50 @@ test.describe("the rows a phone last showed", () => {
       }
     });
   }
+
+  // A copy some minutes old draws no time, and what it hides is what says it says one (kit/says-when.ts): the workspace's real
+  // rows, walked as the copy keeps them. A person's own words, a name and a press are no time the app claims (NOT_A_TIME).
+  for (const word of ["inbox", "people", "today"]) {
+    test(`${word}: every time on the copy says so`, async ({ page }) => {
+      await visited(page, word);
+      const offenders = await page.evaluate(
+        ([slot, word, shape, flags, skip]) => {
+          const key = Object.keys(localStorage).find((k) => k.startsWith(slot) && k.endsWith(`:${word}`));
+          const html = (JSON.parse(localStorage.getItem(key ?? "") ?? "{}") as { html?: string }).html ?? "";
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          const said = new RegExp(shape, flags);
+          const walk = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+          const out: string[] = [];
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const el = n.parentElement;
+            if (el && said.test(n.textContent ?? "") && !el.closest("[data-when]") && !el.closest(skip))
+              out.push(`${el.className}: ${n.textContent}`);
+          }
+          return out;
+        },
+        [SLOT, word, SAYS_A_TIME.source, SAYS_A_TIME.flags, notATimeSelector()] as const,
+      );
+      expect(offenders).toEqual([]);
+    });
+  }
+
+  test("a copy some minutes old draws no time, and the rest of it stands", async ({ page }) => {
+    await visited(page, "people");
+    // Set back as the next document starts: leaving this one keeps a fresh copy over anything done to the slot now.
+    await page.addInitScript((s) => {
+      const key = Object.keys(localStorage).find((k) => k.startsWith(s) && k.endsWith(":people"));
+      if (!key) return;
+      const kept = JSON.parse(localStorage.getItem(key) ?? "{}") as { at: number };
+      localStorage.setItem(key, JSON.stringify({ ...kept, at: Date.now() - 6 * 60_000 }));
+    }, SLOT);
+    await page.route(CODE, (r) => r.abort());
+    await page.goto(`/w/${slug}/people`, { waitUntil: "load" });
+    await expect(page.locator(PICTURE)).toHaveAttribute("data-aged", "");
+    const times = page.locator(`${PICTURE} [data-when]`);
+    expect(await times.count()).toBeGreaterThan(0);
+    for (const t of await times.all()) await expect(t).toHaveCSS("visibility", "hidden");
+    await expect(page.locator(`${PICTURE} .pl-card-row .list-row-name`).first()).toBeVisible();
+  });
 
   test("nothing moves as the page takes the copy's place", async ({ page }) => {
     await visited(page, "inbox");
@@ -153,10 +200,13 @@ test.describe("the rows a phone last showed", () => {
       r.fulfill({ status: 401, json: { ok: false, error: { code: "unauthorized", message: "x" } } }),
     );
     await page.goto(`/w/${slug}/today`);
+    // The ended session sends the tab on to sign in: a read caught by that move says nothing, and the next one asks again.
     await expect
-      .poll(() => page.evaluate((s) => Object.keys(localStorage).filter((k) => k.startsWith(s)).length, SLOT), {
-        timeout: 30_000,
-      })
+      .poll(
+        () =>
+          page.evaluate((s) => Object.keys(localStorage).filter((k) => k.startsWith(s)).length, SLOT).catch(() => null),
+        { timeout: 30_000 },
+      )
       .toBe(0);
   });
 });
