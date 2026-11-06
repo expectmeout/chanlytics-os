@@ -1218,7 +1218,7 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
 | `status` | text | no |  | Where it stands: inbox (waits for a person's word), filed (what Ask may use), set_aside. |
-| `source` | text | no |  | Which road brought it: a member's upload, the connected Google profile, the public Google listing, or the business's website. |
+| `source` | text | no |  | Which road brought it: a member's upload, the connected Google profile, the public Google listing, the business's website, or made by Ask on a person's press. |
 | `source_ref` | text | yes |  | Where an import read it: the image's address, or Google's name for it, which can expire. Empty for an upload. |
 | `name` | text | no |  | What it goes by, to Ask and in the page's words: lower case, hyphens, what it shows first. One per workspace among what is kept. |
 | `owner_named` | boolean | no | `false` | A person named it, so the look does not rename it. |
@@ -1239,6 +1239,7 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `removed_at` | timestamp with time zone | yes |  | A person removed it: hidden at once. file_purge lets its bytes go and takes the row. |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `made` | jsonb | yes |  | How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the service role. |
 
 Foreign keys:
 

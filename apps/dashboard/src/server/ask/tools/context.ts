@@ -97,6 +97,8 @@ export interface ToolContext {
    * customer, a lead's record, a page or Ask wrote. Absent until such a read runs.
    */
   theirs?: string[];
+  /** The person's earlier questions in this thread: what a post's words may rest on beside this one (act/post.ts). */
+  askedEarlier?: string[];
   /**
    * When the turn's own time runs out (loop.ts budgetOf, a typed turn's or a spoken one's, from its start), where a turn
    * runs the tool: a craft call made inside the turn ends before it. Absent outside a turn.

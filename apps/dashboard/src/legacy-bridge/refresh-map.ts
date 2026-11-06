@@ -529,6 +529,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A photo added, changed or deleted (decision 0099): the Files pane's own read, where it is drawn.
   "POST files/[id]/done": filesIfDrawn,
   "POST files/keep": filesIfDrawn,
+  "POST files/post": filesIfDrawn,
   "PATCH files/[id]": filesIfDrawn,
   "DELETE files/[id]": filesIfDrawn,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
@@ -667,6 +668,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
   "POST files/start": "an upload under way is no file yet: the page reads again when it arrives",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.

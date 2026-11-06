@@ -204,6 +204,8 @@ export const ROUTES = {
   "POST fact-suggestions/[id]": { method: "POST", path: "/api/v1/fact-suggestions/[id]" },
   "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
   "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
+  "POST files/post": { method: "POST", path: "/api/v1/files/post" },
+  "POST files/post/preview": { method: "POST", path: "/api/v1/files/post/preview" },
   "POST files/start": { method: "POST", path: "/api/v1/files/start" },
   "POST google/link": { method: "POST", path: "/api/v1/google/link" },
   "POST google/locations": { method: "POST", path: "/api/v1/google/locations" },
@@ -573,6 +575,8 @@ export type Routes = {
   "POST fact-suggestions/[id]": typeof import("../../app/api/v1/fact-suggestions/[id]/route").POST;
   "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
   "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;
+  "POST files/post": typeof import("../../app/api/v1/files/post/route").POST;
+  "POST files/post/preview": typeof import("../../app/api/v1/files/post/preview/route").POST;
   "POST files/start": typeof import("../../app/api/v1/files/start/route").POST;
   "POST google/link": typeof import("../../app/api/v1/google/link/route").POST;
   "POST google/locations": typeof import("../../app/api/v1/google/locations/route").POST;

@@ -249,6 +249,7 @@ function toolContextOf(input: TurnInput, now: Date, endsAt: number): ToolContext
     ...newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc),
     language: input.language,
     question: input.text,
+    askedEarlier: input.history.flatMap((h) => (h.role === "user" ? [h.text] : [])),
     endsAt,
   };
   noteRows(tc.read, input.cited ?? []);

@@ -8,10 +8,12 @@ import {
   DAY_MS,
   FILE_TYPES,
   FILE_WORDS as W,
+  POST_SHAPES,
   SECOND_MS,
   WEEK_MS,
   fileNameOf,
   filePathOf,
+  postPathOf,
   type FileMime,
   type FileShows,
 } from "@chanlytics/contracts";
@@ -110,11 +112,14 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   const download = url.searchParams.has("download");
   const asked = url.searchParams.get("w");
   const mime = file.mime as FileMime;
+  // A made file holds a shape each; anything else has its one picture, whatever is asked.
+  const shape = file.source === "made" ? POST_SHAPES.find((s) => s === url.searchParams.get("shape")) : undefined;
+  const path = shape ? postPathOf(file.tenant_id, file.id, shape) : filePathOf(file.tenant_id, file.id, mime);
   const opts =
     !download && (asked !== null || FILE_TYPES[mime] === "heic")
       ? { transform: { width: widthOf(asked), resize: "contain" as const } }
       : {};
-  const link = await bucket().createSignedUrl(filePathOf(file.tenant_id, file.id, mime), VIEW_LINK_S, opts);
+  const link = await bucket().createSignedUrl(path, VIEW_LINK_S, opts);
   if (link.error || !link.data) {
     log.error("file_view_sign_failed", { tenant_id: file.tenant_id, error: link.error?.message ?? "no address" });
     throw new AppError("internal", W.failedRead, 503);
@@ -123,7 +128,7 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   const keep = download ? "private, no-store" : `private, max-age=${VIEW_KEEP_S}`;
   // The name goes on the address here, encoded once: Storage's client encodes it twice, so año would download as a%C3%B1o.
   const location = download
-    ? `${link.data.signedUrl}&download=${encodeURIComponent(`${file.name}.${FILE_TYPES[mime]}`)}`
+    ? `${link.data.signedUrl}&download=${encodeURIComponent(`${file.name}${shape ? `-${shape}` : ""}.${FILE_TYPES[mime]}`)}`
     : link.data.signedUrl;
   return new Response(null, { status: 302, headers: { location, "cache-control": keep } });
 }
