@@ -25,6 +25,10 @@ export const TOOL_NAMES = JSON.parse(readFileSync(new URL("./tool-names.json", i
  */
 export const ADDED_SINCE = [
   "calendar.room",
+  "files.compare",
+  "files.get",
+  "files.list",
+  "files.view",
   "guide",
   "inbox.search",
   "leads.back",

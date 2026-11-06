@@ -34,6 +34,7 @@ const { askForFoundFiles, askForListingPhotos, keepFoundFile, sitePhotosOf } = a
   at("apps/edge/lib/files/found.ts")
 );
 const { fileJobs, keepFilesMoving } = await import(at("apps/edge/lib/files/upkeep.ts"));
+const { fileCopies } = await import(at("apps/edge/lib/files/copies.ts"));
 const { historyImports } = await import(at("apps/edge/lib/imports/history-import.ts"));
 const { importAgain } = await import(at("apps/edge/lib/imports/import-again.ts"));
 
@@ -848,4 +849,72 @@ test("the sweep's pass catches its own failures: nothing else the sweep does wai
     return from(table);
   };
   assert.deepEqual(await keepFilesMoving(w.db), { looks: 0, purges: 0 });
+});
+
+const copiesAsked = (w, body, workspace = T) =>
+  fileCopies(
+    { ok: true, via: "token", workspace, user: U },
+    new Request("https://edge.example/api/admin/files/copies", { method: "POST", body: JSON.stringify(body) }),
+  );
+
+test("Ask's door: a copy already held is answered as it is, and one that ran out is made again", async () => {
+  const held = { id: "file_held", expires_at: "2099-01-01T00:00:00Z", width: 600, height: 600 };
+  const OTHER = "ffffffff-0000-4000-8000-000000000002";
+  const w = world({
+    files: [fileRow({ claude_copy: held }), fileRow({ id: OTHER, fingerprint: "fp-2", name: "other" })],
+  });
+  const web = theWeb();
+  const res = await copiesAsked(w, { tenant_id: T, ids: [F, OTHER] });
+  assert.equal(res.status, 200);
+  assert.deepEqual((await res.json()).copies, [
+    { id: F, file_id: "file_held" },
+    { id: OTHER, file_id: "file_abc" },
+  ]);
+  assert.equal(web.filter((c) => c.url === "https://api.anthropic.com/v1/files").length, 1, "only the one with none");
+  assert.equal(w.tables.files[1].claude_copy.id, "file_abc", "and it is kept on its row");
+});
+
+test("Ask's door: what the model refused, what was removed and what is not here have no copy to send, and cost nothing", async () => {
+  const held = { id: "file_held", expires_at: "2099-01-01T00:00:00Z", width: 600, height: 600 };
+  const REMOVED = "ffffffff-0000-4000-8000-000000000002";
+  const NONE = "ffffffff-0000-4000-8000-000000000003";
+  const w = world({
+    files: [
+      fileRow({ look_status: "refused", claude_copy: held }),
+      fileRow({
+        id: REMOVED,
+        fingerprint: "fp-2",
+        name: "gone",
+        removed_at: "2026-11-05T12:00:00Z",
+        claude_copy: held,
+      }),
+    ],
+  });
+  const web = theWeb();
+  const res = await copiesAsked(w, { tenant_id: T, ids: [F, REMOVED, NONE] });
+  assert.deepEqual((await res.json()).copies, [
+    { id: F, file_id: null },
+    { id: REMOVED, file_id: null },
+    { id: NONE, file_id: null },
+  ]);
+  assert.equal(web.length, 0);
+});
+
+test("Ask's door: one picture Storage can't make a copy of leaves the others standing", async () => {
+  const OTHER = "ffffffff-0000-4000-8000-000000000002";
+  const w = world({ files: [fileRow(), fileRow({ id: OTHER, fingerprint: "fp-2", name: "other" })] });
+  theWeb({ [`https://storage.example/${T}/${OTHER}/original.jpg`]: () => new Response("no", { status: 500 }) });
+  const res = await copiesAsked(w, { tenant_id: T, ids: [F, OTHER] });
+  assert.deepEqual((await res.json()).copies, [
+    { id: F, file_id: "file_abc" },
+    { id: OTHER, file_id: null },
+  ]);
+});
+
+test("Ask's door: another workspace's knock, and a list that is no list, are refused", async () => {
+  const w = world();
+  assert.equal((await copiesAsked(w, { tenant_id: T, ids: [F] }, "bbbbbbbb-0000-4000-8000-000000000001")).status, 403);
+  assert.equal((await copiesAsked(w, { tenant_id: T, ids: [] })).status, 400);
+  assert.equal((await copiesAsked(w, { tenant_id: T, ids: "all" })).status, 400);
+  assert.equal((await copiesAsked(w, { tenant_id: T, ids: Array(11).fill(F) })).status, 400);
 });

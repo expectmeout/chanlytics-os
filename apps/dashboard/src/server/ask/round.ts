@@ -2,6 +2,7 @@ import "server-only";
 import { fenced, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
 import type { GatewayBlockStart } from "./sse";
+import { openedPicture, pictureBlocks } from "./tools/context";
 import { log } from "@/server/log";
 
 /**
@@ -250,7 +251,17 @@ export function replayBlocks(blocks: RoundBlock[]): unknown[] {
 /** A call a round made, and what it answered: a read's rows or an act's card, or the error said in words. */
 export interface CallOutcome {
   block: RoundBlock;
-  out: { result: string; isError: boolean };
+  out: { result: string; isError: boolean; pictures?: readonly { name: string; fileId: string }[] };
+}
+
+/**
+ * A read's answer as the model reads it: its words, and any pictures it opened, each named just before it, by the id of the copy
+ * Anthropic holds. An id never serves other bytes, so a live chain replays this exactly as it was sent.
+ */
+function resultContent(out: CallOutcome["out"]): unknown {
+  const words = fenced("record", out.result);
+  if (!out.pictures?.length) return words;
+  return [{ type: "text", text: words }, ...pictureBlocks(out.pictures.map(openedPicture))];
 }
 
 /**
@@ -267,7 +278,7 @@ export function resultBlocks(outcomes: CallOutcome[]): unknown[] {
   return outcomes.map(({ block, out }) => ({
     type: "tool_result",
     tool_use_id: block.id,
-    content: fenced("record", out.result),
+    content: resultContent(out),
     is_error: out.isError,
   }));
 }

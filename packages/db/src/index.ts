@@ -598,6 +598,7 @@ export {
   fileOf,
   filesBucket,
   fileSeen,
+  filesNamedBy,
   filesOf,
   filesToLookAgain,
   filesToPurgeAgain,

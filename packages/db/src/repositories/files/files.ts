@@ -60,6 +60,22 @@ export async function fileOf(db: Db, id: string): Promise<FileMemberRow | null> 
   return data ?? null;
 }
 
+/** The named files that are still there for the caller: what a question's turn says of the files it came with. */
+export async function filesNamedBy(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Pick<FileMemberRow, "id" | "name" | "look">[]> {
+  const { data, error } = await db
+    .from("files")
+    .select("id, name, look")
+    .eq("tenant_id", tenantId)
+    .in("id", [...ids])
+    .is("removed_at", null);
+  if (error) throw new Error(`files named: ${error.message}`);
+  return data ?? [];
+}
+
 /** One file whole, for the service role's work on it, removed or not. */
 export async function fileForWork(db: Db, tenantId: string, id: string): Promise<FileRow | null> {
   const { data, error } = await db.from("files").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();

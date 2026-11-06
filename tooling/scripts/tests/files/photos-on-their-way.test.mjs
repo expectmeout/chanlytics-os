@@ -297,7 +297,7 @@ const quickly = (t) => {
 
 test("an add: asked for, sent, proven; the name and kind are said when it is proven, and the list isn't read for each", async () => {
   const calls = theServer({});
-  assert.deepEqual(await realAdd(realFile("IMG_1.jpg")), { kept: true, twin: false });
+  assert.deepEqual(await realAdd(realFile("IMG_1.jpg")), { kept: true, twin: false, id: "f1" });
   assert.deepEqual(
     calls.map((c) => c.method),
     ["POST", "PUT", "POST"],
@@ -311,7 +311,7 @@ test("an add: asked for, sent, proven; the name and kind are said when it is pro
 test("a dropped line is sent again, and past a first try storage's answer is left for the proof to judge", async (t) => {
   quickly(t);
   const calls = theServer({ put: ["drop", new Response("Duplicate", { status: 400 })] });
-  assert.deepEqual(await realAdd(realFile()), { kept: true, twin: false });
+  assert.deepEqual(await realAdd(realFile()), { kept: true, twin: false, id: "f1" });
   assert.equal(of(calls, "storage.example").length, 2);
   assert.equal(of(calls, "/done").length, 1);
 });
@@ -333,7 +333,7 @@ test("the proof is asked again on a dropped line or a server's failure, and not 
   quickly(t);
   const busy = () => envelope({ code: "internal", message: "try later" }, 503);
   let calls = theServer({ done: ["drop", busy()] });
-  assert.deepEqual(await realAdd(realFile()), { kept: true, twin: false });
+  assert.deepEqual(await realAdd(realFile()), { kept: true, twin: false, id: "f1" });
   assert.equal(of(calls, "/done").length, 3);
 
   calls = theServer({ done: [envelope({ code: "validation", message: "That photo is too small to use." }, 400)] });

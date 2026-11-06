@@ -72,6 +72,16 @@ export function leaveSheet(h: History | null = historyOf()): Promise<void> {
   return settling;
 }
 
+/**
+ * Close a sheet, then go on once its entry is gone: a tick for the close to be drawn (where its entry is taken back), then
+ * Back's own settling, so what opens next stands on the page under it. A sheet named in the address moves no route, so the
+ * frame's address (`afterMove`) never hears it close.
+ */
+export function afterSheetCloses(close: () => void, then: () => void): void {
+  close();
+  setTimeout(() => void settling.then(then), 0);
+}
+
 function takeBack(h: History): void {
   settling = new Promise((done) => {
     const fin = () => {

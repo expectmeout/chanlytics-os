@@ -69,7 +69,7 @@ function heldCopyOf(row: FileRow, nowMs: number): ClaudeCopy | null {
 }
 
 /** The copy the model reads, made now where there is none: null where Storage or Anthropic would not, for the caller. */
-async function claudeCopyOf(db: Db, row: FileRow): Promise<ClaudeCopy | null> {
+export async function claudeCopyOf(db: Db, row: FileRow): Promise<ClaudeCopy | null> {
   const held = heldCopyOf(row, Date.now());
   if (held) return held;
   const key = env.ANTHROPIC_API_KEY;

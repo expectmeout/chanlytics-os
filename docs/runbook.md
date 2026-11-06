@@ -1001,7 +1001,10 @@ its row, and `files_let_go` keeps only its fingerprint, so an import does not br
 `file_never_filed` in the logs is an upload that arrived and was never told done. The health sweep (:13 and :43) tries again a look that
 failed or was lost, a day on and for a week, reads again what a lower `FILE_LOOK_EDITION` read, and asks again for a removal that has not
 finished: `files_looked_again` and `files_purged_again` on `sweep_health_checked`, and `files_sweep_failed` if it could not. Where an upload's
-head can't say its size, `file_decoder_answered` logs what Storage's decoder answered.
+head can't say its size, `file_decoder_answered` logs what Storage's decoder answered. Ask reads the catalog with its `files` tool and opens
+pictures through `POST /api/admin/files/copies`; `ask_file_copies_failed` is that door not answering, and the turn goes on without the pictures.
+A question's own files come by the same door, `files` on `POST ask`: its row keeps the ids (`content.files`), and the model is told in words
+a picture that could not be opened.
 
 ## Turn on Anthropic's user profiles
 

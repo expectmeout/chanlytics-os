@@ -7940,6 +7940,25 @@ textarea.rec-input,
     color: var(--ink);
   }
 }
+/* The + at a field's start: what a question goes with. A quiet circle, the send's size, so the two end the field alike. */
+.line-attach {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .line-attach:hover {
+    background: var(--bg-hover);
+    color: var(--ink);
+  }
+}
 .line-remove {
   flex: none;
   align-items: center;

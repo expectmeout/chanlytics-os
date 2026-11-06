@@ -73,6 +73,14 @@
         "aud": "/api/admin/eval"
       }
     },
+    "POST /api/admin/files/copies": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/files/copies.ts",
+      "knock_args": {
+        "aud": "/api/admin/files/copies"
+      }
+    },
     "POST /api/admin/google": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

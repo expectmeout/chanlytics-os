@@ -481,8 +481,8 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
   assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
   assert.deepEqual(
     ASK_SCOPE_KINDS.filter((k) => !ASK_CITATION_KINDS.includes(k)),
-    ["run", "ad"],
-    "a run is its address's word for a Broadcasts row; an ad is cited as the page it is on until the Ads read lands (0049)",
+    ["run", "ad", "file"],
+    "a run is its address's word for a Broadcasts row; an ad is cited as the page it is on until the Ads read lands (0049); a file is seen, not cited (0099)",
   );
   assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a broadcast");
   // A campaign is one now, open in its drawer (the moment spec, A1): campaigns/moment:<id>.
@@ -1065,9 +1065,7 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
   assert.ok(r.includes("export const maxDuration = 150;"));
   assert.ok(r.includes('rate: "ask",'));
   assert.ok(
-    turn.includes(
-      'await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });',
-    ),
+    turn.includes('await appendMessage(ctx, thread.id, tenantId, "user", {'),
     "the question is saved before the answer is attempted",
   );
   assert.ok(
@@ -1111,6 +1109,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
+      ["files", ["list", "get", "view", "compare"]],
       ["guide", []],
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],

@@ -3198,6 +3198,10 @@ export const FAMILIES = [
         html: `<button type="button" class="line-clear" aria-label="Clear">${icon("x", 9)}</button>`,
       },
       {
+        id: "line-attach",
+        html: `<button type="button" class="line-attach" aria-label="Add a photo">${icon("plus", 15)}</button>`,
+      },
+      {
         id: "line-remove",
         html: `<button type="button" class="line-remove" aria-label="Delete">${icon("x", 10)}</button>`,
       },

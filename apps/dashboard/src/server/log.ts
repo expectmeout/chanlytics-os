@@ -38,6 +38,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_context_rejected",
   "ask_cross_page_failed",
   "ask_feed_fetch_failed",
+  "ask_file_copies_failed",
   "ask_findings_unread",
   "ask_follow_up_clear_failed",
   "ask_format_rejected",

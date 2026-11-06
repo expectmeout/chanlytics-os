@@ -1424,6 +1424,7 @@ const LINES = {
   ],
   "line-next": () => h(LinePress, { kind: "next" }, h("span", null, "Draft both replies?")),
   "line-clear": () => h(LinePress, { kind: "clear", "aria-label": "Clear" }, glyph()),
+  "line-attach": () => h(LinePress, { kind: "attach", "aria-label": "Add a photo" }, glyph()),
   "line-remove": () => h(LinePress, { kind: "remove", "aria-label": "Delete" }, glyph()),
   "line-fold": () => h(LinePress, { kind: "fold", "aria-expanded": false }, h("span", null, "Campaign: Reminder")),
   "line-letgo": () => h(LinePress, { kind: "letgo", "aria-pressed": "true" }, glyph(), "Let go to ask"),

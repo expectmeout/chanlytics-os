@@ -5,6 +5,8 @@ import {
   MIN_MS,
   answerText,
   detectLanguage,
+  fileSaidOf,
+  filesLineOf,
   nextNotAsked,
   policyClassOffered,
   replacedOutcome,
@@ -24,7 +26,9 @@ import type { Member } from "../route";
 import { log } from "@/server/log";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
+import { filesForAsk } from "../readers/files";
 import { memberViews } from "../readers/notifications";
+import { attachedNow, noWordsIn, type AttachedFile } from "../files/attached";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
 import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
 import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";
@@ -61,6 +65,8 @@ interface AskTurnAsk {
   language?: AskLanguage;
   /** What the mornings offered lately (decision 0087, contracts latelySaid): a morning's alone, said in the turn's words. */
   lately?: string;
+  /** The ids of the files the question came with: the Line's. One that is not there for the person is left out. */
+  files?: readonly string[];
 }
 
 /** A line the turn's door sends: the thread first, then the turn's own events. */
@@ -81,6 +87,7 @@ interface PreparedTurn {
   ask: AskTurnAsk;
   thread: { id: string; title: string; scope: AskScope | null };
   scope: AskScope | null;
+  attached: AttachedFile[];
   earlier: Pick<TurnInput, "history" | "sinceLastMs" | "chain" | "told" | "cited" | "waiting">;
   /** The thread's turns' cards before this one (memory.ts threadForTurn): what a new search card sets aside. */
   cards: Array<Pick<AskMessageVM, "id" | "proposals">>;
@@ -98,7 +105,7 @@ interface PreparedTurn {
  * (warm.ts), so the two write the same block. Kept across turns by the reader's own cache (five minutes).
  */
 export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFacts; timezone: string }> {
-  const [{ name, timezone }, cfg, policies] = await Promise.all([
+  const [{ name, timezone }, cfg, policies, library] = await Promise.all([
     load(rc, readers.facts, undefined).then((r) => r.data),
     load(rc, readers.config, undefined).then((r) => r.data),
     // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
@@ -106,11 +113,17 @@ export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFa
       (r) => r.data,
       () => [],
     ),
+    // What the business's files are, in a line. A read that fails says nothing, and the files read still answers.
+    load(rc, filesForAsk, undefined).then(
+      (r) => r.data.files,
+      () => null,
+    ),
   ]);
   // The rows the pane draws (contracts policyClassOffered).
   const offered = policies.filter((p) => policyClassOffered(p.class));
   // At the turn's clock (rc.now), so the notes Ask is told are the ones the receptionist is told today.
-  return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered), timezone };
+  const facts = workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered);
+  return { facts: { ...facts, filesLine: library ? filesLineOf(library, timezone) : null }, timezone };
 }
 
 /** How long a question waits for the thread's last question to be answered, and how often it looks again. */
@@ -129,13 +142,30 @@ const BUSY_WORDS = {
   es: "Ask todavía está respondiendo tu última pregunta aquí. Pregunta de nuevo en un momento.",
 };
 
+/** The files a question names that are there for the person, in the order they were attached. */
+async function filesAsked(ctx: RouteContext, tenantId: string, ids: readonly string[]): Promise<AttachedFile[]> {
+  if (ids.length === 0) return [];
+  const found = await attachedNow(ctx, tenantId, ids);
+  return ids.flatMap((id) => found.get(id) ?? []);
+}
+
 export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: AskTurnAsk): Promise<PreparedTurn> {
   const { text, threadId, answering } = ask;
   const tenantId = member.tenantId;
 
+  // What it came with, as those files are now, before anything is kept: a question of no words needs one that is there.
+  const attached = await filesAsked(ctx, tenantId, ask.files ?? []);
+  if (!text && attached.length === 0) throw new AppError("validation", "Ask something.");
+
   // The thread, before anything else: a question that could not be saved is
-  // not answered, so a person never sees an answer they cannot find again.
-  const asked = { tenantId, threadId, text, scope: ask.scope, answering };
+  // not answered, so a person never sees an answer they cannot find again. One of no words is titled by what it came with.
+  const asked = {
+    tenantId,
+    threadId,
+    text: text || fileSaidOf(attached[0]?.name ?? ""),
+    scope: ask.scope,
+    answering,
+  };
   let kept = await threadForTurn(ctx, asked);
   // A question asked while the thread's last one is still being answered (another tab, or a question sent the moment
   // after a Stop, before the stopped turn is saved) waits for that answer, so the thread is stored question, answer,
@@ -149,7 +179,11 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
   }
   // The thread's earlier turns: their lines, what they told and cited, the time since, and the chain while warm.
   const { thread, scope, offered, cards, ...earlier } = kept;
-  await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
+  await appendMessage(ctx, thread.id, tenantId, "user", {
+    text,
+    ...(attached.length ? { files: attached.map((f) => f.id) } : {}),
+    ...(answering ? { answering } : {}),
+  });
 
   // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
   // the same person does not read them again. The GET routes keep nothing.
@@ -164,9 +198,10 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     ask,
     thread,
     scope,
+    attached,
     earlier,
     cards,
-    offered: [...offered, text],
+    offered: text ? [...offered, text] : offered,
     rc,
     facts,
     timezone,
@@ -216,6 +251,26 @@ async function setAsideReplaced(
   }
 }
 
+/** The answer as its row keeps it: what the Line draws again and the history reads, and the turn as the model was sent it. */
+function answerRowOf(result: TurnResult, v1: ReturnType<typeof v1FromAnswer>, proposals: AskProposal[]) {
+  return {
+    v: 2,
+    answer: result.answer,
+    ...v1,
+    proposals,
+    language: result.answer.language,
+    ungrounded: result.ungrounded,
+    tools: result.tools,
+    latency_ms: result.latencyMs,
+    failed: result.failed,
+    ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
+    model: result.model,
+    rounds: result.rounds,
+    shape: result.shape,
+    raw: storedRaw(toldWithArrived(result.raw, proposals)),
+  };
+}
+
 export async function finishAskTurn(
   p: PreparedTurn,
   emit: (ev: AskTurnLine) => void,
@@ -257,7 +312,8 @@ export async function finishAskTurn(
     scope,
     surface,
     ...earlier,
-    text: askTurnText(text, answering),
+    text: askTurnText(text, answering) || noWordsIn(language),
+    attached: p.attached,
     openedMs,
     context,
     spoken: ask.spoken ?? false,
@@ -297,27 +353,9 @@ export async function finishAskTurn(
         : p,
     ),
   );
-  const content = {
-    v: 2,
-    answer: result.answer,
-    ...v1,
-    proposals,
-    language: result.answer.language,
-    ungrounded: result.ungrounded,
-    tools: result.tools,
-    latency_ms: result.latencyMs,
-    failed: result.failed,
-    ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
-    model: result.model,
-    rounds: result.rounds,
-    shape: result.shape,
-  };
   let saved: { id: string; created_at: string } | null = null;
   try {
-    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", {
-      ...content,
-      raw: storedRaw(toldWithArrived(result.raw, proposals)),
-    });
+    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", answerRowOf(result, v1, proposals));
     // A thread keeps its first question as its title; an answer moves it up the list, and it keeps the scope
     // this turn ran with (the Phase 5 plan, D9), so the next question sent with none is asked about the same.
     await touchThread(ctx, turn.id, scope);

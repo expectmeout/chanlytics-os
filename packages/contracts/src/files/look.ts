@@ -21,7 +21,7 @@ export const FILE_COPY_SIDE = 1568;
 export const FILE_COPY_KEEP_S = 7_776_000;
 
 const FILE_QUALITIES = ["good", "ok", "poor"] as const;
-type FileQuality = (typeof FILE_QUALITIES)[number];
+export type FileQuality = (typeof FILE_QUALITIES)[number];
 const QUALITY = { type: "string", enum: [...FILE_QUALITIES] } as const;
 
 /** What the model answers in. The API refuses a number's bounds and an array's length here: fileLookOf holds those. */

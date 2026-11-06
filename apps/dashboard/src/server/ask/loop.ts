@@ -39,7 +39,8 @@ import {
 import { stableSystem, systemBlocks, systemHash, type WorkspaceFacts } from "./prompt";
 import { buildContext, type BuiltContext, type SearchResultBlock } from "./context";
 import { readBlock } from "./cross-page";
-import { firstReads, readsIn, shapeOf, type FirstReads } from "./loop/first-reads";
+import { firstReads, questionPictures, readsIn, shapeOf, type FirstReads } from "./loop/first-reads";
+import type { AttachedFile } from "../files/attached";
 import { sayAsWritten } from "./loop/say";
 import { wordsBlock } from "./loop/words";
 import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
@@ -142,6 +143,8 @@ export interface TurnInput {
   /** The thread's cards no one has pressed yet (memory.ts threadForTurn): none is made a second time (turn-end.ts notAgain). */
   waiting?: AskProposal[];
   text: string;
+  /** The files the question came with (server/files/attached.ts): their pictures go in ahead of its words. */
+  attached?: readonly AttachedFile[];
   /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
   openedMs?: number | null;
   /** The person is listening, not reading (the voice door): the spoken register rides in the turn's words. */
@@ -312,6 +315,8 @@ interface TurnRequests {
   dataDropped: boolean;
   sayWords: ReturnType<typeof wordsBlock>;
   question: { type: string; text: string };
+  /** The pictures ahead of the question (first-reads.ts questionPictures). */
+  pictures: unknown[];
   /** What the requests offer that the turn can do without, until the API refuses it (refusals.ts letGo). */
   offer: Offer;
   tools: ReturnType<typeof turnHead>["tools"];
@@ -394,6 +399,7 @@ async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnState> {
     dataDropped: pageBlocks.length === 0 && crossBlocks.length === 0,
     sayWords: wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read }),
     question: { type: "text", text: input.text },
+    pictures: questionPictures(first),
     // The tools (registry.ts), the same bytes every round, and the answer's format, until the API refuses a part of the
     // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
     // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
@@ -405,7 +411,7 @@ async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnState> {
   // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the
   // rebuilt history, each answer one line, the question after it (bp3 on the page's last block).
   const asked = {
-    data: [...pageBlocks, ...crossBlocks],
+    data: [...pageBlocks, ...crossBlocks, ...questionPictures(first, input.chain)],
     words: requests.sayWords(true, requests.dataDropped),
     question: requests.question,
     asSystem: requests.offer.words,
@@ -463,7 +469,8 @@ function requestFor(turn: TurnRequests, msgs: Msg[], at: unknown, noTool: boolea
 function coldOf(turn: TurnRequests) {
   const words = turn.sayWords(false, turn.dataDropped);
   const data = turn.dataDropped ? [] : [...turn.pageBlocks, ...turn.crossBlocks];
-  const messages = withWords(foldHistory(turn.input.history, [...data, turn.question]), words, turn.offer.words);
+  const asked = [...data, ...turn.pictures, turn.question];
+  const messages = withWords(foldHistory(turn.input.history, asked), words, turn.offer.words);
   return { messages, anchor: turn.pageBlocks.at(-1), words };
 }
 
@@ -544,7 +551,7 @@ async function readCall(turn: TurnState, b: RoundBlock) {
   return timed(turn, calledName(b.name, args), async () => {
     const out = await ports.tool(tc, { name: b.name, input: args });
     if (!out.isError) turn.reads++;
-    return { result: out.result, isError: out.isError };
+    return { result: out.result, isError: out.isError, ...(out.pictures ? { pictures: out.pictures } : {}) };
   });
 }
 

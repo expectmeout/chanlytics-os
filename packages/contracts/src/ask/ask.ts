@@ -419,7 +419,21 @@ export interface AskMessageVM {
   failed: boolean;
   /** The answer as the Line draws it: set by the server from plan 3; absent on every answer made before (answerFromV1). */
   answer?: AskAnswer | null;
+  /** The files a person's question came with; absent on a question with none. */
+  files?: readonly AskAttached[];
 }
+
+/**
+ * A file a question came with, as the thread draws it. A thread keeps the id alone, so what it says of a file is what the file
+ * says now: its name after a rename, and null once it was removed.
+ */
+export interface AskAttached {
+  id: string;
+  name: string | null;
+}
+
+/** The most files one question goes with. */
+export const ASK_ATTACHED_MAX = 10;
 
 export interface AskThreadVM {
   id: string;
@@ -435,6 +449,7 @@ export interface AskThreadVM {
  * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1); a reach-out open there is the page at
  * that address (scopeFromRoute). An ad is one paid ad open in its drawer on Campaigns › Ads (`campaigns/ads:ad:<id>`,
  * decision 0049); nothing reads it on the server yet, so a turn about one is a turn about the page until the Ads read lands.
+ * A file is one photo open in its sheet on Settings › Files (`?do=file:<id>`), and the turn sees the picture itself.
  */
 export const ASK_SCOPE_KINDS = [
   "thread",
@@ -447,6 +462,7 @@ export const ASK_SCOPE_KINDS = [
   "run",
   "playbook",
   "ad",
+  "file",
 ] as const;
 export type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];
 
