@@ -1358,6 +1358,38 @@ body.ask-open .tb-ask .tb-ask-face {
   padding-top: 14px;
 }
 /* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
+/* A post's card (card-post.tsx): the real picture, its shape held while it comes. */
+.ask-post {
+  display: grid;
+  gap: 10px;
+}
+.ask-post-picture {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  background: var(--bg-active);
+}
+.ask-post-waiting {
+  animation: ask-post-waits 1.4s var(--ease-out) infinite alternate;
+}
+@keyframes ask-post-waits {
+  to {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-post-waiting {
+    animation: none;
+  }
+}
+.ask-post-kept {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 /* What a question came with, over its words, on the same edge. */
 .ask-q-files {
   align-self: flex-end;

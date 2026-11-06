@@ -1004,7 +1004,9 @@ finished: `files_looked_again` and `files_purged_again` on `sweep_health_checked
 head can't say its size, `file_decoder_answered` logs what Storage's decoder answered. Ask reads the catalog with its `files` tool and opens
 pictures through `POST /api/admin/files/copies`; `ask_file_copies_failed` is that door not answering, and the turn goes on without the pictures.
 A question's own files come by the same door, `files` on `POST ask`: its row keeps the ids (`content.files`), and the model is told in words
-a picture that could not be opened.
+a picture that could not be opened. Ask's `propose_post` card shows a real picture from `POST files/post/preview` and its Save is
+`POST files/post`: `file_post_read_failed` is a photo Storage would not hand over, `file_post_store_failed` a shape that would not store
+(what did arrive is taken back), and `file_post_logo_failed` a business's mark that could not be read, which costs the mark and never the post.
 
 ## Turn on Anthropic's user profiles
 

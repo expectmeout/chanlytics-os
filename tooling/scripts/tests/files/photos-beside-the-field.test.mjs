@@ -43,6 +43,7 @@ const out = await build({
       'export * from "../../../../apps/dashboard/src/surfaces/ask/line/attached.tsx";\n' +
       'export { arSubmitter } from "../../../../apps/dashboard/src/surfaces/ask/line/turns.tsx";\n' +
       'export { AskQuestion } from "../../../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
+      'export { AskPostCard } from "../../../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
       'export { askText } from "../../../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
       'export { fileVerbs } from "../../../../apps/dashboard/src/surfaces/settings/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
@@ -324,4 +325,45 @@ test("a file since removed says so where its picture was", () => {
   const gone1 = bubble({ text: "", files: [{ id: FILE(1), name: null }] });
   assert.ok(gone1.includes(t.attachGone));
   assert.ok(!gone1.includes("<img"));
+});
+
+/* ----------------------------------------------------- a post's card */
+
+const postCard = (over = {}) => ({
+  id: "c1",
+  kind: "post",
+  title: "Post: Now booking",
+  summary: "From Storefront dusk. Saved in portrait, square and story.",
+  payload: { file_id: FILE(1), line: "Now booking" },
+  outcome: null,
+  ...over,
+});
+const drawnCard = (p) => S.renderToStaticMarkup(S.createElement(S.AskPostCard, { p, t }));
+
+test("before the press the card holds its picture's shape while it comes, and says what it will keep", () => {
+  const html = drawnCard(postCard());
+  assert.ok(html.includes("ask-post-waiting"));
+  assert.ok(html.includes(`aria-label="${t.postDrawing}"`));
+  assert.ok(html.includes("Saved in portrait, square and story."));
+  assert.ok(!html.includes("ask-post-kept"), "nothing to download yet");
+});
+
+test("after the press it is the file itself, each shape to download", () => {
+  const html = drawnCard(
+    postCard({ outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } } }),
+  );
+  assert.ok(html.includes(`src="/api/v1/files/${FILE(2)}/view?w=1280"`));
+  assert.ok(html.includes('alt="Now booking"'));
+  for (const shape of ["portrait", "square", "story"])
+    assert.ok(html.includes(`/api/v1/files/${FILE(2)}/view?download&amp;shape=${shape}`), shape);
+});
+
+test("a card undone or set aside goes back to asking for its picture, never to a file that went", () => {
+  for (const outcome of [
+    { state: "undone", receipt: "", atMs: 1 },
+    { state: "dismissed", receipt: "", atMs: 1 },
+  ]) {
+    const html = drawnCard(postCard({ outcome }));
+    assert.ok(!html.includes("/view?"), outcome.state);
+  }
 });

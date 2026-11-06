@@ -428,7 +428,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // A business's own pictures (00551). A picture can show anyone, and a look or a name can hold what it read off one: an
   // erasure of a person reaches neither, and the owner deleting that file is the remedy, which blanks all three.
   files: {
-    ...all(WITH_WORKSPACE, "look", "name", "source_ref"),
+    ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref"),
     ...all(NOT_PERSONAL, "fingerprint", "claude_copy"),
   },
   // What a person removed, by a hash of its bytes alone (00551).

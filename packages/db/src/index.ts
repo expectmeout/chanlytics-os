@@ -588,6 +588,7 @@ export {
   fileKeepMany,
   fileListingAside,
   fileLookKeep,
+  fileMade,
   filePurged,
   fileRemove,
   fileStart,

@@ -207,6 +207,8 @@ export const ROUTE_KEYS = [
   "POST fact-suggestions/[id]",
   "POST files/[id]/done",
   "POST files/keep",
+  "POST files/post",
+  "POST files/post/preview",
   "POST files/start",
   "POST google/link",
   "POST google/locations",

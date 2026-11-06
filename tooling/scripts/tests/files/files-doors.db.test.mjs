@@ -525,6 +525,76 @@ test("a removal is said once and asks its purge, and a second press finds it gon
   assert.equal((await remove(id)).error?.code, "P0002");
 });
 
+/** What Ask made, as the route keeps it (00553), on the service role. */
+const made = (id, fingerprint, over = {}) =>
+  db.rpc("file_made", {
+    p_tenant_id: A,
+    p_id: id,
+    p_name: "now-booking",
+    p_bytes: 2000,
+    p_fingerprint: fingerprint,
+    p_width: 1080,
+    p_height: 1350,
+    p_look: { line: 'A post saying "Now booking".', text_seen: ["Now booking"] },
+    p_who_in_it: "not_asked",
+    p_made: { from: randomUUID(), plan: { line: "Now booking" } },
+    ...over,
+  });
+
+test("what Ask made is a file: filed, on its source, its look written, and no look left to do", { skip }, async () => {
+  const id = randomUUID();
+  assert.deepEqual(ok(await made(id, `fp-${id}`), "made"), { fate: "kept", file_id: id });
+  const row = await rowOf(id);
+  assert.deepEqual(
+    [row.status, row.source, row.shows, row.look_status, row.mime, row.who_in_it],
+    ["filed", "made", "graphic", "done", "image/jpeg", "not_asked"],
+  );
+  assert.equal(row.look.line, 'A post saying "Now booking".');
+  assert.equal(row.made.plan.line, "Now booking");
+  const looks = ok(
+    await db.from("jobs").select("id").eq("kind", "file_look").contains("payload", { file_id: id }),
+    "jobs",
+  );
+  assert.deepEqual(looks, [], "no model is asked about what code drew");
+  assert.equal((await eventsOf("file.added", id)).length, 1, "a person's press is on the record");
+});
+
+test("what Ask made asked twice answers the same; the same picture twice is the one file", { skip }, async () => {
+  const id = randomUUID();
+  ok(await made(id, `fp-${id}`), "made");
+  assert.deepEqual(ok(await made(id, `fp-${id}`), "again"), { fate: "kept", file_id: id });
+  const second = randomUUID();
+  assert.deepEqual(ok(await made(second, `fp-${id}`), "a twin"), { fate: "here", file_id: id });
+  assert.equal((await db.from("files").select("id").eq("id", second)).data.length, 0);
+});
+
+test("a name already taken takes the next free one, as an upload's does", { skip }, async () => {
+  const [one, two] = [randomUUID(), randomUUID()];
+  ok(await made(one, `fp-${one}`, { p_name: "fall-special" }), "first");
+  ok(await made(two, `fp-${two}`, { p_name: "fall-special" }), "second");
+  assert.equal((await rowOf(one)).name, "fall-special");
+  assert.equal((await rowOf(two)).name, "fall-special-2");
+});
+
+test("only the service role keeps what Ask made: a member's session is refused the door", { skip }, async () => {
+  const id = randomUUID();
+  const refused = await as.owner.client.rpc("file_made", {
+    p_tenant_id: A,
+    p_id: id,
+    p_name: "mine",
+    p_bytes: 1,
+    p_fingerprint: `fp-${id}`,
+    p_width: 1,
+    p_height: 1,
+    p_look: {},
+    p_who_in_it: "not_asked",
+    p_made: {},
+  });
+  assert.ok(refused.error, "not theirs to call");
+  const seen = await as.owner.client.from("files").select("made").limit(1);
+  assert.ok(seen.error, "and how it was made is the service role's to read");
+});
+
 test("the bucket is private and takes only the kinds and the size we keep", { skip }, async () => {
   const bucket = ok(await db.storage.getBucket("files"), "the bucket");
   assert.equal(bucket.public, false);

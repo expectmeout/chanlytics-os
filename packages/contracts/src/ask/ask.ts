@@ -290,6 +290,8 @@ export interface AskProposal {
     | "memory"
     | "memory_change"
     | "memory_forget"
+    // A post made from a photo (decision 0099, step 3): the real picture, and Save.
+    | "post"
     // A campaign that would reach no one: the one thing to fix first, with its door (playbooks campaignFixCard). It
     // commits nothing; its act is its door (the 30 Oct 2026 review, item 6).
     | "fix";

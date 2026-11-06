@@ -523,7 +523,7 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
   ]);
   assert.deepEqual(
     acts("partner").filter((n) => !acts("operator").includes(n)),
-    ["propose_lead_search"],
+    ["propose_lead_search", "propose_post"],
   );
   assert.deepEqual(
     acts("owner").filter((n) => !acts("partner").includes(n)),

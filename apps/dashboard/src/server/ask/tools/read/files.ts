@@ -23,7 +23,7 @@ import { PICTURES, defineActions, readAction, type ToolContext } from "../contex
 
 /** The most lines a list answers: enough to choose from, and a narrower ask finds the rest. */
 const LIST_MAX = 40;
-/** The most pictures one read opens: each costs a cent or so the first time, and a person compares no more than this at once. */
+/** The most pictures one read opens: each costs a few cents the first time, and a person compares no more than this at once. */
 const VIEW_MAX = 4;
 
 const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>
@@ -33,7 +33,7 @@ const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>
  * The named files, by the words either of them uses for one: what is typed is cleaned as a name is. A turn's scope names its
  * file by the row's id (cross-page.ts scopedRead), so a file renamed since is still the one on screen.
  */
-function filesNamed(files: readonly FileForAsk[], names: readonly string[]) {
+export function filesNamed(files: readonly FileForAsk[], names: readonly string[]) {
   const byName = new Map(files.map((f) => [f.name, f]));
   const found: FileForAsk[] = [];
   const missing: string[] = [];
@@ -76,7 +76,7 @@ export const filesTool = defineActions({
   name: "files",
   description:
     "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees.",
-  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search.",
   actions: {
     list: readAction({
       input: z.object({

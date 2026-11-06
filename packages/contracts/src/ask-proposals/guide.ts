@@ -189,6 +189,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "memory",
       "memory_change",
       "memory_forget",
+      "post",
     ],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },

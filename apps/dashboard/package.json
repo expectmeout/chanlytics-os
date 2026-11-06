@@ -35,7 +35,9 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "retell-client-js-sdk": "3.0.3",
+    "satori": "0.63.2",
     "server-only": "^0.0.1",
+    "sharp": "0.35.5",
     "web-vitals": "6.2.3",
     "zod": "^4.6.7"
   },
