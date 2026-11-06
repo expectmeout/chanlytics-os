@@ -48,11 +48,14 @@ export const ixRepaintNotice = (
 ): string | null => {
   if (!before || !after || before.id !== after.id) return null;
   if (!before.claimedByOther && after.claimedByOther) return `${answerer || "A teammate"} took this conversation`;
+  // The list it stands in, by the rule (contracts thread-move.ts).
+  const listOf = (t: Thread) => (t.real ? t.move.list : t.state);
+  const moved = listOf(before) !== listOf(after);
   if (before.state !== after.state || !!before.archived !== !!after.archived) {
     if (after.archived) return "Archived";
     if (after.state === "snoozed") return after.wake ? `Snoozed until ${after.wake}` : "Snoozed";
-    if (before.state === "snoozed" && after.state === "escalated") return "Back in Needs you";
-    return `Moved to ${inboxBucketWord(after.state) ?? after.state}`;
+    if (before.state === "snoozed" && listOf(after) === "escalated") return "Back in Needs you";
+    if (moved) return `Moved to ${inboxBucketWord(listOf(after)) ?? listOf(after)}`;
   }
   const was = (before.timeline || []).length;
   const now = (after.timeline || []).length;

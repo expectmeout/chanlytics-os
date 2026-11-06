@@ -31,6 +31,7 @@ const standingOfRow = (t: Thread): string =>
   [
     t.state,
     t.needsYou,
+    t.move?.move ?? "",
     t.takenOver,
     t.claimedByOther,
     t.assigneeUserId ?? "",

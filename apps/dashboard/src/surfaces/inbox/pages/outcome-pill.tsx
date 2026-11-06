@@ -3,7 +3,14 @@
  * and the conversation's outcome after, in the map's tones and the page's own words where it knows better. Moved out
  * of the page, which had grown past the 800 lines a file may hold.
  */
-import { heldPill, type StateKind } from "@chanlytics/contracts";
+import {
+  countdownClock,
+  heldPill,
+  threadMoveNow,
+  THREAD_PANE_WORDS,
+  type StateKind,
+  type ThreadMove,
+} from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
@@ -35,6 +42,26 @@ interface OutcomeOf {
   decidedAction?: string | null;
   channel: string;
   answeredBy?: string | null;
+  /** Who owes the next move on a chat (contracts thread-move.ts); a call's row has none, and keeps its own story. */
+  move?: ThreadMove | null;
+}
+
+/**
+ * A chat's pill: the Inbox's own word and colour for the same thread (thread-move.ts), so it is not "Customer wrote last"
+ * here and "Unanswered" there. Null for a thread with no words on it, whose row has nothing a chat could say.
+ */
+function moveSaid(move: ThreadMove, holderId: string | null): OutcomeSaid | null {
+  const now = Date.now();
+  const m = threadMoveNow(move, now);
+  if (m.move === "nothing" || m.move === "call") return null;
+  if (m.move === "theirs") return { kind: "thread", value: "theirs", label: heldPill("theirs", holderName(holderId)) };
+  if (m.move === "sending" && m.until)
+    return {
+      kind: "thread",
+      value: "sending",
+      label: `${THREAD_PANE_WORDS.sendsIn} ${countdownClock((m.until.atMs - now) / 1000)}`,
+    };
+  return { kind: "thread", value: m.move };
 }
 
 function outcomeSaid({
@@ -44,6 +71,7 @@ function outcomeSaid({
   decidedAction,
   channel,
   answeredBy = null,
+  move = null,
 }: OutcomeOf): OutcomeSaid {
   if (decidedAction)
     return {
@@ -57,6 +85,8 @@ function outcomeSaid({
       ),
     };
   if (outcome === "live") return { kind: "call", value: "live" };
+  const chat = move ? moveSaid(move, holderId) : null;
+  if (chat) return chat;
   // Who has the person's thread is the Inbox's rule, said in the Inbox's words, and a call stands as its thread does
   // (cv-rules.ts cvCallsStandAsTheirThread). "Needs you" here read "Receptionist replied" over an open escalation, and
   // "Needs you" over a thread you had taken over (the 2 Oct 2026 audit); a call after it read "Hung up early".

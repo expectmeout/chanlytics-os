@@ -9772,20 +9772,29 @@ test("a reply card that names a refund, a discount or a payment term carries the
 test("a thread a teammate holds is said as theirs, never as the receptionist answering; the order is who it waits on, then a teammate, then snoozed, then opted out (defect 16)", async () => {
   const { threadState } = await import(at("apps/dashboard/src/server/ask/thread-state.ts"));
   const row = (over) => ({
-    needsYou: false,
+    move: { move: "answered", list: "done" },
     takenOver: false,
     claimedByOther: false,
     state: "open",
     optedOut: false,
     ...over,
   });
+  const owes = (move) => ({ move: { move, list: "escalated" } });
+  const theirs = (move) => ({ move: { move, list: "waiting" } });
   assert.equal(threadState(row({ claimedByOther: true })), "a teammate is answering");
   assert.equal(threadState(row({})), "answering");
-  assert.equal(threadState(row({ needsYou: true, claimedByOther: true })), "needs you");
+  assert.equal(threadState(row({ ...owes("needs_you"), claimedByOther: true })), "needs you");
   assert.equal(threadState(row({ takenOver: true, claimedByOther: true })), "you have it");
   assert.equal(threadState(row({ claimedByOther: true, state: "snoozed" })), "a teammate is answering");
   assert.equal(threadState(row({ state: "snoozed", optedOut: true })), "snoozed");
   assert.equal(threadState(row({ optedOut: true })), "opted out");
+  // The rule's own answer (contracts thread-move.ts), so Ask says what the Inbox's tabs say.
+  assert.equal(threadState(row(owes("unanswered"))), "needs you", "nobody answered them");
+  assert.equal(threadState(row(owes("failed"))), "needs you", "a reply that never left");
+  assert.equal(threadState(row(owes("sending"))), "answering", "a reply on its way, which held_draft says");
+  assert.equal(threadState(row(theirs("no_reply"))), "waiting on them");
+  assert.equal(threadState(row(theirs("sent"))), "waiting on them");
+  assert.equal(threadState(row(theirs("replying"))), "answering", "a reply being worked out");
 });
 test("a broadcast or a playbook proposed on a workspace with no WhatsApp number says so, in the route's words: nobody can be sent it, and the card is not offered over a send the route will refuse (step 3)", async () => {
   const day = 86_400_000;

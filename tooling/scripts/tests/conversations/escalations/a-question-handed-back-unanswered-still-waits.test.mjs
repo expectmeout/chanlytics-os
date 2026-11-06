@@ -114,17 +114,14 @@ test("they wrote last when their words are the last exchanged: a call, a held dr
 test("a thread whose question was held and handed back with nothing sent is Unanswered, amber, with what the hold noted and how long she has waited", () => {
   const vm = vmOf(conv(asked, { last_hold: hold() }));
   assert.equal(vm.state, "done", "it reads as handled, which is the trap");
-  assert.deepEqual(vm.lastWord, {
-    text: "They wrote last, and nobody has answered them.",
-    tone: "warn",
-    short: "Unanswered",
-  });
+  assert.deepEqual(vm.lastWord, { text: "They wrote last, and nobody has answered them." });
+  assert.deepEqual([vm.move.move, vm.move.list], ["unanswered", "escalated"], "in Needs you, amber by the tone map");
   assert.deepEqual(
-    { ...vm.unanswered, sinceMs: undefined },
-    { line: "Asked for $150.", closed: "Closed Sep 21 without a reply", waited: "26d", sinceMs: undefined },
+    vm.unanswered,
+    { line: "Asked for $150.", closed: "Closed Sep 21 without a reply" },
     "REGRESSION: 'Answered by the receptionist' over a price question nobody answered, 26 days on",
   );
-  assert.equal(vm.unanswered.sinceMs, Date.parse(asked[2].created_at), "her wait runs from her question");
+  assert.equal(vm.move.sinceMs, Date.parse(asked[2].created_at), "her wait runs from her question");
 
   // What the hold noted is said in a line: its first sentence, cut at a word; none noted, the plain fact.
   const long =
@@ -144,7 +141,11 @@ test("only the hold on her last words makes a thread Unanswered: not after an an
   assert.equal(answered.unanswered, null, "an answer reached her");
   assert.notEqual(answered.lastWord?.short, "Unanswered");
   const wroteSince = vmOf(conv([...asked, wrote("m4", "Hello?", 60)], { last_hold: hold() }));
-  assert.equal(wroteSince.unanswered, null, "she wrote again after that hold: the receptionist has her newest words");
+  assert.deepEqual(
+    [wroteSince.unanswered?.line, wroteSince.unanswered?.closed],
+    ["They wrote last, and nobody has answered them.", ""],
+    "she wrote again after that hold: it says nothing of her newest words, and nobody has answered them either",
+  );
   const archived = vmOf(conv(asked, { state: "archived", last_hold: hold() }));
   assert.deepEqual([archived.unanswered, archived.lastWord], [null, null], "closed by a person");
   const held = vmOf(conv(asked, { state: "needs_human", last_hold: hold() }), {
@@ -155,7 +156,11 @@ test("only the hold on her last words makes a thread Unanswered: not after an an
     created_at: ago(30),
   });
   assert.equal(held.unanswered, null, "a hold still open is Needs you's to say");
-  assert.equal(vmOf(conv(asked)).unanswered, null, "no hold read, nothing claimed");
+  assert.deepEqual(
+    [vmOf(conv(asked)).unanswered?.line, vmOf(conv(asked)).unanswered?.closed],
+    ["They wrote last, and nobody has answered them.", ""],
+    "no hold read: nothing claimed of one, and the fact stands",
+  );
 });
 
 /* ------------------------------------ the read ------------------------------------ */
@@ -239,9 +244,9 @@ test("the Inbox's read carries the newest closed hold of each thread whose custo
     "one read for the threads of the answer",
   );
   assert.equal(
-    vmOf(byId.get("c1")).lastWord.short,
-    "Unanswered",
-    "and the Inbox names the thread from what the read carried",
+    vmOf(byId.get("c1")).unanswered?.closed.startsWith("Closed"),
+    true,
+    "and the Inbox says what the read carried of the hold",
   );
 
   // No threads, no read.
@@ -273,15 +278,32 @@ const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.pro
 const button = (tree, pred) => find(tree, (n) => n.type === "button" && pred(n));
 const labels = { whatsapp: "WhatsApp", phone: "Phone" };
 
-test("the pane: Unanswered in the bar with her wait, and a dock with what the hold noted, Call and No reply needed, which archives after asking", () => {
+test("the dock comes with the clock: a reply being worked out that never comes is Unanswered, with no read to say so", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
+  const thread = vmOf(conv([wrote("m9", "Hello?", 1)]));
+  const draw = () => InboxThread({ thread, channelLabels: labels, onArchive() {} });
+  fresh();
+  let tree = again(draw);
+  assert.ok(textOf(find(tree, byTestId("ix-th-standing"))).startsWith("Replying"));
+  assert.equal(find(tree, byTestId("ix-unanswered")), null, "not yet");
+  t.mock.timers.setTime(NOW.getTime() + 3 * 60_000);
+  fresh();
+  tree = again(draw);
+  assert.ok(textOf(find(tree, byTestId("ix-th-standing"))).startsWith("Unanswered"));
+  assert.ok(find(tree, byTestId("ix-no-reply-needed")), "and the way to settle it");
+});
+
+test("the pane: Unanswered in the bar with her wait, and a dock with what the hold noted, Call and No reply needed, which archives after asking", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const thread = vmOf(conv(asked, { last_hold: hold() }));
   const archived = [];
   const draw = () => InboxThread({ thread, channelLabels: labels, onArchive: (id) => archived.push(id) });
   fresh();
   let tree = again(draw);
   const standing = find(tree, byTestId("ix-th-standing"));
-  const pill = find(standing, (n) => n.props?.kind === "tone");
-  assert.deepEqual([pill?.props.value, pill?.props.label], ["warn", "Unanswered"], "the warning's amber, said once");
+  const pill = find(standing, (n) => n.props?.kind === "thread");
+  assert.deepEqual([pill?.props.value, textOf(standing).startsWith("Unanswered")], ["unanswered", true], "said once");
+  assert.equal(stateOf("thread", "unanswered").tone, "warn", "the warning's amber");
   assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "26d", "her wait beside it, in the mono face");
   const dock = find(tree, byTestId("ix-unanswered"));
   assert.equal(textOf(find(dock, hasClass("notice-fact"))), "Asked for $150. · Closed Sep 21 without a reply");
@@ -308,8 +330,8 @@ test("the pane: Unanswered in the bar with her wait, and a dock with what the ho
       onArchive() {},
     }),
   );
-  assert.equal(find(stopped, byTestId("ix-unanswered-call")), null);
-  assert.ok(find(stopped, byTestId("ix-no-reply-needed")));
+  // Someone who asked to stop is owed nothing that may be sent: no Call, and nothing to say no reply is needed to.
+  assert.equal(find(stopped, byTestId("ix-unanswered")), null);
 });
 
 test("the pane: a hand back that would leave her message with no answer asks first -- answer it, or hand back anyway", () => {

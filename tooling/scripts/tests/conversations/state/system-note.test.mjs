@@ -80,7 +80,7 @@ test("the Inbox draws the note as a line, and still says they wrote last", () =>
     vm.timeline.some((e) => e.type === "msg" && e.body.startsWith("Patch test")),
     false,
   );
-  assert.equal(vm.lastWord?.text, "They wrote last — no reply yet.");
+  assert.equal(vm.lastWord?.text, "They wrote last, and nobody has answered them.");
   assert.equal(vm.hasChat, true, "their own words make it a chat thread");
 });
 
