@@ -189,7 +189,7 @@ test("every read of a full workspace holds the line", { skip, timeout: 600_000 }
     declare
       t uuid; tpl uuid; s_found uuid; s_second uuid; s_list uuid; step uuid; seq uuid; seen jsonb := '{}';
       t0 timestamptz; took numeric; mark bigint; turn int; sowed timestamptz := clock_timestamp();
-      rows_of int; counts jsonb; last_key text; last_id uuid; ids uuid[];
+      rows_of int; counts jsonb; last_key text; last_id uuid; ids uuid[]; plan text := ''; line text; q text;
     begin
       ${SEED(member)}
       seen := seen || jsonb_build_object('seed_ms', round((extract(epoch from clock_timestamp() - sowed) * 1000)::numeric));
@@ -210,10 +210,21 @@ test("every read of a full workspace holds the line", { skip, timeout: 600_000 }
       ${read("page_next", "perform count(*) from public.leads_page(t, null, 'qualified', 'stage', last_key, 500, 'all', 'asc', last_id)")}
       select array_agg(p.lead_id) into ids from public.leads_page(t, null, 'qualified', 'stage', null, 500, 'all', 'asc') p;
       ${read("places_of_a_page", "perform public.sequence_places_of(t, ids)")}
+      ${read("door", "perform count(*) from public.lead_view_rows(t, null, 'qualified', 'all', null, false, false)")}
+      ${read("door_status", "perform count(*) from public.lead_view_rows(t, null, 'qualified', 'all', null, true, false)")}
+      ${read("status_whole", "perform count(*) from public.lead_status_groups(t, null)")}
+      ${read("places_whole", "perform count(*) from public.sequence_places(t, null, null, true)")}
+      q := (regexp_match(pg_get_functiondef('public.sequence_places(uuid,uuid,uuid[],boolean)'::regprocedure), '\$q\$(.*)\$q\$'))[1];
+      for line in execute 'explain (analyze, buffers) ' || q using t, null::uuid, null::uuid[], true loop
+        plan := plan || line || chr(10);
+      end loop;
+      seen := seen || jsonb_build_object('plan_places', plan);
       counts := public.lead_view_counts(t, null, 'qualified', 'all', null);
       seen := seen || jsonb_build_object('counted', counts - 'excluded_by');
       raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex');
     end;`);
+  console.log(seen.plan_places);
+  delete seen.plan_places;
   console.log(JSON.stringify(seen));
   assert.equal(seen.first_page_rows, 500);
   assert.equal(seen.counted.view, 50_000, "one row a lead, whatever holds it twice");
