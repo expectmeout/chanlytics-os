@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FileLook, FileShows, FileStatus } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database, Json } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
 
@@ -63,6 +63,40 @@ export async function fileFound(
     ...(a.actor ? { p_actor: a.actor } : {}),
   });
   if (error) throw new Error(`file found: ${error.message}`);
+  return fateOf(data);
+}
+
+/** What Ask made, kept as a file once its bytes are stored (00553). The service role's. */
+export async function fileMade(
+  db: Db,
+  a: {
+    tenantId: string;
+    id: string;
+    name: string;
+    bytes: number;
+    fingerprint: string;
+    width: number;
+    height: number;
+    look: Json;
+    whoInIt: string;
+    made: Json;
+    actor: string | null;
+  },
+): Promise<FileFate> {
+  const { data, error } = await db.rpc("file_made", {
+    p_tenant_id: a.tenantId,
+    p_id: a.id,
+    p_name: a.name,
+    p_bytes: a.bytes,
+    p_fingerprint: a.fingerprint,
+    p_width: a.width,
+    p_height: a.height,
+    p_look: a.look,
+    p_who_in_it: a.whoInIt,
+    p_made: a.made,
+    ...(a.actor ? { p_actor: a.actor } : {}),
+  });
+  if (error) throw new Error(`file made: ${error.message}`);
   return fateOf(data);
 }
 

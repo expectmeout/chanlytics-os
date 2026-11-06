@@ -89,7 +89,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -99,7 +99,7 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "made", "other", "set_aside"],
             "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
@@ -797,7 +797,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -807,7 +807,7 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "made", "other", "set_aside"],
             "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
@@ -3336,7 +3336,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3346,7 +3346,7 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "made", "other", "set_aside"],
             "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
@@ -5047,6 +5047,54 @@
       ]
     },
     {
+      "name": "propose_post",
+      "description": "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, and choose where the words go after seeing it. The words come from what the owner has said: a price, a number or a promise they have not said is refused, so use theirs or ask them. One photo a post. To change a post, propose another: nothing is lost. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "The photo's name, from files with action list. Open it with view first.",
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "line": {
+            "type": "string",
+            "description": "The post's headline, at most 60 characters, in the owner's language and from their words."
+          },
+          "over": {
+            "type": "string",
+            "description": "A few words over the headline: what this is, or the business's name. At most 32."
+          },
+          "under": {
+            "type": "string",
+            "description": "A short line under it, such as when an offer ends. At most 80."
+          },
+          "book": {
+            "type": "boolean",
+            "description": "Whether to add the band with the business's phone number, which code writes."
+          },
+          "words_at": {
+            "type": "string",
+            "enum": ["top", "bottom"],
+            "description": "Where the words stand: chosen after seeing the photo, on the calmer end, off what it is a photo of."
+          },
+          "voice": {
+            "type": "string",
+            "enum": ["classic", "modern"],
+            "description": "classic is a serif, for beauty, food and hospitality; modern is a plain sans, for trades and services."
+          },
+          "people_agreed": {
+            "type": "boolean",
+            "description": "Only when the owner said in this thread that the people in the photo agreed to be shown."
+          }
+        },
+        "required": ["file", "line", "book", "words_at", "voice"],
+        "additionalProperties": false
+      },
+      "defer_loading": true
+    },
+    {
       "name": "propose_reply",
       "description": "Propose a reply to a customer, as a card the person approves before anything is sent. Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for the receptionist's voice, and proposes a new reply on a thread, on the wire the thread runs on. Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft. Action booking answers a booking the receptionist asked for in a thread (a hold that says Asked for a time): booked true books it and drafts the reply they send, booked false lets the time go and leaves the thread waiting on their reply. It takes the thread's conversation_id; one with no request waiting is refused in words. Call action draft when they ask to reply, answer or write to someone, and action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text. steer refuses in words a reply that is no longer waiting, so read the thread first when in doubt.",
       "input_schema": {
@@ -6259,7 +6307,7 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -6269,7 +6317,7 @@
           },
           "shelf": {
             "type": "string",
-            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "made", "other", "set_aside"],
             "description": "One shelf. Left out, or all: everything kept."
           },
           "about": {
@@ -7996,6 +8044,54 @@
           ]
         }
       ]
+    },
+    {
+      "name": "propose_post",
+      "description": "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, and choose where the words go after seeing it. The words come from what the owner has said: a price, a number or a promise they have not said is refused, so use theirs or ask them. One photo a post. To change a post, propose another: nothing is lost. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "The photo's name, from files with action list. Open it with view first.",
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "line": {
+            "type": "string",
+            "description": "The post's headline, at most 60 characters, in the owner's language and from their words."
+          },
+          "over": {
+            "type": "string",
+            "description": "A few words over the headline: what this is, or the business's name. At most 32."
+          },
+          "under": {
+            "type": "string",
+            "description": "A short line under it, such as when an offer ends. At most 80."
+          },
+          "book": {
+            "type": "boolean",
+            "description": "Whether to add the band with the business's phone number, which code writes."
+          },
+          "words_at": {
+            "type": "string",
+            "enum": ["top", "bottom"],
+            "description": "Where the words stand: chosen after seeing the photo, on the calmer end, off what it is a photo of."
+          },
+          "voice": {
+            "type": "string",
+            "enum": ["classic", "modern"],
+            "description": "classic is a serif, for beauty, food and hospitality; modern is a plain sans, for trades and services."
+          },
+          "people_agreed": {
+            "type": "boolean",
+            "description": "Only when the owner said in this thread that the people in the photo agreed to be shown."
+          }
+        },
+        "required": ["file", "line", "book", "words_at", "voice"],
+        "additionalProperties": false
+      },
+      "defer_loading": true
     },
     {
       "name": "propose_reply",

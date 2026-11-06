@@ -83,11 +83,23 @@ what a page shows them. So a picture needs one place, one name and a written rec
     name and the note, and Ask opens the file again if it needs to. A scope of kind `file` reads that file by its id with its
     picture, from the sheet's Ask about this photo or from the sheet's address (`?do=file:<id>`); a thread keeps its scope, so a
     live chain that already holds the picture is not sent it again.
+13. **A post is made from a photo by code, and it is a file.** No model touches the pixels (decision 0075's rule), so it costs
+    nothing, and Ask's card shows the real picture (`POST files/post/preview`) with one press. sharp does the pixels, and satori lays
+    the words out as paths, which sharp also draws, so one library less than the plan and no font on the server. The photo softens
+    under the words as well as darkening, since a sign behind them read through a scrim alone. The words are held where it is known
+    who said what, in Ask's act (contracts `postWordsProblem`): a price, a number, money or a promise must be in the owner's
+    questions in that thread or their Settings, or the model is told to use theirs or ask. The band's number is the published one
+    (`resolveFacts`), written by code. Once they press Save the words are theirs, so the routes hold them only to what can be drawn. A
+    Save stores a shape each in the file's folder (`original.jpg` is the portrait) and keeps the row through `file_made`, so the
+    library lists it, Ask can open it, and deleting it lets them all go. No look runs on it: what it says is written at once, and who
+    is in it is the photo's. Someone recognizable whom no one has said agreed waits for the owner's word in the thread, which goes on
+    the photo at Save. Save and Undo are the partner's, as adding a photo is.
 
 ## What it costs
 
 - The look: about $0.50 per 1,000 files, on the workspace's usage.
-- A picture Ask opens: a cent or so on Opus the first time, under Ask's own day budget.
+- A picture Ask opens: about 2.5 cents on Opus the first time (about 2,400 tokens written to the cache), under Ask's own day budget.
+- A post made from a photo: nothing. Code draws it, in about half a second.
 - A listing's photo: about $0.007 from Google Places, at most ten a link, on the platform.
 - Storage's transforms: billed per source image past Pro's allowance, on the platform.
 
@@ -118,6 +130,9 @@ three, and read out words on their signs and the colours of their walls, none of
   round that read Today and the catalog; and $0.12 for the last, of which the three pictures were about $0.07.
 - So a picture itself costs cents, about 2,400 tokens written to the cache. A turn about pictures is priced by the turn.
 
+The same day, one question with a photo attached, a HEIC to begin with: one round, no reads, $0.34. Ask said what colour stood above
+the sign and which side the light window was on, neither of which is in the note.
+
 ## What is left to prove
 
 - A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line, in Files and in the Line.
@@ -130,4 +145,4 @@ three, and read out words on their signs and the colours of their walls, none of
 
 ## Not here
 
-Making pictures (steps 3 and 4) and video (step 5).
+Making pictures with a model (step 4) and video (step 5).

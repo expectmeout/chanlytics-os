@@ -6520,6 +6520,51 @@ COMMENT ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status 
 
 
 --
+-- Name: file_made(uuid, uuid, text, bigint, text, integer, integer, jsonb, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_twin uuid;
+begin
+  -- One at a time, as every door that names or files takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer, never its own twin.
+  if exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_id) then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+  end if;
+  -- The same picture pressed twice is one file.
+  select f.id into v_twin from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found then
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin);
+  end if;
+  -- contracts FILES_MAX.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  insert into public.files (id, tenant_id, status, source, name, mime, bytes, fingerprint, width, height,
+                            look, look_status, shows, who_in_it, made, created_by)
+  values (p_id, p_tenant_id, 'filed', 'made', public.file_free_name(p_tenant_id, p_name), 'image/jpeg', p_bytes,
+          p_fingerprint, p_width, p_height, p_look, 'done', 'graphic', p_who_in_it, p_made, p_actor);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'source', 'made', 'by', p_actor));
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid) IS 'What Ask made kept as a file, after the server stored its bytes (00553, decision 0099): kept, here or full. The service role''s.';
+
+
+--
 -- Name: file_purged(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -36028,11 +36073,12 @@ CREATE TABLE public.files (
     removed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    made jsonb,
     CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
     CONSTRAINT files_mime_check CHECK ((mime = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text, 'image/heic'::text, 'image/heif'::text]))),
     CONSTRAINT files_name_shape CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60) AND (name = lower(name)) AND (name !~ '[[:space:][:cntrl:]/\\.<>"''&]'::text) AND (name !~ '^-|-$|--'::text))),
     CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
-    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text]))),
+    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'made'::text]))),
     CONSTRAINT files_status_check CHECK ((status = ANY (ARRAY['inbox'::text, 'filed'::text, 'set_aside'::text]))),
     CONSTRAINT files_who_in_it_check CHECK ((who_in_it = ANY (ARRAY['not_asked'::text, 'no_one'::text, 'agreed'::text])))
 );
@@ -36056,7 +36102,7 @@ COMMENT ON COLUMN public.files.status IS 'Where it stands: inbox (waits for a pe
 -- Name: COLUMN files.source; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.source IS 'Which road brought it: a member''s upload, the connected Google profile, the public Google listing, or the business''s website.';
+COMMENT ON COLUMN public.files.source IS 'Which road brought it: a member''s upload, the connected Google profile, the public Google listing, the business''s website, or made by Ask on a person''s press.';
 
 
 --
@@ -36141,6 +36187,13 @@ COMMENT ON COLUMN public.files.who_in_it IS 'A person''s word alone: not_asked, 
 --
 
 COMMENT ON COLUMN public.files.removed_at IS 'A person removed it: hidden at once. file_purge lets its bytes go and takes the row.';
+
+
+--
+-- Name: COLUMN files.made; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.made IS 'How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the service role.';
 
 
 --
@@ -49500,6 +49553,14 @@ GRANT ALL ON FUNCTION public.file_listing_aside(p_tenant_id uuid) TO service_rol
 
 REVOKE ALL ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid) TO service_role;
 
 
 --

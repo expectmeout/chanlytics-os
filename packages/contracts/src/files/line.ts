@@ -22,11 +22,12 @@ const SHELF_SAID: Readonly<Record<Exclude<FileShelf, "all" | "inbox" | "set_asid
   team: "team",
   products: "products",
   brand: "logos and graphics",
+  made: "made by Ask",
   other: "other",
 };
 
 /** A shelf as a line says it. A file in the Inbox or set aside says that first. */
-export function fileShelfSaid(f: Pick<FileDto, "status" | "shows">): string {
+export function fileShelfSaid(f: Pick<FileDto, "status" | "shows" | "source">): string {
   const shelf = shelfOf(f);
   if (shelf === "inbox") return "inbox";
   if (shelf === "set_aside") return "set aside";

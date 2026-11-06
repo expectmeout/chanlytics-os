@@ -118,6 +118,7 @@ const KINDS = [
   "memory",
   "memory_change",
   "memory_forget",
+  "post",
   "teleport",
 ];
 
@@ -200,6 +201,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     memory: "approve",
     memory_change: "settings",
     memory_forget: "approve",
+    post: "settings",
   });
 });
 
@@ -422,6 +424,7 @@ const ANSWERS = {
   sequence_leave: { ...ANSWER_ALL, sequence_id: "q1", left: 1 },
   // POST ask/memory's (AskMemoryDoorDto): the line kept, which its undo forgets.
   memory: { ...ANSWER_ALL, memory: { id: "m1", text: "We close at noon on Fridays." }, again: false },
+  post: { ...ANSWER_ALL, file_id: "f2", name: "come-see-the-new-floor", twin: false },
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
@@ -623,6 +626,19 @@ const SHAPES = {
     }),
   ],
   memory_forget: [card("memory_forget", { memory_id: "m1", text: "We close at noon on Fridays." })],
+  post: [
+    card("post", {
+      file_id: "f1",
+      line: "Come see the new floor.",
+      over: null,
+      under: null,
+      book: true,
+      words_at: "bottom",
+      voice: "classic",
+      language: "en",
+      people_agreed: false,
+    }),
+  ],
   // A fix card commits nothing (its act is its door, campaigns.ts fixSpec): no shape reaches a route.
   fix: [],
 };
@@ -853,6 +869,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     memory: ["DELETE ask/memory/[id]", "POST ask/memory"],
     memory_change: ["PATCH ask/memory/[id]"],
     memory_forget: ["DELETE ask/memory/[id]", "POST ask/memory"],
+    post: ["DELETE files/[id]", "POST files/post"],
     fix: [],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
@@ -898,6 +915,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["person_merge", "owner"],
       ["person_mode", "owner"],
       ["person_mode_many", "owner"],
+      ["post", "partner"],
       ["settings", "partner"],
     ],
   );
