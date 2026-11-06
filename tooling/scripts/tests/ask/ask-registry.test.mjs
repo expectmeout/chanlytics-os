@@ -220,6 +220,7 @@ const contextFor = (role = "operator") => {
 const READS = [
   "calendar",
   "calls",
+  "files",
   "guide",
   "inbox",
   "leads",
@@ -289,8 +290,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [13, 27, 28, 28],
-    "a viewer twelve reads and the search, an operator fourteen acts more, a partner and an owner the lead search too",
+    [14, 28, 29, 29],
+    "a viewer thirteen reads and the search, an operator fourteen acts more, a partner and an owner the lead search too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

@@ -18,8 +18,10 @@ import {
   type ToolContext,
   type ToolOutcome,
   type ToolRun,
+  PICTURES,
 } from "./context";
 import { todayTool } from "./read/today";
+import { filesTool } from "./read/files";
 import { signalsTool } from "./read/signals";
 import { guideTool } from "./read/guide";
 import { inboxTool } from "./read/threads";
@@ -81,6 +83,7 @@ export const READ_DEFS: readonly ReadTool[] = [
   sequencesTool,
   leadsTool,
   recallTool,
+  filesTool,
 ];
 
 /**
@@ -433,7 +436,8 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
       "error" in (out as Record<string, unknown>) &&
       Object.keys(out as object).length <= 2
     );
-    return { result: json(out), isError, label };
+    const pictures = (out as { [PICTURES]?: ToolOutcome["pictures"] } | null)?.[PICTURES];
+    return { result: json(out), isError, label, ...(pictures?.length ? { pictures } : {}) };
   } catch (e) {
     log.error("ask_tool_failed", { tool: calledName(run.name, run.input), error: e });
     return { result: json({ error: "that read failed; say so and answer with what you have" }), isError: true, label };

@@ -88,6 +88,70 @@
       "defer_loading": true
     },
     {
+      "name": "files",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get", "view", "compare"]
+          },
+          "shelf": {
+            "type": "string",
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
+          },
+          "about": {
+            "type": "string",
+            "description": "Words to find in what a file shows or has written on it.",
+            "maxLength": 80
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 1
+            },
+            "description": "Up to 4 names, from list.",
+            "maxItems": 4,
+            "minItems": 1
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "shelf": "work"
+        },
+        {
+          "action": "list",
+          "about": "storefront"
+        },
+        {
+          "action": "get",
+          "name": "storefront-dusk-street"
+        },
+        {
+          "action": "view",
+          "names": ["storefront-dusk-street", "wash-bar-empty"]
+        },
+        {
+          "action": "compare",
+          "names": ["storefront-dusk-street", "storefront-day"]
+        }
+      ],
+      "defer_loading": true
+    },
+    {
       "name": "guide",
       "description": "How Chanlytics works, page by page, for this member: what each page is for, what you can do there for them by card (tool and action), what stays on the page and why, and what Setup says is missing and what each missing piece stops. Read it when they ask what you can do, where something is, or how to start; for a new owner, before anything else. With skill customer_message it answers that skill's guide instead: what to hand the writer that rewrites a message's words for customers. It changes nothing.",
       "input_schema": {
@@ -727,6 +791,70 @@
         {
           "action": "get",
           "call_id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        }
+      ],
+      "defer_loading": true
+    },
+    {
+      "name": "files",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get", "view", "compare"]
+          },
+          "shelf": {
+            "type": "string",
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
+          },
+          "about": {
+            "type": "string",
+            "description": "Words to find in what a file shows or has written on it.",
+            "maxLength": 80
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 1
+            },
+            "description": "Up to 4 names, from list.",
+            "maxItems": 4,
+            "minItems": 1
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "shelf": "work"
+        },
+        {
+          "action": "list",
+          "about": "storefront"
+        },
+        {
+          "action": "get",
+          "name": "storefront-dusk-street"
+        },
+        {
+          "action": "view",
+          "names": ["storefront-dusk-street", "wash-bar-empty"]
+        },
+        {
+          "action": "compare",
+          "names": ["storefront-dusk-street", "storefront-day"]
         }
       ],
       "defer_loading": true
@@ -3202,6 +3330,70 @@
         {
           "action": "get",
           "call_id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        }
+      ],
+      "defer_loading": true
+    },
+    {
+      "name": "files",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get", "view", "compare"]
+          },
+          "shelf": {
+            "type": "string",
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
+          },
+          "about": {
+            "type": "string",
+            "description": "Words to find in what a file shows or has written on it.",
+            "maxLength": 80
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 1
+            },
+            "description": "Up to 4 names, from list.",
+            "maxItems": 4,
+            "minItems": 1
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "shelf": "work"
+        },
+        {
+          "action": "list",
+          "about": "storefront"
+        },
+        {
+          "action": "get",
+          "name": "storefront-dusk-street"
+        },
+        {
+          "action": "view",
+          "names": ["storefront-dusk-street", "wash-bar-empty"]
+        },
+        {
+          "action": "compare",
+          "names": ["storefront-dusk-street", "storefront-day"]
         }
       ],
       "defer_loading": true
@@ -6061,6 +6253,70 @@
         {
           "action": "get",
           "call_id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        }
+      ],
+      "defer_loading": true
+    },
+    {
+      "name": "files",
+      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get", "view", "compare"]
+          },
+          "shelf": {
+            "type": "string",
+            "enum": ["all", "inbox", "place", "work", "team", "products", "brand", "other", "set_aside"],
+            "description": "One shelf. Left out, or all: everything kept."
+          },
+          "about": {
+            "type": "string",
+            "description": "Words to find in what a file shows or has written on it.",
+            "maxLength": 80
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 1
+            },
+            "description": "Up to 4 names, from list.",
+            "maxItems": 4,
+            "minItems": 1
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "shelf": "work"
+        },
+        {
+          "action": "list",
+          "about": "storefront"
+        },
+        {
+          "action": "get",
+          "name": "storefront-dusk-street"
+        },
+        {
+          "action": "view",
+          "names": ["storefront-dusk-street", "wash-bar-empty"]
+        },
+        {
+          "action": "compare",
+          "names": ["storefront-dusk-street", "storefront-day"]
         }
       ],
       "defer_loading": true

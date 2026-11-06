@@ -41,6 +41,9 @@
           "api/admin/calendar/feed.ts": {
             "maxDuration": 30
           },
+          "api/admin/files/copies.ts": {
+            "maxDuration": 30
+          },
           "api/admin/rehearsal/call.ts": {
             "maxDuration": 60
           },
