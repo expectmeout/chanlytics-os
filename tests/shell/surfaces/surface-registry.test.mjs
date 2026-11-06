@@ -175,6 +175,7 @@ test("the real set is exactly the converted surfaces", () => {
     "broadcasts",
     "calendar",
     "campaigns",
+    "campaigns/ads",
     "campaigns/messages",
     "campaigns/sequences",
     "clients",

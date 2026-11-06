@@ -79,6 +79,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   outbound: "real", // the old Playbooks list, retired: it lands on Sequences, and a playbook on its sequence (contracts retiredRouteOf)
   // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface.
   "campaigns/sequences": "real",
+  // Campaigns › Ads, where it is drawn (ads/shown.ts): a workspace's own counts, and a sample that says it is one. Fed by the settings
+  // read, which says whether it is drawn; where it is not, the address is Sequences.
+  "campaigns/ads": "real",
   "campaigns/messages": "real", // Campaigns › Messages (D4: the Library), a view kept beside Sequences under Campaigns' one mount (19 Oct 2026)
   content: "demo",
   broadcasts: "real", // Sent's addresses land on Campaigns' screens, the Inbox's To send and People's Get their yes (lanes 2, 4, 7)
