@@ -18,7 +18,7 @@ export const postBandOf = (phone: string, language: "en" | "es"): string =>
 
 /** What the bundled fonts can draw: Western Latin, its punctuation, and the euro. No emoji. */
 const DRAWABLE = /^[\u0020-\u007E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026\u20AC\u2122]*$/;
-const CONTACT = /https?:|www\.|@|\b[\w-]+\.(?:com|net|org|io|co|us|app|salon|shop)\b/i;
+const CONTACT = /https?:|www\.|@|\b[\w-]+\.[a-z]{2,}\b/i;
 /** A run this long is a phone number, which the band says instead. */
 const LONG_NUMBER = /\d[\d\s().-]{6,}\d/;
 /**

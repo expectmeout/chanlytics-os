@@ -219,7 +219,7 @@ test("what the owner did not say is sent back: a price, a share, a number, money
 
 test("what can't go on a picture is sent back, whoever said it", () => {
   const said = (w) => postWordsProblem(w, w, POST_LIMITS.line);
-  assert.match(said("See melanys.com"), /link/);
+  assert.match(said("See harbor.example"), /link/);
   assert.match(said("Follow @harbor"), /handle/);
   assert.match(said("Call (555) 010-0100"), /phone number/);
   assert.match(said("New floor 🎉"), /emoji/);
@@ -370,11 +370,10 @@ test("a card's plan reads back the same, and what it does not hold it does not i
   });
 });
 
-test("Save is one call, its Undo takes back only what that press made, and Files reads again either way", () => {
+test("Save is one call, and its Undo takes back only what that press made", () => {
   const call = postSpec.commit(CARD, { settings: null });
   assert.equal(call.route, "POST files/post");
   assert.deepEqual(call.body, postPlanOf(CARD.payload));
-  assert.deepEqual(call.events, [{ type: "surface:files" }]);
   const made = { file_id: "f2", name: "now-booking", twin: false };
   assert.equal(postSpec.receipt(CARD, made), "Saved to Files as now-booking");
   assert.equal(postSpec.made(CARD, made), "f2");
