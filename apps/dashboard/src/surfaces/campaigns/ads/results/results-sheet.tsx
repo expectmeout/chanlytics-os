@@ -18,6 +18,7 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { routeDoor } from "../../../legacy-verbs";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPane } from "../../parts/split";
+import { PreviewNote } from "../preview-note";
 import { CameBackCard, DaysCard, ResultsFigures, ResultsHead, RowsCard, ScopePicker } from "./results-parts";
 
 interface ResultsSheetProps {
@@ -86,6 +87,7 @@ export function ResultsSheet({ open, read, config, onClose }: ResultsSheetProps)
           onClose={onClose}
         >
           <div className="ads-res-body">
+            <PreviewNote />
             <SheetBody vm={vm} />
           </div>
         </CmPane>

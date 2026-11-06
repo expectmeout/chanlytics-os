@@ -22,3 +22,12 @@ export function useAdsShown(): boolean {
   if (typeof window === "undefined") return false;
   return demoSession() || adsPreviewOf(settings?.settings?.config);
 }
+
+/**
+ * Whether Ads drawn here are a workspace's preview and not a demo's: the sample standing among the workspace's real pages. So it
+ * says what it is (preview-note.tsx), the people it names open nothing (a demo's People and Inbox hold them, a workspace's do not),
+ * and no fact of it joins a real report.
+ */
+export function adsInPreview(): boolean {
+  return typeof window !== "undefined" && !demoSession();
+}

@@ -26,7 +26,7 @@ import {
 import type { AdDraft, AdsExample, AskApply, AskVM } from "@chanlytics/contracts/ads-page";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { rememberAdNames } from "./crumb-names";
-import { EXAMPLE_READS, withAccount } from "./examples";
+import { exampleAt, withAccount } from "./examples";
 import { CONFIG, accountChecks } from "./sample";
 
 /** What a verb answers: it worked, and here is its Undo; or it was declined, and here is why in words. */
@@ -245,7 +245,7 @@ const READ_AGAIN_MS = 1200;
 export function useAdsStore() {
   const [state, setState] = useState<{ example: AdsExample; read: AdsRead }>(() => ({
     example: "running",
-    read: EXAMPLE_READS.running(),
+    read: exampleAt("running", Date.now()),
   }));
   const latest = useRef(state.read);
   const reading = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,7 +263,7 @@ export function useAdsStore() {
   };
   const select = (example: AdsExample) => {
     stopReading();
-    const read = EXAMPLE_READS[example]();
+    const read = exampleAt(example, Date.now());
     latest.current = read;
     setState({ example, read });
   };
@@ -272,7 +272,7 @@ export function useAdsStore() {
   useEffect(() => {
     const saved = savedExample();
     if (!saved || saved === "running") return;
-    const read = EXAMPLE_READS[saved]();
+    const read = exampleAt(saved, Date.now());
     latest.current = read;
     setState({ example: saved, read });
   }, []);

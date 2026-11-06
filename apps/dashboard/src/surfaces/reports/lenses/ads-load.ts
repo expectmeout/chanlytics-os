@@ -1,13 +1,15 @@
 /**
- * Loads Reports' Ads lens on demand (MOCKUP): its body (lenses/ads.tsx) and its demo fold (ads-demo.ts) are one chunk of their
- * own, fetched only where the lens is shown (a demo session for now, `adsAreOn`), so the Ads models, words and fixtures are not
- * part of the Reports page every workspace loads. Nothing draws until the chunk lands. `useAdsLens` is what the page asks: the
- * head's sentence, the Overview's one fact and what the lens draws, each none where the Ads are not on.
+ * Loads Reports' Ads lens on demand (MOCKUP): its body (lenses/ads.tsx) and its fold (ads-demo.ts) are one chunk of their own,
+ * fetched only where the Ads are on (`adsAreOn`: a demo session, or a workspace's preview) and on a lens that draws them, so the Ads
+ * models, words and fixtures are not part of the Reports page every workspace loads. Nothing draws until the chunk lands.
+ * `useAdsLens` is what the page asks: the head's sentence, the Overview's one fact and what the lens draws, each none where the Ads
+ * are not on.
  */
 import { useEffect, useState } from "react";
 import { ADS_SCOPE_ALL, adsReportRoute, isAdsScope } from "@chanlytics/contracts";
 import type { AdsScope, LensId, ReportFactVM, ReportsParts } from "@chanlytics/contracts";
 import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
+import { adsInPreview } from "../../campaigns/ads/shown";
 import { navigate } from "../../legacy-verbs";
 import { adsAreOn } from "../chrome";
 import type { ReportsSurface } from "../surface";
@@ -45,7 +47,7 @@ function useAdsParts(on: boolean): AdsParts | null {
   return on ? parts : null;
 }
 
-/** What Reports asks of the Ads in a demo session. */
+/** What Reports asks of the Ads. */
 interface AdsHere {
   /** The Ads lens's head: the fold's own sentence, none where the lens is not the one drawn or has nothing to say. */
   head: { head: string | null } | null;
@@ -61,15 +63,23 @@ const lensSentenceOf = (fold: AdsResultsVM): string | null =>
   fold.head ? `${fold.head.strong}${fold.head.rest}` : null;
 
 /**
+ * Whether a lens draws any of the Ads: their own, and the Overview's one fact in a demo. In a workspace's preview that fact would be
+ * a sample among the workspace's real numbers, so it is not made, and the Overview fetches nothing for it.
+ */
+const drawsAds = (lens: LensId): boolean => lens === "ads" || (lens === "overview" && !adsInPreview());
+
+/**
  * The Ads of the lens on screen: its fold over the days the address says, else the range shown, narrowed to the scope the address
  * says (the Overview folds every ad, for its one fact). Narrowing replaces the entry: a scope is a setting of the page, not a place
  * Back returns to, and the days stay.
  */
 export function useAdsLens(lens: LensId, at: ReportsParts, R: ReportsSurface | null): AdsHere {
-  const parts = useAdsParts(adsAreOn());
-  if (!parts || !R || (lens !== "ads" && lens !== "overview")) return LENS_NOTHING;
+  const parts = useAdsParts(adsAreOn() && drawsAds(lens));
+  // The moment the sample is read at, once for the page, as a read would be.
+  const [now] = useState(() => Date.now());
+  if (!parts || !R) return LENS_NOTHING;
   const scope = at.scope && isAdsScope(at.scope) ? at.scope : ADS_SCOPE_ALL;
-  const fold = parts.fold(at.days ?? R.range, scope, R.vm.today);
+  const fold = parts.fold(at.days ?? R.range, scope, R.vm.today, now);
   if (lens === "overview") return { ...LENS_NOTHING, fact: parts.fact(fold) };
   const onScope = (scope: AdsScope) => navigate(adsReportRoute(at.days, scope), { replace: true });
   return { head: { head: lensSentenceOf(fold) }, fact: null, draw: { parts, fold, onScope } };

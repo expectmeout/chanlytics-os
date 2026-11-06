@@ -4,7 +4,8 @@
  * then the ones talking, then the quiet. Each row says two facts from two records at its end and under it: where the
  * conversation stands, and what the calendar says. Two quiet filters cut the list by the counts the figures above hold,
  * and a door goes to all of them. Never "Came in", never "Handed to you": the move is hers, so it is "Waiting for you". A row
- * is a link: to the conversation when it waits on the owner and there is one, else to the person's page.
+ * is a link: to the conversation when it waits on the owner and there is one, else to the person's page. In a workspace's preview
+ * neither a row nor that door is one: no page there holds a sample person, and no report counts them.
  */
 import { useState } from "react";
 import type { ReactNode } from "react";
@@ -18,6 +19,7 @@ import type { SubTab } from "../../../kit/sub-tabs/sub-tabs";
 import { Tooltip } from "../../../kit/tooltip/tooltip";
 import { routeDoor } from "../../../legacy-verbs";
 import { useCmPhone } from "../../parts/split";
+import { adsInPreview } from "../shown";
 
 type Cut = "all" | "booked" | "not-yet";
 
@@ -40,22 +42,23 @@ function Person({ p }: { p: AdPersonRowVM }) {
   const facts: ReactNode[] = [p.when];
   if (p.talk) facts.push(p.cal.text);
   else if (p.cal.note) facts.push(p.cal.note);
+  const lines = {
+    face: { initials: p.initials, size: "sm" },
+    name: p.name,
+    end: (place: string) => (
+      <span className={place}>
+        <Fact text={end.text} tone={end.tone} />
+      </span>
+    ),
+    said: p.said ? `“${p.said}”` : undefined,
+    facts,
+    "data-testid": `ads-person-${p.personId}`,
+  } as const;
+  if (adsInPreview()) return <ListRow {...lines} />;
   // The row is a link to where it goes (the conversation that waits on the owner, else the person), and its tip says which.
   return (
     <Tooltip tip={p.door.tip}>
-      <ListRow
-        {...routeDoor(p.door.to)}
-        face={{ initials: p.initials, size: "sm" }}
-        name={p.name}
-        end={(place) => (
-          <span className={place}>
-            <Fact text={end.text} tone={end.tone} />
-          </span>
-        )}
-        said={p.said ? `“${p.said}”` : undefined}
-        facts={facts}
-        data-testid={`ads-person-${p.personId}`}
-      />
+      <ListRow {...routeDoor(p.door.to)} {...lines} />
     </Tooltip>
   );
 }
@@ -95,7 +98,7 @@ export function AdPeople({ people }: { people: PeopleVM }) {
       ) : (
         <p className="ads-line">{people.empty ?? PEOPLE_TAB.none}</p>
       )}
-      {people.all ? (
+      {people.all && !adsInPreview() ? (
         <LinkButton className="ads-all" {...routeDoor(people.all.to)} data-testid="ads-people-all">
           {people.all.words}
           <Icon name="chevron" size={11} />
