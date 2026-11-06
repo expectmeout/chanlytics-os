@@ -57,5 +57,8 @@ export const POST_WORDS = {
   noPhone: "there is no phone number in Settings to put on the band: leave book off, or ask them to add it",
   download: "Download",
   share: "Share",
+  shareFailed: "Sharing didn't open. Download it instead.",
+  gone: "This post isn't in Files any more.",
+  shapesSaid: "Shape",
   shapes: { portrait: "Portrait", square: "Square", story: "Story" },
 } as const;

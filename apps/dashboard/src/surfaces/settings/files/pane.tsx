@@ -18,7 +18,6 @@ import {
   fileNameOf,
   fileSaidOf,
   fileViewOf,
-  POST_SHAPES,
   POST_WORDS,
   filesSayOf,
   inboxCleanOf,
@@ -42,6 +41,7 @@ import { askAbout, canDo, gate, gateTitle, refreshSurface, type LegacyFlash } fr
 import { Icon } from "../../kit/icon/icon";
 import { useSurface } from "../../use-surface";
 import { addPhotos, clearSaid, takeAway, tryAgain, tryAll, useSending, type SendingPhoto } from "./sending";
+import { PostShapes } from "./post-shapes";
 import { FILE_PICKS, fileVerbs, type FileChange } from "./verbs";
 import "./files.css";
 
@@ -189,20 +189,9 @@ function FileActs({ file, may, busy, say, remove, ask }: SheetPress & { remove: 
         testid="fl-remove-ask"
       />
     );
-  // A post Ask made is kept in a shape each; anything else is the one picture.
+  // A post Ask made says its own, by the shape it shows; anything else is the one picture.
   const download =
-    file.source === "made" ? (
-      POST_SHAPES.map((shape) => (
-        <Button
-          key={shape}
-          variant="quiet"
-          href={`${fileViewOf(file.id)}?download&shape=${shape}`}
-          data-testid={`fl-download-${shape}`}
-        >
-          {POST_WORDS.shapes[shape]}
-        </Button>
-      ))
-    ) : (
+    file.source === "made" ? null : (
       <Button variant="quiet" href={`${fileViewOf(file.id)}?download`} data-testid="fl-download">
         {W.download}
       </Button>
@@ -391,7 +380,11 @@ function FileSheet({ file, onClose, flash }: { file: FileDto; onClose: () => voi
       testid="fl-sheet"
       foot={<FileActs {...press} remove={() => void remove()} ask={ask} />}
     >
-      <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
+      {file.source === "made" ? (
+        <PostShapes id={file.id} name={file.name} alt={file.line ?? said} shareFailed={POST_WORDS.shareFailed} />
+      ) : (
+        <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
+      )}
       {says && <p className="files-says">{says}</p>}
       {file.looks_like_stock && file.status === "inbox" && <Notice label={W.stock} fact={W.stock} line />}
       {file.issues.length > 0 && <p className="files-says files-issues">{file.issues.join(" ")}</p>}

@@ -1385,11 +1385,6 @@ body.ask-open .tb-ask .tb-ask-face {
     animation: none;
   }
 }
-.ask-post-kept {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 /* What a question came with, over its words, on the same edge. */
 .ask-q-files {
   align-self: flex-end;
