@@ -19,6 +19,7 @@ import assert from "node:assert/strict";
 import {
   conversationWaitsOnYou,
   heldEmailsWords,
+  moveWaits,
   needsYouCount,
   runHeldEmails,
   runsWaitingSentence,
@@ -137,7 +138,7 @@ const salon = () => [
   {
     dto: conv("c-late", "Lee Late", {
       state: "open",
-      messages: [wrote("m-c-late", "Any slots?", 31), queued("d-c-late", 30, 5)],
+      messages: [wrote("m-c-late", "Any slots?", 7), queued("d-c-late", 6, 5)],
     }),
     esc: null,
   },
@@ -160,7 +161,7 @@ const salon = () => [
   },
 ];
 const viewModels = (rows = salon()) => rows.map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, NOW));
-const facts = (vm) => ({ needsYou: vm.needsYou, send: vm.veto ? { endsAtMs: vm.veto.endsAtMs } : null });
+const facts = (vm) => moveWaits(vm.move);
 
 /* ------------------------------------------------ the count, in contracts ------------------------------------------------ */
 
@@ -372,6 +373,56 @@ test("the wire's rule and the Inbox's rule are one: each thread waits exactly wh
       NOW,
     ),
   );
+});
+
+/* ---- what the rule owes, with no hold to read it from (conversations/thread-move.ts) ---- */
+
+const reply = (id, min, status) => ({ ...queued(id, min, 0), status, meta: null, channel_ts: ago(min) });
+
+test("nobody answered them, or a reply never reached them: a row of Need you, once, counted as the Inbox counts it", () => {
+  const rows = [
+    conv("c-un", "Una Unanswered", { state: "open", messages: [wrote("m-un", "Anyone there?", 40)] }),
+    conv("c-fail", "Fay Failed", {
+      state: "open",
+      messages: [wrote("m-f", "Can I book?", 40), reply("r-f", 39, "failed")],
+    }),
+    conv("c-ok", "Ola Answered", {
+      state: "open",
+      messages: [wrote("m-o", "Open Sunday?", 40), reply("r-o", 39, "delivered")],
+    }),
+    conv("c-new", "Nia New", { state: "open", messages: [wrote("m-n", "Hi", 1)] }),
+  ];
+  const vm = toTodayVM(metrics(), rows, [], [], NOW);
+  const row = (id) => vm.queue.rows.find((r) => r.conversationId === id);
+  assert.deepEqual(
+    rows.map((c) => !!row(c.id)),
+    [true, true, false, false],
+    "Una and Fay; Ola was answered, and a reply to Nia is still being worked out",
+  );
+  assert.equal(threadsWaitingOnYou(rows, [], NOW), 2, "the headline counts the same two");
+  assert.deepEqual(
+    [row("c-un").kind, row("c-un").act, row("c-un").also, row("c-un").closes],
+    ["handoff", "reply", null, "archive"],
+    "a reply to write, and with no hold to give back, letting it go archives the thread",
+  );
+  assert.equal(row("c-un").sentence, "Anyone there?", "their own words");
+  assert.ok(row("c-fail").failed, "the words that never left, to send again");
+});
+
+test("a thread that is already a row is not a second one: a hold, a reply counting down, a window closing", () => {
+  const rows = [
+    conv("c-hold", "Hana Hold"),
+    conv("c-send", "Sam Send", { state: "open", messages: [wrote("m-s", "Any slots?", 3), queued("d-s", 1, 10)] }),
+    conv("c-win", "Wren Window", {
+      state: "open",
+      last_wa_inbound_at: ago(23 * 60),
+      messages: [wrote("m-w", "Still open?", 23 * 60)],
+    }),
+  ];
+  const vm = toTodayVM(metrics(), rows, [hold("c-hold")], [], NOW);
+  for (const c of rows)
+    assert.equal(vm.queue.rows.filter((r) => r.conversationId === c.id).length, 1, `${c.id}: one row for one person`);
+  assert.equal(vm.queue.rows.find((r) => r.conversationId === "c-win").kind, "window");
 });
 
 /* ------------------------------------------ the selector, over the surfaces ------------------------------------------ */

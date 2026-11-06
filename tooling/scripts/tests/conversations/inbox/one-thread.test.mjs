@@ -156,6 +156,7 @@ const rosa = {
   conversationId: "c1",
   state: "escalated",
   needsYou: true,
+  move: { move: "needs_you", list: "escalated" },
   takenOver: false,
   claimedByOther: false,
   archived: false,
@@ -266,7 +267,7 @@ test("a re-read that moves the thread says so on the pane; your own act does not
   try {
     pane();
     // A teammate handed Rosa back: the next read has her in Handled.
-    store({ ...rosa, state: "done", needsYou: false });
+    store({ ...rosa, state: "done", needsYou: false, move: { move: "answered", list: "done" } });
     fire("surface:inbox");
     pane();
     assert.equal(drawn.at(-1).notice, "Moved to Handled", "the pane says what happened while you read");
@@ -277,7 +278,7 @@ test("a re-read that moves the thread says so on the pane; your own act does not
     store(rosa);
     pane();
     wire.onWrite = () => {
-      store({ ...rosa, state: "done", needsYou: false, archived: true });
+      store({ ...rosa, state: "done", needsYou: false, archived: true, move: { move: "archived", list: "out" } });
       fire("surface:inbox");
     };
     drawn.at(-1).onArchive("th-rosa");

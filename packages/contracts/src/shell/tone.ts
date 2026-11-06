@@ -24,7 +24,7 @@
 import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
 import { STOP_WORDS } from "../consent/consent";
 import { CALL_OUTCOME_WORDS } from "../conversations/call-dto";
-import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing";
+import { HELD_WORDS, NEEDS_YOU_WORD, THREAD_MOVE_WORDS } from "../conversations/standing";
 import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
@@ -122,6 +122,24 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     handled: "plain",
     booked: "ok",
     decided: "ok",
+    // Whose move it is (conversations/thread-move.ts): the head, the row and Conversations wear these, and pass no tone by
+    // hand, which is how Needs you came to be coral on the head and amber on the row.
+    failed: "danger",
+    wrote_again: "warn",
+    sending: "accent",
+    replying: "info",
+    unanswered: "warn",
+    no_reply: "info",
+    auto_reply: "info",
+    sent: "info",
+    went_quiet: "plain",
+    answered: "ok",
+    call: "ok",
+    automated: "plain",
+    stopped: STOP_WORDS.tone,
+    archived: "plain",
+    aside: "plain",
+    nothing: "plain",
   },
   // A thread somebody has wears the Inbox's own tones for it (`thread` above): yours is in hand, a teammate's is theirs.
   standing: {
@@ -221,6 +239,9 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
     handled: "Receptionist replied",
     booked: "Booked",
     decided: "Handled",
+    ...THREAD_MOVE_WORDS,
+    // The word the row's mark says beside their name (kit StoppedMark), so the head and the row agree.
+    stopped: STOP_WORDS.mark,
   },
   standing: {
     escalated: NEEDS_YOU_WORD,

@@ -353,3 +353,10 @@ export function holdToDoOf(act: HoldAct | null | undefined, drafted: boolean): s
   if (!act) return null;
   return act === "reply" && drafted ? DRAFTED_TODO : HOLD_ACT_WORDS[act].todo;
 }
+
+/**
+ * The holds on a thread you have taken that still ask something of you (Today in three zones, 2 Nov 2026): a reply of
+ * yours that never reached them, and a customer who wrote again while you had the thread. The receptionist stays out of
+ * a thread you hold, so nobody else will answer either. Today's queue and the Inbox's rule (thread-move.ts) both read it.
+ */
+export const YOURS_STILL_WAIT: ReadonlySet<string> = new Set(["send_failed", "wrote_while_held"]);

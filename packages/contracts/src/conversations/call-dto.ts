@@ -187,6 +187,13 @@ export const CALL_OUTCOME_WORDS = {
   voicemail: "Reached voicemail",
 } as const;
 
+/** The line a missed call leaves in the customer's thread: what the text receptionist and the next call read back. */
+export const MISSED_CALL_LINE = "Missed call — they rang and it never connected.";
+/** The line our own dial leaves there when nobody picked up. */
+export const UNCONNECTED_DIAL_LINE = "Outbound call — it never connected.";
+/** A call's note where nobody spoke: a later call that did is someone speaking to them (thread-move.ts). */
+export const NEVER_CONNECTED_LINES: readonly string[] = [MISSED_CALL_LINE, UNCONNECTED_DIAL_LINE];
+
 /** One of the outcomes of the ladder (callOutcomeFor). */
 export type CallOutcome = keyof typeof CALL_OUTCOME_WORDS;
 

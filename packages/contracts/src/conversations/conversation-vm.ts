@@ -16,6 +16,7 @@ import { mediaVM, type MediaVM } from "./message-media";
 import { sentFactsOf, messageWords, lastExchanged } from "./message-words";
 import { messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
 import { readingOf, standingOfThread, type Standing } from "./standing";
+import { threadMoveOf, type ThreadMove } from "./thread-move";
 import type { EscalationDto } from "./escalations";
 
 /* ---- the mockup's conversation shape ---- */
@@ -68,6 +69,8 @@ export interface ConversationVM {
    * and one you had taken over read the reverse (the 2 Oct 2026 audit).
    */
   standing: Standing;
+  /** Who owes the next move (thread-move.ts): what the row's pill says, as the Inbox's row and head say it of the same thread. */
+  move: ThreadMove;
   /**
    * The teammate who has the thread (their user id) where `standing` is `theirs`, else null: the pill names them from the
    * roster (standing.ts heldPill), as the Inbox's row does, and says "A teammate" where the roster does not know them.
@@ -176,6 +179,7 @@ export function toConversationVM(
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     standing: v.standing,
+    move: threadMoveOf(dto, escalation, now.getTime()),
     holderId: v.claimedByOther ? (dto.assignee_user_id ?? null) : null,
     ...readingOf(dto.last_inbound_at, dto),
     outcome,

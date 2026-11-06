@@ -110,7 +110,11 @@ function useMarkDone(p: WorkProps) {
     if (!row.conversationId) return;
     // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.
     keep(row);
-    const r = await commitVerb("thread_verb", { verb: "hand_back", conversation_id: row.conversationId, who: row.who });
+    const r = await commitVerb("thread_verb", {
+      verb: row.closes ?? "hand_back",
+      conversation_id: row.conversationId,
+      who: row.who,
+    });
     if (!r.ok) {
       unkeep(row);
       return flash({ tone: "danger", msg: <>{r.message}</> });

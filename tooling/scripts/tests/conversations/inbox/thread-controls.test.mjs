@@ -487,10 +487,10 @@ test("REGRESSION: on a phone too, More opens the thread's sheet and who it is op
 test("Needs you: the pill its row wears and how long they have waited, under the name; the reason's one line, its why a press away, and Hand back by the reply box whose Send is the answer -- no white slab", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const standing = find(tree, byTestId("ix-th-standing"));
-  // Lit in the coral with the wait beside it in the mono face (the thread canvas, 1 Nov 2026).
-  const pill = find(standing, (n) => n.props?.kind === "tone" && n.props?.label === "Needs you");
+  // Lit in its amber with the wait beside it in the mono face: one word, one colour (contracts tone.ts).
+  const pill = find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "needs_you");
   assert.ok(pill, "Needs you, under the name");
-  assert.deepEqual([pill.props.value, pill.props.lit], ["accent", true]);
+  assert.equal(pill.props.lit, true);
   assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "40m");
   const needs = find(tree, byTestId("ix-needs-you"));
   assert.ok(needs, "the dock over the reply box (the phone canvas, B1)");
@@ -663,7 +663,8 @@ test("the window is the bar's only while it is WhatsApp's to say: open, a text, 
   );
 });
 
-test("a reply that didn't send: the row's pill in the bar, and what it means on its own bubble, with Send again", () => {
+test("a reply that didn't send: the row's pill in the bar, and what it means on its own bubble, with Send again", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const failed = conv({
     state: "open",
     messages: [
@@ -672,8 +673,8 @@ test("a reply that didn't send: the row's pill in the bar, and what it means on 
     ],
   });
   const tree = draw(toInboxThreadVM(failed, null, ZONE, NOW));
-  const pill = find(find(tree, byTestId("ix-th-standing")), (n) => n.props?.kind === "tone");
-  assert.ok(pill && pill.props.label === "Didn't send" && pill.props.value === "danger", "the pill its row wears");
+  const pill = find(find(tree, byTestId("ix-th-standing")), (n) => n.props?.kind === "thread");
+  assert.equal(pill?.props.value, "failed", "the pill its row wears");
   // When they were written, beside it (the phone canvas, A1): an older one says its day, as the row's time does.
   const meta = (dto) =>
     textOf(
@@ -700,7 +701,8 @@ test("a reply that didn't send: the row's pill in the bar, and what it means on 
   assert.ok(find(bubble, byTestId("tl-again-send")) && find(bubble, byTestId("tl-again-edit")));
 });
 
-test("a draft still waiting to go out is the thread's state: the head says when it sends, never 'no reply yet'", () => {
+test("a draft still waiting to go out is the thread's state: the head says when it sends, never 'no reply yet'", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const draft = m("m3", 0.5, {
     direction: "outbound",
     sender: "ai",
@@ -712,10 +714,10 @@ test("a draft still waiting to go out is the thread's state: the head says when 
   const tree = draw(toInboxThreadVM(conv({ state: "open", messages: [m("m1", 2), draft] }), null, ZONE, NOW), {
     veto: 72,
   });
-  // "Sends in 1:12" lit in the amber (the thread canvas, 1 Nov 2026): it said "no reply yet" over "Auto-sends in 72s".
+  // "Sends in 1:12" lit in the coral that means right now: it said "no reply yet" over "Auto-sends in 72s".
   const standing = find(tree, byTestId("ix-th-standing"));
   assert.equal(textOf(standing), "Sends in 1:12");
-  assert.equal(find(standing, (n) => n.props?.kind === "tone").props.value, "warn");
+  assert.equal(find(standing, (n) => n.props?.kind === "thread").props.value, "sending");
   assert.ok(!textOf(tree).includes("no reply yet"), "REGRESSION: 'no reply yet' over 'Auto-sends in 72s'");
 });
 

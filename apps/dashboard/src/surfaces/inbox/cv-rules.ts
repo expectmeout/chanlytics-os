@@ -120,12 +120,12 @@ export function cvOnePerPerson(rows: ReadonlyArray<ConversationRow>): Conversati
 const cvPartsOf = (c: ConversationRow): ConversationRow[] => c.parts ?? [c];
 
 /**
- * The part whose standing the row's pill says: a call going on now, else a thread somebody has or needs to (the
- * Inbox's word, which a call after it does not take back: "Hung up early" over a thread that needs you hid the
- * ask), else the newest.
+ * The part whose standing the row's pill says: a call going on now, else a thread somebody has or needs to, or that is
+ * yours to do by the rule (the Inbox's word, which a call after it does not take back: "Hung up early" over a thread that
+ * needs you hid the ask, and "Handled" over a message nobody answered), else the newest.
  */
 export const cvLeadOf = (c: ConversationRow): ConversationRow =>
-  c.live ? c : (cvPartsOf(c).find((p) => p.standing && p.standing !== "quiet") ?? c);
+  c.live ? c : (cvPartsOf(c).find((p) => (p.standing && p.standing !== "quiet") || p.move?.list === "escalated") ?? c);
 
 /**
  * Whose a row is, for the reader's marks (surfaces/seen.ts): the person, and the conversation their thread is. A

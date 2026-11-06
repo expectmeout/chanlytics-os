@@ -92,10 +92,10 @@ async function freshLoad(page: Page, hash: string): Promise<void> {
  * Robin's thread, opened from the bucket the page files it under. The pane
  * shows a thread of the selected bucket only, so finding the row there is
  * itself what the page says about the thread. Retried while a load settles.
- * Since #852 Needs you holds what waits on you and nothing else: a thread you
- * hold, by a reply or a take-over, is Handled however it is flagged.
+ * Needs you holds what is yours to do and nothing else, Waiting what is someone
+ * else's next, Handled what nobody owes (contracts thread-move.ts, decision 0102).
  */
-async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"): Promise<Locator> {
+async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed" | "Waiting"): Promise<Locator> {
   const list = page.locator(".ix-list");
   const pane = page.locator(".ix-thread-pane");
   await expect(async () => {
@@ -220,8 +220,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       escalationId = opened.id;
 
       await freshLoad(page, "#/inbox");
-      // Yours since the reply, so Handled (#852), with the failure said on the thread itself.
-      const pane = await openRobin(page, "Handled");
+      // Yours since the reply, and the reply never left, so it is yours to do (thread-move.ts), said on the thread itself.
+      const pane = await openRobin(page, "Needs you");
       await expect(
         pane.locator(".tl-msg").filter({ hasText: words }).getByRole("img", { name: "Didn't send" }),
       ).toBeVisible();
@@ -317,7 +317,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
 
     await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {
       await freshLoad(page, "#/inbox");
-      let pane = await openRobin(page, "Handled");
+      let pane = await openRobin(page, "Needs you");
       // Snooze is in the thread's More: the header had it as a button too, beside the menu that held it.
       await pane.getByRole("button", { name: /^More for the conversation with/ }).click();
       // The menu is the kit's (Base UI), drawn on the page's body, not inside the pane.
@@ -337,8 +337,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await pane.getByRole("button", { name: /^More for the conversation with/ }).click();
       await page.getByRole("menuitem", { name: /^I'll answer this/ }).click();
       await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
-      // Taken over, it is yours: Handled (#852).
-      pane = await openRobin(page, "Handled");
+      // Taken over, it is yours, and a reply of yours never left: still yours to do (thread-move.ts).
+      pane = await openRobin(page, "Needs you");
       await expect(pane.getByTestId("ix-yours")).toBeVisible();
       const { conversation: c } = await readThread(page, id);
       expect(c.state).toBe("needs_human");
@@ -363,17 +363,17 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toHaveCount(0);
 
       await freshLoad(page, "#/inbox");
-      const pane = await openRobin(page, "Handled");
+      const pane = await openRobin(page, "Needs you");
       await expect(pane.getByTestId("tl-held")).toHaveCount(0);
       // Resolving what the thread was about does not hand it back: it is still yours.
       await expect(pane.getByTestId("ix-yours")).toBeVisible();
     });
 
     await test.step("handed back from the thread: the receptionist answers again, and the words that never left still say so", async () => {
-      let pane = await openRobin(page, "Handled");
+      let pane = await openRobin(page, "Needs you");
       await pane.getByRole("button", { name: /^Hand back to/ }).click();
       await expect(page.getByText(/handed back/)).toBeVisible();
-      pane = await openRobin(page, "Handled");
+      pane = await openRobin(page, "Needs you");
       // Nobody holds it now, and the bar still says the team's last words didn't send, as the row's pill does.
       await expect(pane.getByTestId("ix-yours")).toHaveCount(0);
       await expect(pane.getByTestId("ix-th-standing")).toContainText("Didn't send");

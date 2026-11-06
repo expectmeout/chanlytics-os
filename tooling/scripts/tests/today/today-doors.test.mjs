@@ -364,7 +364,16 @@ test("the day's receipts are the view model's still, and no part of the page dra
 });
 
 test("a quiet day says what is listening in the head's sentence, and draws no list of lines", () => {
-  const yesterday = conversation("cv1", "Rosa Díaz", [msg({ created_at: "2026-09-05T12:00:00Z" })]);
+  const yesterday = conversation("cv1", "Rosa Díaz", [
+    msg({ created_at: "2026-09-05T12:00:00Z" }),
+    msg({
+      id: "m-answer",
+      direction: "outbound",
+      sender: "ai",
+      status: "delivered",
+      created_at: "2026-09-05T12:01:00Z",
+    }),
+  ]);
   const vm = toTodayVM(metrics({ now: zeroNow, period: quietPeriod }), [yesterday], [], [], NOW);
   assert.ok(vm.quiet && vm.quiet.launchpad, "the fixture is a quiet day with an earlier conversation");
   // The list of lines and their numbers ("WhatsApp: +1 … · on") and the door to earlier conversations stood under the

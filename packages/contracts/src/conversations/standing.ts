@@ -67,6 +67,7 @@ export const NEEDS_YOU_WORD = "Needs you";
  */
 export const INBOX_BUCKET_WORDS = {
   escalated: NEEDS_YOU_WORD,
+  waiting: "Waiting",
   done: "Handled",
   snoozed: "Snoozed",
   aside: "Set aside",
@@ -77,10 +78,35 @@ export const NEEDS_YOU_LIST_END = "That's everyone who needs you.";
 
 /** The list a thread's state puts it in, in the tabs' words; null for a state no tab lists. */
 export function inboxBucketWord(state: string): string | null {
-  return state === "escalated" || state === "done" || state === "snoozed" || state === "aside"
+  return state === "escalated" || state === "waiting" || state === "done" || state === "snoozed" || state === "aside"
     ? INBOX_BUCKET_WORDS[state]
     : null;
 }
+
+/**
+ * Whose move it is on a thread (thread-move.ts threadMoveOf), each the word its pill says, where HELD_WORDS, NEEDS_YOU_WORD
+ * and consent's STOP_WORDS do not say it already. The tone map reads these, so a word and its colour have one home.
+ */
+export const THREAD_MOVE_WORDS = {
+  failed: "Didn't send",
+  wrote_again: "They wrote again",
+  sending: "Sends in",
+  replying: "Replying…",
+  unanswered: "Unanswered",
+  no_reply: "No reply",
+  auto_reply: "Auto-reply",
+  sent: "Campaign sent",
+  went_quiet: "Went quiet",
+  answered: "Handled",
+  call: "Handled",
+  automated: "Automated",
+  archived: "Archived",
+  aside: "Set aside",
+} as const;
+
+/** One step of the ladder (thread-move.ts): a word above, a person who has it, or none at all ("nothing": the wires alone). */
+export type ThreadMoveKey =
+  keyof typeof THREAD_MOVE_WORDS | "snoozed" | "stopped" | "theirs" | "yours" | "needs_you" | "nothing";
 
 /**
  * The pill for a thread somebody has, once: the member looking has it ("You have it"), or a teammate does, by name where

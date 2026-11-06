@@ -377,8 +377,12 @@ test("every row reaches the page, which caps by group; the people past five are 
   const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 8 } }), conversations, many, [], NOW);
   // Today in three zones (2 Nov 2026): the rows are all handed over; Need you draws Up next and five waiting
   // (contracts NEED_YOU_CAPS) and says the rest at its foot, which more_people counts.
-  assert.equal(vm.queue.rows.length, 9, "eight handoffs and the closing window, every one");
-  assert.equal(vm.queue.more_people, 3, "past Up next and the five waiting, three more");
+  assert.equal(
+    vm.queue.rows.length,
+    10,
+    "eight handoffs, the closing window, and the thread that asks for a person with no hold, every one",
+  );
+  assert.equal(vm.queue.more_people, 4, "past Up next and the five waiting, four more");
   assert.equal(vm.queue.windows, 1, "and the closing window is a window row of its own");
   const quiet = toTodayVM(
     metrics({

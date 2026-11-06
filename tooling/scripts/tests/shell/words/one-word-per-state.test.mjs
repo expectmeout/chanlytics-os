@@ -109,7 +109,7 @@ const ONE_STATE = {
   },
   handled: {
     means: "dealt with, and nothing is left for the owner to do",
-    ids: ["thread/decided", "call/handled"],
+    ids: ["thread/answered", "thread/call", "thread/decided", "call/handled"],
   },
   interested: {
     means: "the business said it is interested: on a call the owner made, or in a reply from a lead",
