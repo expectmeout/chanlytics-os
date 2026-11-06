@@ -142,14 +142,13 @@ begin
            null::jsonb
       from listed l
     union all
-    select 'replied', rp.sequence_id, rp.contact_id, rp.lead_id,
-           (select e.enrollment_id from enrolled e
-             where e.state = 'in' and e.sequence_id = rp.sequence_id
-               and coalesce(e.lead_id, e.contact_id) = coalesce(rp.lead_id, rp.contact_id)
-             limit 1),
+    select 'replied', rp.sequence_id, rp.contact_id, rp.lead_id, e.enrollment_id,
            null, null, rp.place, rp.read_at, rp.intent, null, null::jsonb,
            jsonb_build_object('intent', rp.intent, 'summary', rp.summary, 'conversation_id', rp.conversation_id)
       from replied rp
+      -- enrolled holds one row a person a sequence, so this finds at most one; asked per reply it was quadratic.
+      left join enrolled e on e.state = 'in' and e.sequence_id = rp.sequence_id
+                          and coalesce(e.lead_id, e.contact_id) = coalesce(rp.lead_id, rp.contact_id)
   )
   -- Who wrote back shows there alone, not again where their place stands.
   select r.grp, r.sequence_id, r.contact_id, r.lead_id, r.enrollment_id, r.send_id, r.batch_id, r.place, r.at, r.why,

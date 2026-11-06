@@ -556,6 +556,6 @@
     "00551_a_business_keeps_its_files.sql": "fe8cf1759f2679f5c0988ea999c726a05f54c775228509abda3a1bb8e190fbc9",
     "00552_a_lead_stands_in_one_status_group.sql": "0661f3c82c794ffda18fae534d054f54f8301b08ed45ed59feb183ed73506fb6",
     "00553_what_ask_makes_is_a_file.sql": "4eff49643f571039d5b42b0d27026da8f3f5d850b82fa27fb79b1cad9ef5ccc9",
-    "00554_leads_is_read_through_one_door.sql": "95c8180b2dc0681e4b9acba56d5c257bca8d32cc24a4f36ce725c7e01a4c3eba"
+    "00554_leads_is_read_through_one_door.sql": "ed750ff151586dff7e74fe874542afca117794c88e2b4fa7d232634ee7c72af1"
   }
 }
