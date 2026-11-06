@@ -19,7 +19,7 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { gate } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
 import { CmPane } from "../../parts/split";
 import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";

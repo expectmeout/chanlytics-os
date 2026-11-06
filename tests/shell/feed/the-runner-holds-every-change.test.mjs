@@ -1,6 +1,6 @@
 /**
  * The runner holds every change it is told of, whatever order the world does things in (the page-open PRD of 3 Nov 2026,
- * L4): a model of the world beside the real runner (legacy-bridge/surface-runner.ts), run over many seeded sequences.
+ * L4): a model of the world beside the real runner (bridge/surface-runner.ts), run over many seeded sequences.
  *
  * The world: tables whose versions move as writes commit, each write a transaction of its own length; the feed, which
  * delivers each commit's notice late, sometimes twice, and loses every one told while the tab is loading, joining or
@@ -45,7 +45,7 @@ const setVisibility = (state) => {
   for (const fn of [...docListeners]) fn({ type: "visibilitychange" });
 };
 
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 
 /** A small, seeded generator: the same seed, the same world. */
 function rng(seed) {

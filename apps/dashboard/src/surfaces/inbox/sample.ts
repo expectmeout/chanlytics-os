@@ -6,7 +6,7 @@
  *
  * A demo session draws these through the one Inbox there is; a real workspace draws none of them (its threads are the
  * bridge's, surface.ts), and a page that has not moved yet still reads them off `window.INBOX_DATA` and
- * `window.CONVERSATIONS_DATA`, which legacy-globals.ts publishes.
+ * `window.CONVERSATIONS_DATA`, which mockup-globals.ts publishes.
  */
 import type { InboxBucket, InboxSurface, InboxView, TimelineEntry } from "./types";
 import { conversationsSample } from "./sample/conversations";

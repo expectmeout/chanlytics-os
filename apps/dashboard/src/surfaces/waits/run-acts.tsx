@@ -23,7 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "../campaigns/broadcasts/surface";
 import { approvalDaysNow, bcWhenWords } from "../campaigns/broadcasts/when-words";
-import { canDo } from "../legacy-verbs";
+import { canDo } from "../frame-verbs";
 import { fn, object, type Flash } from "../shell-doors";
 import { surfaceValue } from "../surface-values";
 

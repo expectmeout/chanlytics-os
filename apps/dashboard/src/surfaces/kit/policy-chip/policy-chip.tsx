@@ -2,11 +2,11 @@
  * PolicyChip: the ONE policy-class chip (moved whole from data-bits.jsx, decision 0015: the kit's one implementation,
  * which seed-globals publishes as window.PolicyChip for the pages that still read it). Self-subscribes to
  * policy:changed. What the shell owns of it -- the charter's rows and words, the trust digest, the route to Settings >
- * Autonomy -- comes through legacy-verbs.
+ * Autonomy -- comes through frame-verbs.
  */
 import { useEffect, useReducer } from "react";
-import { openAutonomy, policiesRead, policyStore, trustTable } from "../../legacy-verbs";
-import type { PolicyRow } from "../../legacy-verbs";
+import { openAutonomy, policiesRead, policyStore, trustTable } from "../../frame-verbs";
+import type { PolicyRow } from "../../frame-verbs";
 
 interface PolicyChipProps {
   /** The policy class the chip names (the charter's row id). */

@@ -35,7 +35,7 @@ import {
   type ReachSplit,
 } from "@chanlytics/contracts";
 import { channelsOpenFor, openAmong } from "@/lib/campaign-channels";
-import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
+import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { offeredRows } from "@/surfaces/offered-templates";
 

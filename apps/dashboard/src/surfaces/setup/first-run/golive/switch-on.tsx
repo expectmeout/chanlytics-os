@@ -23,7 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import { WhatsappSteps } from "./whatsapp";
 import { Icon } from "../../../kit/icon/icon";
-import { refusalToast, type LegacyFlash } from "../../../legacy-verbs";
+import { refusalToast, type FrameFlash } from "../../../frame-verbs";
 import { setupVerbs } from "../../surface";
 import type { KeptPhoneChoice } from "../memory";
 import { FrPhone } from "../phone";
@@ -68,7 +68,7 @@ function ForwardBody(o: {
   tr: FirstRunTryVM | null;
   choice: KeptPhoneChoice | null;
   setChoice: (c: KeptPhoneChoice | null) => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   leave: (to: string) => void;
   kept: boolean;
@@ -139,7 +139,7 @@ export function FrSwitchOn(o: {
   setChoice: (c: KeptPhoneChoice | null) => void;
   whatsapp: WhatsappChoice | null;
   waNumber: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   leave: (to: string) => void;
   assistant: string | null;

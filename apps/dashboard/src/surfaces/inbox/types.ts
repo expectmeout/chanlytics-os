@@ -286,7 +286,7 @@ export interface InboxView {
 /**
  * A value as JSON carries it, as the database's jsonb columns say (packages/db Json): a template's `variables`, read where it
  * is used (contracts template-slots.ts). Said, not `unknown`, so the Inbox's snapshot has a fingerprint and is drawn across
- * a deploy that left its type alone (legacy-bridge/surface-cache.ts, SURFACE_SHAPES).
+ * a deploy that left its type alone (bridge/surface-cache.ts, SURFACE_SHAPES).
  */
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue | undefined };
 

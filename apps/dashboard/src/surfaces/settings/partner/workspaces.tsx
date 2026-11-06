@@ -10,10 +10,10 @@ import { AttnRow } from "../../kit/attention/attn-row";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordField } from "../../kit/record/field";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import type { PartnerApi } from "./surface";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /**
  * Set a workspace up for a business and hand it to its owner (0016): the name, the owner's address, one press. On

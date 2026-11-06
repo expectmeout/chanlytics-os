@@ -6,8 +6,8 @@
 import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import type { LiveCallVM } from "@chanlytics/contracts";
-import { whisperCall } from "@/legacy-bridge/inbox-verbs";
-import { gate, useLegacyToast } from "../legacy-verbs";
+import { whisperCall } from "@/bridge/inbox-verbs";
+import { gate, useFrameToast } from "../frame-verbs";
 import { Icon } from "../kit/icon/icon";
 import { useHoldToTalk } from "../kit/talk/use-hold-to-talk";
 
@@ -95,7 +95,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
   const [last, setLast] = useState<string | null>(null);
   // The one-line note says who hears it; a press opens what the receptionist does with it.
   const [explain, setExplain] = useState(false);
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
 
   const send = async (words?: string) => {
     const t = String(words ?? text).trim();

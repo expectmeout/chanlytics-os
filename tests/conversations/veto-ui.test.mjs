@@ -17,9 +17,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { toInboxThreadVM, isHeldDraft, draftSendsAtMs } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, find } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false });
+installStubReact({ __DEMO_MODE: false });
 const S = "../../apps/dashboard/src/surfaces/inbox";
 const { VW_STORE, VW_UTIL } = await import(`${S}/store.ts`);
 const { Composer } = await import(`${S}/thread/composer.tsx`);

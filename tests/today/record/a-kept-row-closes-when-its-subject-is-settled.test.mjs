@@ -356,9 +356,9 @@ test("a row the server closed reads as read and wears no warning, on every devic
 
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
-const bridge = await importSrc("apps/dashboard/src/legacy-bridge/notifications.ts");
+const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { surfaceMoved } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const requests = [];
 const was = globalThis.window;
 globalThis.window = {

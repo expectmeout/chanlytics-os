@@ -10,7 +10,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { promptBlocks, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "@chanlytics/contracts";
-import { unmount, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
+import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   W,
   KNOWN,

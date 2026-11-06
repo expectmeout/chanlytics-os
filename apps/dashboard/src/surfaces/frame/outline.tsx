@@ -1,7 +1,7 @@
 /**
  * The frame's outline: what the document draws before the app's code has run (the cold-load review, 28 Oct 2026).
  *
- * The frame is drawn by the browser alone (LegacyHost, `ssr: false`), so until its code had come and run, a cold load
+ * The frame is drawn by the browser alone (FrameHost, `ssr: false`), so until its code had come and run, a cold load
  * showed a spinner on the page's ground: from 0.3 s on a desk and 0.6 to 0.8 s on a phone, until the page at 1.1 to
  * 1.3 s on a desk and 2.5 to 3 s on a phone. The outline is the frame's own chrome in the frame's own classes, so the
  * one stylesheet stands each part where the frame will: the sidebar, open or a rail, with its places; the top bar's Ask

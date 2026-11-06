@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PASSWORD_WORDS, passwordProblem, requestCodeWords } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
-import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
+import { clearSurfaceCache } from "@/bridge/surface-cache";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
 

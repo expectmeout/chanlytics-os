@@ -10,7 +10,7 @@
  * while its group scrolls. That is what lets a row stop repeating its group's word.
  */
 import type { ReactElement, ReactNode } from "react";
-import { holdStill } from "../../legacy-verbs";
+import { holdStill } from "../../frame-verbs";
 import type { TableRow } from "./columns";
 
 /** One group: its key, its words, what it says beside its count, its rows, and whether (and how) it folds. */

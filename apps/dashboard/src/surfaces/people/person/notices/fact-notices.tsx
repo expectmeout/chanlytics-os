@@ -13,7 +13,7 @@ import { CALL_FACT_WORDS, PERSON_NAME_WORDS } from "@chanlytics/contracts";
 import type { NoticeHome, NoticeVM } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Notice } from "../../../kit/notice/notice";
-import { navigate } from "../../../legacy-verbs";
+import { navigate } from "../../../frame-verbs";
 import { setPersonDetails, writePersonNote } from "../../people-detail";
 import type { NoticeCtx } from "../ctx";
 

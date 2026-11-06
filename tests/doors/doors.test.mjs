@@ -18,7 +18,7 @@ globalThis.CustomEvent = class {
 };
 
 const doors = await import("../../apps/dashboard/src/surfaces/frame-doors.ts");
-const { routeDoor } = await import("../../apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { routeDoor } = await import("../../apps/dashboard/src/surfaces/frame-verbs.ts");
 
 const warned = [];
 const realWarn = console.warn;

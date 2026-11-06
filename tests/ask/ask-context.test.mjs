@@ -1293,7 +1293,7 @@ test("Reports over days a member picked: Ask reads the days on screen, named by 
     const rc = rcIn(ctxFor(tables(), { ...RPCS, report_series: series }));
     return textOf((await buildContext(rc, page("reports", [], { view }))).blocks[0]);
   };
-  // What the page says it shows is the days' one name (legacy-bridge/ask/context.ts): a week that ended a week ago.
+  // What the page says it shows is the days' one name (bridge/ask/context.ts): a week that ended a week ago.
   const week = await said("2026-09-01~2026-09-07");
   assert.deepEqual(
     asked,
@@ -1604,7 +1604,7 @@ test("the shape reads the playbooks' rows alone: no run, no person on one and no
 
 test("the tab's warm (D6): the page's context posted to ask/warm for the named workspace, raw -- no refresh runs -- and a warm that fails, or a network that is down, costs nothing", async () => {
   const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-  const { askApi } = await import(at("apps/dashboard/src/legacy-bridge/ask/api.ts"));
+  const { askApi } = await import(at("apps/dashboard/src/bridge/ask/api.ts"));
   const sent = [];
   let refreshed = 0;
   let answer = () => new Response(JSON.stringify({ ok: true, data: { stamp: 1 } }), { status: 200 });
@@ -1640,7 +1640,7 @@ test("the tab's warm (D6): the page's context posted to ask/warm for the named w
 test("the model's warm from the tab: posted raw to ask/warm/model for the named workspace when a question is on its way, once in four minutes a tab -- a question sent counts, since it reads and renews the same cache -- and a refusal or a network that is down costs nothing", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T15:00:00Z") });
   const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-  const { askApi } = await import(at("apps/dashboard/src/legacy-bridge/ask/api.ts"));
+  const { askApi } = await import(at("apps/dashboard/src/bridge/ask/api.ts"));
   const sent = [];
   let refreshed = 0;
   let answer = () => new Response(JSON.stringify({ ok: true, data: { warmed: true } }), { status: 200 });

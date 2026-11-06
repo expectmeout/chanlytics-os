@@ -20,19 +20,19 @@ import {
   type SequencePersonDto,
 } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { writeOpeningsNow } from "@/legacy-bridge/verbs/openings";
+import { commitVerb } from "@/bridge/verbs/commit";
+import { writeOpeningsNow } from "@/bridge/verbs/openings";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
-import { canDo, refusalToast, routeDoor } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { canDo, refusalToast, routeDoor } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { HeldEmailRow, SEQUENCE_HELD_IDS } from "../reach-out/held-row";
 import { RewriteAsk } from "../reach-out/rewrite-ask";
 import { RoToSendRows } from "../reach-out/to-send";
 import { pressed } from "./verbs";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 interface NeedsProps {
   /** The sequence they are in: what a held email's Take out leaves. */

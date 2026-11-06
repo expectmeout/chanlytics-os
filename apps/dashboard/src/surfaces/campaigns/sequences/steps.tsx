@@ -41,8 +41,8 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { cx } from "../../kit/variants";
-import { gate, routeDoor } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate, routeDoor } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { LeadSteps } from "./leads/lead-steps";
 import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "./place/rail";
 import { SettingsSheet } from "./settings-sheet";
@@ -52,7 +52,7 @@ import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 import type { CmOffered } from "../parts/channels";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** What a step's state is said from, but whether its message is gone: each step's own read says that. */
 export type StepsCtx = Omit<ScheduleCtx, "gone">;

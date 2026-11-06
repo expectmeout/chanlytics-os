@@ -6,7 +6,7 @@
  */
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { seeValueOf, type SeeRef } from "@chanlytics/contracts";
-import { useLegacyToast } from "../legacy-verbs";
+import { useFrameToast } from "../frame-verbs";
 import { hearSeeOver, seeOverNow } from "./see-over";
 
 const SeeSheet = lazy(() => import("./see-sheet").then((m) => ({ default: m.SeeSheet })));
@@ -26,7 +26,7 @@ function useSeeOver(): SeeRef | null {
 
 export function SeeOverMount() {
   const ref = useSeeOver();
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   // The thing last open, kept while its sheet leaves: the sheet closes as it goes, not as it vanishes.
   const kept = useRef<SeeRef | null>(ref);
   if (ref) kept.current = ref;

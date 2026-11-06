@@ -56,8 +56,8 @@ const win = {
 };
 globalThis.window = win;
 
-const cache = await importSrc("apps/dashboard/src/legacy-bridge/surface-cache.ts");
-const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
+const cache = await importSrc("apps/dashboard/src/bridge/surface-cache.ts");
+const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
 const { createApi } = await importSrc("apps/dashboard/src/client/api.ts");
 
 const refused = (error) => new Response(JSON.stringify({ ok: false, error }), { status: 401 });

@@ -15,7 +15,7 @@ import {
   type LensWho,
   type ReportDays,
 } from "@chanlytics/contracts";
-import { workspaceOverride } from "@/legacy-bridge/surface-data";
+import { workspaceOverride } from "@/bridge/surface-data";
 import { adsShown } from "../campaigns/ads/shown";
 import type { SurfaceViews } from "../routes";
 

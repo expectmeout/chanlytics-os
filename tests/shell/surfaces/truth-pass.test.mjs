@@ -31,7 +31,7 @@ test("Memory is a real pane that keeps the settings nav (decision 0070); Billing
   assert.ok(!settings.includes("There is no billing in the product yet"), "nothing says billing is not built any more");
   // The registry classifies both panes so the gate no longer swallows the page. Each draws none of the settings read, so its
   // gate waits for who is looking, and a load's first draw for its own read beside it (the Settings load review, 28 Oct 2026).
-  const registry = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const registry = readCode("apps/dashboard/src/bridge/surface-registry.ts");
   for (const pane of ["billing", "memory"]) {
     assert.ok(registry.includes(`"admin/${pane}": "real"`), `${pane} classified`);
     assert.ok(registry.includes(`"admin/${pane}": "workspace"`), `${pane} waits for who is looking`);
@@ -60,11 +60,11 @@ test("no diagnostics page in production, and the unloaded mockup files are gone"
   assert.ok(!fs.existsSync(path.join(ROOT, "apps/dashboard/app/(os)/foundation")), "app/(os)/foundation still exists");
   assert.ok(!readCode("apps/dashboard/app/(os)/error.tsx").includes("/foundation"), "the error page still links to it");
   assert.ok(!readRaw("e2e/auth/auth-gate.spec.ts").includes('"/foundation"'), "the e2e still probes it");
-  for (const rel of ["apps/dashboard/src/legacy/design-canvas.jsx", "apps/dashboard/src/legacy/tweaks-panel.jsx"]) {
+  for (const rel of ["apps/dashboard/mockup/design-canvas.jsx", "apps/dashboard/mockup/tweaks-panel.jsx"]) {
     assert.ok(!fs.existsSync(path.join(ROOT, rel)), `${rel} still in the tree`);
   }
   assert.ok(
-    !readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes("design-canvas"),
+    !readCode("apps/dashboard/src/bridge/manifest.ts").includes("design-canvas"),
     "nothing imports the deleted files",
   );
 });

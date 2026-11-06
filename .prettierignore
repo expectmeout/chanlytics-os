@@ -24,10 +24,11 @@ tests/source-scan-baseline.json
 tests/baselines/
 docs/api.md
 
-# The ported shell keeps its own conventions (apps/dashboard/src/legacy/CLAUDE.md):
+# The ported shell keeps its own conventions (apps/dashboard/mockup/CLAUDE.md):
 # script-mode files with /* global */ headers, edited by several people at once.
 # It joins the formatter surface by surface as each one moves to a real route.
-apps/dashboard/src/legacy/
+apps/dashboard/mockup/
+apps/dashboard/src/styles/
 
 # Served as they are: the public pages Meta reviewed, the service worker, the icons
 apps/edge/public/

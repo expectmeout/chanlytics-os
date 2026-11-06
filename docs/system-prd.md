@@ -14,7 +14,7 @@ A system reference in PRD form: every system and subsystem of Chanlytics OS, the
 | S-08  | The jobs ledger and row clocks                           |
 | S-09  | Scheduled sweeps                                         |
 | S-10  | The app plane (`/api/v1`) and core                       |
-| S-11  | The UI and the legacy bridge                             |
+| S-11  | The UI and the bridge                                    |
 | S-12  | Product surfaces                                         |
 | S-13  | Control plane: config, facts and autonomy                |
 | S-14  | Consent, broadcasts and playbooks                        |
@@ -44,13 +44,13 @@ The charter — what the receptionist never does:
 
 This document covers the `expectmeout/chanlytics-os` repository: `apps/edge`, `apps/dashboard`, `packages/*`, `supabase/`, `tooling/`, `e2e/` and `.github/`. S-23 lists what sits outside it.
 
-| Area                  | At this commit                                                                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/edge`           | 40 HTTP handlers, 54 libraries — about 14,600 lines                                                                                                  |
-| `apps/dashboard`      | 105 `/api/v1` route files (123 declared routes), 35 server modules plus the `ask` set, 41 bridge modules; the legacy UI is about 30,000 lines of JSX |
-| `packages/*`          | contracts ~17,700 lines, db ~4,700 (with generated types), channels ~4,400, core ~1,900 (new since the first edition), jobs ~900                     |
-| `supabase/migrations` | 122 migrations, about 14,300 lines                                                                                                                   |
-| Tests                 | 305 `node:test` files (~2,590 tests, 126 of them the database and integration suites that skip without credentials), 36 Playwright specs             |
+| Area                  | At this commit                                                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/edge`           | 40 HTTP handlers, 54 libraries — about 14,600 lines                                                                                           |
+| `apps/dashboard`      | 105 `/api/v1` route files (123 declared routes), 35 server modules plus the `ask` set, 41 bridge modules; the UI is about 30,000 lines of JSX |
+| `packages/*`          | contracts ~17,700 lines, db ~4,700 (with generated types), channels ~4,400, core ~1,900 (new since the first edition), jobs ~900              |
+| `supabase/migrations` | 122 migrations, about 14,300 lines                                                                                                            |
+| Tests                 | 305 `node:test` files (~2,590 tests, 126 of them the database and integration suites that skip without credentials), 36 Playwright specs      |
 
 ## S-02 · The system map
 
@@ -599,15 +599,15 @@ The other thread verbs: **take over** pauses the receptionist and claims the thr
 
 The ledger records the owner's `erase` decision, and a second row for a leg that finished after the rows were gone. The other half of the privacy promise is access, and every export leaves a ledger row too (00114): a thread or a call as a text file (members), everyone as a CSV (owner), and **the workspace's records** — people, conversations with their messages, calls with their transcripts, and the consent history with who recorded each answer and how — as one JSON file written a section at a time (`export-bundle.ts`, owner). Recordings are not in it: audio is removed on its own schedule. Nor yet is the rest of what it holds (notes, bookings, leads, reviews, business details, team, campaigns; each person's row carries only their newest deal and next step): the card names what is not in it, and the privacy page and the Terms offer the rest on request (12 October 2026; it was called "everything" until the wiring's second audit, X1). **How long the product keeps what** is stated once (`contracts/retention.ts`) and enforced where stated: call recordings 90 days, the events ledger's evidence kinds 30, Ask threads 90, the bell 90, cron history 14, finished jobs 7 and failed ones 90, a lead batch's judgment 180, a Google review not seen 90 (a complete read drops one Google no longer lists at once), a team invitation accepted or taken back 30 (00392, decision 0036); the privacy page reads the same file.
 
-## S-11 · The UI and the legacy bridge
+## S-11 · The UI and the bridge
 
-**Status, 31 October 2026.** The operator UI is TSX: each page is a surface under `apps/dashboard/src/surfaces/`, the frame is `src/surfaces/frame/`, and `docs/architecture.md`, The shell, is the current description. It began as a ported HTML mockup — hand-written React in classic-script style, with its state on `window` and no imports — running inside the Next app rather than rewritten; a surface became real by branching inside the existing components (`XReal` / `XSeed`), never by redesigning them, and then left for TSX in the order decision 0015 gives, the frame after them. `src/legacy` keeps what has not left: Ask's five pages and its face, the stylesheets, and the standalone harness (11.5). The mockup-only surfaces' files are gone (17 October 2026); their addresses draw the Not-in-this-release card (11.3). By Ruben's decision (#403, #405) they are revisited when the product is at 100%, and none is built before then. Ruben lifted the rule for the lead finder on 18 September 2026 (the table first): the mockup's Leads page was retired, release A of the finder (00140) was the engine with no screen, and Leads became a scope of People in release B. The figure and 11.1 to 11.4 describe the seam, which stays as built; where they name a `window` global, the page that read it may since have moved to a typed value (`useSurface`), which the `window-globals` measure in `docs/debt.md` counts down.
+**Status, 31 October 2026.** The operator UI is TSX: each page is a surface under `apps/dashboard/src/surfaces/`, the frame is `src/surfaces/frame/`, and `docs/architecture.md`, The shell, is the current description. It began as a ported HTML mockup — hand-written React in classic-script style, with its state on `window` and no imports — running inside the Next app rather than rewritten; a surface became real by branching inside the existing components (`XReal` / `XSeed`), never by redesigning them, and then left for TSX in the order decision 0015 gives, the frame after them. The stylesheets are in `src/styles`, and the standalone mockup is in `apps/dashboard/mockup`.5). The mockup-only surfaces' files are gone (17 October 2026); their addresses draw the Not-in-this-release card (11.3). By Ruben's decision (#403, #405) they are revisited when the product is at 100%, and none is built before then. Ruben lifted the rule for the lead finder on 18 September 2026 (the table first): the mockup's Leads page was retired, release A of the finder (00140) was the engine with no screen, and Leads became a scope of People in release B. The figure and 11.1 to 11.4 describe the seam, which stays as built; where they name a `window` global, the page that read it may since have moved to a typed value (`useSurface`), which the `window-globals` measure in `docs/debt.md` counts down.
 
 <!-- fig:seam -->
 
 ```mermaid
 flowchart LR
-  P["proxy: the page gate"] --> L["(os) layout: prerendered, reads nothing"] --> H["LegacyHost (client only)"]
+  P["proxy: the page gate"] --> L["(os) layout: prerendered, reads nothing"] --> H["FrameHost (client only)"]
   H --> S[seed-globals] --> M["manifest: what the shell still draws by name"]
   M --> C[hydrate the surface cache]
   C --> I["one typed client, the couriers on window"]
@@ -622,14 +622,14 @@ flowchart LR
 
 ### 11.1 Boot
 
-The proxy (the page gate) → `app/(os)/layout.tsx` (prerendered: it reads nothing of the request) → `page.tsx`, or `w/[workspace]/layout.tsx` for a workspace's own address (its route the catch-all `[[...route]]/page.tsx`'s) → `LegacyHost` (client only, because `seed-globals.ts` and the shell's files read `window` at module scope: it imports the shell as `#frame-shell`, which only a browser's build resolves to `LegacyApp`, and draws it under `ssr: false`) → `LegacyApp`:
+The proxy (the page gate) → `app/(os)/layout.tsx` (prerendered: it reads nothing of the request) → `page.tsx`, or `w/[workspace]/layout.tsx` for a workspace's own address (its route the catch-all `[[...route]]/page.tsx`'s) → `FrameHost` (client only, because `seed-globals.ts` and the shell's files read `window` at module scope: it imports the shell as `#frame-shell`, which only a browser's build resolves to `FrameApp`, and draws it under `ssr: false`) → `FrameApp`:
 
 1. `seed-globals.ts` makes the bundle's React the `window.React` (one hook dispatcher), sets `__DEMO_MODE = false`, and publishes the contracts helpers the pages call (`ROLE_PERMS`, `__FACT_WORDS`, the phone checks, the clock, the tone map, the gate).
 2. `manifest.ts` imports, in the order the shared global scope requires, what the shell still draws by name: `seed-globals.ts`. Ask's face is the kit's (`surfaces/kit/face/ask-face.tsx`), which the frame imports, and Ask's Line, `surfaces/ask/`, is a chunk of its own, fetched once the frame is idle or the Line is first opened. The mockup's own files and the seeds they read were deleted on 17 October 2026. The standalone harness loads the same list (11.5).
 3. `hydrateSurfaceCache()` runs at module scope, before React's first render, restoring each surface's last real data from `sessionStorage` — per tab, dying with it, keyed by the build's commit and the workspace, capped at 2 MB, cleared on sign-out, on a 401 and on a workspace change. A refresh paints real, seconds-old data and never the mockup's seeds.
 4. **One typed client** (`src/client/api.ts`, pure, over `routes.generated.ts` from `gen/route-types.mjs`): every request names a route key, and the compiler knows what the route takes and answers, so a courier that hand-typed the server's answer stops compiling. It owns the envelope, the 401, the timeout and the refusal once (`refusalOf`), and **the refresh map** (`refresh-map.ts`): after a write lands, which surfaces could now be stale — one table keyed by route, replacing the list each of eleven couriers carried. The couriers on `window` — `__inboxVerb`, `__personDetail`, `__lists`, `__ask`, `__waConnect`, `__templates`, `__broadcasts`, `__playbooks`, `__calendar`, `__setup`, `__google`, `__billing`, `__connections`, `__businessRecord`, `__platform`, `__activity`, `__identity`, `__tz`, `__clock`, `__me`, `__workspace`, `__shell`, `__chrome`, `__notifs`, `__listRoute` and the `POLICY` store — are the only way a page, which cannot import, reaches the server, and each refreshes through the map, never a row the page invented while it waited.
 5. The route gate: a real route waits for its surface (`__surfaceGate`, with an eight-second escape hatch) instead of painting seeds.
-6. `startSurfaces(SURFACES, joinLiveFeed)` starts the overrides of `SURFACES` (twenty-two in `LegacyApp.tsx` on 10 October 2026, with Campaigns' own `campaign_results`; nineteen of them typed for a TSX surface in `surface-values.ts`). On a workspace page they fire at once with the name riding on every request; off one, the workspace surface goes first and the rest wait, so no read is issued the server would have to guess at. Once they are in, the runner joins the live feed it was handed; it never builds a Supabase client itself, so a node test mounts real surfaces over a feed of its own.
+6. `startSurfaces(SURFACES, joinLiveFeed)` starts the overrides of `SURFACES` (twenty-two in `FrameApp.tsx` on 10 October 2026, with Campaigns' own `campaign_results`; nineteen of them typed for a TSX surface in `surface-values.ts`). On a workspace page they fire at once with the name riding on every request; off one, the workspace surface goes first and the rest wait, so no read is issued the server would have to guess at. Once they are in, the runner joins the live feed it was handed; it never builds a Supabase client itself, so a node test mounts real surfaces over a feed of its own.
 
 ### 11.2 The SurfaceData seam
 
@@ -677,7 +677,7 @@ The words and states come from one place each: **tones** (`contracts/tone.ts`: a
 
 ### 11.5 The standalone harness
 
-`src/legacy/Chanlytics.html` opens the same files without Next, for design review (`node tooling/scripts/serve-legacy.mjs`, which sends `no-store`). `data/bridge-stubs.jsx` loads first and stands in for the bridge's globals only where they are absent, turning demo mode on. `legacy-harness.test.mjs` holds the harness's script list to the bridge manifest — a file on disk is a file the harness loads, nothing loaded is gone, and the order matches — because seventeen files had gone into the manifest alone and the harness booted to a blank page for as long as that took to notice (PR #564).
+`src/mockup/Chanlytics.html` opens the same files without Next, for design review (`node tooling/scripts/serve-mockup.mjs`, which sends `no-store`). `data/bridge-stubs.jsx` loads first and stands in for the bridge's globals only where they are absent, turning demo mode on. `mockup-harness.test.mjs` holds the harness's script list to the bridge manifest — a file on disk is a file the harness loads, nothing loaded is gone, and the order matches — because seventeen files had gone into the manifest alone and the harness booted to a blank page for as long as that took to notice (PR #564).
 
 ## S-12 · Product surfaces
 
@@ -1417,7 +1417,7 @@ A Vercel variable reaches a running deployment only after a redeploy.
 
 ### 23.2 Scripts
 
-Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/db-paths-changed.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs`, `eval-judge.mjs` and `serve-legacy.mjs`.
+Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/db-paths-changed.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs`, `eval-judge.mjs` and `serve-mockup.mjs`.
 
 ### 23.3 Secrets
 

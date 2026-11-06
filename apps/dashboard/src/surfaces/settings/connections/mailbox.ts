@@ -1,5 +1,5 @@
 /**
- * The workspace's email address on Settings › Connections (moved from legacy-bridge/mailbox.ts, decision 0015 step 11):
+ * The workspace's email address on Settings › Connections (moved from bridge/mailbox.ts, decision 0015 step 11):
  * the owner's
  * two acts (choose it once, change the name beside it) and the rules for what
  * may be typed, which are contracts' (mailbox.ts), so the form says the same
@@ -9,7 +9,7 @@
  * form becomes the row that shows the address without the page asking.
  */
 import { suggestLocalPart, whyNotAFromName, whyNotALocalPart } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import type { ApiResult } from "@/client/api";
 
 interface MailboxApi {

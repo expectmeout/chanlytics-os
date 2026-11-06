@@ -8,7 +8,7 @@
  * thread by itself.
  */
 import { THREAD_CHANNEL_WORDS, type ReplyDraftView } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { surfaceValue } from "../../surface-values";
 import { draftViewNow, type DraftWant } from "../../today/need-you/drafts";
 import type { Thread } from "../types";

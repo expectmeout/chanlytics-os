@@ -15,9 +15,9 @@ import {
   inboxTemplates,
   writeReachOf,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false });
+installStubReact({ __DEMO_MODE: false });
 const { NewMessage } = await import("../../apps/dashboard/src/surfaces/inbox/new-conversation/message.tsx");
 const { NewCall } = await import("../../apps/dashboard/src/surfaces/inbox/new-conversation/call.tsx");
 const { approvedKey, firstMessageOf, noteDay, noteShown, onSendKey, sayQueued, whoAnswers, writtenFor } =
@@ -429,7 +429,7 @@ test("the corner's ✕ steps aside where the foot holds Cancel, as a record shee
 
 test("on a touch screen no field of the pick takes focus as it is drawn; a mouse and keys keep it ready", () => {
   // Ruben, 8 October 2026: the sheet opened with its search in focus, so a phone raised its keyboard over a sheet
-  // nobody had read yet and moved the page to the field. A touch screen is the pointer (legacy-verbs.ts), never a width.
+  // nobody had read yet and moved the page to the field. A touch screen is the pointer (frame-verbs.ts), never a width.
   const s = { pick: { q: "", setQ() {}, rows: [], reading: false }, choose() {} };
   const ready = () => byTestId(draw(NewWho, { s }), "ix-new-who-search").props.autoFocus;
   assert.equal(ready(), true, "with keys: N, then type");

@@ -6,7 +6,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PostPicture } from "@chanlytics/contracts";
-import { mediaSays } from "../legacy-verbs";
+import { mediaSays } from "../frame-verbs";
 
 /** The frame's glide and the picture's fade, on the house's ease-out (tokens.css --ease-out). */
 const FRAME_GLIDE_MS = 240;

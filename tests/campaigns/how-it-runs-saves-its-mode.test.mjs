@@ -9,9 +9,9 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, press, unmount } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, press, unmount } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },

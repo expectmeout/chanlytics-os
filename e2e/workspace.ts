@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 /**
  * The active workspace, and a URL that names it.
  *
- * The mirror of `scoped()` in apps/dashboard/src/legacy-bridge/surface-data.ts,
+ * The mirror of `scoped()` in apps/dashboard/src/bridge/surface-data.ts,
  * which appends ?workspace= to every URL the client fetches. A spec calling
  * page.request directly skips that, and is then exercising a request the
  * product never makes — so memberContext refuses it (with-route.ts, `choose_workspace`) the

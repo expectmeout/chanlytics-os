@@ -6,9 +6,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, find, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, find, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact({
+installStubReact({
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   __surfaceState: () => "live",

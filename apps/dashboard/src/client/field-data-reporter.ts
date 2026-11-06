@@ -2,7 +2,7 @@
  * The browser's five (field data, 00255, 00412): web-vitals' attribution build, fed to this load's collector
  * (field-data.ts, made by page-speed.ts installPageSpeed), which sends when the page is put away.
  *
- * LegacyHost loads this module once the page has loaded, as a chunk of its own, so nobody waits for it and the
+ * FrameHost loads this module once the page has loaded, as a chunk of its own, so nobody waits for it and the
  * workspace route's budget does not carry it. The library's observers read the entries the browser buffered, so a late
  * start still reports the whole load: its first paint, its largest, its layout shifts, its slow interactions.
  *

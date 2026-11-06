@@ -6,7 +6,7 @@
  */
 import { CALENDAR_SETTING_ROUTE } from "@chanlytics/contracts";
 import type { SetupVerb } from "@chanlytics/contracts";
-import { canDo, navigate, openBookingTool, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, navigate, openBookingTool, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { billingVerbs } from "../../settings/billing/surface";
 import { setupVerbs } from "../surface";
 import { retryLineInPlace } from "../retry-line";
@@ -14,7 +14,7 @@ import { setupGated } from "./gates";
 
 /** What a verb's press works with: the toast, the one verb on its way, and the two panels under the rows. */
 export interface RowActs {
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   once: (to: string, run: () => Promise<void>) => Promise<void>;
   toggleChooser: () => void;
   toggleForwarding: () => void;
@@ -122,7 +122,7 @@ export async function pressVerb(verb: SetupVerb | null | undefined, k: RowActs):
   }
   // A route behind a gate (Google's row, Find) goes nowhere for a role that may not press it, however it is reached.
   if (setupGated(verb)) return;
-  // The Booking tool's row is a sheet on this page, not a page away (legacy-verbs.ts openBookingTool).
+  // The Booking tool's row is a sheet on this page, not a page away (frame-verbs.ts openBookingTool).
   if (to === CALENDAR_SETTING_ROUTE) return openBookingTool(to);
   navigate(to);
 }

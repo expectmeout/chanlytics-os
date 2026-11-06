@@ -35,7 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { drawnNow, mayAtLeast } from "../../legacy-verbs";
+import { drawnNow, mayAtLeast } from "../../frame-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
 import { carryNotAPerson } from "../carried-reply";
 import { demoSession } from "../shell";

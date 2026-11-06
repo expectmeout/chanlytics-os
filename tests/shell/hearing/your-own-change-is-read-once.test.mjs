@@ -26,9 +26,9 @@ Object.assign(globalThis, {
   __ACTIVE_WORKSPACE: "t1",
 });
 
-const { startSurfaces, refreshSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
-const { onlyOnItsPage, readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { startSurfaces, refreshSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
+const { onlyOnItsPage, readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 const flush = async () => {
   for (let i = 0; i < 30; i += 1) await Promise.resolve();
@@ -313,7 +313,7 @@ test("what a read could be answered from is never newer than the oldest identica
 test("a notice that arrives for a page that is elsewhere, about a change the surface already read, keeps nothing for its page; a later one does", async (t) => {
   const here = globalThis.location.hash;
   const win = {
-    // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+    // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
     __afterTheMoveMs: 0,
     location: globalThis.location,
     addEventListener(_t, fn) {

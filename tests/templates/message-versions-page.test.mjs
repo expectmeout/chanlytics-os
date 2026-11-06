@@ -20,10 +20,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_stub-react.mjs";
 import { lineBox } from "../shared/_line.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const toasts = [];
 Object.assign(W, {
@@ -35,8 +35,8 @@ Object.assign(W, {
   __surfaceState: () => "live",
   useHotkey: () => {},
 });
-const L = "../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 // The toast is the shell's (the frame's usePPToast): what the page flashes is recorded in its place.
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 const S = "../../apps/dashboard/src/surfaces";

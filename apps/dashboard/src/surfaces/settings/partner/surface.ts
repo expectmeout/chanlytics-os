@@ -1,5 +1,5 @@
 /**
- * The partner surface (decision 0012), moved from legacy-bridge/partner.ts with Settings › Partner (decision 0015 step
+ * The partner surface (decision 0012), moved from bridge/partner.ts with Settings › Partner (decision 0015 step
  * 11): the caller's partner account, read once at boot (`GET partner`), and the verbs, becoming one first. The pane is
  * pane.tsx beside this; every sentence it says is contracts' (partnerVM, PARTNER_WORDS), and the count of workspaces
  * brought is read off the workspace list the seam already holds: a membership whose role is partner is one the link
@@ -31,13 +31,13 @@ import {
   type PartnerWorkspacesVM,
   type WorkspacePartnerVM,
 } from "@chanlytics/contracts";
-import { switchWorkspace, type SurfaceOverride, type Workspace } from "@/legacy-bridge/surface-data";
-import { api, read } from "@/legacy-bridge/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import { switchWorkspace, type SurfaceOverride, type Workspace } from "@/bridge/surface-data";
+import { api, read } from "@/bridge/api";
+import { declareReads } from "@/bridge/surface-registry";
+import { refreshSurfaces } from "@/bridge/surface-runner";
 import { browserClient } from "@/lib/supabase/browser-client";
 import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@/auth/second-factor";
-import { windowObject, windowValue } from "../../legacy-verbs";
+import { windowObject, windowValue } from "../../frame-verbs";
 import { teamPartnerRead } from "../frame/pane-reads";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 

@@ -3,13 +3,13 @@
  * (../surface-data.ts).
  */
 
-import { read } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { read } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
 import { MIN_MS, toLiveVM, type CallDto, type LiveVM } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { declareReads, keepForItsPage, ownsTheScreen } from "@/legacy-bridge/surface-registry";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
+import { declareReads, keepForItsPage, ownsTheScreen } from "@/bridge/surface-registry";
+import { routeOnScreen } from "@/bridge/workspace";
 import { channelsHeld, followChannels } from "../channels/surface";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 

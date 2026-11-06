@@ -6,7 +6,7 @@
  * the channels, where the row now shows.
  */
 import { unwrap } from "@/client/api";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { instagramDoorRead } from "../frame/pane-reads";
 
 /**

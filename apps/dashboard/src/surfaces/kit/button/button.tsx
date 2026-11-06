@@ -6,7 +6,7 @@
  * large one is Glass's: a page's head act, as a person's), one drawn as text (the quiet kind's alone), and a glyph alone. A button that opens a page is a link with the same classes (../press.tsx, "a door is a link").
  *
  * It draws what the gallery's Button family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs), and
- * tests/styles/kit-components.test.mjs holds the two together, so a legacy page that writes the
+ * tests/styles/kit-components.test.mjs holds the two together, so a shell page that writes the
  * classes by hand and a surface that draws this draw the same thing. `className` is for the page's layout, and comes
  * last; the ref reaches the element.
  */

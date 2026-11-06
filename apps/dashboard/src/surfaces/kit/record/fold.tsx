@@ -77,7 +77,7 @@ import type { FocusOn } from "./focus";
 import { recPortalRoot, useRecLeaving } from "./leaving";
 import type { FoldId } from "./registry";
 import { RecordFoot, RecordSays } from "./says";
-import { touchSwipe } from "../../legacy-verbs";
+import { touchSwipe } from "../../frame-verbs";
 import { glideHeight } from "../motion/use-height-glide";
 import { portal, trapTab } from "./shell-verbs";
 

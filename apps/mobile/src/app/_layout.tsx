@@ -45,7 +45,7 @@ async function lookAtTheSite(): Promise<void> {
     const now = Date.now();
     // A new build of the site: every page out of sight is reloaded onto it. The one in front is not, since a reload there
     // took the person's place and whatever they were typing; the site marks that page stale itself and offers the
-    // reload (LegacyApp's version check), and the next cold start loads the new build.
+    // reload (FrameApp's version check), and the next cold start loads the new build.
     if (decideReload({ lastSha: siteSha, sha, lastReloadAt, now }) === "reload") {
       setState({ siteSha: sha, lastReloadAt: now });
       reloadEveryPage(front.page()?.reload);

@@ -32,7 +32,7 @@ import {
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { gate, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, routeDoor, type FrameFlash } from "../../../frame-verbs";
 import { addLeadsTo } from "../../reach-out/people";
 import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "../place/rail";
 import { LeadRunsSheet } from "./runs-sheet";
@@ -40,7 +40,7 @@ import { LeadStepSheet } from "./step-sheet";
 import { useLeadChain } from "./use-chain";
 import "./build.css";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** A step's words with each value a chip by its name, as the editor draws them. */
 function Parts({ parts }: { parts: readonly LeadBuildPart[] }) {

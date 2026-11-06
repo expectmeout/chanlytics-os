@@ -8,7 +8,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { useStubHooks } from "../../_legacy-react.mjs";
+import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 let cells = {};
@@ -92,7 +92,7 @@ globalThis.window = {
   removeEventListener() {},
   dispatchEvent: () => true,
   refusalToast: (r, what) => ({ tone: "danger", msg: r?.message ?? what }),
-  // The tab's memory, as legacy-bridge/tab-memory.ts keeps a draft: per kind and key.
+  // The tab's memory, as bridge/tab-memory.ts keeps a draft: per kind and key.
   __tabMemory: {
     draft: (kind, key) => kept.get(`${kind}:${key}`) ?? null,
     keepDraft: (kind, value, key) => kept.set(`${kind}:${key}`, value),

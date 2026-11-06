@@ -7,9 +7,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { installLegacyReact, fresh, again, settle, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, settle, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { peopleTakes, peopleChrome } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
 const { plListRoute } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");

@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
-import { useStubHooks, kitPages } from "../../_legacy-react.mjs";
+import { useStubHooks, kitPages } from "../../_stub-react.mjs";
 
 const TID = "t-studio";
 
@@ -211,12 +211,12 @@ await import("./_business-parts.mjs");
 // read over the seam.
 const { SettingsPage } = await import("../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
-const { hearSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { hearSurfaces } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 // The Team tab is the Partner pane's Team (settings/partner/team-card.tsx): the roster, then the workspace's partner
 // card, an owner's read answered here as refused, so the card stays out of what these tests look at.
 const { partnerVerbs } = await import("../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
 partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
-/** The seam's settings value, beside the globals it copies (legacy-bridge/surfaces/settings.ts). */
+/** The seam's settings value, beside the globals it copies (bridge/surfaces/settings.ts). */
 const seam = () =>
   setSurfaceValue("settings", {
     settings: globalThis.window.__SETTINGS,

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { SIGNUP_WORDS, googleCallbackUrl } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { publicEnv } from "@/lib/public-env";
-import { sealSurfaceCache } from "@/legacy-bridge/surface-cache";
+import { sealSurfaceCache } from "@/bridge/surface-cache";
 
 /**
  * Whether the hosted project has the Google provider switched on. Supabase's

@@ -285,7 +285,7 @@ function sayWhatTheDocumentDid(): void {
 /**
  * The picture let go in the draw that puts its page's rows on the screen, or once the app's code has run for FRAME_HOLDS_MS,
  * whatever the page did; and the screen kept as the page is put away: a phone often closes what it has put away, with no other
- * word. At the frame's module scope, before anything is drawn, once the measures are installed to hear it (LegacyApp).
+ * word. At the frame's module scope, before anything is drawn, once the measures are installed to hear it (FrameApp).
  */
 export function installFirstRows(win: Window = window): void {
   hearPartReady(firstRowsDrawn);

@@ -1,7 +1,7 @@
 /**
  * Go live, pay (decision 0073, R16, canvas 5A, 5A·a–5A·d): what starts and what it asks of the owner after, the plan's
  * price and the trial as it is (FIRST_RUN_TRIAL_DAYS, never a promise the checkout does not keep), and the card in the
- * page: Stripe's embedded Checkout, mounted on the press (legacy-bridge/billing/embedded.ts). Where the edge holds no
+ * page: Stripe's embedded Checkout, mounted on the press (bridge/billing/embedded.ts). Where the edge holds no
  * publishable key, the press goes to Stripe's own page as it did. A workspace on a trial starts its plan now (the number
  * is never on a trial); one that already pays presses Go live and the number is bought.
  *
@@ -9,8 +9,8 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FIRST_RUN_HELPERS, type FirstRunGoLiveVM, type FirstRunPhoneVM } from "@chanlytics/contracts";
-import { mountCheckout, type EmbeddedCheckout } from "@/legacy-bridge/billing/embedded";
-import { canDo, gate, type LegacyFlash } from "../../../legacy-verbs";
+import { mountCheckout, type EmbeddedCheckout } from "@/bridge/billing/embedded";
+import { canDo, gate, type FrameFlash } from "../../../frame-verbs";
 import { billingVerbs } from "../../../settings/billing/surface";
 import { setupVerbs } from "../../surface";
 import type { KeptPhoneChoice } from "../memory";
@@ -55,7 +55,7 @@ export function FrPay(o: {
   ph: FirstRunPhoneVM;
   choice: KeptPhoneChoice | null;
   setChoice: (c: KeptPhoneChoice | null) => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   back: string | null;
 }) {
@@ -163,7 +163,7 @@ export function FrNoProvider({
   leave,
 }: {
   now: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   leave: (to: string) => void;
 }) {
   const N = GW.noProvider;

@@ -26,8 +26,8 @@ import {
   perDayOf,
 } from "@chanlytics/contracts/ads-page";
 import type { ChipId } from "@chanlytics/contracts/ads-page";
-import type { useLegacyToast } from "../../../legacy-verbs";
-import { afterMove, askAbout, navigate } from "../../../legacy-verbs";
+import type { useFrameToast } from "../../../frame-verbs";
+import { afterMove, askAbout, navigate } from "../../../frame-verbs";
 import { tellOf } from "../store";
 import type { AdsVerbs } from "../store";
 import type { CalloutAct } from "./callout";
@@ -35,7 +35,7 @@ import { applyDraft, changedOf, draftPatch, startDraft, withChip } from "./draft
 import type { Draft, EditId } from "./draft";
 
 /** What the shell's toast takes. */
-export type Flash = ReturnType<typeof useLegacyToast>[1];
+export type Flash = ReturnType<typeof useFrameToast>[1];
 
 /** What a question standing in the foot is asking. */
 type Asking = "end" | "discard" | "update" | "remove" | null;

@@ -11,7 +11,7 @@
 // slot, after every card (BtSheetSlot says why).
 //
 // The page composes and never derives. Every sentence with a number or a judgement in it is contracts', through
-// BUSINESS_TAB (legacy-bridge/business-tab.ts); every fact is the settings read's (settingsNow, factsNow), read as the
+// BUSINESS_TAB (bridge/business-tab.ts); every fact is the settings read's (settingsNow, factsNow), read as the
 // page draws. What a save writes is save.tsx's, through the tab's saver (saver.ts): each row's check and patch, and the
 // tab's one saver.
 //
@@ -22,9 +22,9 @@
 // habit and nothing new needs keeping to it.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { canDo, gateTitle, navigate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import { canDo, gateTitle, navigate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { documentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { recFolds } from "../../kit/record/registry";
@@ -60,7 +60,7 @@ import { BtBookingLinkRow, BtGoalCard, BtTransferNumberRow, BtWhoCard } from "./
 import { LearnedFromYou } from "../autonomy/learned";
 
 /** The toast the shell raises (the page's `flash`). */
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /**
  * Which of the business's pages is drawn, by its section's id (frame/tabs.ts): Details (`workspace`), Hours & booking

@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { canDo, gate, hasTouchSwipe, touchSwipe } from "../../legacy-verbs";
+import { canDo, gate, hasTouchSwipe, touchSwipe } from "../../frame-verbs";
 import { plRowCard } from "../../people/cells/row-card";
 import { plPhoneNow } from "../../people/words";
 import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";

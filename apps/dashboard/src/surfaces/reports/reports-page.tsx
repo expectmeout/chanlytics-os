@@ -41,7 +41,7 @@ import {
 } from "@chanlytics/contracts";
 import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
-import { navigate } from "../legacy-verbs";
+import { navigate } from "../frame-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";

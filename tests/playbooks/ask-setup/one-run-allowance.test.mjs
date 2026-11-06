@@ -22,7 +22,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -42,7 +42,7 @@ const DAY = 86_400_000;
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
 
 // The page's window is the stub React's (window IS globalThis), with the workspace in it, as the shell publishes it.
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/harbor/",
     hash: "#/campaigns",
@@ -57,7 +57,7 @@ installLegacyReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-const { installClock } = await import(at(`${SRC}/legacy-bridge/zone.ts`));
+const { installClock } = await import(at(`${SRC}/bridge/zone.ts`));
 installClock();
 
 const { buildProposal, newToolContext } = await import(at(`${SRC}/server/ask/tools/index.ts`));

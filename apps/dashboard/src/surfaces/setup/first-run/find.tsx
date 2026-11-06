@@ -11,10 +11,10 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import type { FIRST_RUN_WORDS, GoogleCandidateDto } from "@chanlytics/contracts";
-import { googleVerbs } from "@/legacy-bridge/google";
+import { googleVerbs } from "@/bridge/google";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordBox, RecordToggleGroup } from "../../kit/record/field";
-import { canDo, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs } from "../surface";
 
 type FindWords = (typeof FIRST_RUN_WORDS)["find"];
@@ -30,7 +30,7 @@ interface Found {
 
 interface FindProps {
   W: FindWords;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   done: string | null;
   go: (to: string) => void;
   make: () => void;

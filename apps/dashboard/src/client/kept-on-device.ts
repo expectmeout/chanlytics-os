@@ -1,5 +1,5 @@
 /**
- * What this browser keeps of a workspace's rows, named in one place: the surfaces' snapshots (legacy-bridge/surface-cache.ts) and
+ * What this browser keeps of a workspace's rows, named in one place: the surfaces' snapshots (bridge/surface-cache.ts) and
  * the copy of a phone's screen (surfaces/frame/first-rows.ts), which hold the same customers' words and so go together: past their
  * age at a load, at every clear, and for good once the device is sealed. Neither of the two knows the other's slots or its rules.
  */

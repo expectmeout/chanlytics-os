@@ -1,6 +1,6 @@
 /**
  * What New conversation opens, held once by the frame (a conversation begins from the Inbox, the design's 4.1 and
- * 4.7): the sheet, loaded on demand, and the Inbox's key for it. Drawn beside the shell (legacy-bridge/LegacyApp.tsx),
+ * 4.7): the sheet, loaded on demand, and the Inbox's key for it. Drawn beside the shell (bridge/FrameApp.tsx),
  * as the frame's head is, so one sheet answers the Inbox's three tabs and a person's page alike, and nothing of it is
  * in any page's first load: the button a page draws (act.tsx) asks the store, and this answers.
  *

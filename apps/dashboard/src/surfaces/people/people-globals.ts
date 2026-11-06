@@ -18,7 +18,7 @@ export const PEOPLE_GLOBALS = {
   // the shell's strip of People's scopes
   plScopes,
   plScopeRoute,
-  // where a list's own route lands (the shell's segments/<id>, legacy-verbs.ts listRoute)
+  // where a list's own route lands (the shell's segments/<id>, frame-verbs.ts listRoute)
   __listRoute: plListRoute,
   // the two sheets the frame draws once, and the verbs that ask for them (the Inbox's thread, the Calendar, the Pipeline
   // and the person's deal card open them by name): their code comes once the frame is idle, or at the first ask

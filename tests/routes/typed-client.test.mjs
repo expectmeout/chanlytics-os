@@ -407,7 +407,7 @@ test("the URL alone, for a link the browser follows rather than a request it mak
 
 test("the refresh map names surfaces only for writes, and every key it names is a route", async () => {
   const { ROUTES } = await import(at("apps/dashboard/src/client/routes.generated.ts"));
-  const { AFTER_KEYS } = await import(at("apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+  const { AFTER_KEYS } = await import(at("apps/dashboard/src/bridge/refresh-map.ts"));
   assert.ok(AFTER_KEYS.length >= 40, `the couriers' lists moved in: ${AFTER_KEYS.length}`);
   for (const k of AFTER_KEYS) {
     assert.ok(ROUTES[k], `${k}: not a route`);

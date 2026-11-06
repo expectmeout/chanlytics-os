@@ -17,7 +17,7 @@ import {
   type PostPlan,
   type PostShapeName,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 
 /**
  * What a picker offers, a HEIC by its name too. Asked for only JPEG, a phone converts by itself; what an iPhone hands over

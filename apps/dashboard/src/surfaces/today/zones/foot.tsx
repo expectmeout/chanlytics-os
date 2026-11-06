@@ -12,7 +12,7 @@ import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { borrowed, useMoved } from "../shell";

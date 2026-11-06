@@ -131,7 +131,7 @@ test("the routes a surface reads are the keys its source names, less its comment
 
 test("the shell's surfaces come with the module each is imported from, and one imported from nowhere there is has none", () => {
   assert.deepEqual(registeredSurfaces(root), [
-    { name: "workspaceOverride", file: "apps/dashboard/src/legacy-bridge/surface-data.ts" },
+    { name: "workspaceOverride", file: "apps/dashboard/src/bridge/surface-data.ts" },
     { name: "todayOverride", file: null },
     { name: "peopleOverride", file: "apps/dashboard/src/surfaces/people/surface.ts" },
   ]);

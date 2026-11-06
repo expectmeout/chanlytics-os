@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chanlytics</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Mona+Sans:wght@200..900&display=swap" rel="stylesheet" />
+
+  <!-- The mockup's server (tooling/scripts/serve-mockup.mjs) writes the stylesheets the app imports here, in its order
+       (bridge/frame.css). -->
+  <!-- The app's stylesheets -->
+
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    #root { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Bridge stand-ins (harness only — the bundle publishes these for real) -->
+  <script type="text/babel" src="data/bridge-stubs.jsx"></script>
+  <!-- The kit's components the pages below still draw by name (Icon, FailedRead, SegmentBar, StatePill, PolicyChip, MoreMenu, Confirm, RecordSwitch ...): surfaces/kit/kit-globals.ts, built by tooling/scripts/serve-mockup.mjs, the object the app publishes from seed-globals -->
+  <script src="data/kit-globals.js"></script>
+  <!-- The Inbox's and Conversations' names the pages below still read (INBOX_DATA, CONVERSATIONS_DATA, IX_STORE, ixWaitsOnYou): surfaces/inbox/mockup-globals.ts, built by the same server, the object the app publishes from seed-globals; the two pages themselves are App Router pages only the app draws -->
+  <script src="data/inbox-globals.js"></script>
+  <!-- People's parts the shell still draws by name (the strip's scopes, the deal and step sheets, the demo's Lists marks): surfaces/people/people-globals.ts, built by the same server, the object the app publishes from seed-globals -->
+  <script src="data/people-globals.js"></script>
+  <!-- The frame's helpers the pages below read by name (the toast, a thumb's gestures, an overlay's way out, focus, the role gate, a door that is a link, presence, the seeded charter, the tip): surfaces/frame/frame-globals.ts, built by the same server, which the app installs from seed-globals -->
+  <script src="data/frame-globals.js"></script>
+  <!-- The frame itself (surfaces/frame/app-shell.tsx), built by the same server, under the name the boot below draws -->
+  <script src="data/frame-app.js"></script>
+  <!-- Ask's Line (surfaces/ask/, TSX), built by the same server: a chunk of its own in the app -->
+  <script src="data/ask-line.js"></script>
+
+  <!-- The mockup's server writes the files the app loads here, in its order: every workspace's
+       (bridge/manifest.ts), then the demo's (bridge/manifest-demo.ts), which the app loads only in a session
+       that declared itself a demo, as this one is. A file goes in the app's list, never here. -->
+  <!-- The app's files -->
+
+  <script type="text/babel" data-presets="env,react">
+    const { useEffect, useCallback } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "dark",
+      "look": "glass",
+      "inboxDensity": "compact",
+      "showInboxAgentRail": false
+    }/*EDITMODE-END*/;
+
+    // The tweaks panel was removed with the rest of the unloaded mockup files
+    // (#89) and its <script> tag outlived it, so this harness has been throwing
+    // "useTweaks is not defined" on boot ever since. The two knobs it carried
+    // that the shell still reads are defaults here; theme is a real control
+    // because a design pass needs to see both. The look is stamped beside it,
+    // as the app stamps it, so a [data-look] rule draws here as it does there.
+    function App() {
+      const [theme, setTheme] = React.useState(TWEAK_DEFAULTS.theme);
+      const [look, setLook] = React.useState(TWEAK_DEFAULTS.look);
+      useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
+      useEffect(() => { document.documentElement.setAttribute("data-look", look); }, [look]);
+      useEffect(() => {
+        const onKey = (e) => {
+          if (e.key !== "t" || e.metaKey || e.ctrlKey || e.altKey) return;
+          const tag = (e.target.tagName || "").toLowerCase();
+          if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+          setTheme((v) => (v === "dark" ? "light" : "dark"));
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, []);
+      return (
+        <ChanlyticsApp
+          theme={theme}
+          onTheme={setTheme}
+          look={look}
+          onLook={setLook}
+          inboxDensity={TWEAK_DEFAULTS.inboxDensity}
+          showInboxAgentRail={TWEAK_DEFAULTS.showInboxAgentRail}
+        />
+      );
+    }
+
+    // Boot gate — the data-before-mount contract made explicit (Architecture audit §04).
+    // Backend swap: fetch real data, populate these globals, THEN render. Same gate. The seeded people (CLIENTS), the
+    // Agents roster and the seeded Today (FLEET_DATA, CHANLY_DATA) went with the mockup's pages (17 Oct 2026).
+    const REQUIRED = ["CHANLY", "INBOX_DATA", "POLICY", "ChanlyticsApp"];
+    const missing = REQUIRED.filter((k) => !window[k]);
+    if (missing.length) {
+      document.getElementById("root").innerHTML = '<div style="height:100vh;display:grid;place-items:center;font-family:Geist,sans-serif;color:#666"><div style="text-align:center"><div style="font-size:15px;font-weight:600;color:#333">Chanlytics didn\'t finish loading</div><div style="font-size:13px;margin-top:6px">Missing: ' + missing.join(", ") + ' — refresh to retry.</div></div></div>';
+    } else {
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    }
+  </script>
+</body>
+</html>

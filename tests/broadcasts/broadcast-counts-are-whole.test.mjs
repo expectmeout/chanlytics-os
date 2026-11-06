@@ -446,7 +446,7 @@ globalThis.window = {
   dispatchEvent() {},
   setTimeout: () => 1,
   clearTimeout() {},
-  // The workspace, as its own surface publishes it: the rows say their times by its clock (legacy-bridge/zone.ts).
+  // The workspace, as its own surface publishes it: the rows say their times by its clock (bridge/zone.ts).
   __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: TID,
 };

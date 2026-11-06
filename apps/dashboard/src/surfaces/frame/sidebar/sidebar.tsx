@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { routeDoor } from "../../frame-doors";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { frameGlyph, isDemoFrame } from "../frame-window";
 import { NAV_INTEL, NAV_PRIMARY, NAV_WORK, placeLit, type NavItem } from "../places";
 import { NAV_ROUTE } from "../shell-routes";
@@ -279,7 +279,7 @@ interface FootProps {
   look?: string;
   onLook?: (id: string) => void;
   onNavigate: (to: string) => void;
-  flash: (p: LegacyFlash) => void;
+  flash: (p: FrameFlash) => void;
 }
 
 /** The foot: the rail's toggle and the account. The shell's status is the line under the top bar (frame/topbar.tsx). */

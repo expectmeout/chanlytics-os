@@ -33,7 +33,7 @@ import {
   type LeadEmailText,
   type LeadStepWordsDto,
 } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { undoRewrite, type RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
 import { pressed, sequenceVerbs } from "../../campaigns/sequences/verbs";
 import { Button } from "../../kit/button/button";
@@ -45,7 +45,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
 import { GRAB_AT } from "../../kit/motion/swipe";
 import { tabDraft, useUnsavedWork } from "../../kit/record/work";
-import { canDo, drawnNow, gate, refusalToast } from "../../legacy-verbs";
+import { canDo, drawnNow, gate, refusalToast } from "../../frame-verbs";
 import type { Flash } from "../peek/types";
 import type { SheetFacts, SheetMail, SheetMailEdit } from "./facts";
 import { openRecordFor, type SheetRun } from "./run";

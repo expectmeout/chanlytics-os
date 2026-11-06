@@ -4,7 +4,7 @@
  * People's page is an App Router page, which only the app draws, and so are its Leads scope, the Pipeline and a person's
  * page; what the harness's mockup still draws of People is the shell's own: the strip's scopes and the deal and step sheets
  * (surfaces/people/people-globals.ts). They are TSX on the page's React, so they come in a bundle loaded after it
- * (serve-legacy.mjs `/data/people-globals-harness.js`), while the fixture (fixture-src.ts) boots People before React loads,
+ * (serve-mockup.mjs `/data/people-globals-harness.js`), while the fixture (fixture-src.ts) boots People before React loads,
  * in a bundle of its own. Two bundles are two copies of the surface's store, so this one takes People from where the
  * fixture's runner puts it -- the window's `__PEOPLE`, and the event a surface lands on -- and holds it in its own, which is
  * what `usePeople` reads. Only in a record that has people.

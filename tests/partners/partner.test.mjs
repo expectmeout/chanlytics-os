@@ -40,7 +40,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore, RATE } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { SURFACE_STATES, ROUTE_SURFACE } = await import(at("apps/dashboard/src/legacy-bridge/surface-registry.ts"));
+const { SURFACE_STATES, ROUTE_SURFACE } = await import(at("apps/dashboard/src/bridge/surface-registry.ts"));
 const link = await import(at("apps/dashboard/app/p/[code]/route.ts"));
 const partner = await import(at("apps/dashboard/app/api/v1/partner/route.ts"));
 const create = await import(at("apps/dashboard/app/api/v1/workspaces/create/route.ts"));
@@ -407,7 +407,7 @@ test("where you are: each workspace with the caller's role in it, and whether th
 /* ------------------------------------------------------------------ the wiring */
 
 test("wiring, run: the pane's surface is real and waits for who is looking, becoming one has its bucket, the ledger's kinds are declared", () => {
-  // The manifest and the harness (legacy-harness.test.mjs), the public prefix (auth-gate.test.mjs), the rail and the
+  // The manifest and the harness (mockup-harness.test.mjs), the public prefix (auth-gate.test.mjs), the rail and the
   // pane (partner-pane.test.mjs) and the function's refusals (partner.db.test.mjs) are proved where they are run.
   assert.equal(SURFACE_STATES["admin/partner"], "real");
   // It draws none of the settings read: who is looking, and the partner account beside it (the Settings load review, 28 Oct 2026).

@@ -4,7 +4,7 @@
  * has it read as it comes on screen: once, and again when it says it has aged. Run on the real runner and the real routes' registry
  * (`reports` is Reports' own surface; `reports_headline` is one Today draws; `reports_reviews`, `reports_receptionist` and
  * `reports_people` are ones only their own lens draws; `reports_campaigns` is the Campaigns lens's, which the Overview draws too, for
- * one fact; `google` is one Today and Settings' Connections pane draw, and no other page), the way LegacyApp wires
+ * one fact; `google` is one Today and Settings' Connections pane draw, and no other page), the way FrameApp wires
  * them, each read recorded rather than made. Campaigns' own 30 days went with the composer's Every time, their last
  * reader (the closed-loop audit of 17 Oct 2026, G). A surface not marked behaves as it always did.
  */
@@ -15,7 +15,7 @@ import { historyOf, legacyAddress } from "../../shell/address/_address.mjs";
 
 const heard = new Map();
 const win = {
-  // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+  // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
   __afterTheMoveMs: 0,
   __ACTIVE_WORKSPACE: "ws-1",
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
@@ -50,18 +50,18 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 14) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
-win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts")).addressApi(win);
+win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
 win.CHANLY = { nav() {}, address: await legacyAddress() };
-const runner = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
+const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
 const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
 const { receptionistOverride } = await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts");
 const { reportsPeopleOverride } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
 const { reportsCampaignsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/campaigns-surface.ts");
-const { googleOverride } = await importSrc("apps/dashboard/src/legacy-bridge/google.ts");
+const { googleOverride } = await importSrc("apps/dashboard/src/bridge/google.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 let aged = false;
@@ -96,7 +96,7 @@ const world = (asked) => {
 };
 /** The Google read this tab holds, made `ms` ago. */
 const heldGoogleFrom = (ms) => setSurfaceValue("google", { dto: { listing: null }, fetchedAt: Date.now() - ms });
-/** A runner over them, wired as LegacyApp wires it; `go` moves the address as Back does, `away` leaves the tab and comes back. */
+/** A runner over them, wired as FrameApp wires it; `go` moves the address as Back does, `away` leaves the tab and comes back. */
 async function running(hash) {
   win.location.hash = hash;
   const asked = [];
@@ -1044,11 +1044,11 @@ test("a page reached for reads what it draws only when drawn, before the press: 
   // (9 Oct 2026, production: 470 to 700 ms on a desk, where a page read at boot drew in under 60).
   for (const key of ["reports", "reports_reviews", "reports_receptionist", "reports_people", "reports_campaigns"])
     status.setStatus(key, "seeded");
-  const { onRouteReachedFor } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+  const { onRouteReachedFor } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
   const r = await running("#/today");
   try {
     r.take();
-    // As LegacyApp wires it: a reach is the address's `warm`, which the sidebar's rows and the phone's drawer call.
+    // As FrameApp wires it: a reach is the address's `warm`, which the sidebar's rows and the phone's drawer call.
     onRouteReachedFor(
       registry.warmWhatItDraws(
         r.overrides,
@@ -1114,7 +1114,7 @@ test("a page reached for reads what it draws only when drawn, before the press: 
 test("a warm that failed is asked for once, and the page still reads its surface as it comes on screen", async () => {
   status.setStatus("reports", "seeded");
   status.setStatus("reports_campaigns", "seeded");
-  const { onRouteReachedFor } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+  const { onRouteReachedFor } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
   const r = await running("#/today");
   const reports = r.overrides.find((o) => o.key === "reports");
   const real = reports.apply;

@@ -33,7 +33,7 @@
 import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
 import { PREVIEW_WORDS, personInitials } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Icon } from "../../kit/icon/icon";
 import { cx } from "../../kit/variants";
 

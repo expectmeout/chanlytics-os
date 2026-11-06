@@ -10,12 +10,12 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 // The cache scopes by the workspace the REQUEST is built for, which is the one
-// in the address (legacy-bridge/workspace.ts reads location.pathname) -- not a
+// in the address (bridge/workspace.ts reads location.pathname) -- not a
 // global. A fake that set a global instead passed while the real thing did not.
 globalThis.window = globalThis.window || {};
 globalThis.window.location = { pathname: "/w/salon", hash: "" };
 
-const { readCache, clearReadCaches } = await import("../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { readCache, clearReadCaches } = await import("../../../apps/dashboard/src/bridge/read-cache.ts");
 
 const asWorkspace = (slug) => {
   globalThis.window.location.pathname = `/w/${slug}`;

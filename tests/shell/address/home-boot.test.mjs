@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { homeBootScript, LAST_WORKSPACE_STORAGE } from "../../../packages/contracts/src/index.ts";
 import { importSrc } from "../../_source.mjs";
 
-const { homeHref, workspaceHref } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+const { homeHref, workspaceHref } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
 
 /** The home's script at an address, with `last` remembered: where it sent the tab. */
 function fromHome({ pathname = "/", search = "", hash = "", last = "acme", storageThrows = false }) {

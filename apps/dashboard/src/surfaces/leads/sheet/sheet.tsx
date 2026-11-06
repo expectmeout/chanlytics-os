@@ -30,7 +30,7 @@ import {
   type LeadRowVM,
   type LeadSheetSlotVM,
 } from "@chanlytics/contracts";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { useLeadEmails, useLeadPlace, useLeadWords } from "../../campaigns/sequences/place/parts";
 import { useSequenceRead } from "../../campaigns/sequences/use-record";
@@ -40,7 +40,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { refusalToast, touchSwipe } from "../../legacy-verbs";
+import { refusalToast, touchSwipe } from "../../frame-verbs";
 import { useWaitFor } from "../../use-surface";
 import { LeadCallAsk, LeadPeekAsk, LeadSentAsk } from "../peek/asks";
 import type { Armed, Deck, DraftState, Flash, PeekActs, PeekMode } from "../peek/types";

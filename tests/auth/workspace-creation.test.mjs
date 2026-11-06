@@ -23,8 +23,8 @@ const route = readCode(
   "apps/dashboard/app/api/v1/workspaces/create/route.ts",
   "apps/dashboard/src/server/workspace/workspace-create.ts",
 );
-const boot = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
-const form = readCode("apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx");
+const boot = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
+const form = readCode("apps/dashboard/src/bridge/CreateWorkspace.tsx");
 
 /* --------------------------- the privilege boundary ----------------------- */
 

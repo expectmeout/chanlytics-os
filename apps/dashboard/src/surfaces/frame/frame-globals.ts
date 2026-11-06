@@ -9,14 +9,14 @@
  * (wave 2, steps 7a to 7e), so no name of theirs is published.
  *
  * What is shared moves once (decision 0015): the app publishes them from seed-globals.ts before any page loads, the
- * standalone mockup from a bundle its server builds (tooling/scripts/serve-legacy.mjs, `data/frame-globals.js`), and a
+ * standalone mockup from a bundle its server builds (tooling/scripts/serve-mockup.mjs, `data/frame-globals.js`), and a
  * node test that draws a page reading them installs them where it imported the JSX. Each name goes with its last reader:
  * the frame's and Ask's JSX (wave 2), then the adapters, which read the window so a test can stand in (step 9).
  *
  * `installFrameGlobals` publishes as the JSX did: every function over whatever was there, the two stores, the contracts and
  * the tip only where none is (a test's stand-in, the mockup's), and the focus listener once.
  */
-import { seedPolicyStore } from "@/legacy-bridge/policy-store";
+import { seedPolicyStore } from "@/bridge/policy-store";
 import { dialogRef, hearFocusOutside, tabStops, trapFocus, trapTab } from "../kit/focus/trap";
 import { keyPress, useHotkey } from "../kit/focus/keys";
 import { holdStill } from "../kit/motion/hold-still";

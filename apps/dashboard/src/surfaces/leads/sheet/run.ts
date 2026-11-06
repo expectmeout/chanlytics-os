@@ -22,10 +22,10 @@ import {
   type SequencePlaceDto,
   type SequenceTab,
 } from "@chanlytics/contracts";
-import { undoVerb } from "@/legacy-bridge/verbs/commit";
+import { undoVerb } from "@/bridge/verbs/commit";
 import { holdTrip } from "../../campaigns/sequences/trip";
 import { pressed } from "../../campaigns/sequences/verbs";
-import { navigate, refusalToast } from "../../legacy-verbs";
+import { navigate, refusalToast } from "../../frame-verbs";
 import type { Flash, PeekActs } from "../peek/types";
 import type { LeadPile } from "../pile/use-pile";
 import { laterLead, setLeadStage, undoLeadOperation } from "../surface";

@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mountCharacter } from "../../../apps/dashboard/src/legacy-bridge/mascot/driver.ts";
+import { mountCharacter } from "../../../apps/dashboard/src/bridge/mascot/driver.ts";
 
 function fakeButton(rect = { left: 0, top: 0, width: 260, height: 30 }) {
   const on = new Map();
@@ -134,7 +134,7 @@ function fakeEnv() {
 const spread = (tiles) => Math.hypot(tiles[2][0] - tiles[0][0], tiles[2][1] - tiles[0][1]);
 
 test("the published mount tells who listens once per face that mounts, a face that cannot mount tells nobody, and a listener stopped hears no more", async () => {
-  const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
+  const { MASCOT } = await import("../../../apps/dashboard/src/bridge/mascot/index.ts");
   const told = [];
   const off = MASCOT.onMount((m) => told.push(m.role));
   const F = fakeEnv();

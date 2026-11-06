@@ -1,0 +1,910 @@
+/* ============================================================
+   CHANLYTICS — DESIGN TOKENS
+   Calm intelligence. Light + Dark, equal weight.
+   ============================================================ */
+
+:root {
+  --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  /* Type scale — airy, density 20 */
+  /* Under the smallest step: the word under a phone tab bar's glyph, and the count on it (the canvases' 10 and 9). */
+  --text-2xs:   10px;
+  --text-sm:    12.5px;
+  --text-base:  13.5px;
+  --text-lg:    16px;
+  --text-2xl:   22px;
+  --text-4xl:   36px;
+  --text-5xl:   48px;
+  /* A field's words on a touch screen. Below 16px, Safari on a phone zooms the page into the field it focuses, so
+     this is not a step of the scale above and does not move with it (globals.css holds every field to it under a
+     coarse pointer; the Ask line and the phone's own fields read it too). */
+  --field-text-touch: 16px;
+
+  --leading-tight: 1.2;
+  --leading-snug:  1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.04em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---------- Spacing (4px base, generous) ---------- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ---------- Measure (how wide a surface is allowed to be) ----------
+     There was no token for this and every surface invented its own: 720 on a
+     settings card and the Today brief, 1160 on Templates and Broadcasts, 1480
+     on Today's grid, and NOTHING on the Setup rows — which is why that one list
+     grew with the window while the two cards above it stayed put, and why the
+     gap between them got worse the wider the monitor.
+
+     Three measures, and a page picks one:
+       prose — a column of rows, forms or sentences read top to bottom
+       page  — a page with lists or tables that needs more than a column
+       wide  — a multi-column grid that would look empty any narrower
+     A surface with its own panes (Inbox, Calendar, Reports, Fleet, People)
+     takes none of these: it is full-bleed by design and the panes divide it. */
+  --measure-prose: 720px;
+  --measure-page: 1160px;
+  --measure-wide: 1480px;
+
+  /* ---------- Rails (the left column of a pane surface) ----------
+     Eight widths were in use for one structural element: 208, 220, 220, 280,
+     320, 340, 340, 400. Two of them are the real kinds --
+
+       nav  -- a short menu of labels (Settings, People)
+       list -- rows you scan and pick from (Inbox, Conversations)
+
+     -- and a surface that needs another width should say why in a comment
+     rather than inventing a ninth. Segments (320) and Fleet (280) still carry
+     literals: their rails hold composers and cards, and narrowing them clips
+     (Segments measured: clean at 280, clips at 220), so they are a design call
+     rather than a rename. Live's 400 held a four-column table; its rows now
+     take the Inbox's shape, and the real page takes --rail-list (live.css). */
+  --rail-nav: 220px;
+
+  /* ---------- Breakpoints (the widths the layout changes at) ----------
+     Three widths are the real kinds --
+
+       phone  -- one pane at a time (the Inbox's list or its thread), the tab bar
+       narrow -- the sidebar becomes a drawer, a list takes the phone's row
+       desk   -- at or under it a desk is a small one: the sidebar stands as its rail (shell-hooks.ts useDeskSidebar), since
+                 at 1024px the open sidebar left a thread 348px beside a 360px list and People's table half its columns
+
+     -- and a layout changes at one of them, from either side: (max-width:
+     720px), or (min-width: 721px) and (width > 720px). A media query cannot
+     read a variable, so each writes its number; these are where the numbers
+     are written, and the build holds every width in the dashboard's
+     stylesheets and scripts to them (tests/baselines/
+     the breakpoints measure, which counts the other widths still in use; on 5 October
+     2026, 640 and 760 the most). A width it holds as it was is a design call
+     on its page, not a rename: it waits there until its page comes to one of
+     these. */
+  --bp-phone: 720px;
+  --bp-narrow: 900px;
+  --bp-desk: 1280px;
+
+  /* ---------- A list row on a phone (900px and under) ----------
+     Four lists show a person, a lead, a conversation and a call, and each had
+     invented its own row. Measured on production at 375px, 22 Sep: People 84px
+     tall, the Inbox 83, Conversations 100, Leads 131 — and inside them two name
+     sizes, three gutters, two faces and a 56px photograph. One after another
+     they read as four products rather than four lists.
+
+     People's row is the one they share: a 32px face, then a line of who and how
+     they stand, a line of what was said, and a line of the facts under it. A
+     sheet picks these tokens; it does not restate the numbers. What each list
+     puts on the three lines is still its own — the Inbox keeps its channel, its
+     wait and its agent, a lead keeps its reach and its rating.
+
+     Only a phone. Above 900px each list keeps the row it has: a rail beside an
+     open thread is not a list you scan with a thumb. */
+  --row-pad-y: 12px;
+  --row-pad-x: 16px;
+  --row-face: 32px;
+  --row-gap: 12px; /* the face to the words, and one fact to the next */
+  --row-line-gap: 2px; /* one line of a row to the line under it */
+  --row-name-line: 20px; /* who it is, at --text-base --weight-medium */
+  --row-said-line: 18px; /* what was said, at --text-sm */
+  --row-facts: 11.5px; /* the facts under it, and how tall their line is */
+  --row-facts-line: 17px;
+  /* Where the hairline between two rows starts: under the name, the face's column clear of it, as a phone's own lists
+     draw theirs (kit.css, the list row; mobile.css, the pages' rows). It ends at the row's far padding. */
+  --row-rule-start: calc(var(--row-pad-x) + var(--row-face) + var(--row-gap));
+
+  /* ---------- Radii ---------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  /* A message's bubble on a person's page (canvas A, their last words): 18 round, its tail's corner --radius-sm. */
+  --radius-bubble: 18px;
+  /* A row of the Inbox's list on a desk, the open one a card of the raised ground (the thread canvas's list). */
+  --radius-row: 14px;
+  /* A capsule around a 36px control with 6px of room (the Inbox's reply box, I1): 18 + 6. */
+  --radius-3xl: 24px;
+  /* The top corners of the phone's action sheet (the kit's Menu from the bottom edge): the sheet's 16 and 6 more. */
+  --radius-sheet: 22px;
+  --radius-full: 999px;
+  /* A thread's small marks (Ask's Line): the caret's stem, the tile before what it read, and the one before a question. */
+  --radius-stem: 1px;
+  --radius-tile: 1.5px;
+  --radius-dot: 2px;
+  /* What stands inside a card (Ask's): its mark, and the sunken ground of what it would change. */
+  --radius-mark: 9px;
+  --radius-inset: 10px;
+  /* A circle, whatever the box's size: a face, a dot. --radius-full rounds a wide box into a capsule, this into an
+     ellipse; on a square box the two are one circle. The stylesheets still write 50% by hand for it (step 2.2). */
+  --radius-circle: 50%;
+
+  /* ---------- Motion ---------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* What leaves speeds up as it goes: a sheet let go of, an overlay closing (components.css, kit/motion/swipe.ts touchSwipe). */
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 360ms;
+  /* How far a view travels as it changes (the kit's view deck, surfaces/kit/motion/view-deck.ts): a short length on a
+     desk, where the page leaving dims where it is and the two cross-fade; its own width where a page is one column
+     (the foot of this sheet), so the pages go by side by side, as a finger carries them. One motion at every width,
+     and this is the one length of it that differs. */
+  --view-travel: 56px;
+
+  /* ---------- Blur and saturation (a look's material) ----------
+     How far a glass surface softens what is behind it and how much it warms its colour: the control layer's, the
+     canvases' own (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, Appendix B). A look's roles read them,
+     never a rule: Classic blurs nothing. The canvases' clear pane blurred at 14px and 1.25; the look draws its panes
+     clear without a blur (kit.css, the panes), so that step waits for a pane that needs one. */
+  --blur-lg: 28px;
+  --saturate-lg: 1.5;
+  /* A clear pane's (the canvases' section: 14px and 1.25). */
+  --blur-md: 14px;
+  --saturate-md: 1.25;
+
+  /* The colour as small text on the page. In light, --ok and --accent read 3.3:1 and 3.8:1 there; these read 4.5:1 or
+     more, on a tint too (the Calendar's open times and today, C4; a lit pill). Dark keeps its own, which already do. */
+  --ok-ink: oklch(0.48 0.12 155);
+  --danger: oklch(0.6 0.2 27);
+  --danger-soft: oklch(0.6 0.2 27 / 0.12);
+  --danger-fg: oklch(0.99 0 0);
+  --info: oklch(0.6 0.12 235);
+  --info-soft: oklch(0.6 0.12 235 / 0.12);
+
+  /* ---------- A switch's knob ----------
+     Light on either theme's track, as a physical switch's is, with the drop and the hairline that keep it apart from
+     a light track (settings.css .set-knob). Set here, where no theme overrides it: a knob in --bg-raised read 1.5:1
+     on a dark card's off track, and the switch all but vanished. */
+  --knob: oklch(0.99 0.002 80);
+  --knob-shadow: 0 1px 2px oklch(0 0 0 / 0.2), 0 0 0 1px oklch(0 0 0 / 0.05);
+}
+
+/* ============================================================
+   LIGHT THEME — warm off-white, ink, six-step neutral
+   ============================================================ */
+[data-theme="light"] {
+  /* The browser's own parts wear the theme: a select's open list, a date's picker, a scrollbar no rule styles. */
+  color-scheme: light;
+  --mark-plate: oklch(1 0 0);           /* a business's logo sits on this (leads.css, clients.css) */
+
+  --shadow-sm: 0 1px 2px 0 oklch(0.2 0.01 260 / 0.04);
+  --shadow-md: 0 2px 6px -2px oklch(0.2 0.01 260 / 0.06),
+               0 4px 12px -4px oklch(0.2 0.01 260 / 0.08);
+  --shadow-lg: 0 4px 12px -2px oklch(0.2 0.01 260 / 0.08),
+               0 12px 32px -8px oklch(0.2 0.01 260 / 0.1);
+  /* What stands at the foot of a pane over what scrolls under it (the thread's dock, the thread canvas): a soft lift upward. */
+  --shadow-dock: 0 -10px 30px oklch(0.2 0.02 280 / 0.07);
+
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+/* ============================================================
+   DARK THEME — true ink, not navy. Quiet, with proper contrast.
+   ============================================================ */
+[data-theme="dark"] {
+  /* The browser's own parts wear the theme: a select's open list, a date's picker, a scrollbar no rule styles. Unsaid,
+     they were the device's light ones on a dark page (the forwarding form's list of carriers, 8 Oct 2026). */
+  color-scheme: dark;
+  /* A logo is drawn for a light ground: a dark wordmark on a dark plate is not there. Light in both themes, a step
+     down from white so it does not glare out of a dark list. */
+  --mark-plate: oklch(0.94 0.004 260);
+
+  /* Shadows of the scene's own indigo, not holes of pure black (16 Oct 2026). */
+  --shadow-sm: 0 1px 2px 0 oklch(0.1 0.025 280 / 0.3);
+  --shadow-md: 0 2px 6px -2px oklch(0.1 0.025 280 / 0.4),
+               0 4px 12px -4px oklch(0.1 0.025 280 / 0.5);
+  --shadow-lg: 0 4px 12px -2px oklch(0.1 0.025 280 / 0.5),
+               0 12px 32px -8px oklch(0.1 0.025 280 / 0.6);
+  --shadow-dock: 0 -10px 30px oklch(0.1 0.025 280 / 0.45);
+
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  --ok-ink: var(--ok);
+}
+
+/* ============================================================
+   ROLES -- what a thing is for (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, 3.1)
+   A rule that draws a control, a badge, a menu or a panel reads one of these, not the scale or the colour under it,
+   so a look restyles every button, chip and menu in one place. These are Classic, the look every page wears: each is
+   made from the scales above and the theme's colours, so each equals what its readers wrote before. A look is one
+   more block that sets them (a [data-look] block, after this one).
+   They are set on every element that carries a theme, not on :root alone: a custom property is made once where it
+   is set, so a role made on the page's root would keep the root's colours inside an .app-root that stamps the other
+   theme.
+   A role arrives with its first reader. The blurs, a pane's depth and the control layer's fill have none in Classic;
+   they arrive with the look that draws them.
+   ============================================================ */
+
+/* ============================================================
+   GLASS -- the look the six Liquid Glass canvases draw (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
+   §3.1 and Appendix B, its values in oklch). Not offered to members yet: a page wears it only where a stored look asks
+   for it (contracts' shell/chrome.ts, LOOK_OFFERED), and Classic, above, is untouched.
+   A material more than a palette: a cool ground lit by three soft pools of light, which the glass takes its colour
+   from; the control layer (the sidebar, the top bar's capsules, the tab bar, a segmented capsule) in deep glass with a
+   rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a hairline and no blur
+   (never glass on glass); and what pops over the page opaque. Coral is the primary act (decision 5), the live call,
+   the Now line and the picked tab; amber the one warning; a count is neutral; green is what is open, checked or won.
+   The light side, balanced (Ruben, 16 Oct 2026, toward the marketing site's light greys, the lilac ground kept): panes
+   nearly opaque white cards on the lit ground; the control layer (the sidebar, the bars, the capsules, the tab bar)
+   white glass; an inset, a secondary act and a face a well, a pointer's row a lighter one and a pick a deeper one, each
+   a grey of the ground's own lilac hue, so the page is one family of colour; and the picked place's glyph the coral
+   (components.css). The dark side is unchanged.
+   The first block is the light side and sets everything; the dark side sets every colour again, since a [data-look]
+   rule weighs what a [data-theme] rule weighs and would otherwise lend a dark root its light colours. A value no
+   canvas gives is derived from theirs and says so. The roles Classic lacks (the page's light, a surface's blur, rim
+   and depth, the control layer's fill, the island, the count, the solid fills) are set here alone, and only rules of
+   this look read them.
+   ============================================================ */
+:root, [data-theme] {
+  /* A badge's height and its round ends: a pill, a chip. */
+  --chip-h: 20px;
+  --chip-radius: var(--radius-full);
+  /* A thread of the first priority rings its face (Classic; Glass draws none). */
+  --face-ring: inset 0 0 0 1.5px var(--accent);
+
+  --quiet-ink: var(--ink-muted);
+
+  /* A box that is typed in or picked from, while it holds the keys: its own hairline in the accent, and a soft wash
+     of the accent around it. One quiet line, where the keyboard's ring (--focus-ring: a gap in the page's ground, then
+     a second hard line 2px out) drew two; and a box takes focus from a pointer too, so every press on a list or a
+     search box wore the ring a button shows to a keyboard alone (Ruben, 8 Oct 2026: "2 coral outlines… strong and
+     performative"). The first is for a box whose own border turns the accent; the second draws that hairline as well,
+     for a capsule with no border of its own. A button, a row, a tab and a door keep --focus-ring. */
+  --focus-field: 0 0 0 3px var(--accent-soft);
+  --focus-field-edged: 0 0 0 1px var(--accent), var(--focus-field);
+  /* A row of a group of rows that holds the keys (Field's look="row", .rec-rows): ringed inside its group in the line's
+     strong ink, never the accent, so a row in use is never taken for the red a problem rings its group in (Add people,
+     20 Oct 2026). */
+  --focus-row: inset 0 0 0 1.5px var(--line-strong);
+
+  /* Surfaces: the page; a pane of content; an inset inside one (a segmented control's track, a note); what pops over
+     the page (a menu, a toast, a tip); the wash behind a sheet. */
+  --surface-page-fill: var(--bg);
+  /* The inset's hairline as a ring, for an inset that draws no border of its own (a face, a bubble, a capsule). */
+  --surface-inset-ring: inset 0 0 0 1px var(--surface-inset-edge);
+  /* The veil behind what rises over the page on a phone: the drawer, a sheet from the bottom edge, the bell's notes, a
+     menu's actions, a dialog. One veil for all of them, the drawer's: about a third of the look's scrim, which dims
+     the page and lets its own light through (Ruben, 2 Oct 2026, of the drawer: black at 45% "darkens the background too
+     much"). They wore four: the drawer this; a small job's sheet the ink at 35%, which is white on a dark page and
+     lightened it; a record's sheet the whole scrim, nearly three times as dark; the bell and a menu none (Ruben, 7 Oct
+     2026). --surface-scrim itself fades the page behind a desk's side sheet. */
+  --surface-veil: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
+  /* The ring that stands a small mark clear of the raised ground it rides (the dot on Ask's ✦). */
+  --shadow-rim: 0 0 0 2px var(--bg-raised);
+  /* The wash behind a sheet or a dialog: the scrim on a desk, the veil on a phone (below, at 900px). */
+  --surface-wash: var(--surface-scrim);
+  /* Where the three pools of light stand (the canvases' glow). They stand still here; on a desk each is a layer of its
+     own that a transform moves (components.css, .pg-light): moving these, which every element inherits, styled the
+     whole page again on every frame. */
+  --pool-a-x: 23%;
+  --pool-a-y: 6%;
+  --pool-b-x: 89%;
+  --pool-b-y: 40%;
+  --pool-c-x: 39%;
+  --pool-c-y: 91%;
+  /* The page's gutter is the canvases' (28px beside the sidebar; 16px on a phone), which the head, the row of views and
+     the panes all keep to. */
+  --gutter-page: 28px;
+  /* The list beside a thread, in the Inbox, Conversations and Live: the canvases' 360 (I1), where Classic's rail is 340.
+     One value for the three, so the list's edge and the thread's width stay put as the strip's tabs are pressed (the
+     Inbox alone had it, and the other two moved it 20px). */
+  --rail-list: 360px;
+  /* The look's type: the canvases' Mona Sans (Ruben, 1 October 2026), named in app/globals.css over public/fonts and
+     in the mockup's Google Fonts link, with Geist behind it; the mono stays Geist Mono, as the canvases keep it.
+     Geist's stylistic sets (the base rules' ss01, cv11, cv02) are its own, so the look reads Mona Sans plain, as the
+     canvases do (the rule after the body's, below). */
+  --font-sans: "Mona Sans", var(--font-geist), "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  /* The look's type scale is the canvases' (E3 and its family, 28 September): a 15.5px body line against Classic's
+     14.5, a 17px section title against its 18, a 30px phone title and a 34px figure. Every sheet reads the scale through
+     these names, so the remap moves every page in Glass at once and Classic reads its own values (Ruben, 1 October
+     2026, the review of Today against E3). The small and base steps stay: the canvases set their labels, verbs and
+     sub-lines on 13.5 and 12.5 as Classic does. */
+  --text-xs: 11.5px;
+  --text-md: 15.5px;
+  --text-xl: 17px;
+  --text-3xl: 30px;
+  --text-hero: 26px;
+  /* The day's figures (E3): a step under the page's name, which keeps the scale's 36. Read by Today's card alone. */
+  --text-figure: 34px;
+  /* The lead sheet's steps on a phone, one up from the page's (the canvas "Lead sheet, redesigned", 1 Nov 2026): the sheet
+     is read at a thumb's length, over the rows. leads.css lays them over the scale inside .lw-phone. */
+  --sheet-phone-xs: 12.5px;
+  --sheet-phone-sm: 13.5px;
+  --sheet-phone-base: 15px;
+  /* A conversation's own steps, Ask's Line (kit.css, the line; ask.css): between the scale's, since a thread is read closer
+     than a page. A label, a note or a word beside a source; a quiet line of a row; the three's question; an answer's words
+     and a person's; what a mic heard over a field. */
+  --text-label: 12px;
+  --text-aside: 13px;
+  --text-title: 14px;
+  --text-read: 15px;
+  --text-heard: 20px;
+  --sheet-phone-xl: 18px;
+  --radius-tile: 10px;
+  /* A run to leads' decision (the run-to-leads canvas): how many go, the one number the screen is for. */
+  --text-decision: 44px;
+  /* An email as it is read on a run's screen, a step over the sheet's 13.5 so it reads as the email. */
+  --text-mail: 14.5px;
+  /* What was said in a conversation, as the thread canvas sets it (1 Nov 2026): a bubble's words and an email's. */
+  --text-read: 15px;
+  /* The canvases track sans text a touch tighter than nothing; Classic tighter still. */
+  --tracking-normal: -0.003em;
+  /* A person's face on a row: a well of the ground's lilac grey, as an inset is, on a white card. */
+  --face-fill: oklch(0.5 0.02 275 / 0.08);
+  /* The ground, a step under it and over it, and what a press washes it with (derived: the canvases draw none). */
+  --bg: oklch(0.962 0.005 275);
+  --bg-sunken: oklch(0.945 0.006 275);
+  --bg-raised: oklch(1 0 0);
+  --bg-hover: oklch(0.935 0.007 275);
+  --bg-active: oklch(0.915 0.008 275);
+  /* The hairline, the canvases' edge; the strong one derived from it. */
+  --line: oklch(0.304 0.046 275 / 0.1);
+  --line-strong: oklch(0.304 0.046 275 / 0.18);
+  /* Theirs is white on the card with the hairline, ours a tint of the edge's colour, with no hairline of its own. */
+  --bubble-them-bg: oklch(1 0 0);
+  --bubble-them-line: oklch(0.304 0.046 275 / 0.1);
+  --bubble-us-bg: oklch(0.304 0.046 275 / 0.09);
+  --bubble-us-line: transparent;
+
+  /* Ink, 1 to 4: the canvases' four, the third and the fourth stronger than they drew them. Every word the dim ink says
+     reads 4.5:1 or more on the ground, the light and the glass it stands on (0.64 read 3.4 to 4.1 there); the faint
+     ink, a placeholder's and a hint's, reads no fainter than Classic's on Classic's ground (0.22 read 1.5, Classic
+     2.4). The plan's Appendix B keeps the canvases' value beside each. */
+  --ink: oklch(0.227 0.008 275);
+  --ink-muted: oklch(0.328 0.021 278 / 0.86);
+  --ink-dim: oklch(0.328 0.021 278 / 0.78);
+  --ink-faint: oklch(0.328 0.021 278 / 0.45);
+
+  /* Coral, amber and green, each with its soft ground and, where the canvases give one, its words; and the words of red
+     and blue, which the canvases do not draw. Green's words are --ok-ink, above: 4.6:1 on its soft ground over the pool.
+     Coral is a step deeper than the canvases' (0.633), so that white words on it and the coral words a page writes read
+     no worse than Classic's (white on it 4.3:1, Classic 3.9); amber a hair deeper (0.737) for the same reason, where a
+     page still writes it as words. Each tone's words are deeper than the canvases' (coral's 0.532, amber's 0.508) and
+     Classic's (red's 0.5, blue's 0.47), so that a pill's words read 4.5:1 on their soft ground over the look's strongest
+     light, the blue pool, where they read 3.4 to 4.0. */
+  --accent: oklch(0.6 0.185 31);
+  --accent-soft: oklch(0.6 0.185 31 / 0.12);
+  --accent-fg: oklch(1 0 0);
+  --accent-ink: oklch(0.45 0.15 32);
+  --warn: oklch(0.72 0.147 74);
+  --warn-soft: oklch(0.72 0.147 74 / 0.14);
+  --warn-ink: oklch(0.45 0.09 72);
+  /* The edge of what needs you, drawn on an amber card and its rows' hairlines. */
+  --warn-line: oklch(0.72 0.147 74 / 0.32);
+  /* What is written for each person or business (a message's value, an opening): Chanlytics' coral, in its ink and its
+     soft ground (Ruben, 20 Oct 2026: the variables in the coral, where they were the link's blue). */
+  --slot: var(--accent-ink);
+  --slot-soft: var(--accent-soft);
+  --ok: oklch(0.571 0.12 155);
+  --ok-soft: oklch(0.571 0.12 155 / 0.12);
+  --danger-ink: oklch(0.45 0.17 27);
+  --info-ink: oklch(0.43 0.1 235);
+
+  /* The page: its ground, and the light, three soft pools where the canvases put them, each its tint (a desk's layers
+     paint one each, components.css .pg-light). */
+  --pool-a-tint: oklch(0.821 0.089 265 / 0.14);
+  --pool-b-tint: oklch(0.98 0.013 64 / 0.95);
+  --pool-c-tint: oklch(0.841 0.088 295 / 0.09);
+  --surface-page-light:
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
+    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), var(--pool-c-tint), transparent);
+  /* The page's top on a phone: plain paper under the phone's own bar (the clock, the battery), and the light coming in
+     under it (Ruben, 4 Oct 2026). Safari runs the page under the bar, so the paper holds through the inset and fades
+     over the 64px after it; the phone app pads the bar itself and starts the page under it, where the inset reads 0,
+     so the paper is a soft edge from the strip the app painted. The dark side reads its own --bg through this. Laid
+     over the pools by the body's and the app's root's phone paint (below, and components.css), never by the page
+     name's tint (kit.css), which keeps the three pools alone. */
+  --surface-page-paper: linear-gradient(
+    var(--surface-page-fill) env(safe-area-inset-top, 0px),
+    transparent calc(env(safe-area-inset-top, 0px) + 64px)
+  );
+  --surface-page-top: var(--surface-page-paper);
+  /* The page's ground on a phone, every page of the app's (mobile.css): the light holds over the frame's top and gives
+     way, over a soft run under it, to near-white where the rows are, so they read on paper (Ruben, 22 Oct 2026), and
+     eases back over the last of the window, the pools showing through again around the tab bar, softer than over the
+     head (his "a bit of the highlight around the menu, not as strong"), to the paper itself at the window's foot.
+     ONE COLOUR AT THE EDGES: the paper (--surface-page-fill) is the document's canvas, what this light is at the
+     window's top and at its foot, and the plain colour of every box fixed at an edge (mobile.css, the frame's top and
+     the sheet of ground a carried page slides over). Safari paints its bar over the clock in the background colour of
+     the boxes fixed at the top edge, and falls back to the canvas where two disagree or one blurs: with one colour
+     every path agrees, and no moment of a page's arrival can show another (WebKit,
+     LocalFrameView::fixedContainerEdges; styles/page-light/paper-at-the-edges.test.mjs holds it). Three fixes before
+     this one each moved one colour and left another behind: the canvas lightened for the toolbar, which lightened the
+     bar over the clock; the frame's top made the paper whole, on two pages; then every page given this ground with a
+     lighter fill, which left the frame's top and its own ground disagreeing.
+     ONE PICTURE, EVERY PAINTER: the light is one picture (--surface-page-ground, below), a screen wide and the largest
+     screen tall from the window's top, which every painter lays as it is (mobile.css, the one rule): the window's layer
+     of light, the frame's top, the Calendar's bar, the sheet a carried page slides over, and the document itself. Six
+     painters once aligned it each by their own means, one by a measure of the page read a microtask too soon, so a
+     thread pushed in opened without its light and lit as it landed (Ruben, 22 Oct 2026). The foot's stops read the
+     window as the browser shows it (100dvh), so the glow sits by the tab bar wherever the browser's own bar is; the
+     picture runs on to the largest screen under that bar, which is what Safari's toolbar blurs, since it draws the
+     document there and nothing fixed. The pools lie on the paper over the frame's top and on the list's own ground
+     under the rows (--surface-page-under), so the head is lit as it always was. The dark side calms its pools to its
+     own ground.
+     ONE GROUND FOR EVERY PAGE: where the light gives way is one line on the screen, under the head the Inbox's lists
+     stand under (--list-wash-line), whatever head the page on the screen measures. It was that page's own head
+     (--frame-top), which differs page to page, and a thread measures none, since it draws its own: the wash ran from
+     the screen's top and put the light over its head out, and Back lit it again in the frame the list's head was
+     measured, as the thumb let go (Ruben, 22 Oct 2026: "when i open a thread and swipe back i see the background shift
+     in color"). */
+  --list-wash-line: 134px;
+  --list-wash-at: calc(var(--frame-top-at, 0px) + var(--list-wash-line));
+  --surface-list-ground: oklch(0.993 0.002 275);
+  --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 86%, transparent);
+  --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 45%, transparent);
+  --surface-page-list: linear-gradient(
+    transparent calc(var(--list-wash-at) - 24px),
+    var(--surface-list-wash) calc(var(--list-wash-at) + 112px),
+    var(--surface-list-wash) calc(100dvh - 300px),
+    var(--surface-list-glow) calc(100dvh - 120px),
+    transparent 100dvh
+  );
+  --surface-page-list-ground: linear-gradient(
+    var(--surface-page-fill) calc(var(--list-wash-at) - 24px),
+    var(--surface-list-ground) calc(var(--list-wash-at) + 112px),
+    var(--surface-list-ground) calc(100dvh - 300px),
+    var(--surface-page-fill) 100dvh
+  );
+  /* What lies under the pools where a page lays its own ground under them (a list's, above); none elsewhere. */
+  --surface-page-under: none;
+  /* The picture every painter of the page's ground lays (mobile.css, the one rule): the paper over the pools, the
+     pools, and what lies under them. */
+  --surface-page-ground: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
+  /* How much of its own ink a phone's page name lays over the page light, which tints its letters (kit.css, the page head):
+     the light side is strong, and the canvases' name is faded by it into a slate (the pool is 14% blue there), so this
+     lets most of the tint through; the dark side's pools are faint, so it keeps more. */
+  --title-veil: 0.04;
+  --title-fill: 0.72;
+
+  /* The control layer: its glass, the sheen over its top, how far it blurs, its rim, its specular edge and contour
+     with the depth under it, and the sidebar's corner (a capsule's is half its height, --radius-full). */
+  /* White glass, solid enough to read white on the lit ground (it was half clear, which read as the ground). */
+  --surface-control-fill: oklch(1 0 0 / 0.78);
+  --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.33), transparent 42%);
+  --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg)) brightness(1.03);
+  /* A clear pane blurs the page's light a little (the canvases' section), on a desk: kit.css and the pages' sheets read
+     it where a pane stands, and a phone spends no blur on a pane (the review of steps 5.1 to 5.3). */
+  --surface-pane-blur: blur(var(--blur-md)) saturate(var(--saturate-md)) brightness(1.03);
+  --surface-control-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.98) 0%,
+    oklch(1 0 0 / 0.35) 28%,
+    oklch(1 0 0 / 0.14) 58%,
+    oklch(1 0 0 / 0.78) 100%
+  );
+  --surface-control-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 0 0 1px oklch(0.304 0.046 275 / 0.08),
+    0 22px 44px -26px oklch(0.274 0.063 274 / 0.36), 0 1px 2px oklch(0.274 0.063 274 / 0.06);
+  /* The same glass floating over rows that scroll under it (a phone's tab bar, Ask's circle, a docked bar): its
+     specular edge and contour, with a short shadow close under it. The control's long one fell on the rows passing
+     beneath as a grey smudge under the bar (Ruben, 17 Oct 2026). */
+  --surface-float-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 0 0 1px oklch(0.304 0.046 275 / 0.08),
+    0 4px 14px -8px oklch(0.274 0.063 274 / 0.2), 0 1px 2px oklch(0.274 0.063 274 / 0.06);
+  --surface-control-radius: 30px;
+
+  /* A pane: a white card on the lit ground (it was clear, which read as the ground itself), a thinner rim, a shallow
+     shadow, and no hairline: its rim is its edge. */
+  --surface-pane-fill: oklch(1 0 0 / 0.82);
+  --surface-pane-edge: transparent;
+  --surface-pane-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.98) 0%,
+    oklch(1 0 0 / 0.35) 34%,
+    oklch(1 0 0 / 0.14) 64%,
+    oklch(1 0 0 / 0.78) 100%
+  );
+  --surface-pane-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 0 0 1px oklch(0.304 0.046 275 / 0.08),
+    0 16px 36px -28px oklch(0.274 0.063 274 / 0.3), 0 1px 1.5px oklch(0.274 0.063 274 / 0.05);
+  --surface-pane-radius: 30px;
+
+  /* An inset, inside a pane: a well of the ground's lilac grey in the white card, the hairline, the specular top edge,
+     and a corner concentric with the pane's (30px round 16px of padding: 14px). */
+  --surface-inset-fill: oklch(0.5 0.02 275 / 0.06);
+  --surface-inset-edge: oklch(0.304 0.046 275 / 0.1);
+  --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.95);
+  --surface-inset-radius: 14px;
+  --surface-row-radius: 18px;
+
+  /* What pops over the page: opaque, and a soft shadow (derived from the canvases' popover); the kit's pop panel wears
+     the near-opaque glass made from it, --surface-pop-glass, below. Opaque to the last per cent:
+     at the canvases' 98% and the dark side's 97%, with no blur, Reports' headline read through its period's month on a
+     phone (7 Oct 2026). Each is the colour the canvases' fill came to over the page. */
+  --surface-pop-fill: oklch(1 0 0);
+  --surface-pop-edge: oklch(0.304 0.046 275 / 0.1);
+  --surface-pop-radius: var(--radius-xl);
+  --surface-pop-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 18px 44px -14px oklch(0.274 0.063 274 / 0.3),
+    0 1px 2px oklch(0.274 0.063 274 / 0.08);
+  /* Everything that pops over the page (an action menu, a select's list, a combobox, a picker, a month, a popover)
+     wears the control layer's lit glass (the sheen, the specular edge and the depth) on this one ground: the pop's fill
+     at 72%, over the control layer's blur. Menus stood on the control layer's own 8.5% to 50%, which let the page's
+     colour through (the Calendar's coral button glowed in its Settings menu) and the amber and red of a log's lines as
+     a brown smear (Settings › Activity, 8 Oct 2026); lists stood on 88%, which read as a flat dark box. One ground
+     between them for both (Ruben, 10 Oct 2026: "less transparent… just not as opaque/dark"). Where there is no blur to
+     be had, or less transparency is asked for, it is the solid (below). */
+  --surface-pop-glass: color-mix(in oklab, var(--surface-pop-fill) 72%, transparent);
+  --surface-scrim: oklch(0.959 0.005 275 / 0.5);
+
+  /* The live call's island: always dark, as the hardware it borrows from, in both themes, with its own ink and coral. */
+  --surface-island-fill: oklch(0.202 0.008 286 / 0.94);
+  --surface-island-depth: inset 0 0 0 1px oklch(1 0 0 / 0.12), 0 10px 26px -12px oklch(0 0 0 / 0.7);
+  --surface-island-ink: oklch(0.971 0.003 286);
+  --surface-island-accent: oklch(0.719 0.175 29);
+
+  /* Controls: capsules, a little taller, and the picked segment a lozenge with its specular edge. */
+  --control-h-sm: 28px;
+  --control-h-md: 32px;
+  --control-h-lg: 36px;
+  /* The touch floor (bridge/frame.css), drawn: a phone's circle and the act beside it (canvas A's head). */
+  --control-h-touch: 44px;
+  --control-radius: var(--radius-full);
+  --control-radius-sm: var(--radius-full);
+  /* A pick: a soft lozenge of the ground's lilac grey on the white sidebar, bar, capsule or card, flat (a shadow list
+     that draws nothing, since some rules lay the focus ring over it). */
+  --selected-fill: oklch(0.5 0.02 275 / 0.1);
+  --selected-depth: 0 0 0 0 transparent;
+  /* A row under a pointer: a lighter lilac grey than the pick. Read by the Inbox's, Conversations' and People's rows;
+     the dark side keeps the selected fill at half strength (its block, below). */
+  --hover-fill: oklch(0.5 0.02 275 / 0.05);
+  /* The canvases' accent text on the lozenge (#B93A26): a step brighter than the accent's ink (0.45), which read as a dark
+     brown on the white lozenge. */
+  --tab-ink: oklch(0.532 0.167 31.7);
+  /* The dim and faint inks on the picked segment, which is lighter than the ground it stands on: the page's own on the
+     light side, where the lozenge only lifts them. */
+  --selected-ink-dim: var(--ink-dim);
+  --selected-ink-faint: var(--ink-faint);
+
+  /* Actions: the primary is the accent, coral, with a glow of the accent under it and the specular edge (decision 5);
+     the secondary sits on a pane as an inset does. The fill is deeper than the canvases' button (0.624), so its white
+     words read 4.5:1 (they read 3.9). */
+  --primary-fill: oklch(0.58 0.184 31);
+  --primary-ink: oklch(1 0 0);
+  --primary-hover: oklch(from var(--primary-fill) calc(l - 0.04) c h);
+  --primary-depth: 0 8px 18px -10px oklch(0.6 0.185 31), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  --secondary-fill: oklch(0.5 0.02 275 / 0.08);
+
+  /* A count beside what it counts, on a nav row or an icon: neutral, never a warning's colour. */
+  --count-fill: oklch(0.227 0.008 275);
+  --count-ink: oklch(1 0 0);
+
+  /* The fills the glass falls back on where there is no blur or transparency is to be reduced (the two blocks at the
+     end): each translucent fill laid over what it sits on, opaque. */
+  --surface-control-solid: oklch(0.993 0.002 275);
+  --surface-pane-solid: oklch(0.995 0.001 275);
+  --surface-inset-solid: oklch(0.955 0.005 275);
+  --selected-solid: oklch(0.93 0.007 275);
+  --surface-pop-solid: oklch(1 0 0);
+  --surface-island-solid: oklch(0.202 0.008 286);
+}
+
+[data-theme="dark"] {
+  /* Refined (Ruben, 16 Oct 2026: "enhance the dark mode ... very subtle refinements"), the glass kept as it was: its
+     tints, hairlines, bubbles and counts are the ink's own moonlit white (oklch 0.97 0.014 285) at the alphas they had,
+     where they were neutral white beside a lilac ink; its shadows the scene's indigo, not pure black; a touch more light
+     in the pools; and a calmer green. The specular rims stay pure white, light catching an edge. */
+  --bg: oklch(0.174 0.008 274);
+  --bg-sunken: oklch(0.15 0.008 274);
+  --bg-raised: oklch(0.238 0.01 277);
+  --bg-hover: oklch(0.23 0.009 275);
+  --bg-active: oklch(0.26 0.009 275);
+  --line: oklch(0.97 0.014 285 / 0.09);
+  --line-strong: oklch(0.97 0.014 285 / 0.16);
+  --bubble-them-bg: oklch(0.97 0.014 285 / 0.075);
+  --bubble-them-line: oklch(0.97 0.014 285 / 0.09);
+  --bubble-us-bg: oklch(0.97 0.014 285 / 0.14);
+  --bubble-us-line: transparent;
+
+  --ink: oklch(0.968 0.003 286);
+  --ink-muted: oklch(0.946 0.012 286 / 0.72);
+  --ink-dim: oklch(0.946 0.012 286 / 0.68); /* 0.66 read 4.49:1 on a phone's glass capsule */
+  --ink-faint: oklch(0.946 0.012 286 / 0.38);
+
+  --accent: oklch(0.719 0.175 29);
+  --accent-soft: oklch(0.719 0.175 29 / 0.15);
+  --accent-fg: oklch(0.171 0.027 33);
+  --accent-ink: oklch(0.82 0.11 28);
+  --warn: oklch(0.801 0.138 77);
+  --warn-soft: oklch(0.801 0.138 77 / 0.15);
+  --warn-ink: oklch(0.842 0.12 81);
+  --warn-line: oklch(0.801 0.138 77 / 0.32);
+  --slot: var(--accent-ink);
+  --slot-soft: var(--accent-soft);
+  --ok: oklch(0.77 0.135 155);
+  --ok-soft: oklch(0.77 0.135 155 / 0.13);
+  /* Classic's red words read 4.2:1 on this lighter ground and 2.7 on the glass of a control over the pool; these read
+     4.8 there. Blue's are Classic's, set again over the light side's. */
+  --danger-ink: oklch(0.74 0.15 27);
+  --info-ink: oklch(0.72 0.12 235);
+
+  --pool-a-tint: oklch(0.737 0.103 267 / 0.2);
+  --pool-b-tint: oklch(0.955 0.026 55 / 0.05);
+  --pool-c-tint: oklch(0.76 0.135 293 / 0.12);
+  --surface-list-ground: var(--bg);
+  --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 70%, transparent);
+  --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 35%, transparent);
+  --surface-page-light:
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
+    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), var(--pool-c-tint), transparent);
+  --title-veil: 0.4;
+  --title-fill: 0.9;
+
+  --surface-control-fill: oklch(0.97 0.014 285 / 0.085);
+  --surface-control-sheen: linear-gradient(180deg, oklch(0.97 0.014 285 / 0.042), transparent 42%);
+  --surface-control-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.42) 0%,
+    oklch(1 0 0 / 0.1) 28%,
+    oklch(1 0 0 / 0.05) 58%,
+    oklch(1 0 0 / 0.22) 100%
+  );
+  --surface-control-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0.1 0.025 280 / 0.3), 0 28px 60px -32px oklch(0.1 0.025 280 / 0.8),
+    0 2px 8px -4px oklch(0.1 0.025 280 / 0.5);
+  --surface-float-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0.1 0.025 280 / 0.3), 0 6px 16px -10px oklch(0.1 0.025 280 / 0.6),
+    0 2px 8px -4px oklch(0.1 0.025 280 / 0.5);
+
+  --surface-pane-fill: oklch(0.97 0.014 285 / 0.035);
+  --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg));
+  --surface-pane-blur: blur(var(--blur-md)) saturate(var(--saturate-md));
+  --surface-pane-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.42) 0%,
+    oklch(1 0 0 / 0.1) 34%,
+    oklch(1 0 0 / 0.05) 64%,
+    oklch(1 0 0 / 0.22) 100%
+  );
+  --surface-pane-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0.1 0.025 280 / 0.3), 0 20px 44px -30px oklch(0.1 0.025 280 / 0.7),
+    0 1px 2px oklch(0.1 0.025 280 / 0.3);
+
+  --surface-inset-fill: oklch(0.97 0.014 285 / 0.075);
+  --surface-inset-edge: oklch(0.97 0.014 285 / 0.09);
+  --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.2);
+  --face-fill: oklch(0.97 0.014 285 / 0.11);
+
+  --surface-pop-fill: oklch(0.238 0.01 277);
+  --surface-pop-edge: oklch(0.97 0.014 285 / 0.09);
+  --surface-pop-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 24px 48px -16px oklch(0.1 0.025 280 / 0.55);
+  --surface-scrim: oklch(0.123 0.006 286 / 0.55);
+
+  --surface-island-fill: oklch(0.146 0.004 286 / 0.92);
+  --surface-island-depth: inset 0 0 0 1px oklch(1 0 0 / 0.1), 0 10px 26px -12px oklch(0.1 0.025 280 / 0.7);
+
+  --selected-fill: oklch(0.97 0.014 285 / 0.13);
+  --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0.1 0.025 280 / 0.22);
+  /* A row under a pointer: the selected fill at half strength, so the lozenge it becomes when pressed is the same glass a
+     step up, and the opaque fallbacks follow it (the light side's is a well, above). */
+  --hover-fill: color-mix(in oklab, var(--selected-fill) 55%, transparent);
+  /* The canvases' accent text on the lozenge (#FF8A7C): coral, a step deeper than the accent's ink (0.82), which read as a
+     pale salmon on the dark lozenge. */
+  --tab-ink: oklch(0.759 0.144 28.1);
+  --selected-ink-dim: oklch(0.946 0.012 286 / 0.8);
+  --selected-ink-faint: oklch(0.946 0.012 286 / 0.5);
+
+  --primary-fill: oklch(0.719 0.175 29);
+  --primary-ink: oklch(0.171 0.027 33);
+  --primary-hover: oklch(from var(--primary-fill) calc(l + 0.04) c h);
+  --primary-depth: 0 8px 18px -10px oklch(0.719 0.175 29), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  --secondary-fill: oklch(0.97 0.014 285 / 0.075);
+
+  --count-fill: oklch(0.97 0.014 285 / 0.92);
+  --count-ink: oklch(0.209 0.006 271);
+
+  --surface-control-solid: oklch(0.262 0.007 275);
+  --surface-pane-solid: oklch(0.211 0.008 275);
+  --surface-inset-solid: oklch(0.284 0.007 275);
+  --selected-solid: oklch(0.374 0.006 275);
+  --surface-pop-solid: oklch(0.238 0.01 277);
+  --surface-island-solid: oklch(0.146 0.004 286);
+}
+
+/* Where the browser draws no blur, and where the device asks for less transparency, the glass is opaque (§3.1): each
+   fill takes its solid, and nothing blurs. Written once for both sides, which [data-theme] weighs over the dark block,
+   after it. Reduced motion keeps its own rules: the glass adds no motion of its own. */
+@supports not (backdrop-filter: blur(1px)) {
+  [data-theme] {
+    --surface-control-fill: var(--surface-control-solid);
+    --surface-pane-fill: var(--surface-pane-solid);
+    --surface-pane-blur: none;
+    --surface-inset-fill: var(--surface-inset-solid);
+    --secondary-fill: var(--surface-inset-solid);
+    --selected-fill: var(--selected-solid);
+    --surface-pop-fill: var(--surface-pop-solid);
+    --surface-pop-glass: var(--surface-pop-solid);
+    --surface-island-fill: var(--surface-island-solid);
+    --surface-control-blur: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  [data-theme] {
+    --surface-control-fill: var(--surface-control-solid);
+    --surface-pane-fill: var(--surface-pane-solid);
+    --surface-pane-blur: none;
+    --surface-inset-fill: var(--surface-inset-solid);
+    --secondary-fill: var(--surface-inset-solid);
+    --selected-fill: var(--selected-solid);
+    --surface-pop-fill: var(--surface-pop-solid);
+    --surface-pop-glass: var(--surface-pop-solid);
+    --surface-island-fill: var(--surface-island-solid);
+    --surface-control-blur: none;
+  }
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-normal);
+  color: var(--ink);
+  background: var(--surface-page-fill);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  transition: background var(--duration-base) var(--ease-out),
+              color var(--duration-base) var(--ease-out);
+}
+
+/* In Glass the page is lit: the three pools over the ground, which the glass takes its colour from. Fixed to the
+   window, so a page that scrolls (the kit's gallery) keeps them behind every surface. The shell's root draws them
+   for the app, over this (components.css, .app-root). */
+body {
+  background-image: var(--surface-page-light);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+/* On a phone the page's top is plain paper under the phone's bar (--surface-page-top). */
+@media (max-width: 900px) {
+  body {
+    background-image: var(--surface-page-top), var(--surface-page-light);
+  }
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button { cursor: pointer; background: none; border: none; padding: 0; }
+
+::selection { background: var(--accent-soft); color: var(--ink); }
+
+/* Utility: tabular numerics for any data */
+.tabular { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); font-feature-settings: normal; }
+
+/* Hairline divider */
+.hairline { background: var(--line); height: 1px; width: 100%; }
+.vline { background: var(--line); width: 1px; align-self: stretch; }
+
+/* Scrollbar — quiet */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+/* Where a box scrolls both ways (People's table) the two bars meet; left unstyled, that square is white in the dark. */
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+@media (hover: hover) { ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); } }
+@media (max-width: 900px) {
+  :root, [data-theme] {
+    --gutter-page: 16px;
+    --surface-wash: var(--surface-veil);
+  }
+}
+/* A phone's type is six steps (the phone pass, 3 Nov 2026): 12 a caption or a time, 13.5 a meta line, 15 the body and
+   a row's name, 17 a card's title, 22 a page's or a person's name, 34 a figure. Read at a thumb's length, steps half a
+   pixel apart read as slips, not as order (Today drew ten sizes), so each step between them is said on the nearest one
+   and nothing new is added. The desk keeps every step; the tab bar's word and its count keep --text-2xs, and the
+   canvases' page title (--text-3xl) and figures keep theirs. */
+@media (max-width: 900px) {
+  :root, [data-theme] {
+    --text-xs: 12px;
+    --text-sm: 12px;
+    --text-aside: 13.5px;
+    --text-title: 13.5px;
+    --text-mail: 15px;
+    --text-md: 15px;
+    --text-lg: 17px;
+    --sheet-phone-xs: 13.5px;
+    --sheet-phone-xl: 17px;
+  }
+}
+/* What stands over a phone's foot keeps clear of the one point Safari looks at (iOS 26). Safari paints a flat band under
+   its bottom bar, in place of its glass, while a box fixed to the window (or sticky) covers the middle of the window's
+   foot 4px up, and it keeps the band for as long as that box stays drawn, wherever the box has moved to since (WebKit,
+   LocalFrameView::fixedContainerEdges and Page::updateFixedContainerEdges; Ruben, 21 Oct 2026: the drawer brought the
+   strip back). So a phone's sheet floats --sheet-float clear of the screen's sides and --sheet-foot clear of its foot,
+   as iOS 26's own do, and is cut at that line while it rises, drops or is pulled (kit.css, --sheet-down); and in an
+   iPhone's browser the wash behind a sheet, a menu or the drawer stops --foot-clear short of the foot, fading out over
+   the last 30px, as a sticky foot and the tab bar rest at least that far up (mobile.css). A sheet's foot rests no
+   higher than the tab bar's (mobile.css --bar-foot), so a sheet covers the bar whole: at 8px over the bar's 4 in an
+   iPhone's browser, the bar's foot showed under every sheet (Ruben, 4 Nov 2026), and there both now rest on
+   --foot-clear. Only an iPhone's browsers say -webkit-touch-callout. */
+@media (max-width: 900px) {
+  :root {
+    --sheet-float: 8px;
+    --sheet-foot: min(var(--sheet-float), var(--bar-foot, var(--sheet-float)));
+  }
+  @supports (-webkit-touch-callout: none) {
+    :root {
+      --foot-clear: 6px;
+      --foot-fade: linear-gradient(to top, transparent, #000 30px);
+    }
+  }
+}
+/* A phone's ground, every page of the app's (above, ONE GROUND FOR EVERY PAGE): the list's wash under the paper, and the
+   list's own ground under the pools. Said for the document and the theme alike, so the document's canvas, the app's root
+   and a sheet drawn on the body paint one picture (mobile.css, the one rule). */
+@media (max-width: 720px) {
+  :root,
+  [data-theme] {
+    --surface-page-top: var(--surface-page-paper), var(--surface-page-list);
+    --surface-page-under: var(--surface-page-list-ground);
+  }
+}
+/* Every native select's open list is the browser's own, drawn on the box's fill: on a clear or translucent box that was
+   the device's white list under the page's light ink. Its options take the pop's ground and the ink, as the kit's
+   Select draws its list (kit.css says the same for its own box, select.rec-input). A phone draws its own picker. */
+select :is(option, optgroup) {
+  background-color: var(--surface-pop-fill);
+  color: var(--ink);
+}
+/* On a phone a page is one column: a view travels its own width (--view-travel, above), and a finger walks its strip. */
+@media (max-width: 720px) {
+  :root {
+    --view-travel: 100%;
+  }
+}

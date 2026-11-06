@@ -18,12 +18,12 @@
 
 import { useRef, useState } from "react";
 import type { ComponentProps, Dispatch, ReactNode, SetStateAction } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordBox } from "../../kit/record/field";
-import { gate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { BtSheet } from "./gestures/fold";
 import type { Brain, Saver } from "./save";
 import { businessTabSave } from "./saver";
@@ -441,7 +441,7 @@ export const BtServicesSheet = ({
 }: {
   brain: Brain;
   canEdit: boolean;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   saver: Saver | null;
 }) => {
   const [search, setSearch] = useState<Search>({ opening: 0, q: "" });

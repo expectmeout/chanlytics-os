@@ -12,7 +12,7 @@ import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh,
   again,
   unmount,
@@ -22,10 +22,10 @@ import {
   textOf,
   press,
   settle,
-} from "../../_legacy-react.mjs";
+} from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const ZONE = "America/Chicago";
 const dayKey = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: ZONE }).format(new Date(ms));
@@ -39,8 +39,8 @@ Object.assign(W, {
   __clock: { zone: () => ZONE, dayKey },
 });
 // The shell's own parts (Confirm, StatePill, PolicyChip, the role gate) are still JSX the frame loads; the run's page is TSX.
-const L = "../../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const S = "../../../apps/dashboard/src/surfaces/campaigns";
 const { BroadcastDetail } = await import(`${S}/broadcasts/run.tsx`);
 const { broadcasts } = await import(`${S}/broadcasts/verbs.ts`);

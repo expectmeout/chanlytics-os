@@ -26,7 +26,7 @@ import {
   triggerOf,
   triggerOffered,
 } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 const TID = "t-studio";
@@ -134,7 +134,7 @@ test("a trigger says its label and hint in the workspace's word, and so do the w
 
 /* ------------------------------ the surface and the home ------------------------------ */
 
-installLegacyReact({
+installStubReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
   __chrome: { state: stateOf },

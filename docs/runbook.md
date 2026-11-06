@@ -83,7 +83,7 @@ Point anything at it with `SUPABASE_URL=http://127.0.0.1:54321` and the keys
 ### See a real page
 
 **Run the app. Do not judge a page by the standalone mockup.**
-`Chanlytics.html` (`serve-legacy.mjs`) loads every legacy file over
+`Chanlytics.html` (`serve-mockup.mjs`) loads every file over
 `data/bridge-stubs.jsx`, so the surfaces fed by the bridge never mount in it:
 Today, the real Calendar, People, Leads and Live render a `soon` placeholder or
 the seeded mockup instead. Its data is the demo's, at a density nobody has, and
@@ -315,7 +315,7 @@ the mockup (below, "See the kit").
 
 What it cannot prove: anything behind a Save (the page's saver refuses, by
 design, and the specs that run here never press one), and anything about timing
-in the real bundle -- the harness compiles the legacy tree with Babel in the
+in the real bundle -- the harness compiles the shell with Babel in the
 browser, so the runner raises the per-test timeout where production runs under
 the config's own 45s. Green here is not a green nightly.
 
@@ -325,7 +325,7 @@ surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in
 `e2e-harness/server.mjs`. The harness signs in as the workspace's owner, and the
 role store the mockup makes (`window.ST_STORE`, in `settings.jsx`) is completed
-by the shell's own `installRoles` (`legacy-bridge/identity.ts`) the moment it is
+by the shell's own `installRoles` (`bridge/identity.ts`) the moment it is
 assigned, so `myRole()`, `mayAtLeast()` and View-as answer as they do in the app
 and an owner-only item (a person's "Delete person") is offered.
 
@@ -466,7 +466,7 @@ machine, in one sitting; a new browser is a different recording, and `compare` s
 
 A look is a set of token values (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.1 and §3.2). Glass,
 the canvases' finish, is the one look since Classic, the app as it was drawn before, retired on 2 October 2026 (the
-plan's step 5.7): its values are the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself and the
+plan's step 5.7): its values are the roles block of `apps/dashboard/src/styles/tokens.css` itself and the
 `[data-theme="dark"]` block after it, and every sheet's rules are its. `data-look` stays stamped on the document as the
 setting for the next look (contracts `DEFAULT_LOOK_PREF`, `LOOK_OPTIONS`). A second look adds its name to `LookPref`,
 `LOOK_OPTIONS` and `isLookPref` in `packages/contracts/src/shell/chrome.ts` (the head's script reads the list), turns
@@ -488,7 +488,7 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
    fixed children, and a stacking context. A translucent fill falls back to an opaque one under
    `@supports not (backdrop-filter: blur(1px))` and under `prefers-reduced-transparency: reduce`.
 3. **It moves nothing in Glass.** The recorder draws every page the shell still holds in Glass, the look the
-   harness's documents stamp (`TWEAK_DEFAULTS` in `apps/dashboard/src/legacy/Chanlytics.html`, and the gallery), in
+   harness's documents stamp (`TWEAK_DEFAULTS` in `apps/dashboard/mockup/Chanlytics.html`, and the gallery), in
    both themes. A recording from before the change and one after it are equal ("Prove a style change", above),
    backdrop filters included. The pages that left the shell are recorded on the app itself (step 5.7 did so on the dev
    server against the stand-in, every element's edges and computed longhands, the same comparison).
@@ -498,8 +498,8 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
 
    Two readers of the tokens stand outside the gallery. The mascot reads the document's `--bg`, `--ink`, `--accent`
    and `--accent-fg`, and reads them again only when `data-theme` changes
-   (`apps/dashboard/src/legacy-bridge/mascot/driver.ts`). The charts' palette was validated against the surfaces it
-   sits on (`apps/dashboard/src/legacy/styles/charts.css`, whose header says how). A look that changes those is
+   (`apps/dashboard/src/bridge/mascot/driver.ts`). The charts' palette was validated against the surfaces it
+   sits on (`apps/dashboard/src/styles/charts.css`, whose header says how). A look that changes those is
    looked at on them, and the palette's validator runs again.
 
    To see the look on the app itself before it is offered, set `look` to its name in the object this device keeps
@@ -510,7 +510,7 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
    which expects the Look offered and the default checked). Ruben walks it on production.
 6. **The default.** `DEFAULT_LOOK_PREF` becomes the look (Glass, 1 October 2026): every device that never chose one
    draws it from its next load, since a device keeps a look only once it is chosen
-   (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and a member who chose the other keeps it. `chrome.test.mjs`
+   (`apps/dashboard/src/bridge/device-prefs.ts`), and a member who chose the other keeps it. `chrome.test.mjs`
    and `tests/shell/theme-boot.test.mjs` pin the default, `apps/dashboard/app/layout.tsx` stamps it on
    the document the server sends, and the browser's bars, the manifest and the native shell's own screens take its
    paper (`THEME_COLORS`, the default look's). A look with type of its own names its faces in `app/globals.css` over
@@ -1338,7 +1338,7 @@ anything a page draws is read again once its last read is 15 minutes old. `docs/
    timed out, and `surface_override_failed` with the surface's key for a read that failed.
 2. **Ask what the tabs said.** Each tab reports, beside its page speed as it is put away, how long its feed was down
    (`FEED_DOWN`, ms), how many times it came back (`FEED_BACK`) and each surface's reads that failed (`READ_FAILED`, the
-   surface as its part), only where something happened (00509, `apps/dashboard/src/legacy-bridge/hearing/freshness.ts`).
+   surface as its part), only where something happened (00509, `apps/dashboard/src/bridge/hearing/freshness.ts`).
    As the service role: `select * from page_freshness(7);`, by metric, page and part.
 3. **Ask the database whether it told.** As the service role, the notices a workspace was told in the last ten minutes:
    `select inserted_at, event, payload from realtime.messages where topic = 'workspace:<tenant id>:changes' and

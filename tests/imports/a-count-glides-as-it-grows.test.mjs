@@ -7,9 +7,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
-import { again, fresh, installLegacyReact, textOf } from "../_legacy-react.mjs";
+import { again, fresh, installStubReact, textOf } from "../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const { useCountGlide } = await importSrc("apps/dashboard/src/surfaces/kit/motion/use-count-glide.ts");
 const React = globalThis.React;
 

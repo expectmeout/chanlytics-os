@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { coversSpan, routeOfPath, spanForView } from "@chanlytics/contracts";
-import { fresh, again, byTestId, find, installLegacyReact, textOf, unmount } from "../_legacy-react.mjs";
+import { fresh, again, byTestId, find, installStubReact, textOf, unmount } from "../_stub-react.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -23,14 +23,14 @@ const storage = () => {
     peek: (k) => m.get(k),
   };
 };
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.__ACTIVE_WORKSPACE = "t-salon";
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
-const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
+const cache = await import(`${S}/bridge/surface-cache.ts`);
 const { calendarOverride } = await import(`${S}/surfaces/calendar/surface.ts`);
 const { calendarAddress, calendarParam } = await import(`${S}/surfaces/calendar/address.ts`);
 const { calendarChrome } = await import(`${S}/surfaces/calendar/chrome.ts`);

@@ -1,5 +1,5 @@
 /**
- * The bridge's speech module, run (apps/dashboard/src/legacy-bridge/ask/speech.ts) over a stand-in window whose Audio
+ * The bridge's speech module, run (apps/dashboard/src/bridge/ask/speech.ts) over a stand-in window whose Audio
  * element the test drives and a recorder for the speech route: the one holder of what is happening (idle, loading,
  * speaking), told to every watcher; the element made and started on silence inside the press, so a phone may play
  * the clip after the fetch; a Stop during the fetch, or during the start of play, that is a stop and never a failure,
@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { askSpeech, speechParts } = await import(at("apps/dashboard/src/legacy-bridge/ask/speech.ts"));
+const { askSpeech, speechParts } = await import(at("apps/dashboard/src/bridge/ask/speech.ts"));
 
 /** A window with an Audio element the test drives: play() settles when the test says; src, pause and load recorded. */
 function world() {

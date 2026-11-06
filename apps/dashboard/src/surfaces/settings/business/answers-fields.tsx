@@ -7,7 +7,7 @@
 
 import type { GuardrailKey } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { Icon } from "../../kit/icon/icon";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";

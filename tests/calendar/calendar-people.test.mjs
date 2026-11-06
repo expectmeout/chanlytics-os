@@ -35,7 +35,7 @@ import { ROOT, importSrc, readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
-  installLegacyReact,
+  installStubReact,
   installRoleStore,
   fresh,
   again,
@@ -45,7 +45,7 @@ import {
   find,
   press,
   textOf,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -59,7 +59,7 @@ setRateStore(memoryStore());
 
 /**
  * People's page, drawn rather than read: the real TSX (apps/dashboard/src/surfaces/people/) on the shared stub React
- * (_legacy-react.mjs), over the sample business's people (sample.ts) through the surface's own mapping (surface-map.ts).
+ * (_stub-react.mjs), over the sample business's people (sample.ts) through the surface's own mapping (surface-map.ts).
  * The page was one legacy file (people.jsx, with people-table.jsx beside it) that these pins scanned; it is a folder of
  * TSX now, and what it shows is asked of what it draws. Installed on first use, so the tests that do not draw it keep the
  * bare node they had: the role store (who is acting), the toast and the shell's move (CHANLY.nav, recorded in `went`).
@@ -69,7 +69,7 @@ const moved = [];
 let harness = null;
 async function peopleHarness() {
   if (harness) return harness;
-  installLegacyReact();
+  installStubReact();
   installRoleStore(globalThis.window);
   const went = moved;
   Object.assign(globalThis.window, {
@@ -676,8 +676,8 @@ const detail_ = (over = {}) => ({
 let profileWorld = null;
 async function profileUi() {
   if (profileWorld) return profileWorld;
-  const LR = await import("../_legacy-react.mjs");
-  LR.installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+  const LR = await import("../_stub-react.mjs");
+  LR.installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
   const went = moved;
   Object.assign(globalThis, {
     __WORKSPACES: [{ id: HARBOR, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
@@ -701,7 +701,7 @@ async function profileUi() {
   };
   // What a write reads again after it lands (loaded by the client on a first write): loaded now, so a write's answer is
   // not waiting on a module's first load while the test waits on the write.
-  await quietly(() => importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+  await quietly(() => importSrc("apps/dashboard/src/bridge/refresh-map.ts"));
   /** What the page hands each of its parts: the person, and who is looking. */
   const ctx = (p, over = {}) => ({
     p,
@@ -1531,7 +1531,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(
     readCode("apps/dashboard/src/surfaces/reports/surface.ts").includes("booking: toBookingReportVM(data.booking),"),
   );
-  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = readCode("apps/dashboard/src/bridge/surface-registry.ts");
   // Leads came back on 18 Sep 2026 as a SCOPE of People, so the old address lands on that scope, not on the list of clients.
   assert.ok(
     reg.includes('leads: "clients/leads",') &&
@@ -2449,7 +2449,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   const day = booked.nextVisit.toLowerCase().split(" · ")[0];
   assert.ok(plMatcher(day)(booked), "the day they are coming");
   assert.ok(!plMatcher(day)({ ...booked, nextVisit: null }), "and only that: the day is the row's own");
-  const css = readCode("apps/dashboard/src/legacy/styles/clients.css");
+  const css = readCode("apps/dashboard/src/styles/clients.css");
   // The header that sticks is the kit's table's (kit.css, the gallery's Table family holds it); the cards are People's.
   assert.ok(
     css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'),

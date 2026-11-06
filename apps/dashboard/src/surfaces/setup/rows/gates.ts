@@ -5,7 +5,7 @@
  * button says so before the press -- it used to say so after, in a toast.
  */
 import type { SetupVerb } from "@chanlytics/contracts";
-import { gate, type GateProps } from "../../legacy-verbs";
+import { gate, type GateProps } from "../../frame-verbs";
 
 const SETUP_GATES: readonly (readonly [to: string, action: string, doing: string])[] = [
   ["verb:request-line", "approve", "ask for a line"],

@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, unmount, again, settle, find, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
 
 const { STEP_SHEET_WORDS, NOTE_REFUSALS, dealStepOf, stepSheetBody, stepSheetDirty, stepSheetFor, zoneDayKey } =
   contracts;
@@ -273,7 +273,7 @@ test("a Save sends the notes route a step -- its words, its day, for whom, the t
 
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
@@ -282,10 +282,10 @@ Object.assign(W, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
 });
-const L = "../../apps/dashboard/src/legacy";
+const SRC = "../../apps/dashboard/src";
 // The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are the frame's; everything else it
 // reads is imported, as the sheet imports it.
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const quietly = async (fn) => {
   const e = console.error;
   console.error = () => {};
@@ -299,8 +299,8 @@ const PEOPLE = "../../apps/dashboard/src/surfaces/people";
 const { installPeopleCourier } = await import(`${PEOPLE}/people-detail.ts`);
 const { StepSheetHost, openStepSheet } = await import(`${PEOPLE}/step-sheet/step-sheet.tsx`);
 const { recFolds } = await import("../../apps/dashboard/src/surfaces/kit/record/registry.ts");
-const { clearReadCaches } = await import("../../apps/dashboard/src/legacy-bridge/read-cache.ts");
-await quietly(() => import("../../apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+const { clearReadCaches } = await import("../../apps/dashboard/src/bridge/read-cache.ts");
+await quietly(() => import("../../apps/dashboard/src/bridge/refresh-map.ts"));
 // The courier's window names, for the last test: the Inbox's thread still writes a step through window.__personNotes.
 installPeopleCourier();
 const toasts = [];
@@ -659,7 +659,7 @@ test("the frame publishes the sheet's doors under the names the deal card and th
 });
 
 test("a note's write answers when the server takes it: People, whose rows carry each next step, is read again behind it, not in front", async () => {
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   // The refresh map's re-read is real only with the runner started (no surface of its own, no live feed).
   startSurfaces([], () => () => {});
   const now = Date.now();

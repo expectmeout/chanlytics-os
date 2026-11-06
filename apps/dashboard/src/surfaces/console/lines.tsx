@@ -18,11 +18,11 @@ import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { Meter } from "../kit/meter/meter";
 import { RecordTip } from "../kit/record/field";
-import type { LegacyFlash } from "../legacy-verbs";
-import { backOffice } from "@/legacy-bridge/platform";
+import type { FrameFlash } from "../frame-verbs";
+import { backOffice } from "@/bridge/platform";
 import { WhyAsk } from "./why";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 type PlatformLineRow = NonNullable<SetupDto["lines"]>["rows"][number];
 type PlatformEvent = { kind: string; category: string; subject_type: string | null; created_at: string };
 

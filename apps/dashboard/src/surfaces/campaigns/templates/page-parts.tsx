@@ -10,8 +10,8 @@ import { libraryCount } from "@chanlytics/contracts";
 import type { CampaignMessage } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { gate } from "../../legacy-verbs";
-import type { useLegacyToast } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { useFrameToast } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Search } from "../../kit/search/search";
@@ -152,7 +152,7 @@ export function listBar({ q, setQ, inLine, hasWhatsApp, lastSync, doing, busy, s
 interface ComposerPaneProps {
   bizName: string | null;
   setComposing: Dispatch<SetStateAction<boolean>>;
-  flash: ReturnType<typeof useLegacyToast>[1];
+  flash: ReturnType<typeof useFrameToast>[1];
   /** Whether the workspace has a WhatsApp number, which a template is written to: the composer says so where it has none. */
   hasWhatsApp: boolean;
   /** Opens a message just made, by its key and its name (its address), as a press on its row does. */

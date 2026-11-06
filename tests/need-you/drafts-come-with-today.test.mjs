@@ -8,9 +8,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, redrawWanted, quiet } from "../_legacy-react.mjs";
+import { installStubReact, fresh, redrawWanted, quiet } from "../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 globalThis.location.pathname = "/w/harbor";
 globalThis.location.hash = "#/today";
 /** Every request the store made, and the drafts the server keeps by thread. */
@@ -39,7 +39,7 @@ const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surf
 const { useDraft, useDraftCounts, wantDrafts } =
   await import("../../apps/dashboard/src/surfaces/today/need-you/drafts.ts");
 // Told as the app tells it: the module the store hears (the stub's own `surfaceLanded` holds a copy of its own).
-const { surfaceMoved: surfaceLanded } = await import("../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { surfaceMoved: surfaceLanded } = await import("../../apps/dashboard/src/bridge/surface-status.ts");
 
 function draft(conversation, forMessage, text) {
   return {

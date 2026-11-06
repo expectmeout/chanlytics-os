@@ -8,15 +8,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, textOf, press } from "../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { PolicyTable, PolPhoneRows } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx");
 const { LearnedFromYou } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/learned.tsx");
 const { autonomyVerbs } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");
 const { heldDraftsByClass } = await import("@chanlytics/contracts");
-const { uiRows } = await import("../../apps/dashboard/src/legacy-bridge/policy-store.ts");
+const { uiRows } = await import("../../apps/dashboard/src/bridge/policy-store.ts");
 
 const said = (tree, id) => textOf(byTestId(tree, id)).replace(/\s+/g, " ").trim();
 const h = globalThis.React.createElement;

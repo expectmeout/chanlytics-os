@@ -37,7 +37,7 @@ import {
   GREETING_TEMPLATE,
   greetingOf,
 } from "@chanlytics/contracts";
-import { unmount, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
+import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   BUSINESS_TAB,
   KNOWN,

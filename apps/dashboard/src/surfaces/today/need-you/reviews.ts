@@ -5,7 +5,7 @@
  * Not today hides one for the rest of the tab's session.
  */
 import type { GoogleReviewDto } from "@chanlytics/contracts";
-import type { GoogleSurface } from "@/legacy-bridge/google";
+import type { GoogleSurface } from "@/bridge/google";
 
 /** How many reviews Need you offers at once: the rest are on Reports' Reviews lens. */
 const REVIEWS_OFFERED_MAX = 2;

@@ -10,7 +10,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { FILE_UPLOADS_AT_ONCE, FILE_WORDS as W } from "@chanlytics/contracts";
-import { refreshSurface, type LegacyFlash } from "../legacy-verbs";
+import { refreshSurface, type FrameFlash } from "../frame-verbs";
 import { fileVerbs, type AddSaid } from "./verbs";
 
 /** How many photos go up at once. */
@@ -40,7 +40,7 @@ let now: Sending = { photos: [], said: null, finished: 0 };
 const sendingListeners = new Set<() => void>();
 let nextKey = 1;
 let senders = 0;
-let flashing: (f: LegacyFlash) => void = () => {};
+let flashing: (f: FrameFlash) => void = () => {};
 // What this run of work came to, told once at its end. A photo that failed in an earlier run is not this run's to count.
 let run = { kept: 0, twins: 0, failed: 0 };
 
@@ -156,7 +156,7 @@ function goOn(): void {
 }
 
 /** A press of Add: the first the press may take, and it says so if there were more. */
-export function addPhotos(files: readonly File[], flash: (f: LegacyFlash) => void): void {
+export function addPhotos(files: readonly File[], flash: (f: FrameFlash) => void): void {
   flashing = flash;
   const taken = files.slice(0, FILE_UPLOADS_AT_ONCE);
   set({
@@ -177,7 +177,7 @@ export function addPhotos(files: readonly File[], flash: (f: LegacyFlash) => voi
 }
 
 /** Try again: the whole add from a fresh start, since nothing says a signed address can be used twice. */
-export function tryAgain(key: number, flash: (f: LegacyFlash) => void): void {
+export function tryAgain(key: number, flash: (f: FrameFlash) => void): void {
   flashing = flash;
   const p = now.photos.find((x) => x.key === key);
   if (p) letGoOf(p);
@@ -185,7 +185,7 @@ export function tryAgain(key: number, flash: (f: LegacyFlash) => void): void {
   goOn();
 }
 
-export function tryAll(flash: (f: LegacyFlash) => void): void {
+export function tryAll(flash: (f: FrameFlash) => void): void {
   flashing = flash;
   for (const p of now.photos) if (p.state === "failed") letGoOf(p);
   set({

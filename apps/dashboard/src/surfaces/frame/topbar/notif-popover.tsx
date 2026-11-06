@@ -8,7 +8,7 @@
  */
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MouseEvent, RefObject } from "react";
-import type { BellRow } from "@/legacy-bridge/notifications";
+import type { BellRow } from "@/bridge/notifications";
 import { frameBell, frameGlyph, frameRecordSwitch } from "../frame-window";
 
 /** A note the bell draws: the server's row (BellRow), or the demo's seeded one. */

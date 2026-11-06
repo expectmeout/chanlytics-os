@@ -174,7 +174,7 @@ const peekCheckLabel = (c: LeadCheck, search: LeadSearchDto | null, mailboxLabel
 /**
  * What the peek's ⋯ menu offers the member looking at it (Reach out Part 4, PR 9). Erase is the owner's alone -- the
  * door refuses anyone else (DELETE leads/[id], role owner) -- and a secondary act, so a role that may not press it is
- * offered nothing rather than a gated item (legacy/CLAUDE.md, "Role gates"). A role the page cannot tell is not an
+ * offered nothing rather than a gated item (mockup/CLAUDE.md, "Role gates"). A role the page cannot tell is not an
  * owner. An empty list draws no menu at all.
  */
 export function leadPeekMenu(role: string | null | undefined): { id: "erase"; label: string; danger: true }[] {

@@ -13,7 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { downloadCsv } from "../../kit/download";
-import { canDo, refusalToast } from "../../legacy-verbs";
+import { canDo, refusalToast } from "../../frame-verbs";
 import type { Flash } from "../../people/types";
 import { walkLeadsExport } from "../export-walk";
 import {

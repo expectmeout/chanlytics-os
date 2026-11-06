@@ -29,7 +29,7 @@ import {
 import { useStanding } from "../kit/head/standing";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
-import { canDo, holdStill, navigate, onAPhone, touchSwipe } from "../legacy-verbs";
+import { canDo, holdStill, navigate, onAPhone, touchSwipe } from "../frame-verbs";
 import { usePartShown, useSurface, useSurfaceFailed } from "../use-surface";
 import { visitWordHere } from "../workspace-word";
 import { refreshAct, swipePagesOf } from "./acts";

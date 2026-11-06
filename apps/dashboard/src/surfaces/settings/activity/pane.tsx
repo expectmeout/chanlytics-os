@@ -10,7 +10,7 @@
  * hundred recordings opened in a minute were a hundred lines, 8 Oct 2026). It is narrowed by a kind, a family of
  * kinds or what went wrong, by who did it, by a day or a span of days, and by a person. It decides nothing and shows
  * nothing of a payload beyond the sentence; the evidence families are hidden unless asked for by name. Its reads are
- * the bridge's `activity` object (legacy-bridge/activity.ts), read on demand, never a surface. Its card is the kit's
+ * the bridge's `activity` object (bridge/activity.ts), read on demand, never a surface. Its card is the kit's
  * record card, as Profile's and Partner's are (it stood on the older flat card, with a solid ground and a square
  * corner beside their glass), and its parts are the kit's (the box, the button, the chip, the mark, the tally),
  * placed by settings.css.
@@ -23,12 +23,12 @@ import {
   shiftKey,
   type ActivityPageDto,
 } from "@chanlytics/contracts";
-import { activity, type ActivityFilters as Read } from "@/legacy-bridge/activity";
-import { pageClock } from "@/legacy-bridge/zone";
+import { activity, type ActivityFilters as Read } from "@/bridge/activity";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Notice } from "../../kit/notice/notice";
-import { canDo } from "../../legacy-verbs";
+import { canDo } from "../../frame-verbs";
 import { ActivityLog, type LogState } from "./log";
 import { ActivityFilters, FiltersAsk, NO_NARROWING, narrowedCount, type Narrowing } from "./filters";
 import { useNewerActivity, type ActivityTop } from "./newer";

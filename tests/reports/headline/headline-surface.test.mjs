@@ -9,11 +9,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MIN_MS, headlineOf, toHeadlineVM } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, reportDto } from "../_report-world.mjs";
 
-installLegacyReact();
+installStubReact();
 Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
@@ -25,7 +25,7 @@ const { headline, reportsHeadlineOverride } = await importSrc("apps/dashboard/sr
 const { keepReportPeriod, shownReportPeriod } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { setReportRange } = await importSrc("apps/dashboard/src/surfaces/reports/period.ts");
 const { surfaceValue, setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 console.error = keepError;
 
 const json = (status, body) =>

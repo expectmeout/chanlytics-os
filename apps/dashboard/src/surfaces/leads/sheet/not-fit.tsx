@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { LEAD_NOT_A_FIT_ASK as A, type LeadNotAFitWhy } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 
 /** How long the toast stays: long enough to give a reason. */
 const NOT_FIT_TOAST_MS = 9000;
@@ -48,8 +48,8 @@ function NotFitAsk({ name, onWhy }: { name: string; onWhy: (why: LeadNotAFitWhy)
 export const notFitToast = (
   name: string,
   onWhy: (why: LeadNotAFitWhy) => void,
-  undo: LegacyFlash["undo"],
-): LegacyFlash => ({
+  undo: FrameFlash["undo"],
+): FrameFlash => ({
   tone: "ok",
   msg: <NotFitAsk name={name} onWhy={onWhy} />,
   undo,

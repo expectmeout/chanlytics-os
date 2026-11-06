@@ -11,12 +11,12 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { PERSON_ABOUT_WORDS } from "@chanlytics/contracts";
-import { isSurfaceFailed } from "@/legacy-bridge/surface-status";
+import { isSurfaceFailed } from "@/bridge/surface-status";
 import { FailedRead } from "../../kit/empty/empty";
 import { Button } from "../../kit/button/button";
 import { Press } from "../../kit/press";
 import { Icon } from "../../kit/icon/icon";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { lists } from "../people-lists";
 import type { PeopleSurface } from "../surface";
 import { usePeopleSeam } from "./use-people";

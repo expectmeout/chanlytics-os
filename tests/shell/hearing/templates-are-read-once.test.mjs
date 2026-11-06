@@ -55,9 +55,9 @@ const askedFor = (route) => asked.filter((a) => a.route === route);
 
 const offered = await importSrc("apps/dashboard/src/surfaces/offered-templates.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { onSurfaceMoved } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-const refreshMap = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-const { settingsOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+const { onSurfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
+const refreshMap = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
+const { settingsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/settings.ts");
 const { inboxOverride } = await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts");
 const { broadcastsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
 const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
@@ -80,7 +80,7 @@ const row = (name, channel = "whatsapp", over = {}) => ({
   body_preview: `Words of ${name} on ${channel}`,
   ...over,
 });
-/** What the settings surface publishes of the templates (legacy-bridge/surfaces/settings.ts): WhatsApp's rows, the other channels' versions, the messages. */
+/** What the settings surface publishes of the templates (bridge/surfaces/settings.ts): WhatsApp's rows, the other channels' versions, the messages. */
 const settingsOf = (rows, over = {}) => ({
   templatesAll: rows.filter((r) => r.channel === "whatsapp"),
   templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
@@ -383,7 +383,7 @@ test("a template written, hidden, removed, synced or added from a starter re-rea
 });
 
 test("the feed tells Settings of a template in every tab, wherever it is, and tells the three pages nothing of it: they follow Settings", async () => {
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   assert.ok(watchedTables().includes("templates"), "the database tells a workspace of its templates (00408)");
   const change = { table: "templates", event: "UPDATE", row: {} };

@@ -15,7 +15,7 @@ import { BarList } from "../../kit/charts/bar";
 import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { gate, routeDoor } from "../../legacy-verbs";
+import { gate, routeDoor } from "../../frame-verbs";
 import type { FirstTouchHere } from "./first-touch";
 import { StandRows } from "./standing";
 

@@ -19,7 +19,7 @@ import {
   appointmentWordSaved,
   appointmentWordVM,
 } from "@chanlytics/contracts";
-import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
+import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   BUSINESS_TAB,
   W,
@@ -332,7 +332,7 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
 /* ------------------------------------ what it calls a booking ------------------------------------ */
 
 /**
- * The workspace's courier as the bridge publishes it (legacy-bridge/identity.ts `patch`, which the zone's tests run
+ * The workspace's courier as the bridge publishes it (bridge/identity.ts `patch`, which the zone's tests run
  * against the route), standing in for it here: it records what it is sent, keeps the page's list of workspaces current
  * as the courier does once the server has taken a change, and answers `answer`, or taken.
  */
@@ -948,7 +948,7 @@ test("the gap line's services door opens the sheet, guarded like any row", () =>
 
 test("the sheet is the page's last hook-holding child: opened, drawn again and closed, every editor before it keeps its own", () => {
   // The kit's sheet holds hooks and is drawn only while it is open, and the stub keeps every hook on the page in one
-  // order (_legacy-react.mjs). Drawn before a card, it read that card's cells as its own the moment it opened.
+  // order (_stub-react.mjs). Drawn before a card, it read that card's cells as its own the moment it opened.
   const sent = saving();
   let tree = drawTab({ profile: many });
   const at = (t) => [

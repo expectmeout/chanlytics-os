@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_stub-react.mjs";
 
 const listeners = [];
 globalThis.window = {
@@ -279,7 +279,7 @@ test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull
   let swipe = null;
   const kept = [];
   // A phone's menu is drawn on the document's body; under this runner's react-server condition react-dom has no
-  // createPortal, so the portal is the menu itself, as the shared stub has it (_legacy-react.mjs).
+  // createPortal, so the portal is the menu itself, as the shared stub has it (_stub-react.mjs).
   const reactDom = createRequire(new URL("../../apps/dashboard/package.json", import.meta.url))("react-dom");
   const portal = reactDom.createPortal;
   reactDom.createPortal = (node) => node;

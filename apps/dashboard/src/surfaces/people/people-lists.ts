@@ -20,8 +20,8 @@ import {
   listRuleWhy,
   type ListRule,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { commitVerb, type VerbResult } from "@/legacy-bridge/verbs/commit";
+import { api } from "@/bridge/api";
+import { commitVerb, type VerbResult } from "@/bridge/verbs/commit";
 import type { ApiResult, Output } from "@/client/api";
 import { surfaceValue } from "../surface-values";
 import { saveView } from "./people-detail";

@@ -7,7 +7,7 @@
  * - The screen had no sign-out, no way back and no Terms or Privacy (N2): somebody signed in with the wrong account
  *   could only close the tab.
  * The joining is run through its bridge helper over a stand-in window, the way apiFor is run in
- * shell-status.test.mjs, and through the real screen on a stub React, the way the legacy pages are rendered.
+ * shell-status.test.mjs, and through the real screen on a stub React, the way the shell's pages are rendered.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { LEAD_PREVIEW_WORDS, SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const SCREEN = path.join(ROOT, "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx");
+const SCREEN = path.join(ROOT, "apps/dashboard/src/bridge/CreateWorkspace.tsx");
 
 /* ------------------------------ a stub React ------------------------------ */
 
@@ -65,7 +65,7 @@ globalThis.React = {
 const screenModule = await import(pathToFileURL(SCREEN).href);
 const CreateWorkspace =
   typeof screenModule.default === "function" ? screenModule.default : screenModule.default.default;
-const helper = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/legacy-bridge/waitlist.ts")).href).catch(
+const helper = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/bridge/waitlist.ts")).href).catch(
   () => null,
 );
 // The list's own rule, which the screen asks for as its form appears (an effect, which this stand-in never runs), so a
@@ -532,7 +532,7 @@ test("a partner's link: the screen asks before the partner joins the team, sends
 
 // The handover is its own module: the frame asks it on every boot, and fetches the create screen only to draw it.
 const { useHandoverAsk } = await import(
-  pathToFileURL(path.join(ROOT, "apps/dashboard/src/legacy-bridge/invitations/handover.tsx")).href
+  pathToFileURL(path.join(ROOT, "apps/dashboard/src/bridge/invitations/handover.tsx")).href
 );
 const WAITING = {
   tenantId: "11111111-1111-4111-8111-111111111111",

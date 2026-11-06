@@ -6,7 +6,7 @@
  * pageVitalsWords, pageSpeedWords, platformDaysWords).
  */
 import type { Tone } from "@chanlytics/contracts";
-import type { PlatformApi } from "@/legacy-bridge/platform";
+import type { PlatformApi } from "@/bridge/platform";
 import { ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
 

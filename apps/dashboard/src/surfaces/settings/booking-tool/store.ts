@@ -1,7 +1,7 @@
 /**
  * Whether the Booking tool's sheet is asked for on the page a person is on (Ruben, 9 October 2026: a door to it took
  * the owner to Settings, opened the row there, and left them a page away from where they pressed). A plain store, as
- * New conversation's is (inbox/new-conversation/store.ts): a door on any page asks (legacy-verbs.ts openBookingTool),
+ * New conversation's is (inbox/new-conversation/store.ts): a door on any page asks (frame-verbs.ts openBookingTool),
  * and the frame's one host answers (host.tsx). The address `admin/workspace/calendar` still opens the same row on
  * Settings, and is where a door goes when the sheet cannot be drawn here: no host, or a role that may not change the
  * business and so only reads the row.
@@ -30,7 +30,7 @@ const onAsked = (fn: () => void): (() => void) => {
 const askedNow = (): BookingToolAsk => toolAsked;
 const neverAsked = (): BookingToolAsk => NEVER;
 
-/** Open the sheet: what the door's verb asks of the host (legacy-verbs.ts openBookingTool). */
+/** Open the sheet: what the door's verb asks of the host (frame-verbs.ts openBookingTool). */
 export function askBookingTool(): void {
   const on = document.activeElement as HTMLElement | null;
   opener = on && typeof on.focus === "function" ? on : null;

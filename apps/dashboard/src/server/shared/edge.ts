@@ -50,7 +50,7 @@ export function edgeConfigured(): boolean {
  * What an edge refusal says, for a route that shows it as it is: its words (`detail`) when it carries some, else its
  * code (`error`), else null. The edge's `error` is a code (contracts' EDGE_ERROR_CODES) and the sentence a person or
  * support reads rides in `detail`; a refusal with no words, or blank ones, falls back to its code, as the platform's
- * page reads one (legacy-bridge/platform.ts).
+ * page reads one (bridge/platform.ts).
  */
 export function edgeRefusalWords(body: EdgeAnswerBody | null | undefined): string | null {
   const detail = typeof body?.detail === "string" ? body.detail.trim() : "";

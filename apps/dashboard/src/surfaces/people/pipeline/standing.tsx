@@ -10,7 +10,7 @@ import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
-import type { gate } from "../../legacy-verbs";
+import type { gate } from "../../frame-verbs";
 import { P } from "./pipe";
 
 /** New proposal as the page offers it: the press, and the honesty gate's props for a role that may not. */

@@ -7,9 +7,9 @@
  * card's own module asks for it as Today's page loads (zones/setup-card.tsx), as it did.
  */
 import { codeOnce } from "@/lib/code-once";
-import { firstDrawWaitsFor } from "@/legacy-bridge/surface-status";
-import { routePartsOf } from "@/legacy-bridge/surface-registry";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { firstDrawWaitsFor } from "@/bridge/surface-status";
+import { routePartsOf } from "@/bridge/surface-registry";
+import { routeOnScreen } from "@/bridge/workspace";
 
 /** The card's code: asked for once; a fetch that failed is asked for again as the card draws. */
 export const setupCardCode = codeOnce(() => import("./zones/setup-card-body"));

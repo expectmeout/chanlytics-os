@@ -167,7 +167,7 @@ test("the thread draws the attachment from one component, wherever it opens", ()
       "{entry.media && <TlMedia media={entry.media} />}",
     ),
   );
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/components.css").includes(".tl-media img {"));
+  assert.ok(readRaw("apps/dashboard/src/styles/components.css").includes(".tl-media img {"));
 });
 
 test("vision: only small real images, and the words beside the picture restate the rules", () => {

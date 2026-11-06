@@ -1,7 +1,7 @@
 /**
  * The People override: who reached the business over the days Reports shows, and the book as it stands now, read for the People
  * lens alone (contracts `PeopleDto`, `GET reports/people`: the window from the database's `people_series` and the book counted over
- * the people pool) and published as the route gave it. Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the lens reads
+ * the people pool) and published as the route gave it. Part of the SurfaceData seam (bridge/surface-data.ts); the lens reads
  * what it publishes through `useFollower("reports_people")`. The fold into its view model is the page's (`toPeopleReportVM`, the
  * page-only entry `@chanlytics/contracts/report-lens`), so the fold never rides the route's chunk: this module imports the DTO's
  * type and nothing else of the lens. (Not People's own surface, `surfaces/people/surface.ts`: that is the page of people, and this
@@ -24,8 +24,8 @@
  * teammate's yes, address, step or channel while it is open (and of none of the zone's), so the writer's own tab is what the map
  * is for. A conversation write, a reply or a hold moves nothing it counts, and does not name it.
  */
-import { read } from "@/legacy-bridge/api";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
+import { read } from "@/bridge/api";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
 import { reportRangeKey, type PeopleDto } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";

@@ -40,8 +40,8 @@ globalThis.window.fetch = async (url, init = {}) => {
 };
 const asked = (line) => calls.filter((c) => c === line).length;
 
-const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
-const { acceptInvitations } = await importSrc("apps/dashboard/src/legacy-bridge/invitations/accept.ts");
+const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
+const { acceptInvitations } = await importSrc("apps/dashboard/src/bridge/invitations/accept.ts");
 
 test("an accept that seated nobody leaves the boot's held answers shared: the reads after it are not asked again", async () => {
   const release = api().holdAnswers();

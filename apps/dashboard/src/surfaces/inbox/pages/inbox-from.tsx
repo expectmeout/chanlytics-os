@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { SEQUENCE_REPLIES_WORDS as W, type SequenceRepliesDto } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 
 /** What the Inbox asked of a sequence's replies: reading, failed, or the threads they came back on (`th-<conversation>`). */

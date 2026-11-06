@@ -4,7 +4,7 @@
  * stands a door in by assigning onto it, as Autonomy's are.
  */
 import type { AskMemoryLineDto } from "@chanlytics/contracts";
-import { commitVerb, type VerbResult } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, type VerbResult } from "@/bridge/verbs/commit";
 
 /** A line kept from the pane: the member's own words, as Ask keeps the lines it is told. */
 function keepLine(text: string): Promise<VerbResult> {

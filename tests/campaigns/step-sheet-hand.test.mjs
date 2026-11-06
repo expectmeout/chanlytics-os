@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import * as contracts from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh,
   again,
   all,
@@ -25,16 +25,14 @@ import {
   classes,
   press,
   unmount,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 // record-foot.ts makes the record foot's context as it loads, and "react" under this runner's react-server condition has
 // no createContext or useContext: the stub gives it a context that holds its value. The stub draws a part before the
 // provider around it, so a reader gets the context's own value (none): the editor's Cancel and Save stand under its
 // fields, as they do outside a record, and the sheet's foot holds no portal to read.
-const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
-  "react",
-);
+const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/bridge/_.js", import.meta.url))("react");
 reactOfDashboard.createContext ??= (value) => ({ Provider: "Provider", Consumer: "Consumer", _currentValue: value });
 reactOfDashboard.useContext ??= (context) => context._currentValue;
 const W = globalThis;

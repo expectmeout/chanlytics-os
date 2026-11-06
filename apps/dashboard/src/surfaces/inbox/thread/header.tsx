@@ -22,7 +22,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { Face } from "../../kit/face/face";
-import { askAbout, refreshSurface, routeDoor } from "../../legacy-verbs";
+import { askAbout, refreshSurface, routeDoor } from "../../frame-verbs";
 import { ROUTES } from "../constants";
 import { carryNotAPerson } from "../carried-reply";
 import {
@@ -43,7 +43,7 @@ import { channelIconOf } from "./timeline";
 import { headerSub, IxWho, wireBadge, type Countdown } from "./who";
 import { takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
-import { mayAtLeast } from "../../legacy-verbs";
+import { mayAtLeast } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";

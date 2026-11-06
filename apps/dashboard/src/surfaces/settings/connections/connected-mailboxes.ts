@@ -36,7 +36,7 @@ import {
   type MailboxHistory,
   type MailboxProvider,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import type { ApiResult } from "@/client/api";
 
 interface ConnectedMailboxesApi {

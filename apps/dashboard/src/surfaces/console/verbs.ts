@@ -22,7 +22,7 @@ import type {
   SupportView,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 
 export type ConsoleMe = Output<"GET platform/me">;
 export type ConsoleHome = Output<"GET platform/home">;

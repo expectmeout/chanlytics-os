@@ -17,7 +17,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM, toLiveCallVM, liveStillUp, liveBar } from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh,
   again,
   all,
@@ -26,7 +26,7 @@ import {
   textOf,
   quiet,
   redrawWanted,
-} from "../../_legacy-react.mjs";
+} from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -129,7 +129,7 @@ test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it
 const flashes = [];
 const went = [];
 const sent = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   CHANLY: { nav: (to) => went.push(to) },
   setInterval: () => 1,
@@ -144,7 +144,7 @@ const { StatePill } = globalThis;
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
-const { hearSurfaces } = await import(`${S}/legacy-bridge/surface-status.ts`);
+const { hearSurfaces } = await import(`${S}/bridge/surface-status.ts`);
 
 // The hand-over is the bridge's verb (inbox-verbs.ts), imported by the page and run for real over the client: this is the
 // wire. The client's answer is the route's body under data (client/api.ts), never flat.

@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { LIST_MESSAGES_EACH, toInboxThreadVM, stateOf, memberWords, memberMetaOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -344,7 +344,7 @@ test("an email intake that died leaves the email flagged for a person, and marks
 
 /* ------------------------------- the bridge's read ------------------------------- */
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor",
@@ -427,7 +427,7 @@ test("the bridge asks once for every escalated thread past the newest hundred, a
 /* -------------------------------- the composer -------------------------------- */
 
 test("the composer of a text thread says Text, not WhatsApp", async () => {
-  // The shell's own toast and role gate, which the pane draws through the bridge (surfaces/legacy-verbs.ts).
+  // The shell's own toast and role gate, which the pane draws through the bridge (surfaces/frame-verbs.ts).
   (await import(at("apps/dashboard/src/surfaces/frame/frame-globals.ts"))).installFrameGlobals();
   const { Composer } = await import(at("apps/dashboard/src/surfaces/inbox/thread/composer.tsx"));
   const rows = [message("m1", uuid(1), A, { channel: "sms", created_at: ago(50 * HOUR), channel_ts: ago(50 * HOUR) })];

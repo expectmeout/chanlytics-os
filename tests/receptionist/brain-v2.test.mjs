@@ -317,7 +317,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
 // its old one), kept to two places, a dial edit keeping the row's mode.
 test("the dial reaches the policy row through the pane and the bridge", async () => {
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes(
+    readCode("apps/dashboard/src/bridge/inbox-verbs.ts").includes(
       "if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;",
     ),
   );

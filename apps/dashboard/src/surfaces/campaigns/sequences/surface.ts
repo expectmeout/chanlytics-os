@@ -8,9 +8,9 @@
  * moved, a send held or gone, a reply read: heard wherever the tab is, since the list's Needs you is the count the page says.
  */
 import type { SequencesPageDto } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { read } from "@/bridge/api";
+import { declareReads } from "@/bridge/surface-registry";
+import type { SurfaceOverride } from "@/bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { searchesBeforeNew } from "../reach-out/sources";
 

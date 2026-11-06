@@ -1,5 +1,5 @@
 /**
- * A move reads what it holds once its motion is over (legacy-bridge/hearing/after-the-move.ts; the strips review, 18 Oct 2026).
+ * A move reads what it holds once its motion is over (bridge/hearing/after-the-move.ts; the strips review, 18 Oct 2026).
  *
  * People's book was read again at the press of People's tab, and its answer landed under the slide: its parse and the page
  * drawn again held the frames of the move. A surface the tab has never read is read at the press, since its page waits on
@@ -11,8 +11,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { hearMoves } = await importSrc("apps/dashboard/src/legacy-bridge/hearing/after-the-move.ts");
-const { setStatus } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { hearMoves } = await importSrc("apps/dashboard/src/bridge/hearing/after-the-move.ts");
+const { setStatus } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 
 /** A window on Today whose address the test moves, as a popstate tells it. */
 function windowOnToday(extra = {}) {

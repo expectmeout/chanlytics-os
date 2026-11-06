@@ -6,7 +6,7 @@
  */
 import { LEAD_OWN_EMAIL_WORDS as OW, LEAD_WORDS as W, leadPeekMenu } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
-import { actingRole, refusalToast } from "../../legacy-verbs";
+import { actingRole, refusalToast } from "../../frame-verbs";
 import { draftForLead, eraseLead, setLeadStage, undoLeadOperation } from "../surface";
 import { callBackLeadEmail, sendLeadEmail } from "./verbs";
 import type { Armed, DraftData, DraftState, LeadCourier, PeekActs, PeekPage, StageData } from "./types";

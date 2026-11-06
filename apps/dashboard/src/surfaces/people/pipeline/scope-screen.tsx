@@ -8,7 +8,7 @@ import { PIPELINE_PHONE_SORTS, pipelineCsv } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { downloadCsv } from "../../kit/download";
 import { Menu } from "../../kit/menu/menu";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { menuGroups } from "../menu-groups";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
 import { PeopleListsSheet } from "../rail/lists-sheet";

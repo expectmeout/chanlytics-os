@@ -15,7 +15,7 @@ import {
   sequenceRoute,
 } from "@chanlytics/contracts";
 import type { CampaignMessage, TemplateSentWords, VersionChannel } from "@chanlytics/contracts";
-import { editorBox, focusAsDrawn, gate, navigate } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Field } from "../../kit/field/field";

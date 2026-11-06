@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { PHONE_VOICES, PHONE_VOICE_WORDS, phoneVoiceOf, phoneVoiceShown } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { RecordCombobox } from "../../../kit/record/combobox";
-import { gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, type FrameFlash } from "../../../frame-verbs";
 import { BtRow } from "../gestures/row";
 import type { Brain, Config, Saver } from "../save";
 
@@ -63,7 +63,7 @@ export const BtVoiceRow = ({
 }: {
   brain: Brain;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   saver: Saver | null;
 }) => {
   const shown = phoneVoiceShown(brain.profile?.phone_voice);
