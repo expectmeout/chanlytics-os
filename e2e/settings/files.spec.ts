@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
-import { activeWorkspace, scoped } from "./workspace";
+import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { activeWorkspace, scoped } from "../workspace";
 
 /**
  * Files, from a photo to a post (decision 0099), on a real workspace: a photo goes up through real Storage, a press asks for a post,
