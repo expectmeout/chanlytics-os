@@ -1,5 +1,5 @@
 /** The Line's hooks: one concern each, called in the order AskReal always called them. */
-import { askedWords } from "../../frame-doors";
+import { askedWords, takeAskedOfTheLine } from "../../frame-doors";
 import type { AskedSeed, Line } from "./types";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { MASCOT } from "@/legacy-bridge/mascot";
@@ -343,10 +343,17 @@ export const useArSeedKeys = ({
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useEffect(() => {
     const onSeed = (e: Event) => {
+      takeAskedOfTheLine();
       asked.current = (e && (e as CustomEvent<AskedSeed>).detail) || {};
       setTick((n) => n + 1);
     };
     window.addEventListener("ask:seed", onSeed);
+    // A door pressed before this code landed: it kept what it asked.
+    const waiting = takeAskedOfTheLine();
+    if (waiting) {
+      asked.current = waiting;
+      setTick((n) => n + 1);
+    }
     return () => window.removeEventListener("ask:seed", onSeed);
   }, [asked, setTick]);
 

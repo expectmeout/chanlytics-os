@@ -466,6 +466,21 @@ const ask = (threads = []) => {
 
 /* ------------------------------ N3 ------------------------------ */
 
+test("REGRESSION: a door pressed before the Line's code landed still asks: the event had nobody to hear it, and the question was gone", async () => {
+  const calls = ask([TH(1)]);
+  const doors = await import("../../../../apps/dashboard/src/surfaces/frame-doors.ts");
+  doors.askAbout({ prompt: "Make a post from this photo", about: { kind: "file", id: "f1", label: "Storefront" } });
+  render(Palette, CLOSED);
+  await opens();
+  assert.deepEqual(calls.sent, ["Make a post from this photo"]);
+  assert.deepEqual(calls.inputs[0].scope, { kind: "file", id: "f1", label: "Storefront" }, "and goes with its chip");
+  await closes();
+  calls.sent.length = 0;
+  await opens();
+  assert.deepEqual(calls.sent, [], "once");
+  await closes();
+});
+
 test("REGRESSION (N3): what the shell sends as the Line opens is taken -- a seeded question fired before the palette listened", async () => {
   const calls = ask([TH(1)]);
   render(Palette, CLOSED);
