@@ -9,11 +9,16 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildAskSuggestions } from "@chanlytics/contracts";
+import { fakeDb } from "../_fake-db.mjs";
+import { SERIES } from "../reports/people/_people-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { turnWords } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/ask/prompt.ts")).href);
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+const { turnWords } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
+const { readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 
 const facts = {
   role: "owner",
@@ -70,4 +75,71 @@ test("the Line's chips on the Ads page are about ads, and a campaign's chips sta
   assert.ok(asks({ campaigns: empty }).includes("Set up my campaigns"));
   const spanish = buildAskSuggestions({ ...base, language: "es", onAds: true }).map((s) => s.q);
   assert.ok(spanish.includes("¿Ya puedo poner un anuncio?"));
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// What the server reads for it
+
+const HARBOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const seriesOf = (by_via, fresh) => ({
+  ...SERIES,
+  reached: { ...SERIES.reached, now: { ...SERIES.reached.now, new: fresh } },
+  first_came: { by_via },
+});
+/** The block the model reads on the page, over the report's answer, as the tab asks for it. */
+async function pageBlock(view, people_series) {
+  clearContextCache();
+  const ctx = { supabase: fakeDb({}, {}, { people_series }), userId: "u1", email: "ada@example.com", params: {} };
+  const rc = readerContext(ctx, { tenantId: HARBOR, role: "operator" }, facts.now, { keep: true });
+  const built = await buildContext(rc, {
+    v: 1,
+    surface: "campaigns",
+    route: "campaigns/ads",
+    view,
+    focus: null,
+    rows: [],
+    askedAt: 1,
+  });
+  assert.deepEqual(
+    built.blocks.map((b) => b.source),
+    ["page://campaigns"],
+    "the aggregate alone: no row, of Sequences or of the sample",
+  );
+  assert.equal(built.rows, 0);
+  return built.blocks[0].content[0].text;
+}
+
+test("the page's data says what is true of a preview, and how new people came as Reports › People says it", async () => {
+  const today = await pageBlock("ads", () => seriesOf({ whatsapp: 5, ad: 4, unknown: 3 }, 12));
+  assert.match(today, /no ad account is connected, no ad of theirs exists, nothing runs and nothing is spent/);
+  assert.match(today, /on screen now is their own/);
+  assert.match(today, /how new people first came, last 30 days: WhatsApp 5, An ad 4, Not recorded 3/);
+  assert.doesNotMatch(today, /0 on screen/, "REGRESSION: it read as an empty list of sequences");
+});
+
+test("over an example it says the example is made up, and what is true stays true", async () => {
+  const example = await pageBlock("ads:example", () => seriesOf({ whatsapp: 5 }, 5));
+  assert.match(example, /an example they chose from the page's menu: its ads, numbers and people are made up/);
+  assert.match(example, /no ad account is connected/);
+  assert.match(example, /WhatsApp 5/);
+});
+
+test("nobody new says so, in the report's words", async () => {
+  const nobody = await pageBlock("ads", () => seriesOf({}, 0));
+  assert.match(nobody, /last 30 days: Nobody new reached you in this period\./);
+});
+
+test("a read that fails says so and never that nobody came, and what needs no read still stands", async () => {
+  const was = console.error;
+  console.error = () => {};
+  try {
+    const failed = await pageBlock("ads", () => {
+      throw new Error("the series is down");
+    });
+    assert.match(failed, /could not be read just now/);
+    assert.doesNotMatch(failed, /Nobody new/);
+    assert.match(failed, /no ad account is connected/);
+  } finally {
+    console.error = was;
+  }
 });

@@ -10,7 +10,6 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { PROFILE_NAME_MAX, leadQuestionRoute, leadsRoute } from "@chanlytics/contracts";
-import { SERIES as PEOPLE_SERIES } from "../reports/people/_people-world.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -1232,52 +1231,6 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
     1,
     failedLines.join("\n"),
   );
-});
-
-test("Campaigns › Ads: what is true of a preview, what is on screen, and how new people came as Reports › People says it; no row and nothing of the tab's", async () => {
-  const series = (by_via) => () => ({
-    ...PEOPLE_SERIES,
-    reached: { ...PEOPLE_SERIES.reached, now: { ...PEOPLE_SERIES.reached.now, new: 12 } },
-    first_came: { by_via },
-  });
-  const aggregate = async (view, rpc) => {
-    clearContextCache();
-    const b = await buildContext(
-      rcIn(ctxFor(tables(), { ...RPCS, people_series: rpc })),
-      page("campaigns", [], { route: "campaigns/ads", view }),
-    );
-    assert.deepEqual(
-      b.blocks.map((x) => x.source),
-      ["page://campaigns"],
-      "the aggregate alone",
-    );
-    assert.equal(b.rows, 0);
-    return textOf(b.blocks[0]);
-  };
-  const today = await aggregate("ads", series({ whatsapp: 5, ad: 4, unknown: 3 }));
-  assert.match(today, /no ad account is connected, no ad of theirs exists, nothing runs and nothing is spent/);
-  assert.match(today, /on screen now is their own/);
-  assert.match(today, /how new people first came, last 30 days: WhatsApp 5, An ad 4, Not recorded 3/);
-  assert.doesNotMatch(today, /0 on screen/, "REGRESSION: it read as an empty list of sequences");
-
-  const example = await aggregate("ads:example", series({ whatsapp: 5 }));
-  assert.match(example, /an example they chose from the page's menu: its ads, numbers and people are made up/);
-  assert.match(example, /WhatsApp 5/, "what is true stays true over an example");
-
-  const nobody = await aggregate("ads", () => ({
-    ...PEOPLE_SERIES,
-    reached: { ...PEOPLE_SERIES.reached, now: { ...PEOPLE_SERIES.reached.now, new: 0 } },
-    first_came: { by_via: {} },
-  }));
-  assert.match(nobody, /last 30 days: Nobody new reached you in this period\./);
-
-  const { result: failed } = await logs(() =>
-    aggregate("ads", () => {
-      throw new Error("the series is down");
-    }),
-  );
-  assert.match(failed, /could not be read just now/, "it says so, and never that nobody came");
-  assert.match(failed, /no ad account is connected/, "and what needs no read still stands");
 });
 
 test("Reports: the period the page shows, its tiles and lines, as the report tool says them, and no row", async () => {

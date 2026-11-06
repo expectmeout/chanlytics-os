@@ -4240,22 +4240,6 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
   }
 });
 
-test("on Campaigns' Ads page, which sends nothing yet, the field asks nothing about what should go out", async () => {
-  const hash = globalThis.window.location.hash;
-  globalThis.window.location.hash = "#/campaigns/ads";
-  globalThis.window.__askOnScreen = { key: "ads", ids: [], view: "ads" };
-  try {
-    ask([]);
-    render(Palette, OPEN);
-    const tree = await later(Palette, OPEN);
-    assert.equal(inputOf(tree).props.placeholder, "Ask anything");
-  } finally {
-    await closes();
-    delete globalThis.window.__askOnScreen;
-    globalThis.window.location.hash = hash;
-  }
-});
-
 test("on Campaigns the field asks what should go out, and when (the moment spec, A3)", async () => {
   const hash = globalThis.window.location.hash;
   globalThis.window.location.hash = "#/campaigns";

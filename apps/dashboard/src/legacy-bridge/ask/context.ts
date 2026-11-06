@@ -153,9 +153,9 @@ const sequenceFocus = (q: { id: string; name: string; starts: string }, at: stri
  * and Ask was told a person looking at their ads was looking at their sequences.
  */
 const campaigns: Provider = (w, route) => {
-  const said = askOnScreenOf(w);
-  if (route.page === "campaigns" && route.param && isAdsParam(route.param) && said?.key === "ads")
-    return { view: said.view === ASK_ADS_VIEW.example ? ASK_ADS_VIEW.example : ASK_ADS_VIEW.today, rows: [] };
+  const onScreen = askOnScreenOf(w);
+  if (route.page === "campaigns" && route.param && isAdsParam(route.param) && onScreen?.key === "ads")
+    return { view: onScreen.view === ASK_ADS_VIEW.example ? ASK_ADS_VIEW.example : ASK_ADS_VIEW.today, rows: [] };
   if (route.page === "outbound" || (route.page === "campaigns" && !isMessagesParam(route.param))) {
     const listed = surfaceValue("sequences")?.sequences;
     if (Array.isArray(listed)) {
