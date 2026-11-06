@@ -26,7 +26,8 @@ import { canDo } from "./shell";
 import type { LineWords } from "./words";
 
 /** The file a card made, once it is saved. */
-const keptOf = (p: AskProposal): string | null => (p.outcome?.state === "done" ? (p.outcome.made?.id ?? null) : null);
+const fileSavedBy = (p: AskProposal): string | null =>
+  p.outcome?.state === "done" ? (p.outcome.made?.id ?? null) : null;
 
 /** The card as a press sends it and its head says it: what was changed here, over what Ask proposed. */
 function asChanged(p: AskProposal, plan: PostPlan): AskProposal {
@@ -36,12 +37,12 @@ function asChanged(p: AskProposal, plan: PostPlan): AskProposal {
 }
 
 /** The plan a card stands for: what its press saved, where it has been pressed, else what Ask proposed. */
-const startOf = (p: AskProposal): PostPlan => postPlanOf(recordOrNull(p.outcome?.undo?.plan) ?? p.payload);
+const planOfCard = (p: AskProposal): PostPlan => postPlanOf(recordOrNull(p.outcome?.undo?.plan) ?? p.payload);
 
 /** What a post's card holds for its AskCard: its draft, and what the press sends and may do. Null for any other kind of card. */
 export function usePostCard(p: AskProposal) {
   const isPost = p.kind === "post";
-  const draft = usePostDraft(startOf(p), isPost && !keptOf(p));
+  const draft = usePostDraft(planOfCard(p), isPost && !fileSavedBy(p));
   if (!isPost) return null;
   const says = postWordsIn(draft.plan.language);
   return {
@@ -65,7 +66,7 @@ export function AskPostCard({
   onNav: (to: string) => void;
 }) {
   const { draft, says } = card;
-  const kept = keptOf(p);
+  const kept = fileSavedBy(p);
   const [editing, setEditing] = useState(false);
   const [unseen, setUnseen] = useState(false);
   // Saved, what this tab drew of exactly these words is the same picture, so it stays on screen and none is read again.

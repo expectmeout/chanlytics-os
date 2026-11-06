@@ -134,7 +134,7 @@ export interface FileChange {
 }
 
 /** What came of asking for a post's picture: the picture and whether the business has a number to print, or what refused it. */
-export type PostDrawing = { ok: true; picture: Blob; hasPhone: boolean } | { ok: false; refused: string | null };
+type PostDrawing = { ok: true; picture: Blob; hasPhone: boolean } | { ok: false; refused: string | null };
 
 /**
  * The real picture a post would be (POST files/post/preview), for a card and for an editor as its words change. What the server

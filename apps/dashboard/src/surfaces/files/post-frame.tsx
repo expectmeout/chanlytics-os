@@ -9,9 +9,9 @@ import type { PostShapeName } from "@chanlytics/contracts";
 import { mediaSays } from "../legacy-verbs";
 
 /** The frame's glide and the picture's fade, on the house's ease-out (tokens.css --ease-out). */
-const GLIDE_MS = 240;
-const FADE_MS = 200;
-const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
+const FRAME_GLIDE_MS = 240;
+const FRAME_FADE_MS = 200;
+const FRAME_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 interface Layer {
   src: string;
@@ -86,11 +86,11 @@ export function PostFrame({ src, shape, alt, waiting, drawing = false, onUnseen 
           { width: `${from.width}px`, height: `${from.height}px` },
           { width: `${to.width}px`, height: `${to.height}px` },
         ],
-        { duration: GLIDE_MS, easing: EASE_OUT },
+        { duration: FRAME_GLIDE_MS, easing: FRAME_EASE },
       );
     const fade = box
       .querySelector('[data-layer="now"]')
-      ?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: EASE_OUT });
+      ?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FRAME_FADE_MS, easing: FRAME_EASE });
     const done = () => setWas(null);
     if (fade) fade.finished.then(done, done);
     else done();

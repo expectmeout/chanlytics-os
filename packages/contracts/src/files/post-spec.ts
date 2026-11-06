@@ -7,17 +7,17 @@ import { asText, rec, type ProposalSpecAboveOperator } from "../ask-proposals/sp
 
 const FILES_ROUTE = "admin/files";
 
-const wordsOf = (p: { payload: Record<string, unknown> }) => postWordsIn(postPlanOf(p.payload).language);
+const postSaysOf = (p: { payload: Record<string, unknown> }) => postWordsIn(postPlanOf(p.payload).language);
 
 export const postSpec: ProposalSpecAboveOperator = {
   needs: "partner",
   doing: "save a post to Files",
   gate: "settings",
   commit: ({ payload }) => ({ route: "POST files/post", body: postPlanOf(payload) }),
-  receipt: (p, data) => wordsOf(p).saved(asText(rec(data).name)),
+  receipt: (p, data) => postSaysOf(p).saved(asText(rec(data).name)),
   made: (_p, data) => asText(rec(data).file_id) || null,
   undo: {
-    label: (p) => wordsOf(p).undo,
+    label: (p) => postSaysOf(p).undo,
     window: "ten_minutes",
     record: (p, data) => {
       const id = asText(rec(data).file_id);

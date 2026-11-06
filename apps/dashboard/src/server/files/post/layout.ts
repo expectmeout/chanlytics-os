@@ -52,7 +52,7 @@ export interface PostNode {
 }
 
 /** A piece of the page, in its pixels. */
-export interface PostBox {
+interface PostBox {
   left: number;
   top: number;
   width: number;
