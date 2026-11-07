@@ -11,6 +11,7 @@ const CHOSEN_NAME_MAX = 255;
  * POST /api/v1/files/:id/done — `{ name, mime }`: a member's photo has been sent. Its first bytes are read and proven here, and
  * a file is made of them with its look on the ledger, or it is answered with the file it twins. Asked twice, it answers the
  * same. The id is the one files/start answered, and it names a place in this workspace's own folder, so a guess finds nothing.
+ * A video's bytes are the video platform's to prove: done only says they have all gone, so its tile says it is being made ready.
  *
  * The handle is in src/server/files/upload.ts.
  */

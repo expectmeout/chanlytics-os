@@ -89,13 +89,13 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture, and the photo's size in pixels. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. To make a post from one, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before you propose or judge one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. A video opens as a sheet of its frames with their times, what was heard of it after. To make a post from a photo, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "get", "view", "compare", "zoom"]
+            "enum": ["list", "get", "view", "compare", "zoom", "listen"]
           },
           "shelf": {
             "type": "string",
@@ -104,7 +104,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows or has written on it.",
+            "description": "Words to find in what a file shows, has written on it or says.",
             "maxLength": 80
           },
           "name": {
@@ -143,6 +143,51 @@
                 "type": "number"
               }
             ]
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's moment, M:SS."
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's stretch, from M:SS; left out, its start."
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "To M:SS; left out, its end."
+          },
+          "question": {
+            "type": "string",
+            "description": "What to ask of how it sounds.",
+            "maxLength": 600,
+            "minLength": 1
           }
         },
         "required": ["action"],
@@ -173,6 +218,17 @@
           "action": "zoom",
           "name": "storefront-dusk-street",
           "box": [420, 90, 980, 310]
+        },
+        {
+          "action": "zoom",
+          "name": "shop-tour",
+          "at": "0:12"
+        },
+        {
+          "action": "listen",
+          "name": "shop-tour",
+          "question": "Does the voice sound sure?",
+          "from": "0:18"
         }
       ],
       "defer_loading": true
@@ -835,13 +891,13 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture, and the photo's size in pixels. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. To make a post from one, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before you propose or judge one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. A video opens as a sheet of its frames with their times, what was heard of it after. To make a post from a photo, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "get", "view", "compare", "zoom"]
+            "enum": ["list", "get", "view", "compare", "zoom", "listen"]
           },
           "shelf": {
             "type": "string",
@@ -850,7 +906,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows or has written on it.",
+            "description": "Words to find in what a file shows, has written on it or says.",
             "maxLength": 80
           },
           "name": {
@@ -889,6 +945,51 @@
                 "type": "number"
               }
             ]
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's moment, M:SS."
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's stretch, from M:SS; left out, its start."
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "To M:SS; left out, its end."
+          },
+          "question": {
+            "type": "string",
+            "description": "What to ask of how it sounds.",
+            "maxLength": 600,
+            "minLength": 1
           }
         },
         "required": ["action"],
@@ -919,6 +1020,17 @@
           "action": "zoom",
           "name": "storefront-dusk-street",
           "box": [420, 90, 980, 310]
+        },
+        {
+          "action": "zoom",
+          "name": "shop-tour",
+          "at": "0:12"
+        },
+        {
+          "action": "listen",
+          "name": "shop-tour",
+          "question": "Does the voice sound sure?",
+          "from": "0:18"
         }
       ],
       "defer_loading": true
@@ -3412,13 +3524,13 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture, and the photo's size in pixels. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. To make a post from one, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before you propose or judge one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. A video opens as a sheet of its frames with their times, what was heard of it after. To make a post from a photo, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "get", "view", "compare", "zoom"]
+            "enum": ["list", "get", "view", "compare", "zoom", "listen"]
           },
           "shelf": {
             "type": "string",
@@ -3427,7 +3539,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows or has written on it.",
+            "description": "Words to find in what a file shows, has written on it or says.",
             "maxLength": 80
           },
           "name": {
@@ -3466,6 +3578,51 @@
                 "type": "number"
               }
             ]
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's moment, M:SS."
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's stretch, from M:SS; left out, its start."
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "To M:SS; left out, its end."
+          },
+          "question": {
+            "type": "string",
+            "description": "What to ask of how it sounds.",
+            "maxLength": 600,
+            "minLength": 1
           }
         },
         "required": ["action"],
@@ -3496,6 +3653,17 @@
           "action": "zoom",
           "name": "storefront-dusk-street",
           "box": [420, 90, 980, 310]
+        },
+        {
+          "action": "zoom",
+          "name": "shop-tour",
+          "at": "0:12"
+        },
+        {
+          "action": "listen",
+          "name": "shop-tour",
+          "question": "Does the voice sound sure?",
+          "from": "0:18"
         }
       ],
       "defer_loading": true
@@ -6430,13 +6598,13 @@
     },
     {
       "name": "files",
-      "description": "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw. Action get answers what the look wrote of one file: a note, not the picture, and the photo's size in pixels. Action view opens up to 4 pictures themselves, so you see them as the owner does. Do it before you propose or judge a picture, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. To make a post from one, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
+      "description": "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees. Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard. Action view opens up to 4 pictures themselves, so you see them as the owner does, a video as its sheet. Do it before you propose or judge one, and whenever the owner asks about one. Action compare opens two pictures side by side, for which is better for something: name exactly two. Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it. Action listen asks an ear how a stretch of a video sounds; its answer is a report, not your hearing. The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. A video opens as a sheet of its frames with their times, what was heard of it after. To make a post from a photo, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "get", "view", "compare", "zoom"]
+            "enum": ["list", "get", "view", "compare", "zoom", "listen"]
           },
           "shelf": {
             "type": "string",
@@ -6445,7 +6613,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows or has written on it.",
+            "description": "Words to find in what a file shows, has written on it or says.",
             "maxLength": 80
           },
           "name": {
@@ -6484,6 +6652,51 @@
                 "type": "number"
               }
             ]
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's moment, M:SS."
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "A video's stretch, from M:SS; left out, its start."
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 12
+              }
+            ],
+            "description": "To M:SS; left out, its end."
+          },
+          "question": {
+            "type": "string",
+            "description": "What to ask of how it sounds.",
+            "maxLength": 600,
+            "minLength": 1
           }
         },
         "required": ["action"],
@@ -6514,6 +6727,17 @@
           "action": "zoom",
           "name": "storefront-dusk-street",
           "box": [420, 90, 980, 310]
+        },
+        {
+          "action": "zoom",
+          "name": "shop-tour",
+          "at": "0:12"
+        },
+        {
+          "action": "listen",
+          "name": "shop-tour",
+          "question": "Does the voice sound sure?",
+          "from": "0:18"
         }
       ],
       "defer_loading": true

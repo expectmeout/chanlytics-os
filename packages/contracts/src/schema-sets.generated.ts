@@ -8,11 +8,12 @@
  */
 export const SCHEMA_SETS = {
   "ai_usage.outcome": ["answered", "fell_back", "refused", "rejected", "unreachable", "unreadable"],
-  "ai_usage.port": ["anthropic", "typesafe"],
+  "ai_usage.port": ["anthropic", "typesafe", "google", "elevenlabs"],
   "ai_usage.purpose": [
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
     "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest", "ask_journal",
-    "receptionist_review", "fix_route", "website_read", "sender_read", "file_look",
+    "receptionist_review", "fix_route", "website_read", "sender_read", "file_look", "file_words",
+    "file_hear",
   ],
   "anthropic_profiles.enforcement_status": ["unrestricted", "pending", "restricted", "banned"],
   "anthropic_profiles.kind": ["person", "workspace"],
@@ -90,8 +91,13 @@ export const SCHEMA_SETS = {
   "event_subscriptions.lane": [],
   "fact_suggestions.source": ["steer", "reply"],
   "fact_suggestions.state": ["nothing", "suggested", "kept", "dismissed"],
+  "files.kind": ["image", "video"],
   "files.look_status": ["waiting", "done", "refused", "failed"],
-  "files.mime": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"],
+  "files.media_status": ["uploading", "processing", "ready", "failed"],
+  "files.mime": [
+    "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "video/mp4", "video/quicktime",
+    "video/webm",
+  ],
   "files.shows": ["storefront", "interior", "work", "team", "product", "menu", "logo", "graphic", "other"],
   "files.source": ["upload", "google_profile", "google_listing", "website", "made"],
   "files.status": ["inbox", "filed", "set_aside"],
@@ -107,7 +113,7 @@ export const SCHEMA_SETS = {
     "booking_read", "broadcast_send", "canary", "email_ingest", "erasure_finish", "event_deliver",
     "file_fetch", "file_look", "file_purge", "history_import", "inbound_answer", "lead_check",
     "lead_collect", "lead_round_start", "line_provision", "outbound_send", "preview_build",
-    "push_receipts", "push_send", "reply_draft", "reply_read", "website_read",
+    "push_receipts", "push_send", "reply_draft", "reply_read", "video_digest", "website_read",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],

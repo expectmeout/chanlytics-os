@@ -3,3 +3,31 @@
  */
 export { fileFingerprintOf, FINGERPRINT_BYTES } from "./fingerprint";
 export { remadeLogo } from "./logo-png";
+export {
+  askStreamAudio,
+  deleteStreamVideo,
+  fetchStreamAudio,
+  fetchStreamFrame,
+  putStreamCaptions,
+  readStreamAudio,
+  readStreamUsage,
+  readStreamVideo,
+  reserveStreamUpload,
+  streamAudioUrl,
+  streamFrameUrl,
+  streamPlayerUrl,
+  streamTokenOf,
+  streamVideoOf,
+  verifyStreamWebhook,
+} from "./stream";
+export type {
+  StreamAccount,
+  StreamAudio,
+  StreamFetched,
+  StreamRead,
+  StreamReserved,
+  StreamSigning,
+  StreamState,
+  StreamUsage,
+  StreamVideo,
+} from "./stream";

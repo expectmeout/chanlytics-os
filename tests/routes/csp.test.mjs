@@ -64,7 +64,7 @@ test("a local stack's Supabase over http is allowed over ws for Realtime, and na
   assert.deepEqual(p["connect-src"].slice(0, 3), ["'self'", "http://127.0.0.1:54321", "ws://127.0.0.1:54321"]);
 });
 
-test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; the voice agent's socket and its WebRTC signalling (0026); a rehearsal's call at Retell and LiveKit (0069); Stripe's checkout in the page (0073); nothing else", () => {
+test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; the voice agent's socket and its WebRTC signalling (0026); a rehearsal's call at Retell and LiveKit (0069); Stripe's checkout in the page (0073); a business's videos at Stream (0099); nothing else", () => {
   const p = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co/" }));
   assert.deepEqual(p["connect-src"], [
     "'self'",
@@ -83,6 +83,8 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "wss://*.livekit.cloud",
     "https://api.stripe.com",
     "https://checkout.stripe.com",
+    "https://*.videodelivery.net",
+    "https://*.cloudflarestream.com",
   ]);
   assert.deepEqual(p["img-src"], [
     "'self'",
@@ -102,6 +104,8 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "https://*.js.stripe.com",
     "https://hooks.stripe.com",
     "https://checkout.stripe.com",
+    "https://videodelivery.net",
+    "https://*.cloudflarestream.com",
   ]);
   // The mockup's inline styles: attributes, which no nonce can reach. Said in the policy, not smuggled.
   assert.deepEqual(p["style-src"], ["'self'", "'unsafe-inline'"]);

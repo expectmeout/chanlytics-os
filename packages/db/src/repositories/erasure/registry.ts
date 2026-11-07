@@ -427,9 +427,11 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   mailbox_senders: { sender: scrubbedBy("mailbox_trigger") },
   // A business's own pictures (00551). A picture can show anyone, and a look or a name can hold what it read off one: an
   // erasure of a person reaches neither, and the owner deleting that file is the remedy, which blanks all three.
+  // A video's (00556): what was heard of it can carry what a customer said in a clip, so it goes with the workspace; the video
+  // platform's id for it and its error code are nobody's.
   files: {
-    ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref"),
-    ...all(NOT_PERSONAL, "fingerprint", "claude_copy"),
+    ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
+    ...all(NOT_PERSONAL, "fingerprint", "claude_copy", "media_ref", "media_error"),
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },

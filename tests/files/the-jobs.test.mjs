@@ -81,6 +81,13 @@ const fileRow = (over = {}) => ({
   created_at: "2026-11-05T12:00:00Z",
   updated_at: "2026-11-05T12:00:00Z",
   removed_at: null,
+  // A picture, as 00556 defaults every row it did not make.
+  kind: "image",
+  media_ref: null,
+  media_status: null,
+  seconds: null,
+  sound: null,
+  sound_said: null,
   ...over,
 });
 
@@ -848,7 +855,7 @@ test("the sweep's pass catches its own failures: nothing else the sweep does wai
     if (table === "files") throw new Error("the read failed");
     return from(table);
   };
-  assert.deepEqual(await keepFilesMoving(w.db), { looks: 0, purges: 0 });
+  assert.deepEqual(await keepFilesMoving(w.db), { looks: 0, purges: 0, videos: 0 });
 });
 
 const copiesAsked = (w, body, workspace = T) =>

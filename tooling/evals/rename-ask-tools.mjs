@@ -28,6 +28,7 @@ export const ADDED_SINCE = [
   "files.compare",
   "files.get",
   "files.list",
+  "files.listen",
   "files.view",
   "files.zoom",
   "guide",

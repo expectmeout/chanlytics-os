@@ -946,6 +946,7 @@ export const FAKE_JOB_KINDS = {
   file_look: [2, ["file_id", "edition"], false],
   file_fetch: [2, ["@tenant", "source", "batch"], false],
   file_purge: [2, ["file_id", "why"], false],
+  video_digest: [2, ["file_id", "step"], false],
   broadcast_send: [2, null, false],
   lead_round_start: [2, null, false],
   lead_collect: [2, ["run_id", "seq"], true],

@@ -1,5 +1,20 @@
-export { FILE_COPIES_DOOR } from "./edge-doors";
-export { FILE_WORDS, fileCursorOf, filesSayOf } from "./files";
+export { FILE_COPIES_DOOR, FILE_LISTEN_DOOR, FILE_PLAY_DOOR, FILE_VIDEO_START_DOOR } from "./edge-doors";
+export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files";
+export {
+  FILE_IMAGE_MIMES,
+  FILE_KINDS,
+  FILE_MADE_OF_VIDEO,
+  FILE_MADE_OF_VIDEO_MIMES,
+  FILE_MEDIA_STATUSES,
+  FILE_VIDEO_BYTES_MAX,
+  FILE_VIDEO_MIMES,
+  FILE_VIDEO_MINUTES_MAX,
+  FILE_VIDEO_SECONDS_MAX,
+  fileKindOf,
+  fileMadePathOf,
+  isVideoMime,
+} from "./kinds";
+export type { FileImageMime, FileKind, FileMadeOfVideo, FileMediaStatus, FileVideoMime } from "./kinds";
 export {
   FILE_BYTES_MAX,
   FILE_CACHE_S,
@@ -30,8 +45,12 @@ export {
   FILE_LOOK_SCHEMA,
   FILE_LOOK_SYSTEM,
   FILE_PICTURE_KEEP_S,
+  FILE_VIDEO_LOOK_SCHEMA,
   fileLookAsked,
   fileLookOf,
+  fileVideoLookAsked,
+  fileVideoLookOf,
+  VIDEO_LOOK_EDITION,
 } from "./look";
 export type { FileLook, FileLookRead } from "./look";
 export type { FileQuality } from "./look";
@@ -60,6 +79,49 @@ export type {
   PostWords,
 } from "./post";
 export {
+  cuesSaidOf,
+  earWordsOf,
+  fileSoundOf,
+  languageCodeOf,
+  languageNameOf,
+  noteSaidOf,
+  scribeWordsOf,
+  soundNoteOf,
+  soundSaidOf,
+  soundTurnSaidOf,
+  VIDEO_EAR_SCHEMA,
+  VIDEO_EAR_SYSTEM,
+  VIDEO_EAR_WORDS_SCHEMA,
+  videoEarAsked,
+  videoListenAsked,
+  videoSheetAfterOf,
+  vttOf,
+} from "./sound";
+export type { FileSound, HeardBy, SoundCue, SoundEvent, SoundNote, SoundPart, SoundWords } from "./sound";
+export {
+  clockOf,
+  isDigestStep,
+  nextDigestStepOf,
+  secondsOf,
+  VIDEO_DIGEST_STEPS,
+  VIDEO_FRAME_SIDE,
+  VIDEO_SHEET_FRAMES,
+  VIDEO_SHEET_PIXELS,
+  VIDEO_SHEET_SIDE,
+  VIDEO_SPAN_FRAMES,
+  VIDEO_TILE_LABEL_PX,
+  videoFrameSizeOf,
+  videoFramesSaidOf,
+  videoFrameWhatOf,
+  videoPreviewOf,
+  videoSheetPlanOf,
+  videoSheetSaidOf,
+  videoSheetWhatOf,
+  videoSpanPlanOf,
+  videoSpanWhatOf,
+} from "./video";
+export type { VideoDigestStep, VideoSheetPlan } from "./video";
+export {
   FILE_GOOGLE_WORDS_MAX,
   FILE_SHELVES,
   fileFolderOf,
@@ -87,3 +149,5 @@ export type {
   FilesTally,
   FileWhoStands,
 } from "./views";
+export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./zoom";
+export type { ZoomBox, ZoomSize, ZoomWont } from "./zoom";
