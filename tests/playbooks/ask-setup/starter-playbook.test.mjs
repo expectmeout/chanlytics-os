@@ -38,7 +38,7 @@ delete process.env.DIAG_KEY;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const playbooks = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -225,14 +225,14 @@ let tables;
 beforeEach(() => setRateStore(memoryStore()));
 afterEach(() => {
   meta?.restore();
-  setUnsubscribeServiceClient(null);
+  setServiceClient(null);
 });
 /** The world, its doors, and Meta stubbed: what `post` sends a body into. */
 function open(over) {
   failing = new Set();
   tables = world(over);
   const d = doors(tables);
-  setUnsubscribeServiceClient(fakeDb(tables, {}, d.service));
+  setServiceClient(fakeDb(tables, {}, d.service));
   meta = stubMeta(tables);
   const ctx = { supabase: fakeDb(tables, {}, d.session), userId: USER, email: "ada@example.com", params: {} };
   return (body) =>

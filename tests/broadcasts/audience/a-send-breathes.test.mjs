@@ -42,9 +42,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { createBroadcast } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaigns/ports.ts"));
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = new Date("2026-09-06T14:00:00Z");

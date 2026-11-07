@@ -9,6 +9,7 @@
     "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
+    "@chanlytics/log": "workspace:*",
     "@supabase/supabase-js": "^2.118.0"
   },
   "devDependencies": {

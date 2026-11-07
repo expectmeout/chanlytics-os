@@ -22,7 +22,7 @@ const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/se
 const { CAMPAIGN_MONTH_ALLOWANCE, SENDING_HOURS_WORDS, sendsWaitWords } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -198,7 +198,7 @@ beforeEach(async () => {
   await edgeSays(OPEN_EDGE);
 });
 after(() => (globalThis.fetch = real));
-afterEach(() => setUnsubscribeServiceClient(null));
+afterEach(() => setServiceClient(null));
 
 const OFFER_PB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5";
 /** A win-back by silence that runs on the month's offer message. */
@@ -239,7 +239,7 @@ const asSequence = (input) =>
 const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE, now = NOW) => {
   const rows = tables(db);
   const count = typeof monthSent === "function" ? monthSent : (a) => monthSent[a.p_channel] ?? 0;
-  setUnsubscribeServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
+  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
   const supabase = fakeDb(rows, {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, now);
   return buildProposal(t, ...asSequence(input));

@@ -36,7 +36,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const { draftAsked } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 const { streamModel } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 beforeEach(() => readerCache.clear());
 

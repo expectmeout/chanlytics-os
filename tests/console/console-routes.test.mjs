@@ -20,7 +20,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const route = (p) => import(at(`apps/dashboard/app/api/v1/${p}/route.ts`));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const me = await route("platform/me");
 const retry = await route("platform/lines/retry");
 const payout = await route("platform/partners/payout");
@@ -40,7 +40,7 @@ const health = await route("platform/health");
 const redrive = await route("platform/deliveries/redrive");
 
 beforeEach(() => setRateStore(memoryStore()));
-afterEach(() => setUnsubscribeServiceClient(null));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const L1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
@@ -60,7 +60,7 @@ const ctxFor = (state, { tables = {}, rpcs = {}, params = {}, email = "alex@chan
 /** The service role's world: what an act writes its row to, and what the Console's own tables hold. */
 function service(tables = {}, faults = {}) {
   const world = { platform_acts: [], ...tables };
-  setUnsubscribeServiceClient(fakeDb(world, faults));
+  setServiceClient(fakeDb(world, faults));
   return world;
 }
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
@@ -755,7 +755,7 @@ test("Health is one read for staff alone: every part read on its own, the clocks
     failed: 0,
     last_failure: null,
   };
-  setUnsubscribeServiceClient(
+  setServiceClient(
     fakeDb(
       world,
       {},
@@ -826,7 +826,7 @@ test("Health is one read for staff alone: every part read on its own, the clocks
   const quiet = console.error;
   console.error = () => {};
   try {
-    setUnsubscribeServiceClient(
+    setServiceClient(
       fakeDb(
         world,
         {},
@@ -864,7 +864,7 @@ test("Deliver again is an act: Billing is refused before anything runs; Support'
 
   const asked = [];
   const world = { platform_acts: [] };
-  setUnsubscribeServiceClient(fakeDb(world, {}, { event_deliveries_redrive: (args) => (asked.push(args), 13) }));
+  setServiceClient(fakeDb(world, {}, { event_deliveries_redrive: (args) => (asked.push(args), 13) }));
   assert.deepEqual(await redrive.POST.run(post({ subscriber: "consent_notice", why: WHY }), ctxFor("support")), {
     subscriber: "consent_notice",
     scheduled: 13,

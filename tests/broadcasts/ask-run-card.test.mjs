@@ -31,7 +31,7 @@ const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/se
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const approveRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts"));
 const cancelRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts"));
 
@@ -39,7 +39,7 @@ beforeEach(() => {
   readerCache.clear();
   setRateStore(memoryStore());
 });
-afterEach(() => setUnsubscribeServiceClient(null));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -541,7 +541,7 @@ function tabOver(tables) {
   const sent = [];
   const events = [];
   const supabase = fakeDb(tables, {}, approvalDoor(tables));
-  setUnsubscribeServiceClient(supabase);
+  setServiceClient(supabase);
   const client = createApi({
     fetch: async (url, init) => {
       const u = new URL(String(url), "http://localhost");

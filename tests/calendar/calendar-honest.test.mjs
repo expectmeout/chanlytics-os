@@ -265,7 +265,7 @@ globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
 globalThis.window.__chrome = { state: stateOf };
 // The surface's own verbs, with their reads answered here, and the seam that holds what the page draws.
 const S = "../../apps/dashboard/src/surfaces";
-const { readCalendar } = await import(`${S}/calendar/verbs.ts`);
+const { calendar } = await import(`${S}/calendar/verbs.ts`);
 const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
 const { CALENDAR_PAGE, CR_WARM_MS, fitDeskHourPx, fitHourPx } = await import(`${S}/calendar/words.ts`);
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
@@ -274,8 +274,8 @@ const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { setStatus } = await import("../../apps/dashboard/src/bridge/surface-status.ts");
 const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { calendarAddress, calendarParam } = await import(`${S}/calendar/address.ts`);
-const realVerbs = { ...readCalendar };
-globalThis.window.__calendar = readCalendar;
+const realVerbs = { ...calendar };
+globalThis.window.__calendar = calendar;
 // Today's day (TSX since decision 0015), the one derivation the strip and the brief read, which names the next open time
 // the way the Calendar does: the hooks it imports are the stub's, set on the module it imports them from.
 kitHooks();
@@ -388,7 +388,7 @@ const fresh = (week = dto(), answers = []) => {
   toasts = [];
   for (const k of Object.keys(listeners)) delete listeners[k];
   setSurfaceValue("calendar", { vm: toCalendarVM(week, NOW), fetchedAt: 1 });
-  Object.assign(readCalendar, realVerbs, {
+  Object.assign(calendar, realVerbs, {
     ensure: (view, anchor) => {
       reads.push([view, anchor]);
       return Promise.resolve(answers.length ? answers.shift() : true);

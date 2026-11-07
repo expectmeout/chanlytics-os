@@ -302,7 +302,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
 test("a template draft asks the registry's model with its thinking off, and what it writes is the draft", async () => {
   // The 30 Oct 2026 replay: a model that thinks by default ran out of the draft's 900 tokens on 3 drafts in 12.
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-  const { draftTemplate } = await import(at("apps/dashboard/src/server/drafts/template/translate.ts"));
+  const { draftTemplate } = await import(at("apps/dashboard/src/server/drafts/template/draft.ts"));
   const draft = {
     name: "visit_reminder",
     body: "Hi {{1}}, a reminder of your visit at Harbor Studio tomorrow. Reply here to change it.",

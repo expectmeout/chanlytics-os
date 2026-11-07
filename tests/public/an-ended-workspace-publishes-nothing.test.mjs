@@ -15,7 +15,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { findConsentPage } = await import(at("apps/dashboard/src/server/public/consent-page.ts"));
 const { findBusinessPage } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
 
@@ -23,7 +23,7 @@ const T = "aaaaaaaa-0000-4000-8000-000000000419";
 
 /** A workspace that published both pages: a business on record, a number customers text. */
 function world(tenant) {
-  setUnsubscribeServiceClient(
+  setServiceClient(
     fakeDb({
       tenants: [{ id: T, name: "Harbor Moving", slug: "harbor", status: "active", left_empty_at: null, ...tenant }],
       business_records: [
@@ -47,7 +47,7 @@ function world(tenant) {
 }
 
 test("REGRESSION: an ended workspace's sign-up page and business page are Not found; a paused one keeps both", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
 
   world({ status: "paused", left_empty_at: "2026-10-01T00:00:00Z" });
   assert.equal(await findConsentPage("harbor"), null, "no sign-up page asks for a yes nobody will answer");

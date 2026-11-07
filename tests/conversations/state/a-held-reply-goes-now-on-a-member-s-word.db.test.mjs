@@ -55,7 +55,7 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   core = await import(at("packages/core/src/index.ts"));
   ports = await import(at("apps/dashboard/src/server/conversations/ports.ts"));
-  (await import(at("apps/dashboard/src/server/shared/service-db.ts"))).setUnsubscribeServiceClient(db);
+  (await import(at("apps/dashboard/src/server/shared/service-db.ts"))).setServiceClient(db);
 });
 
 after(async () => {

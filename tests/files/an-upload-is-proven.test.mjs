@@ -24,7 +24,7 @@ after(() => {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const start = await import(at("apps/dashboard/app/api/v1/files/start/route.ts"));
 const done = await import(at("apps/dashboard/app/api/v1/files/[id]/done/route.ts"));
 const keep = await import(at("apps/dashboard/app/api/v1/files/keep/route.ts"));
@@ -33,7 +33,7 @@ const view = await import(at("apps/dashboard/app/api/v1/files/[id]/view/route.ts
 const { FILE_WORDS: W } = await import(at("packages/contracts/src/files/files.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const F = "ffffffff-ffff-4fff-8fff-ffffffffffff";
@@ -88,7 +88,7 @@ function service(answer = { fate: "kept", file_id: F }) {
       },
     }),
   };
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   return asked;
 }
 

@@ -27,7 +27,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { erasureKeys } = await import("@chanlytics/db/erasure");
 const contacts = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
 const receptionistMany = await import(at("apps/dashboard/app/api/v1/contacts/receptionist/route.ts"));
@@ -460,11 +460,11 @@ test("an erasure hands the Ask scrub, the kept deliveries' scrub and the notes' 
       { id: P1 },
       rpcs,
     );
-    setUnsubscribeServiceClient(ctx.supabase);
+    setServiceClient(ctx.supabase);
     try {
       return { out: await person.DELETE.run(send("DELETE"), ctx), seen: ctx.supabase.seen };
     } finally {
-      setUnsubscribeServiceClient(null);
+      setServiceClient(null);
     }
   };
 

@@ -38,7 +38,7 @@ const { readThread, modelTurnOf, toMessageVM } = await import(at("apps/dashboard
 const { attachedIdsOf } = await import(at("apps/dashboard/src/server/files/attached.ts"));
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 const { prepareAskTurn } = await import(at("apps/dashboard/src/server/ask/turn.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 const { buildProposal, runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { withFilesAttached } = await import(at("apps/dashboard/src/server/files/line.ts"));
 

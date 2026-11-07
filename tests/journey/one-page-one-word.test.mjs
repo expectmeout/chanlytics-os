@@ -75,8 +75,10 @@ test("People's lists say none: each list's tip and its next step", async () => {
 
 test("Settings › Business says none: what it cannot do, the booking rules, each rule's strength", async () => {
   const { cannotRows } = await importSrc(`${K}/config/business-tab/abilities.ts`);
-  const { bookingRulesWords } = await importSrc(`${K}/config/business-tab/booking-rules-words.ts`);
-  const { ruleStrength } = await importSrc(`${K}/config/business-tab/rule-strengths.ts`);
+  const { bookingRulesWords } = await importSrc(
+    "apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts",
+  );
+  const { ruleStrength } = await importSrc("apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts");
   const { GUARDRAIL_KEYS } = await importSrc(`${K}/config/workspace-config/config-rules.ts`);
   saysNone(
     "what it cannot do",
@@ -91,7 +93,7 @@ test("Settings › Business says none: what it cannot do, the booking rules, eac
 
 test("Ask says none: a source's kind on an old answer, and a plan's moment", async () => {
   const { answerFromV1 } = await importSrc(`${K}/ask/answer.ts`);
-  const { PLAN_WORDS } = await importSrc(`${K}/ask/plan.ts`);
+  const { PLAN_WORDS } = await importSrc(`${K}/ask/plan/intents.ts`);
   const old = answerFromV1({
     text: "Two ahead.",
     citations: [{ kind: "visit", id: "v1", label: "Ana · Tue 2pm", to: "calendar/visit:v1" }],

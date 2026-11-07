@@ -36,10 +36,10 @@ const EN = C.OFFER_PLAN_WORDS.en;
 const { readerCache, stableJson } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -280,11 +280,11 @@ beforeEach(async () => {
   };
   await getEmailWire({ fresh: true });
   // The month's emails and texts so far, which the service client counts (campaigns/month-sent.ts): none yet.
-  setUnsubscribeServiceClient(fakeDb({}, {}, { campaign_month_sent: () => 0 }));
+  setServiceClient(fakeDb({}, {}, { campaign_month_sent: () => 0 }));
 });
 after(() => {
   globalThis.fetch = real;
-  setUnsubscribeServiceClient(null);
+  setServiceClient(null);
 });
 
 /** A request over `rows`, People being `people`, and `faults` failing a read the way PostgREST fails one. */

@@ -149,7 +149,7 @@ test("the cache hit ratio: cache reads over everything the model was fed; nothin
 
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const { buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 
 const NONE = { kind: "none", id: "", label: "" };
 const answerJson = (headline) =>
@@ -311,7 +311,7 @@ test("the morning's turn says so on its shape, asked either way: it runs with no
 });
 
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/turn-head.ts"));
 const askRoute = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { runTool } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));

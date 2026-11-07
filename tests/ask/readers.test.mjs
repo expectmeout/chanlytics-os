@@ -54,12 +54,12 @@ const {
   channelsReady: channelsReadyReader,
 } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { metrics } = await import(at("apps/dashboard/src/server/readers/metrics.ts"));
-const { readConversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
 const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
 const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
-const { readInbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
-const { readToday } = await import(at("apps/dashboard/src/server/readers/today.ts"));
+const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
+const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"));
 // Named apart from the fixtures below that build a conversation's and a message's rows.
 const { conversation: oneThread, messagesOf } = await import(at("apps/dashboard/src/server/readers/conversation.ts"));
 const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/call.ts"));
@@ -73,7 +73,7 @@ const {
   peopleReport,
 } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { campaignReport, campaignLedgerReport } = await import(
   at("apps/dashboard/src/server/readers/campaign-report.ts")
 );
@@ -89,11 +89,11 @@ const { getCalendarWeek } = await import(at("apps/dashboard/src/server/calendar/
 const { forgetFeeds, getOpenings } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/openings.ts"));
 const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
-const { readCalendar: calendarReader, sources: calendarSources } = await import(
+const { calendar: calendarReader, sources: calendarSources } = await import(
   at("apps/dashboard/src/server/readers/calendar.ts")
 );
 const calendarRoute = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
-const { readPeople: peopleReader } = await import(at("apps/dashboard/src/server/readers/people.ts"));
+const { people: peopleReader } = await import(at("apps/dashboard/src/server/readers/people.ts"));
 const { lists: listsReader } = await import(at("apps/dashboard/src/server/readers/lists.ts"));
 const {
   broadcasts: broadcastsReader,
@@ -111,19 +111,19 @@ const touchesRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/touch
  * readers reach it through the service client, here a double that counts 1,240 emails and 12 texts.
  */
 const MONTH_SENT = { email: 1240, sms: 12 };
-setUnsubscribeServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
+setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
 const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
 const { listEveryone } = await import(at("apps/dashboard/src/server/people/people.ts"));
-const { getAudiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
+const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
 const { getAudiencePool: audiencePoolOf, findPoolList } = await import(
   at("apps/dashboard/src/server/campaigns/audience.ts")
 );
 const { findChannelsReadyOrNull } = await import(at("apps/dashboard/src/server/campaigns/channels-ready.ts"));
-const { listEveryone: everyoneReader } = await import(at("apps/dashboard/src/server/readers/everyone.ts"));
+const { everyone: everyoneReader } = await import(at("apps/dashboard/src/server/readers/everyone.ts"));
 const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const { getBroadcast } = await import(at("apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts"));
-const { readSettingsContext: settingsReader } = await import(at("apps/dashboard/src/server/readers/settings.ts"));
+const { settings: settingsReader } = await import(at("apps/dashboard/src/server/readers/settings.ts"));
 const { connections } = await import(at("apps/dashboard/src/server/readers/connections.ts"));
 const { notifications: notificationsReader } = await import(at("apps/dashboard/src/server/readers/notifications.ts"));
 const { activity: activityReader } = await import(at("apps/dashboard/src/server/readers/activity.ts"));
@@ -496,7 +496,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ],
     messages: [],
   };
-  const inBayside = await kernel.load(turnIn(dayCtx(two), B), readConversations, { ids: null });
+  const inBayside = await kernel.load(turnIn(dayCtx(two), B), conversations, { ids: null });
   assert.deepEqual(
     inBayside.data.conversations.map((c) => c.id),
     ["c-b"],
@@ -512,7 +512,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ),
   );
   const ctx = dayCtx({ conversations: threads, messages: said }, { opts: { maxRows: 100 } });
-  const newest = await kernel.load(turnIn(ctx), readConversations, { ids: null });
+  const newest = await kernel.load(turnIn(ctx), conversations, { ids: null });
   assert.equal(
     newest.data.conversations.filter((c) => c.messages.length === 0).length,
     0,
@@ -551,7 +551,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ],
     messages: [message("m1", C1, A), message("m2", C2, A), message("m9", uuid(9), B)],
   };
-  const byIds = await kernel.load(turnIn(dayCtx(tbls)), readConversations, { ids: [C2, uuid(9)] });
+  const byIds = await kernel.load(turnIn(dayCtx(tbls)), conversations, { ids: [C2, uuid(9)] });
   assert.deepEqual(
     byIds.data.conversations.map((c) => c.id),
     [C2],
@@ -811,7 +811,7 @@ const dayDoors = { metrics_summary: () => SUMMARY, lead_list_counts: () => COUNT
 
 test("the Inbox as the page composes it: the newest hundred and the open escalations at once, then every escalated thread outside the hundred in one read by id, first; one the extra read cannot bring is counted in the log", async () => {
   const ctx = dayCtx(dayTables());
-  const r = await kernel.load(turnIn(ctx), readInbox, undefined);
+  const r = await kernel.load(turnIn(ctx), inbox, undefined);
   assert.deepEqual(
     r.data.conversations.map((c) => c.id),
     [OUTSIDE, ...Array.from({ length: 100 }, (_, i) => uuid(i))],
@@ -866,7 +866,7 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
     },
   };
   const { result: short, lines } = await logged("inbox_escalated_fetch_failed", () =>
-    kernel.load(turnIn(dayCtx(dayTables(), { faults })), readInbox, undefined),
+    kernel.load(turnIn(dayCtx(dayTables(), { faults })), inbox, undefined),
   );
   assert.deepEqual(
     short.data.conversations.map((c) => c.id),
@@ -879,7 +879,7 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
 test("Today for Ask as the page composes it: the day's metrics, the newest hundred, the open escalations, the calls, the searches and the runs waiting at once, then the threads of the holds past the hundred by id -- each read once in the turn and shared with the Inbox; a failed calls or searches read is null and the rest stands", async () => {
   const ctx = dayCtx(dayTables(), { rpcs: dayDoors });
   const rc = turnIn(ctx);
-  const r = await kernel.load(rc, readToday, undefined);
+  const r = await kernel.load(rc, today, undefined);
   assert.deepEqual(Object.keys(r.data), [
     "metrics",
     "conversations",
@@ -917,7 +917,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     r.data.searches.map((s) => s.id),
     [S1],
   );
-  const hundred = await kernel.load(rc, readConversations, { ids: null });
+  const hundred = await kernel.load(rc, conversations, { ids: null });
   assert.equal(r.data.conversations, hundred.data.conversations, "the hundred's own read, shared through the turn");
   assert.deepEqual(r.rows, [
     ...hundred.rows,
@@ -942,7 +942,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "the day's metrics",
   );
   // inbox.list and calls.list beside it in the turn: the Inbox reads only the ids the hundred did not hold.
-  const theInbox = await kernel.load(rc, readInbox, undefined);
+  const theInbox = await kernel.load(rc, inbox, undefined);
   await kernel.load(rc, calls, {});
   assert.equal(theInbox.data.conversations[0].id, OUTSIDE);
   assert.deepEqual(
@@ -954,7 +954,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   const { result: noCalls, lines: callLines } = await logged("today_calls_fetch_failed", () =>
     kernel.load(
       turnIn(dayCtx(dayTables(), { rpcs: dayDoors, faults: { "calls.select": { message: "permission denied" } } })),
-      readToday,
+      today,
       undefined,
     ),
   );
@@ -966,7 +966,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   const { result: noSearches, lines: searchLines } = await logged("today_searches_fetch_failed", () =>
     kernel.load(
       turnIn(dayCtx(dayTables(), { rpcs: dayDoors, faults: { "lead_searches_view.select": { message: "down" } } })),
-      readToday,
+      today,
       undefined,
     ),
   );
@@ -1116,7 +1116,7 @@ test("the one thread for Ask is what GET conversations/:id answers for it, key f
       conversation(C1, B, { contacts: contact({ display_name: null, phone_e164: null, email: "ada@example.com" }) }),
     ],
   };
-  const listed = await kernel.load(turnIn(dayCtx(byEmail), B), readConversations, { ids: [C1] });
+  const listed = await kernel.load(turnIn(dayCtx(byEmail), B), conversations, { ids: [C1] });
   const one = await kernel.load(turnIn(dayCtx(byEmail), B), oneThread, { id: C1, before: null });
   assert.deepEqual(
     one.rows.map((x) => x.label),
@@ -1164,7 +1164,7 @@ test("what a message cost to send is never Ask's to read: the thread reader, the
   const route = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
   assert.deepEqual(route, one.data, "and the route is the reader");
 
-  const listed = await kernel.load(turnIn(dayCtx(tbls), B), readConversations, { ids: [C1] });
+  const listed = await kernel.load(turnIn(dayCtx(tbls), B), conversations, { ids: [C1] });
   assert.deepEqual(
     metas(listed.data.conversations[0].messages),
     [null, { source: "ai", handled: "ai" }],
@@ -3775,10 +3775,10 @@ test("the Campaigns lens' ledger asks the database what it was asked: campaign_l
   const live = await kernel.load(ledgerIn(worldCtx(ledgerWorld())), campaignLedgerReport, LENS);
   assert.deepEqual(ended.data.stuck, live.data.stuck, "what is stuck is the same as of now, whichever days are asked");
 
-  const readToday = worldCtx(ledgerWorld());
-  await kernel.load(ledgerIn(readToday), campaignLedgerReport, LENS);
+  const today = worldCtx(ledgerWorld());
+  await kernel.load(ledgerIn(today), campaignLedgerReport, LENS);
   assert.deepEqual(
-    readToday.supabase.seen.filter((q) => q.rpc),
+    today.supabase.seen.filter((q) => q.rpc),
     [
       { rpc: "campaign_ledger", args: { p_tenant_id: A, p_days: 30 } },
       { rpc: "campaign_stuck", args: { p_tenant_id: A } },
@@ -4619,7 +4619,7 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
 });
 
 test("the month a page says is null where it could not be counted, said in the log, and never a month of nothing: both pages still answer", async () => {
-  setUnsubscribeServiceClient(
+  setServiceClient(
     fakeDb(
       {},
       {},
@@ -4641,7 +4641,7 @@ test("the month a page says is null where it could not be counted, said in the l
     assert.equal(lines.length, 2, "one line for each of the two months' reads");
     assert.match(String(lines[0].error), /cannot count the month's email campaign messages: the database is down/);
   } finally {
-    setUnsubscribeServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
+    setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
   }
 });
 
@@ -5683,13 +5683,13 @@ const notificationsWorld = (now = Date.now(), { mine = [], rows } = {}) => {
 };
 
 test("the notifications, for the page: GET notifications answers its reader's payload over reads-routes' fixture in both workspaces -- the month's rows newest first, each with this person's own marks, and when they last opened the bell -- the thirty days counted back from the turn's clock; the marks read only for the rows listed, and only this person's: another person's mark is not mine, my own dismissal is", async () => {
-  const readToday = Date.now();
+  const today = Date.now();
   for (const [tenant, ids, seen] of [
     [A, [N1, N2], "2026-09-10T12:00:00Z"],
     [B, [N4], null],
   ]) {
-    const page = await notificationsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(notificationsWorld(readToday)));
-    const r = await kernel.load(turnIn(dayCtx(notificationsWorld(readToday)), tenant), notificationsReader, undefined);
+    const page = await notificationsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(notificationsWorld(today)));
+    const r = await kernel.load(turnIn(dayCtx(notificationsWorld(today)), tenant), notificationsReader, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     assert.deepEqual([r.data.notifications.map((n) => n.id), r.data.seen_at], [ids, seen]);

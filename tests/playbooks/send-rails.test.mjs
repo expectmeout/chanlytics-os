@@ -23,6 +23,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const B = await import(at("apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts"));
+const { statusAt } = await import(at("apps/dashboard/src/server/campaigns/broadcasts/replied.ts"));
 const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
 
 const NY = "America/New_York";
@@ -176,9 +177,9 @@ test("a recipient's line carries the times the receipts gave, and the first repl
     replied: 1,
     sent_by: { whatsapp: 2, sms: 0, email: 0 },
   });
-  assert.equal(B.statusAt({ status_at: { delivered: "x" } }, "read"), null);
-  assert.equal(B.statusAt(null, "read"), null);
-  assert.equal(B.statusAt("junk", "read"), null);
+  assert.equal(statusAt({ status_at: { delivered: "x" } }, "read"), null);
+  assert.equal(statusAt(null, "read"), null);
+  assert.equal(statusAt("junk", "read"), null);
 });
 
 test("a playbook's totals and history come from every run it made, not the recent fifty broadcasts of any kind", async () => {

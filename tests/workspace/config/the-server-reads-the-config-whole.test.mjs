@@ -24,7 +24,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { findConfigRow } = await import(at("apps/dashboard/src/server/workspace/config-row.ts"));
 const settings = await import(at("apps/dashboard/app/api/v1/settings/route.ts"));
 
@@ -111,7 +111,7 @@ const worldWithFeed = (role) => ({
 
 test("a session that reads the row whole (the owner's, or anyone's before 00366) is answered by the table, once, and nobody else is asked", async () => {
   const tables = worldWithFeed("owner");
-  setUnsubscribeServiceClient(serviceOver(tables, { refuse: true }));
+  setServiceClient(serviceOver(tables, { refuse: true }));
   const sb = fakeDb(tables);
   const row = await findConfigRow(sb, A);
   assert.equal(row.config.calendar.ical_url, FEED);
@@ -124,7 +124,7 @@ test("a session that reads the row whole (the owner's, or anyone's before 00366)
 
 test("a member the table shows nothing reads through the door; where it hid the feed's address the server reads the row whole with the service role, and where it hid nothing it is not asked", async () => {
   const tables = worldWithFeed("partner");
-  setUnsubscribeServiceClient(serviceOver(tables));
+  setServiceClient(serviceOver(tables));
   const session = sessionPast00366(tables);
   const row = await findConfigRow(session, A);
   assert.deepEqual(
@@ -135,14 +135,14 @@ test("a member the table shows nothing reads through the door; where it hid the 
 
   const plain = worldWithFeed("viewer");
   plain.tenant_config[0].config = { notes: "no calendar" };
-  setUnsubscribeServiceClient(serviceOver(plain, { refuse: true }));
+  setServiceClient(serviceOver(plain, { refuse: true }));
   const bare = await findConfigRow(sessionPast00366(plain), A);
   assert.deepEqual(bare.config, { notes: "no calendar" }, "no address: the door's row is the row");
 });
 
 test("no row at all, a session of no member of the workspace, and a database before 00365 are each no row: the service role is never asked", async () => {
   const tables = worldWithFeed("viewer");
-  setUnsubscribeServiceClient(serviceOver(tables, { refuse: true }));
+  setServiceClient(serviceOver(tables, { refuse: true }));
   assert.equal(await findConfigRow(sessionPast00366(tables, { door: "stranger" }), A), null, "not a member");
   assert.equal(await findConfigRow(sessionPast00366(tables, { door: "missing" }), A), null, "before 00365");
   assert.equal(await findConfigRow(sessionPast00366({ ...tables, tenant_config: [] }), A), null, "no row");
@@ -151,7 +151,7 @@ test("no row at all, a session of no member of the workspace, and a database bef
 test("a partner's settings read and save as 00366 leaves the database: shown the address masked, the save keeps the stored one, and it is written through tenant_config_write", async () => {
   const tables = worldWithFeed("partner");
   const ctx = () => {
-    setUnsubscribeServiceClient(serviceOver(tables));
+    setServiceClient(serviceOver(tables));
     return { supabase: sessionPast00366(tables), userId: USER, email: "ada@example.com", aal: "aal2", params: {} };
   };
   const read = await settings.GET.run(new Request(`http://localhost/api/v1/x?workspace=${A}`), ctx());

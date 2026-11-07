@@ -17,7 +17,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { findBusinessPage } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
 
 const T = "aaaaaaaa-0000-4000-8000-000000000439";
@@ -56,14 +56,14 @@ function world(ein) {
     tenant_config: [{ tenant_id: T, config: {} }],
     tenant_channels: [{ tenant_id: T, kind: "sms", status: "active", number_e164: "+13055550100" }],
   });
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   return db;
 }
 
 const addressOf = (facts) => businessPageVM(facts).identity.find((f) => f.label === "Address")?.value ?? null;
 
 test("a sole proprietor's page says where by city; a business with a tax id says its street, as before", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
 
   world(null);
   const one = await findBusinessPage("harbor");

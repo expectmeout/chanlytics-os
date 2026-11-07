@@ -17,14 +17,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const sharp = createRequire(path.join(ROOT, "apps/dashboard/package.json"))("sharp");
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const save = await import(at("apps/dashboard/app/api/v1/files/post/route.ts"));
 const preview = await import(at("apps/dashboard/app/api/v1/files/post/preview/route.ts"));
 const view = await import(at("apps/dashboard/app/api/v1/files/[id]/view/route.ts"));
 const one = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const F = "ffffffff-0000-4000-8000-000000000001";
@@ -173,7 +173,7 @@ function world({
       }),
     }),
   };
-  setUnsubscribeServiceClient(service);
+  setServiceClient(service);
   return { asked, ctx };
 }
 const post = (body) => new Request(`http://localhost/api/v1/x${inA}`, { method: "POST", body: JSON.stringify(body) });

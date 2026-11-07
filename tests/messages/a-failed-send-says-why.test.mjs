@@ -21,7 +21,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { readConversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { groupMessages } = await import(at("apps/dashboard/src/server/conversations/dto.ts"));
 
 const ZONE = "America/New_York";
@@ -280,7 +280,7 @@ test("the Inbox's read asks for the errors of its failed messages, and of nothin
     ],
   };
   const ctx = ctxOf(tables);
-  const read = await kernel.load(turn(ctx), readConversations, { ids: null });
+  const read = await kernel.load(turn(ctx), conversations, { ids: null });
   const byId = new Map(read.data.conversations.flatMap((c) => c.messages).map((m) => [m.id, m]));
   assert.deepEqual(byId.get("m1").error, REENGAGE);
   assert.deepEqual(byId.get("m3").error, { carrier: "undelivered", code: "30007" });
@@ -291,6 +291,6 @@ test("the Inbox's read asks for the errors of its failed messages, and of nothin
 
   // Nothing failed, no read.
   const quiet = ctxOf({ conversations: [convo("c1")], messages: [row("m5", "c1")] });
-  await kernel.load(turn(quiet), readConversations, { ids: null });
+  await kernel.load(turn(quiet), conversations, { ids: null });
   assert.equal(quiet.supabase.seen.filter((q) => q.table === "messages" && q.op === "select").length, 0);
 });

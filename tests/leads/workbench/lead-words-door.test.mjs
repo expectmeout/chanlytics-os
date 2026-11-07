@@ -17,7 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { checkedWordsOf } = await import("@chanlytics/channels/email");
 const { leadStepKey, getLeadWordsOfLeads, getOwnWordsAtSteps } = await import("@chanlytics/db/campaigns");
 const door = await import(at("apps/dashboard/app/api/v1/sequences/[id]/steps/[step]/lead-words/route.ts"));
@@ -167,9 +167,9 @@ beforeEach(() => {
   asked.length = 0;
   refusal = null;
   ledger.events = [];
-  setUnsubscribeServiceClient(fakeDb(ledger));
+  setServiceClient(fakeDb(ledger));
 });
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 test("the door declares its policy, and the reads are any member's", () => {
   assert.deepEqual(

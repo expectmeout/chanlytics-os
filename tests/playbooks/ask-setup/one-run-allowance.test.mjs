@@ -61,11 +61,11 @@ const { installClock } = await import(at(`${SRC}/bridge/zone.ts`));
 installClock();
 
 const { buildProposal, newToolContext } = await import(at(`${SRC}/server/ask/tools/index.ts`));
-const { load, readerCache, readerContext } = await import(at(`${SRC}/server/readers/index.ts`));
+const { load, readerCache, readerContext } = await import(at(`${SRC}/server/shared/reader.ts`));
 const { playbooks: playbooksReader } = await import(at(`${SRC}/server/readers/playbooks.ts`));
 const { templates: templatesReader } = await import(at(`${SRC}/server/readers/templates.ts`));
 const { getEmailWire } = await import(at(`${SRC}/server/connections/email-readiness.ts`));
-const { setUnsubscribeServiceClient } = await import(at(`${SRC}/server/shared/service-db.ts`));
+const { setServiceClient } = await import(at(`${SRC}/server/shared/service-db.ts`));
 const { playbooksOverride } = await import(at(`${SRC}/surfaces/campaigns/playbooks/surface.ts`));
 const { setSurfaceValue, surfaceValue } = await import(at(`${SRC}/surfaces/surface-values.ts`));
 
@@ -233,7 +233,7 @@ beforeEach(async () => {
   await getEmailWire({ fresh: true });
 });
 after(() => (globalThis.fetch = real));
-afterEach(() => setUnsubscribeServiceClient(null));
+afterEach(() => setServiceClient(null));
 
 /**
  * One world: the database, the month's emails already sent, and what the dashboard answers the page from it (GET
@@ -244,9 +244,7 @@ afterEach(() => setUnsubscribeServiceClient(null));
  */
 async function worldOf({ db = {}, emailsSent = 0, answer = (x) => x } = {}) {
   const rows = tables(db);
-  setUnsubscribeServiceClient(
-    fakeDb(rows, {}, { campaign_month_sent: (a) => (a.p_channel === "email" ? emailsSent : 0) }),
-  );
+  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: (a) => (a.p_channel === "email" ? emailsSent : 0) }));
   const supabase = fakeDb(rows, {}, { people_list: () => PEOPLE });
   const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
   const rc = readerContext(ctx, { tenantId: A, role: "owner" }, NOW);
@@ -371,7 +369,7 @@ test("the week's breath: a person a campaign reached this week is held on the ca
 test("the week's touches could not be read: the card declines in its words, and never counts without the week's breath", async () => {
   // The read the week's breath is made of (listTouchesSince, over every send of the week) fails; every other read answers.
   const rows = tables();
-  setUnsubscribeServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
+  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
   const supabase = fakeDb(
     rows,
     { "sequence_batches.select": { message: "the read failed" } },
@@ -402,7 +400,7 @@ test("the autonomy modes could not be read: the card declines in its words, and 
   const rows = tables({
     policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, limits: null }],
   });
-  setUnsubscribeServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
+  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
   const supabase = fakeDb(rows, { "policies.select": { message: "the read failed" } }, { people_list: () => PEOPLE });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   const r = await buildProposal(t, "propose_sequence", {

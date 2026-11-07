@@ -443,6 +443,7 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
   packages/log:
     devDependencies:
       typescript:
@@ -466,6 +467,9 @@ importers:
       '@chanlytics/jobs':
         specifier: workspace:*
         version: link:../packages/jobs
+      '@chanlytics/log':
+        specifier: workspace:*
+        version: link:../packages/log
       '@supabase/supabase-js':
         specifier: ^2.118.0
         version: 2.118.0

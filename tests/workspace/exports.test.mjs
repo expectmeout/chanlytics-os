@@ -65,15 +65,15 @@ const msg = (over) => ({
 });
 
 test("stamp writes the business's clock, tolerates a bad zone, and says nothing for no time", () => {
-  assert.equal(X.readerStamp("2026-09-05T15:04:00Z", TZ), "2026-09-05 11:04");
-  assert.equal(X.readerStamp("2026-09-05T03:30:00Z", TZ), "2026-09-04 23:30", "midnight-side, in the zone, h23");
+  assert.equal(X.exportStamp("2026-09-05T15:04:00Z", TZ), "2026-09-05 11:04");
+  assert.equal(X.exportStamp("2026-09-05T03:30:00Z", TZ), "2026-09-04 23:30", "midnight-side, in the zone, h23");
   assert.equal(
-    X.readerStamp("2026-09-05T15:04:00Z", "Not/AZone"),
+    X.exportStamp("2026-09-05T15:04:00Z", "Not/AZone"),
     "2026-09-05 15:04",
     "unknown zone falls back to UTC instead of a 500",
   );
-  assert.equal(X.readerStamp(null, TZ), "");
-  assert.equal(X.readerStamp("garbage", TZ), "");
+  assert.equal(X.exportStamp(null, TZ), "");
+  assert.equal(X.exportStamp("garbage", TZ), "");
 });
 
 test("a thread exports oldest first in CHANNEL time, with who said it and what state it was in", () => {

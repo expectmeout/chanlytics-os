@@ -87,7 +87,8 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn, askPorts } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { askPorts } = await import(at("apps/dashboard/src/server/ask/loop/turn-head.ts"));
 const { foldHistory, storedRaw, findThreadForTurn } = await import(at("apps/dashboard/src/server/ask/memory.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
@@ -101,8 +102,9 @@ const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.n
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 // The tools every question loads, the rest found by the tool search (the operator, D11).
 const { CORE_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools/registry.ts"));
-const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RULES, ASK_EXAMPLES } = await import(
-  at("apps/dashboard/src/server/ask/prompt/prompt.ts")
+const { turnWords, answerLine, askTurnText } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
+  at("apps/dashboard/src/server/ask/prompt/stable-system.ts")
 );
 /** The listening line, as prompt.ts writes it (the voice door, spec 2026-10-03 §3.4): pinned here, word for word. */
 const SPOKEN_LINE =
@@ -5643,7 +5645,7 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
 });
 
 test("the rules Ask says the receptionist follows are the ones the composer gave it: the price rule on until switched off, two always, the health rule only once switched on", async () => {
-  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const { composeSystemPrompt, guardrailsInForce } = await import("@chanlytics/contracts");
   const brain = {
     business_name: "Harbor Moving",
@@ -5723,7 +5725,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
 });
 
 test("the notes Ask says the receptionist follows are the ones the composer tells it today: an ended note is not listed, a lasting one says its end in the prompt's words, and one with no end reads as before", async () => {
-  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const { composeSystemPrompt } = await import("@chanlytics/contracts");
   const brain = {
     business_name: "Harbor Moving",

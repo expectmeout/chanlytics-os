@@ -23,7 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const ask = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
-const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/turn-head.ts"));
 const proposals = await import(at("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts"));
 const openings = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 const quick = await import(at("apps/dashboard/app/api/v1/ask/quick/route.ts"));

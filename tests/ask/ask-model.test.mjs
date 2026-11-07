@@ -366,7 +366,7 @@ test("the dashboard picks by environment: unset is the default, a model's name i
 test("the loop asks the profile: the request names its id and its effort, and the turn returns the model it ran on", async () => {
   const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
   const { buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-  const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+  const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const written = JSON.stringify({
     say: { headline: "Nobody is waiting.", detail: "" },
     show: {
@@ -492,7 +492,7 @@ test("the loop asks the profile: the request names its id and its effort, and th
 
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/turn-head.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
 const warm = await import(at("apps/dashboard/app/api/v1/ask/warm/model/route.ts"));
 const ask = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));

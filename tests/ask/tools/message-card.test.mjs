@@ -34,7 +34,7 @@ const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const messageRoute = await import(at("apps/dashboard/app/api/v1/templates/message/route.ts"));
 const { MESSAGE_VALUES_WORDS } = await import(at("apps/dashboard/src/server/campaigns/template-versions.ts"));
 
@@ -724,7 +724,7 @@ test("an approved card's body is what the door files: an offer by email alone, b
   const tables = world();
   let next = 900;
   // The service role's door a first version is begun through (create_message_version, 00343), modelled over the table.
-  setUnsubscribeServiceClient(
+  setServiceClient(
     fakeDb(
       tables,
       {},
@@ -769,7 +769,7 @@ test("an approved card's body is what the door files: an offer by email alone, b
       { route: "DELETE templates/versions/[id]", params: { id: row.id }, goneIsDone: true },
     ]);
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
 });
 

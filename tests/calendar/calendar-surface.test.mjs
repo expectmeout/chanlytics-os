@@ -36,7 +36,7 @@ const { calendarAddress, calendarParam } = await import(`${S}/surfaces/calendar/
 const { calendarChrome } = await import(`${S}/surfaces/calendar/chrome.ts`);
 const { calendarSample } = await import(`${S}/surfaces/calendar/sample.ts`);
 const { CalendarPage } = await import(`${S}/surfaces/calendar/calendar-page.tsx`);
-const { readCalendar, installCalendar } = await import(`${S}/surfaces/calendar/verbs.ts`);
+const { calendar, installCalendar } = await import(`${S}/surfaces/calendar/verbs.ts`);
 const { CALENDAR_PAGE } = await import(`${S}/surfaces/calendar/words.ts`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${S}/surfaces/routes.ts`);
@@ -217,9 +217,9 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   assert.match(textOf(standingSaid()?.act), /Reading…/);
   // A demo session draws the one Calendar there is, over the sample.
   // The sample covers what the page draws, so a demo session asks for no read (there is nothing to read from).
-  const realEnsure = readCalendar.ensure;
+  const realEnsure = calendar.ensure;
   const asked = [];
-  readCalendar.ensure = (view, anchor) => {
+  calendar.ensure = (view, anchor) => {
     asked.push([view, anchor]);
     return Promise.resolve(true);
   };
@@ -249,7 +249,7 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   );
   values.setSurfaceValue("calendar", undefined);
   globalThis.__DEMO_MODE = false;
-  readCalendar.ensure = realEnsure;
+  calendar.ensure = realEnsure;
   unmount();
 });
 

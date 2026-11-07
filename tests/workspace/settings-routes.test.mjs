@@ -17,7 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const settings = await import(at("apps/dashboard/app/api/v1/settings/route.ts"));
 const policies = await import(at("apps/dashboard/app/api/v1/policies/route.ts"));
 const record = await import(at("apps/dashboard/app/api/v1/business-record/route.ts"));
@@ -54,7 +54,7 @@ const both = (harbor, bayside) => [
  * policy.changed) are written as the service role, since a session may not insert into events.
  */
 const ctxFor = (tables, params = {}, rpcs = {}) => (
-  setUnsubscribeServiceClient(fakeDb(tables, {}, rpcs)),
+  setServiceClient(fakeDb(tables, {}, rpcs)),
   {
     supabase: fakeDb(tables, {}, rpcs),
     userId: USER,

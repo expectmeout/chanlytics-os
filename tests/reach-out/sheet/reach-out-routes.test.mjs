@@ -22,7 +22,7 @@ process.env.EDGE_URL = "https://edge.example";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const server = await import(at("apps/dashboard/src/server/campaigns/reach-outs/reach-outs.ts"));
 const chains = await import(at("apps/dashboard/app/api/v1/reach-outs/route.ts"));
 const chain = await import(at("apps/dashboard/app/api/v1/reach-outs/[id]/route.ts"));
@@ -35,7 +35,7 @@ const playbook = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route
 const realFetch = globalThis.fetch;
 after(() => {
   globalThis.fetch = realFetch;
-  setUnsubscribeServiceClient(null);
+  setServiceClient(null);
 });
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -205,7 +205,7 @@ function serviceSave(
   }),
 ) {
   const asked = [];
-  setUnsubscribeServiceClient(
+  setServiceClient(
     fakeDb(
       {},
       {},
@@ -595,7 +595,7 @@ test("POST reach-out-sends/[id]/decide: the email is the row; each answer passes
   const rpcs = { reach_out_send_decide: (a) => (decided.push(a), { send_id: a.p_send_id, decision: a.p_decision }) };
   // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
   const ledger = { events: [] };
-  setUnsubscribeServiceClient(fakeDb(ledger));
+  setServiceClient(fakeDb(ledger));
 
   for (const decision of ["include", "rewrite", "skip", "not_a_fit"])
     assert.deepEqual(

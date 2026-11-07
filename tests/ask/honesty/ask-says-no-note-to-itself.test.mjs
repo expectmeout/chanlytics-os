@@ -25,7 +25,7 @@ const { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } =
   await import("../../../apps/dashboard/src/server/ask/answer-format.ts");
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 const { propose } = await import(at("apps/dashboard/src/server/ask/tools/context/context.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

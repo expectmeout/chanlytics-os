@@ -30,7 +30,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { listPlatformVitals } = await import(at("apps/dashboard/src/server/console/vitals.ts"));
 const vitalsRoute = await import(at("apps/dashboard/app/api/v1/vitals/route.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
@@ -54,7 +54,7 @@ const checkLanding = () => {
 };
 
 beforeEach(() => setRateStore(memoryStore()));
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 const USER = "u1";
 const ctxFor = (rpcs = {}, tables = {}) => ({
@@ -119,7 +119,7 @@ test("the route: yours, not a workspace's, counted; it keeps what the page sent 
     spend: false,
   });
   const calls = [];
-  setUnsubscribeServiceClient(
+  setServiceClient(
     fakeDb(
       {},
       {},
@@ -156,7 +156,7 @@ test("the route: yours, not a workspace's, counted; it keeps what the page sent 
 
 test("the route refuses what the table would, before it reaches the table", async () => {
   const calls = [];
-  setUnsubscribeServiceClient(fakeDb({}, {}, { note_page_vitals: (args) => calls.push(args) }));
+  setServiceClient(fakeDb({}, {}, { note_page_vitals: (args) => calls.push(args) }));
   const ok = load(1, "LCP", 900);
   await refused(vitalsRoute.POST.run(post({ page: "Inbox", vitals: [ok] }), ctxFor()), "validation", 400);
   await refused(vitalsRoute.POST.run(post({ page: "inbox", vitals: [] }), ctxFor()), "validation", 400);
@@ -212,7 +212,7 @@ test("the route refuses what the table would, before it reaches the table", asyn
 });
 
 test("a report the table could not take is kept by nobody and refused to nobody", async () => {
-  setUnsubscribeServiceClient(fakeDb({}, {}, { note_page_vitals: raise("PGRST202", "Could not find the function") }));
+  setServiceClient(fakeDb({}, {}, { note_page_vitals: raise("PGRST202", "Could not find the function") }));
   const said = [];
   const warn = console.warn;
   console.warn = (...args) => said.push(asEventAndJson(args));
@@ -262,13 +262,13 @@ test("the timings ride on the overview, and a read that fails takes nothing else
       {},
       { sweep_health: () => [], jobs_backlog: () => 0, page_vitals_p75: p75, platform_metrics_read: days },
     );
-  setUnsubscribeServiceClient(
+  setServiceClient(
     service(() => [{ metric: "INP", page: null, samples: 12, p75: 180, since: "2026-09-26T00:00:00Z" }]),
   );
   const out = await overview.GET.run(new Request("http://localhost/api/v1/platform/overview"), ctxFor(session));
   assert.deepEqual(out.vitals, [{ metric: "INP", page: null, samples: 12, p75: 180 }]);
   assert.equal(out.health.backlog, 0);
-  setUnsubscribeServiceClient(service(raise("57014", "canceling statement due to statement timeout")));
+  setServiceClient(service(raise("57014", "canceling statement due to statement timeout")));
   const down = await overview.GET.run(new Request("http://localhost/api/v1/platform/overview"), ctxFor(session));
   assert.equal(down.vitals, null, "unread, said as unread");
   assert.deepEqual(down.tenants, []);

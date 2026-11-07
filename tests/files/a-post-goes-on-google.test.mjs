@@ -41,7 +41,7 @@ after(() => {
 });
 
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/files/[id]/google/route.ts"));
 const one = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
 const preview = await import(at("apps/dashboard/app/api/v1/files/post/preview/route.ts"));
@@ -53,7 +53,7 @@ beforeEach(() => {
     body: { ok: true, name: NAME, search_url: "https://local.google.com/x", state: "PROCESSING" },
   });
 });
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const PHOTO_ID = "ffffffff-0000-4000-8000-000000000001";
@@ -169,7 +169,7 @@ function world({
       },
     }),
   };
-  setUnsubscribeServiceClient(service);
+  setServiceClient(service);
   return { ctx, uploaded, signed };
 }
 const send = (method, body) => new Request(`http://localhost/api/v1/x${inA}`, { method, body: JSON.stringify(body) });

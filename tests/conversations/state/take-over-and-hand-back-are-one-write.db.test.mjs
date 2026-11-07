@@ -94,7 +94,7 @@ before(async () => {
   core = await import(at("packages/core/src/index.ts"));
   ports = await import(at("apps/dashboard/src/server/conversations/ports.ts"));
   // The dashboard's service-role calls (a reply's hold, a job) go to this database; neither door uses them.
-  (await import(at("apps/dashboard/src/server/shared/service-db.ts"))).setUnsubscribeServiceClient(db);
+  (await import(at("apps/dashboard/src/server/shared/service-db.ts"))).setServiceClient(db);
 });
 
 after(async () => {

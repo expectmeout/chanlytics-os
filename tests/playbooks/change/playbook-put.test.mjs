@@ -21,10 +21,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const playbook = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
 beforeEach(() => setRateStore(memoryStore()));
-afterEach(() => setUnsubscribeServiceClient(null));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -157,7 +157,7 @@ test("the route declares its body: a change in place, the channels alone, or the
 
 test("its words, its end and its mode change in place: judged against the row and its message, written through the door with their line, answering what each held, and an undo writes it back", async () => {
   const tables = world({ playbooks: [row(K1, A), row(K2, B, { params: [{ kind: "text", value: "10% off" }] })] });
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   const words = await put(tables, K2, { params: ["@first_name"] });
   assert.deepEqual(words, {
     id: K2,
@@ -196,7 +196,7 @@ test("its words, its end and its mode change in place: judged against the row an
 
 test("its words, its end and its mode are refused in the product's words before anything is written: values its message does not take, an end in the past or no day, a mode none of the three", async () => {
   const tables = world();
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   await refused(put(tables, K2, { params: [] }), "validation", 400, "This template takes 1 value.");
   await refused(put(tables, K2, { params: ["@visit_when"] }), "validation", 400, "Only a reminder the day before");
   await refused(put(tables, K2, { until: "2020-01-01" }), "validation", 400, "An end is today or later");
@@ -209,7 +209,7 @@ test("its words, its end and its mode are refused in the product's words before 
 
 test("a change in place: judged against the row as it stands, written with its line in the ledger in one call, answering what each field held", async () => {
   const tables = world();
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   const out = await put(tables, K2, { name: "  Past   clients ", run_hour: 9 });
   assert.deepEqual(out, {
     id: K2,
@@ -247,7 +247,7 @@ test("a change in place: judged against the row as it stands, written with its l
 
 test("two Pauses at once: one line in the ledger, both answer paused, and the one that changed nothing says so as the door does (was empty, decision_id null)", async () => {
   const tables = world();
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   const both = await Promise.all([put(tables, K2, { state: "paused" }), put(tables, K2, { state: "paused" })]);
   assert.deepEqual(
     tables.decisions.map((d) => d.verb),
@@ -269,7 +269,7 @@ test("a change is refused in the product's words before anything is written: a s
     playbooks: [row(K1, A), row(K2, B), row(K3, B, { trigger: "saved_list", list_id: L1, state: "paused" })],
     segments: [{ id: L1, tenant_id: B, name: "Regulars", archived_at: "2026-09-01T00:00:00Z", rule: null }],
   });
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   await refused(put(tables, K2, { state: "sleeping" }), "validation", 400, PLAYBOOK_PATCH_WORDS.state);
   await refused(put(tables, K2, { run_hour: 7 }), "validation", 400, "The hour must be a whole number from 9 to 20.");
   await refused(put(tables, K2, { name: "x".repeat(81) }), "validation", 400, PLAYBOOK_PATCH_WORDS.nameLong(80));
@@ -288,7 +288,7 @@ test("a change is refused in the product's words before anything is written: a s
 
 test("either deploy order works: on a database before the change_playbook door, a change is written as it was before, for one release, its record the one that database takes, and the same answer", async () => {
   const tables = world();
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   const out = await put(tables, K2, { name: "Past clients", run_hour: 9 }, noDoor);
   assert.deepEqual(
     [out.id, out.name, out.state, out.was, out.decision_id],

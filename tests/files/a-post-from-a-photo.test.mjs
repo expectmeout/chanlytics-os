@@ -30,9 +30,9 @@ const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPhotoWont, postP
   await import(at("packages/contracts/src/files/post.ts"));
 const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { shelfOf } = await import(at("packages/contracts/src/files/files.ts"));
+const { shelfOf } = await import(at("packages/contracts/src/files/views.ts"));
 
 beforeEach(() => readerCache.clear());
 
@@ -548,7 +548,7 @@ globalThis.fetch = async (input, init) => {
 };
 after(() => {
   globalThis.fetch = realFetch;
-  setUnsubscribeServiceClient(null);
+  setServiceClient(null);
 });
 
 /** A photo in Storage, as the service reads it to draw: made when first asked for, never by a top-level await after the tests. */
@@ -557,7 +557,7 @@ const storedOf = () => (stored ??= busyPhoto(1600, 1200));
 function photoInStorage() {
   const service = fakeDb({ files: [] }, {}, {});
   service.storage = { from: () => ({ download: async () => ({ data: new Blob([await storedOf()]), error: null }) }) };
-  setUnsubscribeServiceClient(service);
+  setServiceClient(service);
 }
 
 /** The act as a turn runs it: the first call draws the post for a look, and the second, with the look's key, makes the card. */

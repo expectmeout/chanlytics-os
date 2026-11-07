@@ -1158,7 +1158,7 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
 });
 
 test("Ask is told what a message is: a name with a version on each channel it is written for, sent on the channels it holds; its tools say to propose by the `channels` the listing gives, and none says one approved WhatsApp template", async () => {
-  const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+  const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
   assert.ok(ASK_DEFINITIONS.broadcast.startsWith("One message sent to the people on a list who said yes"));
   assert.ok(

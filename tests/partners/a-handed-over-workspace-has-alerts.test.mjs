@@ -26,7 +26,7 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const partnerWorkspaces = await import(at("apps/dashboard/app/api/v1/partner/workspaces/route.ts"));
 const accept = await import(at("apps/dashboard/app/api/v1/handovers/[id]/accept/route.ts"));
 
@@ -49,7 +49,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   wire.restore();
-  setUnsubscribeServiceClient(null);
+  setServiceClient(null);
 });
 
 const ctxFor = (who, email, tables, rpcs, params = {}) => ({
@@ -75,7 +75,7 @@ const configRow = (config, version = 1) => ({
 
 test("REGRESSION: a workspace a partner sets up is told to the platform, naming the owner it waits for -- the notice went only from the route an owner makes one through", async () => {
   // The invitation looks the address up with the service role; an account exists, so the edge writes to it.
-  setUnsubscribeServiceClient({ rpc: async () => ({ data: "an-account", error: null }) });
+  setServiceClient({ rpc: async () => ({ data: "an-account", error: null }) });
   const rpcs = { create_workspace_for_business: () => [{ ...LUNA, status: "active", timezone: "Europe/Madrid" }] };
   // The row create_workspace_for gives every workspace, empty, so a write to it as the partner would show.
   const tables = { tenant_config: [configRow({})] };

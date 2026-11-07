@@ -16,11 +16,11 @@ process.env.ASK_MORNINGS = "on";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { getMorning } = await import(at("apps/dashboard/src/server/ask/companion/morning.ts"));
 
 afterEach(() => {
-  setUnsubscribeServiceClient(null);
+  setServiceClient(null);
   readerCache.clear();
 });
 
@@ -86,7 +86,7 @@ function world(cards, theirs = []) {
 /** The morning read as the route reads it, over one database for the member and the service client. */
 function read(data) {
   const supabase = fakeDb(data, {}, { sequence_overview: () => [], run_counts: () => [] });
-  setUnsubscribeServiceClient(supabase);
+  setServiceClient(supabase);
   return getMorning(
     { supabase, userId: ME, email: "ada@example.com", params: {} },
     { tenantId: A, role: "operator" },
@@ -135,7 +135,7 @@ test("what a teammate set aside lately stays aside, and what came of an approved
 test("a read that fails costs what it read, never the morning", async () => {
   const data = world([card("p-1", "lead_search", "Find gyms")]);
   const supabase = fakeDb(data, {}, { sequence_overview: () => [], run_counts: () => [] });
-  setUnsubscribeServiceClient({
+  setServiceClient({
     from: () => {
       throw new Error("service read down");
     },

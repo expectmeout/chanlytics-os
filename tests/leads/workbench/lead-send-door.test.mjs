@@ -25,7 +25,7 @@ process.env.UNSUBSCRIBE_SECRET = "a-secret-only-this-file-holds";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const send = await import(at("apps/dashboard/app/api/v1/leads/[id]/send/route.ts"));
 const stage = await import(at("apps/dashboard/app/api/v1/leads/[id]/stage/route.ts"));
 const emails = await import(at("apps/dashboard/app/api/v1/leads/[id]/emails/route.ts"));
@@ -165,19 +165,19 @@ const req = (body) =>
 async function press(over = {}, body = WORDS) {
   const tables = world(over);
   const { db, asked } = service(tables, over);
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   try {
     const out = await send.POST.run(req(body), ctxOf(tables));
     return { out, tables, asked };
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
 }
 
 async function refusedWith(over, words, status = 409) {
   const tables = world(over);
   const { db } = service(tables, over);
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   try {
     await assert.rejects(send.POST.run(req(WORDS), ctxOf(tables)), (e) => {
       assert.equal(e.message, words);
@@ -185,7 +185,7 @@ async function refusedWith(over, words, status = 409) {
       return true;
     });
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
   assert.equal(tables.messages.length, 0, "no email written");
   assert.equal(tables.sequence_sends.length, over.sends?.length ?? 0, "no row written");
@@ -336,7 +336,7 @@ test("a second press while the first is on its way finds it", async () => {
 /** A press whose row the database refuses, with `faults` naming how; what it rejected with, and the tables after. */
 async function pressRefusedRow(faults) {
   const tables = world();
-  setUnsubscribeServiceClient(service(tables, { faults }).db);
+  setServiceClient(service(tables, { faults }).db);
   try {
     const error = await send.POST.run(req(WORDS), ctxOf(tables)).then(
       () => assert.fail("the press answered"),
@@ -344,7 +344,7 @@ async function pressRefusedRow(faults) {
     );
     return { error, tables };
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
 }
 
@@ -384,7 +384,7 @@ test("two presses at once: the key refuses the second, whose email goes back, an
 test("Did you send it? with the words keeps a row of it: no mailbox, said by the member, and its email on the thread", async () => {
   const tables = world();
   const { db } = service(tables);
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   try {
     const rpc = {
       lead_set_stage: () => ({
@@ -402,7 +402,7 @@ test("Did you send it? with the words keeps a row of it: no mailbox, said by the
     assert.equal(out.toast, "Marked contacted.");
     assert.equal(out.undo, null, "the person it made is not undone from a toast");
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
   assert.equal(tables.sequence_sends.length, 1);
   const s = tables.sequence_sends[0];
@@ -419,7 +419,7 @@ test("Did you send it? with the words keeps a row of it: no mailbox, said by the
 test("Did you send it? keeps its row even where no person can be made: it went all the same", async () => {
   const tables = world();
   const { db } = service(tables, { person: { refused: "already_yours" } });
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   try {
     const rpc = { lead_set_stage: () => ({ stage: "nurture", converted: false, op_id: "op", version: 4 }) };
     await stage.POST.run(req({ kind: "emailed", words: WORDS }), {
@@ -427,7 +427,7 @@ test("Did you send it? keeps its row even where no person can be made: it went a
       supabase: fakeDb(tables, {}, rpc),
     });
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
   assert.equal(tables.sequence_sends.length, 1);
   assert.equal(tables.sequence_sends[0].message_id ?? null, null);

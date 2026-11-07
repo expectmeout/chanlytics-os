@@ -87,7 +87,7 @@ test("an open invitation, run: the list read seats nobody, whoever asks; the acc
   const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
   const { GET } = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
   const accepting = await import(at("apps/dashboard/app/api/v1/me/invitations/accept/route.ts"));
-  const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+  const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
   const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
   setRateStore(memoryStore());
   const USER = "99999999-9999-4999-8999-999999999999";
@@ -116,7 +116,7 @@ test("an open invitation, run: the list read seats nobody, whoever asks; the acc
       },
     ],
   };
-  setUnsubscribeServiceClient(fakeDb(world));
+  setServiceClient(fakeDb(world));
   const ctx = {
     supabase: fakeDb(world, {}, { platform_staff_state: () => "none" }),
     userId: USER,
@@ -169,7 +169,7 @@ test("an open invitation, run: the list read seats nobody, whoever asks; the acc
     assert.equal(roleIn(await read("same-origin"), B), "operator");
     assert.equal(world.events.length, 1, "and is said once");
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
 });
 
@@ -180,17 +180,17 @@ test("a person with no address, or none open, is seated nowhere and told nothing
   const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
   const { joinFromInvitations } = await import(at("apps/dashboard/src/server/workspace/team.ts"));
-  const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+  const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
   const USER = "99999999-9999-4999-8999-999999999999";
   const world = { memberships: [], tenants: [], events: [], invitations: [] };
   try {
-    setUnsubscribeServiceClient(fakeDb(world));
+    setServiceClient(fakeDb(world));
     const as = (email) => ({ supabase: fakeDb(world), userId: USER, email, aal: "aal2" });
     assert.deepEqual(await joinFromInvitations(as(undefined)), { joined: [] }, "no address, no invitation to find");
     assert.deepEqual(await joinFromInvitations(as("ada@example.com")), { joined: [] }, "nothing open for it");
     assert.deepEqual([world.memberships, world.events], [[], []], "and nothing written");
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
 });
 
@@ -201,7 +201,7 @@ test("an acceptance is finished by whoever accepts next: the news before the sta
   const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
   const { joinFromInvitations } = await import(at("apps/dashboard/src/server/workspace/team.ts"));
-  const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+  const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
   const USER = "99999999-9999-4999-8999-999999999999";
   const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const open = () => ({
@@ -226,7 +226,7 @@ test("an acceptance is finished by whoever accepts next: the news before the sta
   try {
     // The seat is taken and the news written, then the stamp: in that order, so the ledger has the news whenever the invitation is closed.
     const first = world();
-    setUnsubscribeServiceClient(fakeDb(first));
+    setServiceClient(fakeDb(first));
     assert.equal((await accept(first)).joined.length, 1);
     assert.equal(first.memberships.length, 1);
     assert.deepEqual(
@@ -240,7 +240,7 @@ test("an acceptance is finished by whoever accepts next: the news before the sta
     const died = world({
       memberships: [{ tenant_id: B, user_id: USER, role: "operator", created_at: "2026-10-06T00:00:00Z" }],
     });
-    setUnsubscribeServiceClient(fakeDb(died));
+    setServiceClient(fakeDb(died));
     assert.equal((await accept(died)).joined.length, 1);
     assert.equal(died.memberships.length, 1, "no second seat");
     assert.deepEqual(
@@ -265,22 +265,22 @@ test("an acceptance is finished by whoever accepts next: the news before the sta
         },
       ],
     });
-    setUnsubscribeServiceClient(fakeDb(told));
+    setServiceClient(fakeDb(told));
     assert.equal((await accept(told)).joined.length, 1);
     assert.equal(told.events.length, 1, "said once");
     assert.ok(told.invitations[0].accepted_at, "and the invitation is closed");
 
     // The news cannot be written: the invitation stays open, so the next accept tries again, and nothing is counted.
     const failing = world();
-    setUnsubscribeServiceClient(fakeDb(failing, { "events.insert": { message: "connection reset" } }));
+    setServiceClient(fakeDb(failing, { "events.insert": { message: "connection reset" } }));
     assert.equal((await accept(failing)).joined.length, 0);
     assert.equal(failing.invitations[0].accepted_at, null, "an invitation whose news was not written is not closed");
-    setUnsubscribeServiceClient(fakeDb(failing));
+    setServiceClient(fakeDb(failing));
     assert.equal((await accept(failing)).joined.length, 1);
     assert.equal(failing.events.length, 1, "the next accept writes it");
     assert.ok(failing.invitations[0].accepted_at);
   } finally {
-    setUnsubscribeServiceClient(null);
+    setServiceClient(null);
   }
 });
 

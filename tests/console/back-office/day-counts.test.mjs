@@ -19,11 +19,11 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { listPlatformDays } = await import(at("apps/dashboard/src/server/console/day-counts.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
 
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 const raise = (code, message) => () => {
   throw Object.assign(new Error(message), { code });
@@ -138,13 +138,13 @@ test("the days ride on the overview beside the workspaces, and a read that fails
       {},
       { sweep_health: () => [], jobs_backlog: () => 0, page_vitals_p75: () => [], platform_metrics_read: days },
     );
-  setUnsubscribeServiceClient(service(() => [stored(A, "Harbor Moving", "2026-09-28")]));
+  setServiceClient(service(() => [stored(A, "Harbor Moving", "2026-09-28")]));
   const out = await overview.GET.run(new Request("http://localhost/api/v1/platform/overview"), ctx);
   assert.deepEqual(
     out.days.map((d) => [d.name, d.day, d.asks]),
     [["Harbor Moving", "2026-09-28", 11]],
   );
-  setUnsubscribeServiceClient(service(raise("57014", "canceling statement due to statement timeout")));
+  setServiceClient(service(raise("57014", "canceling statement due to statement timeout")));
   const down = await overview.GET.run(new Request("http://localhost/api/v1/platform/overview"), ctx);
   assert.equal(down.days, null, "unread, said as unread");
   assert.deepEqual(down.tenants, []);

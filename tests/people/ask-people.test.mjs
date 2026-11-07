@@ -41,9 +41,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { dealBoard, readPeople } = await import(at("apps/dashboard/src/server/readers/people.ts"));
+const { dealBoard, people } = await import(at("apps/dashboard/src/server/readers/people.ts"));
 const { readPipeline: pipelineContext } = await import(at("apps/dashboard/src/server/ask/context/people.ts"));
-const { getAudiencePool } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
+const { audiencePool } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
 const { runTool, buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
@@ -327,7 +327,7 @@ test("the board is the page's: contracts pipelineOf over everyone in People, eac
   const r = await load(rcIn(ctxFor()), dealBoard, undefined);
   // The page's own build, over the same rows: People's first page for the pace and the follow-up (none here), and for
   // what the workspace can send on, which each row's reach is judged against (reach-any.ts).
-  const first = (await load(rcIn(ctxFor()), readPeople, { q: null, offset: 0 })).data;
+  const first = (await load(rcIn(ctxFor()), people, { q: null, offset: 0 })).data;
   const rows = HARBOR.map((p) => poolRowOf(p, { tz: TZ, now: NOW, viewer: USER, ready: first.channels_ready }));
   const pace = dealPaceOf(null);
   assert.deepEqual(r.data, { timezone: TZ, board: pipelineOf(rows, NOW.getTime(), TZ, pace) });
@@ -477,7 +477,7 @@ test("people.pipeline answers what the board's reader answers, as the Pipeline d
 test("people.lists answers the rail People draws, over the audience pool (everyone, for the member asking): People's own lists this workspace can count with what each holds and how many, the ones it cannot count with why, and the workspace's own lists with their rule in the page's words and their count or why not, the archived by name; each list a row in the read set, opened on People at it", async () => {
   const { out, tc } = await ask({ action: "lists" });
   const rc = rcIn(ctxFor(), "operator");
-  const pool = (await load(rc, getAudiencePool, undefined)).data;
+  const pool = (await load(rc, audiencePool, undefined)).data;
   // The page's own build (bridge/surface-data.ts publishPeople), over the pool's rows.
   const cal = pool.calendar.state;
   const offered = PEOPLE_LISTS.filter(

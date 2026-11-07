@@ -63,8 +63,11 @@ const { toApiTools, ACT_TOOL_NAMES } = await import(
   pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
 // The rules the model is told (prompt.ts), read as it reads them.
-const { ASK_RULES, systemBlocks } = await import(
+const { systemBlocks } = await import(
   pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
+);
+const { ASK_RULES } = await import(
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/stable-system.ts")).href
 );
 // The words history a turn is asked with (executed in ask-turn.test.mjs): memory.ts's, beside the live replay.
 const { foldHistory } = await import(
@@ -2082,8 +2085,11 @@ test("the speed pass, four: the page's data before the words needs no second rea
 });
 
 test("on Campaigns the turn's words say what a sentence there is: a campaign to propose, a change on its id, results from the rows; after an approval, read campaigns again; and the rules carry the setup rule (the moment spec, A2 and A4)", async () => {
-  const { turnWords, ASK_RULES, ASK_DEFINITIONS } = await import(
+  const { turnWords } = await import(
     pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
+  );
+  const { ASK_RULES, ASK_DEFINITIONS } = await import(
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/stable-system.ts")).href
   );
   const facts = {
     role: "owner",

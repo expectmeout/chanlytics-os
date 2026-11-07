@@ -37,7 +37,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
 const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 const { askPalette, quickAnswer } = await import(at("apps/dashboard/src/bridge/ask/palette.ts"));
 
 beforeEach(() => {

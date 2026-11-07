@@ -28,7 +28,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 // tsx compiles the dashboard's JSX to React.createElement; each test file runs in its own process.
 globalThis.React ??= (await import("react")).default;
 const C = await import("@chanlytics/contracts");
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { findConsentPage } = await import(at("apps/dashboard/src/server/public/consent-page.ts"));
 const { findBusinessPage } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
 const { SignUpPage } = await import(at("apps/dashboard/src/yes/SignUpPage.tsx"));
@@ -134,7 +134,7 @@ function world({
     ],
   };
   const db = fakeDb(tables);
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   return { slug, db };
 }
 
@@ -207,7 +207,7 @@ test("the one rule: open, paused or ended, by the workspace's own standing and i
 });
 
 test("an open workspace's pages ask for a yes: every way, the code, the paper form and the desk sign, and its page says it answers its customers", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
   const { slug } = world();
   const p = await pagesOf(slug);
   assert.equal(p.facts.open, "open");
@@ -229,7 +229,7 @@ test("an open workspace's pages ask for a yes: every way, the code, the paper fo
 });
 
 test("REGRESSION (X4-1): a paused workspace's pages stay readable for the carriers and ask nobody for a yes -- no way to answer, no code, no paper form in use, no sign to print -- and its page no longer says it answers its customers", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
   const closed = C.notTakingSignUps(NAME);
   for (const [why, over] of [
     ["paused", { status: "paused" }],
@@ -263,7 +263,7 @@ test("REGRESSION (X4-1): a paused workspace's pages stay readable for the carrie
 });
 
 test("an ended workspace and a fixture have no pages (Not found, unindexed); a workspace with no business on record has no /b, and its sign-up page links Chanlytics' own policies", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
   for (const over of [{ left_empty_at: "2026-10-01T00:00:00Z", status: "paused" }, { status: "test" }]) {
     const { slug } = world(over);
     assert.equal(await findConsentPage(slug), null, JSON.stringify(over));
@@ -278,7 +278,7 @@ test("an ended workspace and a fixture have no pages (Not found, unindexed); a w
 });
 
 test("REGRESSION (X4-7): a read that fails fails the page -- the sign-up page no longer links Chanlytics' policies for want of the business on record, nor /b drops its services or its phone", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
   for (const [table, words] of [
     ["business_records", /reading the business on record/],
     ["tenant_config", /reading the workspace's configuration/],
@@ -305,12 +305,12 @@ function worldFaulted(table) {
       { tenant_id: id, kind: "sms", status: "active", number_e164: "+13055550101", created_at: "2026-10-01T00:00:00Z" },
     ],
   };
-  setUnsubscribeServiceClient(fakeDb(tables, { [`${table}.select`]: { message: "statement timeout" } }));
+  setServiceClient(fakeDb(tables, { [`${table}.select`]: { message: "statement timeout" } }));
   return slug;
 }
 
 test("the business's own page and its terms show the published columns of the record and none other: each column a marker of its own, read by the real reader and drawn by the real pages (the wiring's second audit, X4-4)", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
   const columns = Object.keys(C.emptyBusinessRecord());
   const marker = (i) => `zq${i}qz`;
   const record = Object.fromEntries(
@@ -339,7 +339,7 @@ test("the business's own page and its terms show the published columns of the re
 });
 
 test("one load: each reader's call reads each table once, only selects, and the business on record's public columns, never the EIN or the contact's own phone; its links stay on this site", async (t) => {
-  t.after(() => setUnsubscribeServiceClient(null));
+  t.after(() => setServiceClient(null));
   const { slug, db } = world();
   const facts = await findBusinessPage(slug);
   // And whether the business has a tax id, asked as a yes or no (00439 sole_proprietor_of): never the tax id itself.

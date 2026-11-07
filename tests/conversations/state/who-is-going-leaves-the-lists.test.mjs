@@ -18,10 +18,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { readConversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
 const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
-const { readInbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
+const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const HOUR = 3_600_000;
@@ -101,26 +101,24 @@ const threeThreads = [
 
 test("REGRESSION: the Inbox's list leaves out whoever is being erased, from the press, and shows a stopped erasure a day on (5 Nov 2026: threads left in batches as the ledger reached them)", async () => {
   const ctx = world({ conversations: threeThreads });
-  assert.deepEqual(threadIds(await kernel.load(turn(ctx), readConversations, { ids: null })), ["c-here", "c-stopped"]);
+  assert.deepEqual(threadIds(await kernel.load(turn(ctx), conversations, { ids: null })), ["c-here", "c-stopped"]);
 });
 
 test("the list is cut after who is going has left it: a press of the newest hundred does not leave older threads out", async () => {
   const newest = Array.from({ length: 100 }, (_, i) => thread(`c-${i}`, going, { last_message_at: ago(i * 1000) }));
   const ctx = world({ conversations: [...newest, thread("c-older", here, { last_message_at: ago(48 * HOUR) })] });
-  assert.deepEqual(threadIds(await kernel.load(turn(ctx), readConversations, { ids: null })), ["c-older"]);
+  assert.deepEqual(threadIds(await kernel.load(turn(ctx), conversations, { ids: null })), ["c-older"]);
 });
 
 test("a thread named by its id still reads: a link, or a page open on it, is one record, not a list", async () => {
   const ctx = world({ conversations: threeThreads });
-  assert.deepEqual(threadIds(await kernel.load(turn(ctx), readConversations, { ids: ["c-going"] })), ["c-going"]);
+  assert.deepEqual(threadIds(await kernel.load(turn(ctx), conversations, { ids: ["c-going"] })), ["c-going"]);
 });
 
 test("what a search finds of them is left out too", async () => {
   const hit = (conversation_id) => ({ kind: "message", id: `m-${conversation_id}`, conversation_id, at: ago(HOUR) });
   const ctx = world({ conversations: threeThreads }, { search_messages: () => [hit("c-going"), hit("c-here")] });
-  assert.deepEqual(threadIds(await kernel.load(turn(ctx), readConversations, { ids: null, said: "pitch" })), [
-    "c-here",
-  ]);
+  assert.deepEqual(threadIds(await kernel.load(turn(ctx), conversations, { ids: null, said: "pitch" })), ["c-here"]);
 });
 
 test("a hold of someone being erased no longer waits on anyone, and its row carries nothing of how it was found", async () => {
@@ -143,7 +141,7 @@ test("a hold does not bring back the thread of someone being erased, past the ne
     conversations: [thread("c-going", going)],
     escalations: [hold("e-going", "c-going", going)],
   });
-  const { data } = await kernel.load(turn(ctx), readInbox, undefined);
+  const { data } = await kernel.load(turn(ctx), inbox, undefined);
   assert.deepEqual(data.conversations, [], "the Inbox reads no thread for a hold that has left");
   assert.deepEqual(data.escalations, []);
 });

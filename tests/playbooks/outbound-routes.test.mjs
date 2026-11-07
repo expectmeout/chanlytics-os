@@ -36,8 +36,8 @@ const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/
 
 beforeEach(() => setRateStore(memoryStore()));
 // The ledger is written as the service role (a session may not insert into events): a test that reads it stands one in.
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-afterEach(() => setUnsubscribeServiceClient(null));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -1143,7 +1143,7 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     broadcasts: [],
     broadcast_recipients: [],
   };
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   await refused(playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K1 })), "forbidden", 403);
   await refused(
     playbook.PUT.run(send("PUT", { state: "sleeping" }), ctxFor(tables, { id: K2 })),
@@ -1567,7 +1567,7 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
     decisions: [],
     events: [],
   };
-  setUnsubscribeServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables));
   const rowOf = (id) => tables.playbooks.find((p) => p.id === id);
   const before = { ...rowOf(K1) };
   let ctx = ctxFor(tables, { id: K1 });

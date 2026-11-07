@@ -17,9 +17,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaigns/ports.ts"));
-after(() => setUnsubscribeServiceClient(null));
+after(() => setServiceClient(null));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const run = (audience) => ({
@@ -49,7 +49,7 @@ test("the list the audience was counted by reaches the door with the run; an aud
       },
     },
   );
-  setUnsubscribeServiceClient(db);
+  setServiceClient(db);
   const ports = createBroadcastPorts({ supabase: db, userId: "u-1" }, T, { fresh: false });
 
   const list = { token: "list:quiet", rule: { last_heard: { days: 30 } }, counted_at: "2026-10-06T12:00:00.000Z" };
