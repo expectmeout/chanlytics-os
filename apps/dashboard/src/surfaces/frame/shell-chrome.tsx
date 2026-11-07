@@ -26,7 +26,7 @@ import { ShortcutsSheet } from "./shortcuts";
 import { focusPage } from "./shell-hooks";
 import { NAV_ROUTE, shellAddress } from "./shell-routes";
 import { Sidebar } from "./sidebar/sidebar";
-import { SurfaceTabs, stripSwipe } from "./surface-tabs";
+import { SurfaceTabs, stripSwipe, stripViewRef } from "./surface-tabs";
 import { Topbar } from "./topbar/topbar";
 
 // ---- Error state --------------------------------------------------------
@@ -335,7 +335,7 @@ const routeMain = (s: ChromeAt, glass: boolean) => {
     <main
       id="main"
       key={s.viewKey}
-      ref={deck ? deck.view("frame") : undefined}
+      ref={stripViewRef(deck ? deck.view("frame") : null)}
       className={`main-scroll route-view ${s.pane ? "pane" : ""} ${s.routeStay ? "route-stay" : ""}`}
       data-strip={s.routeStrip || undefined}
       data-slide={s.routeSlide || undefined}

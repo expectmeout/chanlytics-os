@@ -6,7 +6,8 @@
  * hands back. A move is read from the element itself first (`swipeHold`, below), where the browser's own scroll can still
  * be refused: React hears touchmove passively, and an iPhone kept scrolling the page it had also handed to the finger, so
  * a thumb could carry Reports in circles (Ruben's recording, 9 Oct 2026). While the touch carries something across (a
- * page, a thread back, the drawer away) the list under it never scrolls.
+ * page, a thread back, the drawer away) the list under it never scrolls. A strip's page holds that listener from its
+ * mount (`holdMoves`), since an iPhone heeds only one already there as the finger lands.
  *
  * A let-go FOLLOWS the finger. `onDown` is a pull down from the top: once the touch has gone 8px, mostly down, from a
  * scroller at its top (the first ancestor under the finger that scrolls, so a scroll back up through a list is never a
@@ -446,9 +447,23 @@ const swipeHold = (e: SwipeEvent) => {
   if ((g.way === "page" || g.way === "back" || g.way === "away") && e.cancelable !== false && e.preventDefault)
     e.preventDefault();
 };
+/** Elements whose move listener stands from their mount (`holdMoves`), not from a touch's start. */
+const heldFromMount = new WeakSet<EventTarget>();
 const swipeDrop = (el: HTMLElement) => {
   touches.delete(el);
-  if (el.removeEventListener) el.removeEventListener("touchmove", swipeHold);
+  if (el.removeEventListener && !heldFromMount.has(el)) el.removeEventListener("touchmove", swipeHold);
+};
+/**
+ * Holds an element's moves from its mount: its non-passive listener is there before any touch, and stays between them.
+ * An iPhone decides as a finger lands whether it must wait on the page before it scrolls, from the listeners already
+ * there; the one a touch adds at its start came too late, and the window scrolled up and down under a page the thumb
+ * carried across (Ruben's recording, 7 Nov 2026: Leads went in circles). The price is that the browser asks the page
+ * about every move on it, so it is for what a thumb carries across, and the listener answers at once while none is taken.
+ */
+export const holdMoves = (el: HTMLElement | null): void => {
+  if (!el || !el.addEventListener || heldFromMount.has(el)) return;
+  heldFromMount.add(el);
+  el.addEventListener("touchmove", swipeHold, { passive: false });
 };
 
 // Which way a touch is taken, once it has gone GRAB_AT: a pull down, a thread back, the drawer away, a page walked, or
@@ -571,7 +586,7 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
       swipeDrop(el);
       return;
     }
-    if (el.addEventListener) el.addEventListener("touchmove", swipeHold, { passive: false });
+    if (el.addEventListener && !heldFromMount.has(el)) el.addEventListener("touchmove", swipeHold, { passive: false });
     touches.set(el, {
       el,
       h,
