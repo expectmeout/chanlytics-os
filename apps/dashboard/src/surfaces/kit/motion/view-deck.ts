@@ -80,6 +80,8 @@ export function speedAt(from: number, to: number, speed: number, ms: number): nu
 
 /** The token's word for a view that holds still. */
 const STILL = "none";
+/** What touches the page, besides the window's scroll: a held view is drawn on the page again at the first. */
+const TOUCHED_BY = ["click", "keydown", "touchmove", "popstate"] as const;
 
 /** How far a page of this width travels, by the token as written: a share of its width, or pixels; none at all held still. */
 export function travelOf(token: string, width: number): number {
@@ -97,6 +99,10 @@ interface DeckEnv {
   reduced(): boolean;
   /** `--view-travel` as the view's styles say it: `none` where the view holds still. */
   travel(el: HTMLElement): string;
+  /** `--view-rest` as the view's styles say it: `layer` where a view inside another keeps its arrival's last frame (`restsOnLayer`). */
+  rest?(el: HTMLElement): string;
+  /** Call `fn` once, at the page's next touch: a scroll, a click, a key, a finger moving, a move through history. */
+  untilTouched?(fn: () => void): void;
   /** How far across an element is drawn from where it rests, in pixels. */
   placeOf(el: HTMLElement): number;
   later(ms: number, fn: () => void): void;
@@ -165,6 +171,8 @@ interface Held {
   /** And where it stood on the screen, where the window scrolled it. */
   pin?: Pin | null;
   anims: Animation[];
+  /** An arrival that keeps its last frame on its layer until the page is touched (`restsOnLayer`). */
+  onLayer?: boolean;
 }
 
 /** Something that moves in step with a page: the strip's highlight follows a change, and a page settling back. */
@@ -357,11 +365,29 @@ function stop(table: Table, el: HTMLElement): void {
   for (const anim of was?.anims ?? []) anim.cancel();
 }
 
+/**
+ * Whether a view keeps its arrival's last frame until the page is touched: one inside another whose styles say
+ * `--view-rest: layer`. An iPhone draws a moving view on a layer of its own and draws it on the page again as the move
+ * ends, and what was on a fraction of a pixel lands a pixel off (docs/superpowers/specs/2026-11-03-a-still-calendar-on-
+ * a-phone-design.md): Leads and the Pipeline stepped a pixel up the frame after their slide (Ruben's recording, 7 Nov
+ * 2026). Held, it is handed back as the page is next touched, when what follows moves it anyway; nothing of the page
+ * opens over it before then, so nothing fixed in it is placed by its transform. Never the frame's own page, which
+ * holds what stands fixed over every page.
+ */
+function restsOnLayer(table: Table, el: HTMLElement): boolean {
+  return !!table.env.rest && !!table.env.untilTouched && table.env.rest(el).trim() === "layer" && nestedIn(table, el);
+}
+
 /** An element at rest as itself once its lead animation has ended, unless something newer holds it by then. */
 function restAfter(table: Table, el: HTMLElement, mine: Held, lead: Animation | undefined): void {
   table.held.set(el, mine);
-  after(lead, () => {
+  const rest = () => {
     if (table.held.get(el) === mine) stop(table, el);
+  };
+  after(lead, () => {
+    if (table.held.get(el) !== mine) return;
+    if (mine.onLayer && table.env.untilTouched) table.env.untilTouched(rest);
+    else rest();
   });
 }
 
@@ -500,14 +526,15 @@ function keptCopy(table: Table, kept: HTMLElement): HTMLElement {
 function enter(table: Table, el: HTMLElement, move: Timeline): void {
   const now = table.env.now();
   const anims: Animation[] = [];
+  const onLayer = move.travel > 0 && restsOnLayer(table, el);
   if (move.travel) {
     const behind = move.dir * move.travel;
-    anims.push(startAt(el, springFrames(pathOf(move), move.ms, behind), { ms: move.ms, t0: move.t0, keep: false }));
+    anims.push(startAt(el, springFrames(pathOf(move), move.ms, behind), { ms: move.ms, t0: move.t0, keep: onLayer }));
   }
   anims.push(startAt(el, [{ opacity: 0 }, { opacity: 1 }], { ms: move.fadeMs, t0: now, keep: false }));
   // It rests when whichever ends last has ended: its travel, or a late arrival's fade.
   const travelLast = move.travel > 0 && move.t0 + move.ms >= now + move.fadeMs;
-  restAfter(table, el, { move, role: "in", spot: null, anims }, travelLast ? anims[0] : anims.at(-1));
+  restAfter(table, el, { move, role: "in", spot: null, anims, onLayer }, travelLast ? anims[0] : anims.at(-1));
 }
 
 /** A view has mounted: where it says a side, it arrives by the deck, and what it replaced leaves by it. */
@@ -716,6 +743,18 @@ export const viewDeck: Deck = createDeck({
   now: () => Number(document.timeline.currentTime ?? performance.now()),
   reduced: () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   travel: (el) => getComputedStyle(el).getPropertyValue("--view-travel"),
+  rest: (el) => getComputedStyle(el).getPropertyValue("--view-rest"),
+  untilTouched: (fn) => {
+    // The window's own scroll (a box scrolling itself, as a strip putting its tab in view, is not the page touched), and
+    // a click, a key, a finger moving or a move through history, heard before the page's own handlers.
+    const heard = () => {
+      window.removeEventListener("scroll", heard);
+      for (const kind of TOUCHED_BY) window.removeEventListener(kind, heard, true);
+      fn();
+    };
+    window.addEventListener("scroll", heard, { passive: true });
+    for (const kind of TOUCHED_BY) window.addEventListener(kind, heard, { capture: true, passive: true });
+  },
   placeOf: (el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).m41,
   later: (ms, fn) => {
     window.setTimeout(fn, ms);

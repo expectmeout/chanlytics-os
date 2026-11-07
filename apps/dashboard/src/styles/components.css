@@ -675,7 +675,9 @@
 /* People's page is one column to 900px (its rows are a phone's there, PL_PHONE_QUERY), so its views travel their own
    width to there too, and a finger walks its strip (the view says its strip, data-strip; the rest is the tokens'). */
 @media (max-width: 900px) {
-  .route-view[data-strip="people"] { --view-travel: 100%; }
+  /* Its scopes keep their arrival's last frame on its layer until the page is touched (kit/motion/view-deck.ts
+     restsOnLayer): an iPhone drew Leads and the Pipeline a pixel up as it handed the layer back (Ruben, 7 Nov 2026). */
+  .route-view[data-strip="people"] { --view-travel: 100%; --view-rest: layer; }
   /* A touch under a strip keeps the axis it began on. The reader (kit/motion/swipe.ts touchSwipe) picks one at 8px: mostly down,
      a scroll and the page stands; else the page walks. The browser was told nothing of that choice, so its own scroll
      ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
