@@ -397,7 +397,11 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");
       await expect(queue).toBeVisible();
-      await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toHaveCount(0);
+      // What the thread was about is resolved, and the words still never left: the row stays until someone tries again
+      // or hands it back (thread-move.ts, a thread's move is `failed`; #2133).
+      await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toContainText(
+        "Your reply didn't reach them",
+      );
 
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Needs you");

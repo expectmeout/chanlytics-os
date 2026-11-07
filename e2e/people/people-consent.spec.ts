@@ -288,7 +288,7 @@ test.describe("Consent for one person", () => {
     await expect(sheet).toHaveCount(0);
     await unfolded();
     await expect(card.getByTestId("person-deal-link")).toHaveCount(0);
-    await expect(card.getByTestId("person-deal-fact").first()).toHaveText("No link");
+    await expect(card.getByTestId("person-deal-fact").first()).toHaveText("No link yet");
     expect(JSON.parse(posts.at(-1) ?? "{}").clear).toContain("proposal_url");
   });
 });

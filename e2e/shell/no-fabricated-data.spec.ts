@@ -54,13 +54,18 @@ test.describe("a signed-in session never sees the mockup", () => {
   for (const route of REAL_ROUTES) {
     test(`no invented data on ${route}`, async ({ page }) => {
       // DIAGNOSTIC, to come out before this lands: what is still in flight when a page never falls quiet.
-      const inflight = new Set<string>();
-      page.on("request", (r) => void inflight.add(`${r.method()} ${r.url()}`));
-      page.on("requestfinished", (r) => void inflight.delete(`${r.method()} ${r.url()}`));
-      page.on("requestfailed", (r) => void inflight.delete(`${r.method()} ${r.url()}`));
+      const inflight = new Set<Request>();
+      page.on("request", (r) => void inflight.add(r));
+      page.on("requestfinished", (r) => void inflight.delete(r));
+      page.on("requestfailed", (r) => void inflight.delete(r));
       await page.goto(`/${route}`);
       await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch((e) => {
-        console.log(`DIAG ${route} in flight after 20 s: ${JSON.stringify([...inflight])}`);
+        const said = [...inflight].map(
+          (r) => `${r.resourceType()} ${r.method()} ${r.url()} by ${r.serviceWorker() ? "sw" : r.frame().url()}`,
+        );
+        console.log(
+          `DIAG ${route} frames ${JSON.stringify(page.frames().map((f) => f.url()))} in flight after 20 s: ${JSON.stringify(said)}`,
+        );
         throw e;
       });
       await assertNothingInvented(page, route);

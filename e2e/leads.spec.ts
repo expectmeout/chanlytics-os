@@ -93,7 +93,7 @@ test.describe("Leads on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the Leads scope shows the seeded search and its leads, strongest fit first, and the strip says how it ended", async ({
+  test("the Leads scope shows the seeded search and its leads, in the queue's order, and the strip says how it ended", async ({
     page,
   }) => {
     // The seed owns these six; this spec restates their names. If the two ever
@@ -113,8 +113,12 @@ test.describe("Leads on a real workspace", () => {
 
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
-    await expectLeadsScope(page, { standing: STANDING, first: ZILKER });
-    await expect(page.locator(".cl-table tbody tr").nth(1)).toContainText(TRAVIS);
+    // The page opens on the queue (#2137): who has not been contacted first, under their group's heading, the one
+    // contacted after them. Strongest first is the read's order above, and a press on the heading's.
+    await expectLeadsScope(page, { standing: STANDING, first: TRAVIS });
+    const rows = page.locator(".cl-table tbody tr:not(.dtable-group)");
+    await expect(rows.nth(1)).toContainText(ZILKER);
+    await expect(rows.nth(2)).toContainText(HYDE_PARK);
 
     // The rail names the search, and its count is the members' count. The strip
     // and the three classes are the open search's, so read them from it.
