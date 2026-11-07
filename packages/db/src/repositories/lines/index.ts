@@ -6,13 +6,12 @@ export { testLineForwarding } from "./forwarding";
 export { dropLineCredentials, findBusinessOnRecord, findFiledNames, findOwnLine, saveBusinessOnRecord } from "./lines";
 export {
   findOtherLineOnRow,
-  findRoutingConfig,
   findRoutingRowByKey,
   findVoiceRouting,
   findVoiceRow,
   insertRoutingRow,
   listActiveRoutingKinds,
-  listActiveVoiceAgents,
+  listActiveVoiceAgentRows,
   listVoiceRoutingRows,
   patchRoutingRow,
   takeRoutingRow,
@@ -35,7 +34,6 @@ export {
   listLinesOf,
   listLinesOfWorkspaces,
   listStuckLines,
-  rereadLineRow,
   saveForwardingVerified,
   saveLineFacts,
   saveLineRow,

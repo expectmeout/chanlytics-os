@@ -27,7 +27,7 @@ export const listNoteCandidates = async (db: Pick<Db, "rpc">, limit: number) =>
   db.rpc("note_candidates", { p_limit: limit });
 
 /** A note suggested on a person, through its door (person_note_suggest). */
-export const suggestPersonNote = async (
+export const suggestNoteOnPerson = async (
   db: Pick<Db, "rpc">,
   args: Database["public"]["Functions"]["person_note_suggest"]["Args"],
 ) => db.rpc("person_note_suggest", args);

@@ -39,7 +39,6 @@ import {
   listActiveRoutingKinds,
   listLineFilingsOf,
   listLinesOf,
-  rereadLineRow,
   saveBusinessOnRecord,
   saveLineRow,
 } from "@chanlytics/db/lines";
@@ -384,7 +383,7 @@ async function resubmit(
   const again = await resubmitRejectedCampaign(lineCall.db, row, plan.facts, plan.check);
   const verdict = resubmitVerdict(again);
   if (verdict.kind === "refuse") return respond(verdict.answer);
-  const after = await rereadLineRow(lineCall.db, lineCall.tenantId, row.id);
+  const after = await findLineRow(lineCall.db, lineCall.tenantId, row.id);
   return respond(resubmittedAnswer(verdict.row, rowRead(lineCall, after)));
 }
 
@@ -416,7 +415,7 @@ async function file(
     hasOptInNumber: plan.check.hasOptInNumber,
     mock: plan.mock,
   });
-  const after = await rereadLineRow(lineCall.db, lineCall.tenantId, row.id);
+  const after = await findLineRow(lineCall.db, lineCall.tenantId, row.id);
   return respond(filingAnswer(result, plan.mock, rowRead(lineCall, after)));
 }
 
@@ -428,7 +427,10 @@ function rowRead(
   lineCall: LineCall,
   read: { data: LineDbRow | null; error: { message: string } | null },
 ): LineDbRow | null {
-  if (read.error) logger({ tenant_id: lineCall.tenantId }).warn("line_row_read_failed", { error: read.error.message });
+  if (read.error || !read.data)
+    logger({ tenant_id: lineCall.tenantId }).warn("line_row_read_failed", {
+      error: read.error?.message ?? "the line's row is gone",
+    });
   return read.data;
 }
 
@@ -442,7 +444,7 @@ async function registrationStatus(lineCall: LineCall): Promise<Response> {
   if (!campaignHeldFor(result, read.row)) return respond(syncAnswer(result));
   // A record that cannot be read files nothing this time, as one that is missing: the next status read tries again.
   const onRecord = await findBusinessOnRecord(lineCall.db, lineCall.tenantId).catch(() => null);
-  const fresh = await rereadLineRow(lineCall.db, lineCall.tenantId, read.row.id);
+  const fresh = await findLineRow(lineCall.db, lineCall.tenantId, read.row.id);
   const line = rowRead(lineCall, fresh);
   if (!onRecord || !line) return respond(syncAnswer(result));
   const filed = await registerLine(lineCall.db, {

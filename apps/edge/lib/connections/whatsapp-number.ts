@@ -392,12 +392,8 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   if (row instanceof Response) return row;
 
   // 6. The token, in Vault, through the one door that writes a credential.
-  const { error: credErr } = await putChannelCredentials(db, row.id, {
-    access_token: token,
-    phone_id: phoneNumberId,
-    pin,
-    waba_id: wabaId,
-  } as unknown as Json);
+  const secret = { access_token: token, phone_id: phoneNumberId, pin, waba_id: wabaId } as unknown as Json;
+  const { error: credErr } = await putChannelCredentials(db, row.id, secret);
   if (credErr) {
     log.info("wa_connect_credentials_failed", { error: credErr.message });
     // Without credentials the row would ride the environment token: not this business's. Disable it.

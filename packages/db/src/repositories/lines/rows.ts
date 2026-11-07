@@ -116,10 +116,6 @@ export const claimLineForFiling = async (
 export const findLineRow = async (db: Db, tenantId: string, lineId: string) =>
   tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).maybeSingle();
 
-/** One line of the workspace's read again after a write: `single()`, so a row gone is an error the caller says. */
-export const rereadLineRow = async (db: Db, tenantId: string, lineId: string) =>
-  tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).single();
-
 /** Every line of the workspace's, whole, oldest first. */
 export const listLinesOf = async (db: Db, tenantId: string) =>
   db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at");

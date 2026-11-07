@@ -43,13 +43,13 @@ export async function tellLeadQuestion(
     // A mail with a link to no workspace is no question asked: the round waits, and its next tell tries again.
     if (searchRead.error) throw new Error(`cannot read the search: ${searchRead.error.message}`);
     if (tenantRead.error) throw new Error(`cannot read the workspace: ${tenantRead.error.message}`);
-    const s = searchRead.data;
-    const t = tenantRead.data;
+    const search = searchRead.data;
+    const workspace = tenantRead.data;
     const words = leadQuestionMail({
-      name: s?.name ?? "leads",
+      name: search?.name ?? "leads",
       sentence: query.sentence,
       // The one writer of a link to a page of the workspace (contracts appLink), as every other mail's.
-      link: `${dashboardOrigin()}${appLink(t?.slug, leadQuestionRoute(r.search_id))}`,
+      link: `${dashboardOrigin()}${appLink(workspace?.slug, leadQuestionRoute(r.search_id))}`,
     });
     // Its kind, so the business's choice holds (decision 0040): a question it turned off by email is on the bell alone.
     return await sendOpsMail(target, { ...words, kind: "leads_question" }, ports);

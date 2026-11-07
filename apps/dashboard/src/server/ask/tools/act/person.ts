@@ -30,7 +30,7 @@ import { personReach } from "../../../readers/person";
 import { readUnlessNotFound, noteRow, str } from "../context/tool-reads";
 import { actAction, defineActions, offeredTo, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { approvalWords, propose, refuse } from "../context/context";
-import { findPersonCard, findPersonReplyMode } from "@chanlytics/db/ask";
+import { findPersonCard, findPersonReplyModeRow } from "@chanlytics/db/ask";
 
 /** The person a card names, as every action of this tool reads them: the name the card calls them, and the profile's. */
 interface CardPerson {
@@ -73,7 +73,7 @@ async function proposePersonMode(
     return refuse("mode must be auto, ask, never or inherit");
   const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const { data: pol, error: polErr } = await findPersonReplyMode(
+  const { data: pol, error: polErr } = await findPersonReplyModeRow(
     toolContext.ctx.supabase,
     toolContext.tenantId,
     person.id,

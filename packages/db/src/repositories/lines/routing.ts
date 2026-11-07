@@ -55,9 +55,6 @@ export const findOtherLineOnRow = async (
     .limit(1);
 
 /** A routing row's settings. */
-export const findRoutingConfig = async (db: Db, tenantId: string, channelId: string) =>
-  db.from("tenant_channels").select("config").eq("id", channelId).eq("tenant_id", tenantId).maybeSingle();
-
 /** A routing row changed: repointed to the line that keeps it, or switched off. */
 export const patchRoutingRow = async (db: Db, tenantId: string, channelId: string, patch: ChannelUpdate) =>
   db.from("tenant_channels").update(patch).eq("id", channelId).eq("tenant_id", tenantId);
@@ -83,7 +80,7 @@ export const listVoiceRoutingRows = async (db: Db) =>
   platformWide(db).from("tenant_channels").select("external_id, status").eq("kind", "voice");
 
 /** Every active voice agent, whichever workspace's. */
-export const listActiveVoiceAgents = async (db: Db) =>
+export const listActiveVoiceAgentRows = async (db: Db) =>
   platformWide(db).from("tenant_channels").select("external_id").eq("kind", "voice").eq("status", "active");
 
 /** The workspace's oldest voice routing row, whatever its status. */

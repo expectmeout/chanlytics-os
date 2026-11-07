@@ -28,7 +28,7 @@ export const listDealsOfPerson = async (db: Db, tenantId: string, contactId: str
     .order("created_at", { ascending: false });
 
 /** The mode a person's replies take, where the workspace set one for them, or none. */
-export const findPersonReplyMode = async (db: Db, tenantId: string, contactId: string) =>
+export const findPersonReplyModeRow = async (db: Db, tenantId: string, contactId: string) =>
   db
     .from("policies")
     .select("mode")

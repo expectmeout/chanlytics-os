@@ -60,7 +60,7 @@ import {
   type SendPurpose,
 } from "@chanlytics/contracts";
 import { logger, errField } from "../shared/log.js";
-import { findPersonEmail, setPersonEmail } from "@chanlytics/db/people";
+import { findPersonEmailRow, setPersonEmail } from "@chanlytics/db/people";
 
 /**
  * Postgres-sourced thread state, or an UNKNOWN thread when it cannot be
@@ -522,7 +522,7 @@ export function pgSink(
       on
         ? runPgSafe("note_email", async () => {
             // `on` holds only with a workspace, so the person is read inside it.
-            const { data, error: unread } = await findPersonEmail(db, tenantId ?? "", ing.contact_id);
+            const { data, error: unread } = await findPersonEmailRow(db, tenantId ?? "", ing.contact_id);
             // The door itself overwrites, so this read is the one thing that keeps an address already on file: a
             // read that failed keeps everything, rather than writing over an address nobody could see.
             if (unread) throw new Error(unread.message);

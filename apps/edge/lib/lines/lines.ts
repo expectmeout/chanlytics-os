@@ -33,7 +33,6 @@ import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import {
   findOtherLineOnRow,
-  findRoutingConfig,
   findRoutingRowByKey,
   getLineCredentials,
   insertRoutingRow,
@@ -42,6 +41,7 @@ import {
   saveLineRow,
   takeRoutingRow,
 } from "@chanlytics/db/lines";
+import { findChannelConfig } from "@chanlytics/db/channels";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -309,7 +309,7 @@ export async function releaseRoutingRows(
       // the receptionist's own facts publish as the workspace's number, so a
       // kept row still carrying the RELEASED number advertises a number that
       // has gone back to the carrier.
-      const row = await findRoutingConfig(db, tenantId, id);
+      const row = await findChannelConfig(db, tenantId, id);
       if (row.error) return stop(`reading the routing row: ${row.error.message}`);
       const cfg =
         row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config)

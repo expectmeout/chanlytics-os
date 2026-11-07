@@ -2,7 +2,7 @@ import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf, recordLeadKept } from "@/server/leads/leads";
-import { keepLead } from "@/server/leads/search-acts";
+import { keepFoundLead } from "@/server/leads/search-acts";
 
 const Body = z.object({ search_id: z.string().uuid() });
 
@@ -18,7 +18,7 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, member, input }) => {
     const leadId = requireUuid(ctx.params.id, "lead");
-    const { data, error } = await keepLead(ctx, {
+    const { data, error } = await keepFoundLead(ctx, {
       p_search_id: input.search_id,
       p_lead_id: leadId,
     });

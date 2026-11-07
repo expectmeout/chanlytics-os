@@ -261,8 +261,9 @@ export async function answeredAfter(
 ): Promise<Map<string, { by: "receptionist" | "team"; at: string }>> {
   const convIds = [...replied.keys()];
   const out = new Map<string, { by: "receptionist" | "team"; at: string }>();
-  if (convIds.length === 0) return out;
+  // The earliest reply: none when nothing was replied to, and then nothing was answered.
   const since = [...replied.values()].sort()[0];
+  if (since === undefined) return out;
   for (let index = 0; index < convIds.length; index += IN_CHUNK) {
     const { data, error } = await listOutboundSince(
       ctx.supabase,

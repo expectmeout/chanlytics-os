@@ -158,20 +158,25 @@ export async function checkListing(
 /** How long a listing or a profile rests between reads: once a day, with room for the sweep's own drift. */
 const CHECK_EVERY_MS = 20 * HOUR_MS;
 
-/** The listings the sweep reads this tick: never read first, then the oldest. */
-export async function listListingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {
+/** A read of the rows due since a moment, at most `limit`: one of packages/db's sweep pages. */
+type DueRead<Row> = (
+  db: Db,
+  before: string,
+  limit: number,
+) => Promise<{ data: Row[] | null; error: { message: string } | null }>;
+
+/** The sweep's page of what is due this tick, every workspace's by design: never read first, then the oldest. */
+async function rowsDue<Row>(read: DueRead<Row>, db: Db, now: Date, limit: number): Promise<Row[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
-  // The sweep's page: every workspace's listing that is due, by design.
-  const { data, error } = await listGoogleListingsDue(db, before, limit);
+  const { data, error } = await read(db, before, limit);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
 
-/** The connected profiles the sweep syncs this tick: complete ones, never synced first, then the oldest. */
-export async function listConnectionsDue(db: Db, now: Date, limit: number): Promise<ConnectionRow[]> {
-  const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
-  // The sweep's page: every workspace's profile that is due, by design.
-  const { data, error } = await listGoogleConnectionsDue(db, before, limit);
-  if (error) throw new Error(error.message);
-  return data ?? [];
-}
+/** The listings the sweep reads this tick. */
+export const listListingsDue = (db: Db, now: Date, limit: number): Promise<ListingRow[]> =>
+  rowsDue(listGoogleListingsDue, db, now, limit);
+
+/** The connected profiles the sweep syncs this tick: complete ones only. */
+export const listConnectionsDue = (db: Db, now: Date, limit: number): Promise<ConnectionRow[]> =>
+  rowsDue(listGoogleConnectionsDue, db, now, limit);

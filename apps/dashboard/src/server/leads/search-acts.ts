@@ -17,9 +17,9 @@ import type { RouteContext } from "@/server/shared/with-route";
 
 type Ctx = Pick<RouteContext, "supabase">;
 
-export const keepLead = (ctx: Ctx, args: Parameters<typeof keepSearchMember>[1]) =>
+export const keepFoundLead = (ctx: Ctx, args: Parameters<typeof keepSearchMember>[1]) =>
   keepSearchMember(ctx.supabase, args);
-export const excludeLead = (ctx: Ctx, args: Parameters<typeof excludeSearchMember>[1]) =>
+export const excludeFoundLead = (ctx: Ctx, args: Parameters<typeof excludeSearchMember>[1]) =>
   excludeSearchMember(ctx.supabase, args);
 export const putLeadBack = (ctx: Ctx, args: Parameters<typeof putBackSearchMember>[1]) =>
   putBackSearchMember(ctx.supabase, args);

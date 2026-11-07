@@ -68,7 +68,7 @@ import { signatureOnly } from "../shared/door-auth.js";
 import { logger } from "../shared/log.js";
 import type { Admitted } from "../shared/admin-auth.js";
 import { E164 } from "@chanlytics/contracts";
-import { listActiveVoiceAgents } from "@chanlytics/db/lines";
+import { listActiveVoiceAgentRows } from "@chanlytics/db/lines";
 
 interface Body {
   agent_id?: string;
@@ -94,7 +94,7 @@ async function agentsNamed(body: Body): Promise<string[] | Response> {
   if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) return [body.agent_id];
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const { data, error } = await listActiveVoiceAgents(db);
+  const { data, error } = await listActiveVoiceAgentRows(db);
   if (error) return refuse(503, "read_failed", error.message);
   let before: string[];
   try {

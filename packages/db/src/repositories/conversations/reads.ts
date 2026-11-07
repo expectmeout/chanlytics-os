@@ -100,7 +100,7 @@ export const pageConsentChanges = async (
 };
 
 /** What a hold is read with: its reason and details, its thread, and whether its person is being erased. */
-const HOLD_COLUMNS =
+const HOLD_READ_COLUMNS =
   "id, reason, details, state, created_at, conversation_id, conversations (contacts (erasing_since))";
 
 /** The workspace's holds in `state` for any reason but `handBack`'s, newest first, `limit` of them. */
@@ -113,7 +113,7 @@ export const listHoldsWaiting = async (
 ) =>
   db
     .from("escalations")
-    .select(HOLD_COLUMNS)
+    .select(HOLD_READ_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("state", state)
     .not("reason", "in", `(${handBack.join(",")})`)
@@ -130,7 +130,7 @@ export const listHoldsHandedBack = async (
 ) =>
   db
     .from("escalations")
-    .select(HOLD_COLUMNS)
+    .select(HOLD_READ_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("state", state)
     .in("reason", [...handBack])

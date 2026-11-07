@@ -5,7 +5,7 @@ export {
   findMessageCard,
   findOpenEscalationOf,
   findPersonCard,
-  findPersonReplyMode,
+  findPersonReplyModeRow,
   findThreadCard,
   findThreadForReply,
   findWorkspaceRule,

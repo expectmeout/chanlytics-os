@@ -63,7 +63,7 @@ import {
 import { listFactCorrectionsBatch, suggestFact, type FactCorrectionRow } from "@chanlytics/db/facts";
 import { askJson } from "../ai/model.js";
 import type { Logger } from "../shared/log.js";
-import { listNoteCandidates, suggestPersonNote } from "@chanlytics/db/people";
+import { listNoteCandidates, suggestNoteOnPerson } from "@chanlytics/db/people";
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { type Database } from "@chanlytics/db/types";
 
@@ -188,7 +188,7 @@ export async function suggestNotes(deps: {
       end(checked.why);
       continue;
     }
-    const { data: door, error: doorErr } = await suggestPersonNote(db, {
+    const { data: door, error: doorErr } = await suggestNoteOnPerson(db, {
       p_tenant_id: row.tenant_id,
       p_contact_id: row.contact_id,
       p_body: checked.body,
