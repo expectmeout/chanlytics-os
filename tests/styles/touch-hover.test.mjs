@@ -203,17 +203,18 @@ const paints = (r) => {
   const ds = [...(r.value.declarations.declarations ?? []), ...(r.value.declarations.importantDeclarations ?? [])];
   return ds.length > 0 && ds.every((d) => PAINTS.has(propertyOf(d))) && ds.some(draws);
 };
-/** Each style rule of a sheet, with whether it stands under a pointer's media query. */
+/** Each style rule of a sheet, with whether it stands under a pointer's media query, and the media queries it stands in. */
 const eachRule = (sheet, visit) => {
-  const walk = (rules, guarded) => {
+  const walk = (rules, guarded, queries) => {
     for (const r of rules) {
-      if (r.type === "media") walk(r.value.rules, guarded || asksForPointer(r.value.query));
+      if (r.type === "media")
+        walk(r.value.rules, guarded || asksForPointer(r.value.query), [...queries, r.value.query]);
       else if (r.type === "supports" || r.type === "container" || r.type === "layer-block")
-        walk(r.value.rules, guarded);
-      else if (r.type === "style") visit(r, guarded);
+        walk(r.value.rules, guarded, queries);
+      else if (r.type === "style") visit(r, guarded, queries);
     }
   };
-  walk(parse(sheet).rules, false);
+  walk(parse(sheet).rules, false, []);
 };
 
 test("no sheet paints on :hover outside a pointer's media query, so a finger's last tap keeps nothing lit", () => {
@@ -398,25 +399,17 @@ test("a row a thumb only carried across with its page is not lit by that touch; 
  * only has a finger drew it wherever the page moved focus for itself (Ruben, 7 Nov 2026: "this random stroke selection").
  */
 test("a card on a screen with no pointer that hovers draws no keyboard ring", () => {
-  const found = [];
-  const walk = (rules, media) => {
-    for (const r of rules) {
-      if (r.type === "media") walk(r.value.rules, [...media, r.value.query]);
-      else if (
-        r.type === "style" &&
-        r.value.selectors.some(
-          (x) => /"name":"data-card"/.test(JSON.stringify(x)) && /"kind":"focus-visible"/.test(JSON.stringify(x)),
-        )
-      )
-        found.push({ r, media });
-    }
-  };
-  walk(parse("apps/dashboard/src/surfaces/kit/kit.css").rules, []);
-  const touchOnly = found.filter(({ media }) =>
-    media.some((q) => /"name":"hover"/.test(JSON.stringify(q)) && /"none"/.test(JSON.stringify(q))),
-  );
+  const touchOnly = [];
+  eachRule("apps/dashboard/src/surfaces/kit/kit.css", (r, _guarded, queries) => {
+    const card = r.value.selectors.some((x) => {
+      const s = JSON.stringify(x);
+      return /"name":"data-card"/.test(s) && /"kind":"focus-visible"/.test(s);
+    });
+    const noHover = queries.some((q) => /"name":"hover"/.test(JSON.stringify(q)) && /"none"/.test(JSON.stringify(q)));
+    if (card && noHover) touchOnly.push(r);
+  });
   assert.equal(touchOnly.length, 1, "one rule, under @media (hover: none)");
-  const ds = touchOnly[0].r.value.declarations.declarations ?? [];
+  const ds = touchOnly[0].value.declarations.declarations ?? [];
   assert.equal(ds.length, 1, "the ring alone");
   assert.match(propertyOf(ds[0]), /^outline/);
   assert.match(JSON.stringify(ds[0].value), /none/);

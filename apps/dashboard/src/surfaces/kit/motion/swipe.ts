@@ -453,7 +453,7 @@ const swipeHold = (e: SwipeEvent) => {
  * refused is no scroll to it: the row a swipe began on lit as the page went (Ruben's recording, 7 Nov 2026). The rows'
  * fill gives way under the mark (clients.css), and the next touch, a tap, lights its row as before.
  */
-const carried = (el: HTMLElement, on: boolean) => {
+const swipeCarried = (el: HTMLElement, on: boolean) => {
   if (on && el.setAttribute) el.setAttribute("data-carried", "");
   else if (!on && el.removeAttribute) el.removeAttribute("data-carried");
 };
@@ -592,7 +592,7 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
     const t = firstTouchOf(e && e.touches);
     const el = elementOf(e);
     if (!t || !el) return;
-    carried(el, false);
+    swipeCarried(el, false);
     if (swipeOwnDrag(e.target, el)) {
       swipeDrop(el);
       return;
@@ -634,7 +634,7 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       swipeTake(g, dx, dy);
       if (g.way === "none") return;
-      if (g.way === "page") carried(el, true);
+      if (g.way === "page") swipeCarried(el, true);
     }
     if (!el.style) return;
     swipeFollow(g, dx, dy);
