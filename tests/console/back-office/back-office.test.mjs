@@ -503,12 +503,11 @@ test("every route under /api/v1/platform asks the database who is calling", () =
   }
 });
 
+/** The platform's reads, and the guard they go through: the shared back office (server/shared/back-office.ts). */
+const GUARDED = ["apps/dashboard/src/server/console/platform.ts", "apps/dashboard/src/server/shared/back-office.ts"];
+
 test("the guard asks the database, and answers 404 rather than 403", () => {
-  // The guard is the shared back office's (server/shared/back-office.ts); the platform's reads go through it.
-  const src = readCode(
-    "apps/dashboard/src/server/console/platform.ts",
-    "apps/dashboard/src/server/shared/back-office.ts",
-  );
+  const src = readCode(...GUARDED);
   // platform_staff_state() (00467): the role, a second factor owed, or none, about the caller alone.
   assert.match(src, /await getStaffState\(ctx\.supabase\)/, "the answer comes from Postgres, not from an env var");
   assert.match(src, /if \(state === "none"\) throw new AppError\("not_found", "No such page\.", 404\);/);
@@ -828,10 +827,7 @@ test("the service-role client cannot be obtained without passing the check", () 
   // The first version exported `platformDb()` — no arguments, no relationship to
   // the guard — and relied on a test walking ONE directory to prove nothing else
   // imported it. A grep cannot see the route that has not been written yet.
-  const src = readCode(
-    "apps/dashboard/src/server/console/platform.ts",
-    "apps/dashboard/src/server/shared/back-office.ts",
-  );
+  const src = readCode(...GUARDED);
   assert.ok(
     !/export function platformDb|export async function platformDb/.test(src),
     "REGRESSION: a service-role client handed to any importer",

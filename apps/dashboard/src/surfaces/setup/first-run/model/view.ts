@@ -613,15 +613,15 @@ function faceOf(options: {
   }
 }
 
+/** Which steps are done, by step. */
+type StepsDone = Record<FirstRunStepKey, boolean>;
+
 /**
  * Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step (or `find`,
  * the business step with Find asked for); `who` is who is looking, for Find: nobody may link without it.
  */
 export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstRunWho): FirstRunVM {
-  const done = Object.fromEntries(FIRST_RUN_STEP_KEYS.map((k) => [k, stepDone(vm, k)])) as Record<
-    FirstRunStepKey,
-    boolean
-  >;
+  const done = Object.fromEntries(FIRST_RUN_STEP_KEYS.map((k) => [k, stepDone(vm, k)])) as StepsDone;
   const open = FIRST_RUN_STEPS.find((s) => !done[s.key]);
   const complete = !open;
   const current: FirstRunStepKey = open ? open.key : "live";

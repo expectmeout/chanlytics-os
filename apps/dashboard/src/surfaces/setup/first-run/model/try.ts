@@ -238,7 +238,7 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   // The owner's own test call started once the screen was open; an older one (shown once one has reached the
   // receptionist) may be a customer's, so its caller is neither "You" nor offered as the transfer.
   const test = (call.startedAtMs ?? 0) >= since - TRY_SLACK_MS;
-  const turns = turnsOf(call, test);
+  const turns = callTurnsOf(call, test);
   const to = `conversations/${call.cvId}`;
   if (call.live) {
     const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1000));
@@ -311,7 +311,7 @@ function listeningOf(
 }
 
 /** The call's turns, the receptionist's and the caller's, the caller "You" only on the owner's own test. */
-function turnsOf(call: LiveCallVM, test: boolean): NonNullable<FirstRunTryVM["call"]>["turns"] {
+function callTurnsOf(call: LiveCallVM, test: boolean): NonNullable<FirstRunTryVM["call"]>["turns"] {
   const words = FIRST_RUN_TRY_WORDS;
   return call.transcript
     .filter((t) => t.speaker === "agent" || t.speaker === "client")

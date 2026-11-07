@@ -75,49 +75,49 @@ export function dealSheetBody(
 ): DealSheetOutcome {
   const moving = mode !== "propose";
   if (moving && !deal?.id) return problem(null, DEAL_SHEET_WORDS.moved);
-  const made: DealSheetMade = { body: { stage: STAGE_OF[mode] }, clear: [] };
+  const parts: DealSheetParts = { body: { stage: STAGE_OF[mode] }, clear: [] };
   if (moving && deal?.id) {
-    made.body.deal_id = deal.id;
-    if (deal.version !== null && deal.version !== undefined) made.body.version = deal.version;
+    parts.body.deal_id = deal.id;
+    if (deal.version !== null && deal.version !== undefined) parts.body.version = deal.version;
   }
   const shapes = mode === "propose" || mode === "edit" || mode === "again";
   if (shapes || mode === "won") {
-    const refused = valueInto(made, draft, moving ? deal : null);
+    const refused = valueInto(parts, draft, moving ? deal : null);
     if (refused) return refused;
   }
   return shapes
-    ? proposalOutcome(made, draft, deal, { mode, canSend: opts.canSend })
-    : dayOutcome(made, mode, draft, opts);
+    ? proposalOutcome(parts, draft, deal, { mode, canSend: opts.canSend })
+    : dayOutcome(parts, mode, draft, opts);
 }
 
 /** The body as it is made, and the fields a move empties: `clear` rides the body only when it names one. */
-interface DealSheetMade {
+interface DealSheetParts {
   body: DealSheetBody;
   clear: DealClearable[];
 }
 
 const problem = (field: DealSheetField | null, words: string): DealSheetOutcome => ({ problem: { field, words } });
 
-const outcomeOf = (made: DealSheetMade, send: { text: string } | null): DealSheetOutcome => ({
-  body: made.clear.length ? { ...made.body, clear: made.clear } : made.body,
+const partsOutcome = (parts: DealSheetParts, send: { text: string } | null): DealSheetOutcome => ({
+  body: parts.clear.length ? { ...parts.body, clear: parts.clear } : parts.body,
   send,
 });
 
 /** The value, where the mode asks for one: an emptied value clears what the deal held (`moved`, null on a new one). */
-function valueInto(made: DealSheetMade, draft: DealSheetDraft, moved: DealVM | null): DealSheetOutcome | null {
+function valueInto(parts: DealSheetParts, draft: DealSheetDraft, moved: DealVM | null): DealSheetOutcome | null {
   const typed = draft.value.trim();
   if (typed) {
     const cents = parseAmount(typed);
     if (cents === null) return problem("value", DEAL_SHEET_WORDS.problems.amount);
-    made.body.amount_cents = cents;
-    made.body.per = draft.per;
-  } else if (moved?.amountCents !== null && moved?.amountCents !== undefined) made.clear.push("amount");
+    parts.body.amount_cents = cents;
+    parts.body.per = draft.per;
+  } else if (moved?.amountCents !== null && moved?.amountCents !== undefined) parts.clear.push("amount");
   return null;
 }
 
 /** A proposal's shape: its link, the day it is good until, its service, and the words to send once it lands. */
 function proposalOutcome(
-  made: DealSheetMade,
+  parts: DealSheetParts,
   draft: DealSheetDraft,
   deal: DealVM | null,
   { mode, canSend }: { mode: DealSheetMode; canSend: boolean },
@@ -128,23 +128,23 @@ function proposalOutcome(
   if (typed) {
     url = normalizeLink(typed);
     if (!url) return problem("link", whyNotALink(typed) ?? DEAL_REFUSALS.bad_link);
-    made.body.proposal_url = url;
-  } else if (mode !== "propose" && deal?.proposal) made.clear.push("proposal_url");
+    parts.body.proposal_url = url;
+  } else if (mode !== "propose" && deal?.proposal) parts.clear.push("proposal_url");
   if (draft.validUntil) {
     if (!isRealDate(draft.validUntil)) return problem("validUntil", problems.day);
-    made.body.valid_until = draft.validUntil;
-  } else if (mode === "edit" && deal?.validUntil) made.clear.push("valid_until");
-  if (mode === "propose" && draft.service.trim()) made.body.service = draft.service.trim();
-  if (!((mode === "propose" || mode === "again") && draft.send && canSend)) return outcomeOf(made, null);
+    parts.body.valid_until = draft.validUntil;
+  } else if (mode === "edit" && deal?.validUntil) parts.clear.push("valid_until");
+  if (mode === "propose" && draft.service.trim()) parts.body.service = draft.service.trim();
+  if (!((mode === "propose" || mode === "again") && draft.send && canSend)) return partsOutcome(parts, null);
   if (!url) return problem("link", problems.sendNeedsLink);
   const text = dealSheetMessage(draft).trim();
   if (!text.includes(url)) return problem("message", problems.messageLink);
-  return outcomeOf(made, { text });
+  return partsOutcome(parts, { text });
 }
 
 /** A yes, a pass, an end: the day it happened, never one still to come, and what the mode keeps of it. */
 function dayOutcome(
-  made: DealSheetMade,
+  parts: DealSheetParts,
   mode: DealSheetMode,
   draft: DealSheetDraft,
   opts: { tz: string; nowMs: number },
@@ -153,22 +153,22 @@ function dayOutcome(
   const today = zoneDayKey(opts.nowMs, opts.tz);
   if (!isRealDate(draft.when)) return problem("when", problems.day);
   if (draft.when > today) return problem("when", problems.future);
-  if (draft.when !== today) made.body.when = new Date(wallClockAt(opts.tz, draft.when, 12, 0)).toISOString();
+  if (draft.when !== today) parts.body.when = new Date(wallClockAt(opts.tz, draft.when, 12, 0)).toISOString();
   if (mode === "won") {
-    if (draft.how === "customer_message" && draft.messageId) made.body.message_id = draft.messageId;
+    if (draft.how === "customer_message" && draft.messageId) parts.body.message_id = draft.messageId;
     if (draft.how === "form" && draft.formNote.trim()) {
       if (draft.formNote.trim().length > DEAL_NOTE_MAX) return problem("how", problems.tooLong);
-      made.body.form_note = draft.formNote.trim();
+      parts.body.form_note = draft.formNote.trim();
     }
   }
   if (mode === "lost") {
-    if (draft.reason) made.body.lost_reason = draft.reason;
+    if (draft.reason) parts.body.lost_reason = draft.reason;
     if (draft.note.trim()) {
       if (draft.note.trim().length > DEAL_NOTE_MAX) return problem("note", DEAL_REFUSALS.note_too_long);
-      made.body.note = draft.note.trim();
+      parts.body.note = draft.note.trim();
     }
   }
-  return outcomeOf(made, null);
+  return partsOutcome(parts, null);
 }
 
 /** The field each refusal of the door is about (DEAL_REFUSALS). */

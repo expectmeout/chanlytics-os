@@ -13,30 +13,17 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT_DIR = path.resolve(here, "../..");
 const { isRetryableAuthError } = await import(
   pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/auth/errors.ts")).href
 );
 
-const route = (p) => readCode(p.startsWith("packages/") ? p : `apps/dashboard/app/api/v1/${p}/route.ts`);
-/** A route's source, with each row loader it imports from its domain (`export const theMessage = row(…)`). */
-const withLoaders = (src) =>
-  [src]
-    .concat(
-      [...src.matchAll(/import \{([^}]+)\} from "@\/server\/([^"]+)";/g)]
-        .map(([, names, mod]) => ({ names: names.split(",").map((n) => n.trim()), mod }))
-        .filter(({ mod }) => fs.existsSync(path.join(ROOT_DIR, `apps/dashboard/src/server/${mod}.ts`)))
-        .map(({ names, mod }) => ({ names, text: readCode(`apps/dashboard/src/server/${mod}.ts`) }))
-        .filter(({ names, text }) => names.some((n) => text.includes(`export const ${n} = row(`)))
-        .map(({ text }) => text),
-    )
-    .join("\n");
+/** A route by its address, or a module by its path from the root (a row loader a route imports from its domain). */
+const route = (p) => readCode(/^(packages|apps)\//.test(p) ? p : `apps/dashboard/app/api/v1/${p}/route.ts`);
 
 test("every conversation verb counts the rows its UPDATE hit, in the one adapter; zero rows is the verb's 409, which is run, not read", () => {
   // The verbs live in packages/core and core-thread-verbs.test.mjs runs each
@@ -63,7 +50,7 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
 test("ids are validated by the one guard, never by a private regex", () => {
   const validated = [
     "escalations/[id]/resolve",
-    "messages/[id]/cancel-send",
+    "apps/dashboard/src/server/conversations/held-message.ts", // messages/[id]/cancel-send's row (theMessage)
     "team/[id]",
     "conversations/[id]/snooze",
     "calls/[id]/recording",
@@ -74,7 +61,7 @@ test("ids are validated by the one guard, never by a private regex", () => {
   // (the one chokepoint for that row) calls the guard, which
   // workspace-scoping.test.mjs holds. Every other route calls it itself.
   for (const p of validated) {
-    const src = withLoaders(route(p));
+    const src = route(p);
     const guarded = /scope: \w+Scope,/.test(src) || /requireUuid\(/.test(src);
     assert.ok(guarded, `${p} must use requireUuid`);
     assert.ok(!/const UUID = \//.test(src), `${p} must not carry its own UUID regex`);

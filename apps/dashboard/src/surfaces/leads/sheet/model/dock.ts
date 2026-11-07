@@ -284,13 +284,11 @@ function closedDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   const fix = f.closed ? f.closed.fix : null;
   if (!fix) return null;
   if (fix === "call") return dock({ primary: slot("call", D.call, "phone", { key: "c" }) });
-  return dock({
-    others: [
-      fix === "put_back"
-        ? slot("put_back", D.putBack, "undo", { key: "a" })
-        : slot("ready", D.ready, "undo", { key: "a" }),
-    ],
-  });
+  const back =
+    fix === "put_back"
+      ? slot("put_back", D.putBack, "undo", { key: "a" })
+      : slot("ready", D.ready, "undo", { key: "a" });
+  return dock({ others: [back] });
 }
 
 /** In another sequence than the pick: Move to the pick while nothing was sent to them, else Open that one. */
