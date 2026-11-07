@@ -79,6 +79,8 @@ export type {
   RetellConfig,
   RetellTranscriptTurn,
 } from "./retell/calls";
+export { transcribeWithScribe } from "./scribe";
+export type { ScribeAnswer } from "./scribe";
 export {
   agentSettingsDrift,
   CALL_FEEL,

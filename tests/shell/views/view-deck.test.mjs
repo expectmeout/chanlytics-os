@@ -601,6 +601,35 @@ test("a held view taken by a finger or asked to leave lets go of its hold first,
   assert.equal(leaving[0].cancelled, false, "the page's leave is not the hold's to stop");
 });
 
+// The same hand-back after a finger let a page go short: Leads stepped a pixel up 240 ms after the finger lifted, as its
+// spring home ended, and down again as the next drag took it (Ruben's third recording, 7 Nov 2026).
+test("a view that rests on its layer, let go short, keeps its spring home's last frame until the page is touched", async () => {
+  const touched = [];
+  const w = layered(touched);
+  const main = view();
+  const a = view({ attrs: {} });
+  main.inside = [a];
+  w.deck.view("frame")(main);
+  w.deck.view("scope")(a);
+  w.deck.drag(-60);
+  w.deck.settle();
+  const [home] = moving(a);
+  assert.equal(across(home.keyframes.at(-1)), 0, "home at rest");
+  assert.equal(home.options.fill, "forwards", "its last frame held");
+  for (const anim of a.anims) anim.finish();
+  await until(() => touched.length === 1, "home, a wait for the page's touch");
+  assert.equal(moving(a).length, 1, "still on its layer once it is home");
+  touched[0]();
+  assert.equal(moving(a).length, 0, "touched, it is drawn on the page again");
+
+  const frame = layered([]);
+  const page = view();
+  frame.deck.view("frame")(page);
+  frame.deck.drag(-60);
+  frame.deck.settle();
+  assert.equal(moving(page)[0].options.fill, "none", "the frame's own page goes home as before");
+});
+
 test("the frame's own page never holds its layer, nor a view that does not say so", async () => {
   for (const [name, w] of [
     ["the frame's page", layered([])],

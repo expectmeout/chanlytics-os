@@ -6591,6 +6591,120 @@ COMMENT ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p
 
 
 --
+-- Name: file_media_failed(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_media_failed(p_media_ref text, p_error text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.files;
+begin
+  select * into v_row from public.files f where f.media_ref = p_media_ref;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_row.tenant_id::text || '|files', 42));
+  update public.files f
+     set media_status = 'failed',
+         media_error = left(coalesce(nullif(p_error, ''), 'ERR_UNKNOWN'), 80),
+         look_status = case when f.look_status = 'waiting' then 'failed' else f.look_status end,
+         looked_at = now(),
+         updated_at = now()
+   where f.id = v_row.id and f.removed_at is null and f.media_status in ('uploading', 'processing');
+  return jsonb_build_object('fate', case when found then 'failed' else 'repeated' end,
+                            'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_media_failed(p_media_ref text, p_error text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_media_failed(p_media_ref text, p_error text) IS 'The video platform could not read a video (00556): its tile says so, and its owner can delete it. Answers {fate: failed, repeated or unknown, tenant_id, file_id}. The service role''s.';
+
+
+--
+-- Name: file_media_processing(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.files f set media_status = 'processing', updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
+     and f.removed_at is null;
+end $$;
+
+
+--
+-- Name: FUNCTION file_media_processing(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) IS 'A member''s video''s bytes have all gone (00556), with the settings permission: the tile says it is being made ready. Only from uploading: the platform''s word may already have come.';
+
+
+--
+-- Name: file_media_ready(text, numeric, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.files;
+begin
+  select * into v_row from public.files f where f.media_ref = p_media_ref;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_row.tenant_id::text || '|files', 42));
+  select * into v_row from public.files f where f.id = v_row.id for update;
+  if v_row.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+  end if;
+  -- Delivered again: what was done is done.
+  if v_row.media_status in ('ready', 'failed') then
+    return jsonb_build_object('fate', 'repeated', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+  end if;
+  update public.files f
+     set media_status = 'ready',
+         seconds = coalesce(p_seconds, f.seconds),
+         width = coalesce(p_width, f.width),
+         height = coalesce(p_height, f.height),
+         ready_at = now(),
+         look_status = 'waiting',
+         looked_at = now(),
+         updated_at = now()
+   where f.id = v_row.id;
+  -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (v_row.tenant_id, 'video_digest', now(),
+          jsonb_build_object('file_id', v_row.id, 'step', 'sheet', 'edition', '1'));
+  return jsonb_build_object('fate', 'ready', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) IS 'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. Answers {fate: ready, repeated, gone or unknown, tenant_id, file_id}. The service role''s.';
+
+
+--
 -- Name: file_purged(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6652,6 +6766,40 @@ COMMENT ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) IS 'A person
 
 
 --
+-- Name: file_sound_keep(uuid, uuid, text, jsonb, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_part not in ('words', 'note', 'none') then
+    raise exception 'A sound''s part is words, note or none.' using errcode = '22023';
+  end if;
+  update public.files f
+     -- No sound at all is the platform's word on the file, and nothing else is heard of it.
+     set sound = case
+                   when p_part = 'none' then jsonb_build_object('none', true)
+                   else ((coalesce(f.sound, '{}'::jsonb) - 'none')
+                         || jsonb_build_object(p_part, p_value))
+                        || jsonb_build_object('heard_by', coalesce(f.sound -> 'heard_by', '{}'::jsonb)
+                                                          || jsonb_build_object(p_part, p_by))
+                 end,
+         sound_said = coalesce(nullif(p_said, ''), f.sound_said),
+         updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.removed_at is null;
+end $$;
+
+
+--
+-- Name: FUNCTION file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) IS 'One part of what was heard of a video (00556): its words, the note on how it sounds, or that it has no sound, with the model that heard it. The service role''s.';
+
+
+--
 -- Name: file_start(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6683,6 +6831,93 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the settings permission, the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
+
+
+--
+-- Name: file_upload_lapsed(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with lapsed as (
+    update public.files f set removed_at = now(), updated_at = now()
+     where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
+       and f.removed_at is null
+    returning f.id
+  )
+  select exists (select 1 from lapsed);
+$$;
+
+
+--
+-- Name: FUNCTION file_upload_lapsed(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) IS 'A video whose bytes never arrived, a day on (00556): removed, so the purge lets its reservation and its row go. Answers whether it was such a video. Its fingerprint is not let go: a person may add it again.';
+
+
+--
+-- Name: file_video_begin(uuid, uuid, text, text, text, bigint, text, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_twin   uuid;
+  v_status text;
+  v_held   text;
+  v_used   numeric;
+begin
+  -- One at a time, as every door that names or files takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer, with the reservation the row holds, which may not be this one.
+  select f.media_ref into v_held from public.files f where f.tenant_id = p_tenant_id and f.id = p_id;
+  if found then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id, 'media_ref', v_held);
+  end if;
+  -- The same clip twice is one file: the one already here, which a person may still be waiting to see.
+  select f.id, f.media_status into v_twin, v_status from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found and v_status is distinct from 'uploading' then
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin);
+  end if;
+  -- One whose bytes never all went, picked again where its upload could not go on: this one takes its place, and the purge
+  -- lets the other's reservation go.
+  if found then
+    update public.files f set removed_at = now(), updated_at = now() where f.id = v_twin;
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_twin, 'why', 'remove'));
+  end if;
+  -- contracts FILES_MAX.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  -- contracts FILE_VIDEO_MINUTES_MAX: what is kept and what is on its way, together.
+  select coalesce(sum(f.seconds), 0) into v_used from public.files f
+   where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed';
+  if v_used + coalesce(p_seconds, 0) > 60 * 60 then
+    return jsonb_build_object('fate', 'minutes', 'file_id', null);
+  end if;
+  insert into public.files (id, tenant_id, status, source, name, mime, bytes, fingerprint, kind, media_ref, media_status,
+                            seconds, created_by)
+  values (p_id, p_tenant_id, 'filed', 'upload', public.file_free_name(p_tenant_id, p_name), p_mime, p_bytes,
+          p_fingerprint, 'video', p_media_ref, 'uploading', p_seconds, p_actor);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'source', 'upload', 'kind', 'video', 'by', p_actor));
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, full or minutes, file_id}. The service role''s.';
 
 
 --
@@ -34903,9 +35138,9 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_model_check CHECK (((char_length(model) >= 1) AND (char_length(model) <= 80))),
     CONSTRAINT ai_usage_outcome_check CHECK ((outcome = ANY (ARRAY['answered'::text, 'fell_back'::text, 'refused'::text, 'rejected'::text, 'unreachable'::text, 'unreadable'::text]))),
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
-    CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
+    CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text, 'google'::text, 'elevenlabs'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'file_words'::text, 'file_hear'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -36160,10 +36395,22 @@ CREATE TABLE public.files (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     made jsonb,
+    kind text DEFAULT 'image'::text NOT NULL,
+    media_ref text,
+    media_status text,
+    media_error text,
+    ready_at timestamp with time zone,
+    seconds numeric(8,2),
+    sound jsonb,
+    sound_said text,
+    CONSTRAINT files_kind_check CHECK ((kind = ANY (ARRAY['image'::text, 'video'::text]))),
     CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
-    CONSTRAINT files_mime_check CHECK ((mime = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text, 'image/heic'::text, 'image/heif'::text]))),
+    CONSTRAINT files_media_shape CHECK ((((kind = 'image'::text) AND (media_ref IS NULL) AND (media_status IS NULL)) OR ((kind = 'video'::text) AND (media_ref IS NOT NULL) AND (media_status IS NOT NULL)))),
+    CONSTRAINT files_media_status_check CHECK ((media_status = ANY (ARRAY['uploading'::text, 'processing'::text, 'ready'::text, 'failed'::text]))),
+    CONSTRAINT files_mime_check CHECK ((mime = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text, 'image/heic'::text, 'image/heif'::text, 'video/mp4'::text, 'video/quicktime'::text, 'video/webm'::text]))),
     CONSTRAINT files_name_shape CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60) AND (name = lower(name)) AND (name !~ '[[:space:][:cntrl:]/\\.<>"''&]'::text) AND (name !~ '^-|-$|--'::text))),
     CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
+    CONSTRAINT files_sound_said_shape CHECK (((sound_said IS NULL) OR ((char_length(sound_said) >= 1) AND (char_length(sound_said) <= 120)))),
     CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'made'::text]))),
     CONSTRAINT files_status_check CHECK ((status = ANY (ARRAY['inbox'::text, 'filed'::text, 'set_aside'::text]))),
     CONSTRAINT files_who_in_it_check CHECK ((who_in_it = ANY (ARRAY['not_asked'::text, 'no_one'::text, 'agreed'::text])))
@@ -36280,6 +36527,62 @@ COMMENT ON COLUMN public.files.removed_at IS 'A person removed it: hidden at onc
 --
 
 COMMENT ON COLUMN public.files.made IS 'How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the service role.';
+
+
+--
+-- Name: COLUMN files.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.kind IS 'image or video (00556). A video is kept by the video platform; its folder holds only what is made of it.';
+
+
+--
+-- Name: COLUMN files.media_ref; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.media_ref IS 'A video''s id at the video platform (00556): what its webhook names it by. Service role only, never shown to a member or the model.';
+
+
+--
+-- Name: COLUMN files.media_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.media_status IS 'Where a video stands (00556): uploading (no page or Ask counts it yet), processing, ready, failed. Null for a picture.';
+
+
+--
+-- Name: COLUMN files.media_error; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.media_error IS 'Why the video platform could not prepare it, in its own code. Service role only.';
+
+
+--
+-- Name: COLUMN files.ready_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.ready_at IS 'When the video became playable.';
+
+
+--
+-- Name: COLUMN files.seconds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.seconds IS 'A video''s length in seconds: the browser''s word until the platform says its own.';
+
+
+--
+-- Name: COLUMN files.sound; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.sound IS 'What was heard of a video (contracts files/sound.ts FileSound): its words, the note on how it sounds, or that it has none, each part naming the model that heard it. Written only by file_sound_keep.';
+
+
+--
+-- Name: COLUMN files.sound_said; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.sound_said IS 'A video''s sound in a few words, for the list (contracts soundSaidOf). Written only by file_sound_keep.';
 
 
 --
@@ -42061,6 +42364,20 @@ CREATE INDEX files_look_again ON public.files USING btree (looked_at) WHERE ((re
 
 
 --
+-- Name: files_media_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX files_media_ref ON public.files USING btree (media_ref) WHERE (media_ref IS NOT NULL);
+
+
+--
+-- Name: files_media_waiting; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_media_waiting ON public.files USING btree (updated_at) WHERE (media_status = ANY (ARRAY['uploading'::text, 'processing'::text]));
+
+
+--
 -- Name: files_newest; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -45214,7 +45531,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.escalations REFERENC
 -- Name: files workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at, media_status, sound_said ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at) OR (old.media_status IS DISTINCT FROM new.media_status) OR (old.sound_said IS DISTINCT FROM new.sound_said))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -50197,6 +50514,31 @@ GRANT ALL ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text,
 
 
 --
+-- Name: FUNCTION file_media_failed(p_media_ref text, p_error text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_media_failed(p_media_ref text, p_error text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_media_failed(p_media_ref text, p_error text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_media_processing(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) TO service_role;
+
+
+--
 -- Name: FUNCTION file_purged(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50214,12 +50556,36 @@ GRANT ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) TO service
 
 
 --
+-- Name: FUNCTION file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) TO service_role;
+
+
+--
 -- Name: FUNCTION file_start(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_upload_lapsed(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) TO service_role;
 
 
 --
@@ -55401,6 +55767,48 @@ GRANT SELECT(created_at) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT(updated_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(kind) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.media_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(media_status) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.ready_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(ready_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.seconds; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(seconds) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.sound; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(sound) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.sound_said; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(sound_said) ON TABLE public.files TO authenticated;
 
 
 --

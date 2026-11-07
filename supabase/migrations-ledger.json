@@ -559,6 +559,7 @@
     "00553_what_ask_makes_is_a_file.sql": "4eff49643f571039d5b42b0d27026da8f3f5d850b82fa27fb79b1cad9ef5ccc9",
     "00554_leads_is_read_through_one_door.sql": "ce480b88b3b4e6b6b9fcc32e709fd36da6f4b166615abdf49230bddcc3859815",
     "00555_a_line_given_back_takes_its_token_with_it.sql": "cae1c121cd2928c2c9d02559aa35dbeb0cc3cd06547af35c3f3048dc949456bc",
+    "00556_a_business_keeps_its_videos.sql": "007e054cac349ba553c33e4858047fa7e84633ebfbd602c4119efc3139a77073",
     "00557_every_link_between_tables_has_an_index.sql": "76a6636631a00f8b762cafc32dfe86bbf5885e19751c0634529756dd1f478df7",
     "00558_a_message_s_sender_is_indexed.sql": "1c090cda009ba3fd302cd5b1cb980bb0a3fc46e005f4cb7b689720485b125cfd",
     "00559_a_call_s_channel_is_indexed.sql": "3b7c145406e662ab4f92e9e133e5a0fb351a64cef08938f7853284601696d71d",

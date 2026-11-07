@@ -269,6 +269,27 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "video_preview",
+    mechanism: "workspace_feature",
+    does: "A business's videos (decision 0099, stage B) taken in this workspace: Add offers videos, the page draws them, and Ask sees and hears them. Off, Files is a photo library as before.",
+    owner: "Ruben",
+    sunset: "2026-12-15",
+  },
+  {
+    name: "VIDEO_WORDS_MODEL",
+    mechanism: "edge_env",
+    does: "Where a video's words come from: gemini (one call on the ear's model, the words and the note together) or scribe (ElevenLabs Scribe v2); empty is gemini.",
+    owner: "Ruben",
+    sunset: "2026-12-15",
+  },
+  {
+    name: "VIDEO_EAR_MODEL",
+    mechanism: "edge_env",
+    does: "The Gemini model that hears how a video sounds, and answers Ask's questions about it: any id that reads as a Gemini model's; empty is gemini-3.5-flash-lite.",
+    owner: "Ruben",
+    sunset: "2026-12-15",
+  },
+  {
     name: "ads_preview",
     mechanism: "workspace_feature",
     does: "Campaigns › Ads (its page, its Reports lens, Ad accounts in Connections) drawn in this workspace before the Ads read is wired (0049): it opens on what is true, nothing connected and its own counts, and its sample is a press away.",

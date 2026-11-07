@@ -55,6 +55,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 /** One copy's delete at Anthropic: a small call, with room for a slow answer. */
 const ANTHROPIC_CALL_MS = 10_000;
+/** One video's delete at Stream: the same. */
+const STREAM_CALL_MS = 10_000;
 
 /**
  * Every table carrying a tenant_id, derived from the migrations. Pinned here
@@ -408,6 +410,19 @@ async function main() {
     orphans.push(
       `${copies.length} copies of its pictures at Anthropic, which last up to 90 days. Set ANTHROPIC_API_KEY for this run to delete them, or delete them there by the ids in the backup.`,
     );
+  // Its videos (00556) are kept by Cloudflare Stream, by the ids on their rows: deleted there after the rows, which frees the
+  // account's minutes at once. Without Stream's account and token for this run they stay there, billed, until deleted by hand.
+  const videos = (byTable.get("files") ?? []).map((f) => f.media_ref).filter((id) => typeof id === "string" && id);
+  const streamAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const streamToken = process.env.CLOUDFLARE_STREAM_API_TOKEN;
+  if (videos.length)
+    console.log(
+      `  ${"videos at Stream".padEnd(22)} ${String(videos.length).padStart(6)}   deleted there after the rows`,
+    );
+  if (videos.length && !(streamAccount && streamToken))
+    orphans.push(
+      `${videos.length} videos at Cloudflare Stream, billed by the minute until deleted. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN for this run to delete them, or delete them there by the ids in the backup (files.media_ref).`,
+    );
 
   if (orphans.length) {
     console.log(`\nWOULD BE STRANDED OUTSIDE THE DATABASE (${orphans.length}):`);
@@ -487,6 +502,26 @@ async function main() {
     console.log(`deleted ${copies.length - stayed} of ${copies.length} copies at Anthropic`);
     if (stayed) {
       console.error(`${stayed} copies stayed at Anthropic: delete them there by the ids in the backup.`);
+      process.exitCode = 1;
+    }
+  }
+
+  if (videos.length && streamAccount && streamToken) {
+    let stayed = 0;
+    for (const id of videos) {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(streamAccount)}/stream/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: { authorization: `Bearer ${streamToken}` },
+          signal: AbortSignal.timeout(STREAM_CALL_MS),
+        },
+      ).catch(() => null);
+      if (!res?.ok && res?.status !== 404) stayed++;
+    }
+    console.log(`deleted ${videos.length - stayed} of ${videos.length} videos at Stream`);
+    if (stayed) {
+      console.error(`${stayed} videos stayed at Stream: delete them there by the ids in the backup (files.media_ref).`);
       process.exitCode = 1;
     }
   }

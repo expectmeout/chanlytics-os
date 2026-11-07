@@ -307,6 +307,20 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id"],
     never: [],
   },
+  // A video made ready one step a run (00556): its sheet, its sound, its words, its note, its look. Each step is written to be
+  // run again and asks one provider at a time, the longest an ear's answer on a ten-minute clip; a throw comes back two minutes
+  // on (the audio not made yet, an ear down), and a step still undone a day on is the sweep's. Its row stops saying Looking
+  // when its last try fails (settle.ts settleVideoDigest).
+  video_digest: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 38 * SECOND_MS,
+    ids: ["file_id", "step"],
+    never: [],
+  },
   // The ledger's own proof that it runs (00526): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,

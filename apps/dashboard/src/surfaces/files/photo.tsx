@@ -8,15 +8,18 @@
  *
  * While Ask looks at a photo its three stand in the corner of the tile, the colour they are whenever Ask is working, and go as the name
  * it gave arrives. Still, since a page of them moving at once would be a page that never settles: the head says how many are left.
+ *
+ * A video (stage B) is its poster, its length in a corner, once it is ready; until then its ground says it is being made ready,
+ * and one Stream could not read says so, for its owner to delete. On its way it draws no picture of its own: an <img> cannot.
  */
 import { useCallback, useEffect, useState } from "react";
-import { FILE_WORDS as W, fileSaidOf, fileViewOf, uploadNameOf, type FileDto } from "@chanlytics/contracts";
+import { FILE_WORDS as W, clockOf, fileSaidOf, fileViewOf, uploadNameOf, type FileDto } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Meter } from "../kit/meter/meter";
 import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { Press } from "../kit/press";
 import type { FrameFlash } from "../frame-verbs";
-import { serverPictureIn, takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
+import { isVideoFile, serverPictureIn, takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
 
 /** A photo's small picture on the grid. */
 const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
@@ -98,6 +101,36 @@ function AskLooking({ looking, coming = false }: { looking: boolean; coming?: bo
   );
 }
 
+/** A video's ground while it is not ready, in words: being made ready, or not to be. */
+function VideoWaits({ failed, name }: { failed: boolean; name: string }) {
+  const words = failed ? W.video.notPrepared : W.video.gettingReady;
+  return (
+    <span
+      className="files-pic files-unseen"
+      role="img"
+      aria-label={`${name}: ${words}`}
+      data-testid={failed ? "fl-video-failed" : "fl-video-waits"}
+    >
+      {words}
+    </span>
+  );
+}
+
+/** A video on the grid: its poster and its length once it is ready, its state in words until then. */
+function VideoFrame({ file, name }: { file: FileDto; name: string }) {
+  if (file.media_status !== "ready") return <VideoWaits failed={file.media_status === "failed"} name={name} />;
+  return (
+    <>
+      <Picture src={smallPictureOf(file.id)} alt={file.line ?? name} name={name} />
+      {file.seconds !== null && (
+        <span className="files-length" data-testid="fl-length">
+          {clockOf(file.seconds)}
+        </span>
+      )}
+    </>
+  );
+}
+
 export /** One photo on the grid: the picture, and the name it goes by, which the look changes under the eye. */
 function Photo({ file, onOpen }: { file: FileDto; onOpen: () => void }) {
   const name = fileSaidOf(file.name);
@@ -105,8 +138,12 @@ function Photo({ file, onOpen }: { file: FileDto; onOpen: () => void }) {
   return (
     <Press className="files-photo" onClick={onOpen} data-testid="fl-tile">
       <span className="files-frame">
-        <Picture src={smallPictureOf(file.id)} alt={file.line ?? name} name={name} />
-        <AskLooking looking={file.look_status === "waiting"} />
+        {file.kind === "video" ? (
+          <VideoFrame file={file} name={name} />
+        ) : (
+          <Picture src={smallPictureOf(file.id)} alt={file.line ?? name} name={name} />
+        )}
+        <AskLooking looking={file.look_status === "waiting" && file.media_status !== "failed"} />
       </span>
       <span ref={nameFades} className="files-name">
         {name}
@@ -144,7 +181,8 @@ function FailedPhoto({ photo, flash }: { photo: SendingPhoto; flash: (f: FrameFl
 function OnItsWay({ photo, onOpen }: { photo: SendingPhoto; onOpen: (id: string) => void }) {
   const { key, id, file, picture, sent, state } = photo;
   const ownPictureDone = useCallback(() => serverPictureIn(key), [key]);
-  const name = fileSaidOf(uploadNameOf(file.name));
+  const video = isVideoFile(file);
+  const name = fileSaidOf(uploadNameOf(file.name, video ? "video" : "image"));
   const percent = Math.round((sent ?? 0) * 100);
   const progress = state === "waiting" ? W.waitingToSend : W.sentSoFar(percent);
   return (
@@ -158,7 +196,11 @@ function OnItsWay({ photo, onOpen }: { photo: SendingPhoto; onOpen: (id: string)
     >
       <span className="files-frame">
         {picture ? <Picture key="own" src={picture} alt="" name="" /> : !id && <span className="files-pic" />}
-        {id && <Picture key="server" src={smallPictureOf(id)} alt="" name="" eager onArrived={ownPictureDone} />}
+        {/* A video that has gone is being made ready: its poster is not there yet, so its ground says so. */}
+        {id && video && <VideoWaits failed={false} name={name} />}
+        {id && !video && (
+          <Picture key="server" src={smallPictureOf(id)} alt="" name="" eager onArrived={ownPictureDone} />
+        )}
         {sent !== null && (
           <Meter
             className="files-sent"

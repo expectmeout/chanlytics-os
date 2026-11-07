@@ -1,6 +1,8 @@
 /** Files: views. */
 
+import type { FileKind, FileMediaStatus } from "./kinds";
 import type { PostPlan } from "./post";
+import type { FileSound } from "./sound";
 import {
   FILE_NAME_MAX,
   FILE_SHOWS,
@@ -36,8 +38,9 @@ export function fileNameOf(text: string, words?: number): string {
   return Array.from(sentence).slice(0, FILE_NAME_MAX).join("").replace(/-+$/, "");
 }
 
-/** What an upload goes by until the look names it: what the file was called, or a photo where that says nothing. */
-export const uploadNameOf = (fileName: string): string => fileNameOf(fileName) || "photo";
+/** What an upload goes by until the look names it: what the file was called, or a photo (a video) where that says nothing. */
+export const uploadNameOf = (fileName: string, kind: FileKind = "image"): string =>
+  fileNameOf(fileName) || (kind === "video" ? "video" : "photo");
 
 /** What a post goes by: its line, shortened as a name. */
 export const postNameOf = (line: string): string => fileNameOf(line, 5) || "post";
@@ -51,12 +54,20 @@ export function fileSaidOf(name: string): string {
 /** A file as the page and Ask read it. Nothing here is a provider's or a storage path. */
 export interface FileDto {
   id: string;
+  /** A picture, or a video. */
+  kind: FileKind;
   status: FileStatus;
   source: FileSource;
   name: string;
   bytes: number;
   width: number | null;
   height: number | null;
+  /** A video's length, once the video platform has it; null for a picture. */
+  seconds: number | null;
+  /** Where a video stands (FILE_MEDIA_STATUSES); null for a picture. */
+  media_status: FileMediaStatus | null;
+  /** What a video's sound is, in a few words (sound.ts soundSaidOf: "Spanish, 2 voices, music"); null until it was heard. */
+  sound_said: string | null;
   shows: FileShows | null;
   who_in_it: FileWhoInIt;
   /** Who the look counted; null until it has, or where it could not say. */
@@ -75,6 +86,8 @@ export interface FilesTally {
   /** Every file still here, on any shelf. */
   total: number;
   kept: number;
+  /** Of what is kept, how many are videos: the rest are pictures. */
+  videos: number;
   waiting: number;
   looking: number;
   shelves: Partial<Record<Exclude<FileShelf, "all">, number>>;
@@ -110,6 +123,8 @@ export interface FileRecordDto {
   made: FileMade | null;
   /** Whether it can go on Google, and whether it is there. */
   google: { connected: boolean; posted: FilePosted | null } | null;
+  /** A video's: what was heard of it (sound.ts), each part named by who heard it. Absent on a picture. */
+  sound?: FileSound;
 }
 
 /** The most words a post on Google may carry (localPosts.create). */
@@ -215,7 +230,10 @@ export function shelfFilterOf(shelf: FileShelf): FileShelfFilter {
 
 /** How the library stands, from what each file says of itself. */
 export function filesTallyOf(
-  files: readonly (Pick<FileDto, "status" | "shows" | "look_status"> & { source?: FileSource | undefined })[],
+  files: readonly (Pick<FileDto, "status" | "shows" | "look_status"> & {
+    source?: FileSource | undefined;
+    kind?: FileKind | undefined;
+  })[],
 ): FilesTally {
   const shelves: FilesTally["shelves"] = {};
   for (const f of files) {
@@ -225,6 +243,7 @@ export function filesTallyOf(
   return {
     total: files.length,
     kept: files.filter((f) => f.status === "filed").length,
+    videos: files.filter((f) => f.status === "filed" && f.kind === "video").length,
     waiting: files.filter((f) => f.status === "inbox").length,
     looking: files.filter((f) => f.look_status === "waiting").length,
     shelves,

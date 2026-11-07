@@ -20,6 +20,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const sharp = createRequire(path.join(ROOT, "apps/dashboard/package.json"))("sharp");
 
 let edge = async () => new Response("{}", { status: 500 });
+let ear = async () => new Response("{}", { status: 500 });
 const asked = [];
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
@@ -28,6 +29,11 @@ globalThis.fetch = async (input, init) => {
     const body = JSON.parse(init.body);
     asked.push(body);
     return edge(body);
+  }
+  if (url.includes("/api/admin/files/listen")) {
+    const body = JSON.parse(init.body);
+    asked.push(body);
+    return ear(body);
   }
   return realFetch(input, init);
 };
@@ -42,7 +48,7 @@ const { resultBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 const { fileIndexLineOf, fileWhoSaid, filesLineOf } = await import(at("apps/dashboard/src/server/files/line.ts"));
-const { boxShown, zoomSizeOf } = await import(at("apps/dashboard/src/server/files/zoom.ts"));
+const { boxShown, zoomSizeOf } = await import(at("packages/contracts/src/files/zoom.ts"));
 
 beforeEach(() => {
   readerCache.clear();
@@ -445,4 +451,173 @@ test("a zoom of a file that is not there, or whose copy the edge can't say the s
 test("get says the photo's size", async () => {
   const out = await tool([row(1)], { action: "get", name: "photo-1" });
   assert.deepEqual(JSON.parse(out.result).size, [1200, 900]);
+});
+
+/* -------------------------------------------------------------------------------------------- a video (stage B) -- */
+
+const NO_SOUND = { none: true };
+const SAID = {
+  words: {
+    language: "es",
+    voices: 2,
+    text: "Hola bienvenidos Gracias",
+    cues: [
+      { start: 0.2, end: 1.1, voice: 1, text: "Hola bienvenidos" },
+      { start: 3, end: 3.5, voice: 2, text: "Gracias" },
+    ],
+    events: [],
+  },
+  note: {
+    speech: true,
+    language: "es",
+    voices: [{ voice: 1, tone: "warm", pace: "steady" }],
+    music: { present: true, kind: "pop", mood: "bright", tempo: null },
+    sounds: [],
+    feel: "A friendly welcome.",
+    unsure: null,
+  },
+  heard_by: { words: { model: "gemini-3.5-flash-lite", at: "2026-11-07T00:00:00Z" } },
+};
+const clip = (n, over = {}) =>
+  row(n, {
+    name: `salon-tour-${n}`,
+    mime: "video/mp4",
+    kind: "video",
+    width: 1920,
+    height: 1080,
+    seconds: 24,
+    media_status: "ready",
+    sound_said: "Spanish, 2 voices, music",
+    sound: SAID,
+    look: { ...row(n).look, line: "A walk through the salon.", subject: null, poster_at: 4.25 },
+    ...over,
+  });
+const json200 = (body) =>
+  new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
+test("a video opens as its sheet, named a video of its length, with how its frames lie and what was heard after it", async () => {
+  edge = async ({ ids }) =>
+    json200({ ok: true, copies: ids.map((id) => ({ id, file_id: "file_sheet", width: 2576, height: 1449 })) });
+  const out = await tool([clip(1)], { action: "view", names: ["salon-tour-1"] });
+  assert.equal(out.isError, false, out.result);
+  const [picture] = out.pictures;
+  assert.equal(picture.fileId, "file_sheet");
+  assert.equal(picture.what, "The file salon-tour-1, a video of 0:24");
+  assert.match(picture.after, /^48 frames left to right, top to bottom, one every 0\.5 s/);
+  assert.match(picture.after, /What is said, transcribed by another model \(Spanish, 2 voices\):/);
+  assert.match(picture.after, /Voice 2: Gracias/);
+  assert.match(picture.after, /A friendly welcome\./);
+  assert.match(picture.after, /You did not hear this clip yourself/);
+  assert.equal(JSON.parse(out.result).shown[0].video, "0:24");
+  const [block] = resultBlocks([
+    { block: { id: "c" }, out: { result: out.result, isError: false, pictures: out.pictures } },
+  ]);
+  const blocks = block.content;
+  const texts = blocks.filter((b) => b.type === "text").map((b) => b.text);
+  assert.ok(texts.includes("The file salon-tour-1, a video of 0:24 (2576×1449):"), "named just before its picture");
+  assert.equal(blocks.at(-1).type, "text", "and what was heard after it");
+});
+
+test("a video still being prepared, or one that could not be, is not opened, and says which", async () => {
+  edge = async ({ ids }) =>
+    json200({ ok: true, copies: ids.map((id) => ({ id, file_id: "file_x", width: 10, height: 10 })) });
+  const out = await tool([clip(1, { media_status: "processing" }), clip(2, { media_status: "failed" })], {
+    action: "view",
+    names: ["salon-tour-1", "salon-tour-2"],
+  });
+  const said = JSON.parse(out.result);
+  assert.match(said.not_ready[0], /salon-tour-1 is still being prepared/);
+  assert.match(said.not_ready[1], /salon-tour-2 could not be prepared/);
+  assert.deepEqual(out.pictures ?? [], []);
+  assert.ok(!asked.some((a) => a.ids?.length), "the edge is not asked for what is not ready");
+});
+
+test("zoom at a moment opens it whole; with a box, a box of it; from and to, a stretch; each named as what it is", async () => {
+  edge = async (body) =>
+    json200({
+      ok: true,
+      copies: [],
+      moments: body.moments.map((m) =>
+        m.from !== undefined
+          ? {
+              key: m.key,
+              file_id: "file_span",
+              width: 2576,
+              height: 1100,
+              from: m.from,
+              to: m.to,
+              step: 1.25,
+              frames: 24,
+            }
+          : m.box
+            ? { key: m.key, file_id: "file_box", width: 1000, height: 500, box: m.box, of: m.of }
+            : { key: m.key, file_id: "file_moment", width: 2576, height: 1449 },
+      ),
+    });
+  const moment = await tool([clip(1)], { action: "zoom", name: "salon-tour-1", at: "0:12" });
+  assert.equal(moment.pictures[0].what, "The file salon-tour-1, a video, its frame at 0:12");
+  assert.deepEqual(asked.at(-1).moments, [{ key: "one", id: ID(1), at: 12 }]);
+  const box = await tool([clip(1)], { action: "zoom", name: "salon-tour-1", at: 12, box: [100, 100, 400, 300] });
+  assert.deepEqual(asked.at(-1).moments[0].of, [1920, 1080], "the box is in the pixels the moment was shown at");
+  assert.deepEqual(box.pictures[0].zoom, { box: [100, 100, 400, 300], of: [1920, 1080] });
+  const span = await tool([clip(1)], { action: "zoom", name: "salon-tour-1", from: "0:10", to: "0:20" });
+  assert.equal(span.pictures[0].what, "The file salon-tour-1, a video, from 0:10 to 0:20");
+  assert.match(span.pictures[0].after, /^24 frames left to right, top to bottom, one every 1\.25 s/);
+});
+
+test("a zoom that asks the wrong thing of a kind is refused in words", async () => {
+  edge = async () => json200({ ok: true, copies: [] });
+  const ask = async (files, input) => JSON.parse((await tool(files, input)).result).error;
+  assert.match(
+    await ask([clip(1)], { action: "zoom", name: "salon-tour-1", box: [0, 0, 10, 10] }),
+    /open it with zoom at first/,
+  );
+  assert.match(await ask([clip(1)], { action: "zoom", name: "salon-tour-1" }), /name a moment/);
+  assert.match(await ask([clip(1)], { action: "zoom", name: "salon-tour-1", at: "0:40" }), /0:24 long/);
+  assert.match(await ask([clip(1)], { action: "zoom", name: "salon-tour-1", at: "soon" }), /M:SS/);
+  assert.match(await ask([row(1)], { action: "zoom", name: "photo-1", at: "0:01" }), /is a photo: name a box alone/);
+  assert.match(await ask([row(1)], { action: "zoom", name: "photo-1" }), /name the box to cut/);
+});
+
+test("listen puts Ask's question to the ear, and its answer comes back fenced as another model's", async () => {
+  ear = async () =>
+    json200({ ok: true, answer: "The voice sounds sure and warm at 0:20.", model: "gemini-3.5-flash-lite" });
+  const out = await tool([clip(1)], {
+    action: "listen",
+    name: "salon-tour-1",
+    question: "Does she sound sure?",
+    from: "0:18",
+    to: "0:24",
+  });
+  const said = JSON.parse(out.result);
+  assert.match(said.answer, /^An ear's answer, not yours/);
+  assert.match(said.answer, /The voice sounds sure and warm at 0:20\./);
+  assert.equal(said.heard_by, "gemini-3.5-flash-lite");
+  assert.deepEqual(asked.at(-1), { tenant_id: A, id: ID(1), question: "Does she sound sure?", from: 18, to: 24 });
+  ear = async () => json200({ ok: true, wont: "the clip has no sound" });
+  const quiet = JSON.parse(
+    (await tool([clip(1, { sound: NO_SOUND })], { action: "listen", name: "salon-tour-1", question: "q" })).result,
+  );
+  assert.match(quiet.error, /the clip has no sound/);
+  const photo = JSON.parse((await tool([row(1)], { action: "listen", name: "photo-1", question: "q" })).result);
+  assert.match(photo.error, /is a photo: it has no sound/);
+});
+
+test("get says a video's length and what was heard, the ears' words fenced, and that Ask did not hear it", async () => {
+  const said = JSON.parse((await tool([clip(1)], { action: "get", name: "salon-tour-1" })).result);
+  assert.equal(said.video, "0:24");
+  assert.equal(said.sound, "Spanish, 2 voices, music");
+  assert.match(said.what_is_said, /Hola bienvenidos/);
+  assert.match(said.how_it_sounds, /A friendly welcome\./);
+  assert.deepEqual(said.heard_by, { words: "gemini-3.5-flash-lite" });
+  assert.match(said.you, /You did not hear this clip yourself/);
+  assert.equal(said.subject, undefined, "a video has no box of its own");
+  const none = JSON.parse((await tool([clip(1, { sound: NO_SOUND })], { action: "get", name: "salon-tour-1" })).result);
+  assert.equal(none.sound, "it has no sound");
+});
+
+test("a list's line says a video's length and its sound, and finds it by what it says", async () => {
+  const said = JSON.parse((await tool([clip(1), row(2)], { action: "list", about: "spanish" })).result);
+  assert.deepEqual(said.files.length, 1);
+  assert.match(said.files[0], /^salon-tour-1 · place · video 0:24 · Spanish, 2 voices, music/);
 });

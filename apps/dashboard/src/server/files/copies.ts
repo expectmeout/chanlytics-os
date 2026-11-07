@@ -79,6 +79,62 @@ export async function listFileCopiesOf(
   return out;
 }
 
+/** A video's moment as Ask asks for it: one moment, a box of one (in the pixels that moment was shown at), or a stretch. */
+type MomentAsked =
+  | { id: string; at: number; box?: readonly [number, number, number, number]; of?: readonly [number, number] }
+  | { id: string; from: number; to: number };
+
+/** A moment drawn by the edge and held for the turn: its copy, and what it was drawn as; or the words that say why not. */
+type MomentDrawn =
+  | (FileCopy & {
+      box: readonly [number, number, number, number] | null;
+      of: readonly [number, number] | null;
+      from: number | null;
+      to: number | null;
+      step: number | null;
+      frames: number | null;
+    })
+  | { wont: string };
+
+const numberOr = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+/** `n` numbers, or null. */
+const numbersOr = (v: unknown, n: number): number[] | null =>
+  Array.isArray(v) && v.length === n && v.every((x): x is number => typeof x === "number") ? v : null;
+const pairOr = (v: unknown): readonly [number, number] | null => {
+  const n = numbersOr(v, 2);
+  return n ? [n[0] ?? 0, n[1] ?? 0] : null;
+};
+const boxOr = (v: unknown): readonly [number, number, number, number] | null => {
+  const n = numbersOr(v, 4);
+  return n ? [n[0] ?? 0, n[1] ?? 0, n[2] ?? 0, n[3] ?? 0] : null;
+};
+
+/**
+ * A video's moment, drawn on the edge (where Stream's keys are) and held at Anthropic for a day, as a zoom of a photo is. Never a
+ * failed turn: what could not be drawn is said in words.
+ */
+export async function drawVideoMoment(
+  member: Who,
+  moment: MomentAsked,
+  leftMs: number = COPIES_MS,
+): Promise<MomentDrawn> {
+  const reply = await copiesDoor(member, { moments: [{ key: "one", ...moment }] }, leftMs);
+  const row = Array.isArray(reply?.moments) ? recordOrNull(reply.moments[0]) : null;
+  if (!row) return { wont: "it could not be drawn just now" };
+  if (typeof row.file_id !== "string")
+    return { wont: typeof row.wont === "string" ? row.wont : "it could not be drawn just now" };
+  return {
+    fileId: row.file_id,
+    ...sizeOf(row),
+    box: boxOr(row.box),
+    of: pairOr(row.of),
+    from: numberOr(row.from),
+    to: numberOr(row.to),
+    step: numberOr(row.step),
+    frames: numberOr(row.frames),
+  };
+}
+
 /** A picture made here, held at Anthropic for a day, or null where it could not be: said in words then, never a failed turn. */
 export async function findPictureCopy(
   person: Who,

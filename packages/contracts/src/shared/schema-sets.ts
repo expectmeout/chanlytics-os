@@ -38,7 +38,8 @@ import type {
 } from "./enums";
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
 import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
-import type { MODEL_PORTS, MODEL_PURPOSES } from "../ai/models/routes";
+import type { AI_USAGE_PORTS, AI_USAGE_PURPOSES } from "../ai/hearing";
+import type { FILE_KINDS, FILE_MEDIA_STATUSES } from "../files/kinds";
 import type {
   FILE_LOOK_STATUSES,
   FILE_MIMES,
@@ -139,16 +140,19 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PARTNER_EARNING_STATES>, SchemaSet<"partner_earnings.state">>>,
   Holds<Exactly<Of<typeof PARTNER_REVERSAL_KINDS>, SchemaSet<"partner_reversals_waiting.kind">>>,
 
-  // The model ledger (00273, 00275): why the key was spent, what came of the call, and the port it left by.
-  Holds<Exactly<Of<typeof MODEL_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
+  // The model ledger (00273, 00275): why the key was spent, what came of the call, and the port it left by; the hearing
+  // models' purposes and ports beside Anthropic's (00556, ai/hearing.ts).
+  Holds<Exactly<Of<typeof AI_USAGE_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
   Holds<Exactly<Of<typeof MODEL_CALL_OUTCOMES>, SchemaSet<"ai_usage.outcome">>>,
-  Holds<Exactly<Of<typeof MODEL_PORTS>, SchemaSet<"ai_usage.port">>>,
+  Holds<Exactly<Of<typeof AI_USAGE_PORTS>, SchemaSet<"ai_usage.port">>>,
 
   // Whom Anthropic is told a call is for (00544, decision 0097).
   Holds<Exactly<Of<typeof ANTHROPIC_PROFILE_KINDS>, SchemaSet<"anthropic_profiles.kind">>>,
   Holds<Exactly<Of<typeof ANTHROPIC_ENFORCEMENT_STATUSES>, SchemaSet<"anthropic_profiles.enforcement_status">>>,
 
-  // A business's files (00551, decision 0099).
+  // A business's files (00551, decision 0099), and its videos (00556).
+  Holds<Exactly<Of<typeof FILE_KINDS>, SchemaSet<"files.kind">>>,
+  Holds<Exactly<Of<typeof FILE_MEDIA_STATUSES>, SchemaSet<"files.media_status">>>,
   Holds<Exactly<Of<typeof FILE_LOOK_STATUSES>, SchemaSet<"files.look_status">>>,
   Holds<Exactly<Of<typeof FILE_MIMES>, SchemaSet<"files.mime">>>,
   Holds<Exactly<Of<typeof FILE_SHOWS>, SchemaSet<"files.shows">>>,

@@ -38,7 +38,9 @@ import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { keepAnthropicProfiles } from "../ai/anthropic-profiles/keep.js";
 import { keepFilesMoving } from "../files/upkeep.js";
+import { watchStream } from "../files/video-watch.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
+import { errField } from "../shared/log.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/sources.js";
 import { listPausedJobKinds } from "@chanlytics/db/jobs";
 import { watchVoice } from "../voice/watch/voice-watch.js";
@@ -59,6 +61,24 @@ async function watchCampaignsDomain({ db, L }: Pick<SweepTick, "db" | "L">): Pro
     const page = describeCampaignsDomainTrouble(c.trouble, campaigns);
     await pageOperator({ db }, `campaigns_domain:${campaigns}`, page.subject, page.body);
   }
+}
+
+/**
+ * A kind an operator paused (decision 0089): its work waits, which is meant, and nobody should forget that it does. One page per
+ * kind per window while it holds; a read that fails is logged.
+ */
+async function pagePausedKinds({ db, L }: Pick<SweepTick, "db" | "L">): Promise<void> {
+  const paused = await listPausedJobKinds(db).catch((e: unknown) => {
+    L.error("sweep_health_paused_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    return [];
+  });
+  for (const k of paused)
+    await pageOperator(
+      { db },
+      `jobs_paused:${k.kind}`,
+      `${k.kind} is paused: its work waits`,
+      `Paused since ${k.paused_at}${k.paused_why ? ` (${k.paused_why})` : ""}. Nothing of it is claimed until it is resumed on the Console's Health, Background work.`,
+    );
 }
 
 export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
@@ -118,19 +138,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     );
   }
 
-  // A kind an operator paused (decision 0089): its work waits, which is meant, and nobody should forget that it does.
-  // One page per kind per window while it holds; a read that fails is logged.
-  const paused = await listPausedJobKinds(db).catch((e: unknown) => {
-    L.error("sweep_health_paused_unreadable", { error: e instanceof Error ? e.message : String(e) });
-    return [];
-  });
-  for (const k of paused)
-    await pageOperator(
-      { db },
-      `jobs_paused:${k.kind}`,
-      `${k.kind} is paused: its work waits`,
-      `Paused since ${k.paused_at}${k.paused_why ? ` (${k.paused_why})` : ""}. Nothing of it is claimed until it is resumed on the Console's Health, Background work.`,
-    );
+  await pagePausedKinds({ db, L });
 
   // WhatsApp messages that never heard back, in a workspace where nothing
   // else has been receipted since either: the webhook, not a phone. The page
@@ -165,8 +173,14 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const models = await watchModels(db);
   // Whom Anthropic is told a call is for (decision 0097): what it now says of each, and the profiles made and deleted.
   const profiles = await keepAnthropicProfiles(db);
-  // A business's files (decision 0099): a look worth trying again, and a removal that has not finished.
+  // A business's files (decision 0099): a look worth trying again, a removal that has not finished, and a video Stream has
+  // not answered for, or whose digest stopped short.
   const files = await keepFilesMoving(db);
+  // Stream's stored minutes against the account's allowance, paged from 80% (stage B).
+  const streamMinutes = await watchStream(db).catch((e: unknown) => {
+    L.error("stream_usage_unreadable", { error: errField(e) });
+    return null;
+  });
   // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
   // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
   const pinsGone = await watchLeadPins(db, leadSourceClient());
@@ -195,6 +209,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     anthropic_profiles_made: profiles.made,
     files_looked_again: files.looks,
     files_purged_again: files.purges,
+    videos_moved_again: files.videos,
+    stream_minutes: streamMinutes,
     lead_pins_gone: pinsGone,
     lead_prices_paged: pricesPaged,
     site_credits: siteCredits,

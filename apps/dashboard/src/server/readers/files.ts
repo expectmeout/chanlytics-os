@@ -33,12 +33,16 @@ export function fileDtoOf(fileMember: FileMemberRow): FileDto {
   const look = recordOrNull(fileMember.look);
   return {
     id: fileMember.id,
+    kind: fileMember.kind as FileDto["kind"],
     status: fileMember.status as FileDto["status"],
     source: fileMember.source as FileDto["source"],
     name: fileMember.name,
     bytes: fileMember.bytes,
     width: fileMember.width,
     height: fileMember.height,
+    seconds: fileMember.seconds,
+    media_status: fileMember.media_status as FileDto["media_status"],
+    sound_said: fileMember.sound_said,
     shows: fileMember.shows as FileDto["shows"],
     who_in_it: fileMember.who_in_it as FileDto["who_in_it"],
     people: filePeopleOf(look?.people),
@@ -81,7 +85,7 @@ export const filesForAsk: Reader<undefined, { files: FileForAsk[] }> = {
 /** What each file says of itself and no more: what Ask's line and a page's tally count, on every turn and every page. */
 export const filesTallied: Reader<
   undefined,
-  { files: Pick<FileDto, "status" | "shows" | "source" | "look_status" | "created_at">[] }
+  { files: Pick<FileDto, "status" | "shows" | "source" | "look_status" | "created_at" | "kind">[] }
 > = {
   name: "filesTallied",
   async read(rc) {
@@ -94,6 +98,7 @@ export const filesTallied: Reader<
           source: r.source as FileDto["source"],
           look_status: r.look_status as FileDto["look_status"],
           created_at: r.created_at,
+          kind: r.kind as FileDto["kind"],
         })),
       },
       rows: [],
