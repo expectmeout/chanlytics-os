@@ -5,11 +5,15 @@
  * A photo on its way is one tile from its turn to the list's: blank while it waits, its picture clearing as it goes, the server's coming
  * in over it as it arrives. It says nothing beneath itself, since the page's Add says how the whole batch stands; a screen reader is told
  * each by name. Every state is one size, so the grid never moves under it.
+ *
+ * While Ask looks at a photo its three stand in the corner of the tile, the colour they are whenever Ask is working, and go as the name
+ * it gave arrives. Still, since a page of them moving at once would be a page that never settles: the head says how many are left.
  */
 import { useCallback, useEffect, useState } from "react";
 import { FILE_WORDS as W, fileSaidOf, fileViewOf, uploadNameOf, type FileDto } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Meter } from "../kit/meter/meter";
+import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { Press } from "../kit/press";
 import type { FrameFlash } from "../frame-verbs";
 import { serverPictureIn, takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
@@ -74,15 +78,39 @@ function Picture({
   );
 }
 
-export /** One photo on the grid: the picture, and the name it goes by. */
+/** Ask's three, while it looks at this photo. A tile that had them keeps them drawn as it finishes, so they fade, and one that never did draws nothing. */
+function AskLooking({ looking, coming = false }: { looking: boolean; coming?: boolean }) {
+  const [drawn, setDrawn] = useState(looking);
+  if (looking && !drawn) setDrawn(true);
+  if (!drawn) return null;
+  return (
+    <span
+      className="files-looking"
+      data-on={looking || undefined}
+      data-coming={coming || undefined}
+      aria-hidden="true"
+      data-testid="fl-looking"
+    >
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
+
+export /** One photo on the grid: the picture, and the name it goes by, which the look changes under the eye. */
 function Photo({ file, onOpen }: { file: FileDto; onOpen: () => void }) {
   const name = fileSaidOf(file.name);
+  const nameFades = useSwapMotion<HTMLSpanElement>(name);
   return (
     <Press className="files-photo" onClick={onOpen} data-testid="fl-tile">
       <span className="files-frame">
         <Picture src={smallPictureOf(file.id)} alt={file.line ?? name} name={name} />
+        <AskLooking looking={file.look_status === "waiting"} />
       </span>
-      <span className="files-name">{name}</span>
+      <span ref={nameFades} className="files-name">
+        {name}
+      </span>
     </Press>
   );
 }
@@ -140,9 +168,11 @@ function OnItsWay({ photo, onOpen }: { photo: SendingPhoto; onOpen: (id: string)
               { share: 1 - sent, tone: "ground" },
             ]}
             aria-label={W.sentSoFar(percent)}
+            aria-hidden={id ? true : undefined}
             data-testid="fl-sent"
           />
         )}
+        {id && <AskLooking looking coming />}
         {id && <Press className="files-open" aria-label={name} onClick={() => onOpen(id)} data-testid="fl-tile" />}
       </span>
       <span className="files-name">{id ? name : " "}</span>

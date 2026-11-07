@@ -159,6 +159,55 @@
   cursor: pointer;
 }
 
+/* Ask's three in a tile's corner while it looks at the photo: its geometry (a tile 0.49 of the box, a step of 0.255, corners 0.26), in the
+   colour they are while Ask works, with the mark's small shadow and no glow. */
+.files-looking {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+
+.files-looking[data-on] {
+  opacity: 1;
+}
+
+@starting-style {
+  .files-looking[data-coming][data-on] {
+    opacity: 0;
+  }
+}
+
+.files-looking > span {
+  position: absolute;
+  width: 49%;
+  height: 49%;
+  border-radius: var(--radius-ask);
+  background: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.files-looking > span:nth-child(1) {
+  top: 0;
+  left: 0;
+  opacity: 0.5;
+}
+
+.files-looking > span:nth-child(2) {
+  top: 25.5%;
+  left: 25.5%;
+  opacity: 0.75;
+}
+
+.files-looking > span:nth-child(3) {
+  top: 51%;
+  left: 51%;
+}
+
 /* A picture and what stands on it: as a photo arrives the server's comes in over this device's, and it is one tile throughout. */
 .files-frame {
   position: relative;
@@ -383,6 +432,7 @@ span.files-big {
   .files-pic,
   .files-big,
   .files-frame,
+  .files-looking,
   .files-sent,
   .files-page,
   .files-blanks,
@@ -422,6 +472,13 @@ span.files-big {
     right: 4px;
     bottom: 4px;
     left: 4px;
+  }
+
+  .files-looking {
+    top: 4px;
+    right: 4px;
+    width: 14px;
+    height: 14px;
   }
 
   /* A row of its own, its picture small: eight that failed should not be eight screens. */

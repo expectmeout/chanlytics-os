@@ -60,6 +60,8 @@ const out = await build({
       'export * from "../../apps/dashboard/src/surfaces/files/sending.ts";\n' +
       'export { fileVerbs } from "../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
+      'export { Photo, PhotosOnTheirWay } from "../../apps/dashboard/src/surfaces/files/photo.tsx";\n' +
+      'export { useRowOpens } from "../../apps/dashboard/src/surfaces/kit/motion/use-row-opens.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tests/files"),
@@ -390,6 +392,111 @@ test("the screen is held awake while there is work, and a refusal stops nothing"
     await handedOver();
   } finally {
     delete globalThis.navigator.wakeLock;
+  }
+});
+
+/* --------------------------------------------------- how a tile draws it */
+
+const drawn = (photos) =>
+  S.renderToStaticMarkup(S.createElement(S.PhotosOnTheirWay, { photos, flash, onOpen: () => {} }));
+const onItsWay = (over) => ({
+  key: 1,
+  file: photo("IMG_4417.jpg"),
+  state: "waiting",
+  picture: null,
+  sent: null,
+  message: null,
+  id: null,
+  ...over,
+});
+
+test("a tile waiting says nothing beneath itself and no file's name, and a screen reader is told which, and how far", () => {
+  const waiting = drawn([onItsWay()]);
+  assert.ok(!/>[^<]*IMG_4417[^<]*</.test(waiting), "no name on the screen");
+  assert.ok(!waiting.includes("<img"), "and no picture until its turn");
+  assert.match(waiting, /aria-label="IMG_4417\.jpg: Waiting to send"/);
+  const going = drawn([onItsWay({ state: "sending", picture: "blob:1", sent: 0.42 })]);
+  assert.match(going, /aria-label="IMG_4417\.jpg: 42% sent"/);
+  assert.match(going, /data-testid="fl-sent"/);
+  assert.equal((going.match(/<img/g) ?? []).length, 1);
+});
+
+test("one that arrived is a photo to open, the server's picture over its own, and Ask is looking at it", () => {
+  const arrived = drawn([onItsWay({ state: "arrived", picture: "blob:1", sent: 1, id: "file-a" })]);
+  assert.match(arrived, /data-testid="fl-tile"/);
+  assert.match(arrived, /aria-label="IMG 4417"|aria-label="Img 4417"/);
+  assert.equal((arrived.match(/<img/g) ?? []).length, 2);
+  assert.match(arrived, /src="[^"]*file-a[^"]*w=480"/);
+  assert.match(arrived, /data-testid="fl-looking"/);
+  assert.doesNotMatch(arrived, /fl-arrived"[^>]*role="img"/, "the press names it now");
+  assert.match(
+    arrived,
+    /aria-hidden="true"[^>]*data-testid="fl-sent"|data-testid="fl-sent"[^>]*aria-hidden="true"/,
+    "and the bar fading out says nothing",
+  );
+});
+
+test("Ask's three stand on a photo only while the look is out", () => {
+  const file = (look_status) => ({ id: "a", name: "bench-tools", line: null, look_status });
+  const tile = (look_status) =>
+    S.renderToStaticMarkup(S.createElement(S.Photo, { file: file(look_status), onOpen() {} }));
+  assert.match(tile("waiting"), /data-testid="fl-looking"/);
+  for (const done of ["done", "failed", "refused"]) assert.doesNotMatch(tile(done), /fl-looking/);
+  assert.match(tile("done"), />Bench tools</);
+});
+
+test("a row that comes opens once, its card following it frame by frame, and stands at once for someone who asked for less motion", () => {
+  const refOf = (wanted) => {
+    let ref;
+    S.renderToStaticMarkup(
+      S.createElement(() => {
+        ref = S.useRowOpens(wanted);
+        return null;
+      }),
+    );
+    return ref;
+  };
+  const attributes = new Set();
+  const card = {
+    setAttribute: (name) => attributes.add(name),
+    removeAttribute: (name) => attributes.delete(name),
+  };
+  const runs = [];
+  const aRow = () => ({
+    offsetHeight: 36,
+    closest: () => card,
+    animate(frames, options) {
+      const run = { frames, options };
+      runs.push(run);
+      return run;
+    },
+  });
+  globalThis.matchMedia = () => ({ matches: false });
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => "cubic-bezier(0.22, 1, 0.36, 1)" });
+  try {
+    refOf(false)(aRow());
+    assert.equal(runs.length, 0, "a page that opened with its shelves draws them at once");
+
+    const open = refOf(true);
+    const row = aRow();
+    open(null);
+    open(row);
+    assert.ok(attributes.has("data-rising"), "the card follows the row, rather than gliding to its first frame");
+    assert.equal(runs[0].frames[0].height, "0px");
+    assert.equal(runs[0].frames[1].height, "36px");
+    assert.equal(runs[0].options.easing, "cubic-bezier(0.22, 1, 0.36, 1)");
+    open(row);
+    assert.equal(runs.length, 1, "handed over twice, it opens once: the second would measure it shut");
+    runs[0].onfinish();
+    assert.ok(!attributes.has("data-rising"));
+
+    globalThis.matchMedia = () => ({ matches: true });
+    open(aRow());
+    assert.equal(runs.length, 1);
+    assert.ok(!attributes.has("data-rising"));
+  } finally {
+    delete globalThis.matchMedia;
+    delete globalThis.getComputedStyle;
   }
 });
 

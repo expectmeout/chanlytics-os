@@ -141,6 +141,8 @@
   --radius-3xl: 24px;
   /* The top corners of the phone's action sheet (the kit's Menu from the bottom edge): the sheet's 16 and 6 more. */
   --radius-sheet: 22px;
+  /* A tile of Ask's three where CSS draws them small (a photo's corner while Ask looks): the mark's own corners, 0.26 of a side. */
+  --radius-ask: 26%;
   --radius-full: 999px;
   /* A thread's small marks (Ask's Line): the caret's stem, the tile before what it read, and the one before a question. */
   --radius-stem: 1px;
