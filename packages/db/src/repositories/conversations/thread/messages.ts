@@ -12,7 +12,7 @@ import {
 } from "@chanlytics/contracts";
 import { IDS_PER_READ } from "../../people/pages";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
-import { type Json } from "../../../database.types";
+import type { Json } from "../../../database.types";
 
 const NOTES_BUDGET = 1200;
 

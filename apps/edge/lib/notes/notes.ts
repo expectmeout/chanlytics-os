@@ -64,8 +64,8 @@ import { listFactCorrectionsBatch, suggestFact, type FactCorrectionRow } from "@
 import { askJson } from "../ai/model.js";
 import type { Logger } from "../shared/log.js";
 import { listNoteCandidates, suggestNoteOnPerson } from "@chanlytics/db/people";
-import { type SupabaseClient } from "@supabase/supabase-js";
-import { type Database } from "@chanlytics/db/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@chanlytics/db/types";
 
 /** One look, as note_candidates hands it over. */
 interface NoteCandidate {
