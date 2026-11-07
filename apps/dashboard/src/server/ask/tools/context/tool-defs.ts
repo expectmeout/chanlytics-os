@@ -98,6 +98,11 @@ export interface ToolPicture {
   zoom?: { box: readonly [number, number, number, number]; of: readonly [number, number] };
   /** What it is, where it is no file of the library: "The post drawn from x", said in place of "The file x". */
   what?: string;
+  /**
+   * What is said after the picture, as data beside it: a video's sheet says how its frames are laid out and what was heard of
+   * its sound (contracts files/video.ts, files/sound.ts), since Claude sees frames and hears nothing.
+   */
+  after?: string;
 }
 
 /**
@@ -106,33 +111,41 @@ export interface ToolPicture {
  */
 export const PICTURES = Symbol("pictures");
 
-/** A picture as a question carries it: what the model is told of it, and the id of the copy, if one could be had. */
+/** A picture as a question carries it: what the model is told of it, the id of the copy if one could be had, and what follows it. */
 export interface AskedPicture {
   said: string;
   fileId: string | null;
+  after?: string;
 }
 
-/** Each picture as the model reads it, named just before it. An id never serves other bytes, so a replay is what was sent. */
+/**
+ * Each picture as the model reads it, named just before it, and what is said of it after (a video's sheet). An id never serves
+ * other bytes, so a replay is what was sent.
+ */
 export const pictureBlocks = (pictures: readonly AskedPicture[]): unknown[] =>
   pictures.flatMap((p) => [
     { type: "text", text: p.said },
     ...(p.fileId ? [{ type: "image", source: { type: "file", file_id: p.fileId } }] : []),
+    ...(p.after ? [{ type: "text", text: p.after }] : []),
   ]);
 
 /** A picture a read opened, as `pictureBlocks` takes it: named, with the pixels it is shown at where the edge said them. */
 export const openedPicture = (toolPicture: ToolPicture): AskedPicture => {
   const size = toolPicture.size ? `${toolPicture.size[0]}×${toolPicture.size[1]}` : null;
+  const after = toolPicture.after ? { after: toolPicture.after } : {};
   if (toolPicture.zoom) {
     const [x1, y1, x2, y2] = toolPicture.zoom.box;
     const of = `${toolPicture.zoom.of[0]}×${toolPicture.zoom.of[1]}`;
     return {
-      said: `The file ${toolPicture.name}, its box [${x1}, ${y1}, ${x2}, ${y2}] of ${of}${size ? `, shown at ${size}` : ""}:`,
+      said: `${toolPicture.what ?? `The file ${toolPicture.name}`}, its box [${x1}, ${y1}, ${x2}, ${y2}] of ${of}${size ? `, shown at ${size}` : ""}:`,
       fileId: toolPicture.fileId,
+      ...after,
     };
   }
   return {
     said: `${toolPicture.what ?? `The file ${toolPicture.name}`}${size ? ` (${size})` : ""}:`,
     fileId: toolPicture.fileId,
+    ...after,
   };
 };
 

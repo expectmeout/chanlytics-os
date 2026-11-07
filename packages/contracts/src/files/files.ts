@@ -2,15 +2,25 @@
 
 import type { FileDto, FileShelf, FilesTally } from "./views";
 import type { FileShows, FileSource, FileWhoInIt } from "./limits";
+import { FILE_VIDEO_MINUTES_MAX } from "./kinds";
 
 /** The place in a shelf's order a page ends at, for the next to start from. */
 export const fileCursorOf = (file: Pick<FileDto, "created_at" | "id">): string => `${file.created_at}|${file.id}`;
 
 /** What the page says of the workspace's files, as STATUS.md would: how many, how many wait for a person, how many for the look. */
-export function filesSayOf(tally: Pick<FilesTally, "kept" | "waiting" | "looking">): string {
+/** "6 photos", "1 video", "6 photos and 2 videos": what is kept, by kind, a kind with none left unsaid unless all are none. */
+export function keptSaidOf(keptCount: number, videos: number): string {
+  const photos = Math.max(0, keptCount - videos);
+  const photosSaid = `${photos} ${photos === 1 ? "photo" : "photos"}`;
+  const videosSaid = `${videos} ${videos === 1 ? "video" : "videos"}`;
+  if (videos === 0) return photosSaid;
+  return photos === 0 ? videosSaid : `${photosSaid} and ${videosSaid}`;
+}
+
+export function filesSayOf(tally: Pick<FilesTally, "kept" | "waiting" | "looking"> & { videos?: number }): string {
   const { kept, waiting, looking } = tally;
   return [
-    `${kept} ${kept === 1 ? "photo" : "photos"}`,
+    keptSaidOf(kept, tally.videos ?? 0),
     ...(waiting ? [`${waiting} waiting for you`] : []),
     ...(looking ? [`Ask is still looking at ${looking}`] : []),
   ].join(", ");
@@ -146,4 +156,37 @@ export const FILE_WORDS = {
   twin: "Already here",
   alreadyHere: (n: number) => (n === 1 ? "1 was already here." : `${n} were already here.`),
   gone: "That file is gone.",
+  /** A video's words (decision 0099, stage B): drawn only where the workspace takes videos (video.ts videoPreviewOf). */
+  video: {
+    askAbout: "Ask about this video",
+    add: "Add photos or videos",
+    emptyTitle: "No photos or videos yet",
+    emptyBody:
+      "Add the ones that show your place and your work. Ask looks at each one, and listens to each video, and names it for what it shows.",
+    added: (n: number) =>
+      n === 1 ? "Video added. It's being prepared." : `${n} videos added. They're being prepared.`,
+    gettingReady: "Getting it ready",
+    notPrepared: "Couldn't be prepared",
+    notPreparedNote: "The video couldn't be read. Delete it, and add another copy.",
+    whatIsSaid: "What is said",
+    howItSounds: "How it sounds",
+    noOneSpeaks: "No one speaks in it.",
+    noSound: "It has no sound.",
+    notHeardYet: "Not heard yet.",
+    voice: (n: number) => `Voice ${n}`,
+    showAll: "Show all of it",
+    play: "Play",
+    cantPlay: "This video can't play just now. Try again in a minute.",
+    removeAsk: "Delete this video?",
+    removed: "Video deleted.",
+    wrongType: "That video isn't one we can keep. Use an MP4, MOV or WebM.",
+    tooLong: "Up to 10 minutes a video.",
+    tooBig: "Up to 500 MB a video.",
+    full: `Your videos are full: ${FILE_VIDEO_MINUTES_MAX} minutes at most. Delete one to add another.`,
+    off: "Videos can't be added just now.",
+    notSaved: "That video could not be sent. Try again.",
+    noDownload: "A video is kept here to play and to show Ask. Its own file stays with you.",
+    notAVideo: "That file is a photo, not a video.",
+    sending: (sent: number) => `Sending ${Math.round(sent * 100)}%`,
+  },
 } as const;

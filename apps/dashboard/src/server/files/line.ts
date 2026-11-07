@@ -3,8 +3,18 @@
  * line a file when it reads the catalog, so it can choose before it opens anything. Names go in and ids stay out: the owner and
  * Ask say the same word for the same file. Nothing here knows a provider.
  */
-import { FILE_SHELVES, shelfOf, whoStandsOf, type FileDto, type FileShelf } from "@chanlytics/contracts";
-import type { FileQuality } from "@chanlytics/contracts";
+import {
+  FILE_SHELVES,
+  clockOf,
+  keptSaidOf,
+  shelfOf,
+  whoStandsOf,
+  type FileDto,
+  type FileKind,
+  type FileQuality,
+  type FileShelf,
+  type FileSound,
+} from "@chanlytics/contracts";
 
 /** A file as Ask reads it: what the page reads, and the rest of what the look saw. Never its provider's id. */
 export interface FileForAsk extends FileDto {
@@ -39,11 +49,12 @@ export function fileShelfSaid(file: Pick<FileDto, "status" | "shows" | "source">
  * logo, and how fresh it is. About 40 tokens, and it changes only when the library does, so the cached prefix holds.
  */
 export function filesLineOf(
-  files: readonly Pick<FileDto, "status" | "shows" | "source" | "created_at">[],
+  files: readonly (Pick<FileDto, "status" | "shows" | "source" | "created_at"> & { kind?: FileKind | undefined })[],
   timezone: string,
 ): string {
   if (files.length === 0) return "Files: no photos yet.";
   const kept = files.filter((f) => f.status === "filed");
+  const videos = kept.filter((f) => f.kind === "video").length;
   const counts = new Map<string, number>();
   for (const f of kept) counts.set(shelfOf(f), (counts.get(shelfOf(f)) ?? 0) + 1);
   const shelves = FILE_SHELVES.flatMap((s) => {
@@ -56,7 +67,7 @@ export function filesLineOf(
     new Date(newest),
   );
   const parts = [
-    `${kept.length} ${kept.length === 1 ? "photo" : "photos"}${shelves.length ? ` (${shelves.join(", ")})` : ""}`,
+    `${keptSaidOf(kept.length, videos)}${shelves.length ? ` (${shelves.join(", ")})` : ""}`,
     ...(waiting ? [`${waiting} in Inbox`] : []),
     `logo ${kept.some((f) => f.shows === "logo") ? "yes" : "no"}`,
     `last added ${day}`,
@@ -100,11 +111,18 @@ function lookSaid(f: Pick<FileDto, "look_status" | "looks_like_stock">): string 
   return f.looks_like_stock ? "may be stock" : null;
 }
 
+/** A file as a later turn's history names it: a video says its length and whether its sound was read (stage B). */
+type FileRecalled = Pick<FileDto, "name" | "line"> & {
+  kind?: FileKind | undefined;
+  seconds?: number | null | undefined;
+  sound?: FileSound | undefined;
+};
+
 /**
  * A question's words as a later turn's history says them, once the pictures have left the request: the words, then the files it
  * came with, by the name that opens them now and what the look saw. None, the words as they were.
  */
-export function withFilesAttached(words: string, files: readonly (Pick<FileDto, "name" | "line"> | null)[]): string {
+export function withFilesAttached(words: string, files: readonly (FileRecalled | null)[]): string {
   return withFilesSaid(words, "Attached", files);
 }
 
@@ -112,14 +130,31 @@ export function withFilesAttached(words: string, files: readonly (Pick<FileDto, 
  * An answer's words with the files Ask opened in that turn, the same way (Ask's eyes): a later cold turn knows what it looked at,
  * and that the pixels are not in front of it until it opens them again.
  */
-export function withFilesOpened(words: string, files: readonly (Pick<FileDto, "name" | "line"> | null)[]): string {
+export function withFilesOpened(words: string, files: readonly (FileRecalled | null)[]): string {
   return withFilesSaid(words, "Opened", files);
 }
 
-function withFilesSaid(words: string, how: string, files: readonly (Pick<FileDto, "name" | "line"> | null)[]): string {
+/** How a file is named in that history: its name and what the look saw; a video's length and its sound's state before that. */
+function recalledOf(f: FileRecalled): string {
+  if (f.kind !== "video") return f.line ? `${f.name} (${f.line})` : f.name;
+  const heard = f.sound?.none ? ", no sound" : f.sound?.words || f.sound?.note ? ", words and sound read" : "";
+  const length = typeof f.seconds === "number" ? ` ${clockOf(f.seconds)}` : "";
+  return `${f.name} (video${length}${heard}${f.line ? `: ${f.line}` : ""})`;
+}
+
+function withFilesSaid(words: string, how: string, files: readonly (FileRecalled | null)[]): string {
   if (files.length === 0) return words;
-  const sentence = files.map((f) => (!f ? "a file since removed" : f.line ? `${f.name} (${f.line})` : f.name));
+  const sentence = files.map((f) => (!f ? "a file since removed" : recalledOf(f)));
   return [words, `[${how}: ${sentence.join("; ")}]`].filter(Boolean).join("\n");
+}
+
+/** A video as a line says it: its length, or that it is still being made ready, or that it could not be. */
+function videoSaid(f: Pick<FileDto, "kind" | "seconds" | "media_status" | "sound_said">): string | null {
+  if (f.kind !== "video") return null;
+  if (f.media_status === "failed") return "video, could not be prepared";
+  if (f.media_status !== "ready") return "video, still being prepared";
+  const length = f.seconds !== null ? `video ${clockOf(f.seconds)}` : "video";
+  return f.sound_said ? `${length} · ${f.sound_said}` : length;
 }
 
 /** One file on one line, to choose by: `storefront-dusk-street · place · sharp, well lit · no people: A shopfront at dusk.` */
@@ -127,6 +162,7 @@ export function fileIndexLineOf(fileForAsk: FileForAsk): string {
   const head = [
     fileForAsk.name,
     fileShelfSaid(fileForAsk),
+    videoSaid(fileForAsk),
     qualitySaid(fileForAsk.quality),
     fileWhoSaid(fileForAsk),
     lookSaid(fileForAsk),

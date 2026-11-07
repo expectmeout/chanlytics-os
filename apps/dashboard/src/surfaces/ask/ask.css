@@ -153,7 +153,8 @@ body.ask-open .tb-ask .tb-ask-face {
   overflow-wrap: anywhere;
 }
 .ask-attached-photo.sending .ask-attached-pic,
-.ask-attached-photo.sending .ask-attached-unseen {
+.ask-attached-photo.sending .ask-attached-unseen,
+.ask-attached-photo.preparing .ask-attached-unseen {
   opacity: 0.45;
 }
 .ask-attached-photo.failed {

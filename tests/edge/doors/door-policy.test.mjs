@@ -70,6 +70,7 @@ const KNOCKS = {
   signedByInstagramApp: { from: "apps/edge/lib/instagram/webhook.ts" }, // the same HMAC, with the Instagram app's secret or the Meta app's
   askVoiceWebhookSigned: { from: "apps/edge/lib/voice/ask-voice.ts" }, // ElevenLabs' HMAC over the raw body
   verifyResendWebhook: { from: CHANNELS }, // svix's signature over Resend's event
+  verifyStreamWebhook: { from: CHANNELS }, // Cloudflare Stream's HMAC over `time.body`, a time inside five minutes
   constructEvent: { on: "webhooks" }, // Stripe's own library: Stripe's signature
   tokenMatches: { from: "apps/edge/lib/leads/apify-ingress.ts" }, // the lead run's own webhook token, against its hash
   websiteFormKeyMatches: { from: "apps/edge/lib/website/form-key.ts" }, // the key a workspace's website was given (00488)

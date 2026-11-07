@@ -30,7 +30,11 @@ const SECURITY_HEADERS = [
   // Ask palette, the live whisper) asks the browser for on this origin only;
   // denying the rest removes a whole class of prompt-and-permission abuse
   // from an embedded or compromised page. Framing is already refused above,
-  // so (self) can never be a frame on someone else's page.
+  // so (self) can never be a frame on someone else's page. A business's video
+  // plays in Stream's frame (decision 0099, stage B), which its `allow` names
+  // fullscreen, autoplay, picture-in-picture and encrypted-media: none of the
+  // four is denied here, and naming its host here would need a wildcard origin
+  // some browsers read as no origin at all, which would deny it fullscreen.
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()",

@@ -41,6 +41,15 @@ export {
 } from "./fence";
 export type { FenceTag } from "./fence";
 export {
+  AI_USAGE_PORTS,
+  AI_USAGE_PURPOSES,
+  HEARING_MODELS,
+  hearingDollars,
+  videoEarModelOf,
+  videoWordsShapeOf,
+} from "./hearing";
+export type { AiUsagePort, AiUsagePurpose, HearingPort, HearingPurpose, VideoWordsShape } from "./hearing";
+export {
   FAST_MODE_BETA,
   hasFastMode,
   MODEL_IDS,
@@ -106,6 +115,7 @@ export {
   aiUsageBodyOf,
   creditRanOut,
   FAST_MODE_PRICES,
+  hearingUsageBodyOf,
   MODEL_CALL_OUTCOMES,
   MODEL_PRICES,
   NO_USAGE,

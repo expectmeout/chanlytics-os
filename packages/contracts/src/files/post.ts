@@ -70,13 +70,20 @@ export function postPlanTidied(plan: PostPlan): PostPlan {
 export type PostUndrawable = "long" | "character" | "contact" | "number";
 
 /** Why a file can't be a post's photo. Like the words, each is said to the model and to a person in their own words. */
-export type PostPhotoWont = "made" | "unkept" | "design";
+export type PostPhotoWont = "made" | "unkept" | "design" | "video";
 
 /**
- * Why this file can't be a post's photo, or null: it is a post already, or it isn't kept yet, or it has a design of its own that
- * more words would clash with. Here, with nothing behind it, so a page can ask before it offers the press.
+ * Why this file can't be a post's photo, or null: it is a video (a post is drawn from a still), a post already, or it isn't
+ * kept yet, or it has a design of its own that more words would clash with. Here, with nothing behind it, so a page can ask
+ * before it offers the press.
  */
-export function postPhotoWont(fields: { status: string; source: string; shows: string | null }): PostPhotoWont | null {
+export function postPhotoWont(fields: {
+  status: string;
+  source: string;
+  shows: string | null;
+  kind?: string | undefined;
+}): PostPhotoWont | null {
+  if (fields.kind === "video") return "video";
   if (fields.source === "made") return "made";
   if (fields.status !== "filed") return "unkept";
   if (fields.shows === "graphic" || fields.shows === "logo") return "design";
@@ -164,6 +171,7 @@ export const POST_WORDS = {
     made: "That's a post already. Use the photo it came from.",
     unkept: "Keep this photo in Files first.",
     design: "This picture already has words or a design on it, so more would clash.",
+    video: "A post is made from a photo, not a video.",
   },
 } as const satisfies PostWords;
 
@@ -209,6 +217,7 @@ const POST_WORDS_ES: PostWords = {
     made: "Eso ya es una publicación. Usa la foto de la que salió.",
     unkept: "Guarda primero esta foto en Archivos.",
     design: "Esta imagen ya tiene texto o un diseño, y más texto chocaría.",
+    video: "Una publicación se hace con una foto, no con un video.",
   },
 };
 

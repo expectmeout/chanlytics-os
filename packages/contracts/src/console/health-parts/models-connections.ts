@@ -1,5 +1,6 @@
 /** Health parts: models connections. */
 
+import type { HearingPurpose } from "../../ai/hearing";
 import type { ModelPurpose } from "../../ai/models/routes";
 import { creditRanOut } from "../../ai/usage";
 import { capitalize } from "../../shared/words";
@@ -10,7 +11,7 @@ import { entryOf } from "../../shared/unknown";
 
 // ----------------------------------------------------------------------------------------------- model calls
 
-const PURPOSE_WORDS: Record<ModelPurpose | "ask_warm", string> = {
+const PURPOSE_WORDS: Record<ModelPurpose | HearingPurpose | "ask_warm", string> = {
   receptionist: "The receptionist",
   reply_draft: "Reply drafts",
   ask: "Ask",
@@ -30,6 +31,8 @@ const PURPOSE_WORDS: Record<ModelPurpose | "ask_warm", string> = {
   website_read: "Reading websites",
   sender_read: "Sorting mailbox senders",
   file_look: "Looking at files",
+  file_words: "Writing down what videos say",
+  file_hear: "Listening to videos",
 };
 
 function purposeWords(purpose: string): string {

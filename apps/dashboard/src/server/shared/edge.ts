@@ -37,6 +37,9 @@ import {
   type TEST_TO_SELF_DOOR,
   type MAILBOXES_DOOR,
   type FILE_COPIES_DOOR,
+  type FILE_LISTEN_DOOR,
+  type FILE_PLAY_DOOR,
+  type FILE_VIDEO_START_DOOR,
   type GOOGLE_DOOR,
   type IMPORT_AGAIN_DOOR,
   type LOGO_LOOKUP_DOOR,
@@ -115,6 +118,9 @@ type EdgeDoors =
   | typeof TEST_TO_SELF_DOOR
   | typeof MAILBOXES_DOOR
   | typeof FILE_COPIES_DOOR
+  | typeof FILE_VIDEO_START_DOOR
+  | typeof FILE_PLAY_DOOR
+  | typeof FILE_LISTEN_DOOR
   | typeof GOOGLE_DOOR
   | typeof IMPORT_AGAIN_DOOR
   | typeof LOGO_LOOKUP_DOOR

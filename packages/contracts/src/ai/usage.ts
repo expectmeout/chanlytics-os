@@ -7,8 +7,15 @@
  * read. A budget that counted only input and output missed the writes (the scorecard, 29 September); the ledger keeps
  * all four and the dollars they came to.
  */
+import {
+  hearingDollars,
+  type AiUsagePort,
+  type AiUsagePurpose,
+  type HearingPort,
+  type HearingPurpose,
+} from "./hearing";
 import { MODELS, type ModelId, type ModelSpeed } from "./models/ids";
-import type { ModelPort, ModelPurpose } from "./models/routes";
+import type { ModelPurpose } from "./models/routes";
 
 /**
  * One call's tokens, as the API counts them, and the speed it ran at when that was fast mode (the API's own
@@ -134,7 +141,8 @@ export type ModelCallOutcome = (typeof MODEL_CALL_OUTCOMES)[number];
 /** One row of the ledger, as the writer takes it (the wire: snake_case, as the table). */
 export interface AiUsageBody {
   tenant_id: string;
-  purpose: ModelPurpose;
+  /** An Anthropic route's purpose, or a hearing model's (hearing.ts). */
+  purpose: AiUsagePurpose;
   /** The model the purpose asked first. */
   model_asked: string;
   /** The model that answered: the fallback's when it answered, the API's own name for it. */
@@ -155,9 +163,9 @@ export interface AiUsageBody {
   /**
    * A shadow call's own columns (00275; shadow.ts): the port it left by, and, for a question it answered, the label the
    * primary gave, the label the shadow gave, how sure it was, whether that cleared the line, and whether they agree.
-   * A row the model port writes for the primary carries none of them.
+   * A row the model port writes for the primary carries none of them; a hearing model's row names its port (hearing.ts).
    */
-  port?: ModelPort;
+  port?: AiUsagePort;
   shadow?: boolean;
   question?: string | null;
   primary_answer?: string | null;
@@ -204,6 +212,45 @@ export function aiUsageBodyOf(call: {
     prompt_hash: call.promptHash ?? null,
     user_id: call.userId ?? null,
     subject_id: call.subjectId ?? null,
+    ...(call.error
+      ? {
+          error_type: call.error.type.slice(0, 80) || null,
+          error_message: call.error.message.slice(0, AI_USAGE_ERROR_CHARS) || null,
+        }
+      : {}),
+  };
+}
+
+/** One hearing call's row of the ledger. */
+export function hearingUsageBodyOf(call: {
+  tenantId: string;
+  purpose: HearingPurpose;
+  port: HearingPort;
+  model: string;
+  outcome: ModelCallOutcome;
+  input: number;
+  output: number;
+  /** Seconds of audio heard, for a model priced by the hour. */
+  seconds?: number;
+  userId?: string | null;
+  subjectId?: string | null;
+  error?: { type: string; message: string } | null;
+}): AiUsageBody {
+  return {
+    tenant_id: call.tenantId,
+    purpose: call.purpose,
+    model_asked: call.model,
+    model: call.model,
+    outcome: call.outcome,
+    input_tokens: Math.max(0, Math.round(call.input)),
+    output_tokens: Math.max(0, Math.round(call.output)),
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    usd: hearingDollars(call.model, { input: call.input, output: call.output, seconds: call.seconds ?? 0 }),
+    prompt_hash: null,
+    user_id: call.userId ?? null,
+    subject_id: call.subjectId ?? null,
+    port: call.port,
     ...(call.error
       ? {
           error_type: call.error.type.slice(0, 80) || null,

@@ -114,6 +114,8 @@ export const FeaturesConfigSchema = z
     vision: z.boolean().optional(),
     /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
     ads_preview: z.boolean().optional(),
+    /** A business's videos taken in this workspace (decision 0099, stage B; contracts files/video.ts videoPreviewOf). */
+    video_preview: z.boolean().optional(),
     /**
      * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
      * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.

@@ -15,11 +15,21 @@ import {
   FILE_LOOK_PLAIN_HINT,
   FILE_LOOK_SCHEMA,
   FILE_LOOK_SYSTEM,
+  FILE_MADE_OF_VIDEO_MIMES,
+  FILE_VIDEO_LOOK_SCHEMA,
   SECOND_MS,
+  VIDEO_LOOK_EDITION,
   fileLookAsked,
   fileLookOf,
+  fileMadePathOf,
   filePathOf,
+  fileSoundOf,
+  fileVideoLookAsked,
+  fileVideoLookOf,
   parseTenantConfig,
+  soundTurnSaidOf,
+  videoSheetPlanOf,
+  type FileLookRead,
   type FileMime,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels/ai";
@@ -31,6 +41,8 @@ import type { ClaimedJob } from "@chanlytics/jobs";
 import { askJson, firstJson, mayModelGo, promptHashOf, type ModelCallFor } from "../ai/model.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
+import { drawPoster } from "./video-sheet.js";
+import { streamKeys } from "./video-keys.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -62,23 +74,27 @@ function heldCopyOf(row: FileRow, nowMs: number): ClaudeCopy | null {
   return { id: c.id, expires_at: c.expires_at ?? null, width: c.width, height: c.height };
 }
 
-/** The copy the model reads, made now where there is none: null where Storage or Anthropic would not, for the caller. */
+/**
+ * The copy the model reads, made now where there is none: null where Storage or Anthropic would not, for the caller. A video's
+ * is its sheet (video-digest.ts), read from its folder as it was drawn, already at the size the model reads: never Stream again.
+ */
 export async function findClaudeCopy(db: Db, row: FileRow): Promise<ClaudeCopy | null> {
-  const held = heldCopyOf(row, Date.now());
-  if (held) return held;
+  const heldCopy = heldCopyOf(row, Date.now());
+  if (heldCopy) return heldCopy;
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return null;
-  const signed = await filesBucket(db).createSignedUrl(
-    filePathOf(row.tenant_id, row.id, row.mime as FileMime),
-    COPY_URL_S,
-    { transform: { width: FILE_COPY_SIDE, height: FILE_COPY_SIDE, resize: "contain", quality: COPY_QUALITY } },
-  );
+  const signed =
+    row.kind === "video"
+      ? await filesBucket(db).createSignedUrl(fileMadePathOf(row.tenant_id, row.id, "sheet"), COPY_URL_S)
+      : await filesBucket(db).createSignedUrl(filePathOf(row.tenant_id, row.id, row.mime as FileMime), COPY_URL_S, {
+          transform: { width: FILE_COPY_SIDE, height: FILE_COPY_SIDE, resize: "contain", quality: COPY_QUALITY },
+        });
   if (signed.error || !signed.data?.signedUrl) {
     logger({ tenant_id: row.tenant_id }).warn("file_copy_failed", { file: row.id, why: "sign" });
     return null;
   }
   const res = await fetch(signed.data.signedUrl, {
-    headers: { accept: "image/webp" },
+    headers: row.kind === "video" ? {} : { accept: "image/webp" },
     signal: AbortSignal.timeout(COPY_READ_MS),
   });
   const bytes = res.ok ? new Uint8Array(await res.arrayBuffer()) : null;
@@ -129,6 +145,7 @@ export async function lookAtFile(db: Db, job: ClaimedJob, deadline: number): Pro
   const fileId = String(job.payload.file_id);
   const row = await findFileForWork(db, job.tenant_id, fileId);
   if (!row || row.removed_at) return;
+  if (row.kind === "video") return row.media_status === "ready" ? lookAtVideo(db, job, row, deadline) : undefined;
   const notRead = () =>
     keepFileLook(db, {
       tenantId: job.tenant_id,
@@ -182,4 +199,82 @@ export async function lookAtFile(db: Db, job: ClaimedJob, deadline: number): Pro
     name: read?.name || null,
     shows: read?.shows ?? null,
   });
+}
+
+/**
+ * A video's look (stage B): the same small model and catalog, the sheet as the picture, what other models heard of its sound
+ * beside it as data, and the frame that best stands for the clip in place of a box. Its edition is the video's own, so a change
+ * to one prompt never reads the other's files again. The poster is cut again at the frame it chose; one that does not come
+ * leaves the first.
+ */
+async function lookAtVideo(db: Db, job: ClaimedJob, row: FileRow, deadline: number): Promise<void> {
+  const keep = (status: "done" | "refused" | "failed", read: FileLookRead | null) =>
+    keepFileLook(db, {
+      tenantId: job.tenant_id,
+      id: row.id,
+      status,
+      edition: VIDEO_LOOK_EDITION,
+      look: read?.look ?? null,
+      name: read?.name || null,
+      shows: read?.shows ?? null,
+    });
+  const asking: ModelCallFor = {
+    tenantId: job.tenant_id,
+    userId: row.created_by,
+    subjectId: row.id,
+    promptHash: promptHashOf(FILE_LOOK_SYSTEM),
+  };
+  if (!(await mayModelGo("file_look", asking))) return keep("failed", null);
+  const copy = await findClaudeCopy(db, row);
+  if (!copy) throw new Error("file_look: no copy of the sheet to read");
+  const plan = videoSheetPlanOf({ seconds: Number(row.seconds), width: row.width, height: row.height });
+  const sound = fileSoundOf(row.sound);
+  const heard = sound.none || sound.words || sound.note ? soundTurnSaidOf(sound, { for: "look" }) : null;
+  const about = await lookBusinessOf(db, job.tenant_id);
+  const ms = Math.min(LOOK_WHOLE_MS, deadline - Date.now());
+  if (ms <= 0) throw new Error("file_look: no time left for the look");
+  const answered = await askJson({
+    purpose: "file_look",
+    system: FILE_LOOK_SYSTEM,
+    user: [
+      { type: "image", source: { type: "file", file_id: copy.id }, transformations: { oversized_image: "error" } },
+      {
+        type: "text",
+        text: fileVideoLookAsked({
+          seconds: Number(row.seconds),
+          frames: plan.times.length,
+          step: plan.step,
+          width: copy.width,
+          height: copy.height,
+          ...about,
+          sound: heard,
+        }),
+      },
+    ],
+    schema: FILE_VIDEO_LOOK_SCHEMA,
+    maxTokens: LOOK_TOKENS_MAX,
+    effort: "low",
+    plainJsonHint: FILE_LOOK_PLAIN_HINT,
+    timeoutMs: ms,
+    deadlineMs: ms,
+    signal: AbortSignal.timeout(ms),
+    for: {
+      ...asking,
+      unreadable: (reply) => reply.message.stop_reason !== "refusal" && !fileVideoLookOf(firstJson(reply.text), plan),
+    },
+  });
+  if (!answered) return keep("failed", null);
+  const read = fileVideoLookOf(answered.answer, plan);
+  await keep(read ? "done" : answered.refused ? "refused" : "failed", read);
+  const at = read?.look.poster_at;
+  const keys = streamKeys();
+  if (typeof at !== "number" || !keys || !row.media_ref) return;
+  const poster = await drawPoster(keys.signing, { mediaRef: row.media_ref, width: row.width, height: row.height }, at);
+  const stored = poster
+    ? await filesBucket(db).upload(fileMadePathOf(row.tenant_id, row.id, "poster"), poster.bytes, {
+        contentType: FILE_MADE_OF_VIDEO_MIMES.poster,
+        upsert: true,
+      })
+    : null;
+  if (!stored || stored.error) logger({ tenant_id: row.tenant_id }).warn("video_poster_failed", { file: row.id });
 }

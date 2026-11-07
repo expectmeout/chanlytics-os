@@ -35,9 +35,9 @@ export function isKnownSegment(segment, first, text) {
 const SAID_BEFORE_THE_RULE = new Set(
   `accent alerts booking-request bugs buy callback capabilities checkout choices client-errors deliveries doubts exclude
   fact-suggestions filler.ics headline health idea invited invoices lead-operations lead-previews lead-searches lead-suggestions
-  lead-words locations mailbox-connections mailbox-senders marketing-consent media morning not-a-customer not-a-person not-right
+  lead-words locations mailbox-connections mailbox-senders marketing-consent morning not-a-customer not-a-person not-right
   notifications overview payout portal preview-claims qr quick reach-out-replies reach-out-sends refile
-  seen signup signup-confirm speech starter touches vitals waitlist`.split(/\s+/),
+  signup signup-confirm speech starter touches vitals waitlist`.split(/\s+/),
 );
 
 test("every segment of a member route is a glossary word, an action on one, or was said before the rule", () => {

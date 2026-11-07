@@ -26,6 +26,7 @@ import {
   type ImportSource,
   type JobKind,
   FILE_LOOK_EDITION,
+  VIDEO_LOOK_EDITION,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
@@ -468,6 +469,25 @@ async function settleFileLook(db: Db, job: TerminalJob): Promise<Settled[]> {
   return [{ what: "file", changed: true }];
 }
 
+/**
+ * A video's digest that will not finish (00556): the row stops saying Looking, by the same door a look's end goes through, so the
+ * tile settles on what it has (its poster, its length) and the sweep tries the step left undone a day on while the video is young.
+ */
+async function settleVideoDigest(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const fileId = idFrom(job.payload, "file_id");
+  if (!fileId) return [{ what: "file", changed: false, error: "no file on the job" }];
+  await keepFileLook(db, {
+    tenantId: job.tenant_id,
+    id: fileId,
+    status: "failed",
+    edition: VIDEO_LOOK_EDITION,
+    look: null,
+    name: null,
+    shows: null,
+  });
+  return [{ what: "file", changed: true }];
+}
+
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
 /**
@@ -485,6 +505,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   preview_build: settlePreview,
   reply_draft: settleDraft,
   file_look: settleFileLook,
+  video_digest: settleVideoDigest,
   file_fetch: null,
   file_purge: null,
   line_provision: null,
@@ -511,6 +532,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   event_deliver: "delivery",
   reply_draft: "draft",
   file_look: "file",
+  video_digest: "file",
 };
 
 /**

@@ -20,6 +20,7 @@ import {
   FILE_WORDS as W,
   filesSayOf,
   inboxCleanOf,
+  videoPreviewOf,
   type FileDto,
   type FileShelf,
   type FilesPageDto,
@@ -42,10 +43,19 @@ import { hearFileAsked } from "./file-asked";
 import { FileSheet } from "./file-sheet";
 import { InboxPress } from "./inbox-press";
 import { Photo, PhotosOnTheirWay } from "./photo";
-import { addPhotos, clearSaid, inLandedOrder, stillGoing, useSending } from "./sending";
+import { addPhotos, clearSaid, inLandedOrder, isVideoFile, stillGoing, useSending, type SendingPhoto } from "./sending";
 import { showFilesShelf, showMoreFiles } from "./surface";
-import { FILE_PICKS, fileVerbs } from "./verbs";
+import { FILE_PICKS, FILE_PICKS_WITH_VIDEO, fileVerbs } from "./verbs";
 import "./files.css";
+
+/**
+ * Whether the workspace takes videos (`features.video_preview`, contracts videoPreviewOf: Ruben's to set per workspace while
+ * stage B is tried), read off the settings surface Settings opens on, so it draws again when that read lands.
+ */
+function useVideosTaken(): boolean {
+  const settings = useSurface("settings");
+  return videoPreviewOf(settings?.settings?.config);
+}
 
 /** The shelves drawn: Kept first, then each that holds something, with how many. */
 function shelvesOf(tally: FilesTally) {
@@ -106,10 +116,22 @@ const MORE_NEAR: IntersectionObserverInit = { rootMargin: "800px 0px" };
 const BLANK_TILES = [0, 1, 2, 3, 4, 5];
 
 /** What the head says: how the library stands, or a first batch as it lands, since the tally has none of them until the list is read. */
-function headingOf(tally: FilesTally, arrived: number): string {
+function headingOf(tally: FilesTally, going: readonly SendingPhoto[], videos: boolean): string {
   if (tally.total > 0) return filesSayOf(tally);
-  return arrived > 0 ? filesSayOf({ kept: arrived, waiting: 0, looking: 0 }) : W.emptyTitle;
+  const arrived = going.filter((p) => p.id);
+  if (arrived.length > 0)
+    return filesSayOf({
+      kept: arrived.length,
+      videos: arrived.filter((p) => isVideoFile(p.file)).length,
+      waiting: 0,
+      looking: 0,
+    });
+  return videos ? W.video.emptyTitle : W.emptyTitle;
 }
+
+/** What the head's Add says: what is dropped, how a run stands, or what it adds. */
+const addWordsOf = (dropping: boolean, left: number, finished: number, videos: boolean): string =>
+  dropping ? W.dropToAdd : left > 0 ? W.adding(finished + 1, finished + left) : videos ? W.video.add : W.add;
 
 /** The list as the grid draws it: what still stands under a tile of its own left out, and in the Inbox what the look found nothing against first. */
 function shownOf(files: readonly FileDto[], shelf: FileShelf, standing: ReadonlySet<string>): readonly FileDto[] {
@@ -118,14 +140,24 @@ function shownOf(files: readonly FileDto[], shelf: FileShelf, standing: Readonly
 }
 
 /** Nothing here yet: what to do, under the empty tiles. A person who can't add a photo is told what the page is for, with nothing dead to press. */
-function NothingYet({ may, dropping, add }: { may: boolean; dropping: boolean; add: () => void }) {
+function NothingYet({
+  may,
+  dropping,
+  add,
+  videos,
+}: {
+  may: boolean;
+  dropping: boolean;
+  add: () => void;
+  videos: boolean;
+}) {
   return (
     <div className="files-none" data-testid="fl-empty">
-      <p className="files-none-says">{W.emptyBody}</p>
+      <p className="files-none-says">{videos ? W.video.emptyBody : W.emptyBody}</p>
       {may && (
         <span className="files-none-acts">
           <Button size="sm" variant="primary" onClick={add} data-testid="fl-empty-add">
-            {dropping ? W.dropToAdd : W.add}
+            {dropping ? W.dropToAdd : videos ? W.video.add : W.add}
           </Button>
           <span className="files-or-drop">{W.orDrop}</span>
         </span>
@@ -167,7 +199,8 @@ function FilesLibrary({
   // The shelves come with the first read that holds a photo: where this visit saw that, they open, and the grid goes down with them.
   const [startedEmpty] = useState(tally.total === 0);
   const shelvesOpen = useRowOpens(startedEmpty);
-  const heading = headingOf(tally, going.filter((p) => p.id).length);
+  const videos = useVideosTaken();
+  const heading = headingOf(tally, going, videos);
   const headingFades = useSwapMotion<HTMLHeadingElement>(heading);
   const may = canDo("settings");
   const here = pressed ?? shelf;
@@ -225,11 +258,17 @@ function FilesLibrary({
         {/* Unseen on an empty page, whose one press stands under its tiles, but holding its place: the tiles don't move as it comes. */}
         <span className="files-head-act" data-away={emptyPage || undefined}>
           <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
-            {dropping ? W.dropToAdd : left > 0 ? W.adding(sending.finished + 1, sending.finished + left) : W.add}
+            {addWordsOf(dropping, left, sending.finished, videos)}
           </Button>
         </span>
       </div>
-      <LineFiles ref={picker} accept={FILE_PICKS} multiple onChange={chosen} data-testid="fl-picker" />
+      <LineFiles
+        ref={picker}
+        accept={videos ? FILE_PICKS_WITH_VIDEO : FILE_PICKS}
+        multiple
+        onChange={chosen}
+        data-testid="fl-picker"
+      />
       {sending.said && (
         <Notice
           label={sending.said}
@@ -272,7 +311,7 @@ function FilesLibrary({
         </div>
       </div>
       {next && <MoreFiles more={more} busy={gettingMore} shown={files.length} />}
-      {emptyPage && <NothingYet may={may} dropping={dropping} add={add} />}
+      {emptyPage && <NothingYet may={may} dropping={dropping} add={add} videos={videos} />}
       {open && <FileSheet key={open.id} file={open} onClose={closeSheet} open={setOpenId} flash={flash} />}
     </section>
   );

@@ -176,6 +176,8 @@ shopfront at dusk.)]`, contracts `withFilesOpened`), as a question's says what i
 - A picture Ask opens: about 2.5 cents on Opus the first time (about 2,400 tokens written to the cache), under Ask's own day budget.
 - A post made from a photo: nothing. Code draws it, in about 0.9 s on production (2.7 s cold), and a Save takes about 2.5 s.
 - A press of Make a post: $0.36 on a cold cache, in one round and 5.7 s, measured once on production on 6 Nov. Typed, with Ask finding and opening the photo itself, the same post took four rounds and $0.52. A warm cache has not been measured.
+- A question about a photo from its sheet, with a zoom and a post: $0.49 on a cold prefix, of which $0.30 is the prefix the sheet's
+  warm writes, and $0.19 past it; three rounds, 14.5 s, the card at 17 s, measured once on production on 7 Nov.
 - A listing's photo: about $0.007 from Google Places, at most ten a link, on the platform.
 - Storage's transforms: billed per source image past Pro's allowance, on the platform.
 
@@ -257,11 +259,26 @@ Two things were wrong, both small:
 The first $0.30 of the $0.76 is the cold prefix written twice: the sheet's warm fires as Ask opens, and the script typed its
 question inside a second, before the warm had written. A person typing for ten seconds reads it, and the turn costs about $0.49.
 
+## What the second turn with eyes proved
+
+On production, 7 November 2026, after #2174, in the test workspace: the same drawn shopfront, the same question from the photo's
+sheet, typed ten seconds after the sheet's Ask opened, as a person types. Three rounds, 14.5 s, the card on screen at 17.1 s;
+$0.49, of which the warm's cold prefix was $0.30 and the turn past it $0.19 (the look $0.0006).
+
+- The question is answered beside the card: the sign word for word (WELCOME; Open Monday to Saturday; 7:15 am to 3:30 pm; Closed
+  Sunday), the small print exactly, and the post in a paragraph, written through the answer tool in the message that made the card.
+- The first round ran raised: in the request as it went out, the effort message stands after the question and before the first
+  assistant message, and the rounds show it. Round one was the zoom alone, the post was drawn in round two and the card made in
+  round three with the answer: two `propose_post` calls where the first turn took three, and round one thought longer (5.1 s
+  against 3.8).
+- The ten seconds paid: round one read the warm's 29,689 tokens from the cache and wrote 3,449, where the first turn wrote 33,060
+  again. A question about a photo from its sheet costs about $0.49 on a cold prefix and about $0.19 on a warm one.
+
 ## What is left to prove
 
 - A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line, in Files and in the Line. Share
   from a post, twice on one page, to Instagram and to Save Image; and a post from a photo the camera just took.
-- A zoom of a HEIC, which cuts Storage's 2,500 px copy, and of a photo over 12 MB; and the two fixes above, on a second real turn.
+- A zoom of a HEIC, which cuts Storage's 2,500 px copy, and of a photo over 12 MB.
 - That a real phone reuses the cached redirect.
 - The file_purge a start leaves itself, a day on: `file_never_filed` in the logs for bytes that never became a file.
 - A real Google profile's media list and a real listing's photos, on the first real connection. Whether Places names the business
@@ -269,6 +286,69 @@ question inside a second, before the warm had written. A person typing for ten s
   brings them all.
 - A photo name from a listing can expire, so nothing here re-reads by a listing's `source_ref` once it is kept.
 
+## Stage B: a business keeps its videos
+
+Built 7 November 2026 against `Claude Video/docs/2026-11-07-stage-b-video-prd.md` (v3, D1–D23), behind the workspace's
+`features.video_preview` (contracts `videoPreviewOf`, the flag registry's `video_preview`). Nothing is applied or deployed:
+migration 00556 goes on production on Ruben's word, before the code that needs it merges.
+
+- **The row.** `files.kind` (image or video), `media_ref` (Stream's id, unique: the webhook knows nothing else),
+  `media_status` (uploading, processing, ready, failed), `media_error`, `ready_at`, `seconds`, `sound` (contracts
+  `FileSound`) and `sound_said`; the bucket takes `audio/mp4`. A video still `uploading` is no file to any page or to Ask:
+  every member read leaves it out.
+- **The doors** (00556): `file_video_begin` (the row with every fact the browser gave, a twin, the workspace's files or its
+  minutes), `file_media_processing` (done, the one a member calls, with the settings permission), `file_media_ready` and `file_media_failed` (found by
+  `media_ref`, finishing a row whether or not done came), `file_upload_lapsed` (a video whose bytes never arrived, a day on)
+  and `file_sound_keep` (one part of what was heard at a time), each else the service role's. The member's `file_start` is unchanged: the permission, the
+  cap and the purge a day on, which now also lets a lapsed upload's reservation go.
+- **The road.** `files/start` (a video's facts besides) → the edge's `admin/files/video-start` (the switch read there, since a member may not read the config; a tus reservation at Stream,
+  `requiresignedurls`, four hours, `maxDurationSeconds`, then the door; a twin or no room lets the reservation go) → the
+  browser's own tus sender (`surfaces/files/video-send.ts`: HEAD, PATCH, resume from where Stream stands, the address kept on
+  the device by the clip's fingerprint) → `done` → Stream's webhook (`api/stream-webhook`, its HMAC checked) or the sweep's
+  read of Stream two minutes on → `video_digest`, one step a run: the sheet (48 frames, sharp, 2,576 px, the edge's copy at
+  Anthropic), the sound kept as `audio.m4a`, the words (the ear's one call, or Scribe), the note, then `file_look` with the
+  sheet, the words and the note, and the poster cut again at the frame it chose. Delete lets the video go at Stream first.
+- **Ask.** A video opens as its sheet, named a video of its length, with how its frames are laid out and what was heard after
+  it, fenced, every part named by who heard it; `zoom` takes `at`, `at` with `box`, or `from` and `to`; `listen` puts a
+  question about a stretch to the ear; `propose_post` and the sheet's Make a post refuse a video in words. The Line's + takes a
+  video and Send waits for it to be made ready, two minutes at most.
+- **The page.** A tile is the poster with its length, "Getting it ready" until then, "Couldn't be prepared" for one Stream
+  could not read; the sheet holds Stream's player (a token for an hour, the poster ours, captions in the language spoken), what
+  is said and how it sounds. The CSP names Stream's frame and upload hosts. Health is paged from 80% of the account's minutes.
+
+Where the build parts from the PRD, and why:
+
+- **Gemini's `generateContent`, not the Interactions API**: the Interactions API keeps what it is sent 55 days by default, and
+  nothing here needs its state. Gemini 3.5 Transcribe is not wired: its answer's shape is not documented yet, so the words'
+  shapes are the one-call ear (the default) and Scribe, by `VIDEO_WORDS_MODEL`.
+- **Scribe is sent the sound's bytes** (its `file` part), not a signed address of ours, and answers in the same request; its
+  asynchronous webhook is not wired, since ten minutes of sound is inside a step's run.
+- **No tus-js-client**: its last release (January 2025) is outside decision 0054's year, and it brings seven packages; tus's
+  core (HEAD, PATCH, the offset) is a few dozen lines of ours.
+- **sharp on the edge needed the build to carry it**: the edge's functions are esbuild bundles, which cannot hold a `.node`
+  file, so `tooling/scripts/edge-functions.mjs` keeps a native module external and copies it, and what it needs, beside each
+  function that loads it (`NATIVE_MODULES`). The times on a sheet are drawn as segments, so no font need be on the machine.
+- **The doors take Stream's id alone, not the workspace** (`file_media_ready(p_media_ref, …)`): the webhook knows nothing
+  else, and Stream's ids are the account's, so `files_media_ref` is unique across workspaces rather than within one.
+- **A clip re-picked after a lost upload takes the dead upload's place** (`file_video_begin`): a twin still `uploading` is
+  removed and purged, and the new reservation goes on; a reload within the address's life resumes instead.
+- **Permissions-Policy is left as it is**: fullscreen, autoplay, picture-in-picture and encrypted-media are not denied there,
+  so the player's `allow` delegates them; naming Stream's host would take a wildcard origin some browsers read as none.
+- **Health is paged, not drawn**: the account's minutes are read each health sweep and paged from 80%, as the page reader's
+  credits are, so they show in Health's "What paged us"; there is no line of their own on the Console.
+- **The ear writes in English**, as the look does: Ask says it in the person's language.
+- **The sweep asks Stream only after videos still waiting** (uploading or processing), at most fifty a pass: a ready video
+  deleted at Stream by hand is not found by it, and its sheet says it can't play. Reading every ready video would spend the
+  account's 1,200 calls in five minutes, which every Cloudflare product shares.
+- **Stream's two one-time calls** (the webhook and the signing key, §16.3) are `tooling/scripts/ops/files/stream-setup.mjs`: a dry
+  run by default, the webhook as it stands written as a backup first, and the three values written to a file of their own,
+  never printed.
+
+What is left to prove is the PRD's §13 trial, on Ruben's word and the accounts' own keys (a script in the scratchpad), before the
+switch goes on: the thumbnail's time precision, an iPhone clip, processing times, tus from a phone with a reload, the bill, the
+ear's two models, the sheet at 2,576 against 1,568, and the words' shapes. The Gemini key is made on a billed project. The
+nightly's video journey (`e2e/settings/files.spec.ts`) runs where the e2e workspace takes videos.
+
 ## Not here
 
-Making pictures with a model (step 4) and video (step 5): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order, video on Cloudflare Stream first.
+Making pictures with a model (step 4): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order.

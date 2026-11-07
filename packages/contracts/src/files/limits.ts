@@ -1,6 +1,7 @@
 /** Files: limits. */
 
 import { DAY_MS, SECOND_MS } from "../shared/time";
+import { FILE_IMAGE_MIMES, FILE_VIDEO_MIMES } from "./kinds";
 
 /** The private bucket (00551): `<tenant>/<file>/original.<ext>`, written only by a signed upload or the service role. */
 export const FILES_BUCKET = "files";
@@ -62,23 +63,27 @@ export const FILE_LOOK_STATUSES = ["waiting", "done", "refused", "failed"] as co
 
 export type FileLookStatus = (typeof FILE_LOOK_STATUSES)[number];
 
-export const FILE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+/** What a member may add: a picture, or a video (kinds.ts). */
+export const FILE_MIMES = [...FILE_IMAGE_MIMES, ...FILE_VIDEO_MIMES] as const;
 
 export type FileMime = (typeof FILE_MIMES)[number];
 
-/** The kinds of file a member may add, each with the extension its folder keeps it under. */
+/** The kinds of file a member may add, each with the extension its folder (or the video platform) keeps it under. */
 export const FILE_TYPES = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/heic": "heic",
   "image/heif": "heic",
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
 } as const satisfies Record<FileMime, string>;
 
-/** Whether a type is one a member may add. */
+/** Whether a type is one a member may add, a picture or a video. */
 export const isFileMime = (value: unknown): value is FileMime =>
   typeof value === "string" && Object.hasOwn(FILE_TYPES, value);
 
-/** Where a file's bytes live: its own folder, which the purge empties whole. */
+/** Where a picture's bytes live: its own folder, which the purge empties whole. A video keeps none here. */
 export const filePathOf = (tenantId: string, fileId: string, mime: FileMime): string =>
   `${tenantId}/${fileId}/original.${FILE_TYPES[mime]}`;

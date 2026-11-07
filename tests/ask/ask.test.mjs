@@ -1112,7 +1112,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
-      ["files", ["list", "get", "view", "compare", "zoom"]],
+      ["files", ["list", "get", "view", "compare", "zoom", "listen"]],
       ["guide", []],
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],

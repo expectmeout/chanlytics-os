@@ -557,6 +557,7 @@
     "00552_a_lead_stands_in_one_status_group.sql": "0661f3c82c794ffda18fae534d054f54f8301b08ed45ed59feb183ed73506fb6",
     "00553_what_ask_makes_is_a_file.sql": "4eff49643f571039d5b42b0d27026da8f3f5d850b82fa27fb79b1cad9ef5ccc9",
     "00554_leads_is_read_through_one_door.sql": "ce480b88b3b4e6b6b9fcc32e709fd36da6f4b166615abdf49230bddcc3859815",
-    "00555_a_line_given_back_takes_its_token_with_it.sql": "cae1c121cd2928c2c9d02559aa35dbeb0cc3cd06547af35c3f3048dc949456bc"
+    "00555_a_line_given_back_takes_its_token_with_it.sql": "cae1c121cd2928c2c9d02559aa35dbeb0cc3cd06547af35c3f3048dc949456bc",
+    "00556_a_business_keeps_its_videos.sql": "007e054cac349ba553c33e4858047fa7e84633ebfbd602c4119efc3139a77073"
   }
 }

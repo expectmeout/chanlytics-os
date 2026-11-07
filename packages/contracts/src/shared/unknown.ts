@@ -57,6 +57,10 @@ export const isList = (value: unknown): value is readonly unknown[] => Array.isA
 /** A list, or an empty one: its items unread, each for the reader to check. */
 export const listOrEmpty = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
+/** A plain object (never an array), as a type guard: what a provider's JSON is read from, field by field. */
+export const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 /** A plain object (never an array), or null. */
 export const recordOrNull = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;

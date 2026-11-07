@@ -35,7 +35,8 @@
  *                call recordings) live on the Supabase origin; a listing photo
  *                Google hands back lives on googleusercontent.com.
  *   frame-src    Meta's SDK plants a hidden iframe under its root element; Stripe's embedded Checkout is a frame of
- *                its own, and a bank's check one more (0073).
+ *                its own, and a bank's check one more (0073); a business's video plays in Stream's player (0099).
+ *   stream       a video goes from the browser straight to Stream's upload host (connect), and plays in its frame.
  *   stripe       the first run's Go live pays in the page (decision 0073, R16): Stripe.js from js.stripe.com, and the
  *                origins Stripe's own CSP guide names for it and for embedded Checkout (script, frame, connect, img).
  *   fonts        self-hosted by next/font, so no font host is named; only the
@@ -114,6 +115,15 @@ const STRIPE = {
   connect: ["https://api.stripe.com", "https://checkout.stripe.com"],
   img: ["https://*.stripe.com"],
 };
+/**
+ * A business's videos (docs/decisions/0099, stage B), as Cloudflare's Stream FAQ lists them: its player is a frame of its own
+ * on the account's playback host, and the browser sends a clip straight to Stream's upload host over tus. Every video needs a
+ * token the edge signs, so naming the hosts plays nothing by itself.
+ */
+const STREAM = {
+  frame: ["https://videodelivery.net", "https://*.cloudflarestream.com"],
+  connect: ["https://*.videodelivery.net", "https://*.cloudflarestream.com"],
+};
 
 function originOf(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -157,10 +167,11 @@ export function contentSecurityPolicy(o: CspInputs): string {
         ...VOICE_AGENT,
         ...REHEARSAL_CALL,
         ...STRIPE.connect,
+        ...STREAM.connect,
         ...(leadMap ? [leadMap] : []),
       ],
     ],
-    ["frame-src", [META[1], META[2], ...STRIPE.frame]],
+    ["frame-src", [META[1], META[2], ...STRIPE.frame, ...STREAM.frame]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
     ["object-src", ["'none'"]],

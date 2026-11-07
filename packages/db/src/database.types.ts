@@ -2751,17 +2751,25 @@ export type Database = {
           fingerprint: string
           height: number | null
           id: string
+          kind: string
           look: Json | null
           look_edition: number | null
           look_status: string
           looked_at: string
           made: Json | null
+          media_error: string | null
+          media_ref: string | null
+          media_status: string | null
           mime: string
           name: string
           owner_named: boolean
           owner_shelved: boolean
+          ready_at: string | null
           removed_at: string | null
+          seconds: number | null
           shows: string | null
+          sound: Json | null
+          sound_said: string | null
           source: string
           source_ref: string | null
           status: string
@@ -2778,17 +2786,25 @@ export type Database = {
           fingerprint: string
           height?: number | null
           id?: string
+          kind?: string
           look?: Json | null
           look_edition?: number | null
           look_status?: string
           looked_at?: string
           made?: Json | null
+          media_error?: string | null
+          media_ref?: string | null
+          media_status?: string | null
           mime: string
           name: string
           owner_named?: boolean
           owner_shelved?: boolean
+          ready_at?: string | null
           removed_at?: string | null
+          seconds?: number | null
           shows?: string | null
+          sound?: Json | null
+          sound_said?: string | null
           source: string
           source_ref?: string | null
           status: string
@@ -2805,17 +2821,25 @@ export type Database = {
           fingerprint?: string
           height?: number | null
           id?: string
+          kind?: string
           look?: Json | null
           look_edition?: number | null
           look_status?: string
           looked_at?: string
           made?: Json | null
+          media_error?: string | null
+          media_ref?: string | null
+          media_status?: string | null
           mime?: string
           name?: string
           owner_named?: boolean
           owner_shelved?: boolean
+          ready_at?: string | null
           removed_at?: string | null
+          seconds?: number | null
           shows?: string | null
+          sound?: Json | null
+          sound_said?: string | null
           source?: string
           source_ref?: string | null
           status?: string
@@ -8564,6 +8588,23 @@ export type Database = {
         }
         Returns: Json
       }
+      file_media_failed: {
+        Args: { p_error: string; p_media_ref: string }
+        Returns: Json
+      }
+      file_media_processing: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      file_media_ready: {
+        Args: {
+          p_height: number
+          p_media_ref: string
+          p_seconds: number
+          p_width: number
+        }
+        Returns: Json
+      }
       file_purged: {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
@@ -8572,9 +8613,38 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      file_sound_keep: {
+        Args: {
+          p_by: Json
+          p_id: string
+          p_part: string
+          p_said: string
+          p_tenant_id: string
+          p_value: Json
+        }
+        Returns: undefined
+      }
       file_start: {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
+      }
+      file_upload_lapsed: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      file_video_begin: {
+        Args: {
+          p_actor?: string
+          p_bytes: number
+          p_fingerprint: string
+          p_id: string
+          p_media_ref: string
+          p_mime: string
+          p_name: string
+          p_seconds: number
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       finish_broadcast: {
         Args: { p_event: Json; p_id: string; p_tenant_id: string }
