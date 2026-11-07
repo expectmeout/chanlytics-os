@@ -18,7 +18,7 @@ import {
   type ReachOutChainDto,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { useSequenceRead } from "../../campaigns/sequences/use-record";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { sequenceVerbs as verbs } from "../../campaigns/sequences/verbs";

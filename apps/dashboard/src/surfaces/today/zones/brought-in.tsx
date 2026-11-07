@@ -9,7 +9,7 @@
  */
 import { useId, useState } from "react";
 import { FIRST_RUN_HELPERS, broughtInCardOf, broughtInShown, type BroughtInFactVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Icon } from "../../kit/icon/icon";
 import { ImportFoot, ImportLines } from "../../setup/first-run/channels/brought";
 import { useSurface } from "../../use-surface";

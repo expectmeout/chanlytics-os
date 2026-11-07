@@ -3,7 +3,7 @@
  *
  * Measured on main at 1388f2cc6 (29 Sep 2026): a message INSERT re-read seven surfaces (conversations, inbox, today,
  * people, reports, broadcasts, playbooks), People and Broadcasts each reading every page of contacts, on whatever page
- * the owner had open; and each read told every status listener, so LegacyApp drew the whole shell seven times.
+ * the owner had open; and each read told every status listener, so FrameApp drew the whole shell seven times.
  *
  * Run on the real overrides' routing through the real runner, with each read recorded instead of made: a message
  * re-reads the Inbox, Conversations and Today, and the page on screen; a surface that let one pass is read once as its
@@ -23,7 +23,7 @@ import { registeredSurfaces } from "../hearing/_reads.mjs";
 
 const heard = new Map();
 const win = {
-  // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+  // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
   __afterTheMoveMs: 0,
   __ACTIVE_WORKSPACE: "ws-1",
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
@@ -57,13 +57,13 @@ const settle = async (n = 10) => {
 };
 
 // The address the bridge gives the pages, and the pages' way to it: a route moves with popstate, as Back does.
-win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts")).addressApi(win);
+win.__shell = (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win);
 win.CHANLY = { nav() {}, address: await legacyAddress() };
-const runner = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-/** Every surface the shell registers (LegacyApp.tsx), from the module it imports each from: the shell's own list, no copy. */
+const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
+/** Every surface the shell registers (FrameApp.tsx), from the module it imports each from: the shell's own list, no copy. */
 const REAL = [];
 for (const { name, file } of registeredSurfaces()) REAL.push((await importSrc(file))[name]);
 
@@ -1005,7 +1005,7 @@ win.drawRoute = (r) => ({
 });
 // The frame (surfaces/frame/app-shell.tsx), under the name these tests draw it by; TypeScript, so its hooks are this
 // file's stub's (the "react" module's, set from it).
-(await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
+(await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
 win.ChanlyticsApp = (await importSrc("apps/dashboard/src/surfaces/frame/app-shell.tsx")).ChanlyticsApp;
 
 /** The shell at `hash`, drawn: the redraws it would ask for from here on are counted. */
@@ -1036,7 +1036,7 @@ test("REGRESSION: the three reads of a message draw the shell once on Today and 
     shellAt("#/today");
     for (const key of ["conversations", "inbox", "today"]) lands(key);
     assert.equal(redraws, 1, "Today draws from its own surface; the Inbox's and Conversations' reads are not its");
-    assert.equal(told, 0, "a live surface read again and still live tells no status listener: LegacyApp drew on each");
+    assert.equal(told, 0, "a live surface read again and still live tells no status listener: FrameApp drew on each");
 
     shellAt("#/calendar");
     for (const key of ["conversations", "inbox", "today"]) lands(key);
@@ -1181,7 +1181,7 @@ test("every surface a page names to useSurface is a real one: a key that is no o
   const real = new Set(REAL.map((o) => o.key));
   const named = [];
   // The shell's pages, and the frame's parts that left them for TypeScript and call the shell's hook by name (surfaces/frame).
-  for (const file of repoFiles(["apps/dashboard/src/legacy", "apps/dashboard/src/surfaces/frame"], {
+  for (const file of repoFiles(["apps/dashboard/mockup", "apps/dashboard/src/surfaces/frame"], {
     keep: /\.(jsx|tsx)$/,
   })) {
     const sf = parse(file);

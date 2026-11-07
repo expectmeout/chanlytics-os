@@ -92,7 +92,7 @@ test("a row the server closed counts on neither side, and the unread rows past t
 
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
-const bridge = await importSrc("apps/dashboard/src/legacy-bridge/notifications.ts");
+const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const was = globalThis.window;
 globalThis.window = {
   fetch: async () => new Response("{}", { status: 500 }),

@@ -351,7 +351,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   );
   const pv = readCode("apps/dashboard/app/api/v1/calendar/preview/route.ts");
   assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
-  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = readCode("apps/dashboard/src/bridge/surface-registry.ts");
   assert.ok(reg.includes('calendar: "real"') && reg.includes('calendar: "calendar"'));
   // What the page draws, by the testids it is known by, and that it is a viewer, is executed in calendar-honest.test.mjs.
   const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
@@ -425,7 +425,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
       sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"),
   );
   assert.deepEqual(
-    (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key),
+    (await importSrc("apps/dashboard/src/bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key),
     ["settings", "calendar", "setup", "workspace"],
     "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, People's reach and the composers where a page draws them, and no page is on screen here: S4-6), and a renamed business the workspace (00439); Today's five reads draw no configuration",
   );
@@ -498,7 +498,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   // The first read is the window around the business's today, asked for by that word: executed in
   // calendar-cold-boot.test.mjs (the page's half) and calendar-feed.test.mjs (the route's).
   assert.ok(readCode("apps/dashboard/src/server/calendar/calendar-week.ts").includes("const MAX_DAYS = 63;"));
-  const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
+  const css = readCode("apps/dashboard/src/styles/calendar.css");
   assert.ok(
     css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"),
     "a quiet arrival, none for those who asked for none",

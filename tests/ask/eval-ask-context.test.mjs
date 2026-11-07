@@ -63,7 +63,7 @@ import {
   usageRows,
 } from "../../tooling/scripts/eval-ask-context.mjs";
 
-const { surfaceFor } = await import("../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
+const { surfaceFor } = await import("../../apps/dashboard/src/bridge/ask/palette.ts");
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const U = (n) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;

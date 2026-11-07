@@ -15,7 +15,7 @@ import path from "node:path";
 import { transform } from "lightningcss";
 import { ROOT } from "../_source.mjs";
 
-const SHEET = "apps/dashboard/src/legacy/styles/components.css";
+const SHEET = "apps/dashboard/src/styles/components.css";
 
 /** Every style rule, with whether it stands under a media query. */
 function rules(sheet) {

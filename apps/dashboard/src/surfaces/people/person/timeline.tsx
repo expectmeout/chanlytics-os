@@ -20,7 +20,7 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { holdStill, routeDoor } from "../../legacy-verbs";
+import { holdStill, routeDoor } from "../../frame-verbs";
 import { VisitAsk } from "../../visit-line";
 
 type Item = PersonVM["timeline"][number];

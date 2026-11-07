@@ -329,8 +329,8 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   // in public/a-paused-workspace-asks-nobody-for-a-yes.test.mjs, over the real readers and the drawn pages.
   // The owner's Get their yes names that address, and says why it is there: drawn (its pane at broadcasts/get-yes,
   // surfaces/campaigns/broadcasts) over a surface that holds it, from this test's workspace.
-  const { installLegacyReact, fresh, byTestId, textOf } = await import("../_legacy-react.mjs");
-  installLegacyReact({
+  const { installStubReact, fresh, byTestId, textOf } = await import("../_stub-react.mjs");
+  installStubReact({
     __WORKSPACES: [
       { id: "t-marisa", slug: "marisas", name: "Marisa's", status: "active", timezone: "America/New_York" },
     ],

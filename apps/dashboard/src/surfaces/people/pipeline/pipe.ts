@@ -4,14 +4,14 @@
  * once.
  */
 import type { PipelineGroupKey, PipelineRowVM } from "@chanlytics/contracts";
-import { windowValue } from "../../legacy-verbs";
+import { windowValue } from "../../frame-verbs";
 import { pipelineHelpers } from "../pipeline-helpers";
 
 export const P = pipelineHelpers();
 
 /**
  * Whether the shell has a deal sheet to open (`window.openDealSheet`, components/deal-sheet.jsx): the row menu lists the
- * deal's acts only where there is one, as it always did. The ask itself is legacy-verbs.ts `openDealSheet`.
+ * deal's acts only where there is one, as it always did. The ask itself is frame-verbs.ts `openDealSheet`.
  */
 export function dealSheetOffered(): boolean {
   return typeof windowValue("openDealSheet") === "function";

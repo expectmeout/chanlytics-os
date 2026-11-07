@@ -23,7 +23,7 @@ import {
   usePipelineUi,
 } from "./scope-state";
 import type { PipelineScopeProps } from "./scope-state";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 
 export function usePipelineState(props: PipelineScopeProps) {
   const { onOpenProfile = () => undefined } = props;

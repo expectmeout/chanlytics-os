@@ -11,7 +11,7 @@ import type { CalloutActId, CalloutVM } from "@chanlytics/contracts/ads-page";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 
 export type CalloutAct = CalloutActId;
 

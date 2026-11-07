@@ -399,7 +399,7 @@ export function callsAnswer(missed: FastCall[], live: FastCall[], language: AskL
 }
 
 /**
- * The openings route's days, as the palette reads them (legacy-bridge/ask/api.ts `openings`). The route's `text` is
+ * The openings route's days, as the palette reads them (bridge/ask/api.ts `openings`). The route's `text` is
  * the receptionist's instruction ("Offer up to three of these…"), never an owner's sentence, so the answer is said
  * from the days.
  */

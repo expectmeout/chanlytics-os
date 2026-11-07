@@ -396,13 +396,13 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.match(POLICY_CLASS_WORDS.follow_up.note, /^how the proposal follow-up and filling a cancellation start · /);
   assert.equal(POLICY_CLASS_WORDS.follow_up.name, "Follow-ups", "the row names both moments under it (0082)");
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
+    readCode("apps/dashboard/src/bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
   );
 });
 
 test("the page and its doors: Campaigns is real (Sequences, decision 0060), and the old Outbound is its door; make, change, pause, resume, run now, delete through the app's routes; a waiting run on Today", async () => {
-  const { SURFACE_STATES, ROUTE_SURFACE } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const { SURFACE_STATES, ROUTE_SURFACE } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   for (const route of ["campaigns", "outbound"]) assert.equal(SURFACE_STATES[route], "real", `${route}: flipped`);
   // The gate waits on what each draws first: Campaigns is Sequences' list; the old Outbound, a door, its playbooks.
   assert.equal(ROUTE_SURFACE.campaigns, "sequences", "campaigns: the gate waits on Sequences' list");
@@ -439,7 +439,7 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
     rows.includes('testid="brief-run-row"') && rows.includes("runsPending()"),
     "Today's queue shows a run that waits, from the surface it already has",
   );
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   for (const k of [
     "POST playbooks",
     "PUT playbooks/[id]",
@@ -479,7 +479,7 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
   // (The Playbooks tab of the Campaigns strip is gone with the strip: the old route is a door now, run in
   // campaigns-routes.test.mjs.)
   assert.ok(
-    /broadcastsOverride,\s*playbooksOverride/.test(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx")),
+    /broadcastsOverride,\s*playbooksOverride/.test(readCode("apps/dashboard/src/bridge/FrameApp.tsx")),
     "booted with the rest",
   );
 });

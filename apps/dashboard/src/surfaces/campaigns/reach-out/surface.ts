@@ -88,8 +88,8 @@ import {
   leadChainStepOf,
 } from "@chanlytics/contracts";
 import type { Input } from "@/client/api";
-import { api, read } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
+import { api, read } from "@/bridge/api";
+import { readCache } from "@/bridge/read-cache";
 import { broadcasts } from "../broadcasts/verbs";
 import { peekSources, readSources } from "./sources";
 

@@ -4,7 +4,7 @@
  * are posts of their own rather than the typed client's, which owns all three.
  */
 import { SECOND_MS, type PreviewTurnVM } from "@chanlytics/contracts";
-import type { CallStarted } from "@/legacy-bridge/rehearse/call";
+import type { CallStarted } from "@/bridge/rehearse/call";
 
 /**
  * A door's answer: what it said, or its refusal in the page's own words, with the seconds a limit says it lifts in

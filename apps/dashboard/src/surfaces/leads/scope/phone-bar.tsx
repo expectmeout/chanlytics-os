@@ -4,7 +4,7 @@
  * leads as the three's still mark. Find leads is Ask (spec F1): at a phone's width the shell's ✦ is its one door and the
  * mark gives way (leads.css); from 721px to 900px the controls row is gone and the shell draws no ✦, so the mark is the
  * page's one door. The same top on every scope, and nothing else sits above the rows -- no title, no sub-headline, no
- * stat cards and no second control row (legacy/CLAUDE.md, the phone shows the work first).
+ * stat cards and no second control row (mockup/CLAUDE.md, the phone shows the work first).
  * A search's reach-out (Reach out Part 4 PR 6) is an accent word under its counts on a phone (scope.tsx), not here.
  */
 import type { ReactNode, RefObject } from "react";
@@ -14,7 +14,7 @@ import { ActWords } from "../../kit/head/act-words";
 import { Menu } from "../../kit/menu/menu";
 import { menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { Icon } from "../../kit/icon/icon";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { Sheet, type SheetBack } from "../../kit/sheet/sheet";
 import { JOB_CANCEL } from "../../people/sheets/phone-sheet";
 import { BarWord, PeoplePhoneBar, SELECT_WORDS } from "../../people/rail/phone-bar";

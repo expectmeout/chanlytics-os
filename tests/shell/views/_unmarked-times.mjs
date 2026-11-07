@@ -1,6 +1,6 @@
 /**
  * The times a drawn tree says, and which of them have a mark over them (kit/says-when.ts): one with none is what a copy some
- * minutes old would go on saying. A tree of the stub React (_legacy-react.mjs), walked as it is drawn: a component as what it
+ * minutes old would go on saying. A tree of the stub React (_stub-react.mjs), walked as it is drawn: a component as what it
  * rendered, an element as its children. Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 import { NOT_A_TIME, SAYS_A_TIME } from "../../../e2e/shell/says-a-time.ts";

@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useRef } from "react";
 import type { PersonRowVM } from "@chanlytics/contracts";
-import { askOnScreenKey, setAskOnScreen } from "../../legacy-verbs";
+import { askOnScreenKey, setAskOnScreen } from "../../frame-verbs";
 import { useSeen } from "../../seen";
 import { warmPeople, warmPerson } from "../people-detail";
 import { keepWalk, leaveWalk } from "../walk";
@@ -131,7 +131,7 @@ export function usePeoplePlace({
   }, [peopleView, walkIds]);
   // The list gone, a person opened after it is not one opened from it (walk.ts).
   useEffect(() => leaveWalk, []);
-  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the people this view draws, in its order after its list,
+  // What Ask is told is on screen (bridge/ask/context.ts): the people this view draws, in its order after its list,
   // search and sort, forty at most, and the view that chose them; taken back when the list goes.
   useEffect(() => {
     const drawn = shown.slice(0, 40);

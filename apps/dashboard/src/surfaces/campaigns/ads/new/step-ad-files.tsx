@@ -9,7 +9,7 @@ import type { FileDto } from "@chanlytics/contracts";
 import { NEW_AD, adFileNotes } from "@chanlytics/contracts/ads-page";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { useKeptFiles } from "./kept-files";
 import { Cap, Sec } from "./new-bits";
 import type { StepProps } from "./new-bits";

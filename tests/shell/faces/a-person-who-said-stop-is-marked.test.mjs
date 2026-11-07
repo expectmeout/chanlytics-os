@@ -31,9 +31,9 @@ import {
   toLiveCallVM,
   toPersonRowVM,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, find, all, byTestId, classes, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, find, all, byTestId, classes, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../apps/dashboard/src";
 const { Face } = await import(`${S}/surfaces/kit/face/face.tsx`);
 const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);

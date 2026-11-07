@@ -21,8 +21,8 @@ import {
   type ReportKind,
 } from "@chanlytics/contracts";
 import type { lastClientError } from "@/client/client-error";
-import { api } from "@/legacy-bridge/api";
-import { meNow } from "../legacy-verbs";
+import { api } from "@/bridge/api";
+import { meNow } from "../frame-verbs";
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";

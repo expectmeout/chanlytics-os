@@ -36,7 +36,7 @@ import {
   type Flash,
   type SeededLead,
 } from "../shell";
-import { getSurfaceStatuses, onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { getSurfaceStatuses, onSurfaceMoved } from "@/bridge/surface-status";
 import { needsYouMoved, waitingRunsNow } from "../../needs-you";
 import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";

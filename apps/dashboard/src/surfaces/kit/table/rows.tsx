@@ -12,7 +12,7 @@
  */
 import { cloneElement, memo, useLayoutEffect } from "react";
 import type { ChangeEvent, ReactElement } from "react";
-import { warmsOnReach } from "../../legacy-verbs";
+import { warmsOnReach } from "../../frame-verbs";
 import { setRowTabs } from "./row-tabs";
 import { EmptyState } from "../empty/empty";
 import type { AnyDataColumn, DataCard, RowPick, TableRow } from "./columns";
@@ -90,7 +90,7 @@ function TableRowView<R extends TableRow, X>(p: RowProps<R, X>) {
         if (warm) warm(row.id);
         if (!focused) p.onCursor(row.id);
       }}
-      // A pointer that rests on the row warms it, never a finger (legacy-verbs warmsOnReach).
+      // A pointer that rests on the row warms it, never a finger (frame-verbs warmsOnReach).
       onPointerEnter={warm ? (e) => warmsOnReach(e) && warm(row.id) : undefined}
       onClick={(e) => {
         // The words selected are this row's own (a drag across a number to copy it); the page's other words are not.

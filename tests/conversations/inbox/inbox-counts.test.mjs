@@ -23,17 +23,7 @@ import {
   memberWords,
   replyWaitsOnYou,
 } from "@chanlytics/contracts";
-import {
-  installLegacyReact,
-  fresh,
-  again,
-  all,
-  find,
-  byTestId,
-  textOf,
-  settle,
-  unmount,
-} from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, settle, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 
@@ -198,7 +188,7 @@ test("the fixtures stand where the salon's threads stand", () => {
 
 /* -------------------------------- a browser -------------------------------- */
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../apps/dashboard/src";
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
@@ -210,7 +200,7 @@ const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 // Sent's surface, as the app registers it: its value is mirrored where the rows of runs waiting read it (window.__BROADCASTS,
 // surfaces/waits/run-acts.tsx), Today's and the Inbox's alike.
 await import(`${S}/surfaces/campaigns/broadcasts/surface.ts`);
-const { getSurfaceStatuses, setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
+const { getSurfaceStatuses, setStatus } = await import(`${S}/bridge/surface-status.ts`);
 const { needsYouNow } = await import(`${S}/surfaces/needs-you.ts`);
 Object.assign(globalThis, {
   location: {
@@ -240,7 +230,7 @@ globalThis.dispatchEvent = (e) => {
   if (e && e.type === "inbox:counts") sentCounts.push(e.detail);
   return dispatched(e);
 };
-// The shell's own toast and role gate, which the page draws through the bridge (surfaces/legacy-verbs.ts).
+// The shell's own toast and role gate, which the page draws through the bridge (surfaces/frame-verbs.ts).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 /** A read landing (surface:inbox) is fired at what listens for it, by name: a page adds several listeners. */
@@ -1057,7 +1047,7 @@ test("a Today load asks for the replies to reach-outs once, as the surface that 
   const realFetch = globalThis.fetch;
   try {
     const { todayOverride } = await import(`${S}/surfaces/today/override.ts`);
-    const { repliesOverride } = await import(`${S}/legacy-bridge/reach-out/replies.ts`);
+    const { repliesOverride } = await import(`${S}/bridge/reach-out/replies.ts`);
     const reading = (conversation_id, intent) => ({ conversation_id, intent, undone: false, claim: "person" });
     const requests = [];
     const asked = () => requests.filter((u) => u.includes("/api/v1/reach-out-replies")).length;
@@ -1115,7 +1105,7 @@ const tplRow = (name, over = {}) => ({
   body_preview: `Words of ${name}`,
   ...over,
 });
-/** What the settings surface publishes of the templates (legacy-bridge/surfaces/settings.ts), and no more than the Inbox's picker reads of it. */
+/** What the settings surface publishes of the templates (bridge/surfaces/settings.ts), and no more than the Inbox's picker reads of it. */
 const settingsOf = (rows) => ({ templatesAll: rows, templateVersions: [], messages: [] });
 
 test("the Inbox asks for no templates, however often it reads again: its picker is the settings read's as it stands -- absent while that is read, null where it failed", async () => {
@@ -1197,7 +1187,7 @@ test("a template approved while the Inbox is reading is in its picker: the Inbox
   try {
     const { inboxOverride } = await import(`${S}/surfaces/inbox/surface.ts`);
     const { inboxData } = await import(`${S}/surfaces/inbox/store.ts`);
-    const { AFTER } = await import(`${S}/legacy-bridge/refresh-map.ts`);
+    const { AFTER } = await import(`${S}/bridge/refresh-map.ts`);
     let release = () => {};
     const held = new Promise((resolve) => (release = resolve));
     globalThis.fetch = async (url) => {

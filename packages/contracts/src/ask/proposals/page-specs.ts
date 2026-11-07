@@ -4,7 +4,7 @@
  *
  * Every page's route loads this (the browser entry), so it holds only the kinds a page presses. The kinds only Ask's
  * cards commit (ask-only.ts) join the lookups by addProposalSpecs: on the server and in the tests from the start
- * (proposals.ts), in the browser once their own entry has loaded (legacy-bridge/verbs, moreSpecs), which Ask's bridge
+ * (proposals.ts), in the browser once their own entry has loaded (bridge/verbs, moreSpecs), which Ask's bridge
  * waits for before it hands over a turn or a thread with cards in it. Until then a lookup of one of them finds nothing.
  */
 import { ASK_UNDO_MS, type AskProposal } from "../ask";
@@ -51,7 +51,7 @@ import { postSpec } from "../../files/post-spec";
 import { memoryChangeSpec, memoryForgetSpec, memorySpec } from "./memory";
 
 /**
- * The verbs a page presses (commitVerb, legacy-bridge/verbs), each a card Ask may propose too. Each keeps its own type,
+ * The verbs a page presses (commitVerb, bridge/verbs), each a card Ask may propose too. Each keeps its own type,
  * so the kinds above operator are known.
  */
 export const PAGE_SPECS = {

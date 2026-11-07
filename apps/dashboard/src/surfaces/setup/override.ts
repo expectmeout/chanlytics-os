@@ -1,20 +1,20 @@
 /**
  * Setup's surface as the frame registers it: what it reads and hears, its mirror for the pages that have not moved, and
  * the first run's landing rule, here; the read, the verbs and the forwarding card's words in surface.ts, fetched as the
- * surface is first read (code-once.ts), at once where a page that draws it is the one opened (legacy-bridge/surfaces/code.ts). Every page
+ * surface is first read (code-once.ts), at once where a page that draws it is the one opened (bridge/surfaces/code.ts). Every page
  * hears Setup (Today's card is Setup's), and its whole making was in every page's first load (the loadability review,
  * 19 Oct 2026).
  */
 import { FIRST_RUN_LANDED_KEY, FIRST_RUN_ROUTE, shouldLandOnFirstRun } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { surfaceCode } from "@/legacy-bridge/surfaces/code";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { goToRoute, routeOnScreen } from "@/legacy-bridge/workspace";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { surfaceCode } from "@/bridge/surfaces/code";
+import { declareReads } from "@/bridge/surface-registry";
+import { goToRoute, routeOnScreen } from "@/bridge/workspace";
 import { declareSurfaceValue, surfaceValue } from "../surface-values";
 
 declareSurfaceValue("setup", "__SETUP");
 
-/** Setup's read and verbs: fetched once, shared (legacy-bridge/surfaces/code.ts). */
+/** Setup's read and verbs: fetched once, shared (bridge/surfaces/code.ts). */
 const setupCode = surfaceCode("setup", () => import("./surface"));
 
 /** How long after the last change Setup is read again, and the longest after the first. */

@@ -14,7 +14,7 @@ import { Icon } from "../../kit/icon/icon";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { RecordSheet } from "../../kit/record/sheet";
 import { UnsavedAsk, useUnsavedWork } from "../../kit/record/work";
-import { gatedProps } from "../../legacy-verbs";
+import { gatedProps } from "../../frame-verbs";
 import type { Flash } from "../types";
 import { ListPicker, TYPED_KIND, hereOf, oneFields, typedAny, useAddOne } from "./add-one";
 import type { AddOne, HandList, Here, KnownPerson, Typed } from "./add-one";

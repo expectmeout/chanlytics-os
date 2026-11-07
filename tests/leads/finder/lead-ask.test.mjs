@@ -27,7 +27,7 @@ const { newToolContext, runTool, buildProposal, toApiTools } = await import(
 );
 const READ_TOOLS = toApiTools("viewer", true);
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
+const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());

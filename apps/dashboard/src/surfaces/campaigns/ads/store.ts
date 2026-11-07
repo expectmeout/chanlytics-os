@@ -25,7 +25,7 @@ import {
   starterCopy,
 } from "@chanlytics/contracts/ads-page";
 import type { AdDraft, AdsExample, AskApply, AskVM } from "@chanlytics/contracts/ads-page";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { rememberAdNames } from "./crumb-names";
 import { exampleAt, withAccount } from "./examples";
 import { adsOwnHere } from "./own";
@@ -36,7 +36,7 @@ import { CONFIG, accountChecks } from "./sample";
 export type AdsOutcome = { ok: true; undo: () => void } | { ok: false; why: string };
 
 /** The toast a press says: its words with Undo where it worked, why where it was declined. */
-export const tellOf = (out: AdsOutcome, msg: string, undoable = true): LegacyFlash =>
+export const tellOf = (out: AdsOutcome, msg: string, undoable = true): FrameFlash =>
   out.ok ? { msg, undo: undoable ? out.undo : null } : { tone: "warn", msg: out.why };
 
 export interface AdsVerbs {

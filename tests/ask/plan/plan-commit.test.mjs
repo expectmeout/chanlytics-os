@@ -6,7 +6,7 @@
  * token in its payload (`@step:n`) is filled with what step n made, or refused while step n has made nothing yet or was
  * undone. What a card made is its spec's to say (ProposalSpec.made): a message's version, which a send names it by.
  *
- * EXECUTED: the real commit walk (legacy-bridge ask/commit.ts) over the real specs, through the typed client bound to a
+ * EXECUTED: the real commit walk (bridge ask/commit.ts) over the real specs, through the typed client bound to a
  * fake fetch that answers as the routes answer, so what is proved is what leaves the tab: the route, the body, the key.
  */
 import { test } from "node:test";
@@ -22,7 +22,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 // Read as a module, so a name contracts does not say yet is a failing assertion, not a file that will not load.
 const C = await import("@chanlytics/contracts");
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const commit = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
+const commit = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { commitProposal } = commit;
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

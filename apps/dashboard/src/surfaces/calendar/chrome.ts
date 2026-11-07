@@ -17,7 +17,7 @@
  * on. The JSX also named an appointment (`calendar/a-lin`) after the seeded week's; nothing names one now, since the sample
  * the demo draws (sample.ts) has no appointment whose id an address can spell that way.
  */
-import { demoSession } from "../legacy-verbs";
+import { demoSession } from "../frame-verbs";
 import type { SurfaceViews } from "../routes";
 import { surfaceValue } from "../surface-values";
 import { calendarViewOf, calendarViewRoute } from "./address";

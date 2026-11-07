@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { again, all, unmount } from "../../_legacy-react.mjs";
+import { again, all, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, W, answerWith, flashes, json, wire, dayWith, draw, row } from "./_world.mjs";
 

@@ -395,7 +395,7 @@ async function recordContext(browser, job) {
       timeout: LOAD_TIMEOUT_MS,
     });
     await settle(page, quiet, where);
-    // The standalone document starts dark and turns on the `t` key (legacy/Chanlytics.html).
+    // The standalone document starts dark and turns on the `t` key (mockup/Chanlytics.html).
     if (theme !== "dark") {
       await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" })));
       await page.clock.fastForward(THEME_MS);

@@ -17,14 +17,14 @@ import {
 } from "@chanlytics/contracts";
 import { RecordCombobox } from "../../../kit/record/combobox";
 import { RecordField } from "../../../kit/record/field";
-import { gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, type FrameFlash } from "../../../frame-verbs";
 import { BtRow } from "../gestures/row";
 import type { Brain, Config, Saver } from "../save";
 
 interface RowProps {
   brain: Brain;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   saver: Saver | null;
 }
 

@@ -1,5 +1,5 @@
 /**
- * What the agent's events mean to the Line (apps/dashboard/src/legacy-bridge/ask/voice-events.ts), over the events the
+ * What the agent's events mean to the Line (apps/dashboard/src/bridge/ask/voice-events.ts), over the events the
  * spike recorded (docs/superpowers/specs/2026-10-03-ask-spoken-spike.md, runs A, B5 and B8): the person's words become
  * the question, a read's label a trace, the parts one growing Say with the first sentence as its headline, the buffer
  * words nothing, a cut a cut, the complete event the landing, the whole response its spoken text with the labels and
@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { reduceVoiceEvent, VOICE_TURN_START, cleanSpoken, sayOf } = await import(
-  at("apps/dashboard/src/legacy-bridge/ask/voice-events.ts")
+  at("apps/dashboard/src/bridge/ask/voice-events.ts")
 );
 
 /** The events in order, as the client's callbacks fire them; what came out, and the state left. */

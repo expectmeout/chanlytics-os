@@ -49,8 +49,8 @@ const setVisibility = (state) => {
   tellDocument("visibilitychange");
 };
 
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 const flush = async () => {
   for (let i = 0; i < 30; i += 1) await Promise.resolve();

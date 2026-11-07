@@ -8,7 +8,7 @@
 import { FieldError } from "../../kit/field-error/field-error";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn } from "../../frame-verbs";
 import type { ListRule } from "@chanlytics/contracts";
 import { RuleEditor } from "../lists/rule-editor";
 import { SaveModes } from "../lists/save-shown";

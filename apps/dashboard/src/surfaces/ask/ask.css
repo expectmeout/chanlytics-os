@@ -257,7 +257,7 @@ body.ask-open .tb-ask .tb-ask-face {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Inside its chip's height: the touch floor for buttons (mobile.css, `html.legacy-on button`) stood it over the chip. */
+/* Inside its chip's height: the touch floor for buttons (mobile.css, `html.frame-on button`) stood it over the chip. */
 .ask-scope .ask-scope-clear {
   min-height: 0;
 }
@@ -1681,7 +1681,7 @@ body.ask-open .tb-ask .tb-ask-face {
      (components.css, the badges): nothing under 80%, so the ✦ is furniture; from 80% (`data-usage`) the amber dot
      "needs you" wears everywhere here, breathing; at 100% red. It rides the rim at the top right with the surface's
      own ring around it. What needs you on the page is the three's own colour: lit where they stand as a page arrives,
-     and kept lit while something waits (legacy-bridge/arrival.ts); the states while Ask works. Chosen from the canvas
+     and kept lit while something waits (bridge/arrival.ts); the states while Ask works. Chosen from the canvas
      (Ruben, 25 Sep: "let's go with 4", then "the dot only past 80%, amber then red; if something needs attention the
      three stay in colour at rest"); the beam it replaces is B3 to B5 of the spec. Nothing sets `data-usage` yet (AskDisc
      says why), so the dot waits, undrawn, for the usage surface. */

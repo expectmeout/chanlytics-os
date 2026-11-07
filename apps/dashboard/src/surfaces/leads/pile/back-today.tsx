@@ -12,9 +12,9 @@ import { LEAD_BACK_WORDS, MIN_MS, askedDayOf, leadsRoute } from "@chanlytics/con
 import type { LeadBackDto } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { read } from "@/legacy-bridge/api";
-import { getActiveWorkspace } from "@/legacy-bridge/workspace";
-import { routeDoor } from "../../legacy-verbs";
+import { read } from "@/bridge/api";
+import { getActiveWorkspace } from "@/bridge/workspace";
+import { routeDoor } from "../../frame-verbs";
 
 /** How many show before "N more". */
 const SHOWN = 3;

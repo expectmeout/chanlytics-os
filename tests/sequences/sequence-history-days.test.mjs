@@ -10,14 +10,12 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { SEQUENCE_HISTORY_WORDS, campaignReportRoute, runRoute } from "@chanlytics/contracts";
-import { again, byTestId, fresh, installLegacyReact, settle, textOf, unmount } from "../_legacy-react.mjs";
+import { again, byTestId, fresh, installStubReact, settle, textOf, unmount } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false });
+installStubReact({ __DEMO_MODE: false });
 // use-record.ts makes the record foot's context as it loads, and "react" under this runner's react-server condition has no
 // createContext: the stub gives it one that holds its value, which nothing here draws.
-const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
-  "react",
-);
+const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/bridge/_.js", import.meta.url))("react");
 reactOfDashboard.createContext ??= (value) => ({ Provider: "Provider", Consumer: "Consumer", _currentValue: value });
 // The shell's link to a route (frame-globals routeDoor), which a day's door spreads.
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();

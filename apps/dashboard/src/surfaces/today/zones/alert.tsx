@@ -7,10 +7,10 @@
  */
 import { useEffect, useState } from "react";
 import { CHANNELS_DOOR, TODAY_PHONE_WORDS as P, bellSections, type BellLineVM } from "@chanlytics/contracts";
-import type { BellApi, BellRow } from "@/legacy-bridge/notifications";
+import type { BellApi, BellRow } from "@/bridge/notifications";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { appNavigate, bell } from "../shell";
 

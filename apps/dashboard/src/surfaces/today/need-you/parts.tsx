@@ -24,7 +24,7 @@ import {
 import { Button, Field, Menu, Meter, Panel } from "../../kit";
 import { useGrowAsTyped } from "../../kit/field/grow-as-typed";
 import { Icon } from "../../kit/icon/icon";
-import { editorBox, focusAsDrawn } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn } from "../../frame-verbs";
 import { useTodayOnPhone } from "../phone";
 import type { Flash } from "../shell";
 

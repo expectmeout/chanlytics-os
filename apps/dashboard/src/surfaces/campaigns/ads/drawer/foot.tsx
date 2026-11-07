@@ -10,7 +10,7 @@ import { Button } from "../../../kit/button/button";
 import { Confirm } from "../../../kit/confirm/confirm";
 import { Icon } from "../../../kit/icon/icon";
 import { UnsavedAsk } from "../../../kit/record/work";
-import { gate } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
 import type { Pane } from "./use-pane";
 
 /** Whether the foot has anything to say or press. */

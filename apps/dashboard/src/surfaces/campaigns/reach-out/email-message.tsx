@@ -26,7 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import type { ReachOutChainDto } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
-import { canDo, navigate } from "../../legacy-verbs";
+import { canDo, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { RecordDisclosure } from "../../kit/record/disclosure";

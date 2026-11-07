@@ -77,7 +77,7 @@ export const READER_SCOPE = [
   "packages/channels/src",
   "packages/jobs/src",
   "apps/dashboard/src/server",
-  "apps/dashboard/src/legacy-bridge",
+  "apps/dashboard/src/bridge",
   // Every surface that has left the shell (decision 0015), with the sample a demo session draws (sample.ts) beside its
   // page, and the pages and refusals of the app itself, the consent pages and sign-in among them. Until 16 Oct 2026 only
   // Campaigns, Live and People were read, and "visit" written in survived on the Inbox's and Settings' pages.

@@ -8,10 +8,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { installLegacyReact, fresh, again, byTestId, find, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
-installLegacyReact();
+installStubReact();
 const W = globalThis;
 const { PeopleBulkBar } = await importSrc("apps/dashboard/src/surfaces/people/bulk/bulk-bar.tsx");
 const { DELETE_MANY_WORDS } = await importSrc("apps/dashboard/src/surfaces/people/bulk/delete-many.tsx");

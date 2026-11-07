@@ -45,8 +45,8 @@ globalThis.window.fetch = async (url) => {
 
 const { personOverride } = await importSrc("apps/dashboard/src/surfaces/people/people-detail.ts");
 const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { ownsTheScreen, routeSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const { ownsTheScreen, routeSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 const PERSON = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 const at = (route) => {

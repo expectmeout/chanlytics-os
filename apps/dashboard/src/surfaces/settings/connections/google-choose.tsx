@@ -4,15 +4,15 @@
  */
 import { useEffect, useState } from "react";
 import type { GoogleLocationDto } from "@chanlytics/contracts";
-import { googleVerbs } from "@/legacy-bridge/google";
+import { googleVerbs } from "@/bridge/google";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { canDo, gate, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 
 interface GoogleChooseProps {
   busy: boolean;
   setBusy: (b: boolean) => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   onDisconnect: () => void;
 }
 

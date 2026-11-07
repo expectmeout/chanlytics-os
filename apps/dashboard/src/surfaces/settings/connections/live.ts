@@ -14,7 +14,7 @@ import {
   type ChannelVM,
   type LineCodeDto,
 } from "@chanlytics/contracts";
-import { canDo } from "../../legacy-verbs";
+import { canDo } from "../../frame-verbs";
 import { lineCodes, waConnect, waStanding, type SignupDoor } from "./whatsapp";
 
 /** One read of the codes, painted if the page that asked still wants it; a read that fails changes nothing: the page keeps what it has. */

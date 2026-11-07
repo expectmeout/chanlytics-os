@@ -6,13 +6,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, textOf, press } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const W = globalThis.window;
 // The sheet, its plan and the kit's own RecordSheet and FieldError it draws: the TSX over the stub React
-// (installLegacyReact has put the stub's hooks on the react module), the door the real verb over a recorded fake wire.
+// (installStubReact has put the stub's hooks on the react module), the door the real verb over a recorded fake wire.
 const { PeopleAddSheet } = await importSrc("apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
 const { plImportPlan, plImportReadWords, plImportColumnWords, plImportHeads } = await importSrc(
   "apps/dashboard/src/surfaces/people/import/plan.ts",

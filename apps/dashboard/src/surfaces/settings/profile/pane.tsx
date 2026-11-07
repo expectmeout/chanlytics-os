@@ -20,20 +20,20 @@ import {
   roleSays,
   WORKSPACE_ENDED_WORDS,
 } from "@chanlytics/contracts";
-import { meVerbs } from "@/legacy-bridge/identity";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { meVerbs } from "@/bridge/identity";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { useReportDoor } from "../../kit/empty/report-door";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { RecordInline } from "../../kit/record/inline";
 import { RecordRow } from "../../kit/record/row";
-import { demoSession, meNow, navigate, shellSignOut, type LegacyFlash } from "../../legacy-verbs";
+import { demoSession, meNow, navigate, shellSignOut, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { savedViewsRead } from "../frame/pane-reads";
 import { partnerVerbs } from "../partner/surface";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /**
  * The name you go by, saved through the bridge (/api/v1/me). Empty clears it; the chip, the roster and the account menu

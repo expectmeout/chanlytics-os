@@ -6,13 +6,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HANDOVER_WORDS, PARTNER_WORDS, SECOND_FACTOR_WORDS } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press, settle } from "../_stub-react.mjs";
 
 /** The code box the team card draws: the kit field's own input, which takes the event, not the field's words. */
 const teamCodeBox = (tree) =>
   all(tree, (n) => n.type === "input" && n.props?.["data-testid"] === "team-partner-code")[0];
 
-installLegacyReact();
+installStubReact();
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 const { partnerVerbs } = await import("../../apps/dashboard/src/surfaces/settings/partner/surface.ts");

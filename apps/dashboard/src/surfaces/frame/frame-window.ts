@@ -1,13 +1,13 @@
 /**
  * The names the frame's parts read off the window that no module of the bridge declares: the person the workspace read
- * wrote (`__ME`), the bell (`__notifs`, legacy-bridge/notifications.ts), and the demo's stores, which a real workspace
+ * wrote (`__ME`), the bell (`__notifs`, bridge/notifications.ts), and the demo's stores, which a real workspace
  * never fills (the Agents strip's pauses and its store's templates, the seeded leads). Typed once here, as the frame's
  * JSX read them, so each part reads `window.<name>` and the window ratchets count it (step 9 ends the reads). With them,
  * the three reads every part makes: the demo's flag, and the glyph and the portal by their global names.
  */
 import type { ComponentType, ReactNode } from "react";
-import type { IdentityApi } from "@/legacy-bridge/identity";
-import type { BellApi } from "@/legacy-bridge/notifications";
+import type { IdentityApi } from "@/bridge/identity";
+import type { BellApi } from "@/bridge/notifications";
 import type { LiveSurface } from "../live/surface";
 import type { SwipeOptions } from "../kit/motion/swipe";
 import type { IX_STORE } from "../inbox/store";
@@ -18,9 +18,9 @@ import { RecordSwitch } from "../kit/record/field";
 
 declare global {
   interface Window {
-    /** The person signed in, as the workspace read wrote it (legacy-bridge/surface-data.ts). */
+    /** The person signed in, as the workspace read wrote it (bridge/surface-data.ts). */
     __ME?: Parameters<IdentityApi["words"]>[0];
-    /** The bell: its rows, its read state and this device's alerts (legacy-bridge/notifications.ts). */
+    /** The bell: its rows, its read state and this device's alerts (bridge/notifications.ts). */
     __notifs?: BellApi;
     /** The demo's Agents pages' pauses (the mockup's; nothing in the app fills it). */
     FL_STORE?: { statuses?: Record<string, string> };
@@ -46,7 +46,7 @@ declare global {
     plScopeRoute?: (id: string) => string;
     /** The page a swipe walks (kit/view-tabs/pager.ts), published by kit-globals.ts. */
     viewPager?: NonNullable<SwipeOptions["pages"]>;
-    /** The route gate (legacy-bridge/surface-registry.ts installRouteGate): whether a route's surfaces are in. */
+    /** The route gate (bridge/surface-registry.ts installRouteGate): whether a route's surfaces are in. */
     __surfaceGate?: (page: string, param: string | null, own?: boolean) => boolean;
     /** What the registry says of a page: real, demo, or nothing it knows. */
     __surfaceState?: (page: string, param?: string | null) => string | undefined;
@@ -67,11 +67,11 @@ declare global {
   }
 }
 
-/** The shell's words (legacy-bridge/shell.ts `__chrome`), read where a part draws: the frame reads them here alone. */
+/** The shell's words (bridge/shell.ts `__chrome`), read where a part draws: the frame reads them here alone. */
 export const frameChrome = () => window.__chrome;
-/** The shell's bridge (legacy-bridge/shell.ts `__shell`: sign-out, the workspace, the address), read here alone. */
+/** The shell's bridge (bridge/shell.ts `__shell`: sign-out, the workspace, the address), read here alone. */
 export const frameShell = () => window.__shell;
-/** The bell (legacy-bridge/notifications.ts `__notifs`), where the workspace has one: the frame reads it here alone. */
+/** The bell (bridge/notifications.ts `__notifs`), where the workspace has one: the frame reads it here alone. */
 export const frameBell = () => window.__notifs;
 /** The registry's word for a surface (surface-registry.ts `__surfaceState`): the frame's gate and its soon landing ask it. */
 export const frameSurfaceState = () => window.__surfaceState;

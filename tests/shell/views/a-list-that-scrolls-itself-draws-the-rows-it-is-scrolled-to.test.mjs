@@ -15,13 +15,13 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { installLegacyReact, fresh, again } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 // The runner's react-dom is its server entry, which has no flushSync: a scroll the virtualizer hears draws again at once.
 const fromDashboard = createRequire(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/legacy-bridge/_.js"),
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/bridge/_.js"),
 );
 fromDashboard("react-dom").flushSync ??= (fn) => fn();
 const { useShownRows } = await importSrc("apps/dashboard/src/surfaces/kit/rows/shown-rows.ts");

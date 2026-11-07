@@ -13,10 +13,10 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { HOUR_MS, todayBriefWords, todayDay, todayDayNext } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, all, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, all, byTestId, textOf } from "../../_stub-react.mjs";
 import { handoffDay } from "./_world.mjs";
 
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: () => {},

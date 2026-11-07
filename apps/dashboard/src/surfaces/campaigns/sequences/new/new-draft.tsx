@@ -27,7 +27,7 @@ import { Confirm } from "../../../kit/confirm/confirm";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Switch } from "../../../kit/switch/switch";
-import { gate, routeDoor } from "../../../legacy-verbs";
+import { gate, routeDoor } from "../../../frame-verbs";
 import { CmPane } from "../../parts/split";
 import { MessageSheet, WordsSheet, type LibraryReads } from "./new-message-sheets";
 import * as M from "./new-model";

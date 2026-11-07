@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import type { ListRule } from "@chanlytics/contracts";
-import { editorBox, focusAsDrawn, refusalToast } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, refusalToast } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import type { Flash } from "../types";
 import { plMakeListWith, plMakeRuleList, plRuleMadeWords, plUndoList } from "./doors";

@@ -12,7 +12,7 @@ import {
   colourOf,
   labOf,
   mixLab,
-} from "../../../apps/dashboard/src/legacy-bridge/mascot/colour.ts";
+} from "../../../apps/dashboard/src/bridge/mascot/colour.ts";
 
 const rgb = (css) => css.match(/\d+/g).map(Number);
 const L = (lab) => lab[0];

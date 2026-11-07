@@ -13,7 +13,7 @@ import { Figure } from "../../kit/figure/figure";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Popover } from "../../kit/popover/popover";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 
 /** What the door opens: the title, then a sentence each, the first four under the figure they define. */
 function CountedBox({ counted }: { counted: CountedVM }) {

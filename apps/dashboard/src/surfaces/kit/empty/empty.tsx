@@ -19,7 +19,7 @@
  * together). Its acts are the house's buttons and links by their classes, as the kit's Button and LinkButton write them.
  */
 import type { ReactNode } from "react";
-import { canRefreshSurfaces, navigate, refreshSurface } from "../../legacy-verbs";
+import { canRefreshSurfaces, navigate, refreshSurface } from "../../frame-verbs";
 import { REPORT_WORDS } from "@chanlytics/contracts";
 import { Icon } from "../icon/icon";
 import { reportDoor } from "./report-door";

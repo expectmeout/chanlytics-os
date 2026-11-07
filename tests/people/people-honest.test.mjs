@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress, historyOf } from "../shell/address/_address.mjs";
-import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../_legacy-react.mjs";
+import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { lineBox } from "../shared/_line.mjs";
 import {
@@ -141,7 +141,7 @@ globalThis.document = {
 };
 globalThis.window = {
   // The address is the path (`/w/salon/people/seg:needs_you`), as the App Router leaves it; the route on screen is read
-  // from it by legacy-bridge/workspace.ts routeOnScreen, and a page's own replace writes it (historyOf, below).
+  // from it by bridge/workspace.ts routeOnScreen, and a page's own replace writes it (historyOf, below).
   location: {
     pathname: "/w/salon/people",
     search: "",
@@ -165,7 +165,7 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  // The workspace, as its own surface publishes it: the rows say their times by its clock (legacy-bridge/zone.ts).
+  // The workspace, as its own surface publishes it: the rows say their times by its clock (bridge/zone.ts).
   __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
 };
@@ -184,10 +184,10 @@ const quietly = async (fn) => {
 const { peopleOverride, peopleSearch } = await quietly(
   () => import("../../apps/dashboard/src/surfaces/people/surface.ts"),
 );
-const { installClock } = await import("../../apps/dashboard/src/legacy-bridge/zone.ts");
+const { installClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
 installClock();
-const { routeOnScreen } = await import("../../apps/dashboard/src/legacy-bridge/workspace.ts");
-const { installTabMemory, clearTabMemory } = await import("../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+const { routeOnScreen } = await import("../../apps/dashboard/src/bridge/workspace.ts");
+const { installTabMemory, clearTabMemory } = await import("../../apps/dashboard/src/bridge/tab-memory.ts");
 // A page's own replace (usePeopleAddress) writes the path, as the App Router leaves it, and fires nothing.
 historyOf(globalThis.window);
 /** The route on screen, `clients/seg:needs_you`: what the address says (workspace.ts routeOnScreen). */
@@ -451,7 +451,7 @@ useStubHooks();
 globalThis.ReactDOM = { createPortal: (node) => node };
 // The hooks the TSX imports from the react module (it has none under this runner): the stub's own.
 useStubHooks(globalThis.React);
-// The shell's own hook (legacy-bridge/surface-status.ts) for the JSX pages this file still loads: these tests draw once, and
+// The shell's own hook (bridge/surface-status.ts) for the JSX pages this file still loads: these tests draw once, and
 // the redraw is proved in shell/surfaces. PeopleReal, being TSX, reads People through the real useSurface.
 globalThis.useSurface = () => 0;
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();

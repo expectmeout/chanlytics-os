@@ -5,7 +5,7 @@
  */
 import type { Dispatch, SetStateAction } from "react";
 import type { ListRule } from "@chanlytics/contracts";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import { lists as listsDoor } from "../people-lists";
 import {
   plArchivedWords,

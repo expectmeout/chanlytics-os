@@ -37,7 +37,7 @@ const MANIFESTS = [
   {
     name: "apps/dashboard/.env.example",
     file: path.join(ROOT, "apps/dashboard/.env.example"),
-    // src/legacy is the ported mockup and reads no env. middleware.ts sat at
+    // apps/dashboard/mockup reads no env. middleware.ts sat at
     // the app root and was not scanned at all — the one file every request
     // passes through, reading env to decide the address and the session.
     // Since the dashboard read its environment in one place (src/server/shared/env.ts,
@@ -48,7 +48,7 @@ const MANIFESTS = [
       "apps/dashboard/app",
       "apps/dashboard/src/server",
       "apps/dashboard/src/lib",
-      "apps/dashboard/src/legacy-bridge",
+      "apps/dashboard/src/bridge",
       "apps/dashboard/src/auth",
       "apps/dashboard/proxy.ts",
       "apps/dashboard/next.config.ts",

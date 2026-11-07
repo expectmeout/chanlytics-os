@@ -28,7 +28,7 @@ import { notACustomerVerb, replyAnywayVerb, type VerbResult } from "../verbs";
 import { threadDraftNow } from "./kept-draft";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 
 /** The other side's move while you read: who did what, and the entries it left behind. */
 export interface Stale {

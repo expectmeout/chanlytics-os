@@ -10,9 +10,9 @@
  */
 import { useState } from "react";
 import type { ResolvedFacts, LiveCallVM } from "@chanlytics/contracts";
-import { endCall, handOverCall } from "@/legacy-bridge/inbox-verbs";
-import { gate, useLegacyToast } from "../legacy-verbs";
-import { confirmPart } from "../legacy-parts";
+import { endCall, handOverCall } from "@/bridge/inbox-verbs";
+import { gate, useFrameToast } from "../frame-verbs";
+import { confirmPart } from "../frame-parts";
 import { Icon } from "../kit/icon/icon";
 import { useSurface } from "../use-surface";
 
@@ -23,7 +23,7 @@ const rangLine = (data: unknown) =>
 export const LrControls = ({ c }: { c: LiveCallVM }) => {
   const [busy, setBusy] = useState<"hand" | "end" | null>(null);
   const [arm, setArm] = useState(false);
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   const F = useSurface("settings")?.facts;
   const Confirm = confirmPart();
   const facts: Partial<ResolvedFacts> = (F && F.facts) || {};

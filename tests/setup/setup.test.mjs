@@ -931,7 +931,7 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
 // The sections on a phone keep their words: they are every page's strip since 25 Sep, drawn and read in
 // settings-editor.test.mjs ("on a phone the sections are every page's strip").
 test("a Settings card keeps its height, and a row's sentence wraps on a phone", () => {
-  const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  const mobile = readRaw("apps/dashboard/src/styles/mobile.css");
   assert.ok(
     mobile.includes(".set-pane > * { flex: 0 0 auto; }"),
     "a Settings card never shrinks to fit the pane on a phone",
@@ -1167,8 +1167,8 @@ test("the words: four states, no jargon, no trade", () => {
 // move, and first-run-page.test.mjs draws it. Both are TSX on an App Router page since decision 0015's step 10.
 test("wiring: the page, the surface, routes, rate bucket, event kind, migration", () => {
   // The page is an App Router page (start/[[...param]]): surface-registry.test.mjs holds the route to it.
-  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes("setup.jsx"), "no longer the shell's");
-  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  assert.ok(!readCode("apps/dashboard/src/bridge/manifest.ts").includes("setup.jsx"), "no longer the shell's");
+  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(
     app.includes("installSetup();") &&
       /notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride\b/.test(app),
@@ -1339,7 +1339,7 @@ test("an activated capability offers to withdraw its activation from its row, an
 });
 
 test("a save in Workspace and a WhatsApp connect repaint Setup too", async () => {
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which): each where
   // a page draws it, and no page is on screen here (S4-6). A connect repaints Connections' own rows, the channels read's (R6).
   // And the workspace's own list, last: a save of the business's name renames it, which the sidebar and switcher say (X4-5).

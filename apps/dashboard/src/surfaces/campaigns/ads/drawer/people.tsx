@@ -17,7 +17,7 @@ import { ListRow } from "../../../kit/list-row/list-row";
 import { SubTabs } from "../../../kit/sub-tabs/sub-tabs";
 import type { SubTab } from "../../../kit/sub-tabs/sub-tabs";
 import { Tooltip } from "../../../kit/tooltip/tooltip";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { useCmPhone } from "../../parts/split";
 import { adsInPreview } from "../shown";
 

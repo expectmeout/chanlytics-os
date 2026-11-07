@@ -3,11 +3,11 @@
  * row both press (contracts ownLineStandOf says when it is offered), with the one set of words after it. Connections' Retry
  * walked to the first-run phone step instead of retrying (D1-line-row-derivations).
  */
-import { canDo, type LegacyFlash } from "../legacy-verbs";
+import { canDo, type FrameFlash } from "../frame-verbs";
 import { setupVerbs } from "./surface";
 
 /** Set the line up again, and say what came of it. A member who may not manage the team is not offered the press, and is refused here. */
-export async function retryLineInPlace(lineId: string, flash: (f: LegacyFlash) => void): Promise<void> {
+export async function retryLineInPlace(lineId: string, flash: (f: FrameFlash) => void): Promise<void> {
   if (!canDo("team")) return;
   flash({ tone: "info", msg: <>Retrying — usually a minute or two.</> });
   const r = await setupVerbs.lines.retry(lineId);

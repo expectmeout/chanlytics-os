@@ -128,7 +128,7 @@ function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRe
 }
 
 /**
- * The number a broadcast goes out on, as the Broadcasts page picks it (legacy-bridge/surface-data.ts): the active WhatsApp
+ * The number a broadcast goes out on, as the Broadcasts page picks it (bridge/surface-data.ts): the active WhatsApp
  * row, its health from the quality Meta assigned it with what Meta holds against the number (campaigns/channels-ready.ts
  * reads the two as one judgement), and how a proposal that names no channel counts people (whatsappHowOf: by WhatsApp,
  * the workspace ready on it or not; no number is none, and channels that could not be read count as the pages count

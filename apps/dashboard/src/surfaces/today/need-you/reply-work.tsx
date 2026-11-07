@@ -12,7 +12,7 @@ import {
   notNowChoices,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { carryNotAPerson, carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
 import { appNavigate, gate, mayAtLeast } from "../shell";

@@ -5,7 +5,7 @@
  * only, with its gate or the reason it is held. Import is the page's act now, Add people (import/import-sheet.tsx).
  */
 import { Button } from "../../kit/button/button";
-import { canDo, gate } from "../../legacy-verbs";
+import { canDo, gate } from "../../frame-verbs";
 import type { Flash } from "../types";
 
 export function PeopleFileActs({

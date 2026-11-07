@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from "react";
 import type { FirstRunLiveVM, FirstRunVM, ReceptionistCardVM } from "@chanlytics/contracts";
-import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
+import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { BtCanCard } from "../shell";

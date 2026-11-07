@@ -37,7 +37,7 @@
  * :root:has(.tbn-pop)), over a sheet's Save.
  */
 import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
-import { legacyDocument } from "../serve-legacy.mjs";
+import { mockupDocument } from "../serve-mockup.mjs";
 
 /**
  * The names the kit's markup carries that classes.json lists as neither a class nor a modifier. A kit entry names one
@@ -3275,24 +3275,24 @@ export const FAMILIES = [
 
 /** Every <link> in the head of the mockup's document, as it stands: the fonts, then the tokens, the kit and the rest. */
 function documentLinks() {
-  const doc = legacyDocument();
+  const doc = mockupDocument();
   const head = doc.slice(doc.indexOf("<head>"), doc.indexOf("</head>"));
   return head.match(/<link\b[^>]*>/g) ?? [];
 }
 
-/** The app's own rules (legacy-bridge/legacy.css, less its @imports), served by the harness after every stylesheet. */
+/** The app's own rules (bridge/frame.css, less its @imports), served by the harness after every stylesheet. */
 const APP_RULES = '<link rel="stylesheet" href="/_hx/app.css" />';
 
 /**
  * The gallery's own layout, under gx-* and on tokens, so it reads in both themes. The shell holds the page to the
- * window with nothing to scroll (html.legacy-on, legacy.css); the gallery scrolls, so a full-page shot takes it all.
+ * window with nothing to scroll (html.frame-on, frame.css); the gallery scrolls, so a full-page shot takes it all.
  * The faces are named as the harness's fixture names them on the mockup's page (fixture-src.ts, `fonts`), which the
  * gallery does not run: the app names them through next/font (app/layout.tsx), and --font-sans and --font-mono read it.
  */
 const GALLERY_CSS = `
     :root { --font-geist: "Geist"; --font-geist-mono: "Geist Mono"; }
-    html.legacy-on, html.legacy-on body { height: auto; overflow: visible; }
-    html.legacy-on #root { height: auto; }
+    html.frame-on, html.frame-on body { height: auto; overflow: visible; }
+    html.frame-on #root { height: auto; }
     .gx { max-width: var(--measure-wide); margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-16); display: flex; flex-direction: column; gap: var(--space-10); }
     .gx-head, .gx-family { display: flex; flex-direction: column; gap: var(--space-3); }
     .gx-title { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); color: var(--ink); }
@@ -3378,7 +3378,7 @@ const familyHtml = (f) =>
  */
 export function galleryDocument(families = FAMILIES) {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="frame-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -3413,7 +3413,7 @@ const BEHAVES_CSS = `
  */
 export function askStatesDocument(bundle = "/_hx/ask-states.js") {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="frame-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -3437,7 +3437,7 @@ export function askStatesDocument(bundle = "/_hx/ask-states.js") {
  */
 export function behavesDocument(bundle = "/_hx/kit-behaves.js") {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="frame-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />

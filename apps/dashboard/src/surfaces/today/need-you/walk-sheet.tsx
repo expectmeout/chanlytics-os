@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { NEED_YOU_WORDS as W, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { Button, Field, Sheet } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
-import { touchSwipe } from "../../legacy-verbs";
+import { touchSwipe } from "../../frame-verbs";
 import { gate } from "../shell";
 import { rewriteDraft, useDraft } from "./drafts";
 import { Note, Quote, type WorkProps } from "./parts";

@@ -8,11 +8,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM } from "@chanlytics/contracts";
-import { all, fresh, installLegacyReact, textOf } from "../../_legacy-react.mjs";
+import { all, fresh, installStubReact, textOf } from "../../_stub-react.mjs";
 import { personRow } from "../../consent/_person-row.mjs";
 import { timesSaid, unmarkedTimes } from "./_unmarked-times.mjs";
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../apps/dashboard/src/surfaces";
 const { threadRows } = await import(`${S}/inbox/pages/list-rows.tsx`);
 const { PL_CARD } = await import(`${S}/people/cells/columns.tsx`);

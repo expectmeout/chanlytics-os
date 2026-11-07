@@ -9,7 +9,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { SEND_GRACE_MS, sendCountdown } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 
 /** A send on its way: what it is, when it was pressed and when it can no longer be stopped, and how to stop it. */
 interface Going {

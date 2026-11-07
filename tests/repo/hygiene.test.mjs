@@ -196,7 +196,7 @@ test("every bridge request goes through the typed client", () => {
   // a /api/v1 route, and the public sign-up door, which has no session, no
   // workspace and no 401, and which the first-workspace screen posts the
   // waitlist to (waitlist.ts), as the sign-up page does.
-  const dir = path.join(here, "../../apps/dashboard/src/legacy-bridge");
+  const dir = path.join(here, "../../apps/dashboard/src/bridge");
   const offenders = [];
   (function walk(d) {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {

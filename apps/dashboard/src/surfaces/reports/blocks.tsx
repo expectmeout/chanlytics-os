@@ -20,7 +20,7 @@ import {
   type ReportVM,
 } from "@chanlytics/contracts";
 import { metricWordsOf } from "@chanlytics/contracts/report-lens";
-import { listRoute, openBookingTool, routeDoor } from "../legacy-verbs";
+import { listRoute, openBookingTool, routeDoor } from "../frame-verbs";
 import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Figure } from "../kit/figure/figure";

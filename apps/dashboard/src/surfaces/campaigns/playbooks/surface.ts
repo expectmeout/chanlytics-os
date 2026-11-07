@@ -4,7 +4,7 @@
  * (../surface-data.ts).
  */
 
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 import {
   REPLY_WINDOW_WORDS,
   type ChannelsReady,
@@ -21,10 +21,10 @@ import {
   type LifecycleTemplate,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { COUNTED_RECEIPTS, DEAR_READ_LONGEST_WAIT_MS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { COUNTED_RECEIPTS, DEAR_READ_LONGEST_WAIT_MS, RECEIPTS_QUIET_MS } from "@/bridge/surface-realtime";
+import { declareReads } from "@/bridge/surface-registry";
+import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import { playbookCountKey, readingFor, type PoolRead } from "@/lib/campaign-channels";
 import { callTextOf, followSettings } from "../../offered-templates";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";

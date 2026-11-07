@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { warmSettingsPane } from "../../settings/frame/pane-reads";
 import { frameBell, frameChrome, frameGlyph, framePortal, isDemoFrame } from "../frame-window";
 import {
@@ -252,7 +252,7 @@ interface UserMenuProps {
   onLook?: (id: string) => void;
   onNavigate: (to: string) => void;
   close: () => void;
-  flash: (p: LegacyFlash) => void;
+  flash: (p: FrameFlash) => void;
 }
 
 /** Who you are, at the menu's head. */

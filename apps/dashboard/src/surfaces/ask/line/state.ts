@@ -1,7 +1,7 @@
 /** The state of one Line, and the refs its effects and handlers share. */
 import { useRef, useState } from "react";
 import type { AskLanguage, AskScope, AskThreadVM } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
+import type { AskApi } from "@/bridge/ask";
 import { useAskSpeech, type ahSlideFrom } from "../hooks";
 import type { AttachedPhoto } from "./attached";
 import type { AskedSeed, Conversation, LineState, LiveTurn, QuickTurn } from "./types";

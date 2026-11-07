@@ -6,7 +6,7 @@
  * search's Add goes to its pick, and a sequence may add from a search by itself (auto-add).
  */
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import type { Flash } from "../peek/types";
 
 /** A door here moved a lead: Leads and the sequences read it again. */

@@ -14,7 +14,7 @@
  *
  * Anything after the spec is passed to Playwright as it stands, so `--grep`, `--headed` and the rest work. Two
  * defaults, each overridable by passing the flag yourself:
- *   --timeout=120000  the harness compiles the legacy tree with Babel in the browser, which is slower than the built
+ *   --timeout=120000  the harness compiles the shell with Babel in the browser, which is slower than the built
  *                     bundle production serves, so a test needs longer here than the config's own 45s;
  *   --retries=0       the config retries once locally, which is right against a deployment over a network and wrong
  *                     here: a mutation run asks whether the journey WENT RED, and a retry that passes turns a caught

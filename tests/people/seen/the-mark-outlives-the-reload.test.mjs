@@ -197,7 +197,7 @@ const { conversationsOverride } = await quietly(() => import(`${S}/surfaces/inbo
 const { peopleOverride } = await quietly(() => import(`${S}/surfaces/people/surface.ts`));
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { snapshotSurface, hydrateSurfaceCache, clearSurfaceCache, flushSurfaceCache } = await import(
-  `${S}/legacy-bridge/surface-cache.ts`
+  `${S}/bridge/surface-cache.ts`
 );
 const { seePerson, unseePerson, threadUnread, threadWhose, threadReading } = await import(`${S}/surfaces/seen.ts`);
 

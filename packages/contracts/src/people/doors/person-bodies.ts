@@ -1,6 +1,6 @@
 /**
  * What the person doors take: one schema per door, the route's input, the shape the verb layer sends (the sheets and
- * Ask's cards through one commit, legacy-bridge/verbs), and what an act tool checks a card's body against before it
+ * Ask's cards through one commit, bridge/verbs), and what an act tool checks a card's body against before it
  * proposes it. They stood in each route file and again in the act tools' own checks, so a rule changed in one place
  * left the other answering in older words (the sheets as verbs, 14 Oct 2026). Moved whole: each answers what its
  * route answered.

@@ -1,5 +1,5 @@
 /**
- * What the first run keeps in the tab (the loading standard's drafts, legacy-bridge/tab-memory.ts; moved from
+ * What the first run keeps in the tab (the loading standard's drafts, bridge/tab-memory.ts; moved from
  * legacy/pages/first-run.jsx, decision 0015): the owner's choice of number (Where it answers, bought at Go live), and
  * when Try it opened.
  *
@@ -13,7 +13,7 @@
  * again.
  */
 import { formatPhoneDisplay, HOUR_MS, MIN_MS, type PhoneChoice, type SetupPhoneWant } from "@chanlytics/contracts";
-import { tabMemoryFor } from "@/legacy-bridge/tab-memory";
+import { tabMemoryFor } from "@/bridge/tab-memory";
 
 /** The phone step's choice as the tab keeps it: contracts', with when its buy went out and when Stripe sent it back. */
 export interface KeptPhoneChoice extends PhoneChoice {

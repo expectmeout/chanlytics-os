@@ -15,11 +15,11 @@
  * again of what it now holds, so a page read before it lands, or beside it for the same notice, never keeps an older number.
  */
 import { toChannelVM, type ChannelDto, type ChannelVM } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { pageClock } from "@/legacy-bridge/zone";
-import { surfaceMoved } from "@/legacy-bridge/surface-status";
+import { read } from "@/bridge/api";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
+import { pageClock } from "@/bridge/zone";
+import { surfaceMoved } from "@/bridge/surface-status";
 import { onSurfaceValue, setSurfaceValue, surfaceValue, type SurfaceKey, type SurfaceValues } from "../surface-values";
 
 /** The channels as GET channels answered them: null where the read failed, so a page says so, with a way to try again. */

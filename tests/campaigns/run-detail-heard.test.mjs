@@ -8,9 +8,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
+import { installStubReact } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false });
+installStubReact({ __DEMO_MODE: false });
 const S = "../../apps/dashboard/src/surfaces/campaigns/broadcasts";
 const { runDetail, hearRunDetail, peekRunDetail } = await import(`${S}/detail-read.ts`);
 const { rememberedRun } = await import(`${S}/run-names.ts`);

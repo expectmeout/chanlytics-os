@@ -32,7 +32,7 @@ globalThis.window = {
   localStorage: globalThis.localStorage,
 };
 const { installTabMemory, clearTabMemory, TAB_SLOTS } =
-  await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  await import("../../../apps/dashboard/src/bridge/tab-memory.ts");
 installTabMemory(globalThis.window, { now: () => clock });
 const tm = globalThis.window.__tabMemory;
 const at = (path) => {

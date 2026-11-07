@@ -16,8 +16,8 @@ import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { WAIT_ACT_WORDS, lensEmpty, lensRoute, waitEndsWords } from "@chanlytics/contracts";
 import type { GoogleReviewVM, GoogleVM, LensRange, ReviewWaitingVM, ReviewsReportVM } from "@chanlytics/contracts";
-import { draftReply, replyToReview, stopHeldReply } from "@/legacy-bridge/google";
-import { canDo, navigate, useLegacyToast, type LegacyFlash } from "../legacy-verbs";
+import { draftReply, replyToReview, stopHeldReply } from "@/bridge/google";
+import { canDo, navigate, useFrameToast, type FrameFlash } from "../frame-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState } from "../kit/empty/empty";
@@ -32,7 +32,7 @@ import { RPT_GAINED, RPT_WRITTEN } from "./series";
 type ReplyMode = GoogleVM["reply"]["mode"];
 
 /** The section's toast: raised by a composer, drawn by the section, which outlives the row a reply answers. */
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 // An answer to a review, on Google, in the business's own words: a link
 // under the review, a few lines, Send. Google keeps one reply per review,
@@ -474,7 +474,7 @@ export function GoogleSection({
   const may = canDo("settings");
   // The toast of a reply is drawn here, not by the composer: the answer re-reads the Reviews surface before the verb returns, and
   // the review, answered, leaves the waiting card with its composer.
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   const waitingHeading = useRef<HTMLHeadingElement>(null);
   const L = V.google.listing;
   if (V.state !== "linked" || !L) return notLinked(V, range, may);

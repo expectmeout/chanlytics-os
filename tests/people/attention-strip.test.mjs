@@ -301,7 +301,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
   }
   // Today's queue, Setup and the back office still draw AttnRow, so the row's
   // own rules stay; only the strip's container, footer and empty state went.
-  const css = readRaw("apps/dashboard/src/legacy/styles/clients.css");
+  const css = readRaw("apps/dashboard/src/styles/clients.css");
   assert.ok(
     css.includes(".cl-attn-cta.primary { background: var(--accent); color: var(--accent-fg); }"),
     "the one primary button is the mockup's coral",

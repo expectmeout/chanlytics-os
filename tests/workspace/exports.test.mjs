@@ -29,7 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-import "../_legacy-react.mjs";
+import "../_stub-react.mjs";
 
 // Modules that build a service client on first use read these; nothing here dials it.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -535,7 +535,7 @@ test("the pages link to the routes, and only where the bridge can name the works
     fileActs.indexOf('!canDo("export")') < fileActs.indexOf("window.open("),
     "and the role is asked before the link is: a role that may not never reaches the door",
   );
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__href = href;"));
   assert.equal(
     roleGate("operator", "export").reason,

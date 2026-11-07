@@ -163,13 +163,13 @@ test("the Line's rules see it: two such cards say the hold once over them, and t
 // Last, since it puts a window on the global: the stub React draws the real card as the Line does (surfaces/ask/card.tsx).
 test("the Line draws it as it draws a campaign's: the hold first in its own tone, the rows, and Sends behind Details", async () => {
   const { card: p } = await card([]);
-  const { installLegacyReact, fresh, again, all, textOf, press, kitPages } = await import("../../_legacy-react.mjs");
-  installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
+  const { installStubReact, fresh, again, all, textOf, press, kitPages } = await import("../../_stub-react.mjs");
+  installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
   Object.assign(globalThis.window, kitPages);
   Object.assign(globalThis, { canDo: () => true, gate: () => ({}) });
   const { AskCards } = await import(at("apps/dashboard/src/surfaces/ask/card.tsx"));
   const { askText } = await import(at("apps/dashboard/src/surfaces/ask/words.ts"));
-  const { holdAsk } = await import(at("apps/dashboard/src/surfaces/legacy-verbs.ts"));
+  const { holdAsk } = await import(at("apps/dashboard/src/surfaces/frame-verbs.ts"));
   holdAsk({
     commit: async () => ({ ok: true, receipt: "It runs", undo: null }),
     outcome: async () => true,

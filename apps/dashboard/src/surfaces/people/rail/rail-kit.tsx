@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import type { PeopleRead } from "../types";
 import { RecordDisclosure } from "../../kit/record/disclosure";
-import { warmsOnReach } from "../../legacy-verbs";
+import { warmsOnReach } from "../../frame-verbs";
 
 /** The rail's one rule for a pick: the row pressed, unless it was the one picked, which goes back to none. */
 export const railToggle = <T,>(current: T | null, id: T): T | null => (current === id ? null : id);

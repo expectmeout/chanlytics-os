@@ -15,9 +15,9 @@ import {
   FIT,
   CENTRE_Y,
   fitSide,
-} from "../../../apps/dashboard/src/legacy-bridge/mascot/character.ts";
-import { tilesOf } from "../../../apps/dashboard/src/legacy-bridge/mascot/draw.ts";
-import { palette } from "../../../apps/dashboard/src/legacy-bridge/mascot/colour.ts";
+} from "../../../apps/dashboard/src/bridge/mascot/character.ts";
+import { tilesOf } from "../../../apps/dashboard/src/bridge/mascot/draw.ts";
+import { palette } from "../../../apps/dashboard/src/bridge/mascot/colour.ts";
 
 const DT = 1 / 120;
 const run = (ch, seconds, each) => {

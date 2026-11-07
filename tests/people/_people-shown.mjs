@@ -4,11 +4,11 @@
  * the page holds them (kit/table/state.ts, use-data-table.ts) — the sort read from a saved view (`fromView`: a heading
  * the page cannot sort falls back to the page's first, its way kept), the page's tiebreak (cells/sorts.ts `plSortThen`)
  * and the box's words as the table's global filter (`plMatcher`). Drawn on the suite's stub React, which the test
- * installs first (`installLegacyReact`); then `peopleOrder()` hands it the function.
+ * installs first (`installStubReact`); then `peopleOrder()` hands it the function.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
-import { fresh, again } from "../_legacy-react.mjs";
+import { fresh, again } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
 /** The function that answers who a view of People shows, in order: made once the stub React is in place. */

@@ -1,7 +1,7 @@
 /**
  * The headline override: Today's week line and Ask found's leaks read the period as one small count (contracts
  * `ReportHeadlineVM`, `GET reports/headline`), never the whole report. Part of the SurfaceData seam
- * (legacy-bridge/surface-data.ts); Today reads what it publishes through `useSurface("reports_headline")`.
+ * (bridge/surface-data.ts); Today reads what it publishes through `useSurface("reports_headline")`.
  *
  * It follows the period Reports shows, as the one `reports` surface did when Today read it, so the line and the leaks say the same
  * last N days Reports prints (period-surface.ts holds it by period, paints a held one at once on a pick, and reads again behind it
@@ -24,8 +24,8 @@
  * days" and "Today so far" are of the new day. It is also read at boot, when the tab returns, by Retry, after the workspace's zone
  * is saved, when the period is picked (period.ts) and, being on-demand, when Today comes on screen after it has aged.
  */
-import { read } from "@/legacy-bridge/api";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
+import { read } from "@/bridge/api";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
 import { toHeadlineVM } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { shownReportPeriod } from "./surface";

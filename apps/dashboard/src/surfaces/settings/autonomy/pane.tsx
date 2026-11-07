@@ -21,11 +21,11 @@ import {
   tokensPerReply,
   type BudgetDial,
 } from "@chanlytics/contracts";
-import type { PolicyDials } from "@/legacy-bridge/inbox-verbs";
-import { modeLabel, uiRows, type UiRow } from "@/legacy-bridge/policy-store";
+import type { PolicyDials } from "@/bridge/inbox-verbs";
+import { modeLabel, uiRows, type UiRow } from "@/bridge/policy-store";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
-import { gate, type LegacyFlash } from "../../legacy-verbs";
+import { gate, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
@@ -215,7 +215,7 @@ function replyDials(reply: UiRow): DialRow[] {
  */
 const AUT_ASKED_ELSEWHERE = new Set(["reply", "booking", "faq", "money"]);
 
-export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash) => void; row?: string | null }) => {
+export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash) => void; row?: string | null }) => {
   const read = useSurface("settings");
   const [busy, setBusy] = useState<string | null>(null);
   const phone = useSetPhone();

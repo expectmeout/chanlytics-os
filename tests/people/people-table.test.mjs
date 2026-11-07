@@ -7,12 +7,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
+import { installStubReact } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { peopleOrder } from "./_people-shown.mjs";
 import { personRow, daysAgo } from "../consent/_person-row.mjs";
 
-installLegacyReact();
+installStubReact();
 const { PL_COLUMNS, PL_CARD, PL_FILE_COLUMNS } = await importSrc(
   "apps/dashboard/src/surfaces/people/cells/columns.tsx",
 );

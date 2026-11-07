@@ -9,9 +9,9 @@
  * comes later. Words alone, read off the window as asked: the frame's route table loads this module before any page, so it draws nothing and takes no hook as it
  * loads (today/shell.ts takes React's for `useMoved`, which a test's stand-in React must be in place before).
  */
-import type { PageClock } from "@/legacy-bridge/zone";
+import type { PageClock } from "@/bridge/zone";
 import type { HeadFirst } from "../kit/head/standing";
-import { windowObject } from "../legacy-verbs";
+import { windowObject } from "../frame-verbs";
 
 /**
  * Who is signed in (`window.__ME`, the workspace's read), for the greeting, and the business's clock (`window.__clock`, as

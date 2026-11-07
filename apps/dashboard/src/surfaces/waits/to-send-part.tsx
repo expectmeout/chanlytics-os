@@ -20,7 +20,7 @@ import {
   type BroadcastVM,
 } from "@chanlytics/contracts";
 import { LinkButton } from "../kit/link-button/link-button";
-import { canDo, gateTitle } from "../legacy-verbs";
+import { canDo, gateTitle } from "../frame-verbs";
 import { peekRunDetail, runDetail } from "../campaigns/broadcasts/detail-read";
 import { RoToSend } from "../campaigns/reach-out/to-send";
 import { broadcastsRead } from "./run-acts";

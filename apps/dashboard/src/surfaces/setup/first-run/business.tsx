@@ -6,8 +6,8 @@
  */
 import type { ReactNode } from "react";
 import { businessNameOf, type FirstRunVM } from "@chanlytics/contracts";
-import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
-import { canDo, meNow, type LegacyFlash } from "../../legacy-verbs";
+import type { SettingsSurface } from "@/bridge/surfaces/settings";
+import { canDo, meNow, type FrameFlash } from "../../frame-verbs";
 import { SetupRows } from "../rows/rows";
 import type { SetupSurface } from "../surface";
 import { FrBuilding } from "./building";
@@ -35,7 +35,7 @@ function googleBody(o: {
   S: SetupSurface;
   shown: GoogleBack | null;
   done: () => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   assistant: string | null;
 }): ReactNode {
   const { S, shown, done, flash, assistant } = o;
@@ -74,7 +74,7 @@ export function businessBody(o: {
   S: SetupSurface;
   go: (to: string) => void;
   make: () => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   making: boolean;
   read: SettingsSurface | undefined;
   google: GoogleActs;

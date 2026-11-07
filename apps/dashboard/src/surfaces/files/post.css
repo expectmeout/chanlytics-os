@@ -1,5 +1,5 @@
 /* A post, as it is changed and kept (post-frame.tsx, post-edit.tsx, post-shapes.tsx), in Ask's card and the Files sheet: on every page, as
-   Ask's stylesheet is (legacy.css). Every value is a token. */
+   Ask's stylesheet is (frame.css). Every value is a token. */
 .post-shapes {
   display: grid;
   gap: 10px;

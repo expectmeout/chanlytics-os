@@ -5,7 +5,7 @@
  */
 import type { PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { RptStrip } from "../blocks";
 import { mixCard } from "./shared";
 

@@ -1,7 +1,7 @@
 /**
  * A file the browser saves, the kit's one door for it (the chart card's CSV and People's export each had a copy): text as a
  * CSV with a byte-order mark, so a spreadsheet reads its accents. Inside the phone app a WebView cannot save a file made in the
- * page: the app's bridge takes the same words to the share sheet and cancels the event (legacy-bridge/app-bridge.ts); anywhere
+ * page: the app's bridge takes the same words to the share sheet and cancels the event (bridge/app-bridge.ts); anywhere
  * else nothing listens, and the browser saves it.
  */
 const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);

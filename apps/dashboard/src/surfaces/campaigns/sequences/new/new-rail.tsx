@@ -20,7 +20,7 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
-import { gate } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
 import { RailAdd, RailBox, RailRow } from "../place/rail";
 import { valueLabelOf } from "./new-model";
 import { StepWords, WordPick } from "./new-parts";

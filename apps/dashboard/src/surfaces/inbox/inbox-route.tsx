@@ -7,7 +7,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isToSendParam, isUuid, newConversationOf, routeOfPath, sequenceRepliesOf } from "@chanlytics/contracts";
-import { loadPrefs } from "@/legacy-bridge/device-prefs";
+import { loadPrefs } from "@/bridge/device-prefs";
 import { openSeeOver } from "../see/see-over";
 import { recordNamedBy, useReadNamedRecord } from "../use-named-record";
 import { useSurface } from "../use-surface";

@@ -28,7 +28,7 @@
  *   - a package's domain folder, a folder of `packages/<p>/src` with an
  *     index.ts of its own (contracts' and core's), or the package's `src` as a
  *     whole where it has none (channels, db, jobs);
- *   - each folder of `apps/dashboard/src/server`, `apps/dashboard/src/legacy-bridge`,
+ *   - each folder of `apps/dashboard/src/server`, `apps/dashboard/src/bridge`,
  *     `apps/edge/lib` and `apps/edge/api`, a domain each;
  *   - each other top-level folder of `apps/dashboard/src` as a whole (auth,
  *     client, lib, surfaces, yes), but the shell's `legacy`, which leaves with
@@ -72,7 +72,7 @@ async function rulesFiredOn(filePath, code) {
 const IMPORTS = "@typescript-eslint/no-restricted-imports";
 
 test("browser code may not import the server or the rule packages, but may take their types", async () => {
-  const at = "apps/dashboard/src/legacy-bridge/probe.ts";
+  const at = "apps/dashboard/src/bridge/probe.ts";
   assert.deepEqual(await rulesFiredOn(at, 'import { route } from "../server/route";\nexport const x = route;\n'), [
     IMPORTS,
   ]);
@@ -121,7 +121,7 @@ test("the (os) frame reads no request and no database: not the session, a header
       );
     }
     assert.deepEqual(
-      await rulesFiredOn(at, 'import LegacyHost from "@/legacy-bridge/LegacyHost";\nexport const x = LegacyHost;\n'),
+      await rulesFiredOn(at, 'import FrameHost from "@/bridge/FrameHost";\nexport const x = FrameHost;\n'),
       [],
       `${at}: the frame's host is what it draws`,
     );
@@ -245,7 +245,7 @@ test("a surface takes its controls from the kit: a raw one, however it is made, 
   ].join("\n");
   assert.deepEqual(await rulesFiredOn(page, notRaw), [], "a component, another element, a name in a variable, a call");
   assert.deepEqual(
-    await rulesFiredOn("apps/dashboard/src/legacy-bridge/probe.tsx", everyWay("button")),
+    await rulesFiredOn("apps/dashboard/src/bridge/probe.tsx", everyWay("button")),
     [],
     "the bridge's own screens are not surfaces",
   );
@@ -331,7 +331,7 @@ test("KIT_PENDING names moved surfaces: each entry a folder directly under src/s
     `${SURFACES_TREE}/`,
     `${SURFACES_TREE}/kit`,
     `${SURFACES_TREE}/reports/parts`,
-    "apps/dashboard/src/legacy/pages",
+    "apps/dashboard/mockup/pages",
   ];
   assert.deepEqual(strayPending(stray, known), stray, "a folder with no code, the tree, the kit, a part, the shell");
 });
@@ -361,7 +361,7 @@ const baseUi = (from) =>
 test("Base UI's parts are imported one at a time anywhere in the dashboard, and its index never, as a type or a re-export either", async () => {
   const places = [
     ...SURFACES,
-    "apps/dashboard/src/legacy-bridge/probe.tsx",
+    "apps/dashboard/src/bridge/probe.tsx",
     "apps/dashboard/src/client/probe.ts",
     "apps/dashboard/app/probe/page.tsx",
   ];
@@ -384,7 +384,7 @@ test("Base UI's parts are imported one at a time anywhere in the dashboard, and 
 test("server code may not import the shell, the bridge or the browser client", async () => {
   for (const at of ["apps/dashboard/src/server/probe.ts", "apps/dashboard/app/api/v1/probe/route.ts"]) {
     assert.deepEqual(
-      await rulesFiredOn(at, 'import { run } from "@/legacy-bridge/surface-runner";\nexport const x = run;\n'),
+      await rulesFiredOn(at, 'import { run } from "@/bridge/surface-runner";\nexport const x = run;\n'),
       [IMPORTS],
       at,
     );
@@ -448,7 +448,7 @@ test("the dashboard reads the environment through src/server/shared/env.ts or sr
     "apps/dashboard/proxy.ts",
     "apps/dashboard/next.config.ts",
     "apps/dashboard/instrumentation.ts",
-    "apps/dashboard/src/legacy-bridge/probe.ts",
+    "apps/dashboard/src/bridge/probe.ts",
     "apps/dashboard/src/auth/Probe.tsx",
     "apps/dashboard/src/csp.ts",
   ]) {
@@ -578,14 +578,9 @@ function foldersOf(dir) {
 }
 
 /** The app areas whose folders are the trees, a domain each. */
-const DOMAIN_AREAS = [
-  "apps/dashboard/src/server",
-  "apps/dashboard/src/legacy-bridge",
-  "apps/edge/lib",
-  "apps/edge/api",
-];
+const DOMAIN_AREAS = ["apps/dashboard/src/server", "apps/dashboard/src/bridge", "apps/edge/lib", "apps/edge/api"];
 /** The shell, which leaves with decision 0015 rather than joining. */
-const SHELL = "apps/dashboard/src/legacy";
+const SHELL = "apps/dashboard/mockup";
 
 /** Every candidate tree, as the file's header defines one. */
 function candidateTrees() {

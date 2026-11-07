@@ -67,7 +67,7 @@ const CP1252_BYTE: ReadonlyMap<string, number> = new Map(
 const MOJIBAKE_RUN = /[Â-ô][\u0080-¿€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]+/g;
 /**
  * The strict decoder, made the first time a run is read back rather than as the module loads: every page imports this
- * module, and the shell's harness runs the bundles where there is no TextDecoder at all (legacy-harness.test.mjs).
+ * module, and the shell's harness runs the bundles where there is no TextDecoder at all (mockup-harness.test.mjs).
  */
 let strictUtf8: TextDecoder | null = null;
 const readStrict = (bytes: Uint8Array): string =>

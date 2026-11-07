@@ -1,5 +1,5 @@
 /**
- * A spoken turn, in the shape of a typed one (apps/dashboard/src/legacy-bridge/ask/spoken.ts), run over stand-ins for
+ * A spoken turn, in the shape of a typed one (apps/dashboard/src/bridge/ask/spoken.ts), run over stand-ins for
  * the voice session and the thread read. The Line asks a question two ways: typed, through the stream (`send`), and
  * spoken to the agent's session. Both now tell it the same events (`thread`, `trace`, `say`, `final`), so it draws a
  * turn one way. What is proved here: words that cannot go to the agent are refused before anything is told (they go
@@ -16,9 +16,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { spokenTurns } = await import(
-  pathToFileURL(path.join(ROOT, "apps/dashboard/src/legacy-bridge/ask/spoken.ts")).href
-);
+const { spokenTurns } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/bridge/ask/spoken.ts")).href);
 
 const INPUT = { threadId: null, scope: null, surface: "today", context: null };
 const user = (id, text) => ({ id, role: "user", text });

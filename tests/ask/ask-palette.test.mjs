@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { kitPages, unrefIntervals, useStubHooks } from "../_legacy-react.mjs";
+import { kitPages, unrefIntervals, useStubHooks } from "../_stub-react.mjs";
 import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
 import {
   PROPOSAL_GATE,
@@ -40,7 +40,7 @@ import {
   leadsRoute,
   planSentence,
 } from "@chanlytics/contracts";
-const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -234,14 +234,14 @@ const AskAnswerKit = {
 const { AskReal } = await import("../../apps/dashboard/src/surfaces/ask/line/line.tsx");
 const hookParts = await import("../../apps/dashboard/src/surfaces/ask/line/under.ts");
 const { AskDisc } = await import("../../apps/dashboard/src/surfaces/kit/face/ask-face.tsx");
-const { askPalette, quickAnswer, surfaceFor } = await import("../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
-const { askSpeech } = await import("../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
-const { askAloud } = await import("../../apps/dashboard/src/legacy-bridge/ask/aloud.ts");
-const { askFollowUps, FOLLOW_UPS_EVENT } = await import("../../apps/dashboard/src/legacy-bridge/ask/follow-ups.ts");
-const { askColumn } = await import("../../apps/dashboard/src/legacy-bridge/ask/column.ts");
-const { askApi } = await import("../../apps/dashboard/src/legacy-bridge/ask/api.ts");
-const { MASCOT } = await import("../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
-const { clearTabMemory, tabMemoryFor } = await import("../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+const { askPalette, quickAnswer, surfaceFor } = await import("../../apps/dashboard/src/bridge/ask/palette.ts");
+const { askSpeech } = await import("../../apps/dashboard/src/bridge/ask/speech.ts");
+const { askAloud } = await import("../../apps/dashboard/src/bridge/ask/aloud.ts");
+const { askFollowUps, FOLLOW_UPS_EVENT } = await import("../../apps/dashboard/src/bridge/ask/follow-ups.ts");
+const { askColumn } = await import("../../apps/dashboard/src/bridge/ask/column.ts");
+const { askApi } = await import("../../apps/dashboard/src/bridge/ask/api.ts");
+const { MASCOT } = await import("../../apps/dashboard/src/bridge/mascot/index.ts");
+const { clearTabMemory, tabMemoryFor } = await import("../../apps/dashboard/src/bridge/tab-memory.ts");
 
 /** The kit's glyph, as a page draws it: a test reads its name. */
 const isIcon = (n) => n.type?.name === "Icon";
@@ -338,7 +338,7 @@ const later = async (C, props) => {
 
 /* ------------------------------ the palette ------------------------------ */
 
-// The Line itself, as the frame's AskBar draws it once its chunk is in (legacy-bridge/ask/line.tsx).
+// The Line itself, as the frame's AskBar draws it once its chunk is in (bridge/ask/line.tsx).
 const Palette = (props) => AskReal(props);
 const OPEN = { open: true, onClose() {} };
 const CLOSED = { open: false, onClose() {} };
@@ -550,7 +550,7 @@ test("the page is warmed as the Line opens, once, and again when the page under 
   // The warm goes a tick after the page is drawn, so a page just under the Line has said what it drew.
   const tick = () => new Promise((r) => setTimeout(r, 0));
   const calls = ask([]);
-  // The bridge's two calls the warm needs (legacy-bridge/ask.ts): the page's context and the warm itself.
+  // The bridge's two calls the warm needs (bridge/ask.ts): the page's context and the warm itself.
   askCalls().context = (route) => ({
     v: 1,
     surface: "today",
@@ -2170,7 +2170,7 @@ test("a phone's takeover covers the page, so every Esc the window hears is still
   }
 });
 
-test("on a touch screen wider than a phone (a tablet at 800px) no field focuses by itself: the Line opens with focus on the dialog, so no keyboard rises until a tap on the field asks for it (Ruben's rule; legacy-verbs focusAsDrawn)", async () => {
+test("on a touch screen wider than a phone (a tablet at 800px) no field focuses by itself: the Line opens with focus on the dialog, so no keyboard rises until a tap on the field asks for it (Ruben's rule; frame-verbs focusAsDrawn)", async () => {
   const mm = globalThis.window.matchMedia;
   // 800px wide, a finger for a pointer: no phone's width, a touch screen's pointer.
   globalThis.window.matchMedia = (q) => ({
@@ -2695,7 +2695,7 @@ test("on a phone the newest answer carries Copy, which copies its words and the 
   }
 });
 
-/** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the Line reads it off window.__ask): the clip lands when the test says. */
+/** Ask's voice stood in for (bridge/ask/speech.ts as the Line reads it off window.__ask): the clip lands when the test says. */
 const speechStub = () => {
   const spoken = [];
   let stops = 0;
@@ -4673,7 +4673,7 @@ test("a question the shell seeds as it opens the Line goes with the chip that op
 
 test("over the first run the Line is on the start surface: it asks about setting up, what is left first, draws no key, and a question goes with the step the page is on (Ask Rewired, Phase 7)", async () => {
   const hash = globalThis.window.location.hash;
-  const { pageContext } = await import("../../apps/dashboard/src/legacy-bridge/ask/context.ts");
+  const { pageContext } = await import("../../apps/dashboard/src/bridge/ask/context.ts");
   const calls = ask([]);
   // The bridge's own reading of the page (ask.ts installAsk): the start provider, over this window.
   askCalls().context = (route, words, thread) => pageContext(globalThis.window, route, words, thread);
@@ -4814,7 +4814,7 @@ const approved = (p, made = null) => ({
 /** What a card commits to, by its kind, on a press of its own. */
 const ownMade = (p) => (p.kind === "message" ? MADE_MESSAGE : null);
 /**
- * The bridge as installAsk publishes the plan's parts (legacy-bridge/ask.ts): contracts' planGroupOf,
+ * The bridge as installAsk publishes the plan's parts (bridge/ask.ts): contracts' planGroupOf,
  * a recorded commit of one card and of a plan's silent steps, and the outcome route.
  */
 const planBridge = (over = {}) => {
@@ -5325,7 +5325,7 @@ test("REGRESSION (ruling 3): what the group's press made survives a reload, thro
   const { fakeDb } = await import("../_fake-db.mjs");
   const route = await import("../../apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts");
   const { createApi } = await import("../../apps/dashboard/src/client/api.ts");
-  const commit = await import("../../apps/dashboard/src/legacy-bridge/ask/commit.ts");
+  const commit = await import("../../apps/dashboard/src/bridge/ask/commit.ts");
   const NOW = Date.now();
   // The routes the steps reach, answered as the server answers them, through the typed client on a fake fetch.
   const ANSWERS = {

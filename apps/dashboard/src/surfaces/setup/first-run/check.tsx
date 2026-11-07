@@ -13,10 +13,10 @@
  */
 import type { ReactNode } from "react";
 import { FIRST_RUN_HELPERS, type FIRST_RUN_WORDS, type FirstRunCheckVM } from "@chanlytics/contracts";
-import type { SettingsRecord } from "@/legacy-bridge/surfaces/settings";
+import type { SettingsRecord } from "@/bridge/surfaces/settings";
 import { FailedRead } from "../../kit/empty/empty";
 import { recFolds } from "../../kit/record/registry";
-import { gate, surfaceFailed, type LegacyFlash } from "../../legacy-verbs";
+import { gate, surfaceFailed, type FrameFlash } from "../../frame-verbs";
 import { BtPriceChoiceRow } from "../../settings/business/choices/rows";
 import {
   BtAddressRow,
@@ -39,7 +39,7 @@ type CheckWords = (typeof FIRST_RUN_WORDS)["check"];
 interface CheckProps {
   check: FirstRunCheckVM;
   W: CheckWords;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   make: () => void;
   making: boolean;
   go: (to: string) => void;
@@ -105,7 +105,7 @@ function offerCard(o: {
   brain: CardBrain;
   rows: Record<string, unknown>;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   saver: BusinessTabSave["saver"];
   chips: ReturnType<typeof FIRST_RUN_HELPERS.chips>;
 }) {

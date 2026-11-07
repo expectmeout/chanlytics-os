@@ -5,7 +5,7 @@
  */
 import { after } from "node:test";
 import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, kitPages, all, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, kitPages, all, textOf } from "../../_stub-react.mjs";
 
 export const ZONE = "America/New_York";
 export const NOW = new Date("2026-09-18T20:00:00Z");
@@ -13,7 +13,7 @@ export const went = [];
 export const flashes = [];
 export const asked = [];
 
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   __surfaceFailed: () => false,

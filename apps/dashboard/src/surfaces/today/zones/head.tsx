@@ -28,7 +28,7 @@ import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { Panel } from "../../kit/panel/panel";
 import { SAYS_WHEN } from "../../kit/says-when";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { todayGreetingNow } from "../chrome";

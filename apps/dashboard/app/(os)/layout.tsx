@@ -1,7 +1,7 @@
-// The legacy design system, hoisted out of the client-only chunk (see
-// LegacyApp). Next emits it as a stylesheet <link> on this route, so first
+// The design system, hoisted out of the client-only chunk (see
+// FrameApp). Next emits it as a stylesheet <link> on this route, so first
 // paint is not waiting on the dynamic import to resolve first.
-import "@/legacy-bridge/legacy.css";
+import "@/bridge/frame.css";
 // MapLibre's own sheet (the canvas, its controls, the cooperative-gesture screen), for the lead map's streets.
 import "maplibre-gl/dist/maplibre-gl.css";
 

@@ -15,7 +15,7 @@ import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { completeStep } from "../../step-done";
 import { dealSteps, pdRun } from "../deal/person-deal";
 import { openStepSheet, stepSheetOffered } from "../deal/deal-verbs";

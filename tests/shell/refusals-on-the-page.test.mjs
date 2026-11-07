@@ -14,16 +14,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import {
-  kitPages,
-  installLegacyReact,
-  useStubHooks,
-  fresh as freshTree,
-  again as againTree,
-} from "../_legacy-react.mjs";
+import { kitPages, installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
-const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -651,7 +645,7 @@ test("REGRESSION (N20): a failed Ask turn offers Try again on the latest answer,
 
 test("REGRESSION: a refused question says why -- a gateway's page read 'Ask failed (502).'", async () => {
   const { createApi } = await import("../../apps/dashboard/src/client/api.ts");
-  const { askApi } = await import("../../apps/dashboard/src/legacy-bridge/ask/api.ts");
+  const { askApi } = await import("../../apps/dashboard/src/bridge/ask/api.ts");
   const said = async (answer) => {
     const client = createApi({
       fetch: async () => (typeof answer === "function" ? answer() : answer),
@@ -713,7 +707,7 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
   const doors = {};
   for (const k of ["gate", "canDo", "gateTitle", "mayAtLeast", "gatedProps", "ST_STORE", "__roleGate"])
     doors[k] = globalThis.window[k];
-  installLegacyReact({
+  installStubReact({
     __DEMO_MODE: false,
     __surfaceState: () => "live",
     __ME: { role: "owner" },

@@ -11,7 +11,7 @@
  * at once. Outside the threads' list, whose keys walk threads alone.
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { surfaceHook } from "@/legacy-bridge/surface-status";
+import { surfaceHook } from "@/bridge/surface-status";
 import type { Flash } from "../../shell-doors";
 import { warmRunDetail } from "../../campaigns/broadcasts/detail-read";
 import { useNeedsYouParts } from "../../needs-you";

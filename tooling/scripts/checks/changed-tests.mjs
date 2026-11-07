@@ -80,7 +80,7 @@ export const BUDGET = 800;
  * changed the entry, and nothing ran its test (the eval-truth pass, 17 Oct 2026). The style tests read every stylesheet
  * of the dashboard's, wherever it sits (has-subjects, touch-hover, page-light/paper-at-the-edges, kit-css, and through
  * the measures style-measures), and only a path with a `styles` folder in it named them: #2018's two rules in
- * today/phone/phone.css broke has-subjects, and the red waited for #2019, which touched legacy/styles/ (1 Nov 2026).
+ * today/phone/phone.css broke has-subjects, and the red waited for #2019, which touched styles/ (1 Nov 2026).
  * layout-measure walks that one folder, and no stylesheet's path names tests/shell. The graph sees none of these: a
  * tree walked is read by no name. The appointment words' count, which every tree a reader reads could move (#1574,
  * #1579, #1599 and #1602-#1604 each wrote "visit" in without running it, and main went red, 13-15 Oct 2026), is
@@ -99,7 +99,7 @@ export const READ_BY = {
     `${TESTS}/baselines/writes/`,
   ],
   [`${TESTS}/styles`]: ["apps/dashboard/**.css"],
-  [`${TESTS}/shell/layout-measure.test.mjs`]: ["apps/dashboard/src/legacy/styles/"],
+  [`${TESTS}/shell/layout-measure.test.mjs`]: ["apps/dashboard/src/styles/"],
 };
 
 /** Whether what READ_BY names takes in a file: the file itself, a tree, or one kind of file at any depth of a tree. */

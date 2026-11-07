@@ -1,5 +1,5 @@
 /**
- * One voice at a time, where the clip and the agent's session are composed (apps/dashboard/src/legacy-bridge/ask.ts
+ * One voice at a time, where the clip and the agent's session are composed (apps/dashboard/src/bridge/ask.ts
  * `oneVoice`), run over stand-ins for the two. A clip read aloud takes the agent's place only while the agent has the
  * floor (an answer on its way, or being spoken): a session up and quiet, or still connecting, is in no clip's way, so
  * the clip that reads a typed-way answer leaves the session the press asked for running for the next hold (the
@@ -15,7 +15,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { oneVoice } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/legacy-bridge/ask.ts")).href);
+const { oneVoice } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/bridge/ask.ts")).href);
 
 /** The two modules stood in for: what was asked of each, in order; the session's hang-up never answers by itself. */
 function world({ busy = false } = {}) {

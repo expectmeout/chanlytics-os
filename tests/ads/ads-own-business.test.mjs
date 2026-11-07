@@ -5,20 +5,10 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  installLegacyReact,
-  fresh,
-  again,
-  all,
-  byTestId,
-  find,
-  redrawWanted,
-  textOf,
-  press,
-} from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   CHANLY: { nav() {} },
   location: {

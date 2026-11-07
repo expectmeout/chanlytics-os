@@ -20,13 +20,13 @@ import {
   type AttentionRowVM,
   type ListRule,
 } from "@chanlytics/contracts";
-import { resnapshotHere } from "@/legacy-bridge/surface-cache";
-import { read } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { resnapshotHere } from "@/bridge/surface-cache";
+import { read } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
 import { codeOnce } from "@/lib/code-once";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEAR_READ_LONGEST_WAIT_MS, ERASURES_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
+import { declareReads } from "@/bridge/surface-registry";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { DEAR_READ_LONGEST_WAIT_MS, ERASURES_LONGEST_WAIT_MS, isLiveCallTurn } from "@/bridge/surface-realtime";
 import { holderName } from "../holder-names";
 import { carriesMark } from "../seen-carry";
 import type { PeopleLoaded } from "./surface-map";

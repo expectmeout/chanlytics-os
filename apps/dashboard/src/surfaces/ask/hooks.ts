@@ -5,9 +5,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKey, PointerEvent as ReactPointer, RefObject } from "react";
 import { isTypingTarget, type SpeechPurpose } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
+import type { AskApi } from "@/bridge/ask";
 import { useHoldToTalk } from "../kit/talk/use-hold-to-talk";
-import { mediaSays } from "../legacy-verbs";
+import { mediaSays } from "../frame-verbs";
 
 // Hold to talk is the kit's (surfaces/kit/talk/use-hold-to-talk.ts, imported): press starts the
 // browser's own recogniser, release stops it, and what was heard is handed back on its own, interim words as they come,
@@ -144,7 +144,7 @@ export const useAskFocus = (
   }, deps);
 };
 
-// Reading aloud in Ask's voice (legacy-bridge/ask/speech.ts): the bridge holds what is happening (idle, loading,
+// Reading aloud in Ask's voice (bridge/ask/speech.ts): the bridge holds what is happening (idle, loading,
 // speaking) and tells every watcher, so the Line reads it rather than keeping a copy, and a Stop from anywhere (the
 // Line closing, a question asked, Today's own button) is seen here. `toggle` reads, or stops what is read or awaited;
 // it answers a promise of why it could not (the server's words; "" where it gave none) or null. `speakingId` and
@@ -172,7 +172,7 @@ export const useAskSpeech = (A: AskApi | undefined) => {
       return wordsOf(e);
     }
   };
-  // A held question (legacy-bridge/ask/aloud.ts): the element readied inside the press, the one line said while Ask
+  // A held question (bridge/ask/aloud.ts): the element readied inside the press, the one line said while Ask
   // works, and the answer read as it lands, after that line; `answer` says why it could not, as `toggle` does.
   const ready = () => {
     if (A && A.readySpeech) A.readySpeech();
@@ -363,7 +363,7 @@ export const ahSlide = (from: SlideFrom | null, stage: HTMLElement | null, hero:
   }
 };
 
-// A question on its way warms the model's cache (legacy-bridge/ask/api.ts warmModel; the server's ask/warm.ts): words on
+// A question on its way warms the model's cache (bridge/ask/api.ts warmModel; the server's ask/warm.ts): words on
 // the Line, typed or heard, that are more than a jump -- two words or more, eight characters, and no page, person,
 // thread or call they reach -- so the answer's first words come about two seconds sooner after Ask has stood idle. The
 // bridge sends one warm in four minutes however often it is asked; a hold on the mic warms it as it is pressed.

@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { TRY_SKIPPED, type FIRST_RUN_TRY_WORDS, type FirstRunTryVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { RecordToggleGroup } from "../../kit/record/field";
-import { canDo, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { businessTabSave } from "../shell";
 import { setupVerbs } from "../surface";
 import { TRY_WINDOW_MS } from "./memory";
@@ -27,7 +27,7 @@ type Transfer = NonNullable<FirstRunTryVM["transfer"]>;
 interface TryProps {
   tr: FirstRunTryVM;
   W: TryWords;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   leave: (to: string) => void;
   back: string | null;
@@ -220,7 +220,7 @@ function doneStage(o: {
  * The test window, as the screen opens and again once it runs out while the owner is still listening (the call webhook
  * proves forwarding only inside one). At most once a window: TRY_WINDOW_MS apart.
  */
-function useTestWindow(tr: FirstRunTryVM, flash: (f: LegacyFlash) => void) {
+function useTestWindow(tr: FirstRunTryVM, flash: (f: FrameFlash) => void) {
   const opened = useRef(0);
   useEffect(() => {
     const listening = tr.stage === "listen" || tr.stage === "quiet";
@@ -287,7 +287,7 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel, onShowCode }: 
           flash: (f: unknown) => {
             if (f && typeof f === "object" && Reflect.get(f, "tone") === "danger") {
               setPicked(null);
-              flash(f as LegacyFlash);
+              flash(f as FrameFlash);
             }
           },
         }),

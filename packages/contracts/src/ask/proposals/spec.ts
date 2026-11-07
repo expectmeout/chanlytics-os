@@ -7,7 +7,7 @@ import type { ApiRouteKey } from "../../route-keys.generated";
 
 /**
  * What a spec reads of what it commits: a card of Ask's, or the same act pressed on a sheet (the dashboard's
- * legacy-bridge/verbs), which is a card with no plan and no summary of its own (the sheets as verbs, 14 Oct 2026).
+ * bridge/verbs), which is a card with no plan and no summary of its own (the sheets as verbs, 14 Oct 2026).
  */
 export type VerbCard = Pick<AskProposal, "id" | "payload" | "step" | "summary" | "plan"> & { kind: string };
 

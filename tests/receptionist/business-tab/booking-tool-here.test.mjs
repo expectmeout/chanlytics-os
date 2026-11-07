@@ -5,7 +5,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { again, unmount, find, byTestId, classes, press, settle } from "../../_legacy-react.mjs";
+import { again, unmount, find, byTestId, classes, press, settle } from "../../_stub-react.mjs";
 import {
   W,
   drawTab,
@@ -19,7 +19,7 @@ import {
 
 const BT = "../../../apps/dashboard/src/surfaces/settings/booking-tool";
 const { BookingToolSheet } = await import(`${BT}/sheet.tsx`);
-const verbs = await import("../../../apps/dashboard/src/surfaces/legacy-verbs.ts");
+const verbs = await import("../../../apps/dashboard/src/surfaces/frame-verbs.ts");
 
 after(() => unmount());
 

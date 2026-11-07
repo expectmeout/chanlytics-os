@@ -15,14 +15,14 @@ import { keptNumberRowOf } from "@chanlytics/contracts";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { RecordRow } from "../../../kit/record/row";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import type { FrameFlash } from "../../../frame-verbs";
 import { useSurface } from "../../../use-surface";
 
 /** Setup's forwarding card, fetched the first time the row is opened. */
 const forwardingCode = codeOnce(() => import("../../../setup/rows/forwarding"));
 
 /** The number kept and how its calls reach the receptionist; nothing while there is no line to forward to. */
-export const BtKeptNumberRow = ({ flash }: { flash: (f: LegacyFlash) => void }) => {
+export const BtKeptNumberRow = ({ flash }: { flash: (f: FrameFlash) => void }) => {
   const S = useSurface("setup");
   const [open, setOpen] = useState(false);
   const card = useCode(forwardingCode, open).loaded;

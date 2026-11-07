@@ -48,7 +48,7 @@ const LANDED_HELD = 300;
 
 /* --------------------------------- the browser's side --------------------------------- */
 
-/** What the shell hands the measures: its address, its surfaces, and its gate (LegacyApp). */
+/** What the shell hands the measures: its address, its surfaces, and its gate (FrameApp). */
 export interface SpeedShell {
   /** The route on screen (workspace.ts routeOnScreen). */
   route(): string;
@@ -118,7 +118,7 @@ export function partReady(page: string, part: string, key: string): void {
 }
 
 /**
- * The frame committed a draw (LegacyApp, after each of its renders): where its gate is open on the page on screen, the
+ * The frame committed a draw (FrameApp, after each of its renders): where its gate is open on the page on screen, the
  * page is drawn, and its READY, if it names no first part, is the next frame. Said from a draw, never from a status
  * change, so a load is never READY at a frame before the page was put on it.
  */

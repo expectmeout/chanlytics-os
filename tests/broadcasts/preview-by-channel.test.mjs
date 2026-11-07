@@ -22,9 +22,9 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
-import { installLegacyReact, fresh, all, find, byTestId, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, all, find, byTestId, textOf } from "../_stub-react.mjs";
 
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/studio",
     hash: "#/broadcasts",
@@ -40,7 +40,7 @@ installLegacyReact({
   __DEMO_MODE: false,
 });
 const SRC = "../../apps/dashboard/src";
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 const { MessagePreview } = await import(`${SRC}/surfaces/campaigns/parts/message-preview.tsx`);
 const { cmPreviewBy, cmChannelOfPerson } = await import(`${SRC}/surfaces/campaigns/parts/preview-by.ts`);

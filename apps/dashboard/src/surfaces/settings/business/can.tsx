@@ -25,10 +25,10 @@
 // line dark and a hold as none.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import type { PoliciesSurface } from "@/legacy-bridge/policy-store";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import type { PoliciesSurface } from "@/bridge/policy-store";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { gate, navigate, type LegacyFlash } from "../../legacy-verbs";
+import { gate, navigate, type FrameFlash } from "../../frame-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSwitch } from "../../kit/record/field";
@@ -133,15 +133,7 @@ const BtcRow = ({
  * limits it keeps (the Settings wiring review, 18 Oct 2026). Saved at once through the tab's one saver; it shows where it
  * is going until the read says so, and goes back where the save is refused.
  */
-const BtcVisionSwitch = ({
-  on,
-  canEdit,
-  flash,
-}: {
-  on: boolean;
-  canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
-}) => {
+const BtcVisionSwitch = ({ on, canEdit, flash }: { on: boolean; canEdit: boolean; flash: (f: FrameFlash) => void }) => {
   const [soon, setSoon] = useState<boolean | null>(null);
   useEffect(() => {
     if (soon !== null && on === soon) setSoon(null);
@@ -152,7 +144,7 @@ const BtcVisionSwitch = ({
       row: "vision",
       patch: (c) => ({ ...c, features: { ...(c.features || {}), vision } }),
       said: BUSINESS_TAB.VISION_SWITCH_WORDS.saved(vision),
-      flash: (f: LegacyFlash) => {
+      flash: (f: FrameFlash) => {
         if (f && f.tone === "danger") setSoon(null);
         flash(f);
       },
@@ -382,7 +374,7 @@ export const BtCanCard = ({
   /** How a row's door opens the row that supplies what is missing: in place, unless the page says otherwise. */
   door?: (id: string) => void;
   /** The page's toast: where there is one, the photo row carries its switch (the first run's Live draws none). */
-  flash?: ((f: LegacyFlash) => void) | null;
+  flash?: ((f: FrameFlash) => void) | null;
 }) => {
   // Undefined until the surface is read, null when the read FAILED, and the two are not one answer
   // (setup, settings take the same stance). On a cold boot the settings surface

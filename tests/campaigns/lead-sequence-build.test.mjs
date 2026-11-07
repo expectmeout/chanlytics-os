@@ -18,9 +18,9 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, textOf, press, settle, unmount } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, textOf, press, settle, unmount } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
@@ -30,8 +30,8 @@ Object.assign(W, {
   __roleGate: contracts.roleGate,
   useHotkey: () => {},
 });
-const L = "../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const S = "../../apps/dashboard/src/surfaces";
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { sequenceVerbs } = await import(`${S}/campaigns/sequences/verbs.ts`);

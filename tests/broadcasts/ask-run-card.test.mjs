@@ -29,7 +29,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
+const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const approveRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts"));

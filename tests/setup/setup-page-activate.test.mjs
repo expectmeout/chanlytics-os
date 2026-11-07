@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setupSteps, forwardingCodes, roleGate, FIRST_RUN_WORDS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { useStubHooks } from "../_legacy-react.mjs";
+import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
@@ -126,7 +126,7 @@ globalThis.window = {
   },
   __DEMO_MODE: false,
   usePPToast: () => [null, (m) => calls.flash.push(m)],
-  // The frame's own move, which the rows go through (legacy-verbs navigate): `CHANLY.nav`.
+  // The frame's own move, which the rows go through (frame-verbs navigate): `CHANLY.nav`.
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   canDo: () => true,
   addEventListener() {},

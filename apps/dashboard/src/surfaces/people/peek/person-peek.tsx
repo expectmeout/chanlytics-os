@@ -16,7 +16,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import type { FlashFn } from "../person-verbs";
 import type { PersonWalk } from "../walk";
 import { BusinessTile } from "../person/business";

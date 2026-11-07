@@ -36,8 +36,8 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { viewPager, type ViewPage } from "../../kit/view-tabs/pager";
 import { ViewTabs } from "../../kit/view-tabs/view-tabs";
-import { navigate, replaceRoute, routeDoor, touchSwipe, useLegacyToast } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { navigate, replaceRoute, routeDoor, touchSwipe, useFrameToast } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { CmPane, cmGoing, useCmPhone } from "../parts/split";
 import { SequenceHistory } from "./history";
@@ -49,7 +49,7 @@ import { recordBackNow } from "./trip";
 import { usePeopleRead, useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** The tabs in their order: a swipe walks them so, and a tab arrives from the side it stands on. */
 const TAB_ORDER: readonly SequenceTab[] = ["steps", "people", "history"];
@@ -242,7 +242,7 @@ export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
   const [cameOver] = useState(over);
   const [again, setAgain] = useState(0);
   const moved = useCallback(() => setAgain((n) => n + 1), []);
-  const [toast, flash] = useLegacyToast();
+  const [toast, flash] = useFrameToast();
   const read = useSequenceRead(id, verbs.record, verbs.peekRecord, { again });
   const list = useSurface("sequences");
   // Campaigns' second part (client/page-speed.ts): the sequence open, drawn with its record or saying why it could not be.

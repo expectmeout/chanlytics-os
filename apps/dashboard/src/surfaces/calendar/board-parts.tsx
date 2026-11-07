@@ -29,7 +29,7 @@ import { Notice } from "../kit/notice/notice";
 import { StatePill } from "../kit/pill/state-pill";
 import { Select } from "../kit/select/select";
 import { Sheet } from "../kit/sheet/sheet";
-import { navigate, openBookingTool } from "../legacy-verbs";
+import { navigate, openBookingTool } from "../frame-verbs";
 import { HeldBookingEmails } from "../settings/business/held-emails";
 import type { CalendarShow } from "./use-calendar";
 import { CR_CONNECT, CR_FEED_WORDS } from "./words";

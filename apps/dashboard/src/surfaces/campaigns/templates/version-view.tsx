@@ -11,7 +11,7 @@ import { useState } from "react";
 import { VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
 import type { EmailRules, OwnVersionChannel, SlotSet, SlotValue, VersionWords } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";

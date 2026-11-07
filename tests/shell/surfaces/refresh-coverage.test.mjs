@@ -18,7 +18,7 @@ globalThis.window ??= globalThis;
 // re-reads from "elsewhere" are asked from here.
 globalThis.location ??= { pathname: "/w/studio", hash: "#/inbox" };
 const { ROUTES } = await importSrc("apps/dashboard/src/client/routes.generated.ts");
-const refreshMap = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+const refreshMap = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
 const { AFTER, REFRESHES_NOTHING } = refreshMap;
 
 const writes = Object.keys(ROUTES).filter((k) => ROUTES[k].method !== "GET");
@@ -276,7 +276,7 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
   // The sweep makes a run on the edge, and a teammate approves or stops one in another tab (00321). Both surfaces hear
   // the table as their own, away from their pages too; a message, which only moves a run's replies, they still hear
   // on their own page alone (the table the on-screen rule names).
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   assert.ok(watchedTables().includes("sequence_batches"), "the database tells a workspace about its runs");
   const change = (table) => ({ table, event: "INSERT", row: {} });
@@ -295,7 +295,7 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
 });
 
 test("a playbook paused, renamed or retimed in another tab is heard where Campaigns draws it: the playbooks and the reach-outs surfaces, which hear a run made or moved too (00376)", async () => {
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
   const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/override.ts");
@@ -369,7 +369,7 @@ test("a write that moves the listing, its reviews or the day a review is counted
 
 test("the Reviews lens's read repaints on the tables of the live feed that move it, and on no table the feed does not tell a workspace of", async () => {
   const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   // And the rule the reply box's choice is (the wiring's second audit, W-review-facts-rules-8).
   assert.deepEqual(reviewsOverride.refreshOnTables, [
@@ -495,7 +495,7 @@ test("where the Receptionist lens is on screen, the same writes read it again at
 
 test("the Receptionist lens's read repaints on the tables of the live feed that move it (its links booked are visits), 800 ms after the last change, and on no table the feed does not tell a workspace of", async () => {
   const { receptionistOverride } = await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts");
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   assert.deepEqual(receptionistOverride.refreshOnTables, [
     "messages",
@@ -664,7 +664,7 @@ test("where the People lens is on screen, the same writes read it again at once,
 
 test("the People lens's read repaints on the tables of the live feed that move it, a burst waited out as long as the runner allows, and on no table the feed does not tell a workspace of", async () => {
   const { reportsPeopleOverride } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   assert.deepEqual(reportsPeopleOverride.refreshOnTables, [
     "messages",
@@ -885,7 +885,7 @@ test("where the Campaigns lens or the Overview is on screen, the same writes rea
 
 test("the Campaigns lens's read repaints on the tables of the live feed that move it, a burst waited out as long as the runner allows, never on a delivery receipt, and on no table the feed does not tell a workspace of", async () => {
   const { reportsCampaignsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/campaigns-surface.ts");
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   assert.deepEqual(reportsCampaignsOverride.refreshOnTables, [
     "messages",
