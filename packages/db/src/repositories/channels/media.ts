@@ -11,8 +11,8 @@ type Db = SupabaseClient<Database>;
 type MediaBytes = Parameters<ReturnType<Db["storage"]["from"]>["upload"]>[1];
 
 /** Bytes stored in the media bucket at `path`, over what is there (a redelivery, or a retry, stores the same). */
-export const storeMedia = (db: Db, path: string, bytes: MediaBytes, contentType: string) =>
+export const storeMedia = async (db: Db, path: string, bytes: MediaBytes, contentType: string) =>
   db.storage.from("media").upload(path, bytes, { contentType, upsert: true });
 
 /** These paths removed from the media bucket: the objects that went come back. */
-export const removeMedia = (db: Db, paths: string[]) => db.storage.from("media").remove(paths);
+export const removeMedia = async (db: Db, paths: string[]) => db.storage.from("media").remove(paths);

@@ -17,11 +17,11 @@ type LineKey = { id: string; tenant_id: string };
 const TEXTING_COLUMNS = "id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state";
 
 /** The line's row saved. */
-export const saveLineRow = (db: Db, line: LineKey, row: LineUpdate) =>
+export const saveLineRow = async (db: Db, line: LineKey, row: LineUpdate) =>
   tenantDb(db, line.tenant_id).from("lines").update(row).eq("id", line.id);
 
 /** The live line a number is, whichever workspace's: a text arrives for a number before anyone knows whose it is. */
-export const findLineByE164 = (db: Db, e164: string) =>
+export const findLineByE164 = async (db: Db, e164: string) =>
   platformWide(db)
     .from("lines")
     .select(TEXTING_COLUMNS)
@@ -31,7 +31,7 @@ export const findLineByE164 = (db: Db, e164: string) =>
     .maybeSingle();
 
 /** The workspace's newest live line that texts. */
-export const findTextingLineOf = (db: Db, tenantId: string) =>
+export const findTextingLineOf = async (db: Db, tenantId: string) =>
   db
     .from("lines")
     .select(TEXTING_COLUMNS)
@@ -43,7 +43,7 @@ export const findTextingLineOf = (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** A failed line claimed for a resume: none back means another resume took it. */
-export const claimFailedLine = (db: Db, line: LineKey, values: LineUpdate) =>
+export const claimFailedLine = async (db: Db, line: LineKey, values: LineUpdate) =>
   tenantDb(db, line.tenant_id)
     .from("lines")
     .update(values)
@@ -53,7 +53,7 @@ export const claimFailedLine = (db: Db, line: LineKey, values: LineUpdate) =>
     .maybeSingle();
 
 /** A line stuck in provisioning since before `cutoff`, claimed for a resume: none back means it moved since. */
-export const claimStuckLine = (db: Db, line: LineKey, values: LineUpdate, cutoff: string) =>
+export const claimStuckLine = async (db: Db, line: LineKey, values: LineUpdate, cutoff: string) =>
   tenantDb(db, line.tenant_id)
     .from("lines")
     .update(values)
@@ -64,11 +64,11 @@ export const claimStuckLine = (db: Db, line: LineKey, values: LineUpdate, cutoff
     .maybeSingle();
 
 /** The line's facts kept, its id back. */
-export const saveLineFacts = (db: Db, line: LineKey, facts: LineUpdate["facts"]) =>
+export const saveLineFacts = async (db: Db, line: LineKey, facts: LineUpdate["facts"]) =>
   tenantDb(db, line.tenant_id).from("lines").update({ facts }).eq("id", line.id).select("id");
 
 /** Lines stuck in provisioning since before `cutoff`, the longest stuck first: the resume sweep's page. */
-export const listStuckLines = (db: Db, cutoff: string, limit: number) =>
+export const listStuckLines = async (db: Db, cutoff: string, limit: number) =>
   platformWide(db)
     .from("lines")
     .select("*")
@@ -78,11 +78,11 @@ export const listStuckLines = (db: Db, cutoff: string, limit: number) =>
     .limit(limit);
 
 /** The line's row deleted. */
-export const deleteLineRow = (db: Db, tenantId: string, lineId: string) =>
+export const deleteLineRow = async (db: Db, tenantId: string, lineId: string) =>
   tenantDb(db, tenantId).from("lines").delete().eq("id", lineId);
 
 /** The numbers we gave these workspaces (ours or forwarded), oldest first: the release sweep's page. */
-export const listLinesOfWorkspaces = (db: Db, tenantIds: string[]) =>
+export const listLinesOfWorkspaces = async (db: Db, tenantIds: string[]) =>
   platformWide(db)
     .from("lines")
     .select("*")
@@ -91,14 +91,14 @@ export const listLinesOfWorkspaces = (db: Db, tenantIds: string[]) =>
     .order("created_at");
 
 /** The line's row saved and read back whole: `single()` is the row count, so a write that changed nothing errors. */
-export const saveLineRowBack = (db: Db, line: LineKey, row: LineUpdate) =>
+export const saveLineRowBack = async (db: Db, line: LineKey, row: LineUpdate) =>
   tenantDb(db, line.tenant_id).from("lines").update(row).eq("id", line.id).select("*").single();
 
 /**
  * A line taken for a filing, written only if the row is still as it was read (`updated_at`) and no other filing's lease
  * (the `lease.fact` in its facts) is still running at `lease.now`: none back means another filing holds it.
  */
-export const claimLineForFiling = (
+export const claimLineForFiling = async (
   db: Db,
   line: LineKey & { updated_at: string },
   values: LineUpdate,
@@ -113,34 +113,34 @@ export const claimLineForFiling = (
     .select("*");
 
 /** One line of the workspace's, whole, or none. */
-export const findLineRow = (db: Db, tenantId: string, lineId: string) =>
+export const findLineRow = async (db: Db, tenantId: string, lineId: string) =>
   tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).maybeSingle();
 
 /** One line of the workspace's read again after a write: `single()`, so a row gone is an error the caller says. */
-export const rereadLineRow = (db: Db, tenantId: string, lineId: string) =>
+export const rereadLineRow = async (db: Db, tenantId: string, lineId: string) =>
   tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).single();
 
 /** Every line of the workspace's, whole, oldest first. */
-export const listLinesOf = (db: Db, tenantId: string) =>
+export const listLinesOf = async (db: Db, tenantId: string) =>
   db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at");
 
 /** The workspace's numbers. */
-export const listLineNumbersOf = (db: Db, tenantId: string) =>
+export const listLineNumbersOf = async (db: Db, tenantId: string) =>
   db.from("lines").select("e164").eq("tenant_id", tenantId);
 
 /** The workspace's numbers with where each one's carrier filing stands. */
-export const listLineFilingsOf = (db: Db, tenantId: string) =>
+export const listLineFilingsOf = async (db: Db, tenantId: string) =>
   db.from("lines").select("e164, sms_state, reg_mock, brand_sid, facts").eq("tenant_id", tenantId);
 
 /** A new line for the workspace, back whole: the database keeps one live line a workspace (00195), and refuses a second. */
-export const insertLineRow = (db: Db, tenantId: string, row: Database["public"]["Tables"]["lines"]["Insert"]) =>
+export const insertLineRow = async (db: Db, tenantId: string, row: Database["public"]["Tables"]["lines"]["Insert"]) =>
   tenantDb(db, tenantId).from("lines").insert(row).select("*").single();
 
 /**
  * Lines whose filing the carriers are still deciding (`states`), a refused one only with its campaign on file, whichever
  * workspace's, the longest unasked first: the registration sweep's page.
  */
-export const listLinesAwaitingCarriers = (db: Db, states: readonly string[], limit: number) =>
+export const listLinesAwaitingCarriers = async (db: Db, states: readonly string[], limit: number) =>
   platformWide(db)
     .from("lines")
     .select("*")
@@ -151,7 +151,7 @@ export const listLinesAwaitingCarriers = (db: Db, states: readonly string[], lim
     .limit(limit);
 
 /** The workspace's oldest forwarded number that forwards: its number, how it forwards, and its facts. */
-export const findForwardedLine = (db: Db, tenantId: string) =>
+export const findForwardedLine = async (db: Db, tenantId: string) =>
   db
     .from("lines")
     .select("e164, forwarding_state, facts")
@@ -163,7 +163,7 @@ export const findForwardedLine = (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** The workspace's forwarded numbers told how to forward and not yet heard from. */
-export const listLinesAwaitingForwarding = (db: Db, tenantId: string) =>
+export const listLinesAwaitingForwarding = async (db: Db, tenantId: string) =>
   db
     .from("lines")
     .select("id, e164, facts")
@@ -172,7 +172,7 @@ export const listLinesAwaitingForwarding = (db: Db, tenantId: string) =>
     .eq("forwarding_state", "instructed");
 
 /** A forwarded number written as heard from, only while it still awaits it: its id back, none when it moved. */
-export const saveForwardingVerified = (db: Db, tenantId: string, lineId: string, values: LineUpdate) =>
+export const saveForwardingVerified = async (db: Db, tenantId: string, lineId: string, values: LineUpdate) =>
   db
     .from("lines")
     .update(values)

@@ -203,7 +203,7 @@ export async function findLineWrittenTo(
 }
 
 /** The workspace's oldest active WhatsApp number's row (its id, vault reference and Meta's id), as the database answered. */
-export const findWhatsAppRouting = (db: SupabaseClient<Database>, tenantId: string) =>
+export const findWhatsAppRouting = async (db: SupabaseClient<Database>, tenantId: string) =>
   db
     .from("tenant_channels")
     .select("id, credentials_ref, external_id")
@@ -215,15 +215,15 @@ export const findWhatsAppRouting = (db: SupabaseClient<Database>, tenantId: stri
     .maybeSingle();
 
 /** What a channel keeps in the Vault (get_channel_credentials), as the database answered (readChannelSecret throws). */
-export const getChannelCredentials = (db: SupabaseClient<Database>, channelId: string) =>
+export const getChannelCredentials = async (db: SupabaseClient<Database>, channelId: string) =>
   db.rpc("get_channel_credentials", { p_channel_id: channelId });
 
 /** Every routing row of the workspace's: its kind, its number and its status. */
-export const listWorkspaceChannels = (db: SupabaseClient<Database>, tenantId: string) =>
+export const listWorkspaceChannels = async (db: SupabaseClient<Database>, tenantId: string) =>
   db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId);
 
 /** The number of the workspace's oldest active channel of `kind`, as the database answered. */
-export const findChannelNumber = (db: SupabaseClient<Database>, tenantId: string, kind: string) =>
+export const findChannelNumber = async (db: SupabaseClient<Database>, tenantId: string, kind: string) =>
   db
     .from("tenant_channels")
     .select("number_e164")

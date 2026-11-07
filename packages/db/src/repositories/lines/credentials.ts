@@ -8,8 +8,9 @@ import type { Database, Json } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /** The line's provider secrets (get_line_credentials). */
-export const getLineCredentials = (db: Db, lineId: string) => db.rpc("get_line_credentials", { p_line_id: lineId });
+export const getLineCredentials = async (db: Db, lineId: string) =>
+  db.rpc("get_line_credentials", { p_line_id: lineId });
 
 /** The line's provider secrets written (put_line_credentials). */
-export const putLineCredentials = (db: Db, lineId: string, secret: Json) =>
+export const putLineCredentials = async (db: Db, lineId: string, secret: Json) =>
   db.rpc("put_line_credentials", { p_line_id: lineId, p_secret: secret });

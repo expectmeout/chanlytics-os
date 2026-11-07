@@ -2,6 +2,14 @@
  * The voice domain: `@chanlytics/db/voice`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  CALL_COLUMNS,
+  findCallRow,
+  findLastCallIn,
+  findLastConnectedCallIn,
+  listCallRows,
+  pageCallRows,
+} from "./call-rows";
+export {
   callForReview,
   callSecondsSince,
   claimCallActivity,

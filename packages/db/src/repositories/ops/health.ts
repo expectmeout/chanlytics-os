@@ -12,23 +12,23 @@ type Db = SupabaseClient<Database>;
 type Doors = Pick<Db, "rpc">;
 
 /** Each sweep's last run against its clock (sweep_health). */
-export const readSweepHealth = (db: Doors) => db.rpc("sweep_health");
+export const readSweepHealth = async (db: Doors) => db.rpc("sweep_health");
 
 /** The job ledger's backlog (jobs_backlog). */
-export const readJobsBacklog = (db: Doors) => db.rpc("jobs_backlog");
+export const readJobsBacklog = async (db: Doors) => db.rpc("jobs_backlog");
 
 /** The numbers whose rows and provider disagree (number_drift). */
-export const readNumberDrift = (db: Db) => db.rpc("number_drift");
+export const readNumberDrift = async (db: Db) => db.rpc("number_drift");
 
 /** The workspaces whose receptionist went quiet on `day` (platform_answer_silence). */
-export const readAnswerSilence = (db: Db, day: string) => db.rpc("platform_answer_silence", { p_day: day });
+export const readAnswerSilence = async (db: Db, day: string) => db.rpc("platform_answer_silence", { p_day: day });
 
 /** The sweeps an alert went out for, and the ones healthy again, marked (sweep_mark_alerted). */
-export const markSweepsAlerted = (db: Db, alerted: string[], healthy: string[]) =>
+export const markSweepsAlerted = async (db: Db, alerted: string[], healthy: string[]) =>
   db.rpc("sweep_mark_alerted", { p_alerted: alerted, p_healthy: healthy });
 
 /** The newest knocks on the voice webhook, signed or not, `limit` of them, whichever workspace's. */
-export const listWebhookAuths = (db: Db, limit: number) =>
+export const listWebhookAuths = async (db: Db, limit: number) =>
   platformWide(db)
     .from("events")
     .select("created_at, data")
@@ -37,7 +37,7 @@ export const listWebhookAuths = (db: Db, limit: number) =>
     .limit(limit);
 
 /** The newest deliveries on the voice webhook and what each did, `limit` of them, whichever workspace's. */
-export const listWebhookDeliveries = (db: Db, limit: number) =>
+export const listWebhookDeliveries = async (db: Db, limit: number) =>
   platformWide(db)
     .from("events")
     .select("created_at, subject_id, data")

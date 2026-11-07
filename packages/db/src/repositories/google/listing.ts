@@ -13,31 +13,31 @@ type ListingUpdate = Database["public"]["Tables"]["google_listings"]["Update"];
 type DayInsert = Database["public"]["Tables"]["google_listing_days"]["Insert"];
 
 /** The workspace's listing, whole, or none. */
-export const findGoogleListing = (db: Db, tenantId: string) =>
+export const findGoogleListing = async (db: Db, tenantId: string) =>
   db.from("google_listings").select("*").eq("tenant_id", tenantId).maybeSingle();
 
 /** The place the workspace's listing is, or none. */
-export const findGoogleListingPlace = (db: Db, tenantId: string) =>
+export const findGoogleListingPlace = async (db: Db, tenantId: string) =>
   db.from("google_listings").select("place_id").eq("tenant_id", tenantId).maybeSingle();
 
 /** The workspace's listing saved, one a workspace. */
-export const saveGoogleListing = (db: Db, tenantId: string, row: ListingInsert) =>
+export const saveGoogleListing = async (db: Db, tenantId: string, row: ListingInsert) =>
   tenantDb(db, tenantId).from("google_listings").upsert(row, { onConflict: "tenant_id" });
 
 /** The workspace's listing saved, one a workspace, and back whole. */
-export const saveGoogleListingBack = (db: Db, tenantId: string, row: ListingInsert) =>
+export const saveGoogleListingBack = async (db: Db, tenantId: string, row: ListingInsert) =>
   tenantDb(db, tenantId).from("google_listings").upsert(row, { onConflict: "tenant_id" }).select("*").single();
 
 /** The workspace's listing changed. */
-export const patchGoogleListing = (db: Db, tenantId: string, set: ListingUpdate) =>
+export const patchGoogleListing = async (db: Db, tenantId: string, set: ListingUpdate) =>
   db.from("google_listings").update(set).eq("tenant_id", tenantId);
 
 /** The workspace's listing deleted. */
-export const deleteGoogleListing = (db: Db, tenantId: string) =>
+export const deleteGoogleListing = async (db: Db, tenantId: string) =>
   db.from("google_listings").delete().eq("tenant_id", tenantId);
 
 /** Listings not checked since `before` (never checked first), whichever workspace's: the sweep's page. */
-export const listGoogleListingsDue = (db: Db, before: string, limit: number) =>
+export const listGoogleListingsDue = async (db: Db, before: string, limit: number) =>
   platformWide(db)
     .from("google_listings")
     .select("*")
@@ -46,17 +46,17 @@ export const listGoogleListingsDue = (db: Db, before: string, limit: number) =>
     .limit(limit);
 
 /** One day of the workspace's listing kept, one a day. */
-export const saveGoogleListingDay = (db: Db, tenantId: string, day: Omit<DayInsert, "tenant_id">) =>
+export const saveGoogleListingDay = async (db: Db, tenantId: string, day: Omit<DayInsert, "tenant_id">) =>
   db.from("google_listing_days").upsert({ tenant_id: tenantId, ...day }, { onConflict: "tenant_id,day" });
 
 /** Every day of the workspace's listing deleted: the place they were of is not the workspace's now. */
-export const deleteGoogleListingDays = (db: Db, tenantId: string) =>
+export const deleteGoogleListingDays = async (db: Db, tenantId: string) =>
   db.from("google_listing_days").delete().eq("tenant_id", tenantId);
 
 /** The workspace's listing changed only while it is still the place `placeId`: the rows written back, none when it moved. */
-export const patchGoogleListingAtPlace = (db: Db, tenantId: string, placeId: string, set: ListingUpdate) =>
+export const patchGoogleListingAtPlace = async (db: Db, tenantId: string, placeId: string, set: ListingUpdate) =>
   db.from("google_listings").update(set).eq("tenant_id", tenantId).eq("place_id", placeId).select("tenant_id");
 
 /** The workspace's listing's name and address, as Google verified them. */
-export const findGoogleListingAddress = (db: Db, tenantId: string) =>
+export const findGoogleListingAddress = async (db: Db, tenantId: string) =>
   db.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle();

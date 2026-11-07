@@ -11,7 +11,7 @@ import { platformWide } from "../../shared/tenant-db";
 type Db = SupabaseClient<Database>;
 
 /** Recordings stored for calls started before `cutoff`, the oldest first, whichever workspace's. */
-export const listRecordingsToPurge = (db: Db, cutoff: string, limit: number) =>
+export const listRecordingsToPurge = async (db: Db, cutoff: string, limit: number) =>
   platformWide(db)
     .from("calls")
     .select("id, tenant_id, recording")
@@ -21,15 +21,15 @@ export const listRecordingsToPurge = (db: Db, cutoff: string, limit: number) =>
     .limit(limit);
 
 /** One of the workspace's calls' recording written as purged. */
-export const markRecordingPurged = (db: Db, tenantId: string, callId: string, recording: Json) =>
+export const markRecordingPurged = async (db: Db, tenantId: string, callId: string, recording: Json) =>
   db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId);
 
 /** The agent a provider's call was answered by, whichever workspace's, or none. */
-export const findAgentOfCall = (db: Db, retellCallId: string) =>
+export const findAgentOfCall = async (db: Db, retellCallId: string) =>
   platformWide(db).from("calls").select("agent_id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
 
 /** Calls ended (or missed) before `grace` with a thread and no note on it, the longest waiting first, whichever workspace's. */
-export const listCallsWithoutNote = (db: Db, grace: string, limit: number) =>
+export const listCallsWithoutNote = async (db: Db, grace: string, limit: number) =>
   platformWide(db)
     .from("calls")
     .select(
@@ -44,7 +44,7 @@ export const listCallsWithoutNote = (db: Db, grace: string, limit: number) =>
     .limit(limit);
 
 /** Ended calls whose recording is still to copy, unmoved since `settledBefore`, the oldest first, whichever workspace's. */
-export const listRecordingsPending = (db: Db, settledBefore: string, limit: number) =>
+export const listRecordingsPending = async (db: Db, settledBefore: string, limit: number) =>
   platformWide(db)
     .from("calls")
     .select("id, tenant_id, retell_call_id, recording, ended_at")
@@ -58,7 +58,7 @@ export const listRecordingsPending = (db: Db, settledBefore: string, limit: numb
  * Calls still ongoing that nobody has heard of since `quietBefore`, or that started before `overlongBefore`, the
  * longest unheard first, whichever workspace's.
  */
-export const listCallsGoneQuiet = (db: Db, quietBefore: string, overlongBefore: string, limit: number) =>
+export const listCallsGoneQuiet = async (db: Db, quietBefore: string, overlongBefore: string, limit: number) =>
   platformWide(db)
     .from("calls")
     .select("id, tenant_id, retell_call_id, updated_at")

@@ -11,4 +11,4 @@ export {
   keepInvoiceAmount,
   reclaimBillingEvent,
 } from "./events";
-export { findBillingAccount, findBillingAccountOfCustomer, findPlanStanding } from "./plan";
+export { findBillingAccount, findBillingAccountOfCustomer, findPlanForPage, findPlanStanding } from "./plan";

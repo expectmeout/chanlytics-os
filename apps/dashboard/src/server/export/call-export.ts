@@ -3,7 +3,7 @@
  * records. The export is written to the ledger as a decision. The route declares who may and how often.
  */
 import { AppError } from "@chanlytics/contracts";
-import { CALL_COLUMNS, toCallDto } from "@/server/conversations/dto";
+import { toCallDto } from "@/server/conversations/dto";
 import { requireUuid } from "@/server/shared/request-guards";
 import { getTenantFacts } from "@/server/shared/tenant";
 import { attachment, callText, dateTag, personLabel, safeName } from "@/server/shared/export-file";
@@ -11,16 +11,12 @@ import { recordDecision } from "@/server/shared/verbs";
 import { log } from "@/server/shared/log";
 import type { Member, Params } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
+import { findCallRow } from "@chanlytics/db/voice";
 
 export async function exportCall(ctx: RouteContext & { params: Params }, member: Member) {
   const { supabase, userId, params } = ctx;
   const id = requireUuid(params.id, "call");
-  const { data, error } = await supabase
-    .from("calls")
-    .select(CALL_COLUMNS)
-    .eq("id", id)
-    .eq("tenant_id", member.tenantId)
-    .maybeSingle();
+  const { data, error } = await findCallRow(supabase, member.tenantId, id);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Call not found.");
   const call = toCallDto(data);

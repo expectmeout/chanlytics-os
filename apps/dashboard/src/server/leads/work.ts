@@ -18,6 +18,7 @@ import { keepSaidEmail } from "./send";
 import { serviceDb } from "../shared/service-db";
 import { recordDecision } from "../shared/verbs";
 import type { RouteContext } from "../shared/with-route";
+import { applyLeadBulk, askLeadsChecked, eraseLeadRow, moveLeadStage } from "@chanlytics/db/leads";
 
 /* ------------------------------------------------------- one lead, worked */
 
@@ -67,7 +68,7 @@ export async function setStage(
   lead: LeadRow,
   input: LeadStageInput,
 ): Promise<StageAnswer> {
-  const { data, error } = await ctx.supabase.rpc("lead_set_stage", {
+  const { data, error } = await moveLeadStage(ctx.supabase, {
     p_lead_id: lead.id,
     ...stageArgs(input),
   } as DoorArgs<"lead_set_stage">);
@@ -99,7 +100,7 @@ export async function bulkStage(
   tenantId: string,
   input: LeadsBulkInput,
 ): Promise<{ done: number; op_id: string | null; version: number; toast: string }> {
-  const { data, error } = await ctx.supabase.rpc("lead_bulk", {
+  const { data, error } = await applyLeadBulk(ctx.supabase, {
     p_tenant_id: tenantId,
     p_action: input.action,
     ...(input.by === "ids"
@@ -150,10 +151,7 @@ export async function checkAgain(
   tenantId: string,
   input: LeadsCheckAgainInput,
 ): Promise<{ scheduled: number; skipped: number; toast: string }> {
-  const { data, error } = await ctx.supabase.rpc("lead_check_again", {
-    p_tenant_id: tenantId,
-    p_lead_ids: input.ids,
-  });
+  const { data, error } = await askLeadsChecked(ctx.supabase, { p_tenant_id: tenantId, p_lead_ids: input.ids });
   if (error) throw new Error(`lead_check_again: ${error.message}`);
   const answer = answerOf(data);
   const refused = refusalOf(answer);
@@ -182,7 +180,7 @@ export async function eraseLead(
   ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
   lead: LeadRow,
 ): Promise<{ erased: true; already: boolean }> {
-  const { data, error } = await ctx.supabase.rpc("lead_erase", { p_lead_id: lead.id });
+  const { data, error } = await eraseLeadRow(ctx.supabase, lead.id);
   if (error) throw new Error(`lead_erase: ${error.message}`);
   const a = answerOf(data);
   const refused = refusalOf(a);

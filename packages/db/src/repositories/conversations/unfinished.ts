@@ -11,7 +11,7 @@ import { platformWide } from "../../shared/tenant-db";
 type Db = SupabaseClient<Database>;
 
 /** Customers' messages on `channels` made between `after` and `before` and never taken up, the oldest first. */
-export const listUnansweredInbound = (db: Db, channels: string[], after: string, before: string, limit: number) =>
+export const listUnansweredInbound = async (db: Db, channels: string[], after: string, before: string, limit: number) =>
   platformWide(db)
     .from("messages")
     .select("id, tenant_id, conversation_id, body, created_at, meta")
@@ -25,7 +25,7 @@ export const listUnansweredInbound = (db: Db, channels: string[], after: string,
     .limit(limit);
 
 /** The receptionist's or the team's replies in `states` on these threads since `since`. */
-export const listRepliesSince = (db: Db, conversationIds: string[], states: string[], since: string) =>
+export const listRepliesSince = async (db: Db, conversationIds: string[], states: string[], since: string) =>
   platformWide(db)
     .from("messages")
     .select("conversation_id, created_at, meta")
@@ -36,7 +36,7 @@ export const listRepliesSince = (db: Db, conversationIds: string[], states: stri
     .gt("created_at", since);
 
 /** Replies still queued, made between `after` and `before`, the oldest first. */
-export const listQueuedReplies = (db: Db, after: string, before: string, limit: number) =>
+export const listQueuedReplies = async (db: Db, after: string, before: string, limit: number) =>
   platformWide(db)
     .from("messages")
     .select("id, tenant_id, conversation_id, sender, created_at, meta")
@@ -47,7 +47,7 @@ export const listQueuedReplies = (db: Db, after: string, before: string, limit: 
     .limit(limit);
 
 /** One of the workspace's queued replies failed with `error`, only while still queued: its id back, none when it moved. */
-export const failQueuedReply = (db: Db, tenantId: string, messageId: string, error: Json) =>
+export const failQueuedReply = async (db: Db, tenantId: string, messageId: string, error: Json) =>
   db
     .from("messages")
     .update({ status: "failed", error })
@@ -57,9 +57,9 @@ export const failQueuedReply = (db: Db, tenantId: string, messageId: string, err
     .select("id");
 
 /** The escalations nobody took for `olderThan` (deadman_candidates). */
-export const listDeadmanCandidates = (db: Db, olderThan: string) =>
+export const listDeadmanCandidates = async (db: Db, olderThan: string) =>
   db.rpc("deadman_candidates", { p_older_than: olderThan });
 
 /** These escalations stamped as alerted (deadman_mark_alerted). */
-export const markDeadmanAlerted = (db: Db, escalationIds: string[]) =>
+export const markDeadmanAlerted = async (db: Db, escalationIds: string[]) =>
   db.rpc("deadman_mark_alerted", { p_ids: escalationIds });

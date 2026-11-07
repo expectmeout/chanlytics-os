@@ -569,7 +569,7 @@ export async function callSecondsSince(db: Db, tenantId: string, sinceIso: strin
 }
 
 /** The workspace's newest inbound call that connected: who called, and for how long. */
-export const findLastAnsweredCall = (db: Db, tenantId: string) =>
+export const findLastAnsweredCall = async (db: Db, tenantId: string) =>
   db
     .from("calls")
     .select("from_e164, duration_ms")

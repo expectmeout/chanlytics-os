@@ -2,6 +2,7 @@
  * The campaigns domain: `@chanlytics/db/campaigns`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  claimBroadcastSend,
   countBroadcastSends,
   failBroadcastRun,
   failInterruptedBroadcast,
@@ -322,6 +323,13 @@ export {
   setTemplateHidden,
   setTemplateTitle,
 } from "./templates/doors";
+export {
+  listStepsOfTemplates,
+  listTemplatesForPage,
+  pageRunsOfTemplates,
+  pageSendsSent,
+  pageTemplatesFromInbox,
+} from "./templates/page";
 export {
   createMessageVersion,
   findHeldMessage,

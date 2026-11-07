@@ -41,6 +41,7 @@ import {
   listBroadcastMessagesTo,
   startBroadcastRun,
   writeBroadcastSend,
+  claimBroadcastSend,
 } from "@chanlytics/db/campaigns";
 import { emitEvent, finishBroadcast } from "@chanlytics/db/events";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
@@ -339,15 +340,13 @@ function peoplePorts(
 function markPort(db: SupabaseClient<Database>, tenantId: string): BroadcastBatchPorts["mark"] {
   return async (id, contactId, patch) => {
     const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
-    const write = writeBroadcastSend(db, { tenantId, broadcastId: id, contactId }, { ...patch, sent_at: sentAt });
+    const key = { tenantId, broadcastId: id, contactId };
+    const values = { ...patch, sent_at: sentAt };
     if (patch.state !== "failed" || patch.reason !== OUTCOME_UNKNOWN) {
-      must("broadcast_send: cannot record how this person's send went", await write);
+      must("broadcast_send: cannot record how this person's send went", await writeBroadcastSend(db, key, values));
       return true;
     }
-    const took = must(
-      "broadcast_send: cannot claim this person",
-      await write.eq("state", "queued").select("contact_id"),
-    );
+    const took = must("broadcast_send: cannot claim this person", await claimBroadcastSend(db, key, values));
     return (took ?? []).length > 0;
   };
 }

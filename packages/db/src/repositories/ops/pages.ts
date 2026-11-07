@@ -9,17 +9,17 @@ import type { Database } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /** What the pager remembers of a key: when it last paged, and how often it fired. */
-export const findOperatorPage = (db: Db, key: string) =>
+export const findOperatorPage = async (db: Db, key: string) =>
   db.from("operator_pages").select("alerted_at, count").eq("key", key).maybeSingle();
 
 /** The pager's memory of a key kept, one row a key. */
-export const saveOperatorPage = (db: Db, row: Database["public"]["Tables"]["operator_pages"]["Insert"]) =>
+export const saveOperatorPage = async (db: Db, row: Database["public"]["Tables"]["operator_pages"]["Insert"]) =>
   db.from("operator_pages").upsert(row, { onConflict: "key" });
 
 /** A key stamped as paged at `at`. */
-export const stampOperatorPage = (db: Db, key: string, at: string) =>
+export const stampOperatorPage = async (db: Db, key: string, at: string) =>
   db.from("operator_pages").update({ alerted_at: at }).eq("key", key);
 
 /** Everything the pager remembers, the latest fired first. */
-export const listOperatorPages = (db: Db) =>
+export const listOperatorPages = async (db: Db) =>
   db.from("operator_pages").select("key, first_at, last_at, count, alerted_at").order("last_at", { ascending: false });

@@ -117,13 +117,13 @@ export async function scrubModelTurns(db: Db, tenantId: string, needles: readonl
 }
 
 /** The tokens the workspace's Ask spent in the last day (ask_tokens_day). */
-export const findAskTokensToday = (db: Db, tenantId: string) => db.rpc("ask_tokens_day", { p_tenant: tenantId });
+export const findAskTokensToday = async (db: Db, tenantId: string) => db.rpc("ask_tokens_day", { p_tenant: tenantId });
 
 /**
  * One page (`from` to `to`) of the model's spend between `since` and `until`, the newest first: every workspace's, or
  * with `tenantId` one workspace's.
  */
-export const pageLlmUsage = (
+export const pageLlmUsage = async (
   db: Db,
   page: { tenantId: string | null; since: string; until: string; from: number; to: number },
 ) => {

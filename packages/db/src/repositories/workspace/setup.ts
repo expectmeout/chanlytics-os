@@ -9,10 +9,10 @@ type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
 
 /** Help with one part of the setup asked for (setup_request). */
-export const requestSetup = (db: Db, args: Args<"setup_request">) => db.rpc("setup_request", args);
+export const requestSetup = async (db: Db, args: Args<"setup_request">) => db.rpc("setup_request", args);
 
 /** Whether the workspace asked for help with any of `whats` (a `setup.requested` event): one id, or none. */
-export const findSetupAsked = (db: Db, tenantId: string, whats: string[]) =>
+export const findSetupAsked = async (db: Db, tenantId: string, whats: string[]) =>
   db
     .from("events")
     .select("id")

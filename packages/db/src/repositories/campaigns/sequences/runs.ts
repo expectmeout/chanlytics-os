@@ -11,11 +11,11 @@ import { platformWide } from "../../../shared/tenant-db";
 type Db = SupabaseClient<Database>;
 
 /** One of the workspace's steps (a playbook, or a chain's step), whole, or none. */
-export const findStepRow = (db: Db, tenantId: string, stepId: string) =>
+export const findStepRow = async (db: Db, tenantId: string, stepId: string) =>
   db.from("sequence_steps").select("*").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
 
 /** These steps of the workspace's, as a chain's sends are planned by: their gaps, mailboxes, order and who sends. */
-export const listChainSteps = (db: Db, tenantId: string, stepIds: string[]) =>
+export const listChainSteps = async (db: Db, tenantId: string, stepIds: string[]) =>
   db
     .from("sequence_steps")
     .select("id, gap_minutes, mailbox_ids, after_step_id, owner_sends")
@@ -23,7 +23,7 @@ export const listChainSteps = (db: Db, tenantId: string, stepIds: string[]) =>
     .in("id", stepIds);
 
 /** One of the workspace's steps stamped with the moment it last ran for, and when. */
-export const stampStepRun = (db: Db, tenantId: string, stepId: string, runFor: string, at: string) =>
+export const stampStepRun = async (db: Db, tenantId: string, stepId: string, runFor: string, at: string) =>
   db
     .from("sequence_steps")
     .update({ last_run_for: runFor, last_run_at: at })
@@ -31,7 +31,7 @@ export const stampStepRun = (db: Db, tenantId: string, stepId: string, runFor: s
     .eq("tenant_id", tenantId);
 
 /** The run a step already made for a moment, or none. */
-export const findRunFor = (db: Db, tenantId: string, stepId: string, runFor: string) =>
+export const findRunFor = async (db: Db, tenantId: string, stepId: string, runFor: string) =>
   db
     .from("sequence_batches")
     .select("id")
@@ -41,7 +41,7 @@ export const findRunFor = (db: Db, tenantId: string, stepId: string, runFor: str
     .maybeSingle();
 
 /** One run of a reach-out chain still waiting on the owner's yes, or none. */
-export const findChainAwaitingApproval = (db: Db, tenantId: string, rootId: string) =>
+export const findChainAwaitingApproval = async (db: Db, tenantId: string, rootId: string) =>
   db
     .from("sequence_batches")
     .select("id")
@@ -52,11 +52,11 @@ export const findChainAwaitingApproval = (db: Db, tenantId: string, rootId: stri
     .limit(1);
 
 /** A scheduled batch, whichever workspace's, moved to sending: only from scheduled. */
-export const startBatchSending = (db: Db, batchId: string) =>
+export const startBatchSending = async (db: Db, batchId: string) =>
   platformWide(db).from("sequence_batches").update({ state: "sending" }).eq("id", batchId).eq("state", "scheduled");
 
 /** A sending batch, whichever workspace's, moved to sent at `at`, its id back: none when it was not sending. */
-export const finishBatchSending = (db: Db, batchId: string, at: string) =>
+export const finishBatchSending = async (db: Db, batchId: string, at: string) =>
   platformWide(db)
     .from("sequence_batches")
     .update({ state: "sent", finished_at: at })
@@ -65,17 +65,17 @@ export const finishBatchSending = (db: Db, batchId: string, at: string) =>
     .select("id");
 
 /** These leads' clocks, as a reach-out send is timed by: their region and hours. */
-export const listLeadClocks = (db: Db, tenantId: string, leadIds: string[]) =>
+export const listLeadClocks = async (db: Db, tenantId: string, leadIds: string[]) =>
   db.from("leads").select("id, region, hours").eq("tenant_id", tenantId).in("id", leadIds);
 
 /** A reach-out run and its sends planned in one statement (reach_out_plan_run). */
-export const planReachOutRun = (db: Db, run: Json, sends: Json) =>
+export const planReachOutRun = async (db: Db, run: Json, sends: Json) =>
   db.rpc("reach_out_plan_run", { p_run: run, p_sends: sends });
 
 /** A decision kept on the workspace's record. */
-export const insertDecision = (db: Db, row: Database["public"]["Tables"]["decisions"]["Insert"]) =>
+export const insertDecision = async (db: Db, row: Database["public"]["Tables"]["decisions"]["Insert"]) =>
   db.from("decisions").insert(row);
 
 /** A booking the workspace's calendar saw, counted to the reach-out that brought it (reach_out_booked). */
-export const recordReachOutBooked = (db: Db, args: Database["public"]["Functions"]["reach_out_booked"]["Args"]) =>
+export const recordReachOutBooked = async (db: Db, args: Database["public"]["Functions"]["reach_out_booked"]["Args"]) =>
   db.rpc("reach_out_booked", args);

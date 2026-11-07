@@ -15,36 +15,38 @@ const LEAD_FACTS =
   "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong";
 
 /** A round's runs, new, each inserted only where no run of its id is: a second inserter meets the first and adds none. */
-export const insertLeadRuns = (db: Db, rows: Database["public"]["Tables"]["lead_runs"]["Insert"][]) =>
+export const insertLeadRuns = async (db: Db, rows: Database["public"]["Tables"]["lead_runs"]["Insert"][]) =>
   db.from("lead_runs").upsert(rows, { onConflict: "id", ignoreDuplicates: true });
 
 /** Every run of a round, whole. */
-export const listRunsOfRound = (db: Db, roundId: string) => db.from("lead_runs").select("*").eq("round_id", roundId);
+export const listRunsOfRound = async (db: Db, roundId: string) =>
+  db.from("lead_runs").select("*").eq("round_id", roundId);
 
 /** One run, whole, or none. */
-export const findLeadRun = (db: Db, runId: string) => db.from("lead_runs").select("*").eq("id", runId).maybeSingle();
+export const findLeadRun = async (db: Db, runId: string) =>
+  db.from("lead_runs").select("*").eq("id", runId).maybeSingle();
 
 /** One round, whole, or none. */
-export const findLeadRound = (db: Db, roundId: string) =>
+export const findLeadRound = async (db: Db, roundId: string) =>
   db.from("lead_rounds").select("*").eq("id", roundId).maybeSingle();
 
 /** The members of a round, or of a search, whole. */
-export const listSearchMembers = (db: Db, by: "round_id" | "search_id", id: string) =>
+export const listSearchMembers = async (db: Db, by: "round_id" | "search_id", id: string) =>
   db.from("lead_search_members").select("*").eq(by, id);
 
 /** These leads' facts, as the runner reads them back. */
-export const listLeadFacts = (db: Db, leadIds: string[]) => db.from("leads").select(LEAD_FACTS).in("id", leadIds);
+export const listLeadFacts = async (db: Db, leadIds: string[]) => db.from("leads").select(LEAD_FACTS).in("id", leadIds);
 
 /** The workspace's leads (not erased) at any of these places. */
-export const listLeadsAtPlaces = (db: Db, tenantId: string, placeIds: string[]) =>
+export const listLeadsAtPlaces = async (db: Db, tenantId: string, placeIds: string[]) =>
   db.from("leads").select("id, place_id").eq("tenant_id", tenantId).in("place_id", placeIds).is("erased_at", null);
 
 /** The places the workspace's leads were also found at, among these. */
-export const listLeadPlacesAt = (db: Db, tenantId: string, placeIds: string[]) =>
+export const listLeadPlacesAt = async (db: Db, tenantId: string, placeIds: string[]) =>
   db.from("lead_places").select("lead_id, place_id").eq("tenant_id", tenantId).in("place_id", placeIds);
 
 /** The workspace's leads (not erased) whose `by` is one of `values`, each with its id and that value. */
-export const listLeadsSharing = (
+export const listLeadsSharing = async (
   db: Db,
   tenantId: string,
   by: "phone_e164" | "email" | "website_host",
@@ -52,21 +54,21 @@ export const listLeadsSharing = (
 ) => db.from("leads").select(`id, ${by}`).eq("tenant_id", tenantId).in(by, values).is("erased_at", null);
 
 /** The workspace's people (not erased) whose `by` is one of `values`, each with its id and that value. */
-export const listPeopleSharing = (db: Db, tenantId: string, by: "phone_e164" | "email", values: string[]) =>
+export const listPeopleSharing = async (db: Db, tenantId: string, by: "phone_e164" | "email", values: string[]) =>
   db.from("contacts").select(`id, ${by}`).eq("tenant_id", tenantId).in(by, values).is("erased_at", null);
 
 /** Which of these places' erasure digests the workspace was told no for. */
-export const listPlacesSuppressed = (db: Db, tenantId: string, hashes: string[]) =>
+export const listPlacesSuppressed = async (db: Db, tenantId: string, hashes: string[]) =>
   db.from("lead_suppressions").select("hash").eq("tenant_id", tenantId).eq("kind", "place").in("hash", hashes);
 
 /** What a round's question is told with: its workspace, its search, its state and the question. */
-export const findRoundToTell = (db: Db, roundId: string) =>
+export const findRoundToTell = async (db: Db, roundId: string) =>
   db.from("lead_rounds").select("tenant_id, search_id, state, question").eq("id", roundId).maybeSingle();
 
 /** The workspace's search's name. */
-export const findLeadSearchName = (db: Db, tenantId: string, searchId: string) =>
+export const findLeadSearchName = async (db: Db, tenantId: string, searchId: string) =>
   db.from("lead_searches").select("name").eq("id", searchId).eq("tenant_id", tenantId).maybeSingle();
 
 /** What a delivery from the provider is checked against: the run's workspace, its provider run, its state and its token. */
-export const findRunForDelivery = (db: Db, runId: string) =>
+export const findRunForDelivery = async (db: Db, runId: string) =>
   db.from("lead_runs").select("id, tenant_id, apify_run_id, state, webhook_token_hash").eq("id", runId).maybeSingle();

@@ -7,5 +7,5 @@ import type { Database } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /** The escalation's id, workspace and state, or null where the member cannot see it; the read's error beside it. */
-export const findEscalationState = (db: Db, id: string) =>
+export const findEscalationState = async (db: Db, id: string) =>
   db.from("escalations").select("id, tenant_id, state").eq("id", id).maybeSingle();

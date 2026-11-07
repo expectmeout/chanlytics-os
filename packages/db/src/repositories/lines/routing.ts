@@ -13,7 +13,7 @@ type ChannelInsert = Database["public"]["Tables"]["tenant_channels"]["Insert"];
 type ChannelUpdate = Database["public"]["Tables"]["tenant_channels"]["Update"];
 
 /** The routing row a kind and a provider's key hold, whichever workspace's it is. */
-export const findRoutingRowByKey = (db: Db, kind: string, externalId: string) =>
+export const findRoutingRowByKey = async (db: Db, kind: string, externalId: string) =>
   platformWide(db)
     .from("tenant_channels")
     .select("id, tenant_id, status")
@@ -22,7 +22,11 @@ export const findRoutingRowByKey = (db: Db, kind: string, externalId: string) =>
     .maybeSingle();
 
 /** A routing row taken over, pinned to the workspace and state it was read in: none back means another claimed it first. */
-export const takeRoutingRow = (db: Db, was: { id: string; tenantId: string; status: string }, patch: ChannelUpdate) =>
+export const takeRoutingRow = async (
+  db: Db,
+  was: { id: string; tenantId: string; status: string },
+  patch: ChannelUpdate,
+) =>
   platformWide(db)
     .from("tenant_channels")
     .update(patch)
@@ -33,11 +37,11 @@ export const takeRoutingRow = (db: Db, was: { id: string; tenantId: string; stat
     .maybeSingle();
 
 /** A routing row written, its id back. */
-export const insertRoutingRow = (db: Db, row: ChannelInsert) =>
+export const insertRoutingRow = async (db: Db, row: ChannelInsert) =>
   db.from("tenant_channels").insert(row).select("id").single();
 
 /** The workspace's oldest other line that answers on the same routing row, by the line's fact that names it. */
-export const findOtherLineOnRow = (
+export const findOtherLineOnRow = async (
   db: Db,
   params: { tenantId: string; lineId: string; fact: "channel_id" | "sms_channel_id"; channelId: string },
 ) =>
@@ -51,19 +55,19 @@ export const findOtherLineOnRow = (
     .limit(1);
 
 /** A routing row's settings. */
-export const findRoutingConfig = (db: Db, tenantId: string, channelId: string) =>
+export const findRoutingConfig = async (db: Db, tenantId: string, channelId: string) =>
   db.from("tenant_channels").select("config").eq("id", channelId).eq("tenant_id", tenantId).maybeSingle();
 
 /** A routing row changed: repointed to the line that keeps it, or switched off. */
-export const patchRoutingRow = (db: Db, tenantId: string, channelId: string, patch: ChannelUpdate) =>
+export const patchRoutingRow = async (db: Db, tenantId: string, channelId: string, patch: ChannelUpdate) =>
   db.from("tenant_channels").update(patch).eq("id", channelId).eq("tenant_id", tenantId);
 
 /** The kinds of the workspace's active routing rows among `kinds`: where a customer can write in. */
-export const listActiveRoutingKinds = (db: Db, tenantId: string, kinds: string[]) =>
+export const listActiveRoutingKinds = async (db: Db, tenantId: string, kinds: string[]) =>
   db.from("tenant_channels").select("kind").eq("tenant_id", tenantId).eq("status", "active").in("kind", kinds);
 
 /** The workspace's oldest active voice row: its agent and the agent's config. */
-export const findVoiceRouting = (db: Db, tenantId: string) =>
+export const findVoiceRouting = async (db: Db, tenantId: string) =>
   db
     .from("tenant_channels")
     .select("external_id, config")
@@ -75,15 +79,15 @@ export const findVoiceRouting = (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** Every voice routing row, whichever workspace's: its agent and its status (the diagnostic's read). */
-export const listVoiceRoutingRows = (db: Db) =>
+export const listVoiceRoutingRows = async (db: Db) =>
   platformWide(db).from("tenant_channels").select("external_id, status").eq("kind", "voice");
 
 /** Every active voice agent, whichever workspace's. */
-export const listActiveVoiceAgents = (db: Db) =>
+export const listActiveVoiceAgents = async (db: Db) =>
   platformWide(db).from("tenant_channels").select("external_id").eq("kind", "voice").eq("status", "active");
 
 /** The workspace's oldest voice routing row, whatever its status. */
-export const findVoiceRow = (db: Db, tenantId: string) =>
+export const findVoiceRow = async (db: Db, tenantId: string) =>
   db
     .from("tenant_channels")
     .select("id, status, external_id, number_e164")

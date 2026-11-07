@@ -397,5 +397,5 @@ export async function wasEventTold(db: Db, params: { tenantId: string; eventId: 
 }
 
 /** A notice put on the workspace's bell, its id back. */
-export const insertNotification = (db: Db, row: Database["public"]["Tables"]["notifications"]["Insert"]) =>
+export const insertNotification = async (db: Db, row: Database["public"]["Tables"]["notifications"]["Insert"]) =>
   db.from("notifications").insert(row).select("id").single();

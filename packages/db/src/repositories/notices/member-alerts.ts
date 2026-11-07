@@ -206,7 +206,7 @@ export async function setMemberView(db: Db, params: { tenantId: string; page: st
 }
 
 /** The same write, its answer as the door gave it (every page's views), for the route that says its refusals itself. */
-export const keepMemberView = (db: Db, args: Database["public"]["Functions"]["member_view_set"]["Args"]) =>
+export const keepMemberView = async (db: Db, args: Database["public"]["Functions"]["member_view_set"]["Args"]) =>
   db.rpc("member_view_set", args);
 
 /**

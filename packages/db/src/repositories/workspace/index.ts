@@ -75,4 +75,40 @@ export {
   patchConfigRow,
 } from "./rows";
 export { findSetupAsked, requestSetup } from "./setup";
+export {
+  countOffersReach,
+  countOffersYes,
+  countOpenInvites,
+  countSaidYes,
+  countTeamMembers,
+  findLastWhatsAppIn,
+  findWorkspaceFacts,
+  listCapabilityRows,
+  listChannelsForPage,
+  listSetupAsks,
+  listSetupChannels,
+  listTemplateVerdicts,
+} from "./setup-rows";
+export {
+  changeTeamRole,
+  insertMembership,
+  inviteToTeam,
+  joinTeam,
+  leaveWorkspaceTeam,
+  listInvitesForAddress,
+  listMyRoles,
+  listMyWorkspaces,
+  listMyWorkspacesBeforeAccent,
+  listMyWorkspacesBeforeWord,
+  listMyWorkspacesOldest,
+  listOpenInvitations,
+  lookupUserForInvite,
+  patchWorkspaceRowWith,
+  readTeamRoster,
+  removeFromTeam,
+  renewTeamInvite,
+  stampInvitationAccepted,
+  withdrawInviteRenewal,
+  withdrawTeamInvite,
+} from "./team";
 export { addToWaitlist, getWaitlistWaiting, markWaitlistInvited, refreshWaitlistRow } from "./waitlist";

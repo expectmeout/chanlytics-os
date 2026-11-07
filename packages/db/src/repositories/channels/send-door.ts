@@ -10,11 +10,11 @@ import type { Database } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /** When a message was written, inside its workspace. */
-export const findMessageWrittenAt = (db: Db, tenantId: string, messageId: string) =>
+export const findMessageWrittenAt = async (db: Db, tenantId: string, messageId: string) =>
   db.from("messages").select("created_at").eq("id", messageId).eq("tenant_id", tenantId).maybeSingle();
 
 /** A thread's outbound messages a person wrote after a moment, oldest first, at most `limit`. */
-export const listPersonRepliesAfter = (
+export const listPersonRepliesAfter = async (
   db: Db,
   params: { tenantId: string; conversationId: string; after: string; limit: number },
 ) =>
@@ -30,7 +30,7 @@ export const listPersonRepliesAfter = (
     .limit(params.limit);
 
 /** The thread's last message stamped with the send. */
-export const stampThreadSent = (db: Db, params: { tenantId: string; conversationId: string; at: string }) =>
+export const stampThreadSent = async (db: Db, params: { tenantId: string; conversationId: string; at: string }) =>
   db
     .from("conversations")
     .update({ last_message_at: params.at })
@@ -38,14 +38,14 @@ export const stampThreadSent = (db: Db, params: { tenantId: string; conversation
     .eq("tenant_id", params.tenantId);
 
 /** An outbox row finalized only while it is still queued: no row back means a cancel won it first. */
-export const finalizeQueuedMessage = (
+export const finalizeQueuedMessage = async (
   db: Db,
   messageId: string,
   patch: Database["public"]["Tables"]["messages"]["Update"],
 ) => db.from("messages").update(patch).eq("id", messageId).eq("status", "queued").select("id");
 
 /** An outbox message as the job that sends it reads it, or null where it is gone. */
-export const findOutboxMessage = (db: Db, tenantId: string, messageId: string) =>
+export const findOutboxMessage = async (db: Db, tenantId: string, messageId: string) =>
   db
     .from("messages")
     .select("id, status, body, template_name, channel, sender, meta")
@@ -54,7 +54,7 @@ export const findOutboxMessage = (db: Db, tenantId: string, messageId: string) =
     .maybeSingle();
 
 /** A WhatsApp template's category, by its name and language in the workspace. */
-export const findTemplateCategory = (db: Db, params: { tenantId: string; name: string; language: string }) =>
+export const findTemplateCategory = async (db: Db, params: { tenantId: string; name: string; language: string }) =>
   db
     .from("templates")
     .select("category")

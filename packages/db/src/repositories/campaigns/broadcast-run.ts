@@ -15,15 +15,15 @@ const RUN_COLUMNS =
   "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience, offered_start, offered_end, offered_from";
 
 /** The broadcast a run sends, or null. */
-export const findBroadcastRun = (db: Db, run: Run) =>
+export const findBroadcastRun = async (db: Db, run: Run) =>
   db.from("sequence_batches").select(RUN_COLUMNS).eq("id", run.broadcastId).eq("tenant_id", run.tenantId).maybeSingle();
 
 /** Only the broadcast's state: whether it is still wanted. */
-export const findBroadcastState = (db: Db, run: Run) =>
+export const findBroadcastState = async (db: Db, run: Run) =>
   db.from("sequence_batches").select("state").eq("id", run.broadcastId).eq("tenant_id", run.tenantId).maybeSingle();
 
 /** The broadcast moved from scheduled to sending; no row back means it was not scheduled. */
-export const startBroadcastRun = (db: Db, run: Run, at: string) =>
+export const startBroadcastRun = async (db: Db, run: Run, at: string) =>
   db
     .from("sequence_batches")
     .update({ state: "sending", started_at: at })
@@ -33,7 +33,7 @@ export const startBroadcastRun = (db: Db, run: Run, at: string) =>
     .select("id");
 
 /** The broadcast failed, unless it failed already: the first stop is the run's. */
-export const failBroadcastRun = (db: Db, run: Run, failure: string, at: string) =>
+export const failBroadcastRun = async (db: Db, run: Run, failure: string, at: string) =>
   db
     .from("sequence_batches")
     .update({ state: "failed", failure, finished_at: at })
@@ -43,7 +43,7 @@ export const failBroadcastRun = (db: Db, run: Run, failure: string, at: string) 
     .select("id");
 
 /** A run that died, failed while it still stood scheduled or sending: no row back means it finished by itself. */
-export const failInterruptedBroadcast = (db: Db, run: Run, at: string) =>
+export const failInterruptedBroadcast = async (db: Db, run: Run, at: string) =>
   db
     .from("sequence_batches")
     .update({ state: "failed", failure: "run_interrupted", finished_at: at })
@@ -65,7 +65,7 @@ export function countBroadcastSends(db: Db, run: Run, where: { state?: string; r
 }
 
 /** One person's send on the broadcast, written; the caller may narrow it further (a claim takes only a queued row). */
-export const writeBroadcastSend = (
+export const writeBroadcastSend = async (
   db: Db,
   run: Run & { contactId: string },
   patch: Database["public"]["Tables"]["sequence_sends"]["Update"],
@@ -78,8 +78,24 @@ export const writeBroadcastSend = (
     .eq("contact_id", run.contactId)
     .is("lead_id", null);
 
+/** A person's send on a run written only while it is still queued: the person back, none when another took it. */
+export const claimBroadcastSend = async (
+  db: Db,
+  run: Run & { contactId: string },
+  patch: Database["public"]["Tables"]["sequence_sends"]["Update"],
+) =>
+  db
+    .from("sequence_sends")
+    .update(patch)
+    .eq("tenant_id", run.tenantId)
+    .eq("batch_id", run.broadcastId)
+    .eq("contact_id", run.contactId)
+    .is("lead_id", null)
+    .eq("state", "queued")
+    .select("contact_id");
+
 /** The people of a batch, as a run reads them to judge and send: their numbers, addresses, consents and names. */
-export const listBatchPeople = (db: Db, tenantId: string, ids: string[]) =>
+export const listBatchPeople = async (db: Db, tenantId: string, ids: string[]) =>
   db
     .from("contacts")
     .select(
@@ -89,7 +105,7 @@ export const listBatchPeople = (db: Db, tenantId: string, ids: string[]) =>
     .eq("tenant_id", tenantId);
 
 /** The messages the broadcast already left these people: sent, delivered or read, with its id in their meta. */
-export const listBroadcastMessagesTo = (db: Db, run: Run, contactIds: string[]) =>
+export const listBroadcastMessagesTo = async (db: Db, run: Run, contactIds: string[]) =>
   db
     .from("messages")
     .select("id, contact_id, created_at")

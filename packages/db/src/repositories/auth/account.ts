@@ -10,7 +10,11 @@ type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
 
 /** The name the person gives, kept as their profile's (profile_set). */
-export const setProfileName = (db: Db, args: Args<"profile_set">) => db.rpc("profile_set", args);
+export const setProfileName = async (db: Db, args: Args<"profile_set">) => db.rpc("profile_set", args);
 
 /** The person's account deleted, as themselves (delete_my_account). */
-export const deleteMyAccount = (db: Db) => db.rpc("delete_my_account");
+export const deleteMyAccount = async (db: Db) => db.rpc("delete_my_account");
+
+/** The name a person gave, as their profile keeps it, or none. */
+export const findProfileName = async (db: Db, userId: string) =>
+  db.from("profiles").select("display_name").eq("user_id", userId).maybeSingle();

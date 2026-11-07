@@ -12,7 +12,7 @@ type Db = SupabaseClient<Database>;
 type ChannelUpdate = Database["public"]["Tables"]["tenant_channels"]["Update"];
 
 /** The workspace's oldest active WhatsApp number's row and its business account. */
-export const findWhatsAppAccount = (db: Db, tenantId: string) =>
+export const findWhatsAppAccount = async (db: Db, tenantId: string) =>
   db
     .from("tenant_channels")
     .select("id, waba_id")
@@ -24,7 +24,7 @@ export const findWhatsAppAccount = (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** Every active number of one business account, whichever workspace's, oldest first: where its events route. */
-export const listNumbersOfWaba = (db: Db, wabaId: string) =>
+export const listNumbersOfWaba = async (db: Db, wabaId: string) =>
   platformWide(db)
     .from("tenant_channels")
     .select("id, tenant_id, number_e164, config")
@@ -34,19 +34,19 @@ export const listNumbersOfWaba = (db: Db, wabaId: string) =>
     .order("created_at", { ascending: true });
 
 /** One of the workspace's channels' config. */
-export const findChannelConfig = (db: Db, tenantId: string, channelId: string) =>
+export const findChannelConfig = async (db: Db, tenantId: string, channelId: string) =>
   db.from("tenant_channels").select("config").eq("id", channelId).eq("tenant_id", tenantId).maybeSingle();
 
 /** One of the workspace's channels changed. */
-export const patchChannelRow = (db: Db, tenantId: string, channelId: string, set: ChannelUpdate) =>
+export const patchChannelRow = async (db: Db, tenantId: string, channelId: string, set: ChannelUpdate) =>
   db.from("tenant_channels").update(set).eq("id", channelId).eq("tenant_id", tenantId);
 
 /** One of the workspace's channels switched on or off, its id back: none when the row is not the workspace's. */
-export const setChannelStatus = (db: Db, tenantId: string, channelId: string, status: "active" | "disabled") =>
+export const setChannelStatus = async (db: Db, tenantId: string, channelId: string, status: "active" | "disabled") =>
   db.from("tenant_channels").update({ status }).eq("id", channelId).eq("tenant_id", tenantId).select("id");
 
 /** The workspace's own row for a WhatsApp number written over, its id back: none when it holds no row for it. */
-export const patchWhatsAppNumberRow = (db: Db, tenantId: string, phoneNumberId: string, set: ChannelUpdate) =>
+export const patchWhatsAppNumberRow = async (db: Db, tenantId: string, phoneNumberId: string, set: ChannelUpdate) =>
   db
     .from("tenant_channels")
     .update(set)
@@ -57,14 +57,14 @@ export const patchWhatsAppNumberRow = (db: Db, tenantId: string, phoneNumberId: 
     .maybeSingle();
 
 /** A new channel row for the workspace, its id back: the database keeps a number on one row (23505 for a second). */
-export const insertChannelRow = (
+export const insertChannelRow = async (
   db: Db,
   tenantId: string,
   row: Database["public"]["Tables"]["tenant_channels"]["Insert"],
 ) => tenantDb(db, tenantId).from("tenant_channels").insert(row).select("id").single();
 
 /** Whose row a WhatsApp number is, whichever workspace's: the row's id and its workspace, or none. */
-export const findWhatsAppNumberHolder = (db: Db, phoneNumberId: string) =>
+export const findWhatsAppNumberHolder = async (db: Db, phoneNumberId: string) =>
   platformWide(db)
     .from("tenant_channels")
     .select("id, tenant_id")
@@ -73,7 +73,7 @@ export const findWhatsAppNumberHolder = (db: Db, phoneNumberId: string) =>
     .maybeSingle();
 
 /** A channel's secret put in Vault (put_channel_credentials), as the database answered (putChannelSecret throws). */
-export const putChannelCredentials = (db: Db, channelId: string, secret: Json) =>
+export const putChannelCredentials = async (db: Db, channelId: string, secret: Json) =>
   db.rpc("put_channel_credentials", { p_channel_id: channelId, p_secret: secret });
 
 /** The sends Meta took (status `sent`) and has said nothing more of, since `watchedSince`, whichever workspace's. */
@@ -90,7 +90,7 @@ const sendsAccepted = (db: Db) =>
  * The WhatsApp sends with no receipt between `watchedSince` and `quietSince`, whichever workspace's, `limit` of each
  * kind: the ones taken directly (no status since) and the ones queued (a status, and none after).
  */
-export const listSendsWithoutReceipt = (db: Db, quietSince: string, watchedSince: string, limit: number) =>
+export const listSendsWithoutReceipt = async (db: Db, quietSince: string, watchedSince: string, limit: number) =>
   Promise.all([
     sendsAccepted(db)
       .is("status_updated_at", null)
@@ -101,7 +101,7 @@ export const listSendsWithoutReceipt = (db: Db, quietSince: string, watchedSince
   ]);
 
 /** One of the workspace's WhatsApp sends that heard a receipt (delivered, read or failed) after `since`, or none. */
-export const findReceiptSince = (db: Db, tenantId: string, since: string) =>
+export const findReceiptSince = async (db: Db, tenantId: string, since: string) =>
   db
     .from("messages")
     .select("id")

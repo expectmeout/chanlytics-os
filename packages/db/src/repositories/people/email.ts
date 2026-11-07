@@ -9,9 +9,9 @@ import type { Database } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /** The address on file for one of the workspace's people, or none. */
-export const findPersonEmail = (db: Db, tenantId: string, contactId: string) =>
+export const findPersonEmail = async (db: Db, tenantId: string, contactId: string) =>
   db.from("contacts").select("email").eq("id", contactId).eq("tenant_id", tenantId).maybeSingle();
 
 /** An address kept on a person through its door (set_person_email). */
-export const setPersonEmail = (db: Db, contactId: string, email: string) =>
+export const setPersonEmail = async (db: Db, contactId: string, email: string) =>
   db.rpc("set_person_email", { p_contact_id: contactId, p_email: email });

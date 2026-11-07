@@ -86,7 +86,7 @@ export async function findFiledNames(
 }
 
 /** The business on record saved, one a workspace, and back whole. The answer is the database's as it came. */
-export const saveBusinessOnRecord = (
+export const saveBusinessOnRecord = async (
   db: SupabaseClient<Database>,
   tenantId: string,
   row: Database["public"]["Tables"]["business_records"]["Insert"],

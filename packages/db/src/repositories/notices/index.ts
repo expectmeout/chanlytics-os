@@ -16,6 +16,7 @@ export {
   setMemberView,
 } from "./member-alerts";
 export type { MemberAlerts } from "./member-alerts";
+export { findBellSeen, listBellRows, listNotificationMarks } from "./notifications/bell";
 export {
   closeMendedNotices,
   findMemberEmail,

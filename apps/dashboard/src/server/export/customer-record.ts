@@ -1,8 +1,10 @@
 /** One customer's whole record, as the export writes it. */
 import type { MessageDto } from "@chanlytics/contracts";
-import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/conversations/dto";
+import { mediaPublic, toCallDto } from "@/server/conversations/dto";
 import { consentChangeOf, type BundleReaders } from "@/server/export/bundle";
 import type { RouteContext } from "@/server/shared/with-route";
+import { pageConsentChanges, pageMessagesOfThreads, pageThreadRows } from "@chanlytics/db/conversations";
+import { pageCallRows } from "@chanlytics/db/voice";
 
 /**
  * The customer record, a page at a time, read on the owner's own session: everyone's threads, their messages, the calls
@@ -21,32 +23,12 @@ export function customerRecord(
   };
   return {
     conversations: (offset, limit) => {
-      const all = supabase
-        .from("conversations")
-        .select("id, contact_id, state, created_at, last_message_at, last_inbound_at")
-        .eq("tenant_id", tenantId);
-      return rows(
-        (person ? all.eq("contact_id", person) : all)
-          .order("created_at", { ascending: true })
-          .order("id", { ascending: true })
-          .range(offset, offset + limit - 1),
-      );
+      return rows(pageThreadRows(supabase, tenantId, person, offset, offset + limit - 1));
     },
     // A batch of conversations' messages in one query (R14 X7), each with its conversation and, for a file the store
     // holds, its path: the bundle lists the file with a link and never writes the path.
     messages: async (conversationIds, offset, limit) =>
-      (
-        await rows(
-          supabase
-            .from("messages")
-            .select(MESSAGE_COLUMNS)
-            .in("conversation_id", [...conversationIds])
-            .order("conversation_id", { ascending: true })
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(offset, offset + limit - 1),
-        )
-      ).map((row) => ({
+      (await rows(pageMessagesOfThreads(supabase, [...conversationIds], offset, offset + limit - 1))).map((row) => ({
         conversation_id: row.conversation_id,
         stored_path: storedPathOf(row.media),
         id: row.id,
@@ -65,31 +47,13 @@ export function customerRecord(
         ...(row.channel ? { channel: row.channel } : {}),
       })),
     calls: async (offset, limit) => {
-      const all = supabase.from("calls").select(CALL_COLUMNS).eq("tenant_id", tenantId);
-      return (
-        await rows(
-          (person ? all.eq("contact_id", person) : all)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(offset, offset + limit - 1),
-        )
-      ).map(toCallDto);
+      return (await rows(pageCallRows(supabase, tenantId, person, offset, offset + limit - 1))).map(toCallDto);
     },
     // Every change to either answer: a person's are the ones about them (the event's subject is the person).
     consentHistory: async (offset, limit) => {
-      const all = supabase
-        .from("events")
-        .select("id, subject_id, created_at, data")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "contact.consent_changed");
-      return (
-        await rows(
-          (person ? all.eq("subject_id", person) : all)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(offset, offset + limit - 1),
-        )
-      ).map(consentChangeOf);
+      return (await rows(pageConsentChanges(supabase, tenantId, person, offset, offset + limit - 1))).map(
+        consentChangeOf,
+      );
     },
   };
 }

@@ -31,7 +31,15 @@ import {
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { getOpenHandovers, getOwnPartner } from "@chanlytics/db/partners";
-import { findWorkspaceNamed } from "@chanlytics/db/workspace";
+import {
+  findWorkspaceNamed,
+  listMyRoles,
+  listMyWorkspaces,
+  listMyWorkspacesBeforeAccent,
+  listMyWorkspacesBeforeWord,
+  listMyWorkspacesOldest,
+  patchWorkspaceRowWith,
+} from "@chanlytics/db/workspace";
 import { serviceDb } from "@/server/shared/service-db";
 import { isPlatformAdmin } from "@/server/shared/back-office";
 import { env } from "@/server/shared/env";
@@ -39,6 +47,7 @@ import { log } from "@/server/shared/log";
 import { readSettled } from "@/server/shared/lazy";
 import type { Member } from "@/server/shared/route";
 import { saysMissing } from "@chanlytics/db/shared";
+import { findProfileName } from "@chanlytics/db/auth";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {
@@ -62,14 +71,6 @@ interface WorkspaceRow {
  * (the colour's, 00490) moved `COLUMN_SETS[2]` from this to the logo's set, and the zone's PATCH read back a path.
  */
 const OLDEST = "id, slug, name, status, timezone";
-
-/** The columns the list reads, newest first; each read after the first leaves one newer column out. */
-const COLUMN_SETS = [
-  "id, slug, name, status, timezone, appointment_word, logo_path, accent",
-  "id, slug, name, status, timezone, appointment_word, logo_path",
-  "id, slug, name, status, timezone, logo_path",
-  OLDEST,
-] as const;
 
 /** What a PATCH of the word reads back: the row as it wrote it, its word with it, and never the logo's storage path. */
 const WORD_ANSWER = "id, slug, name, status, timezone, appointment_word";
@@ -108,13 +109,12 @@ const listed = (rows: TenantRead[] | null): WorkspaceRow[] | null =>
 async function tenantsOf(
   supabase: RouteContext["supabase"],
 ): Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }> {
-  const read = <C extends string>(columns: C) => supabase.from("tenants").select(columns).order("name");
   // Each read typed by its own columns, newest first (the colour's 00490, the word's 00458, the logo's 00407).
-  const reads = [
-    () => read(COLUMN_SETS[0]),
-    () => read(COLUMN_SETS[1]),
-    () => read(COLUMN_SETS[2]),
-    () => read(COLUMN_SETS[3]),
+  const reads: (() => PromiseLike<{ data: TenantRead[] | null; error: { message: string } | null }>)[] = [
+    () => listMyWorkspaces(supabase),
+    () => listMyWorkspacesBeforeAccent(supabase),
+    () => listMyWorkspacesBeforeWord(supabase),
+    () => listMyWorkspacesOldest(supabase),
   ];
   let last: { message: string } | null = null;
   for (const next of reads) {
@@ -127,8 +127,7 @@ async function tenantsOf(
 }
 
 /** The caller's role in each of their workspaces: their own memberships, by RLS. */
-const rolesOf = (supabase: RouteContext["supabase"], userId: string) =>
-  supabase.from("memberships").select("tenant_id, role").eq("user_id", userId);
+const rolesOf = (supabase: RouteContext["supabase"], userId: string) => listMyRoles(supabase, userId);
 
 export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   const { supabase, userId, email } = ctx;
@@ -148,7 +147,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     tenantsOf(supabase),
     // The name this person gave (profiles, 00068) rides with the identity, so the chrome shows a person rather
     // than the workspace standing in for one.
-    supabase.from("profiles").select("display_name").eq("user_id", userId).maybeSingle(),
+    findProfileName(supabase, userId),
     // Whether the back office exists for this person, on the payload the seam already fetches at boot. The nav has
     // to decide synchronously whether the tab is there at all, and a second round trip for one boolean would make
     // the rail flicker for everybody to serve two accounts. It answers only about the caller -- see
@@ -309,11 +308,12 @@ async function writeOwnFields(
   tenantId: string,
   patch: { timezone?: string; appointment_word?: AppointmentWord; name?: string },
 ) {
-  return (await ctx.supabase
-    .from("tenants")
-    .update(patch)
-    .eq("id", tenantId)
-    .select(patch.appointment_word ? WORD_ANSWER : OLDEST)) as unknown as {
+  return (await patchWorkspaceRowWith(
+    ctx.supabase,
+    tenantId,
+    patch,
+    patch.appointment_word ? WORD_ANSWER : OLDEST,
+  )) as unknown as {
     data: Partial<WorkspaceRow>[] | null;
     error: { message: string; code?: string } | null;
   };

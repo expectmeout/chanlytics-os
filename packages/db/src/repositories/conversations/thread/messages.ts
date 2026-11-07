@@ -355,5 +355,5 @@ export async function findOurLastWire(db: Db, tenantId: string, conversationId: 
 }
 
 /** What a message carries (its media, with where it is stored or why it is not) written on the workspace's row. */
-export const saveMessageMedia = (db: Db, tenantId: string, messageId: string, media: Json) =>
+export const saveMessageMedia = async (db: Db, tenantId: string, messageId: string, media: Json) =>
   db.from("messages").update({ media }).eq("id", messageId).eq("tenant_id", tenantId);
