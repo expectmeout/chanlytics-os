@@ -8,14 +8,10 @@
  * An answer to a reply is the receptionist's, over the thread and the lead's note, which differ with every reply: its
  * parts are said with no share, since no one number would be true of them.
  */
-import { z } from "zod";
 import type { OpeningRecord } from "./words/opening";
 
 export const TOLD_KINDS = ["words", "opening", "reply"] as const;
 export type ToldKind = (typeof TOLD_KINDS)[number];
-
-/** GET settings/reach-out/told: which writer's prompt, of the two composed from what the workspace holds. */
-export const ReachOutToldQuerySchema = z.object({ kind: z.enum(["words", "opening"]) });
 
 export interface ToldPart {
   id: string;
