@@ -22,7 +22,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { DAY_MS, EVERYONE_LABEL, HOUR_MS } from "@chanlytics/contracts";
 import { pathToFileURL } from "node:url";
-import { CAMPAIGN_MESSAGE, SLUG, TIMEZONE, WAITING_SEARCH } from "../ops/e2e-workspace.mjs";
+import { CAMPAIGN_MESSAGE, SLUG, TIMEZONE } from "../ops/e2e-workspace.mjs";
 
 /** The run waiting for an OK, by the name a spec or a person sees and a second run of this finds it by. */
 export const WAITING_RUN = "e2e copy: waiting for an OK";
@@ -57,6 +57,7 @@ async function clearEarlier(db, T) {
     ["sequence_batches", WAITING_RUN],
     ["sequence_steps", HANDED_OVER.nudge],
     ["sequence_steps", HANDED_OVER.name],
+    ["lead_searches", HANDED_OVER.name],
   ])
     wrote(`clearing ${name}`, await db.from(table).delete().eq("tenant_id", T).eq("name", name));
 }
@@ -169,9 +170,11 @@ async function writeHandedOver(db, { T, ownerId, stamp, now }) {
       .select("id")
       .single(),
   );
-  const search = wrote(
-    "reading the seed's search",
-    await db.from("lead_searches").select("id").eq("tenant_id", T).eq("name", WAITING_SEARCH.name).single(),
+  // A list of its own, empty, as a sequence to leads has (00459): the rail keeps no door for a search a sequence writes to,
+  // and e2e/leads.spec.ts presses the waiting search's.
+  const list = wrote(
+    "the reach-out's list",
+    await db.rpc("reach_out_list_for", { p_tenant_id: T, p_name: HANDED_OVER.name, p_by: ownerId }),
   );
   const leads = wrote(
     "reading the seed's leads",
@@ -192,7 +195,7 @@ async function writeHandedOver(db, { T, ownerId, stamp, now }) {
   const root = await writeStep(db, on, {
     name: HANDED_OVER.name,
     trigger: "lead_first",
-    lead_search_id: search.id,
+    lead_search_id: list,
     owner_sends: true,
   });
   const nudge = await writeStep(db, on, {
@@ -219,7 +222,7 @@ async function writeHandedOver(db, { T, ownerId, stamp, now }) {
           template_name: HANDED_OVER.template,
           template_language: HANDED_OVER.language,
           params: [],
-          audience: { kind: "reach_out", root_id: root.id, step_id: step.id, search_id: search.id },
+          audience: { kind: "reach_out", root_id: root.id, step_id: step.id, search_id: list },
           state: "sending",
           scheduled_for: handedAt,
           started_at: handedAt,

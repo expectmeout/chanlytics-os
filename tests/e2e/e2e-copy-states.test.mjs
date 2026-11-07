@@ -32,6 +32,12 @@ function seeded() {
         return null;
       },
       get_google_credentials: () => null,
+      // An empty list named for a sequence (00459), which a step needs and nothing here reads.
+      reach_out_list_for: ({ p_tenant_id, p_name }) => {
+        const id = crypto.randomUUID();
+        rows("lead_searches").push({ id, tenant_id: p_tenant_id, via: "chosen", name: p_name });
+        return id;
+      },
     },
   );
   db.auth = {
@@ -146,6 +152,12 @@ test("an email handed over is whole as 00429 holds one, to a place the waiting s
   const [root, nudge] = w.t.sequence_steps.filter((s) => s.template_name === HANDED_OVER.template);
   assert.deepEqual([root.owner_sends, nudge.owner_sends ?? false], [true, false], "only a first step's to say");
   assert.equal(nudge.after_step_id, root.id, "a first email and its nudge, one reach-out");
+  const list = w.t.lead_searches.find((q) => q.id === root.lead_search_id);
+  assert.deepEqual(
+    [list.via, list.name],
+    ["chosen", HANDED_OVER.name],
+    "on a list of its own: the rail keeps no door for a search a sequence writes to, and a spec presses the waiting search's",
+  );
 });
 
 test("run again, it stands as it did: nothing is added to", async () => {
