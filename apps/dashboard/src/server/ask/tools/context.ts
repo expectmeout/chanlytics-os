@@ -106,10 +106,20 @@ export interface ToolContext {
   endsAt?: number;
 }
 
-/** A picture a read opens, as the request carries it: what it is called, and the id only the edge's copy has. */
+/**
+ * A picture a read opens, as the request carries it: what it is called, the id only the edge's copy has, and the size the model
+ * sees it at, so it can name a box in those pixels (Ask's eyes). The file's own id rides for what the turn remembers it opened
+ * (loop.ts), and is never shown to the model.
+ */
 export interface ToolPicture {
   name: string;
   fileId: string;
+  id?: string;
+  size?: readonly [number, number];
+  /** A piece of a picture: the box cut, in the pixels of the size the whole was shown at. */
+  zoom?: { box: readonly [number, number, number, number]; of: readonly [number, number] };
+  /** What it is, where it is no file of the library: "The post drawn from x", said in place of "The file x". */
+  what?: string;
 }
 
 /**
@@ -131,8 +141,19 @@ export const pictureBlocks = (pictures: readonly AskedPicture[]): unknown[] =>
     ...(p.fileId ? [{ type: "image", source: { type: "file", file_id: p.fileId } }] : []),
   ]);
 
-/** A picture a read opened, as `pictureBlocks` takes it. */
-export const openedPicture = (p: ToolPicture): AskedPicture => ({ said: `The file ${p.name}:`, fileId: p.fileId });
+/** A picture a read opened, as `pictureBlocks` takes it: named, with the pixels it is shown at where the edge said them. */
+export const openedPicture = (p: ToolPicture): AskedPicture => {
+  const size = p.size ? `${p.size[0]}×${p.size[1]}` : null;
+  if (p.zoom) {
+    const [x1, y1, x2, y2] = p.zoom.box;
+    const of = `${p.zoom.of[0]}×${p.zoom.of[1]}`;
+    return {
+      said: `The file ${p.name}, its box [${x1}, ${y1}, ${x2}, ${y2}] of ${of}${size ? `, shown at ${size}` : ""}:`,
+      fileId: p.fileId,
+    };
+  }
+  return { said: `${p.what ?? `The file ${p.name}`}${size ? ` (${size})` : ""}:`, fileId: p.fileId };
+};
 
 export interface ToolOutcome {
   /** What the model sees. */
@@ -151,6 +172,8 @@ export interface ProposalOutcome {
   /** What the model sees. */
   result: string;
   isError: boolean;
+  /** A picture the act drew for the model to look at before it makes its card (act/files/post.ts), beside its words. */
+  pictures?: readonly ToolPicture[];
   /** A plan's own words for the person (proposeMany): a round that made it answers with them (loop.ts). */
   words?: string;
   /** What a setup's answer leads with where something comes first (contracts journey/plan.ts PlanLead): the round answers with it. */

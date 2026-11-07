@@ -6,6 +6,7 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -16,6 +17,7 @@ process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+const sharp = createRequire(path.join(ROOT, "apps/dashboard/package.json"))("sharp");
 
 let edge = async () => new Response("{}", { status: 500 });
 const asked = [];
@@ -40,6 +42,7 @@ const { resultBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
 const { fileIndexLineOf, fileWhoSaid, filesLineOf } = await import(at("packages/contracts/src/files/line.ts"));
+const { boxShown, zoomSizeOf } = await import(at("apps/dashboard/src/server/files/zoom.ts"));
 
 beforeEach(() => {
   readerCache.clear();
@@ -207,8 +210,8 @@ test("view opens the pictures by a copy's id, and the id reaches the request's i
   assert.equal(asked[0].tenant_id, A);
   assert.doesNotMatch(out.result, /file_abc|file_def/, "the words never hold an id");
   assert.deepEqual(out.pictures, [
-    { name: "storefront-dusk", fileId: "file_abc" },
-    { name: "bench", fileId: "file_def" },
+    { name: "storefront-dusk", id: ID(1), fileId: "file_abc" },
+    { name: "bench", id: ID(2), fileId: "file_def" },
   ]);
   const [block] = resultBlocks([{ block: { id: "call-1" }, out }]);
   assert.equal(block.tool_use_id, "call-1");
@@ -233,7 +236,7 @@ test("a name that is no file, and a picture with no copy, are said in words: a t
   const said = JSON.parse(out.result);
   assert.deepEqual(said.no_such_file, ["gone"]);
   assert.deepEqual(said.could_not_open, ["no-copy"]);
-  assert.deepEqual(out.pictures, [{ name: "good", fileId: "file_abc" }]);
+  assert.deepEqual(out.pictures, [{ name: "good", id: ID(1), fileId: "file_abc" }]);
 });
 
 test("a picture opened says how their newest post looks, so the next keeps what they settled on; before their first, nothing", async () => {
@@ -308,4 +311,138 @@ test("a picture a live chain replays that Anthropic no longer holds gives the re
   assert.equal(dropFor("400 invalid thinking signature", still), "replay");
   assert.equal(dropFor("404 file_abc: File not found", { ...still, replay: false }), null);
   assert.equal(dropFor("500 overloaded", still), null);
+});
+
+/* --------------------------------------------------- Ask's eyes: the pixels a picture is shown at, and a box of it */
+
+/** The edge as the real one answers: each copy at its size, and a picture sent up decoded, so its bytes must be a real picture. */
+function edgeWithSizes(mapped, size = [1200, 900]) {
+  const sent = [];
+  edge = async (body) => {
+    const copies = (body.ids ?? []).map((id) => ({ id, file_id: mapped[id] ?? null, width: size[0], height: size[1] }));
+    const pictures = [];
+    for (const p of body.pictures ?? []) {
+      const meta = await sharp(Buffer.from(p.bytes, "base64")).metadata();
+      sent.push({
+        key: p.key,
+        mime: p.mime,
+        name: p.name,
+        format: meta.format,
+        width: meta.width,
+        height: meta.height,
+      });
+      pictures.push({ key: p.key, file_id: "file_zoom", width: meta.width, height: meta.height });
+    }
+    return new Response(JSON.stringify({ ok: true, copies, ...(pictures.length ? { pictures } : {}) }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  return sent;
+}
+// Made when first asked for: a top-level await after the tests are registered would let the root's after() run before the rest register.
+let photo = null;
+const photoOf = () =>
+  (photo ??= sharp({ create: { width: 1200, height: 900, channels: 3, background: "#6b8" } })
+    .jpeg()
+    .toBuffer());
+/** The photo in Storage, as the service reads it for a cut. */
+function withPhotoInStorage() {
+  const service = fakeDb({ files: [] }, {}, {});
+  const downloaded = [];
+  service.storage = {
+    from: () => ({
+      download: async (p, o) => {
+        downloaded.push({ path: p, ...o });
+        return { data: new Blob([await photoOf()]), error: null };
+      },
+    }),
+  };
+  setServiceClient(service);
+  return downloaded;
+}
+
+test("a picture opened says the pixels it is shown at beside its name, so a box can be named in them", async () => {
+  edgeWithSizes({ [ID(1)]: "file_abc" });
+  const out = await tool([row(1, { name: "storefront-dusk" })], { action: "view", names: ["storefront-dusk"] });
+  assert.deepEqual(out.pictures, [{ name: "storefront-dusk", id: ID(1), fileId: "file_abc", size: [1200, 900] }]);
+  assert.deepEqual(JSON.parse(out.result).shown[0].size, [1200, 900]);
+  const [block] = resultBlocks([{ block: { id: "c" }, out }]);
+  assert.equal(block.content[1].text, "The file storefront-dusk (1200×900):");
+});
+
+test("zoom cuts the box named in those pixels from the photo itself, enlarges it to read, and sends it up for the turn", async () => {
+  const sent = edgeWithSizes({ [ID(1)]: "file_abc" });
+  const downloaded = withPhotoInStorage();
+  const out = await tool([row(1, { name: "storefront-dusk" })], {
+    action: "zoom",
+    name: "Storefront dusk",
+    box: [100, 100, 340, 280],
+  });
+  assert.equal(out.isError, false, out.result);
+  assert.deepEqual(JSON.parse(out.result), {
+    zoomed: "storefront-dusk",
+    box: [100, 100, 340, 280],
+    of: [1200, 900],
+    shown_as: [960, 720],
+  });
+  assert.equal(downloaded.length, 1, "the original, read whole");
+  assert.equal(downloaded[0].transform, undefined);
+  assert.deepEqual(
+    sent.map(({ format, width, height, mime }) => ({ format, width, height, mime })),
+    [{ format: "jpeg", width: 960, height: 720, mime: "image/jpeg" }],
+  );
+  assert.deepEqual(out.pictures, [
+    {
+      name: "storefront-dusk",
+      id: ID(1),
+      fileId: "file_zoom",
+      size: [960, 720],
+      zoom: { box: [100, 100, 340, 280], of: [1200, 900] },
+    },
+  ]);
+  const [block] = resultBlocks([{ block: { id: "c" }, out }]);
+  assert.equal(
+    block.content[1].text,
+    "The file storefront-dusk, its box [100, 100, 340, 280] of 1200×900, shown at 960×720:",
+  );
+  assert.doesNotMatch(out.result, /file_zoom/);
+});
+
+test("a HEIC, or a heavy original, is cut from Storage's largest copy instead, which the code can read", async () => {
+  edgeWithSizes({ [ID(1)]: "file_abc" });
+  const downloaded = withPhotoInStorage();
+  const out = await tool([row(1, { name: "phone-shot", mime: "image/heic", bytes: 3_000_000 })], {
+    action: "zoom",
+    name: "phone-shot",
+    box: [0, 0, 600, 450],
+  });
+  assert.equal(out.isError, false, out.result);
+  assert.deepEqual(downloaded[0].transform, { width: 2500, height: 2500, resize: "contain" });
+});
+
+test("a box is held to the picture: outside it is refused, a point is widened to a region, and a cut is enlarged to read but never into blur", () => {
+  assert.deepEqual(boxShown([-50, 20, 300, 1500], [1200, 900]), [0, 20, 300, 900]);
+  assert.match(boxShown([1300, 20, 1400, 50], [1200, 900]).wont, /outside/);
+  assert.deepEqual(boxShown([600, 450, 600, 450], [1200, 900]), [592, 442, 608, 458]);
+  assert.deepEqual(boxShown([340, 280, 100, 100], [1200, 900]), [100, 100, 340, 280], "corners in either order");
+  assert.deepEqual(zoomSizeOf([240, 180]), [960, 720], "small: enlarged, but no more than four times");
+  assert.deepEqual(zoomSizeOf([600, 400]), [1000, 667], "enlarged to read");
+  assert.deepEqual(zoomSizeOf([3000, 2000]), [1568, 1045], "large: brought down to the size a picture is shown at");
+  assert.deepEqual(zoomSizeOf([1200, 900]), [1200, 900], "and one that reads already is left as it is");
+});
+
+test("a zoom of a file that is not there, or whose copy the edge can't say the size of, is said in words", async () => {
+  copiesOf({ [ID(1)]: "file_abc" });
+  withPhotoInStorage();
+  const none = await tool([row(1)], { action: "zoom", name: "gone", box: [0, 0, 10, 10] });
+  assert.match(JSON.parse(none.result).error, /no file named gone/);
+  const unsized = await tool([row(1)], { action: "zoom", name: "photo-1", box: [0, 0, 10, 10] });
+  assert.match(JSON.parse(unsized.result).error, /could not be opened/);
+  assert.equal(unsized.pictures, undefined);
+});
+
+test("get says the photo's size", async () => {
+  const out = await tool([row(1)], { action: "get", name: "photo-1" });
+  assert.deepEqual(JSON.parse(out.result).size, [1200, 900]);
 });

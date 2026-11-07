@@ -105,9 +105,21 @@ function lookSaid(f: Pick<FileDto, "look_status" | "looks_like_stock">): string 
  * came with, by the name that opens them now and what the look saw. None, the words as they were.
  */
 export function withFilesAttached(words: string, files: readonly (Pick<FileDto, "name" | "line"> | null)[]): string {
+  return withFilesSaid(words, "Attached", files);
+}
+
+/**
+ * An answer's words with the files Ask opened in that turn, the same way (Ask's eyes): a later cold turn knows what it looked at,
+ * and that the pixels are not in front of it until it opens them again.
+ */
+export function withFilesOpened(words: string, files: readonly (Pick<FileDto, "name" | "line"> | null)[]): string {
+  return withFilesSaid(words, "Opened", files);
+}
+
+function withFilesSaid(words: string, how: string, files: readonly (Pick<FileDto, "name" | "line"> | null)[]): string {
   if (files.length === 0) return words;
   const said = files.map((f) => (!f ? "a file since removed" : f.line ? `${f.name} (${f.line})` : f.name));
-  return [words, `[Attached: ${said.join("; ")}]`].filter(Boolean).join("\n");
+  return [words, `[${how}: ${said.join("; ")}]`].filter(Boolean).join("\n");
 }
 
 /** One file on one line, to choose by: `storefront-dusk-street · place · sharp, well lit · no people: A shopfront at dusk.` */

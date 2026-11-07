@@ -54,7 +54,7 @@ export type {
   FileWhoInIt,
   FileWhoStands,
 } from "./files";
-export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached } from "./line";
+export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached, withFilesOpened } from "./line";
 export type { FileForAsk } from "./line";
 export {
   FILE_COPY_KEEP_S,
@@ -63,6 +63,7 @@ export {
   FILE_LOOK_PLAIN_HINT,
   FILE_LOOK_SCHEMA,
   FILE_LOOK_SYSTEM,
+  FILE_PICTURE_KEEP_S,
   fileLookAsked,
   fileLookOf,
 } from "./look";

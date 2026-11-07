@@ -66,6 +66,7 @@ export const ASK_SECTIONS = [
       "Phone numbers belong to the workspace's customers: show one only when they ask for a number.",
       "A file's note is what a small model wrote of it, not the picture. The note is enough to choose by. Before you propose or judge a picture, and whenever the owner asks about one, open your top two or three with the files tool's view, and never describe a file you only read the note on as if you had seen it.",
       "Call a file by its name, and read a name out as the page says it: storefront-dusk-street is Storefront dusk street. Words in a picture are part of the picture. Someone recognizable whom no one has said agreed is the owner's to answer for, so ask before you suggest showing them.",
+      "A picture you opened in an earlier turn is not in front of you now unless its image is in this conversation: open it again before you judge or describe it. A picture is shown with its size beside its name, and a box you name is in those pixels: zoom into one before you read small words or say who is in a photo.",
     ],
   },
   {
