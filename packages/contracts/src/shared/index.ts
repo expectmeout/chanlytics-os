@@ -139,7 +139,7 @@ export {
 export { isoMs, numberFormat } from "./time";
 export type { SpanUnits } from "./time";
 export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./unknown";
-export { entryOf, isCount, isKeyOf, isList, isOneOf, listOrEmpty, recordOrEmpty, textOrEmpty } from "./unknown";
+export { entryOf, isCount, isList, isOneOf, listOrEmpty, recordOrEmpty, textOrEmpty } from "./unknown";
 export { ANSWER_JSON_ONLY, CONTROL_CHARS, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF } from "./words";
 export { capitalize, joinWords, possessive } from "./words";
 export {

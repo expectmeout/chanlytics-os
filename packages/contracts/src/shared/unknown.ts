@@ -13,7 +13,7 @@ export const isOneOf = <T extends readonly unknown[]>(set: T, value: unknown): v
   set.includes(value);
 
 /** Whether a key read from outside is one a record keeps as its own: never a name every object has (`constructor`). */
-export const isKeyOf = <R extends object>(record: R, key: unknown): key is keyof R =>
+const isKeyOf = <R extends object>(record: R, key: unknown): key is keyof R =>
   (typeof key === "string" || typeof key === "number") && Object.hasOwn(record, key);
 
 /** What a record keeps under a key read from outside, or undefined where it keeps nothing under it. */

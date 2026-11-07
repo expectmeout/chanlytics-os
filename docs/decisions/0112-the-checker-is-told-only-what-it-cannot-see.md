@@ -30,7 +30,7 @@ at a time.
 1. **An assertion that names a type is counted**, per module, and may only fall (`assertions`, `tests/types/_types.mjs`), beside the casts measure's
    three. Each backend package goes below the eight's median; one that stays says why.
 2. **A closed set, a table of words and a value from outside are read through a check, not an assertion.** Contracts' readers of an outside value
-   (`shared/unknown.ts`) gain `isOneOf` (a member of a closed set), `isKeyOf` and `entryOf` (a key a table keeps, never one every object has),
+   (`shared/unknown.ts`) gain `isOneOf` (a member of a closed set), `entryOf` (what a table keeps under a key, never under one every object has),
    `isList` and `listOrEmpty` (a stored list that may not be one), and `textOrEmpty` (a value's text, never `[object Object]`). A type that already
    fits is said by an annotation or `satisfies`.
 3. **The typed lint's held rules become errors as their findings go**, and four rules of the strict set hold the backend: no object literal told its
