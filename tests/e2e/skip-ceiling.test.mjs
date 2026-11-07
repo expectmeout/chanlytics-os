@@ -37,6 +37,37 @@ const run = (ends, quiet = true) => {
   }
 };
 
+test("a quarantined test is said apart and not counted against the ceiling", async () => {
+  process.env.E2E_MAX_SKIPS = "0";
+  const quarantined = [
+    {
+      title: "a test",
+      annotations: [{ type: "fixme", description: "quarantine: 2026-11-07 the edge is not on a copy" }],
+    },
+    { status: "skipped" },
+  ];
+  const lines = [];
+  const log = console.log;
+  console.log = (m) => lines.push(String(m));
+  try {
+    const { verdict } = await run([quarantined]);
+    assert.equal(verdict, undefined, "it leaves the count at nothing");
+  } finally {
+    console.log = log;
+  }
+  assert.match(lines.join("\n"), /1 quarantined/);
+  assert.match(lines.join("\n"), /a test: quarantine: 2026-11-07 the edge is not on a copy/);
+});
+
+test("a fixme that is no quarantine is counted, with its reason", async () => {
+  process.env.E2E_MAX_SKIPS = "0";
+  const { verdict, said } = await run([
+    [{ annotations: [{ type: "fixme", description: "later" }] }, { status: "skipped" }],
+  ]);
+  assert.deepEqual(verdict, { status: "failed" });
+  assert.match(said, /1 × later/);
+});
+
 test("the reasons the suite's own gates give are the deliberate ones; a want of data or credentials is not", () => {
   for (const why of [
     "a real model turn costs money: set E2E_PAID_MODEL=1 to run it",

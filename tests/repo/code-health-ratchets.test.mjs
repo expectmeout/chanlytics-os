@@ -26,6 +26,7 @@ import {
   linesOf,
   fixedWaitsIn,
   droppedDbErrorsIn,
+  quarantinesIn,
 } from "../_ast.mjs";
 
 // The measure the limits above rest on, kept honest: if the compiler ever stops
@@ -372,6 +373,22 @@ test("the counted-waits measure counts waits of a fixed count of turns or time, 
     fixedWaitsIn(sf).map((w) => w.line),
     marked,
   );
+});
+
+test("e2e-quarantine counts a test.fixme that says quarantine, per file, and no other skip", () => {
+  const sf = ts.createSourceFile(
+    "a.spec.ts",
+    [
+      'test("one", () => { test.fixme(true, "quarantine: 2026-11-07 why"); });',
+      'test("two", () => { test.fixme(true, `quarantine: 2026-11-07 why`); });',
+      'test("skipped", () => { test.skip(true, "quarantine: 2026-11-07 a skip is no quarantine"); });',
+      'test("fixme", () => { test.fixme(true, "later"); });',
+    ].join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  assert.equal(quarantinesIn(sf), 2);
 });
 
 // The dropped-error measure on a module written for it. supabase-js answers a failed statement with `{ error }` and never

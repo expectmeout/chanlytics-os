@@ -169,7 +169,9 @@ export function contentSecurityPolicy(o: CspInputs): string {
     ["frame-ancestors", ["'none'"]],
   ];
   const parts = directives.map(([name, values]) => `${name} ${values.join(" ")}`);
-  if (!o.dev && !o.reportOnly) parts.push("upgrade-insecure-requests");
+  // A copy with its database on plain http (the nightly's own stack) has no https to be upgraded to: a picture's redirect
+  // to Storage went to an https nobody answers, and every file drew as its name.
+  if (!o.dev && !o.reportOnly && !supabase?.startsWith("http:")) parts.push("upgrade-insecure-requests");
   return parts.join("; ");
 }
 

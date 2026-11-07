@@ -102,7 +102,11 @@ test.describe("Google on a real workspace", () => {
     await expect(page.getByTestId("first-run")).toBeVisible();
     const find = page.getByTestId("fr-find");
     const setupListing = page.getByTestId("setup-row-google");
-    if (data.google.listing || !ready) {
+    if (!ready) {
+      // No key on this deployment: nothing to search, so no listing's row at all (setup-rows.ts googleRow).
+      await expect(find).toHaveCount(0);
+      await expect(setupListing).toHaveCount(0);
+    } else if (data.google.listing) {
       await expect(find).toHaveCount(0);
       await expect(setupListing).toBeVisible();
       await expect(setupListing).not.toContainText("Find it");

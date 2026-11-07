@@ -112,6 +112,42 @@ async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"
  * grace window called back, one the job already holds allowed to land, every
  * open escalation in the workspace resolved, and the thread handed back.
  */
+/**
+ * On a copy of the app no edge runs, so no job ever takes a queued reply (nightly-e2e.yml, the whole suite). What this spec
+ * holds is what the page says of a reply that failed, so the two rows are written here as the send door and its job write
+ * them when the number has no credentials (core deliver.ts, the job's `send_failed`), and those are tested with the edge's.
+ */
+const NO_EDGE = !!process.env.EDGE_URL;
+
+async function theSendFails(conversationId: string, messageId: string): Promise<void> {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const headers = {
+    apikey: key,
+    authorization: `Bearer ${key}`,
+    "content-type": "application/json",
+    prefer: "return=representation",
+  };
+  const failed = await fetch(`${base}/rest/v1/messages?id=eq.${messageId}&status=eq.queued`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ status: "failed", error: { http_status: 0, body: "the WhatsApp number is not connected" } }),
+  });
+  const [row] = (await failed.json()) as { tenant_id: string }[];
+  expect(row, "the queued reply, marked failed").toBeTruthy();
+  const opened = await fetch(`${base}/rest/v1/escalations`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      tenant_id: row.tenant_id,
+      conversation_id: conversationId,
+      reason: "send_failed",
+      details: "The reply could not be delivered: the WhatsApp number is not connected.",
+    }),
+  });
+  expect(opened.ok, "the escalation, opened").toBeTruthy();
+}
+
 async function putItBack(page: Page, ws: string, id: string): Promise<void> {
   for (const m of (await readThread(page, id)).messages) {
     // A 409 means the job has it already; the wait below lets it land.
@@ -201,6 +237,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
     });
 
     await test.step("the number has no credentials: the send fails, and the thread says so in its own words", async () => {
+      if (NO_EDGE) await theSendFails(id, messageId);
       await expect
         .poll(async () => (await readThread(page, id)).messages.find((m) => m.id === messageId)?.status, {
           timeout: 90_000,
@@ -227,7 +264,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       ).toBeVisible();
       // Where it was held, a quiet mark with its reason as a clause; the cause a press away under the dock's Why? (the
       // thread canvas, 1 Nov 2026): the flag quoted it over a dock that said the reason again.
-      await expect(pane.getByTestId("tl-held")).toContainText("reply failed to deliver");
+      await expect(pane.getByTestId("tl-held")).toHaveAttribute("title", /reply failed to deliver/);
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
       await pane.getByTestId("ix-yours").getByRole("button", { name: "Why?" }).click();
       await expect(pane.getByTestId("ix-hold-why")).toContainText("the WhatsApp number is not connected");
@@ -360,7 +397,11 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");
       await expect(queue).toBeVisible();
-      await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toHaveCount(0);
+      // What the thread was about is resolved, and the words still never left: the row stays until someone tries again
+      // or hands it back (thread-move.ts, a thread's move is `failed`; #2133).
+      await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toContainText(
+        "Your reply didn't reach them",
+      );
 
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Needs you");

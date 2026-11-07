@@ -21,7 +21,8 @@ const PARTS = [
   ".sidebar-label",
   ".nav-item",
   ".nav-item svg",
-  ".nav-item > span",
+  // The row's words, not its count: a count is the frame's alone, read after the code, and the document has none to draw.
+  ".nav-item > span:not(.nav-badge, .nav-dot)",
   ".sidebar-foot",
   ".user-chip",
   ".avatar",

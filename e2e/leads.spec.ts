@@ -56,7 +56,7 @@ const SEEDED = [ZILKER, TRAVIS, MUELLER, KETTLEBELL, FITCORP, HYDE_PARK];
  * stand as three leads -- two Ready and one Contacted -- and the waiting
  * search's three left-out places count for nothing: two kept searches.
  */
-const STANDING = "3 leads · 2 ready · 2 searches";
+const STANDING = "3 leads · 2 not contacted · 2 searches";
 /** contracts LEAD_NOT_A_FIT_ASK.short.chain: the why the Not a fit toast offers first. */
 const WHY_CHAIN_SHORT = "Chain";
 
@@ -93,7 +93,7 @@ test.describe("Leads on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the Leads scope shows the seeded search and its leads, strongest fit first, and the strip says how it ended", async ({
+  test("the Leads scope shows the seeded search and its leads, in the queue's order, and the strip says how it ended", async ({
     page,
   }) => {
     // The seed owns these six; this spec restates their names. If the two ever
@@ -113,8 +113,12 @@ test.describe("Leads on a real workspace", () => {
 
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
-    await expectLeadsScope(page, { standing: STANDING, first: ZILKER });
-    await expect(page.locator(".cl-table tbody tr").nth(1)).toContainText(TRAVIS);
+    // The page opens on the queue (#2137): who has not been contacted first, under their group's heading, the one
+    // contacted after them. Strongest first is the read's order above, and a press on the heading's.
+    await expectLeadsScope(page, { standing: STANDING, first: TRAVIS });
+    const rows = page.locator(".cl-table tbody tr:not(.dtable-group)");
+    await expect(rows.nth(1)).toContainText(ZILKER);
+    await expect(rows.nth(2)).toContainText(HYDE_PARK);
 
     // The rail names the search, and its count is the members' count. The strip
     // and the three classes are the open search's, so read them from it.
@@ -370,10 +374,10 @@ test.describe("Leads on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("leads-phone-bar");
     await expect(bar).toBeVisible();
-    await expect(bar.getByTestId("leads-phone-search")).toBeVisible();
     // Whole, not only there: the bar once drew 18px tall with all four clipped inside it (the rated card's star
-    // track shared its class), and a clipped control still has a box, so it still passed as visible.
-    await expect(bar.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
+    // track shared its class), and a clipped control still has a box, so it still passed as visible. The search rests in
+    // this glyph while it holds no words (phone-bar.tsx foldSearch, #2081).
+    await expect(bar.getByTestId("leads-phone-find")).toBeInViewport({ ratio: 1 });
     // Nothing above the rows but the bar and the strip: no stat cards, no
     // controls row, no rail (feedback_mobile_work_first).
     await expect(page.locator(".cl-rail")).toBeHidden();
@@ -384,12 +388,13 @@ test.describe("Leads on a real workspace", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(
       0,
     );
-    // Search is one full-width field under the bar (it was a 64px box that said "Sear"), the field from the first draw,
-    // so one press begins the typing (Ruben, 11 Oct 2026). There is no Cancel: the clear (×) stands in the field from
-    // the first word, and keeps the field in focus.
+    // Search is one full-width field under the bar (it was a 64px box that said "Sear"), and one press begins the typing
+    // (Ruben, 11 Oct 2026). There is no Cancel: the clear (×) stands in the field from the first word, and keeps the field
+    // in focus.
     const search = page.getByTestId("leads-phone-search");
-    await search.click();
+    await bar.getByTestId("leads-phone-find").click();
     await expect(search).toBeFocused();
+    await expect(search).toBeInViewport({ ratio: 1 });
     await search.fill("zz");
     await page.getByTestId("leads-phone-search-clear").click();
     await expect(search).toHaveValue("");
@@ -477,7 +482,6 @@ test.describe("Leads on a phone", () => {
     // At a phone's width the shell's ✦ is the one door (spec F1): the bar's own mark, the door for the widths
     // where the shell draws no ✦ (721-900px), gives way to it here.
     await expect(page.getByTestId("leads-bar-find")).toBeHidden();
-    await expect(page.getByTestId("leads-phone-find")).toHaveCount(0);
     await page.getByTestId("phone-ask").tap();
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();

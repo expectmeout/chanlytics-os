@@ -45,6 +45,10 @@ on:
         description: "Only the specs that need no credentials: no secret read, nothing written, no issue filed"
         type: boolean
         default: false
+      specs:
+        description: "Only these specs, on the whole suite's copy, for a look at a few reds in minutes: e2e/leads.spec.ts e2e/shell/phone.spec.ts. No node suite, no check of production, no issue filed."
+        type: string
+        default: ""
       base_url:
         description: "Where the credential-free specs run, an address that needs no bypass (a preview with protection off; preview-smoke.yml takes the protected ones); production when empty. Read by that half alone: the whole suite runs on its own copy, and the check of production is of production."
         type: string
@@ -64,7 +68,7 @@ jobs:
   # quarter seen by nobody. Each part keeps its coverage report, and the coverage job below judges the four together.
   suite:
     name: Node suite (${{ matrix.part }}/4)
-    if: ${{ !inputs.credential_free_only }}
+    if: ${{ !inputs.credential_free_only && !inputs.specs }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -135,6 +139,10 @@ jobs:
       # GitHub sets that for the pull-request job too, which is meant to
       # run credential-free.
       REQUIRE_SERVICE_CREDENTIALS: "1"
+      # What the seed gives nothing to, and so skips, exactly (7 Nov 2026; e2e/skip-ceiling.ts prints each reason). The
+      # workspace is this run's own, so the number does not wander with a customer's month: a twelfth is a red night, and
+      # each one the seed comes to cover brings this down.
+      E2E_MAX_SKIPS: "11"
       E2E_USER_EMAIL: e2e-owner@example.com
       E2E_MEMBER_EMAIL: e2e-member@example.com
       # localhost by name: Next says a request's host as localhost whatever it was asked by (NextURL), so asked as
@@ -216,7 +224,9 @@ jobs:
       - run: pnpm e2e:install
       # One retry: a copy on this machine has no network to forgive, and a retry that passes hides a flake.
       - name: Every spec
-        run: pnpm exec playwright test --retries=1
+        run: pnpm exec playwright test --retries=1 $SPECS
+        env:
+          SPECS: ${{ inputs.specs }}
       - name: What reached for the edge, by path
         if: ${{ !cancelled() }}
         run: sed -E 's/\?.*$//' edge-stub.log | sort | uniq -c | sort -rn | head -40
@@ -238,7 +248,7 @@ jobs:
   production:
     name: The check of production
     needs: whole
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && !inputs.specs }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Ask's weekly and Leads' weekly write this workspace too, and e2e-workspace.mjs rewrites it, so the three take turns.
@@ -370,7 +380,7 @@ jobs:
   report:
     name: Say what the night came to
     needs: [suite, coverage, whole, production]
-    if: ${{ always() && !inputs.credential_free_only }}
+    if: ${{ always() && !inputs.credential_free_only && !inputs.specs }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

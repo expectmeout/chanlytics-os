@@ -1263,8 +1263,9 @@ test.describe("Settings › Business on a real workspace", () => {
                       : id.startsWith("rec-can-door-")
                         ? "missing"
                         : // A question asked as a row: its answer is the row's value, a menu of the answers
-                          // (business/choices/rows.tsx ChoiceRow, #1700: bookings, prices, the word for a booking).
-                          id.endsWith("-menu") && el.closest(".rec-row")
+                          // (business/choices/rows.tsx ChoiceRow, #1700: bookings, prices, the word for a booking), or
+                          // a switch where the answer is on or off (business/can.tsx, whether it reads a picture).
+                          (id.endsWith("-menu") || el.getAttribute("role") === "switch") && el.closest(".rec-row")
                           ? "a row's answer"
                           : null;
           out.push({ id, why });
