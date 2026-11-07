@@ -29,7 +29,7 @@ import { deletePhoneNumber, type RetellConfig } from "@chanlytics/channels/voice
 import { TwilioError, type ProviderAccount } from "@chanlytics/channels/lines";
 import { dropLineCredentials } from "@chanlytics/db/lines";
 import { emitEvent } from "@chanlytics/db/events";
-import { tenantDb } from "@chanlytics/db/shared";
+import { platformWide, tenantDb } from "@chanlytics/db/shared";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -387,7 +387,8 @@ export async function sweepEndedLines(
     report_only: afterDays === null,
   };
   let warningsAsked = 0;
-  const bills = await db
+  // The sweep's page: every workspace whose plan has ended, by design.
+  const bills = await platformWide(db)
     .from("billing_accounts")
     .select(BILLING_COLUMNS)
     .eq("mode", "stripe")

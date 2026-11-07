@@ -23,6 +23,7 @@ import {
   type MetaTemplateComponent,
 } from "./meta-templates.js";
 import type { Json } from "@chanlytics/db/types";
+import { tenantDb } from "@chanlytics/db/shared";
 import { logger } from "../shared/log.js";
 import { UUID, NUMBERED_SLOT } from "@chanlytics/contracts";
 
@@ -81,7 +82,7 @@ export async function createWhatsappTemplate(
   if (!db) return refuse(503, "no_database");
 
   // The account of the oldest active number, whose credentials getWaCredentialsForTenant gives: a workspace may hold two.
-  const { data: ch } = await db
+  const { data: ch, error: chErr } = await db
     .from("tenant_channels")
     .select("id, waba_id")
     .eq("tenant_id", tenantId)
@@ -90,6 +91,7 @@ export async function createWhatsappTemplate(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
+  if (chErr) return refuse(503, "read_failed", chErr.message);
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
   const creds = await getWaCredentialsForTenant(db, tenantId);
@@ -129,7 +131,7 @@ export async function createWhatsappTemplate(
     source: "chanlytics",
     created_by: userId,
   };
-  const { data: saved, error } = await db
+  const { data: saved, error } = await tenantDb(db, tenantId)
     .from("templates")
     .upsert(row, { onConflict: "tenant_id,channel,name,language" })
     .select("id")
@@ -162,16 +164,17 @@ export async function deleteWhatsappTemplate(
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const { data: row } = await db
+  const { data: row, error: rowErr } = await db
     .from("templates")
     .select("id, name, language, meta_id")
     .eq("id", templateId)
     .eq("tenant_id", tenantId)
     .eq("channel", "whatsapp")
     .maybeSingle();
+  if (rowErr) return refuse(503, "read_failed", rowErr.message);
   if (!row) return refuse(404, "not_found");
 
-  const { data: ch } = await db
+  const { data: ch, error: chErr } = await db
     .from("tenant_channels")
     .select("id, waba_id")
     .eq("tenant_id", tenantId)
@@ -180,6 +183,7 @@ export async function deleteWhatsappTemplate(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
+  if (chErr) return refuse(503, "read_failed", chErr.message);
   if (!ch?.waba_id) return refuse(409, "no_waba");
   const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
@@ -315,26 +319,30 @@ export async function syncTemplates(
   const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));
   const known = rows.filter((r) => !fresh.includes(r));
   if (known.length) {
-    const { error } = await db.from("templates").upsert(
-      known.map((r) => ({
-        ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
-      })),
-      { onConflict: "tenant_id,channel,name,language" },
-    );
+    const { error } = await tenantDb(db, tenantId)
+      .from("templates")
+      .upsert(
+        known.map((r) => ({
+          ...r,
+          components: r.components as unknown as Json,
+          variables: r.variables as unknown as Json,
+        })),
+        { onConflict: "tenant_id,channel,name,language" },
+      );
     if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
   }
   if (fresh.length) {
-    const { error } = await db.from("templates").upsert(
-      fresh.map((r) => ({
-        ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
-        hidden_at: now.toISOString(),
-      })),
-      { onConflict: "tenant_id,channel,name,language" },
-    );
+    const { error } = await tenantDb(db, tenantId)
+      .from("templates")
+      .upsert(
+        fresh.map((r) => ({
+          ...r,
+          components: r.components as unknown as Json,
+          variables: r.variables as unknown as Json,
+          hidden_at: now.toISOString(),
+        })),
+        { onConflict: "tenant_id,channel,name,language" },
+      );
     if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;

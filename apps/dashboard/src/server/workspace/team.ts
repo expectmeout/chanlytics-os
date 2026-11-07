@@ -2,6 +2,7 @@ import "server-only";
 import { emitEvent, recordEvent, getSubjectsWith } from "@chanlytics/db/events";
 import { getOwnPartner } from "@chanlytics/db/partners";
 import { inviteUserByEmail } from "@chanlytics/db/auth";
+import { platformWide } from "@chanlytics/db/shared";
 import { listWorkspaceIds } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -187,8 +188,18 @@ export async function inviteMember(
   if (inv.already_invited === true) return { alreadyInvited: true as const };
   const { error: mailErr } = await inviteUserByEmail(db, email);
   if (mailErr) {
-    // The intent row without the email is a lie in the invites list, and on the ledger: take both back.
-    await db.rpc("team_invite_withdraw", { p_tenant_id: tenantId, p_invitation_id: String(inv.invitation_id) });
+    // The intent row without the email is a lie in the invites list, and on the ledger: take both back. The email's
+    // failure is what the person is told; a withdrawal that fails too is logged beside it.
+    const withdrawn = await db.rpc("team_invite_withdraw", {
+      p_tenant_id: tenantId,
+      p_invitation_id: String(inv.invitation_id),
+    });
+    if (withdrawn.error)
+      log.error("db_failed", {
+        tenant_id: tenantId,
+        code: withdrawn.error.code ?? null,
+        error: withdrawn.error.message,
+      });
     throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
   }
   return { invited: true as const };
@@ -275,12 +286,15 @@ export async function resendInvite(
   const email = String(renewed.email);
   const { error: mailErr } = await inviteUserByEmail(svc, email);
   if (!mailErr) return { resent: true as const, email };
-  await svc.rpc("team_invite_renew_withdraw", {
+  // The email's failure is what the person is told; a renewal that cannot be taken back is logged beside it.
+  const withdrawn = await svc.rpc("team_invite_renew_withdraw", {
     p_tenant_id: tenantId,
     p_invitation_id: invitationId,
     p_decision_id: String(renewed.decision_id),
     p_was: String(renewed.was),
   });
+  if (withdrawn.error)
+    log.error("db_failed", { tenant_id: tenantId, code: withdrawn.error.code ?? null, error: withdrawn.error.message });
   if (mailErr.code === EMAIL_HAS_ACCOUNT)
     throw new AppError(
       "conflict",
@@ -323,7 +337,8 @@ interface InviteToAccept {
 async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
   if (!email) return [];
   try {
-    const { data, error } = await serviceDb()
+    // A person's open invitations, whichever workspaces they are to: by design, read by their address.
+    const { data, error } = await platformWide(serviceDb())
       .from("invitations")
       .select("id, tenant_id, role")
       .eq("email", email.toLowerCase())
@@ -373,12 +388,20 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
         continue;
       }
     }
-    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it.
-    await db
+    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it. A stamp
+    // that fails is logged and leaves the invitation open: the seat is written already, and the next accept stamps it.
+    const stamped = await db
       .from("invitations")
       .update({ accepted_at: new Date().toISOString() })
       .eq("id", inv.id)
+      .eq("tenant_id", inv.tenant_id)
       .is("accepted_at", null);
+    if (stamped.error)
+      log.error("db_failed", {
+        tenant_id: inv.tenant_id,
+        code: stamped.error.code ?? null,
+        error: stamped.error.message,
+      });
     seated.push(inv);
   }
   return seated;

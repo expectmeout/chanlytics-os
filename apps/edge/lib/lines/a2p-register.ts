@@ -158,6 +158,8 @@ export async function listFilingProblems(
     db.from("lines").select("e164").eq("tenant_id", line.tenant_id),
     receptionistNameOf(db, line.tenant_id),
   ]);
+  // Our numbers unread are not none: the check would take the line we answer on for the owner's own phone.
+  if (ours.error) throw new Error(`cannot read the workspace's lines: ${ours.error.message}`);
   const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
   const problems = Object.values(businessRecordProblems(options.record, path, { ourNumbers }));
 
@@ -394,7 +396,7 @@ async function preflightRefusal(db: Db, filing: Filing, state: A2PState): Promis
   // sentences are what the owner has to act on. They are RETURNED as well as
   // stored: the row is read by a page that reloads, and the person who just
   // pressed the button is owed the answer now rather than an error token.
-  await tenantDb(db, filing.line.tenant_id)
+  const marked = await tenantDb(db, filing.line.tenant_id)
     .from("lines")
     .update({
       sms_state: "needs_record",
@@ -402,6 +404,11 @@ async function preflightRefusal(db: Db, filing: Filing, state: A2PState): Promis
       state_since: new Date().toISOString(),
     })
     .eq("id", filing.line.id);
+  if (marked.error)
+    logger({ tenant_id: filing.line.tenant_id }).error("line_state_write_failed", {
+      line_id: filing.line.id,
+      error: marked.error.message,
+    });
   return {
     ok: false,
     error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete",
@@ -548,7 +555,7 @@ async function settleFiling(
   // The receipts as this filing kept them, without its lease: the next press or the next hour may file again.
   const kept = { ...facts };
   delete kept[LEASE_FACT];
-  await tenantDb(db, filing.line.tenant_id)
+  const written = await tenantDb(db, filing.line.tenant_id)
     .from("lines")
     .update({
       sms_state: smsState,
@@ -558,6 +565,8 @@ async function settleFiling(
       facts: kept as Json,
     })
     .eq("id", filing.line.id);
+  // The filing happened whatever the row says; a row that could not take it is said, and the next status read writes it.
+  if (written.error) log.error("line_state_write_failed", { line_id: filing.line.id, error: written.error.message });
   if (result.ok)
     log.info("a2p_filed", { mock: filing.mock, brand: result.state.brandSid, campaign: result.state.campaignSid });
   else if (waiting) log.info("a2p_waiting_on_brand", { brand: result.state.brandSid });

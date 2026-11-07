@@ -7,6 +7,7 @@
  */
 import { emitEvent } from "@chanlytics/db/events";
 import { noteImport } from "@chanlytics/db/imports";
+import { tenantDb } from "@chanlytics/db/shared";
 import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import {
@@ -91,25 +92,27 @@ async function keepReviews(
   reviews: ReturnType<typeof planProfileSync>["reviews"],
 ): Promise<void> {
   if (!reviews.length) return;
-  const up = await db.from("google_reviews").upsert(
-    reviews.map((review) => ({
-      tenant_id: tenantId,
-      review_id: review.review_id,
-      origin: "profile",
-      rating: review.rating,
-      author: review.author,
-      author_uri: null,
-      author_photo_uri: review.author_photo_uri,
-      body: review.text,
-      language_code: null,
-      published_at: review.created_at,
-      reply_text: review.reply_text,
-      replied_at: review.replied_at,
-      maps_uri: null,
-      last_seen_at: review.last_seen_at,
-    })),
-    { onConflict: "tenant_id,review_id" },
-  );
+  const up = await tenantDb(db, tenantId)
+    .from("google_reviews")
+    .upsert(
+      reviews.map((review) => ({
+        tenant_id: tenantId,
+        review_id: review.review_id,
+        origin: "profile",
+        rating: review.rating,
+        author: review.author,
+        author_uri: null,
+        author_photo_uri: review.author_photo_uri,
+        body: review.text,
+        language_code: null,
+        published_at: review.created_at,
+        reply_text: review.reply_text,
+        replied_at: review.replied_at,
+        maps_uri: null,
+        last_seen_at: review.last_seen_at,
+      })),
+      { onConflict: "tenant_id,review_id" },
+    );
   if (up.error) throw new Error(up.error.message);
 }
 

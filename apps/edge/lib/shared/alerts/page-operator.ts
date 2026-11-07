@@ -106,10 +106,12 @@ async function pageOnce(ports: PagePorts, key: string, subject: string, body: st
     return false;
   });
   if (!ok) return "failed";
-  await ports.db
+  // The page went; a stamp that fails is said, and the next sweep may page again for the same key.
+  const stamped = await ports.db
     .from("operator_pages")
     .update({ alerted_at: new Date(now).toISOString() })
     .eq("key", key);
+  if (stamped.error) log.error("operator_page_stamp_failed", { key, error: stamped.error.message });
   return "sent";
 }
 

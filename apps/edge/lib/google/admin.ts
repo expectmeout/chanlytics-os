@@ -35,6 +35,7 @@ import { respond, workspaceOf, workspaceRow, type Refused } from "../shared/admi
 import { emitEvent } from "@chanlytics/db/events";
 import { setFileListingAside } from "@chanlytics/db/files";
 import { findLinkedPlace } from "@chanlytics/db/imports";
+import { tenantDb } from "@chanlytics/db/shared";
 import type { Database } from "@chanlytics/db/types";
 import { DEFAULT_TIMEZONE, UUID } from "@chanlytics/contracts";
 import type { PlaceDetails } from "@chanlytics/channels/google";
@@ -149,12 +150,14 @@ async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: Googl
 /** The listing as the dashboard sees it, read now. */
 async function listingNow(c: GoogleCall): Promise<ListingView> {
   const r = await c.db.from("google_listings").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  if (r.error) throw new Error(`cannot read the listing: ${r.error.message}`);
   return r.data ? listingForClient(r.data) : null;
 }
 
 /** The connection as the dashboard sees it, read now. */
 async function connectionNow(c: GoogleCall) {
   const r = await c.db.from("google_connections").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  if (r.error) throw new Error(`cannot read the Google connection: ${r.error.message}`);
   return r.data ? connectionForClient(r.data) : null;
 }
 
@@ -185,15 +188,17 @@ async function link(googleCall: GoogleCall): Promise<Response> {
     return respond(unreadablePlaceAnswer(e));
   }
   const before = await findLinkedPlace(googleCall.db, googleCall.tenantId).catch(() => null);
-  const saved = await googleCall.db
+  const saved = await tenantDb(googleCall.db, googleCall.tenantId)
     .from("google_listings")
     .upsert(linkRow(details, googleCall.tenantId, googleCall.userId, new Date()), { onConflict: "tenant_id" })
     .select("*")
     .single();
   if (saved.error || !saved.data) return refuse(500, "write_failed", saved.error?.message);
   // A new listing forgets the old one's reviews and days: they were another place's.
-  await googleCall.db.from("google_reviews").delete().eq("tenant_id", googleCall.tenantId);
-  await googleCall.db.from("google_listing_days").delete().eq("tenant_id", googleCall.tenantId);
+  const reviewsGone = await googleCall.db.from("google_reviews").delete().eq("tenant_id", googleCall.tenantId);
+  if (reviewsGone.error) return refuse(500, "write_failed", reviewsGone.error.message);
+  const daysGone = await googleCall.db.from("google_listing_days").delete().eq("tenant_id", googleCall.tenantId);
+  if (daysGone.error) return refuse(500, "write_failed", daysGone.error.message);
   // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
   const read = await checkListing(googleCall.db, saved.data, googleCall.tz, { askWebsite: true });
   // A place that changed: what the last one offered and nobody kept leaves the Inbox, as it may be another business's. The

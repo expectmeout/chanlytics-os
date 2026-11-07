@@ -60,7 +60,8 @@
     "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
-    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544"
+    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544",
+    "00556": "claimed by stage B (a business keeps its videos, decision 0099) in docs/migration-claims.md; layer 8 took the numbers above it while it waits, and renumbers above whatever has landed when it pushes"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -557,6 +558,15 @@
     "00552_a_lead_stands_in_one_status_group.sql": "0661f3c82c794ffda18fae534d054f54f8301b08ed45ed59feb183ed73506fb6",
     "00553_what_ask_makes_is_a_file.sql": "4eff49643f571039d5b42b0d27026da8f3f5d850b82fa27fb79b1cad9ef5ccc9",
     "00554_leads_is_read_through_one_door.sql": "ce480b88b3b4e6b6b9fcc32e709fd36da6f4b166615abdf49230bddcc3859815",
-    "00555_a_line_given_back_takes_its_token_with_it.sql": "cae1c121cd2928c2c9d02559aa35dbeb0cc3cd06547af35c3f3048dc949456bc"
+    "00555_a_line_given_back_takes_its_token_with_it.sql": "cae1c121cd2928c2c9d02559aa35dbeb0cc3cd06547af35c3f3048dc949456bc",
+    "00557_every_link_between_tables_has_an_index.sql": "76a6636631a00f8b762cafc32dfe86bbf5885e19751c0634529756dd1f478df7",
+    "00558_a_message_s_sender_is_indexed.sql": "1c090cda009ba3fd302cd5b1cb980bb0a3fc46e005f4cb7b689720485b125cfd",
+    "00559_a_call_s_channel_is_indexed.sql": "3b7c145406e662ab4f92e9e133e5a0fb351a64cef08938f7853284601696d71d",
+    "00560_a_call_s_message_is_indexed.sql": "48ffc00371277ba721d3fd97b5b70a0da8a2066e87bd582dcd839534a1a910bc",
+    "00561_a_merged_person_s_successor_is_indexed.sql": "a71438f37bfaf1937195e16aaf84ea28df32d15fd953f940cc2e13a6120a9cc9",
+    "00562_a_thread_s_assignee_is_indexed.sql": "5bfda57f447d3fef60c7e4ebc595a1699be95f0a39a8768e170cbe30967d384b",
+    "00563_who_holds_a_thread_is_indexed.sql": "db927df10af763bcf49430d249b2c82bd49b96cec0cd8de53483dbb5fe5802f2",
+    "00564_three_tables_each_read_by_one_rule.sql": "610804d125ada517e18265e1dfd4e15241f468881da57e008a150daf7564d21b",
+    "00565_old_deliveries_go_with_the_old_evidence.sql": "8531febd1b0fe6f0bfaf41c831843cc86a995f6cf28678bdd8f62a085624b61e"
   }
 }

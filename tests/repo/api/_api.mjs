@@ -286,7 +286,11 @@ const PAGE_WORDS = new Set([
   "next",
   "prev",
 ]);
-const PAGE_MARKS = new Set(["has_more", "next_cursor", "cursor", "after_key", "after_id", "more"]);
+/**
+ * A word that says a page has a next one. A bare `more` is not one (decision 0111): it named a deal's other acts
+ * (`more: DealAct[]`) and a count said in a sentence (`3 more in your notifications`), and was counted as two shapes.
+ */
+const PAGE_MARKS = new Set(["has_more", "next_cursor", "cursor", "after_key", "after_id"]);
 
 /** The shapes a page of results comes in, in one module: a type with two words of paging, one of them a mark. */
 export function pageShapesIn(sf) {

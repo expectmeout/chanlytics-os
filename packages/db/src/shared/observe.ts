@@ -128,17 +128,53 @@ function dbTouched(input: string | URL | Request, init?: RequestInit): void {
 }
 
 /**
+ * PostgREST answers every read with at most `api.max_rows` rows (supabase/config.toml), silently: an answer cut there
+ * looks like an answer that held exactly that many. paged.ts's MAX_ROWS is the same number, and a read that pages says
+ * so in its address (`limit`, `offset`) or its headers (`Range`).
+ */
+const AT_CAP = 1000;
+/** The rows an answer's `Content-Range` (`0-999/*`, `0-999/4210`) says it holds, or null. */
+function rowsInAnswer(contentRange: string | null): number | null {
+  const m = /^(\d+)-(\d+)\//.exec(contentRange ?? "");
+  return m ? Number(m[2]) - Number(m[1]) + 1 : null;
+}
+/**
+ * Whether a read stopped at the cap without asking to (decision 0111): a GET of a table with no `limit`, `offset` or
+ * `Range` that came back holding exactly the cap's rows. The list it fed may have been cut short; nothing else says so.
+ */
+function answeredAtCap(input: string | URL | Request, init: RequestInit | undefined, answer: Response): boolean {
+  const touch = touchOfCall(input, init);
+  if (!touch || touch.how !== "read") return false;
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (/[?&](limit|offset)=/.test(url) || new Headers(init?.headers).has("range")) return false;
+  return rowsInAnswer(answer.headers.get("content-range")) === AT_CAP;
+}
+
+/** Say, once a read's answer is in, when it stopped at the cap: its table and the request that read it. */
+function sayWhenAtCap(input: string | URL | Request, init: RequestInit | undefined, answer: Response): void {
+  if (!answeredAtCap(input, init, answer)) return;
+  dbLog().warn("db_answer_at_cap", { table: touchOfCall(input, init)?.table, rows: AT_CAP, request_id: dbRequestId() });
+}
+
+/**
  * A fetch that names the request it is made for: the database client's transport, so a SQL function writing to the
  * ledger in that request can say which it was, and that says how long each call took (`timed`), so the answer can say
  * how much of its time was the database's and in how many calls, and what each touched (`touched`). A call outside a
- * request goes as it came.
+ * request goes as it came. Either way, a read that stopped at the row cap without asking to is said (`db_answer_at_cap`).
  */
 export function namedFetch(base?: typeof fetch): typeof fetch {
   return (input, init) => {
     // The process's fetch as it is at the call, not at the client's making: a test that stubs it later is heard.
     const send = base ?? globalThis.fetch;
     const id = dbRequestId();
-    if (!id) return send(input, init);
+    if (!id) {
+      const call = send(input, init);
+      void call.then(
+        (answer) => sayWhenAtCap(input, init, answer),
+        () => undefined,
+      );
+      return call;
+    }
     dbTouched(input, init);
     const headers = new Headers(init?.headers);
     headers.set(DB_REQUEST_HEADER, id);
@@ -146,7 +182,10 @@ export function namedFetch(base?: typeof fetch): typeof fetch {
     const call = send(input, { ...init, headers });
     // Timed to its headers: what the request waited for before it could read the answer.
     void call.then(
-      () => dbTimed(performance.now() - started),
+      (answer) => {
+        dbTimed(performance.now() - started);
+        sayWhenAtCap(input, init, answer);
+      },
       () => dbTimed(performance.now() - started),
     );
     return call;

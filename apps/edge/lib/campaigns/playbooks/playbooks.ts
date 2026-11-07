@@ -236,11 +236,11 @@ export async function loadTenantRunContext(
   now: Date,
 ): Promise<TenantRunContext | { error: string }> {
   const [
-    { data: tenant },
+    { data: tenant, error: tErr },
     { data: people, error: pErr },
     channels,
     touched,
-    { data: cfgRow },
+    { data: cfgRow, error: cfgErr },
     kept,
     yeses,
     onMoments,
@@ -290,6 +290,10 @@ export async function loadTenantRunContext(
     getDealOnFile(db, tenantId),
   ]);
   if (pErr) return { error: pErr.message };
+  // A workspace whose zone or pause cannot be read is not an active one in New York, and a config that cannot be read is
+  // not an empty one: either is this tenant's error.
+  if (tErr) return { error: `workspace: ${tErr.message}` };
+  if (cfgErr) return { error: `config: ${cfgErr.message}` };
   if (onMoments.error) return { error: `moments: ${onMoments.error}` };
   if (channels.error) return { error: `channels: ${channels.error}` };
   if (touched.error) return { error: touched.error };
@@ -379,13 +383,15 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       // says it failed rather than skipping the day.
       message: (name, language) => listMessageVersionRows(db, tenantId, { name, language }),
       alreadyRan: async (playbookId, runFor) => {
-        const { data } = await db
+        const { data, error } = await db
           .from("sequence_batches")
           .select("id")
           .eq("tenant_id", tenantId)
           .eq("step_id", playbookId)
           .eq("run_for", runFor)
           .maybeSingle();
+        // A run that cannot be read is not one that never ran: answered false, it would send the day twice.
+        if (error) throw new Error(`cannot read whether the playbook ran: ${error.message}`);
         return !!data;
       },
       // A customer's step after the first (decision 0060, D6): who it is due to, and the door that takes out those it
@@ -398,11 +404,17 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       reached: (sequenceId) => wasSequenceReached(db, tenantId, sequenceId),
       record: async (playbookId, runFor, at, data) => {
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
-        await db
+        // The run is kept (its batch says it ran, which alreadyRan reads); a stamp that fails is said, never the run's end.
+        const stamped = await db
           .from("sequence_steps")
           .update({ last_run_for: runFor, last_run_at: at.toISOString() })
           .eq("id", playbookId)
           .eq("tenant_id", tenantId);
+        if (stamped.error)
+          logger({ tenant_id: tenantId }).warn("playbook_run_stamp_failed", {
+            playbook_id: playbookId,
+            error: stamped.error.message,
+          });
       },
       // The run, its people, its job and its decision, whole (00282 assemble_broadcast, with its decision since 00381):
       // a sweep that dies halfway leaves nothing. A run the sweep sends is the system's decision under the mode the

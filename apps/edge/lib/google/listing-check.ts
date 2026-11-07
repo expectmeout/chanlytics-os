@@ -6,6 +6,7 @@
  */
 import { emitEvent } from "@chanlytics/db/events";
 import { patchListing } from "@chanlytics/db/imports";
+import { platformWide, tenantDb } from "@chanlytics/db/shared";
 import { planListingCheck, type PlaceDetails } from "@chanlytics/channels/google";
 import { localDate, HOUR_MS } from "@chanlytics/contracts";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
@@ -96,23 +97,25 @@ export async function checkListing(
   if (day.error) throw new Error(day.error.message);
   if (plan.reviews.length) {
     // first_seen_at is not in the payload: an existing row keeps its own.
-    const reviews = await db.from("google_reviews").upsert(
-      plan.reviews.map((review) => ({
-        tenant_id: row.tenant_id,
-        review_id: review.review_id,
-        origin: "places",
-        rating: review.rating,
-        author: review.author,
-        author_uri: review.author_uri,
-        author_photo_uri: review.author_photo_uri,
-        body: review.text,
-        language_code: review.language_code,
-        published_at: review.published_at,
-        maps_uri: review.maps_uri,
-        last_seen_at: review.last_seen_at,
-      })),
-      { onConflict: "tenant_id,review_id" },
-    );
+    const reviews = await tenantDb(db, row.tenant_id)
+      .from("google_reviews")
+      .upsert(
+        plan.reviews.map((review) => ({
+          tenant_id: row.tenant_id,
+          review_id: review.review_id,
+          origin: "places",
+          rating: review.rating,
+          author: review.author,
+          author_uri: review.author_uri,
+          author_photo_uri: review.author_photo_uri,
+          body: review.text,
+          language_code: review.language_code,
+          published_at: review.published_at,
+          maps_uri: review.maps_uri,
+          last_seen_at: review.last_seen_at,
+        })),
+        { onConflict: "tenant_id,review_id" },
+      );
     if (reviews.error) throw new Error(reviews.error.message);
   }
   // A new review reaches the phones too (decision 0040), about the review's row and opening it (contracts reviewRoute).
@@ -155,7 +158,8 @@ const CHECK_EVERY_MS = 20 * HOUR_MS;
 /** The listings the sweep reads this tick: never read first, then the oldest. */
 export async function listListingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
-  const { data, error } = await db
+  // The sweep's page: every workspace's listing that is due, by design.
+  const { data, error } = await platformWide(db)
     .from("google_listings")
     .select("*")
     .or(`checked_at.is.null,checked_at.lt.${before}`)
@@ -168,7 +172,8 @@ export async function listListingsDue(db: Db, now: Date, limit: number): Promise
 /** The connected profiles the sweep syncs this tick: complete ones, never synced first, then the oldest. */
 export async function listConnectionsDue(db: Db, now: Date, limit: number): Promise<ConnectionRow[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
-  const { data, error } = await db
+  // The sweep's page: every workspace's profile that is due, by design.
+  const { data, error } = await platformWide(db)
     .from("google_connections")
     .select("*")
     .not("location_name", "is", null)

@@ -54,13 +54,15 @@ async function proposePolicy(
   if (conf !== null && (cls !== "reply" || conf < 0 || conf > 1))
     return refuse("the confidence dial is 0 to 1 and applies to reply");
   if (!mode && conf === null) return refuse("say a mode or a confidence");
-  const { data: row } = await toolContext.ctx.supabase
+  const { data: row, error: rowErr } = await toolContext.ctx.supabase
     .from("policies")
     .select("mode, limits")
     .eq("tenant_id", toolContext.tenantId)
     .eq("class", cls)
     .is("subject_type", null)
     .maybeSingle();
+  // A rule that cannot be read is not a rule that is unset: the card's "was" would be false.
+  if (rowErr) throw new Error(`cannot read the workspace's ${cls} rule: ${rowErr.message}`);
   const was = {
     mode: row?.mode ?? null,
     conf: (row?.limits as { min_confidence?: number } | null)?.min_confidence ?? null,

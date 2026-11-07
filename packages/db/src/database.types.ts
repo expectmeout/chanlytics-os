@@ -11567,15 +11567,6 @@ export type Database = {
         Args: { p_alerted: string[]; p_healthy: string[] }
         Returns: number
       }
-      sweep_recent_responses: {
-        Args: { p_limit?: number }
-        Returns: {
-          body: string
-          created_at: string
-          request_id: number
-          status_code: number
-        }[]
-      }
       sweep_schedules: {
         Args: never
         Returns: {

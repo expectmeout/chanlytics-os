@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { applyBilling, type BillingPatch } from "@chanlytics/db/billing";
 import { emitEvent } from "@chanlytics/db/events";
+import { platformWide } from "@chanlytics/db/shared";
 import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
@@ -195,7 +196,8 @@ export async function findTenant(
     if (row) return row;
   }
   if (!customerId) return null;
-  const { data, error } = await db
+  // Stripe names its customer, not the workspace: the account is found across workspaces by that id, by design.
+  const { data, error } = await platformWide(db)
     .from("billing_accounts")
     .select("*")
     .eq("stripe_customer_id", customerId)

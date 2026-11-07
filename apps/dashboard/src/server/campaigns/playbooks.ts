@@ -444,7 +444,13 @@ async function archivedListRefusal(
   params: { id: string; trigger: string },
 ): Promise<string | null> {
   if (params.trigger !== "saved_list") return null;
-  const { data: on } = await ctx.supabase.from("sequence_steps").select("list_id").eq("id", params.id).maybeSingle();
+  const { data: on, error } = await ctx.supabase
+    .from("sequence_steps")
+    .select("list_id")
+    .eq("id", params.id)
+    .maybeSingle();
+  // A campaign whose list cannot be read is not one whose list stands: it would resume onto an archived list.
+  if (error) throw new Error(`cannot read the campaign's list: ${error.message}`);
   const listId = (on as { list_id?: string | null } | null)?.list_id ?? null;
   const list = listId ? await listRow(ctx.supabase, listId) : null;
   return list?.archived_at

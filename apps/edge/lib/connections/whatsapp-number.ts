@@ -31,6 +31,7 @@ import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js"
 import { pg } from "../shared/pg.js";
 import { emitEvent, recordActivation } from "@chanlytics/db/events";
 import type { Json } from "@chanlytics/db/types";
+import { platformWide, tenantDb } from "@chanlytics/db/shared";
 import {
   alreadyRegistered,
   exchangeCode,
@@ -134,7 +135,7 @@ async function writeChannelRow(
   let row = mine.data;
   let upErr = mine.error;
   if (!upErr && !row) {
-    const created = await db
+    const created = await tenantDb(db, tenantId)
       .from("tenant_channels")
       .insert({ ...fields, status: "disabled" })
       .select("id")
@@ -146,12 +147,14 @@ async function writeChannelRow(
       // Embedded Signup twice because the first attempt's four Graph calls
       // outlasted their patience — and telling them their own number belongs
       // to somebody else would be a worse answer than the upsert used to give.
-      const mineNow = await db
+      // Who holds the number now, whichever workspace it is: the answer this read exists for.
+      const mineNow = await platformWide(db)
         .from("tenant_channels")
         .select("id, tenant_id")
         .eq("kind", "whatsapp")
         .eq("external_id", phoneNumberId)
         .maybeSingle();
+      if (mineNow.error) return refuse(503, "read_failed", mineNow.error.message);
       if (mineNow.data?.tenant_id === tenantId) {
         log.info("wa_connect_raced_self");
         row = { id: mineNow.data.id };
@@ -188,7 +191,8 @@ interface SignupIds {
  * number, and treating it as "nobody" is how a pooler blip moved a live number between workspaces.
  */
 async function heldElsewhere(db: Db, log: Log, tenantId: string, phoneNumberId: string): Promise<Response | null> {
-  const { data: taken, error: takenErr } = await db
+  // Every workspace's numbers, by design: the question is whether another holds this one.
+  const { data: taken, error: takenErr } = await platformWide(db)
     .from("tenant_channels")
     .select("id, tenant_id")
     .eq("kind", "whatsapp")

@@ -167,6 +167,9 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     readSettled(getMemberContext(ctx, preferred, { defaultAllowed: true })),
   ]);
   if (tenants.error) throw new Error(tenants.error.message);
+  // The name they gave is the chrome's, never the boot's to fail for: a read that fails is logged and reads as none.
+  if (profileRead.error)
+    log.error("db_failed", { code: profileRead.error.code ?? null, error: profileRead.error.message });
   const { data } = tenants;
   // The name they gave us wins; the name they gave Google (full_name on the
   // auth user) stands in until they do. Never anything made from the email.

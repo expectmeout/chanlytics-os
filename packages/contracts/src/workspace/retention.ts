@@ -10,7 +10,10 @@
 export const RETENTION_DAYS = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  /**
+   * The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS), and the relay's finished deliveries of events
+   * (event_deliveries done or failed); every other kind is the record and is kept (purge_events, 00115, 00565).
+   */
   events_evidence: 30,
   /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
   ask_threads: 90,

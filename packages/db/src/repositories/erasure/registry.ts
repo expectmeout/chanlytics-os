@@ -211,8 +211,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   business_reads: all(NOT_PERSONAL, "facts", "read_from", "error"),
   conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
   // Ask's draft written ahead for a thread waiting on a person (00475): its key names the thread, so the row goes with it
-  // when erase_contact deletes their conversation (on delete cascade).
-  conversation_drafts: { words: withPerson("erase_contact") },
+  // when erase_contact deletes their conversation (on delete cascade). What the drafter handed the model (`used`, 00538)
+  // goes with it, and why one was not written is a word of contracts' ReplyDraftWhy, which names nobody.
+  conversation_drafts: {
+    ...all(withPerson("erase_contact"), "words", "used"),
+    ...all(NOT_PERSONAL, "why_failed"),
+  },
   deals: {
     ...all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
     // What was sold and in what currency, kept as its stage and amount are, as a visit keeps its service. The service is

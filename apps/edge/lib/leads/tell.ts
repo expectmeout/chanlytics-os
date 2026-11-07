@@ -27,20 +27,26 @@ export async function tellLeadQuestion(
   ports: Pick<NotifyPorts, "send"> = {},
 ): Promise<boolean> {
   try {
-    const { data: r } = await db
+    const { data: r, error: rErr } = await db
       .from("lead_rounds")
       .select("tenant_id, search_id, state, question")
       .eq("id", roundId)
       .maybeSingle();
+    if (rErr) throw new Error(`cannot read the round: ${rErr.message}`);
     const query = r?.question as { sentence?: unknown } | null | undefined;
     // Answered, stopped or ended since: there is nothing left to ask.
     if (!r || r.state !== "waiting_on_owner" || typeof query?.sentence !== "string") return false;
     const target = { tenantId: r.tenant_id, ...(await loadTenantNotifications(db, r.tenant_id)) };
     if (!reachesTenant(target)) return false;
-    const [{ data: s }, { data: t }] = await Promise.all([
+    const [searchRead, tenantRead] = await Promise.all([
       db.from("lead_searches").select("name").eq("id", r.search_id).eq("tenant_id", r.tenant_id).maybeSingle(),
       db.from("tenants").select("slug").eq("id", r.tenant_id).maybeSingle(),
     ]);
+    // A mail with a link to no workspace is no question asked: the round waits, and its next tell tries again.
+    if (searchRead.error) throw new Error(`cannot read the search: ${searchRead.error.message}`);
+    if (tenantRead.error) throw new Error(`cannot read the workspace: ${tenantRead.error.message}`);
+    const s = searchRead.data;
+    const t = tenantRead.data;
     const words = leadQuestionMail({
       name: s?.name ?? "leads",
       sentence: query.sentence,

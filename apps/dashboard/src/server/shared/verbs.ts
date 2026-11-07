@@ -329,13 +329,15 @@ export async function resolveOpenEscalation(
  * through contracts' pauseMsOf, the rule the edge and the pane read too.
  */
 export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<number> {
-  const { data } = await ctx.supabase
+  const { data, error } = await ctx.supabase
     .from("policies")
     .select("limits")
     .eq("tenant_id", tenantId)
     .eq("class", "reply")
     .is("subject_type", null)
     .maybeSingle();
+  // A pause that cannot be read is not the default one: a member's take-over would hold for the wrong time.
+  if (error) throw new Error(`cannot read the workspace's reply pause: ${error.message}`);
   return pauseMsOf(data?.limits as { pause_hours?: unknown } | null);
 }
 

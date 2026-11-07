@@ -32,7 +32,7 @@ what the script writes.
 | [`business_reads`](#business_reads) | `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
 | [`business_records`](#business_records) | `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/lines/lines.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 1 policy |
-| [`capability_activations`](#capability_activations) | none | on, 2 policies |
+| [`capability_activations`](#capability_activations) | none | on, 4 policies |
 | [`client_errors`](#client_errors) | `packages/db/src/repositories/console/health.ts` | on, no policy, so only the service role reaches it |
 | [`contact_identities`](#contact_identities) | `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/erasure/legs.ts` | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
@@ -95,7 +95,7 @@ what the script writes.
 | [`partner_invitations`](#partner_invitations) | `packages/db/src/repositories/partners/invite.ts` | on, 1 policy |
 | [`partner_payouts`](#partner_payouts) | none | on, 1 policy |
 | [`partner_reversals_waiting`](#partner_reversals_waiting) | none | on, no policy, so only the service role reaches it |
-| [`partner_tenants`](#partner_tenants) | `packages/db/src/repositories/partners/handover.ts`, `packages/db/src/repositories/partners/partner.ts` | on, 2 policies |
+| [`partner_tenants`](#partner_tenants) | `packages/db/src/repositories/partners/handover.ts`, `packages/db/src/repositories/partners/partner.ts` | on, 1 policy |
 | [`partners`](#partners) | `packages/db/src/repositories/partners/partner.ts` | on, 1 policy |
 | [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
 | [`person_moments`](#person_moments) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
@@ -104,7 +104,7 @@ what the script writes.
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/repositories/console/ops.ts` | on, no policy, so only the service role reaches it |
-| [`policies`](#policies) | `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 5 policies |
+| [`policies`](#policies) | `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 4 policies |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
 | [`profiles`](#profiles) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/console/support.ts` | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/repositories/events/provider-events.ts` | on, no policy, so only the service role reaches it |
@@ -686,7 +686,7 @@ One row per capability an owner has switched on for their workspace: when, by wh
 
 - Owned by: none
 - Primary key: `tenant_id`, `capability`
-- Row-level security: on, 2 policies
+- Row-level security: on, 4 policies
 
 | Column | Type | Null | Default | Note |
 | --- | --- | --- | --- | --- |
@@ -704,8 +704,10 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `capability_activations_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-| `capability_activations_owner_write` | all | authenticated | `caller_has_permission(tenant_id, 'disconnect'::text)` | `caller_has_permission(tenant_id, 'disconnect'::text)` |
+| `capability_activations_member_read` | select | authenticated | `((tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))) OR caller_has_permission(tenant_id, 'disconnect'::text))` |  |
+| `capability_activations_owner_delete` | delete | authenticated | `caller_has_permission(tenant_id, 'disconnect'::text)` |  |
+| `capability_activations_owner_insert` | insert | authenticated |  | `caller_has_permission(tenant_id, 'disconnect'::text)` |
+| `capability_activations_owner_update` | update | authenticated | `caller_has_permission(tenant_id, 'disconnect'::text)` | `caller_has_permission(tenant_id, 'disconnect'::text)` |
 
 ### client_errors
 
@@ -2618,7 +2620,7 @@ Which partner brought this workspace (0012), one row per workspace and never mov
 
 - Owned by: `packages/db/src/repositories/partners/handover.ts`, `packages/db/src/repositories/partners/partner.ts`
 - Primary key: `tenant_id`
-- Row-level security: on, 2 policies
+- Row-level security: on, 1 policy
 
 | Column | Type | Null | Default | Note |
 | --- | --- | --- | --- | --- |
@@ -2651,8 +2653,7 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `partner_tenants_owner_select` | select | authenticated | `is_workspace_owner(tenant_id)` |  |
-| `partner_tenants_partner_select` | select | authenticated | `(partner_id IN ( SELECT p.id FROM partners p WHERE (p.user_id = auth.uid())))` |  |
+| `partner_tenants_owner_or_partner_select` | select | authenticated | `(is_workspace_owner(tenant_id) OR (partner_id IN ( SELECT p.id FROM partners p WHERE (p.user_id = auth.uid()))))` |  |
 
 ### partners
 
@@ -2910,7 +2911,7 @@ Foreign keys:
 
 - Owned by: `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
-- Row-level security: on, 5 policies
+- Row-level security: on, 4 policies
 
 | Column | Type | Null | Default | Note |
 | --- | --- | --- | --- | --- |
@@ -2929,11 +2930,10 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `policies_acting_member_update` | update | authenticated | `(is_acting_member(tenant_id) AND (subject_type IS NULL))` | `(is_acting_member(tenant_id) AND (subject_type IS NULL))` |
 | `policies_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+| `policies_member_update` | update | authenticated | `((is_acting_member(tenant_id) AND (subject_type IS NULL)) OR (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role…` | `((is_acting_member(tenant_id) AND (subject_type IS NULL)) OR (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role…` |
 | `policies_owner_delete_person` | delete | authenticated | `((subject_type = 'contact'::text) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text)))))` |  |
 | `policies_owner_insert_person` | insert | authenticated |  | `((subject_type = 'contact'::text) AND (subject_id IS NOT NULL) AND (class = 'reply'::text) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.…` |
-| `policies_owner_update` | update | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` |
 
 ### privacy_requests
 

@@ -77,7 +77,7 @@ async function proposePersonMode(
     return refuse("mode must be auto, ask, never or inherit");
   const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const { data: pol } = await toolContext.ctx.supabase
+  const { data: pol, error: polErr } = await toolContext.ctx.supabase
     .from("policies")
     .select("mode")
     .eq("tenant_id", toolContext.tenantId)
@@ -85,6 +85,8 @@ async function proposePersonMode(
     .eq("subject_type", "contact")
     .eq("subject_id", person.id)
     .maybeSingle();
+  // A mode that cannot be read is not "inherit": the card would say a change that may change nothing.
+  if (polErr) throw new Error(`cannot read the person's reply mode: ${polErr.message}`);
   const LABEL: Record<string, string> = {
     auto: "answers them",
     ask: "asks you first",

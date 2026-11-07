@@ -140,7 +140,8 @@ async function sweepHealth(): Promise<Section> {
     const rows = (data ?? []) as unknown as SweepHealthRow[];
     const sweeps = { ok: rows.every((r) => r.healthy), detail: rows };
     // Due work nobody has claimed: the honest measure of whether the heartbeat drains.
-    const { data: backlog } = await db.rpc("jobs_backlog");
+    const { data: backlog, error: backlogErr } = await db.rpc("jobs_backlog");
+    if (backlogErr) return { sweeps, jobs_backlog: null, jobs_backlog_error: backlogErr.message.slice(0, 200) };
     return { sweeps, jobs_backlog: typeof backlog === "number" ? backlog : null };
   } catch (e) {
     return { sweeps: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
@@ -304,28 +305,33 @@ async function retellAuthEvidence(db: ReturnType<typeof pg>, retellKey: string):
     // is set on, kept as rows since the log keeps a day. The call webhook's rows name no door: "webhook".
     doors: db ? await doorEvidence(db) : null,
     recent: db
-      ? ((
+      ? rowsOrError(
           await db
             .from("events")
             .select("created_at, data")
             .eq("kind", "webhook.auth")
             .order("created_at", { ascending: false })
-            .limit(5)
-        ).data ?? [])
+            .limit(5),
+        )
       : [],
     // What the last deliveries DID — per event: status carried and
     // normalised, turns brought, whether the ingest declined them.
     deliveries: db
-      ? ((
+      ? rowsOrError(
           await db
             .from("events")
             .select("created_at, subject_id, data")
             .eq("kind", "webhook.delivery")
             .order("created_at", { ascending: false })
-            .limit(20)
-        ).data ?? [])
+            .limit(20),
+        )
       : [],
   };
+}
+
+/** A diagnostic's rows, or the database's words when it could not read them: none read is not none there. */
+function rowsOrError<T>(read: { data: T[] | null; error: { message: string } | null }): T[] | { error: string } {
+  return read.error ? { error: read.error.message.slice(0, 200) } : (read.data ?? []);
 }
 
 /**

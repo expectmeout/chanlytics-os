@@ -17,6 +17,7 @@ pnpm-lock.yaml
 packages/db/src/database.types.ts
 *.generated.ts
 docs/data-model.md
+docs/sql-map.md
 *.generated.json
 tests/route-policy.json
 tests/edge/door-policy.json

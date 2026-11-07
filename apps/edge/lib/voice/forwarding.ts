@@ -83,6 +83,7 @@ export async function markForwardingVerified(
           },
         })
         .eq("id", row.id)
+        .eq("tenant_id", tenantId)
         .eq("forwarding_state", "instructed")
         .select("id");
       if (upd.error || !upd.data?.length) continue;

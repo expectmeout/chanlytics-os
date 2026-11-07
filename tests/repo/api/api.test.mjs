@@ -137,4 +137,11 @@ test("a page of results is read by its words of paging", () => {
     [],
     "a total alone pages nothing",
   );
+  assert.deepEqual(
+    pageShapesIn(
+      source("interface D { next: Act | null; more: Act[] }", "interface A { more: number; total: number }"),
+    ),
+    [],
+    "a bare `more` (a deal's other acts, a count in a sentence) is no page's mark",
+  );
 });

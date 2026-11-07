@@ -43,7 +43,9 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
   const tzOf = async (ids: string[]) => {
     const missing = ids.filter((id) => !zones.has(id));
     if (!missing.length) return;
-    const { data: tenants } = await db.from("tenants").select("id, timezone").in("id", missing);
+    const { data: tenants, error } = await db.from("tenants").select("id, timezone").in("id", missing);
+    // A zone that cannot be read is said; the day falls back to the default zone, as a workspace with none does.
+    if (error) L.warn("google_due_read_failed", { what: "zones", error: error.message });
     for (const t of tenants ?? []) zones.set(t.id, t.timezone || DEFAULT_TIMEZONE);
   };
 

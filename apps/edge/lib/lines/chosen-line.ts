@@ -21,6 +21,7 @@ import {
   type SetupPhoneWant,
 } from "@chanlytics/contracts";
 import { setupChoicesOf } from "@chanlytics/db/workspace";
+import { tenantDb } from "@chanlytics/db/shared";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
@@ -134,7 +135,7 @@ export async function startChosenLine(
       now,
     });
     if (buy.kind === "refuse") return { kind: "stands" };
-    const ins = await db.from("lines").insert(buy.row).select("*").single();
+    const ins = await tenantDb(db, tenantId).from("lines").insert(buy.row).select("*").single();
     // Two starts crossed (the webhook and the sweep, or the owner's own tab): the database holds one line a workspace
     // (lines_one_live_per_tenant_idx, 00195), and the other's line stands.
     if (ins.error) return ins.error.code === "23505" ? { kind: "stands" } : startFailed(ins.error.message);

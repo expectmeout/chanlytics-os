@@ -3,6 +3,7 @@
 import type Stripe from "stripe";
 import { applyBilling } from "@chanlytics/db/billing";
 import { emitEvent } from "@chanlytics/db/events";
+import { platformWide } from "@chanlytics/db/shared";
 import { type BillingInvoiceDto, type BillingStatus, type SchemaSet, MIN_MS } from "@chanlytics/contracts";
 import { mendWarnings } from "../shared/alerts/notify.js";
 import { tellOnce } from "./notices.js";
@@ -286,10 +287,11 @@ export async function keepEvent(
 ): Promise<EventClaim> {
   const lease = new Date(now.getTime() + BILLING_EVENT_LEASE_MS).toISOString();
   if (await insertClaim(db, id, type, tenantId, lease)) return { claim: "taken", lease };
-  const seen = await db.from("billing_events").select("state").eq("id", id).maybeSingle();
+  // Stripe's own ledger, keyed by its event's id before the workspace is known: read across workspaces by design.
+  const seen = await platformWide(db).from("billing_events").select("state").eq("id", id).maybeSingle();
   if (seen.error) throw new Error(seen.error.message);
   if (seen.data?.state === APPLIED) return { claim: "applied" };
-  const up = await db
+  const up = await platformWide(db)
     .from("billing_events")
     .update({ state: CLAIMED, lease_until: lease })
     .eq("id", id)
@@ -311,7 +313,7 @@ export async function keepEvent(
  * set absorbs the race), so the row is left to the retry.
  */
 export async function completeEvent(db: Db, id: string, lease: string, tenantId: string | null): Promise<boolean> {
-  const up = await db
+  const up = await platformWide(db)
     .from("billing_events")
     .update({ state: APPLIED })
     .eq("id", id)
@@ -336,7 +338,12 @@ export async function completeEvent(db: Db, id: string, lease: string, tenantId:
  * that has run out may already be another delivery's, and that one stands.
  */
 export async function forgetEvent(db: Db, id: string, lease: string): Promise<void> {
-  const { error } = await db.from("billing_events").delete().eq("id", id).eq("state", CLAIMED).eq("lease_until", lease);
+  const { error } = await platformWide(db)
+    .from("billing_events")
+    .delete()
+    .eq("id", id)
+    .eq("state", CLAIMED)
+    .eq("lease_until", lease);
   if (error) logger({ hook: "stripe" }).error("stripe_event_unclaim_failed", { event_id: id, error: error.message });
 }
 

@@ -518,10 +518,12 @@ export function pgSink(
     noteEmail: (address: string) =>
       on
         ? runPgSafe("note_email", async () => {
+            // `on` holds only with a workspace, so the person is read inside it.
             const { data, error: unread } = await db
               .from("contacts")
               .select("email")
               .eq("id", ing.contact_id)
+              .eq("tenant_id", tenantId ?? "")
               .maybeSingle();
             // The door itself overwrites, so this read is the one thing that keeps an address already on file: a
             // read that failed keeps everything, rather than writing over an address nobody could see.

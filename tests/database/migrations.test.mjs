@@ -142,3 +142,55 @@ test("the index rule reads a migration as written: comments set aside, a plain b
   );
   assert.equal(migrationStatements("/* a; b */ select 1; -- c; d\n select 2;").length, 2);
 });
+
+/**
+ * A change that locks a table already there waits a bounded time for its lock (decision 0111). An `alter table`, a
+ * plain index, a rule (`create`/`alter`/`drop policy`) or a trigger takes a lock every write to the table then queues
+ * behind; without `lock_timeout` a migration that waits behind one long transaction stops every write after it until
+ * that transaction ends. 100 of the 118 such files from 00265 to 00555 set it by habit; from TIMEOUT_FROM it is the rule.
+ * A file of one CONCURRENTLY build is its own exception: it cannot share a transaction, and holds no writes.
+ */
+const TIMEOUT_FROM = 557;
+const LOCKS_A_TABLE =
+  /^(?:alter\s+table|create\s+(?:unique\s+)?index\s+(?!concurrently)|drop\s+index\s+(?!concurrently)|(?:create|alter|drop)\s+policy|(?:create|drop)\s+trigger|create\s+or\s+replace\s+trigger)\b/i;
+
+/** Whether a migration's statements take a table's lock with no `lock_timeout` set before them. */
+function locksWithNoTimeout(sql) {
+  let timeout = false;
+  for (const s of migrationStatements(sql)) {
+    if (/^set\s+(?:local\s+)?lock_timeout\b/i.test(s)) timeout = true;
+    else if (LOCKS_A_TABLE.test(s) && !timeout) return true;
+  }
+  return false;
+}
+
+test("a migration that locks a table already there sets a lock_timeout before it", () => {
+  for (const f of files) {
+    if (Number(f.slice(0, 5)) < TIMEOUT_FROM) continue;
+    assert.equal(
+      locksWithNoTimeout(fs.readFileSync(path.join(DIR, f), "utf8")),
+      false,
+      `${f}: set local lock_timeout = '3s'; before the statement that locks a table, so a long transaction ahead of it does not stop every write behind it`,
+    );
+  }
+});
+
+test("the lock_timeout rule reads a migration as written: set before, a CONCURRENTLY build alone, a rule and a trigger", () => {
+  assert.equal(locksWithNoTimeout("alter table public.leads add column x int;"), true);
+  assert.equal(locksWithNoTimeout("set local lock_timeout = '3s';\nalter table public.leads add column x int;"), false);
+  assert.equal(locksWithNoTimeout("create index concurrently if not exists a on public.messages (sent_by)"), false);
+  assert.equal(locksWithNoTimeout("drop policy if exists p on public.policies;"), true);
+  assert.equal(
+    locksWithNoTimeout("create trigger t after insert on public.files for each row execute function f();"),
+    true,
+  );
+  assert.equal(
+    locksWithNoTimeout("create or replace function public.f() returns int language sql as $$ select 1 $$;"),
+    false,
+  );
+  assert.equal(
+    locksWithNoTimeout("-- alter table public.x add column y int;\nselect 1;"),
+    false,
+    "a comment is not a statement",
+  );
+});

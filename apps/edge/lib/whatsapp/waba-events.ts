@@ -21,6 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
+import { platformWide } from "@chanlytics/db/shared";
 import { keepChannelStanding } from "@chanlytics/db/jobs";
 import { setTemplateQuality } from "@chanlytics/db/campaigns";
 import { mendWarnings, notify, type NotifyTarget } from "../shared/alerts/notify.js";
@@ -46,7 +47,9 @@ export async function findNotifications(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<NotificationsConfig | null> {
-  const { data } = await db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+  // Unread is not "tell nobody": an account's news would be dropped. Thrown, the delivery is tried again.
+  if (error) throw new Error(`cannot read the workspace's notifications: ${error.message}`);
   return parseTenantConfig(data?.config ?? null)?.notifications ?? null;
 }
 
@@ -73,7 +76,8 @@ interface Routed {
  * number not on file, is the account's oldest active number, the one every reader that knows no number picks.
  */
 async function routeByWaba(db: SupabaseClient<Database>, wabaId: string, named: unknown): Promise<Routed | null> {
-  const { data, error } = await db
+  // Meta names its account, not the workspace: the number is found across workspaces by that id, by design.
+  const { data, error } = await platformWide(db)
     .from("tenant_channels")
     .select("id, tenant_id, number_e164, config")
     .eq("kind", "whatsapp")

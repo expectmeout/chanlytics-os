@@ -192,7 +192,7 @@ async function resolveWaCredentials(
     ref = routed.credentialsRef ?? null;
     externalId = routed.externalId;
   } else {
-    const { data } = await db
+    const { data, error } = await db
       .from("tenant_channels")
       .select("id, credentials_ref, external_id")
       .eq("tenant_id", routed.tenantId)
@@ -201,6 +201,8 @@ async function resolveWaCredentials(
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
+    // A number that cannot be read is not a workspace with none: the reply would go nowhere and say nothing.
+    if (error) throw new Error(`cannot read the workspace's WhatsApp number: ${error.message}`);
     channelId = data?.id ?? null;
     ref = data?.credentials_ref ?? null;
     externalId = data?.external_id ?? null;

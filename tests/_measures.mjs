@@ -32,6 +32,7 @@ import {
   tableNames,
   tablesWrittenIn,
   rpcNames,
+  serviceRoleClientsOf,
   serviceRoleReaches,
   importsMatching,
   workspacelessStatements,
@@ -560,6 +561,25 @@ export const MEASURES = [
     },
     advice:
       "A statement on a workspace's table names the workspace: tenantDb(db, tenantId).from(...) (packages/db), or .eq(\"tenant_id\", …), or a row that carries its tenant_id. A module that reads across workspaces on purpose (a sweep, a provider's webhook) says why in its header, on a line that begins Cross-workspace: and is not measured.",
+  },
+  {
+    // The edge's measure, on the dashboard's statements built on the service role (decision 0111): a session's statement
+    // is fenced by row-level security, so only a statement on `serviceDb()`, or a name bound to it, is read.
+    name: "dashboard statements as the service role that name no workspace",
+    file: "dashboard-workspaceless.json",
+    measure: () => {
+      const tables = tenantTablesOf();
+      const out = {};
+      for (const f of SRC.filter((x) => /^apps\/dashboard\/(src\/server|app)\//.test(x))) {
+        const sf = parse(f);
+        if (serviceRoleReaches(sf) === 0 || CROSS_WORKSPACE.test(headerOf(sf))) continue;
+        const n = workspacelessStatements(sf, tables, [], { onClient: serviceRoleClientsOf(sf) });
+        if (n > 0) out[f] = n;
+      }
+      return out;
+    },
+    advice:
+      'Build the statement on tenantDb(serviceDb(), tenantId) (packages/db), or name the workspace with .eq("tenant_id", …) or a row that carries it; a module that reads across workspaces on purpose says why in its header, on a line that begins Cross-workspace:, and is not measured.',
   },
   {
     name: "database results whose error is dropped",

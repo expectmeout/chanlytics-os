@@ -29,9 +29,11 @@
  * door (inbound-sms.ts with sms/ingress.ts) uses.
  */
 import { json, refuse } from "../shared/http.js";
+import { logger } from "../shared/log.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
 import { findBusinessOnRecord } from "@chanlytics/db/lines";
+import { tenantDb } from "@chanlytics/db/shared";
 import { emitEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import {
@@ -221,7 +223,7 @@ async function buy(lineCall: LineCall): Promise<Response> {
     now,
   });
   if (plan.kind === "refuse") return respond(plan.answer);
-  const ins = await lineCall.db.from("lines").insert(plan.row).select("*").single();
+  const ins = await tenantDb(lineCall.db, lineCall.tenantId).from("lines").insert(plan.row).select("*").single();
   if (ins.error) {
     // THE DATABASE'S RULE, when two buys crossed. Both read no line above and
     // both inserted; a workspace holds one line that is being set up or
@@ -304,7 +306,7 @@ async function record(lineCall: LineCall): Promise<Response> {
   } catch (e) {
     return refuse(503, "read_failed", errorMessage(e));
   }
-  const up = await lineCall.db
+  const up = await tenantDb(lineCall.db, lineCall.tenantId)
     .from("business_records")
     .upsert(plan.row, { onConflict: "tenant_id" })
     .select("*")
@@ -340,11 +342,12 @@ async function register(lineCall: LineCall): Promise<Response> {
     return refuse(503, "read_failed", errorMessage(e));
   }
   if (!onRecord) {
-    await lineCall.db
+    const marked = await lineCall.db
       .from("lines")
       .update({ sms_state: "needs_record", state_since: new Date().toISOString() })
       .eq("id", row.id)
       .eq("tenant_id", lineCall.tenantId);
+    if (marked.error) return refuse(503, "write_failed", marked.error.message);
     return json(409, { ok: false, error: "no_business_record", hint: "op 'record' first" });
   }
   const pages = filingPages(dashboardOrigin(), lineCall.tenant.slug);
@@ -359,6 +362,8 @@ async function register(lineCall: LineCall): Promise<Response> {
     .eq("tenant_id", lineCall.tenantId)
     .eq("status", "active")
     .in("kind", ["whatsapp", "sms"]);
+  // Unread is not "nowhere to say yes": the carriers would be told the business takes no yes at all.
+  if (saysYes.error) return refuse(503, "read_failed", saysYes.error.message);
   const plan = planFiling({
     row,
     record: onRecord,
@@ -387,7 +392,7 @@ async function resubmit(
     .eq("id", row.id)
     .eq("tenant_id", lineCall.tenantId)
     .single();
-  return respond(resubmittedAnswer(verdict.row, after.data));
+  return respond(resubmittedAnswer(verdict.row, rowRead(lineCall, after)));
 }
 
 /**
@@ -424,7 +429,19 @@ async function file(
     .eq("id", row.id)
     .eq("tenant_id", lineCall.tenantId)
     .single();
-  return respond(filingAnswer(result, plan.mock, after.data));
+  return respond(filingAnswer(result, plan.mock, rowRead(lineCall, after)));
+}
+
+/**
+ * The line's row read again after a filing, or null: the filing is done whatever the row says, so a read of it that fails
+ * is said and the answer goes without it (the page reads the row on its next load).
+ */
+function rowRead(
+  lineCall: LineCall,
+  read: { data: LineDbRow | null; error: { message: string } | null },
+): LineDbRow | null {
+  if (read.error) logger({ tenant_id: lineCall.tenantId }).warn("line_row_read_failed", { error: read.error.message });
+  return read.data;
 }
 
 /* -------------------------------------------------- registration-status */
@@ -443,13 +460,14 @@ async function registrationStatus(lineCall: LineCall): Promise<Response> {
     .eq("id", read.row.id)
     .eq("tenant_id", lineCall.tenantId)
     .single();
-  if (!onRecord || !fresh.data) return respond(syncAnswer(result));
+  const line = rowRead(lineCall, fresh);
+  if (!onRecord || !line) return respond(syncAnswer(result));
   const filed = await registerLine(lineCall.db, {
-    line: fresh.data,
+    line,
     record: onRecord,
     workspaceName: lineCall.tenant.name,
     ...filingPages(dashboardOrigin(), lineCall.tenant.slug),
-    mock: fresh.data.reg_mock,
+    mock: line.reg_mock,
   });
   return respond(heldCampaignAnswer(result, filed));
 }

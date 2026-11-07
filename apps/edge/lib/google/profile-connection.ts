@@ -14,6 +14,7 @@
  */
 import { emitEvent } from "@chanlytics/db/events";
 import { findLinkedPlace } from "@chanlytics/db/imports";
+import { tenantDb } from "@chanlytics/db/shared";
 import {
   tokenExchangeRequest,
   revokeRequest,
@@ -140,7 +141,11 @@ export async function connectProfile(
   // made", it is "put back what was working".
   const prior = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (prior.error) return { ok: false, error: "connection_write_failed", detail: prior.error.message };
-  const saved = await db.from("google_connections").upsert(row, { onConflict: "tenant_id" }).select("*").single();
+  const saved = await tenantDb(db, tenantId)
+    .from("google_connections")
+    .upsert(row, { onConflict: "tenant_id" })
+    .select("*")
+    .single();
   if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
   try {
     await storeCredentials(db, tenantId, {
@@ -157,8 +162,12 @@ export async function connectProfile(
     // the stored credentials are still the previous ones -- restoring the
     // previous row leaves the pair consistent and the profile working.
     const restored = !!prior.data;
-    if (restored) await db.from("google_connections").update(prior.data!).eq("tenant_id", tenantId);
-    else await db.from("google_connections").delete().eq("tenant_id", tenantId);
+    // The vault's failure is what the owner is told; a restore that fails too is said beside it.
+    const put = restored
+      ? await db.from("google_connections").update(prior.data!).eq("tenant_id", tenantId)
+      : await db.from("google_connections").delete().eq("tenant_id", tenantId);
+    if (put.error)
+      logger({ tenant_id: tenantId }).error("google_connection_restore_failed", { restored, error: put.error.message });
     // Giving the grant back is right when we are leaving nothing behind. It is
     // wrong when we just restored a connection for the SAME Google account:
     // Google revokes the grant for a client/user pair, not one token of it, so
@@ -229,39 +238,44 @@ export async function bindLocation(
   const existing = await db.from("google_listings").select("place_id").eq("tenant_id", conn.tenant_id).maybeSingle();
   if (existing.error) return { ok: false, error: "listing_read_failed", detail: existing.error.message };
   if (existing.data && existing.data.place_id !== loc.place_id) {
-    await db.from("google_reviews").delete().eq("tenant_id", conn.tenant_id);
-    await db.from("google_listing_days").delete().eq("tenant_id", conn.tenant_id);
+    // Another place's reviews and days, left under this one, would be said as its own.
+    const reviewsGone = await db.from("google_reviews").delete().eq("tenant_id", conn.tenant_id);
+    if (reviewsGone.error) return { ok: false, error: "write_failed", detail: reviewsGone.error.message };
+    const daysGone = await db.from("google_listing_days").delete().eq("tenant_id", conn.tenant_id);
+    if (daysGone.error) return { ok: false, error: "write_failed", detail: daysGone.error.message };
   }
-  const listing = await db.from("google_listings").upsert(
-    existing.data && existing.data.place_id === loc.place_id
-      ? {
-          tenant_id: conn.tenant_id,
-          place_id: loc.place_id,
-          name: loc.title,
-          address: loc.address,
-          maps_uri: loc.maps_uri,
-          // Where a customer leaves it a review (00415): a message's review_link slot is filled from it.
-          new_review_uri: loc.new_review_uri,
-        }
-      : {
-          tenant_id: conn.tenant_id,
-          place_id: loc.place_id,
-          name: loc.title,
-          address: loc.address,
-          maps_uri: loc.maps_uri,
-          new_review_uri: loc.new_review_uri,
-          business_status: null,
-          // The old place's hours and number are not this one's; the next Places read fills them.
-          facts: {},
-          linked_by: userId,
-          linked_at: now.toISOString(),
-          rating: null,
-          review_count: null,
-          checked_at: null,
-          check_error: null,
-        },
-    { onConflict: "tenant_id" },
-  );
+  const listing = await tenantDb(db, conn.tenant_id)
+    .from("google_listings")
+    .upsert(
+      existing.data && existing.data.place_id === loc.place_id
+        ? {
+            tenant_id: conn.tenant_id,
+            place_id: loc.place_id,
+            name: loc.title,
+            address: loc.address,
+            maps_uri: loc.maps_uri,
+            // Where a customer leaves it a review (00415): a message's review_link slot is filled from it.
+            new_review_uri: loc.new_review_uri,
+          }
+        : {
+            tenant_id: conn.tenant_id,
+            place_id: loc.place_id,
+            name: loc.title,
+            address: loc.address,
+            maps_uri: loc.maps_uri,
+            new_review_uri: loc.new_review_uri,
+            business_status: null,
+            // The old place's hours and number are not this one's; the next Places read fills them.
+            facts: {},
+            linked_by: userId,
+            linked_at: now.toISOString(),
+            rating: null,
+            review_count: null,
+            checked_at: null,
+            check_error: null,
+          },
+      { onConflict: "tenant_id" },
+    );
   if (listing.error) return { ok: false, error: "listing_write_failed", detail: listing.error.message };
   const saved = await db
     .from("google_connections")
@@ -290,8 +304,9 @@ export async function bindLocation(
   }).catch((e: unknown) =>
     logger({ tenant_id: conn.tenant_id }).warn("file_fetch_failed", { source: "google_profile", error: errField(e) }),
   );
+  // The row as it stands after the read; a read of it that fails answers with the row just saved.
   const after = await db.from("google_connections").select("*").eq("tenant_id", conn.tenant_id).single();
-  return { ok: true, connection: after.data ?? saved.data, read };
+  return { ok: true, connection: after.error ? saved.data : (after.data ?? saved.data), read };
 }
 
 /** The grant given back to Google, the token gone from Vault, the row gone, the profile's reviews gone. The listing stays. */

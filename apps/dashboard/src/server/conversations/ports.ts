@@ -261,7 +261,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       }
     },
     template: async (tenantId, name, language) => {
-      const { data } = await ctx.supabase
+      const { data, error } = await ctx.supabase
         .from("templates")
         .select("name, language, body_preview, meta_status, category, variables")
         .eq("tenant_id", tenantId)
@@ -269,6 +269,8 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
         .eq("name", name)
         .eq("language", language)
         .maybeSingle();
+      // A message that cannot be read is not one that does not exist: the verb would refuse it as missing.
+      if (error) throw new Error(`cannot read the message ${name}: ${error.message}`);
       return data ?? null;
     },
     templateFacts: async (tenantId) => {

@@ -104,6 +104,9 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
         const rec = await db.from("business_records").select("*").eq("tenant_id", line.tenant_id).maybeSingle();
         const tenant = await db.from("tenants").select("name, slug").eq("id", line.tenant_id).maybeSingle();
         const fresh = await db.from("lines").select("*").eq("id", line.id).maybeSingle();
+        // A read that fails is this line's failure (said below), never a record that is missing: tried again next hour.
+        const unread = rec.error ?? tenant.error ?? fresh.error;
+        if (unread) throw new Error(`cannot read the filing's facts: ${unread.message}`);
         if (rec.data && tenant.data && fresh.data) {
           const out = await registerLine(db, {
             line: fresh.data,
