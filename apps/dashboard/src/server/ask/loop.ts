@@ -424,10 +424,7 @@ async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnState> {
   const replayed = replayFor(input.chain, asked, (msgs, at) => requestFor(requests, msgs, at, false));
   const { messages, anchor, words } = replayed ?? coldOf(requests);
   const questionAt = questionIn(messages);
-  // A question that came with pictures, the scope's photo or one attached, thinks at the draft's effort from its first
-  // round (effort.ts open): the pictures ahead of the question, whether this request carries them or the replayed chain
-  // already holds them.
-  effort.open(messages, { pictures: requests.pictures.length > 0 });
+  effort.open(messages, { pictures: requests.pictures.length > 0 }); // the question's pictures raise round one
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budgetMs);
   return {
