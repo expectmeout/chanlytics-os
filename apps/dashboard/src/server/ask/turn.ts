@@ -261,6 +261,7 @@ function answerRowOf(result: TurnResult, v1: ReturnType<typeof v1FromAnswer>, pr
     language: result.answer.language,
     ungrounded: result.ungrounded,
     tools: result.tools,
+    ...(result.opened.length ? { opened: result.opened } : {}),
     latency_ms: result.latencyMs,
     failed: result.failed,
     ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),

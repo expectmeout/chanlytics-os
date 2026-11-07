@@ -97,16 +97,27 @@ async function photoRead(file: FileMemberRow): Promise<Buffer> {
   return Buffer.from(await read.data.arrayBuffer());
 }
 
-export async function materialOf(ctx: RouteContext, member: Member, file: FileMemberRow): Promise<PostMaterial> {
+/** What a post is drawn from, for whoever holds the workspace's settings: a route by its member, Ask's act by its turn's read. */
+export async function postMaterialFrom(
+  ctx: RouteContext,
+  tenantId: string,
+  file: FileMemberRow,
+  configOf: () => Promise<unknown>,
+): Promise<PostMaterial> {
   const [photo, look, config] = await Promise.all([
     heldRead(`photo:${file.id}`, PHOTO_HELD_MS, () => photoRead(file)),
-    workspaceLookOf(ctx.supabase, member.tenantId),
-    load(readerContext(ctx, member), readers.config, undefined).then((r) => r.data),
+    workspaceLookOf(ctx.supabase, tenantId),
+    configOf(),
   ]);
   const logoPath = look?.logo_path ?? null;
   const [logo, phone] = await Promise.all([
-    logoPath ? heldRead(`logo:${logoPath}`, LOGO_HELD_MS, () => logoRead(member.tenantId, logoPath)) : null,
-    postPhoneOf(ctx, member.tenantId, config?.config ?? null),
+    logoPath ? heldRead(`logo:${logoPath}`, LOGO_HELD_MS, () => logoRead(tenantId, logoPath)) : null,
+    postPhoneOf(ctx, tenantId, config),
   ]);
   return { photo, subject: asFour(recordOrNull(file.look)?.subject), accent: look?.accent ?? null, logo, phone };
 }
+
+export const materialOf = (ctx: RouteContext, member: Member, file: FileMemberRow): Promise<PostMaterial> =>
+  postMaterialFrom(ctx, member.tenantId, file, () =>
+    load(readerContext(ctx, member), readers.config, undefined).then((r) => r.data?.config ?? null),
+  );

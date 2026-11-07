@@ -29,6 +29,7 @@ export const ADDED_SINCE = [
   "files.get",
   "files.list",
   "files.view",
+  "files.zoom",
   "guide",
   "inbox.search",
   "leads.back",

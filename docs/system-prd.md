@@ -960,8 +960,8 @@ days; before the ledger draws, the campaigns the surface read. On Campaigns the 
 is; a request to set campaigns up has `campaigns` with actions `sequence_steps` and `audiences` ride into the first round,
 on any page; after an approval the next turn reads the campaigns again; and a headline claiming a write beside cards is
 said as the cards' own sentence (`claimsWrite`, contracts), and logged. Ask's twelve setup and change cases are written
-and not run, and the eval workspace's paused Win-back is seeded only by hand (`e2e-workspace.mjs --seed-win-back`),
-never by the nightly.
+and not run, and the eval workspace's paused Win-back is seeded on production only by hand (`e2e-workspace.mjs
+--seed-win-back`), never by the nightly's check of production; the whole suite's own stack holds one.
 
 **A campaign's last day, and a new one on trial** (12 October 2026, decision 0055, 00416): `sequence_steps.until` is the
 last day a campaign runs, by the business's calendar. A run on that day goes; a run on a day after it sends nothing and

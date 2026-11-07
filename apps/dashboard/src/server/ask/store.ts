@@ -14,6 +14,7 @@ import {
   storedAnswer,
   v1FromAnswer,
   withFilesAttached,
+  withFilesOpened,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../shared/with-route";
@@ -113,7 +114,8 @@ export async function listThreads(ctx: RouteContext, tenantId: string): Promise<
 /**
  * A stored turn as the model reads it on a later turn: the words, and for a person's answer to a search's question
  * the search it answered (askTurnText), which is stored beside their words and never shown as them, and the files it came
- * with, by the name that opens them now (contracts withFilesAttached).
+ * with, by the name that opens them now (contracts withFilesAttached); for an answer, the files Ask opened in that turn
+ * (withFilesOpened), so a cold turn knows what it looked at and that it must open one again to judge it.
  */
 export function modelTurnOf(
   r: MessageRow,
@@ -122,12 +124,11 @@ export function modelTurnOf(
   const vm = toMessageVM(r);
   const c = (r.content ?? {}) as Record<string, unknown>;
   const said = askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null);
+  const namedOf = (ids: unknown) => fileIdsOf(ids).map((id) => named.get(id) ?? null);
   return {
     role: vm.role,
-    text: withFilesAttached(
-      said,
-      fileIdsOf(c.files).map((id) => named.get(id) ?? null),
-    ),
+    text:
+      vm.role === "assistant" ? withFilesOpened(said, namedOf(c.opened)) : withFilesAttached(said, namedOf(c.files)),
   };
 }
 
@@ -168,7 +169,7 @@ export async function readThread(
   const { data: msgs, error: merr } = await ctx.supabase
     .from("ask_messages")
     .select(
-      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, files:content->files, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
+      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, files:content->files, opened:content->opened, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
     )
     .eq("thread_id", id)
     .order("created_at", { ascending: false })
@@ -179,7 +180,7 @@ export async function readThread(
     .reverse()
     .map(({ id: messageId, role, created_at, ...content }) => ({ id: messageId, role, created_at, content }));
   // What the thread's questions came with, as those files are now. Most threads have none, and read nothing more.
-  const fileIds = [...new Set(rows.flatMap((r) => fileIdsOf(r.content.files)))];
+  const fileIds = [...new Set(rows.flatMap((r) => [...fileIdsOf(r.content.files), ...fileIdsOf(r.content.opened)]))];
   const named = fileIds.length ? await attachedNow(ctx, t.tenant_id, fileIds) : NONE_NAMED;
   return {
     thread: toThreadVM(t),

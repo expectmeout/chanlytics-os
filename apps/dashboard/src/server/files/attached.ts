@@ -9,6 +9,7 @@ import { ASK_ATTACHED_MAX, UUID, recordOrNull, type AskLanguage, type FileDto } 
 import { filesNamedBy } from "@chanlytics/db";
 import type { RouteContext } from "../shared/with-route";
 import type { AskedPicture } from "../ask/tools/context";
+import type { FileCopy } from "./copies";
 
 /** A file as a question says it, as it is now. */
 export type AttachedFile = Pick<FileDto, "id" | "name" | "line">;
@@ -40,12 +41,17 @@ export async function attachedNow(
 }
 
 /** What the model reads for each file the question came with: its name and the picture, or that the picture could not be had. */
-export const attachedPictures = (files: readonly AttachedFile[], copies: ReadonlyMap<string, string>): AskedPicture[] =>
+export const attachedPictures = (
+  files: readonly AttachedFile[],
+  copies: ReadonlyMap<string, FileCopy>,
+): AskedPicture[] =>
   files.map((f) => {
-    const fileId = copies.get(f.id) ?? null;
+    const copy = copies.get(f.id);
+    const fileId = copy?.fileId ?? null;
+    const size = copy?.width && copy.height ? ` (${copy.width}×${copy.height})` : "";
     return {
       said: fileId
-        ? `The file ${f.name}, attached to this question:`
+        ? `The file ${f.name}${size}, attached to this question:`
         : `The file ${f.name} is attached to this question, but could not be opened. Say so, and do not guess what it shows.`,
       fileId,
     };
