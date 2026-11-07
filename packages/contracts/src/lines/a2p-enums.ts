@@ -11,6 +11,7 @@
  * refused at the evaluation — after the profile, the business, the person,
  * the address and the document have all been made — so nothing guesses.
  */
+import { isOneOf } from "../shared/unknown";
 
 /** What a business does. */
 export const BUSINESS_INDUSTRIES = [
@@ -73,17 +74,17 @@ export function industryOf(value: string | null | undefined): BusinessIndustry {
   const up = String(value ?? "")
     .trim()
     .toUpperCase();
-  return (BUSINESS_INDUSTRIES as readonly string[]).includes(up) ? (up as BusinessIndustry) : DEFAULT_INDUSTRY;
+  return isOneOf(BUSINESS_INDUSTRIES, up) ? up : DEFAULT_INDUSTRY;
 }
 export function businessTypeOf(value: string | null | undefined): BusinessType {
   const s = String(value ?? "").trim();
-  return (BUSINESS_TYPES as readonly string[]).includes(s) ? (s as BusinessType) : DEFAULT_BUSINESS_TYPE;
+  return isOneOf(BUSINESS_TYPES, s) ? s : DEFAULT_BUSINESS_TYPE;
 }
 export function companyTypeOf(value: string | null | undefined): CompanyType {
   const s = String(value ?? "")
     .trim()
     .toLowerCase();
-  return (COMPANY_TYPES as readonly string[]).includes(s) ? (s as CompanyType) : DEFAULT_COMPANY_TYPE;
+  return isOneOf(COMPANY_TYPES, s) ? s : DEFAULT_COMPANY_TYPE;
 }
 
 /** The words for a value, where the carriers' spelling is not the owner's. */

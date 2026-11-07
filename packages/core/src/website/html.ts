@@ -21,7 +21,7 @@ export function decodeEntities(text: string): string {
   if (!text.includes("&")) return text;
   const chr = (n: number, had: string) => (n > 0 && n < 0x110000 ? String.fromCodePoint(n) : had);
   return text
-    .replace(/&#x([0-9a-f]+);/gi, (had, h) => chr(parseInt(h, 16), had))
+    .replace(/&#x([0-9a-f]+);/gi, (had, h: string) => chr(parseInt(h, 16), had))
     .replace(/&#(\d+);/g, (had, d) => chr(Number(d), had))
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')

@@ -17,6 +17,7 @@ import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/settings-change";
 import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/suggest";
 import type { FixKind } from "./review";
 import { DAY_KEY } from "../shared/zone/day-keys";
+import { isOneOf } from "../shared/unknown";
 
 type Day = (typeof DAYS)[number];
 
@@ -421,7 +422,7 @@ function checkHours(a: Record<string, unknown>): FixRouted {
   const day = field(a.day, 3) as Day;
   const open = field(a.open, 5);
   const close = field(a.close, 5);
-  if (!(DAYS as readonly string[]).includes(day)) return NO_FIX;
+  if (!isOneOf(DAYS, day)) return NO_FIX;
   if (!open && !close) return { ok: true, change: { op: "set_hours", day, open: null, close: null } };
   if (!TIME.test(open) || !TIME.test(close) || open >= close) return NO_FIX;
   return { ok: true, change: { op: "set_hours", day, open, close } };

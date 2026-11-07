@@ -22,18 +22,19 @@ import { LEAD_REWRITE_CHANGE_MAX } from "../sequences/lead-build/steps";
 import { REWRITE_NOW_MAX } from "../sequences/held";
 import { REACH_OUT_SIGNS_WITH } from "./rules";
 import { DAY_KEY } from "../../shared/zone/day-keys";
+import { isOneOf } from "../../shared/unknown";
 
 /** GET reach-out-replies: since when (at most the reading's window back), and one thread's alone. */
 export const ReachOutRepliesQuerySchema = z.object({
-  since: z.string().datetime({ offset: true }).optional(),
-  conversation_id: z.string().uuid().optional(),
+  since: z.iso.datetime({ offset: true }).optional(),
+  conversation_id: z.uuid().optional(),
 });
 
 export type ReachOutRepliesQuery = z.infer<typeof ReachOutRepliesQuerySchema>;
 
 export const ReachOutStepSchema = z.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z.string().uuid().nullable().optional(),
+  id: z.uuid().nullable().optional(),
   subject: z
     .string()
     .max(REACH_OUT_SUBJECT_MAX * 2)
@@ -49,17 +50,17 @@ export const ReachOutStepSchema = z.object({
 
 export const ReachOutChainSchema = z.object({
   name: z.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z.string().uuid(),
+  search_id: z.uuid(),
   include_unconfirmed: z.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
   gap_minutes: z
     .number()
     .int()
-    .refine((g) => (REACH_OUT_GAP_MINUTES as readonly number[]).includes(g), {
+    .refine((g): boolean => isOneOf(REACH_OUT_GAP_MINUTES, g), {
       message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
     }),
   /** Empty: every connected mailbox of the workspace (00424). */
-  mailbox_ids: z.array(z.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  mailbox_ids: z.array(z.uuid()).max(REACH_OUT_MAILBOXES_MAX),
   /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
   owner_sends: z.boolean().default(false),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
@@ -72,7 +73,7 @@ export type ReachOutChainInput = z.infer<typeof ReachOutChainSchema>;
 
 /** What the sheet's preview asks: the n-th business of a search, with the first step's words as they stand. */
 export const ReachOutPreviewSchema = z.object({
-  search_id: z.string().uuid(),
+  search_id: z.uuid(),
   index: z.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
   include_unconfirmed: z.boolean(),
   words: z.object({

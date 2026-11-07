@@ -13,6 +13,7 @@ import {
   type OwnVersionChannel,
   type VersionChannel,
 } from "./channels";
+import { isOneOf } from "../../../shared/unknown";
 
 /** A version's own words, as a page edits them. A text version has no subject. */
 export interface VersionWords {
@@ -297,7 +298,7 @@ export function versionsOf<T extends { name: string; channel: string }>(
   const out: Record<VersionChannel, T[]> = { whatsapp: [], email: [], sms: [] };
   for (const r of rows) {
     if (r.name !== name || isReachOutRow(r)) continue;
-    if ((VERSION_CHANNELS as readonly string[]).includes(r.channel)) out[r.channel as VersionChannel].push(r);
+    if (isOneOf(VERSION_CHANNELS, r.channel)) out[r.channel].push(r);
   }
   return out;
 }

@@ -1,6 +1,7 @@
 /** Ask: limits. */
 
 import { MIN_MS } from "../shared/time";
+import { isOneOf } from "../shared/unknown";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -130,7 +131,7 @@ export type VoiceEndReason = (typeof VOICE_END_REASONS)[number];
 
 /** Whether a word is one of the set: an older bundle's, or the vendor's own, is not, and is kept on a log line alone. */
 export const isVoiceEndReason = (word: string | null | undefined): word is VoiceEndReason =>
-  (VOICE_END_REASONS as readonly string[]).includes(word ?? "");
+  isOneOf(VOICE_END_REASONS, word ?? "");
 
 /**
  * How long a voice session waits with nothing asked before the browser ends it (`idle`): a minute, long enough for a

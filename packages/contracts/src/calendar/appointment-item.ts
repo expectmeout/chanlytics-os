@@ -7,13 +7,14 @@
  * Pure: the dashboard's week assembler (server/calendar/week/week.ts) hands the rows in and takes the items out.
  */
 import type { CalendarItemDto, VisitMark } from "./dto";
-import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
+import { APPOINTMENT_STATUSES } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
 import { visitStands } from "./words/visit";
 import { replyFactsOf, type MatchVia, type OwnAddresses, type PersonLike, type PersonMatch } from "./people/matching";
 import { bookingCopyTest, bookingToolName } from "./booking-notice";
 import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
 import { shiftKey, zoneMidnight } from "../shared/zone/day-keys";
+import { isOneOf } from "../shared/unknown";
 
 /** An appointment row as the board reads it: the columns a notice fills (packages/db appointments). */
 export interface AppointmentLike {
@@ -105,9 +106,7 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
 
 /** The row's id and status as the board carries them: null for a status the record does not hold. */
 function visitMarkOf(row: Pick<AppointmentLike, "id" | "status">): VisitMark | null {
-  return (APPOINTMENT_STATUSES as readonly string[]).includes(row.status)
-    ? { id: row.id, status: row.status as AppointmentStatus }
-    : null;
+  return isOneOf(APPOINTMENT_STATUSES, row.status) ? { id: row.id, status: row.status } : null;
 }
 
 /** A feed row's word, with the start the row holds: the event's start when the word was said. */

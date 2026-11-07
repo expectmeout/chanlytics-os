@@ -13,6 +13,7 @@ import { defaultParamSpecs, slotLabels } from "./slots";
 import { templateTitle } from "./titles";
 import { starterByName } from "./starter-lookup";
 import { NUMBERED_SLOT } from "../../shared/words";
+import { listOrEmpty, recordOrEmpty } from "../../shared/unknown";
 
 /** The slots the Inbox fills from what it holds of the person and the workspace (core reply.ts shapeTemplate). */
 const INBOX_FILLS: ReadonlySet<ParamSourceKind> = new Set(["first_name", "business_name", "booking_link"]);
@@ -301,7 +302,7 @@ export function inboxBlankOf(target: {
   const only = open.length === 1 ? open[0] : undefined;
   if (!only || only.s.kind !== "text" || only.s.value) return null;
   const labels = slotLabels({ name: target.name, language: target.language ?? "en_US", variables: target.variables });
-  const vars = Array.isArray(target.variables) ? (target.variables as Array<{ example?: unknown }>) : [];
+  const vars = listOrEmpty(target.variables).map(recordOrEmpty);
   const example = vars[only.at]?.example;
   return {
     at: only.at,
@@ -330,7 +331,7 @@ export function inboxTemplateParts(
   if (!body) return blank ? [{ blank: blank.label }] : [];
   const slots = inboxSlots(target);
   const labels = slotLabels({ name: target.name, language: target.language ?? "en_US", variables: target.variables });
-  const vars = Array.isArray(target.variables) ? (target.variables as Array<{ position?: unknown }>) : [];
+  const vars = listOrEmpty(target.variables).map(recordOrEmpty);
   // A slot's place in the words: the variable's own position where it says one, else its order.
   const valueAt = new Map<number, TemplatePart>();
   slots.forEach((slot, otherSlot) => {

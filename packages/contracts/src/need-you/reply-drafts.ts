@@ -10,6 +10,7 @@
 import { MIN_MS } from "../shared/time";
 import type { CallBrief } from "../new-conversation/person-draft";
 import type { DraftWhy } from "../campaigns/reach-out/reply-draft";
+import { entryOf } from "../shared/unknown";
 
 /** What a thread is drafted: a reply to its last message, or the brief for a call back. */
 export const REPLY_DRAFT_KINDS = ["reply", "brief"] as const;
@@ -50,10 +51,7 @@ const DRAFT_FAILED_WORDS: Readonly<Record<ReplyDraftWhy, { words: string; again:
 
 /** What a draft that was not written says, and whether it can be asked again: a why this build does not know is the last. */
 export function draftFailedWords(reason: string | null | undefined): { words: string; again: boolean } {
-  return (
-    (DRAFT_FAILED_WORDS as Record<string, { words: string; again: boolean }>)[reason ?? ""] ??
-    DRAFT_FAILED_WORDS.not_drafted
-  );
+  return entryOf(DRAFT_FAILED_WORDS, reason) ?? DRAFT_FAILED_WORDS.not_drafted;
 }
 
 /** A thread's draft over the reply box (decision 0093), in each state it is in; and a thread set aside, on its dock. */

@@ -31,6 +31,7 @@ import { leadCalledByOf } from "../../leads/search/called-by";
 import type { LeadPreviewSlot } from "../../previews/lead-preview";
 import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET } from "./words/slots";
 import { linkCount } from "./words/limits";
+import { isOneOf } from "../../shared/unknown";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -73,7 +74,7 @@ export const OUTREACH_WAIT_REFUSALS = [
   "paused",
 ] as const satisfies readonly DeliveryRefusal[];
 export function isWaitRefusal(reason: string | null | undefined): boolean {
-  return (OUTREACH_WAIT_REFUSALS as readonly string[]).includes(reason ?? "");
+  return isOneOf(OUTREACH_WAIT_REFUSALS, reason ?? "");
 }
 
 export const REACH_OUT_MONTH_EMAILS = 2000;

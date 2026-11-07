@@ -195,7 +195,7 @@ export function placesToAsk(
 ): { total: number; perTerm: number[] } {
   const highest = Math.max(1, plan.terms.length);
   const cap = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(highest).fill(0) };
+  if (remaining <= 0) return { total: 0, perTerm: new Array<number>(highest).fill(0) };
   if (yieldSoFar === null) {
     const perTerm = spread(LEAD_PROBE_PLACES, highest, cap);
     return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };

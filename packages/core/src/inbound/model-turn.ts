@@ -162,7 +162,7 @@ export async function takeModelTurn(
   let bookingRequest: BookingRequestHold | null = null;
   if (ports.env.modelKey) {
     try {
-      const { generateReply } = await ports.brain();
+      const brain = await ports.brain();
       const leadNote = await leadNoteFor(at);
       // What is open, from the calendar feed, when the workspace has one.
       // Cached for five minutes on the edge; a feed that cannot be read says
@@ -179,7 +179,7 @@ export async function takeModelTurn(
       // the receptionist is told and the prices it may say from them are the same notes.
       const now = new Date();
       const tBrain = Date.now();
-      const item = await generateReply(
+      const item = await brain.generateReply(
         thread.history,
         photo
           ? photoUserText(n.media?.caption, priceAllowance(brainCfg, rt?.timezone, now) ? "written" : "none")

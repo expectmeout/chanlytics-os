@@ -135,7 +135,7 @@ function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM[
     const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
     return {
       t: typeof own === "number" ? mmss(own * 1000) : "—",
-      speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
+      speaker: (turn.role === "agent" ? "agent" : "client") satisfies "agent" | "client",
       text: turn.content ?? "",
       start,
       end,

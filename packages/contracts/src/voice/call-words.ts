@@ -4,6 +4,7 @@
  * of a provider summary written before the analysis carried what the caller
  * wanted.
  */
+import { isOneOf } from "../shared/unknown";
 
 /** How a call ended for the caller. The agent's analysis picks one; the CHECK on calls.outcome admits the same six. */
 export const CALL_OUTCOMES = [
@@ -27,9 +28,7 @@ export const CALL_OUTCOME_WORDS: Record<CallOutcome, string> = {
 };
 
 export function callOutcomeOf(value: unknown): CallOutcome | null {
-  return typeof value === "string" && (CALL_OUTCOMES as readonly string[]).includes(value)
-    ? (value as CallOutcome)
-    : null;
+  return isOneOf(CALL_OUTCOMES, value) ? value : null;
 }
 
 /** The outcome's words, or null when the call has none on record. */

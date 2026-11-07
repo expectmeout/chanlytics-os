@@ -16,6 +16,7 @@
 import { defang } from "../ai/fence";
 import type { Tone } from "../shell/tone";
 import type { RehearsalTurn } from "./rehearsal";
+import { isOneOf } from "../shared/unknown";
 
 export const REVIEW_VERDICTS = ["right", "rule", "guessed", "didnt_know", "off"] as const;
 export type ReviewVerdict = (typeof REVIEW_VERDICTS)[number];
@@ -182,8 +183,8 @@ const comparable = (s: string) =>
 /** What the model answered, read as a part is: a quote of nothing but what a reader cannot see has no length to pass on. */
 const textUpTo = (v: unknown, max: number) => (typeof v === "string" ? asData(v, max) : "");
 
-const isVerdict = (v: unknown): v is ReviewVerdict => (REVIEW_VERDICTS as readonly unknown[]).includes(v);
-const isFix = (v: unknown): v is FixKind => (FIX_KINDS as readonly unknown[]).includes(v);
+const isVerdict = (v: unknown): v is ReviewVerdict => isOneOf(REVIEW_VERDICTS, v);
+const isFix = (v: unknown): v is FixKind => isOneOf(FIX_KINDS, v);
 
 /**
  * The model's answer, checked in code. A verdict is kept only when what it quotes of the receptionist is in that

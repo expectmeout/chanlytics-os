@@ -9,8 +9,9 @@
  * `Debt: <why>`. No baseline is committed, so a fall needs no banking. It replaced baselines/lint-warnings.json, which
  * replaced `--max-warnings 46`, one total, under which a file could gain a warning while another lost one.
  *
- * A typed rule is a warning only while the tree holds a finding of it (eslint.config.mjs, HELD_TYPED): the run fails
- * when one of them holds none, so the change that fixes a rule's last finding makes it an error.
+ * A typed rule is a warning only while the tree holds a finding of it (eslint.config.mjs, HELD_TYPED, and the backend's
+ * strict rules, HELD_STRICT): the run fails when one of them holds none, so the change that fixes a rule's last finding
+ * makes it an error.
  *
  *   corepack pnpm lint                 # lint: errors fail; the warnings are counted and said
  *   corepack pnpm lint -- --fix        # write ESLint's fixes first
@@ -23,7 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
-import { HELD_TYPED } from "../../../eslint.config.mjs";
+import { HELD_STRICT, HELD_TYPED } from "../../../eslint.config.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -167,7 +168,7 @@ export const flatWarnings = (warnings) =>
   );
 
 /** The typed rules held as warnings that the tree holds no finding of: each is an error from the change that says so. */
-export const heldButClean = (warnings, held = HELD_TYPED) => {
+export const heldButClean = (warnings, held = [...HELD_TYPED, ...HELD_STRICT]) => {
   const found = new Set(Object.values(warnings).flatMap((rules) => Object.keys(rules)));
   return held.filter((rule) => !found.has(rule));
 };
@@ -219,7 +220,7 @@ async function main() {
   if (clean.length) {
     console.error(
       `the tree holds no finding of ${clean.join(", ")}: take ${clean.length === 1 ? "it" : "each"} out of HELD_TYPED ` +
-        "in eslint.config.mjs, and the rule is an error from now on",
+        "or HELD_STRICT in eslint.config.mjs, and the rule is an error from now on",
     );
     failed = true;
   }

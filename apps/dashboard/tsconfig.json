@@ -5,7 +5,9 @@
     "reads are guarded: check:debt counts them (the unchecked-index measure). The harness page that runs the kit's",
     "components with behaviour of their own is compiled here too (tooling/scripts/e2e-harness/kit-behaves.tsx and the entries it",
     "imports), so a props change it no longer meets fails typecheck: no CI job runs its browser spec. It imports the kit by",
-    "its .ts path, which allowImportingTsExtensions lets stand (noEmit is on)."
+    "its .ts path, which allowImportingTsExtensions lets stand (noEmit is on). The browser specs are compiled here too",
+    "(e2e/, decision 0112): they drive the dashboard, and a spec a rename broke failed only at night, in a browser. Their",
+    "index reads are the unchecked-index measure's, as the dashboard's own are."
   ],
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
@@ -32,7 +34,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "../../tooling/scripts/e2e-harness/kit-behaves.tsx",
-    "../../tooling/scripts/e2e-harness/ask-states.tsx"
+    "../../tooling/scripts/e2e-harness/ask-states.tsx",
+    "../../e2e/**/*.ts"
   ],
   "exclude": ["node_modules", "mockup"],
   "references": [

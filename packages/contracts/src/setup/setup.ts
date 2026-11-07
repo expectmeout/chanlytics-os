@@ -23,6 +23,7 @@ import {
   type SetupRowDraft,
   type SetupRowVM,
 } from "./lines";
+import { isOneOf } from "../shared/unknown";
 
 /**
  * May this line be retried, and if not, what does the person hear?
@@ -232,11 +233,11 @@ export interface SetupPhoneWant {
 }
 
 /** The ways, what a number kept rings, and its carrier, each read off its one list (forwarding.ts). */
-const isPhoneWay = (v: unknown): v is PhoneWay => (PHONE_WAYS as readonly unknown[]).includes(v);
+const isPhoneWay = (v: unknown): v is PhoneWay => isOneOf(PHONE_WAYS, v);
 
-const isRings = (v: unknown): v is PhoneRings => (PHONE_RINGS as readonly unknown[]).includes(v);
+const isRings = (v: unknown): v is PhoneRings => isOneOf(PHONE_RINGS, v);
 
-const isCompany = (v: unknown): v is PhoneCompany => v !== "office" && (CARRIERS as readonly unknown[]).includes(v);
+const isCompany = (v: unknown): v is PhoneCompany => v !== "office" && isOneOf(CARRIERS, v);
 
 /** The owner's number as their saved Setup view holds it; null for none, and for anything hand-edited. */
 export function setupPhoneWantOf(view: unknown): SetupPhoneWant | null {
@@ -282,7 +283,7 @@ export interface SetupChoices {
 /** The member's choices as their saved Setup view holds them; none for anything hand-edited. */
 export function setupChoicesOf(view: unknown): SetupChoices {
   const wa = view && typeof view === "object" ? (view as { whatsapp?: unknown }).whatsapp : null;
-  return { whatsapp: (WHATSAPP_CHOICES as readonly unknown[]).includes(wa) ? (wa as WhatsappChoice) : null };
+  return { whatsapp: isOneOf(WHATSAPP_CHOICES, wa) ? wa : null };
 }
 
 /**
@@ -294,7 +295,7 @@ export function setupChoicesOf(view: unknown): SetupChoices {
 export function withWorkspaceChoices(setupInputs: SetupInputs): SetupInputs {
   const workspaceChoices = setupInputs.workspace_choices;
   if (!workspaceChoices) return setupInputs;
-  const marks = workspaceChoices.marks.filter((m) => (WORKSPACE_MARKS as readonly string[]).includes(m));
+  const marks = workspaceChoices.marks.filter((m) => isOneOf(WORKSPACE_MARKS, m));
   return {
     ...setupInputs,
     want: setupPhoneWantOf({ phone: workspaceChoices.phone }),

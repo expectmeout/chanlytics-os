@@ -10,6 +10,7 @@ import { ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
 import { reasonLabelOf, reasonShort, waitsOnAPerson } from "../conversations/escalations";
 import { holderOf, personStanding, type ThreadHolder } from "./person-state";
+import { isOneOf } from "../shared/unknown";
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
 export type PersonMode = "auto" | "ask" | "never";
@@ -26,7 +27,7 @@ export const PERSON_MODE_WORDS: Record<PersonMode | "inherit", string> = {
 };
 
 export function asPersonMode(text: string | null | undefined): PersonMode | null {
-  return text && (PERSON_MODES as readonly string[]).includes(text) ? (text as PersonMode) : null;
+  return text && isOneOf(PERSON_MODES, text) ? text : null;
 }
 
 /* ---------------------------------- the people set differently (Settings › Autonomy) ---------------------------------- */

@@ -71,12 +71,12 @@ const LeadFiltersSchema = z.object({
 
 export const LeadsQuerySchema = z.object({
   list: z.enum(LEAD_LISTS).default("all"),
-  search: z.string().uuid().optional(),
+  search: z.uuid().optional(),
   class: z.enum(LEAD_CLASSES).optional(),
   sort: z.enum(LEAD_SORTS).default("fit"),
   dir: z.enum(["asc", "desc"]).default("asc"),
   after_key: z.string().max(80).optional(),
-  after_id: z.string().uuid().optional(),
+  after_id: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(500),
   /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
   pile_list: z.uuid().optional(),
@@ -86,7 +86,7 @@ export const LeadsQuerySchema = z.object({
 export type LeadsQuery = z.infer<typeof LeadsQuerySchema>;
 
 /** GET leads/[id]: one lead as a row of the page, in the search the view is of when it is one search's (PR 9). */
-export const LeadOneQuerySchema = z.object({ search: z.string().uuid().optional() });
+export const LeadOneQuerySchema = z.object({ search: z.uuid().optional() });
 
 /** The view a bulk act names when the owner chose "Select all N that match" (S13): the same keys GET leads takes. */
 export const LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
@@ -122,8 +122,8 @@ export const LeadsBulkSchema = z.discriminatedUnion("by", [
   z.object({
     by: z.literal("ids"),
     action: z.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z.array(z.string().uuid()).min(1).max(500),
-    search_id: z.string().uuid().optional(),
+    ids: z.array(z.uuid()).min(1).max(500),
+    search_id: z.uuid().optional(),
   }),
   z.object({ by: z.literal("view"), action: z.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema }),
 ]);
@@ -131,7 +131,7 @@ export const LeadsBulkSchema = z.discriminatedUnion("by", [
 export type LeadsBulkInput = z.infer<typeof LeadsBulkSchema>;
 
 /** Check again (D3): the leads whose mailbox check did not answer, asked once more. */
-export const LeadsCheckAgainSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(500) });
+export const LeadsCheckAgainSchema = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 
 export type LeadsCheckAgainInput = z.infer<typeof LeadsCheckAgainSchema>;
 

@@ -142,10 +142,8 @@ export function verbSpec(kind: string): ProposalSpec | null {
  * contracts (db, core, channels, jobs), and would carry every spec and its words in with it. Ask's own kinds join it
  * as they are added, in place, so a reader holding it (window.PROPOSAL_GATE) sees them.
  */
-export const PROPOSAL_GATE = /* @__PURE__ */ (() =>
-  Object.fromEntries(Object.entries(PAGE_SPECS).map(([kind, spec]) => [kind, spec.gate])) as Partial<
-    Record<AskProposal["kind"], ProposalGate>
-  >)();
+export const PROPOSAL_GATE = /* @__PURE__ */ ((): Partial<Record<AskProposal["kind"], ProposalGate>> =>
+  Object.fromEntries(Object.entries(PAGE_SPECS).map(([kind, spec]) => [kind, spec.gate])))();
 
 /** The kinds only Ask's cards commit, into every lookup above: the server's table at once, the browser's once loaded. */
 export function addProposalSpecs(specs: Readonly<Record<AskOnlyKind, ProposalSpec>>): void {

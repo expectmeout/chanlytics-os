@@ -222,7 +222,7 @@ export const BusinessProfileSchema = z
      * the list never leaves a config that cannot be parsed. Never part of the composed prompt.
      */
     phone_pace: z.string().max(24).optional().catch(undefined),
-    website: z.string().url().max(500).optional(),
+    website: z.url().max(500).optional(),
     notes: z.array(NoteSchema).max(L.notes).optional(),
     booking_rules: BookingRulesSchema.optional(),
     /**

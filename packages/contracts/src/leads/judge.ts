@@ -19,6 +19,7 @@ import { planReadsSites } from "./search/plan";
 import { LEAD_KIND_KEY, leadKindWord } from "./search/class";
 import type { SystemOneAnswer, SystemOneQuestion } from "../ai/system-one";
 import { CONTROL_CHARS } from "../shared/words";
+import { isOneOf } from "../shared/unknown";
 
 /* ----------------------------------------------------------- the facts -- */
 
@@ -314,11 +315,11 @@ export function screenedAnswer(
   answers: Readonly<Record<string, SystemOneAnswer | undefined>>,
   floor: number,
 ): JudgePlaceAnswer | null {
-  const sure = judgeScreenKeys(plan).flatMap((key) => {
+  const sure = judgeScreenKeys(plan).flatMap((key): JudgePlaceAnswer["criteria"] => {
     const a = answers[key];
     if (!a || a.type !== "choice" || !isJudgeAnswer(a.choice) || a.choice === "unknown" || a.confidence < floor)
       return [];
-    return [{ key, answer: a.choice, facts: [] as string[] }];
+    return [{ key, answer: a.choice, facts: [] }];
   });
   const failed = sure.find((c) => c.answer === "fail");
   if (!failed) return null;
@@ -387,7 +388,7 @@ export function parseJudgeAnswer(
     const have = factKeysOf(place);
     for (const c of otherPlace.criteria) {
       for (const f of c.facts) {
-        if (!(JUDGE_FACT_KEYS as readonly string[]).includes(f))
+        if (!isOneOf(JUDGE_FACT_KEYS, f))
           return { ok: false, why: `ref ${otherPlace.ref}: fact ${f} is not on the place` };
         // A fail or unknown may cite a fact the place lacks: the absence is the evidence. Only a pass must cite a fact that is there.
         if (c.answer === "pass" && !have.has(f))

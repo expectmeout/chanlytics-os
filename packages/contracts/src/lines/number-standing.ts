@@ -18,7 +18,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
 import type { ConnectionNote } from "./connection-note";
 import { addPaymentMethodLink } from "./whatsapp-cost";
-import { recordOrNull } from "../shared/unknown";
+import { listOrEmpty, recordOrNull } from "../shared/unknown";
 
 /**
  * One thing Meta says stands in the way, from an entity's errors: whose it is, Meta's code, what it said, and how to fix it.
@@ -66,8 +66,6 @@ const NEW_BUSINESS_LIMIT = 250;
 /** How long a page that opens trusts a standing that is not AVAILABLE, before it asks Meta again. */
 const STANDING_STALE_MS = 10 * MIN_MS;
 
-const listOf = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
-
 /** Text that says something: trimmed, and null where it is not a string or is blank. */
 const textOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
@@ -79,7 +77,7 @@ export function standingFromConfig(value: unknown): NumberStanding | null {
   const result = recordOrNull(value);
   const canSend = textOrNull(result?.can_send);
   if (!result || !canSend) return null;
-  const problems = listOf(result.problems).flatMap((item): StandingProblem[] => {
+  const problems = listOrEmpty(result.problems).flatMap((item): StandingProblem[] => {
     const otherHeldObject = recordOrNull(item);
     const sentence = textOrNull(otherHeldObject?.said);
     if (!otherHeldObject || !sentence) return [];
@@ -92,7 +90,7 @@ export function standingFromConfig(value: unknown): NumberStanding | null {
       },
     ];
   });
-  const notes = listOf(result.notes).flatMap((n): string[] => {
+  const notes = listOrEmpty(result.notes).flatMap((n): string[] => {
     const text = textOrNull(n);
     return text ? [text] : [];
   });

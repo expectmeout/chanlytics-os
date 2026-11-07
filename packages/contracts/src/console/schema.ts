@@ -16,6 +16,7 @@ import { PARTNER_STANDINGS, PARTNER_STATUSES } from "../workspace/partner/dtos";
 import { HEALTH_WINDOWS } from "./health/dtos";
 import { JOB_KINDS } from "../shared/enums";
 import { SLUG } from "../shared/identity";
+import { isOneOf } from "../shared/unknown";
 
 const uuid = (text: string) => z.uuid({ error: `That ${text} does not exist.` });
 
@@ -206,7 +207,7 @@ export const HealthQuerySchema = z
     days: z.coerce
       .number()
       .int()
-      .refine((d) => (HEALTH_WINDOWS as readonly number[]).includes(d), "A week or a month: 7 or 30.")
+      .refine((d): boolean => isOneOf(HEALTH_WINDOWS, d), "A week or a month: 7 or 30.")
       .default(30),
   })
   .strict();

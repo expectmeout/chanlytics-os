@@ -20,6 +20,7 @@ import {
   type PARTNER_STANDINGS,
   type PARTNER_STATUSES,
 } from "./dtos";
+import { entryOf } from "../../shared/unknown";
 
 /** The card's one line: "2 partners · $125.00 payable · 1 workspace under review", counted from the rows. */
 export function platformPartnerSummary(rows: readonly PlatformPartnerBalanceDto[]): string {
@@ -52,7 +53,7 @@ const STANDING_LABELS: Record<(typeof PARTNER_STANDINGS)[number], string> = {
 };
 
 /** A standing as the back office says it; a standing the set does not know, as stored. */
-const standingLabel = (standing: string): string => (STANDING_LABELS as Record<string, string>)[standing] ?? standing;
+const standingLabel = (standing: string): string => entryOf(STANDING_LABELS, standing) ?? standing;
 
 /** Who decided a standing, after its label: nothing for one that has not been. */
 const DECIDED_BY_WORDS: Record<string, string> = {

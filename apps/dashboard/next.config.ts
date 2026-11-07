@@ -85,8 +85,8 @@ const nextConfig: NextConfig = {
     // restore the old shape into new components — a new sha starts cold.
     NEXT_PUBLIC_BUILD_SHA: env.VERCEL_GIT_COMMIT_SHA ?? "dev",
   },
-  async headers() {
-    return [
+  headers() {
+    return Promise.resolve([
       { source: "/:path*", headers: SECURITY_HEADERS },
       {
         // The sign-in page must never sit in a shared or back-button cache: it
@@ -116,20 +116,20 @@ const nextConfig: NextConfig = {
       // The OS's documents: the home, and every workspace's address.
       { source: "/", ...OS_DOCUMENT },
       { source: "/w/:path*", ...OS_DOCUMENT },
-    ];
+    ]);
   },
-  async rewrites() {
-    return {
+  rewrites() {
+    return Promise.resolve({
       // The two files a phone's OS reads before it lets a link open the app. One route renders both
       // (app/api/app-links/[store]); the proxy leaves /.well-known/ public.
       beforeFiles: [
         { source: "/.well-known/apple-app-site-association", destination: "/api/app-links/apple" },
         { source: "/.well-known/assetlinks.json", destination: "/api/app-links/android" },
       ],
-    };
+    });
   },
-  async redirects() {
-    return [
+  redirects() {
+    return Promise.resolve([
       // A workspace's public pages move with its slug; a carrier filing does not.
       // RJ Capital LLC's A2P registration was filed while this workspace was
       // "billing-probe" and names /yes/billing-probe as its website. The workspace
@@ -151,7 +151,7 @@ const nextConfig: NextConfig = {
       { source: "/yes/billing-probe", destination: "https://www.chanlytics.com/", permanent: false },
       { source: "/yes/billing-probe/:path*", destination: "/yes/chanlytics/:path*", permanent: true },
       { source: "/b/billing-probe/:path*", destination: "/b/chanlytics/:path*", permanent: true },
-    ];
+    ]);
   },
 };
 

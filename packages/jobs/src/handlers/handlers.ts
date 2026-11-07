@@ -9,6 +9,7 @@ import {
   DAY_MS,
   EVENT_SUBSCRIBERS,
   type EventSubscriber,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import { requestIdShaped } from "@chanlytics/channels/tokens";
 import { logger, withRequestId } from "@chanlytics/log";
@@ -79,7 +80,7 @@ async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
  */
 async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.push) throw new Error("push_send: this runtime holds no push transport");
-  const id = String(job.payload.notification_id ?? "");
+  const id = textOrEmpty(job.payload.notification_id);
   if (!id) throw new Error("push_send: no notification named");
   const result = must(
     "push_send: cannot read the notification",

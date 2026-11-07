@@ -5,6 +5,7 @@
  * peek, the bell) reads it here.
  */
 import { plural } from "../../shared/words";
+import { isOneOf } from "../../shared/unknown";
 
 /** Where a person's name came from (00413 contacts.name_source), in the one order: see person_name_rank. */
 export const NAME_SOURCES = ["typed", "import", "calendar", "signature", "wire", "lead"] as const;
@@ -12,9 +13,7 @@ export type NameSource = (typeof NAME_SOURCES)[number];
 
 /** A name source as the wire carries it, or null for a person whose name nobody set, or set before it was kept. */
 export function asNameSource(value: unknown): NameSource | null {
-  return typeof value === "string" && (NAME_SOURCES as readonly string[]).includes(value)
-    ? (value as NameSource)
-    : null;
+  return isOneOf(NAME_SOURCES, value) ? value : null;
 }
 
 /** The words of a signer's name, its offer and its press. */

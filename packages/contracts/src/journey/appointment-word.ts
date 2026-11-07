@@ -10,6 +10,7 @@
  * consult-first appointment and its list) and "booking" (the act and the link, `bookings.tool`). "Class" is not in the set.
  */
 import { capitalize, plural } from "../shared/words";
+import { isOneOf } from "../shared/unknown";
 
 /** The words a workspace may call an appointment, in the order a picker offers them. */
 export const APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"] as const;
@@ -18,7 +19,7 @@ export type AppointmentWord = (typeof APPOINTMENT_WORDS)[number];
 
 /** Whether a value is one of the five: a stored word read back is checked, never trusted. */
 export function isAppointmentWord(value: unknown): value is AppointmentWord {
-  return typeof value === "string" && (APPOINTMENT_WORDS as readonly string[]).includes(value);
+  return typeof value === "string" && isOneOf(APPOINTMENT_WORDS, value);
 }
 
 /**

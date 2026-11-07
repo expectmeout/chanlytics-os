@@ -223,10 +223,10 @@ export function reachOutDraftIssues(reachOutDraft: ReachOutDraft, has: { booking
     reachOutChainBodyOf(reachOutDraft, "00000000-0000-4000-8000-000000000000"),
     has,
   );
-  const steps = reachOutDraft.steps.map(() => ({
-    subject: [] as string[],
-    body: [] as string[],
-    after_days: [] as string[],
+  const steps = reachOutDraft.steps.map((): ReachOutDraftIssues["steps"][number] => ({
+    subject: [],
+    body: [],
+    after_days: [],
   }));
   const out: ReachOutDraftIssues = { steps, signed_by: [], chain: [], ready: issues.length === 0 };
   for (const i of issues) {

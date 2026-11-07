@@ -16,6 +16,7 @@ import {
   type PeopleCompanySize,
   type PeopleSeniority,
 } from "./card";
+import { isOneOf } from "../../../shared/unknown";
 
 export const PEOPLE_KEYWORD_CHARS = 40;
 
@@ -130,12 +131,12 @@ export function peoplePlanOf(raw: unknown): LeadPeoplePlan | null {
     count,
     titles,
     seniority: strs(value.seniority, PEOPLE_SENIORITIES.length, 20).filter((s): s is PeopleSeniority =>
-      (PEOPLE_SENIORITIES as readonly string[]).includes(s),
+      isOneOf(PEOPLE_SENIORITIES, s),
     ),
     industries: strs(value.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
     keywords: strs(value.keywords, PEOPLE_KEYWORDS_MAX, PEOPLE_KEYWORD_CHARS),
     sizes: strs(value.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter((s): s is PeopleCompanySize =>
-      (PEOPLE_COMPANY_SIZES as readonly string[]).includes(s),
+      isOneOf(PEOPLE_COMPANY_SIZES, s),
     ),
     states: strs(value.states, PEOPLE_STATES_MAX, 2)
       .map((s) => s.toUpperCase())

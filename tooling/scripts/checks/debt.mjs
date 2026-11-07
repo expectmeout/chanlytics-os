@@ -313,6 +313,7 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ["as unknown as", fieldTotal(casts, "unknownAs"), ""],
     ["as never", fieldTotal(casts, "never"), ""],
     ["non-null assertions, x!", fieldTotal(casts, "nonNull"), ""],
+    ["assertions, as T", total(by.assertions), `in ${keys(by.assertions)} files`],
     ["index reads the compiler lets pass", total(unchecked), `in ${keys(unchecked)} files`],
     ["table names outside packages/db", total(tableCalls(by.tables, false)), ""],
     ["SQL functions outside packages/db", total(tableCalls(by.tables, true)), "called by .rpc"],

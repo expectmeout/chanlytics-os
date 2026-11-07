@@ -16,6 +16,7 @@ import * as z from "zod/mini";
 import { MIN_MS } from "../shared/time";
 import type { Tone } from "./tone";
 import { PAGE_METRICS, PAGE_NAME, PAGE_VITALS, type PageVital } from "./vitals-pages";
+import { isOneOf } from "../shared/unknown";
 
 /**
  * Each metric's thresholds at the 75th percentile, as web.dev states them: good at or under the first, poor over the
@@ -160,7 +161,7 @@ export interface PageVitalsVM {
 const VERDICT_TONES: Readonly<Record<PageVitalVerdict, Tone>> = { good: "ok", "needs work": "warn", poor: "danger" };
 
 function isVital(m: string): m is PageVital {
-  return (PAGE_VITALS as readonly string[]).includes(m);
+  return isOneOf(PAGE_VITALS, m);
 }
 
 /** "1 load", "812 loads", "25,000 loads". */

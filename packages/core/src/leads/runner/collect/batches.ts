@@ -319,11 +319,11 @@ async function judgedBatch(
   toJudge: Prepared[],
   sites: SiteReads,
 ): Promise<{ said: Map<Prepared, Said>; judgments: CollectJudgment[]; refused: string | null; cutAt: number | null }> {
-  const out = {
+  const out: Awaited<ReturnType<typeof judgedBatch>> = {
     said: new Map<Prepared, Said>(),
-    judgments: [] as CollectJudgment[],
-    refused: null as string | null,
-    cutAt: null as number | null,
+    judgments: [],
+    refused: null,
+    cutAt: null,
   };
   if (!toJudge.length) return out;
   if (outOfTime(leadPorts, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");

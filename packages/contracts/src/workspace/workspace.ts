@@ -27,7 +27,9 @@ export const DEFAULT_TIMEZONE = "America/New_York";
  * constraint because pg_timezone_names is a set-returning function and not
  * immutable. So the database stores text and this is the gate in front of it.
  */
-export function isTimezone(raw: unknown): raw is string {
+export function isTimezone(raw: string): boolean;
+export function isTimezone(raw: unknown): raw is string;
+export function isTimezone(raw: unknown): boolean {
   if (typeof raw !== "string" || !raw.trim()) return false;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: raw });

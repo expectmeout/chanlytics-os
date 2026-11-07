@@ -13,6 +13,7 @@ import {
   mailboxRampShare,
   type MailboxHold,
 } from "../mailbox-standing";
+import { isOneOf } from "../../shared/unknown";
 
 /* ------------------------------------------------------------------------------------------------ the closed sets */
 
@@ -187,10 +188,8 @@ export function mailboxConnectionDtoOf(
     host: row.host,
     from_name: row.from_name,
     signature: row.signature,
-    state: (MAILBOX_CONNECTION_STATES as readonly string[]).includes(row.state)
-      ? (row.state as MailboxConnectionState)
-      : "removed",
-    held_why: (MAILBOX_HOLDS as readonly string[]).includes(row.held_why ?? "") ? (row.held_why as MailboxHold) : null,
+    state: isOneOf(MAILBOX_CONNECTION_STATES, row.state) ? row.state : "removed",
+    held_why: isOneOf(MAILBOX_HOLDS, row.held_why) ? row.held_why : null,
     held_at: row.held_at,
     resting_until: row.resting_until,
     daily_cap: row.daily_cap,

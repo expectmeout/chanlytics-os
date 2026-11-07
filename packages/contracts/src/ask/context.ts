@@ -8,6 +8,7 @@
 import { ASK_SCOPE_KINDS, type AskScope, type AskScopeKind, type AskSurface } from "./ask";
 import type { AskMessageVM } from "./thread-words";
 import { answerFromV1 } from "./answer/shape";
+import { isOneOf } from "../shared/unknown";
 
 /** The rows a context may carry: what one screen shows, and what one turn's context can afford (the plan, D11). */
 export const ASK_CONTEXT_MAX_ROWS = 40;
@@ -63,7 +64,7 @@ export interface PageContext {
 }
 
 /** A kind of row a focus may be: a scope's, the page aside. */
-const isRowFocus = (k: string): k is AskScopeKind => k !== "page" && (ASK_SCOPE_KINDS as readonly string[]).includes(k);
+const isRowFocus = (k: string): k is AskScopeKind => k !== "page" && isOneOf(ASK_SCOPE_KINDS, k);
 
 /**
  * The row an answer's n-th item names, as a focus (the Phase 5 plan, D7): "open the second", asked in an open thread,

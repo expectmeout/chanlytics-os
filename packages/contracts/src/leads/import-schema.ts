@@ -33,7 +33,7 @@ export type LeadImportInput = z.infer<typeof LeadImportSchema>;
 /** POST lead-searches/chosen: the list's name and the chosen leads (J7). */
 export const LeadChooseSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  lead_ids: z.array(z.string().uuid()).min(1).max(LEAD_LIST_MAX),
+  lead_ids: z.array(z.uuid()).min(1).max(LEAD_LIST_MAX),
 });
 
 export type LeadChooseInput = z.infer<typeof LeadChooseSchema>;

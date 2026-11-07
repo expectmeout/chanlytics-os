@@ -33,6 +33,7 @@ import {
   listToken,
   type ListRef,
   DAY_MS,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/log";
 import { assembleRun } from "./assemble";
@@ -127,7 +128,7 @@ function asked(raw: unknown): Asked {
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   if (!UUID.test(templateId)) throw new AppError("validation", "Pick a template.");
   const kind = body?.audience?.kind;
-  if (typeof kind !== "string" || !(AUDIENCE_KINDS as readonly string[]).includes(kind)) {
+  if (typeof kind !== "string" || !isOneOf(AUDIENCE_KINDS, kind)) {
     throw new AppError("validation", "Pick who this goes to.");
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;

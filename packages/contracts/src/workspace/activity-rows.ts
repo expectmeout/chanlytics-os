@@ -2,6 +2,7 @@ import { DECISION_VERBS, EVENT_KINDS, WABA_FIELDS } from "../shared/enums";
 import { isUuid } from "../shared/identity";
 import { activityWords } from "./activity/words";
 import type { ActivityRowDto } from "./activity/dtos";
+import { isOneOf } from "../shared/unknown";
 
 /**
  * The activity log's rows, as both ledgers become them: which kinds are kept from an owner unless asked for by name, which
@@ -59,10 +60,7 @@ export const ACTIVITY_KINDS: readonly string[] = [
 
 /** true for a kind an owner is not shown unless they ask for it by name. */
 export function isActivityNoise(kind: string): boolean {
-  return (
-    ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) ||
-    (ACTIVITY_NOISE_KINDS as readonly string[]).includes(kind)
-  );
+  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || isOneOf(ACTIVITY_NOISE_KINDS, kind);
 }
 
 /** One row of the decisions ledger, as the log reads it. */

@@ -9,7 +9,7 @@
 
 import type { Theme } from "../shell/chrome/theme";
 import { isUuid } from "../shared/identity";
-import { isCount } from "../shared/unknown";
+import { isCount, isOneOf } from "../shared/unknown";
 import { parseTodayWidgetSnapshot, type TodayWidgetSnapshot } from "./widget";
 
 /** A hash route's name as the shell writes it: `today`, `inbox`, `clients/abc-123`. Never a URL, never a scheme. */
@@ -101,7 +101,7 @@ const PAGE_MESSAGES: { [K in PageMessage["t"]]: (v: Record<string, unknown>) => 
   file: (v) =>
     typeof v.name === "string" &&
     APP_FILE_NAME_RE.test(v.name) &&
-    (APP_FILE_TYPES as readonly unknown[]).includes(v.type) &&
+    isOneOf(APP_FILE_TYPES, v.type) &&
     typeof v.text === "string" &&
     v.text.length <= APP_FILE_MAX_CHARS
       ? { t: "file", name: v.name, type: v.type as AppFileType, text: v.text }

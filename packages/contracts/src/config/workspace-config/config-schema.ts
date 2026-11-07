@@ -20,7 +20,7 @@ import { ASK_GOAL_MAX, MAX_CLOSURES, dayProblems, isRealDate } from "./config-ru
 
 export const NotificationsConfigSchema = z
   .object({
-    escalation_emails: z.array(z.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
+    escalation_emails: z.array(z.email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
     from: z.string().max(200).optional(),
     /**
      * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
@@ -163,7 +163,7 @@ export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
   for (const p of dayProblems(h, day)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["brain", "profile", "hours", day, ...p.path],
       message: p.message,
     });
@@ -178,7 +178,7 @@ function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
 function checkCalendarDay(day: string, path: (string | number)[], ctx: z.RefinementCtx): void {
   if (!isRealDate(day)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path,
       message: `${day} is not a date on the calendar.`,
     });
@@ -191,7 +191,7 @@ function checkClosure(closure: Closure, count: number, ctx: z.RefinementCtx): vo
   if (closure.until) checkCalendarDay(closure.until, at("until"), ctx);
   if (closure.until && closure.until < closure.date) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: at("until"),
       message: "A closure cannot end before it starts.",
     });
@@ -203,7 +203,7 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["calendar", "ical_url"],
       message: feedProblemWords("address") ?? "Not an address the receptionist may read.",
     });
@@ -221,7 +221,7 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   for (const [day, h] of Object.entries(profile.hours ?? {})) if (h) checkDay(h, day, ctx);
   if ((profile.closures?.length ?? 0) > MAX_CLOSURES) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["brain", "profile", "closures"],
       message: `At most ${MAX_CLOSURES} closures.`,
     });

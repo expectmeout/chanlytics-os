@@ -12,6 +12,7 @@
  * Whoever may receive one is the rule's (consent.ts mayMessageFor: no unsubscribe, and a relationship on record or their
  * own yes); this is the workspace's side. Visit messages and replies by email are never held by any of it.
  */
+import { isOneOf } from "../../shared/unknown";
 
 /** What a tick, a refusal and the Campaigns head say of offers by email. One owner for each sentence. */
 export const OFFERS_BY_EMAIL_WORDS = {
@@ -86,7 +87,7 @@ export function offerPauseOf(at: string | null | undefined, reason: string | nul
   if (!at) return null;
   return {
     at,
-    reason: (OFFER_PAUSE_REASONS as readonly string[]).includes(reason ?? "") ? (reason as OfferPauseReason) : null,
+    reason: isOneOf(OFFER_PAUSE_REASONS, reason) ? reason : null,
   };
 }
 

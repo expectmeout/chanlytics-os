@@ -5,6 +5,7 @@
  * triggers that the fixes beside them need.
  */
 import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
+import { isOneOf } from "../../shared/unknown";
 
 /**
  * The codes a run's `failure` holds: what the send job writes (core messages/broadcast/batch.ts) and the one the job ledger
@@ -33,9 +34,8 @@ export type BroadcastFailure = (typeof BROADCAST_FAILURES)[number];
 const WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"] as const satisfies readonly BroadcastFailure[];
 export type WireFailure = (typeof WIRE_FAILURES)[number];
 
-const isFailure = (code: string): code is BroadcastFailure => (BROADCAST_FAILURES as readonly string[]).includes(code);
-const isWireFailure = (code: BroadcastFailure): code is WireFailure =>
-  (WIRE_FAILURES as readonly string[]).includes(code);
+const isFailure = (code: string): code is BroadcastFailure => isOneOf(BROADCAST_FAILURES, code);
+const isWireFailure = (code: BroadcastFailure): code is WireFailure => isOneOf(WIRE_FAILURES, code);
 
 /** A stored failure read: its code and the channel it names (WhatsApp where it names none); null for any other text. */
 export function readFailure(stored: string): { code: BroadcastFailure; channel: ConsentChannel } | null {

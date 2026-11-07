@@ -5,6 +5,7 @@
 import { CANNOT_SAY_SERVICES } from "./business-gap";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
 import { blockShareWords } from "./prompt-cost-words";
+import { isList } from "../../shared/unknown";
 
 /* ---- What you offer ---- */
 
@@ -71,7 +72,7 @@ export function serviceLineWords(
  */
 export function servicesWords(services: readonly ServiceWordsInput[] | null | undefined): ServicesWordsVM {
   // A stored list that is not one (a hand-edited record) is no services, never a throw: the page draws this as it draws.
-  const list = (Array.isArray(services) ? services : []).filter(
+  const list = (isList(services) ? services : []).filter(
     (s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "",
   );
   const length = list.length;

@@ -280,13 +280,8 @@ const EMPTY = { body: [], always: [], named: new Map(), stars: [], locals: new S
 const key = (file, part) => `${file}\0${part}`;
 const fileOfKey = (k) => k.slice(0, k.indexOf("\0"));
 
-/**
- * The graph over a tree of files: `files`, the repository's paths, and `read(file)`, a file's text. Each node is a
- * module, or one name of a barrel on the way to the module that defines it; built once from every test.
- */
-export function reachOf({ files, read }) {
-  const fileSet = new Set(files);
-  const resolve = resolverOf(fileSet, read);
+/** Each module as its syntax tree says it (`moduleOf`), and every name it exports, through its stars (`exportsOf`). */
+function namesOf(fileSet, read, resolve) {
   const modules = new Map();
 
   function moduleOf(file) {
@@ -320,6 +315,17 @@ export function reachOf({ files, read }) {
     for (const s of m.stars) for (const n of exportsOf(s.file)) if (n !== "default") names.add(n);
     return names;
   }
+  return { moduleOf, exportsOf };
+}
+
+/**
+ * The graph over a tree of files: `files`, the repository's paths, and `read(file)`, a file's text. Each node is a
+ * module, or one name of a barrel on the way to the module that defines it; built once from every test.
+ */
+export function reachOf({ files, read }) {
+  const fileSet = new Set(files);
+  const resolve = resolverOf(fileSet, read);
+  const { moduleOf, exportsOf } = namesOf(fileSet, read, resolve);
 
   /** The node a request of a module is: all of it ("*"), its body (""), or a name it passes on. */
   function nodeOf(file, name) {
@@ -405,4 +411,179 @@ export function reachOf({ files, read }) {
       return reached;
     },
   };
+}
+
+/* ---------------------------------------------------------------- what the suite takes by name */
+
+/** The suite's files that take from the code: its tests and the helpers beside them. */
+const SUITE = /^tests\/.+\.mjs$/;
+/** A module whose export statements say its names (a `.js` or `.cjs` file may be CommonJS, which says them otherwise). */
+const NAMED = /\.(ts|tsx|mts|mjs)$/;
+
+/** The path a call says into the tree, as the first string in it that folds to a module's path (`at("apps/…")`). */
+function saidPathIn(node, consts) {
+  let found = null;
+  const visit = (n) => {
+    if (found !== null) return;
+    const said = textOf(n) !== null || ts.isTemplateExpression(n) || ts.isIdentifier(n) ? folded(n, consts) : null;
+    if (said !== null && INTO_THE_TREE.test(said) && CODE.test(said)) found = said;
+    else ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
+/** Where a call that loads a module loads it from, or null: `import()`, `importSrc` and `importBundle`. */
+function loadedBy(n, consts) {
+  if (!ts.isCallExpression(n) || !n.arguments.length) return null;
+  const helper = ts.isIdentifier(n.expression) ? n.expression.text : null;
+  const isImport = n.expression.kind === ts.SyntaxKind.ImportKeyword;
+  const [arg] = n.arguments;
+  if (helper === "importBundle") {
+    const bundle = folded(arg, consts);
+    return bundle ? { bundle } : null;
+  }
+  if (!isImport && helper !== "importSrc") return null;
+  if (isImport && textOf(arg) !== null) return { spec: textOf(arg) };
+  const path = saidPathIn(arg, consts);
+  return path ? { path } : null;
+}
+
+/** A name read only to say it is gone: `assert.equal(mod.name, undefined, …)`. */
+function saidGone(access) {
+  const call = access.parent;
+  return (
+    ts.isCallExpression(call) &&
+    call.arguments[0] === access &&
+    /^assert\.(strictEqual|equal)$/.test(call.expression.getText()) &&
+    call.arguments[1]?.getText() === "undefined"
+  );
+}
+
+/** The module a whole binding holds: `import * as m`, or `const m = await import(…)` (and the helpers). */
+function wholeOf(node, consts) {
+  if (ts.isImportDeclaration(node)) {
+    const b = node.importClause?.namedBindings;
+    const spec = textOf(node.moduleSpecifier);
+    return !node.importClause?.isTypeOnly && b && ts.isNamespaceImport(b) && spec ? [b.name.text, { spec }] : null;
+  }
+  if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer) return null;
+  const init = ts.isAwaitExpression(node.initializer) ? node.initializer.expression : node.initializer;
+  const from = loadedBy(init, consts);
+  return from ? [node.name.text, from] : null;
+}
+
+/**
+ * What one file of the suite takes by name, each `{ line, names }` with where from: `spec`, a static import's or a
+ * literal `import()`'s; `path`, a module `import()`, `importSrc` or a helper loads by a path it says
+ * (`import(at("apps/…"))`, `importSrc("packages/…")`); `bundle`, a package `importBundle` loads whole. A module held
+ * whole gives the names read off it, destructured (`const { a } = contracts`) or by a dot (`contracts.a`).
+ */
+function takesIn(file, text) {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kindOf(file));
+  const consts = constsOf(sf);
+  const lineOf = (n) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+  const out = [];
+  // A whole binding is read by its name, so only a name the file declares once: another of that name in another scope
+  // is another value, which this does not tell apart.
+  const wholes = new Map();
+  const declared = new Map();
+  const collect = (n) => {
+    const whole = wholeOf(n, consts);
+    if (whole) wholes.set(...whole);
+    const name = ts.isVariableDeclaration(n) || ts.isParameter(n) || ts.isBindingElement(n) ? n.name : null;
+    for (const id of name ? boundNames(name) : []) declared.set(id, (declared.get(id) ?? 0) + 1);
+    if ((ts.isFunctionDeclaration(n) || ts.isNamespaceImport(n) || ts.isImportSpecifier(n)) && n.name)
+      declared.set(n.name.text, (declared.get(n.name.text) ?? 0) + 1);
+    ts.forEachChild(n, collect);
+  };
+  collect(sf);
+  for (const id of [...wholes.keys()]) if ((declared.get(id) ?? 0) > 1) wholes.delete(id);
+  for (const st of sf.statements) {
+    const clause = ts.isImportDeclaration(st) ? st.importClause : null;
+    if (!clause || clause.isTypeOnly) continue;
+    const names = clause.name ? ["default"] : [];
+    const b = clause.namedBindings;
+    for (const el of b && ts.isNamedImports(b) ? b.elements : [])
+      if (!el.isTypeOnly) names.push((el.propertyName ?? el.name).text);
+    const spec = textOf(st.moduleSpecifier);
+    if (spec && names.length) out.push({ line: lineOf(st), spec, names });
+  }
+  const visit = (n) => {
+    const from = loadedBy(n, consts);
+    const asked = from ? askedOf(n) : null;
+    if (from && asked) out.push({ line: lineOf(n), ...from, names: asked });
+    if (
+      ts.isVariableDeclaration(n) &&
+      n.initializer &&
+      ts.isIdentifier(n.initializer) &&
+      ts.isObjectBindingPattern(n.name)
+    ) {
+      const whole = wholes.get(n.initializer.text);
+      const names = whole
+        ? n.name.elements
+            .map((el) => el.propertyName ?? el.name)
+            .filter(ts.isIdentifier)
+            .map((k) => k.text)
+        : [];
+      if (names.length) out.push({ line: lineOf(n), ...whole, names });
+    }
+    if (
+      ts.isPropertyAccessExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      wholes.has(n.expression.text) &&
+      !saidGone(n)
+    )
+      out.push({ line: lineOf(n), ...wholes.get(n.expression.text), names: [n.name.text] });
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/**
+ * Every name the suite takes from the code that the code does not have (decision 0112): `{ file, line, module, name }`,
+ * read from the syntax trees over `files` and `read(file)`, the import graph's own resolution and export names. A name
+ * a module stopped exporting, or a module no file answers (`name` null), fails where a test asks for it, at load,
+ * which a type checker never sees in the suite's JavaScript and in a path it builds; on 7 Nov 2026 a rename of 5,472
+ * names left 34 such takes in 9 test files, which CI then found one run at a time.
+ */
+export function missingTakes({ files, read }) {
+  const fileSet = new Set(files);
+  const resolve = resolverOf(fileSet, read);
+  const { exportsOf } = namesOf(fileSet, read, resolve);
+  const { bundles } = packagesOf(files, read);
+  const missing = [];
+  for (const file of files) {
+    if (!SUITE.test(file)) continue;
+    for (const t of takesIn(file, read(file))) {
+      let targets;
+      // A package's bundle, said by its path (`../../packages/core/dist/index.js`), is read as the sources it is built from.
+      const bundle = t.spec?.startsWith(".") ? bundles.get(posix.join(posix.dirname(file), t.spec)) : undefined;
+      if (bundle) targets = [bundle];
+      else if (t.spec)
+        targets = resolve
+          .specifier(file, t.spec, t.names)
+          .filter((r) => CODE.test(r.file))
+          .slice(0, 1)
+          .map((r) => r.file);
+      else if (t.bundle)
+        targets = [...bundles].filter(([out]) => out.startsWith(`packages/${t.bundle}/`)).map(([, src]) => src);
+      else {
+        const base = t.path.startsWith(".") ? posix.join(posix.dirname(file), t.path) : posix.normalize(t.path);
+        targets = [bundles.get(base) ?? candidatesOf(base).find((c) => fileSet.has(c)) ?? base];
+      }
+      if (targets.length === 0) continue;
+      const gone = targets.find((f) => !fileSet.has(f));
+      if (gone) {
+        missing.push({ file, line: t.line, module: gone, name: null });
+        continue;
+      }
+      if (!targets.every((f) => NAMED.test(f))) continue;
+      const has = new Set(targets.flatMap((f) => [...exportsOf(f)]));
+      for (const name of t.names)
+        if (!has.has(name)) missing.push({ file, line: t.line, module: targets.join(" + "), name });
+    }
+  }
+  return missing;
 }
