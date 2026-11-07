@@ -40,6 +40,7 @@ import {
   type AskProposalOutcome,
   type PlanMade,
   type ProposalRefusal,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
@@ -208,7 +209,7 @@ export async function undoProposal(
   outcome: AskProposalOutcome,
   client: Api = apiFor(win),
 ): Promise<UndoResult> {
-  const record = (outcome.undo ?? null) as Record<string, unknown> | null;
+  const record = outcome.undo ?? null;
   if (!record) return { ok: false, message: PROPOSAL_WORDS.noUndo };
   const { spec, unreached } = await specOf(p.kind);
   if (unreached) return unreached;
@@ -227,7 +228,7 @@ export async function undoProposal(
  */
 export function editReply(win: Window, p: AskProposal): void {
   const pl = p.payload;
-  const text = (v: unknown): string => (v == null ? "" : String(v));
+  const text = textOrEmpty;
   const threadId = `th-${text(pl.conversation_id)}`;
   win.__tabMemory?.keepDraft("reply", text(pl.text), threadId);
   win.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { text: text(pl.text), threadId } }));

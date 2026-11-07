@@ -123,7 +123,7 @@ export const ASK_MEMORY_WORDS = {
   journalHead: "Ask's journal",
   none: "Nothing yet. Tell Ask something worth keeping, like who your best customers are, and it remembers it here.",
   noJournal: "Ask writes a line here at the end of each day something happened.",
-  sources: { ask: "Told to Ask", pane: "Written here", learned: "Learned from how you write" } as Record<
+  sources: { ask: "Told to Ask", pane: "Written here", learned: "Learned from how you write" } satisfies Record<
     AskMemorySource,
     string
   >,

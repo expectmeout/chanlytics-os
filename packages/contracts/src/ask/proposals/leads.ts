@@ -12,7 +12,7 @@ import { asText, idIn, rec, type ProposalSpec, type ProposalSpecAboveOperator, L
 /** The search a lead card answers (spec G4), when it answers one rather than starting its own. */
 const amendsOf = (pl: Record<string, unknown> | undefined): { search_id: string; name?: unknown } | null => {
   const am = (pl?.amends ?? null) as { search_id?: unknown; name?: unknown } | null;
-  return am && typeof am.search_id === "string" && am.search_id ? (am as { search_id: string; name?: unknown }) : null;
+  return am && typeof am.search_id === "string" && am.search_id ? { ...am, search_id: am.search_id } : null;
 };
 
 export const leadSearchSpec: ProposalSpecAboveOperator = {

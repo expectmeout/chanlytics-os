@@ -1,4 +1,5 @@
 /** Models: ids. */
+import { entryOf } from "../../shared/unknown";
 
 /**
  * Which model each purpose asks, said once (scorecard move 10; defect 54).
@@ -114,7 +115,7 @@ export const MODEL_TAKES: Record<ModelId, ModelTakes> = {
 
 /** What a model takes; null for one the registry does not list (a variable's), which is sent what it is asked. */
 export function modelTakes(model: string): ModelTakes | null {
-  return (MODEL_TAKES as Record<string, ModelTakes>)[model] ?? null;
+  return entryOf(MODEL_TAKES, model) ?? null;
 }
 
 /** Whether a model runs fast mode: the registry's word, and no for a model it does not list. */

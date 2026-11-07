@@ -132,7 +132,7 @@ export interface FoundVM {
 export const FOUND_WORDS = {
   title: "Found for you",
   lead: "Read from your Google profile and your website. Add what's right; a price comes with its service.",
-  from: { google_profile: "Google profile", website: "your website" } as Record<BusinessReadSource, string>,
+  from: { google_profile: "Google profile", website: "your website" } satisfies Record<BusinessReadSource, string>,
   /** The website's read, where it read the booking platform's page too. */
   fromWithBooking: "your website and booking page",
   add: "Add",

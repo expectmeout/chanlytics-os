@@ -81,8 +81,12 @@ async function show(page: Page, theme: Theme = "dark", look: Look = "glass") {
   await page.evaluate(() => document.fonts.ready);
 }
 
+/** A condition the page runs on what it is handed, as Playwright's own wait types it (its PageFunction, not exported). */
+declare const _page: Page;
+type PageCondition<A> = Exclude<Parameters<typeof _page.waitForFunction<boolean, A>>[0], string>;
+
 /** Whether a condition in the page comes true within the wait: the one way this spec waits. */
-async function met<A>(page: Page, predicate: (arg: A) => boolean, arg: A, timeout = WAIT_MS): Promise<boolean> {
+async function met<A>(page: Page, predicate: PageCondition<A>, arg: A, timeout = WAIT_MS): Promise<boolean> {
   try {
     await page.waitForFunction(predicate, arg, { timeout });
     return true;

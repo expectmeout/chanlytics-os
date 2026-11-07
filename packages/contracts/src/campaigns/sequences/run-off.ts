@@ -8,6 +8,7 @@
 import { addressOf } from "../../activity/record-address";
 import { clockDate } from "../../shared/clock";
 import type { SequenceRowDto } from "./dto";
+import { isOneOf } from "../../shared/unknown";
 
 /** Why a run did nothing, as core runPlaybook records it (`skipped`), that a sequence's record says. */
 const RUN_OFF_REASONS = [
@@ -20,8 +21,7 @@ const RUN_OFF_REASONS = [
 ] as const;
 export type RunOffReason = (typeof RUN_OFF_REASONS)[number];
 
-const isRunOffReason = (reason: string): reason is RunOffReason =>
-  (RUN_OFF_REASONS as readonly string[]).includes(reason);
+const isRunOffReason = (reason: string): reason is RunOffReason => isOneOf(RUN_OFF_REASONS, reason);
 
 /** What each reason says, and the act that mends it: a door, End it, or none. */
 const RUN_OFF_WORDS: Record<RunOffReason, { said: string; act: string | null; mends: "door" | "end" | null }> = {

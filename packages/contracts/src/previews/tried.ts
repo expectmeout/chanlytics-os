@@ -7,6 +7,7 @@
  *   previewSaidOf      what the business said is not right, each a line
  */
 import { MIN_MS, SECOND_MS } from "../shared/time";
+import { entryOf } from "../shared/unknown";
 
 /** How far back Today names a lead who tried their preview: a hot lead goes cold in days, not weeks. */
 export const PREVIEW_TRIED_DAYS = 3;
@@ -36,7 +37,7 @@ export const PREVIEW_FACT_NAMES = {
 /** One thing they said is not right: the fact by its row's name, and their words where they gave some. */
 function previewNotRightWords(fact: string, sentence: string | null): string {
   // The page sends the fact by its row's label ("Hours"); a key ("hours") reads the same.
-  const name = ((PREVIEW_FACT_NAMES as Record<string, string>)[fact] ?? fact).toLowerCase();
+  const name = (entryOf(PREVIEW_FACT_NAMES, fact) ?? fact).toLowerCase();
   const isNot = name === "hours" || name === "services" ? "aren't" : "isn't";
   return sentence ? `Says the ${name} ${isNot} right: “${sentence}”` : `Says the ${name} ${isNot} right`;
 }

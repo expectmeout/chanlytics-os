@@ -6,6 +6,7 @@
  * reset say, and how the Auth server's refusals read to a person. Supabase Auth holds the factor; nothing here stores
  * or checks one.
  */
+import { textOrEmpty } from "../shared/unknown";
 
 /** What Supabase Auth says about a session: the level it has, and the level its account can reach. */
 export interface AssuranceLevels {
@@ -123,7 +124,7 @@ export function factorCodeWords(message: string | null | undefined): string {
 
 /** A six-digit code, as typed: spaces dropped. */
 export function cleanFactorCode(raw: unknown): string | null {
-  const code = String(raw ?? "").replace(/\s+/g, "");
+  const code = textOrEmpty(raw).replace(/\s+/g, "");
   return /^\d{6}$/.test(code) ? code : null;
 }
 

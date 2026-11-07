@@ -13,13 +13,13 @@ import {
   type ProposalSpec,
   oneOrMany,
 } from "./spec";
+import { listOrEmpty } from "../../shared/unknown";
 
 /** The most people one request puts on or takes off a list kept by hand (the lists door's LIST_BATCH_MAX). */
 const LIST_PART = 500;
 
 /** The names a delete that archived says (`paused`, `read_by`), as text. */
-const namesIn = (d: Record<string, unknown>, k: string): string[] =>
-  Array.isArray(d[k]) ? (d[k] as unknown[]).map(asText).filter(Boolean) : [];
+const namesIn = (d: Record<string, unknown>, k: string): string[] => listOrEmpty(d[k]).map(asText).filter(Boolean);
 
 /**
  * What a list's delete did, in People's words: deleted, or archived where something depends on it (a campaign on it, a

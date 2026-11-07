@@ -7,6 +7,7 @@ import type { SchemaSet } from "../../shared/schema-sets";
 import type { SystemOneQuestion } from "../../ai/system-one";
 import { PLAYBOOK_VETO_DELAY_WORDS } from "../../campaigns/playbooks/triggers/notices";
 import type { PolicyLimits } from "./policy-limits-schema";
+import { isOneOf } from "../../shared/unknown";
 
 /* --------------------------------------------------------------- E3 policy */
 
@@ -143,10 +144,7 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
  * by (POLICY_CLASS_MODES). An unknown class or mode is not offered.
  */
 export function policyModeOffered(cls: string, mode: string): boolean {
-  return (
-    (POLICY_CLASSES as readonly string[]).includes(cls) &&
-    (POLICY_CLASS_MODES[cls as PolicyClass] as readonly string[]).includes(mode)
-  );
+  return isOneOf(POLICY_CLASSES, cls) && isOneOf(POLICY_CLASS_MODES[cls], mode);
 }
 
 /** Why a class cannot be set to a mode, in the words the route says; null where it can. */

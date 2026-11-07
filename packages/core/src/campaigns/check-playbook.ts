@@ -33,6 +33,7 @@ import {
   triggerWords,
   UUID,
   winBackWords,
+  isOneOf,
   type AppointmentWord,
   type CampaignMessage,
   type ConsentChannel,
@@ -407,7 +408,7 @@ export async function checkPlaybookPatch(
   when: PatchWhen,
 ): Promise<{ set: PlaybookPatch; was: PlaybookPatch }> {
   const keys = Object.keys(record).filter((k) => record[k] !== undefined);
-  if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
+  if (keys.length === 0 || keys.some((k) => !isOneOf(PLAYBOOK_PATCH_KEYS, k)))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nothing);
   if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => !reachOutTakes(row.trigger, k)))
     throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
@@ -473,9 +474,7 @@ export async function checkPlaybookMoment(
   const { listName, listKey, listId } = await listOf(ports, trig, body);
   // A playbook on a list sends an offer or a win-back, under that class's autonomy row; every other moment its own.
   const cls =
-    trig.kind === "saved" && (LIST_PLAYBOOK_CLASSES as readonly string[]).includes(String(body?.policy_class))
-      ? (body!.policy_class as PlaybookPolicyClass)
-      : trig.cls;
+    trig.kind === "saved" && isOneOf(LIST_PLAYBOOK_CLASSES, body?.policy_class) ? body.policy_class : trig.cls;
   return { trig, cls, listName, listKey, listId };
 }
 

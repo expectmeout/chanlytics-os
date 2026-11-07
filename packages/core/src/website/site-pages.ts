@@ -53,7 +53,12 @@ function pagesPicker(pageUrl: string): {
     return null;
   }
   const self = sameSite(pageUrl, home);
-  const by = { services: [] as string[], servicesAt: [] as string[], about: [] as string[], aboutAt: [] as string[] };
+  const by: Record<"services" | "servicesAt" | "about" | "aboutAt", string[]> = {
+    services: [],
+    servicesAt: [],
+    about: [],
+    aboutAt: [],
+  };
   return {
     add(href, words) {
       const page = sameSite(href, home);

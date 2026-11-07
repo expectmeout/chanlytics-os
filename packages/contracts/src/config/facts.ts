@@ -378,8 +378,8 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
       notifications?: unknown;
       features?: unknown;
     };
-    const brain = cfg.brain ?? {};
-    const { profile, ...rest } = brain as Record<string, unknown> & { profile?: Record<string, unknown> };
+    const brain: Record<string, unknown> & { profile?: Record<string, unknown> } = cfg.brain ?? {};
+    const { profile, ...rest } = brain;
     // The profile is where most edits land, so its keys are named individually
     // — "profile" changed is true of nearly every save and tells nobody
     // anything. The other sections are one key each: swapping the calendar

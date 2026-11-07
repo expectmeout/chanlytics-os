@@ -47,7 +47,7 @@ export const PERSON_CALL_WORDS = {
   dialHint: "Your own phone rings them; the receptionist never does",
   logPast: "Log a call you already made",
   question: LEAD_CALL_QUESTION,
-  outcomes: { spoke: "Spoke", ...LEAD_CALL_OUTCOME_WORDS } as Record<PersonCallOutcome, string>,
+  outcomes: { spoke: "Spoke", ...LEAD_CALL_OUTCOME_WORDS } satisfies Record<PersonCallOutcome, string>,
   callBack: "Call back",
   said: "What was said",
   saidPlaceholder: "What was said (team only)",

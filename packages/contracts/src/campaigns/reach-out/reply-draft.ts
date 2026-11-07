@@ -5,6 +5,7 @@
  */
 import { fencedInline, promptSafeName } from "../../ai/fence";
 import { clipAtWord } from "../../conversations/message-words";
+import { isOneOf } from "../../shared/unknown";
 
 /**
  * Why a reading has no draft (reach_out_replies.draft_why, at most 60 characters):
@@ -16,7 +17,7 @@ import { clipAtWord } from "../../conversations/message-words";
  */
 export const DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"] as const;
 export type DraftWhy = (typeof DRAFT_WHYS)[number];
-export const isDraftWhy = (value: unknown): value is DraftWhy => (DRAFT_WHYS as readonly unknown[]).includes(value);
+export const isDraftWhy = (value: unknown): value is DraftWhy => isOneOf(DRAFT_WHYS, value);
 
 /**
  * The time a reading's job must have left before its deadline to draft now: the brain's one attempt (20 s,

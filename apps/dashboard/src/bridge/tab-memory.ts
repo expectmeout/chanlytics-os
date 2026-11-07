@@ -52,7 +52,7 @@ type WindowLike = { location?: { pathname?: string }; sessionStorage?: StorageLi
 
 const readAll = <T>(s: StorageLike | undefined, slot: string): Record<string, T> => {
   try {
-    const v = JSON.parse((s && s.getItem(slot)) || "{}");
+    const v: unknown = JSON.parse((s && s.getItem(slot)) || "{}");
     return v && typeof v === "object" ? (v as Record<string, T>) : {};
   } catch {
     return {};

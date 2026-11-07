@@ -50,10 +50,7 @@ export const settingsSpec: ProposalSpecAboveOperator = {
     const st = tab.settings;
     if (!st || !st.config || typeof st.version !== "number")
       return refuseWith("Settings are not loaded yet — open Settings once and try again.");
-    const config = applySettingsChange(
-      st.config as Parameters<typeof applySettingsChange>[0],
-      p.payload.change as Parameters<typeof applySettingsChange>[1],
-    );
+    const config = applySettingsChange(st.config, p.payload.change as Parameters<typeof applySettingsChange>[1]);
     return { route: "PUT settings", body: { config, version: st.version } };
   },
   receipt: (p) => p.summary,

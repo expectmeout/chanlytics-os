@@ -182,9 +182,12 @@ export const FIRST_RUN_PHONE_WORDS = {
   /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
   ringsLabel: (display: string | null) =>
     display ? `Which phone rings when customers call ${display}?` : "Which phone rings when customers call?",
-  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" } as Record<PhoneRings, string>,
+  rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" } satisfies Record<
+    PhoneRings,
+    string
+  >,
   companyLabel: "Who's the phone company?",
-  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" } as Record<
+  company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" } satisfies Record<
     PhoneCompany,
     string
   >,

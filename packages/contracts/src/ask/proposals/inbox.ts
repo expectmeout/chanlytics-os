@@ -15,6 +15,7 @@ import {
   type ProposalCall,
   type ProposalSpec,
 } from "./spec";
+import { isOneOf } from "../../shared/unknown";
 
 /** The thread verbs with an Inbox route of their own; `resolve` closes the escalation instead. */
 export const ASK_THREAD_ROUTES = {
@@ -103,11 +104,11 @@ export const threadVerbSpec: ProposalSpec = {
   gate: "approve",
   commit: (p) => {
     const verb = asText(p.payload.verb);
-    if (!(ASK_THREAD_VERBS as readonly string[]).includes(verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    if (!isOneOf(ASK_THREAD_VERBS, verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     // Every proposable verb but resolve has its route: ASK_THREAD_ROUTES satisfies the whole list.
     return verb === "resolve"
       ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } }
-      : threadCall(verb as RoutedVerb, p.payload.conversation_id, p.payload.until);
+      : threadCall(verb, p.payload.conversation_id, p.payload.until);
   },
   receipt: (p) => {
     const verb = asText(p.payload.verb);

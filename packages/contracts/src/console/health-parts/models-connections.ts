@@ -7,6 +7,7 @@ import { capitalize } from "../../shared/words";
 import type { HealthScope } from "../health-scope";
 import { subscriberWords } from "../health-clocks";
 import { SEND_CHANNEL_WORDS, inScopeRows, latest, type HealthPartsDto } from "./sends-calls";
+import { entryOf } from "../../shared/unknown";
 
 // ----------------------------------------------------------------------------------------------- model calls
 
@@ -35,7 +36,7 @@ const PURPOSE_WORDS: Record<ModelPurpose | HearingPurpose | "ask_warm", string> 
 };
 
 function purposeWords(purpose: string): string {
-  return (PURPOSE_WORDS as Record<string, string>)[purpose] ?? purpose.replace(/_/g, " ");
+  return entryOf(PURPOSE_WORDS, purpose) ?? purpose.replace(/_/g, " ");
 }
 
 /** The outcomes that are no answer at all: the call's reason is kept (00469). */

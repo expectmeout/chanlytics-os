@@ -10,6 +10,7 @@ import type { Tone } from "../shell/tone";
 import type { JobKind } from "../shared/enums";
 import { agoWords, DAY_MS } from "../shared/time";
 import { PLATFORM_WHERE, type HealthWorkspaceDto } from "./health-scope";
+import { entryOf } from "../shared/unknown";
 
 // --------------------------------------------------------------------------------------------------- clocks
 
@@ -322,7 +323,7 @@ const JOB_WORDS: Record<JobKind, string> = {
 
 /** A job's kind in words; an unknown kind said as it is. */
 export function jobWords(kind: string): string {
-  return (JOB_WORDS as Record<string, string>)[kind] ?? kind.replace(/_/g, " ");
+  return entryOf(JOB_WORDS, kind) ?? kind.replace(/_/g, " ");
 }
 
 /**

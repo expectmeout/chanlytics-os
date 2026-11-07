@@ -12,7 +12,7 @@
  *                              templates' firstNameOf, the one rule every message greets by)
  *   leadCompanyOf              a company on its peek: the people named on it, its addressee first, and where it came from
  */
-import { recordOrNull, trimmedOrNull } from "../shared/unknown";
+import { entryOf, isOneOf, recordOrNull, trimmedOrNull } from "../shared/unknown";
 import { firstNameOf } from "../campaigns/templates/params";
 import { LEAD_CARDS } from "./search/cards";
 
@@ -26,7 +26,7 @@ export type LeadSource = (typeof LEAD_SOURCES)[number];
 /** A person's place in their company, as the people card's seniority words come down to it. */
 const LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"] as const;
 export type LeadRole = (typeof LEAD_ROLES)[number];
-const isLeadRole = (r: unknown): r is LeadRole => (LEAD_ROLES as readonly unknown[]).includes(r);
+const isLeadRole = (r: unknown): r is LeadRole => isOneOf(LEAD_ROLES, r);
 
 /** Where a company the people card found came from, as every page says it (00430): never "your list", nor Maps. */
 export const LEAD_DIRECTORY_WORDS = {
@@ -260,14 +260,14 @@ export const LEAD_ADDRESSEE_WORDS = {
     no_round: "Their address can't be checked from here.",
     searching: "Its search is still running. Choose once it has ended.",
     paused: "Searching is paused, and their address would need checking. Nothing changed.",
-  } as Readonly<Record<string, string>>,
+  },
   /** A refusal the words above do not name. */
   refusedElse: "Who it writes to did not change. Reload and try again.",
 } as const;
 
 /** A refusal of the addressee door in words, by its code (lead_addressee_choose's {error}). */
 export const leadAddresseeRefusal = (code: string): string =>
-  LEAD_ADDRESSEE_WORDS.refused[code] ?? LEAD_ADDRESSEE_WORDS.refusedElse;
+  entryOf(LEAD_ADDRESSEE_WORDS.refused, code) ?? LEAD_ADDRESSEE_WORDS.refusedElse;
 
 /** What of a lead says whether its company's people may be chosen from (the peek's row, leads_page). */
 type LeadOpenFacts = {

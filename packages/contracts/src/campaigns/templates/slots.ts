@@ -5,6 +5,7 @@
 import { starterByName, starterText } from "./starter-lookup";
 import type { StarterSlotKind } from "./starter-templates/shapes";
 import { PARAM_SOURCES, type ParamSourceKind, type ParamSpec } from "./params";
+import { listOrEmpty, recordOrEmpty } from "../../shared/unknown";
 
 /**
  * What a slot most likely takes, from the label Meta or a person gave it and
@@ -33,7 +34,7 @@ export interface VariableLike {
 
 /** The source of each slot for a template row: the starter's own, or a guess per variable. */
 export function defaultSlotKinds(target: { name: string; variables: unknown }): StarterSlotKind[] {
-  const vars = Array.isArray(target.variables) ? (target.variables as VariableLike[]) : [];
+  const vars: VariableLike[] = listOrEmpty(target.variables).map(recordOrEmpty);
   const result = starterByName(target.name);
   if (result) {
     const kinds = starterText(result, "en_US").slots.map((x) => x.kind);
@@ -142,7 +143,7 @@ export function templateSlots(
 }
 
 export function slotLabels(target: { name: string; language?: string | null; variables: unknown }): string[] {
-  const vars = Array.isArray(target.variables) ? (target.variables as VariableLike[]) : [];
+  const vars: VariableLike[] = listOrEmpty(target.variables).map(recordOrEmpty);
   const result = starterByName(target.name);
   if (result) {
     const labels = starterText(result, target.language ?? "en_US").slots.map((x) => x.label);

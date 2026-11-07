@@ -3,6 +3,7 @@
 import type { TemplateStatus } from "../../shared/enums";
 import { WHATSAPP_LANGUAGES } from "./languages";
 import { NUMBERED_SLOT } from "../../shared/words";
+import { isOneOf } from "../../shared/unknown";
 
 /**
  * Where WhatsApp has a message's version, in the owner's words, once (D1-template-marks). A refusal read "Rejected" on the
@@ -138,7 +139,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
   if (!name || !templateNameOk(name)) return { ok: false, error: TEMPLATE_NAME_WORDS };
   if (!TEMPLATE_LANGUAGES.some((l) => l.id === templateDraftInput.language))
     return { ok: false, error: "Pick a language from the list." };
-  if (!(TEMPLATE_CATEGORIES as readonly string[]).includes(templateDraftInput.category))
+  if (!isOneOf(TEMPLATE_CATEGORIES, templateDraftInput.category))
     return { ok: false, error: "A template is marketing or utility." };
   const body = bodyAsReviewed(templateDraftInput.body);
   if (!body) return { ok: false, error: "Write the message." };
@@ -197,7 +198,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
     value: {
       name,
       language: templateDraftInput.language,
-      category: templateDraftInput.category as TemplateCategoryChoice,
+      category: templateDraftInput.category,
       body,
       footer: footer || null,
       examples,

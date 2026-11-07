@@ -5,6 +5,7 @@ import { languageName } from "../../templates/languages";
 import { siteHost } from "../../../leads/search/clean";
 import { normalizeEmail } from "../../../shared/email-address";
 import { isOpeningProblem, openingProblemWords } from "./opening";
+import { isOneOf } from "../../../shared/unknown";
 
 export const CHAIN_MIN_LISTINGS = 3;
 
@@ -45,7 +46,7 @@ export const REACH_OUT_HOLDS = [
 export type ReachOutHold = (typeof REACH_OUT_HOLDS)[number];
 
 export function isReachOutHold(reason: string | null | undefined): reason is ReachOutHold {
-  return (REACH_OUT_HOLDS as readonly string[]).includes(reason ?? "");
+  return isOneOf(REACH_OUT_HOLDS, reason ?? "");
 }
 
 export type HoldDoor = "include" | "rewrite" | "skip" | "not_a_fit";

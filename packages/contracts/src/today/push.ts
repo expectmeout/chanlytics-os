@@ -1,5 +1,6 @@
 import type { NotificationsDto, ServerNotificationKind } from "./notifications/feed-input";
 import { MIN_MS } from "../shared/time";
+import { isOneOf } from "../shared/unknown";
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
 export const PUSH_PLATFORMS = ["ios", "android"] as const;
@@ -26,9 +27,7 @@ export function parseDevice(body: unknown): { ok: true; device: PushDevice } | {
   const token = typeof second.token === "string" ? second.token.trim() : "";
   if (!token) return { ok: false, reason: "A device needs its push token." };
   if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
-  const platform = (PUSH_PLATFORMS as readonly string[]).includes(String(second.platform))
-    ? (second.platform as PushPlatform)
-    : null;
+  const platform = isOneOf(PUSH_PLATFORMS, second.platform) ? second.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   if (!EXPO_PUSH_TOKEN.test(token)) return { ok: false, reason: "That is not a push token the service hands out." };
   const version =
@@ -74,7 +73,7 @@ export const PUSH_KINDS = [
   "website_form",
 ] as const satisfies readonly ServerNotificationKind[];
 export type PushKind = (typeof PUSH_KINDS)[number];
-export const isPushKind = (kind: string): kind is PushKind => (PUSH_KINDS as readonly string[]).includes(kind);
+export const isPushKind = (kind: string): kind is PushKind => isOneOf(PUSH_KINDS, kind);
 
 /**
  * The kinds a member turned off for their phones, from what their membership holds (memberships.push_off, 00372): the

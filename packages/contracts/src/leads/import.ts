@@ -18,6 +18,7 @@ import { LEAD_ESTIMATE_MARGIN } from "./search/caps";
 import { US_STATES } from "./search/plan";
 import type { LeadSearchVia } from "./search/sets";
 import type { LeadSearchRoundDto } from "./dtos";
+import { isOneOf } from "../shared/unknown";
 
 /** The most rows a file may bring, and leads one press may choose: one checker run's batch (CHECK_BATCH, J5). */
 export const LEAD_LIST_MAX = 500;
@@ -35,7 +36,7 @@ export type LeadListVia = (typeof LEAD_LIST_VIAS)[number];
 
 /** Whether a search is a list of the owner's own, which nothing searches again (J8, J9). */
 export const isLeadList = (state: { via?: string | null } | null | undefined): boolean =>
-  !!state && (LEAD_LIST_VIAS as readonly string[]).includes(state.via ?? "");
+  !!state && isOneOf(LEAD_LIST_VIAS, state.via ?? "");
 
 /* ------------------------------------------------------------------ the file's columns */
 

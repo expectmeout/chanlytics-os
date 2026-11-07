@@ -152,7 +152,7 @@ export const IMPORT_WORDS = {
     whatsapp_contacts: "WhatsApp contacts",
     whatsapp_history: "WhatsApp chats",
     google_photos: "Your Google photos",
-  } as Record<ImportSource, string>,
+  } satisfies Record<ImportSource, string>,
   in: "In",
   stopped: "Stopped",
   queued: "Starting",

@@ -10,9 +10,12 @@
  * this owns them once. Pure: no `window`, so it runs under node with a fake
  * fetch, and the bridge instantiates it with the real one.
  */
-import { refusalOf, SERVED_AT_HEADER, sessionEnded, type Refusal } from "@chanlytics/contracts";
+import { refusalOf, SERVED_AT_HEADER, sessionEnded, textOrEmpty, type Refusal } from "@chanlytics/contracts";
 import type { InputOf, OutputOf } from "../server/shared/route";
 import { ROUTES, type Routes } from "./routes.generated";
+
+/** A query value as the address carries it: a list as its items joined by commas, anything else as its text. */
+const queryText = (v: unknown): string => (Array.isArray(v) ? v.join(",") : textOrEmpty(v));
 
 export type RouteKey = keyof Routes;
 type ParamNames<S extends string> = S extends `${string}[${infer P}]${infer Rest}` ? P | ParamNames<Rest> : never;
@@ -328,7 +331,7 @@ export function createApi(deps: ApiDeps) {
     const url = ROUTES[key].path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries((opts.query ?? {}) as Record<string, unknown>))
-      if (v !== undefined && v !== null) qs.set(k, String(v));
+      if (v !== undefined && v !== null) qs.set(k, queryText(v));
     const ws = deps.workspace();
     if (ws && !qs.has("workspace")) qs.set("workspace", ws);
     const q = qs.toString();

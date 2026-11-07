@@ -3,6 +3,7 @@
  * permissions. The order among them (roleAtLeast) is ../roles.ts; the workspace's config is config-schema.ts.
  */
 import { MEMBERSHIP_ROLES } from "../../shared/enums";
+import { entryOf } from "../../shared/unknown";
 
 /* ---------------------------------------------------------------- E1 roles */
 
@@ -134,7 +135,7 @@ export const ROLE_SAYS: Record<Role, RoleSays> = {
 
 /** A role's words, for a role the server may name: one this list does not know is said as it is stored. */
 export function roleSays(role: string): RoleSays {
-  return (ROLE_SAYS as Partial<Record<string, RoleSays>>)[role] ?? { label: role, one: role, can: "", short: "" };
+  return entryOf(ROLE_SAYS, role) ?? { label: role, one: role, can: "", short: "" };
 }
 
 /** A line of the roles compared: what it lets a member do, and the permission that decides it (none: every role). */

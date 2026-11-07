@@ -23,6 +23,7 @@ import { languageBase } from "../templates/languages";
 import { leadCalledByOf } from "../../leads/search/called-by";
 import { DATA_NOT_INSTRUCTIONS, defang } from "../../ai/fence";
 import { MODEL_ROUTES } from "../../ai/models/routes";
+import { isOneOf } from "../../shared/unknown";
 
 export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 
@@ -266,8 +267,7 @@ export interface Reading {
   kind: OpeningClaimKind | null;
 }
 
-const isClaimKind = (k: unknown): k is OpeningClaimKind =>
-  typeof k === "string" && (OPENING_CLAIM_KINDS as readonly string[]).includes(k);
+const isClaimKind = (k: unknown): k is OpeningClaimKind => typeof k === "string" && isOneOf(OPENING_CLAIM_KINDS, k);
 
 export function parseReading(first: unknown): Reading | null {
   if (!first || typeof first !== "object") return null;

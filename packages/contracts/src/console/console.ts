@@ -10,6 +10,7 @@ import {
   type PlatformVerdict,
 } from "../workspace/platform";
 import { staffName } from "./staff";
+import { isOneOf } from "../shared/unknown";
 
 // ------------------------------------------------------------------------------------------- the workspaces, grouped
 
@@ -40,7 +41,7 @@ const GROUP_ORDER = Object.keys(CONSOLE_GROUPS) as ConsoleGroup[];
 
 /** The group a verdict falls in. */
 export function consoleGroupOf(verdict: PlatformVerdict): ConsoleGroup {
-  return GROUP_ORDER.find((g) => (CONSOLE_GROUPS[g] as readonly PlatformVerdict[]).includes(verdict)) ?? "look";
+  return GROUP_ORDER.find((g) => isOneOf(CONSOLE_GROUPS[g], verdict)) ?? "look";
 }
 
 /** The rows, grouped in the order a shift works them; an empty group is left out. Each keeps platformRows' order. */

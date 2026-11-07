@@ -20,6 +20,7 @@ import {
 } from "./search/sets";
 import type { LeadStageInput } from "./plan-schema";
 import { UUID } from "../shared/identity";
+import { isOneOf } from "../shared/unknown";
 
 /** The door's arguments (lead_set_stage). The door judges what converts; this only spells the ask. */
 export function stageArgs(leadStageInput: LeadStageInput): {
@@ -171,12 +172,12 @@ export function parseLeadsRoute(route: string): {
 } | null {
   const [head, ...segs] = route.split(":");
   if (head !== "clients/leads" && head !== "leads") return null;
-  const out = {
-    searchId: null as string | null,
-    list: "all" as LeadList,
-    cls: null as LeadClass | null,
-    chips: {} as LeadChips,
-    peek: null as string | null,
+  const out: NonNullable<ReturnType<typeof parseLeadsRoute>> = {
+    searchId: null,
+    list: "all",
+    cls: null,
+    chips: {},
+    peek: null,
   };
   const reach = new Set<string>();
   const groups = new Set<string>();
@@ -185,10 +186,10 @@ export function parseLeadsRoute(route: string): {
     if (dash < 1) continue;
     const [seg, val] = [otherSeg.slice(0, dash), otherSeg.slice(dash + 1)];
     if (seg === "s" && UUID.test(val)) out.searchId = val;
-    else if (seg === "l" && (LEAD_LISTS as readonly string[]).includes(val)) out.list = val as LeadList;
-    else if (seg === "c" && (LEAD_CLASSES as readonly string[]).includes(val)) out.cls = val as LeadClass;
+    else if (seg === "l" && isOneOf(LEAD_LISTS, val)) out.list = val;
+    else if (seg === "c" && isOneOf(LEAD_CLASSES, val)) out.cls = val;
     else if (seg === "x" && LEAD_CRITERION_KEY.test(val)) out.chips.excluded_by = val;
-    else if (seg === "f" && (LEAD_FITS as readonly string[]).includes(val)) out.chips.fit = val as LeadFit;
+    else if (seg === "f" && isOneOf(LEAD_FITS, val)) out.chips.fit = val;
     else if (seg === "r") reach.add(val);
     else if (seg === "t") groups.add(val);
     else if (seg === "p" && UUID.test(val)) out.peek = val;

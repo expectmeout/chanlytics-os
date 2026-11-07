@@ -145,12 +145,13 @@ export function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs:
   ).length;
   const lapsed = proposals.filter((r) => !!r.deal?.validUntil?.lapsed).length;
   const steps = vm.groups.reduce((n, g) => n + g.rows.filter(stepDue).length, 0);
-  const waits: PipelineRailRow[] = [
-    { view: "waiting" as PipelineView, label: waitingLabel(vm.pace), count: waiting, tone: "warn" as const },
-    { view: "lapsed" as PipelineView, label: PIPELINE_WORDS.rail.lapsed, count: lapsed, tone: "warn" as const },
+  const rail: PipelineRailRow[] = [
+    { view: "waiting", label: waitingLabel(vm.pace), count: waiting, tone: "warn" },
+    { view: "lapsed", label: PIPELINE_WORDS.rail.lapsed, count: lapsed, tone: "warn" },
     // A next step whose day has come (0007, amended), on anyone the Pipeline holds.
-    { view: "steps" as PipelineView, label: PIPELINE_WORDS.rail.steps, count: steps, tone: "warn" as const },
-  ].filter((r) => r.count > 0);
+    { view: "steps", label: PIPELINE_WORDS.rail.steps, count: steps, tone: "warn" },
+  ];
+  const waits = rail.filter((r) => r.count > 0);
   const bySvc = new Map<string, number>();
   for (const g of vm.groups) {
     if (g.key === "consultations") continue;
@@ -159,7 +160,7 @@ export function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs:
   const services: PipelineRailRow[] = [...bySvc.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, PIPELINE_RAIL_SERVICES)
-    .map(([name, n]) => ({ view: `svc:${name}` as PipelineView, label: name, count: n, tone: null }));
+    .map(([name, n]): PipelineRailRow => ({ view: `svc:${name}`, label: name, count: n, tone: null }));
   return [
     { key: "deals" as const, label: PIPELINE_WORDS.rail.deals, rows: deals },
     { key: "waiting" as const, label: PIPELINE_WORDS.rail.toFollowUp, rows: waits },

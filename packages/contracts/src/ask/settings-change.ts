@@ -127,14 +127,14 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
   }
   // The booking link is the business's own (brain.booking_link), beside its profile: set, or taken away when empty.
   if (change.op === "set_booking_link") {
-    const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]> & Record<string, unknown>;
+    const brain: NonNullable<C["brain"]> & Record<string, unknown> = { ...(config.brain ?? {}) };
     const link = change.link.trim();
     if (link) brain.booking_link = link;
     else delete brain.booking_link;
     return { ...config, brain };
   }
-  const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]>;
-  const profile = { ...((brain.profile ?? {}) as Record<string, unknown>) };
+  const brain: NonNullable<C["brain"]> = { ...(config.brain ?? {}) };
+  const profile: Record<string, unknown> = { ...(brain.profile ?? {}) };
   if (isFixChange(change)) {
     brain.profile = profileWithFix(profile, change);
     return { ...config, brain };
@@ -252,11 +252,11 @@ const putKey = (profile: Record<string, unknown>, key: string, value: unknown) =
  * product's opening lines, as a save of the box writes them; a message emptied is the product's wording.
  */
 function applyAnswersChange<C extends Cfg>(config: C, change: BrainChange): C {
-  const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]> & {
+  const brain: NonNullable<C["brain"]> & {
     system_prompt?: string | null;
     business_name?: string;
     fallbacks?: Record<string, string>;
-  };
+  } = { ...(config.brain ?? {}) };
   const profile = { ...(brain.profile ?? {}) };
   switch (change.op) {
     case "set_tone":

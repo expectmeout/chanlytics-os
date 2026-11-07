@@ -7,6 +7,7 @@ import { FALLBACK_DEFAULTS, isProductFallback } from "../workspace-config/fallba
 import { notesInForce } from "../workspace-config/compose";
 import { closureDatesLabel } from "../../calendar/words/labels";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
+import { isList } from "../../shared/unknown";
 
 /* ---- How it answers ---- */
 
@@ -119,7 +120,7 @@ const NOTE_CHIPS = CHIPS_SHOWN;
 export function notesWords(
   notes: readonly ({ title?: string | null } | null | undefined)[] | null | undefined,
 ): NotesWordsVM {
-  const titles = (Array.isArray(notes) ? notes : [])
+  const titles = (isList(notes) ? notes : [])
     .map((n) => (n && typeof n.title === "string" ? n.title.trim() : ""))
     .filter((t) => t !== "");
   const length = titles.length;

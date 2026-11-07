@@ -2,6 +2,7 @@
  * What Anthropic says of a profile, and what follows (decision 0097; ai/anthropic-profiles.ts decides whom a call is for). Apart
  * from that module so a page that reads a status carries no route: the model registry stays on the server.
  */
+import { isOneOf } from "../shared/unknown";
 
 /** What a profile stands for: anthropic_profiles.kind. */
 export const ANTHROPIC_PROFILE_KINDS = ["person", "workspace"] as const;
@@ -36,9 +37,7 @@ export const modelStandingOf = (status: AnthropicEnforcementStatus): ModelStandi
  */
 export function enforcementStatusOf(raw: unknown): AnthropicEnforcementStatus | null {
   if (typeof raw !== "string" || !raw) return null;
-  return (ANTHROPIC_ENFORCEMENT_STATUSES as readonly string[]).includes(raw)
-    ? (raw as AnthropicEnforcementStatus)
-    : "restricted";
+  return isOneOf(ANTHROPIC_ENFORCEMENT_STATUSES, raw) ? raw : "restricted";
 }
 
 const ENFORCEMENT_REASONS = [
@@ -72,9 +71,7 @@ export function enforcementActionsOf(raw: unknown): EnforcementAction[] {
     .map((a) => ({
       type: a.type === "ban" ? "ban" : "restriction",
       id: filledOrNull(a.id),
-      reason: (ENFORCEMENT_REASONS as readonly unknown[]).includes(a.reason)
-        ? (a.reason as EnforcementReason)
-        : "unspecified",
+      reason: isOneOf(ENFORCEMENT_REASONS, a.reason) ? a.reason : "unspecified",
       action: a.action === "verify" ? "verify" : null,
       opened_at: filledOrNull(a.opened_at),
       expires_at: filledOrNull(a.expires_at),

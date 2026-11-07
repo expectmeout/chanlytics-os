@@ -16,6 +16,7 @@ import type { SlotWorkspace } from "../../reach-out/rules";
 import { chainPaceOf } from "../../reach-out/sheet/chain";
 import { REACH_OUT_GAP_MINUTES } from "../../reach-out/words/limits";
 import { LEAD_BUILD_WORDS, YOU, leadSlotLabel } from "./steps";
+import { isOneOf } from "../../../shared/unknown";
 
 /** One pace the day's row offers: the most a day it comes to across its mailboxes, and how often each writes. */
 export interface LeadPaceChoice {
@@ -40,8 +41,7 @@ export function leadPaceChoicesOf(mailboxes: readonly ReachOutMailboxFacts[], sa
     if (share > 0) slowest.set(share, gap);
   }
   const gaps = new Set(slowest.values());
-  if (saved !== undefined && (REACH_OUT_GAP_MINUTES as readonly number[]).includes(saved) && shareAt(saved) > 0)
-    gaps.add(saved);
+  if (saved !== undefined && isOneOf(REACH_OUT_GAP_MINUTES, saved) && shareAt(saved) > 0) gaps.add(saved);
   return [...gaps]
     .map((gap) => ({ gap, share: shareAt(gap), hint: LEAD_BUILD_WORDS.runs.every(gap) }))
     .sort((a, b) => b.share - a.share || b.gap - a.gap);

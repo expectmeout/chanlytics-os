@@ -15,6 +15,7 @@ import { DAYS } from "../../config/workspace-config/config-rules";
 import type { GooglePeriod } from "../../google/listing";
 import { leadCalledByOf } from "../../leads/search/called-by";
 import type { WrittenOpening } from "./words/opening";
+import { textOrEmpty } from "../../shared/unknown";
 
 export interface OpenWindow {
   from: number;
@@ -46,7 +47,7 @@ const LISTING_DAY = new Map<string, WeekdayKey>([
 
 /** "Monday", "Mon.", "Monday (Labor Day)", "Mo": the weekday, or null. */
 const dayNameOf = (raw: unknown): WeekdayKey | null => {
-  const word = String(raw ?? "")
+  const word = textOrEmpty(raw)
     .replace(/\([^)]*\)/g, "")
     .replace(/\./g, "")
     .trim()

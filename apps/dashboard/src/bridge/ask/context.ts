@@ -17,6 +17,7 @@ import {
   ASK_SCOPE_KINDS,
   isAdsParam,
   isMessagesParam,
+  isList,
   itemFocus,
   parseLeadsRoute,
   parsePipelineRoute,
@@ -320,8 +321,7 @@ function wordsFocus(words: string, rows: Row[], thread?: ReadonlyArray<ThreadMes
   const n = placeOf(fold(words));
   let item: AskScope | null | undefined;
   try {
-    const last =
-      n !== null && Array.isArray(thread) ? [...thread].reverse().find((m) => m?.role === "assistant") : null;
+    const last = n !== null && isList(thread) ? [...thread].reverse().find((m) => m?.role === "assistant") : null;
     item = last && n !== null ? itemFocus(last, n) : undefined;
   } catch {
     item = undefined;

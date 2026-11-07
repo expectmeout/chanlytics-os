@@ -262,7 +262,7 @@ function workspacePresses(form: WorkspaceForm, email: string | null, onCreated: 
     return true;
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.SubmitEvent) => {
     e.preventDefault();
     if (busy) return;
     const trimmed = name.trim();
@@ -279,7 +279,7 @@ function workspacePresses(form: WorkspaceForm, email: string | null, onCreated: 
   // and the middleware sends a signed-in person away from /signup, back to this
   // screen: a loop (the wiring audit's N1). The list takes the business's name
   // and the address they signed in with, and makes nothing.
-  const join = async (e: React.FormEvent) => {
+  const join = async (e: React.SubmitEvent) => {
     e.preventDefault();
     if (busy) return;
     setBusy(true);
@@ -329,7 +329,7 @@ function makingCard(kept: string, doing: string) {
 function waitlistCard(
   form: WorkspaceForm,
   email: string | null,
-  join: (e: React.FormEvent) => Promise<void>,
+  join: (e: React.SubmitEvent) => Promise<void>,
   leave: React.ReactElement | null,
 ) {
   const { busy, error, joined } = form;
@@ -379,7 +379,7 @@ function workspaceFormCard(
   }: {
     email: string | null;
     onCancel?: () => void;
-    submit: (e: React.FormEvent) => Promise<void>;
+    submit: (e: React.SubmitEvent) => Promise<void>;
     leave: React.ReactElement | null;
   },
 ) {

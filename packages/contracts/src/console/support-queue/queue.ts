@@ -42,6 +42,7 @@ import {
   type SupportView,
   type SupportWaitVM,
 } from "./waits";
+import { isOneOf } from "../../shared/unknown";
 
 /** Who sent it, in one line: "Dana Kim, Owner", else their address with their role, else that they were signed out. */
 function whoLine(supportWho: SupportWhoDto | null, email: string | null): string {
@@ -51,8 +52,7 @@ function whoLine(supportWho: SupportWhoDto | null, email: string | null): string
   return role ? `${named}, ${role}` : named;
 }
 
-const roleWords = (role: string): string | undefined =>
-  (ROLES as readonly string[]).includes(role) ? ROLE_SAYS[role as (typeof ROLES)[number]].label : undefined;
+const roleWords = (role: string): string | undefined => (isOneOf(ROLES, role) ? ROLE_SAYS[role].label : undefined);
 
 /** One row of the queue: a question or an ask, what it needs, who and where, its promise, its state. */
 export interface SupportRowVM {
@@ -337,10 +337,10 @@ export function supportPageOf(
   nowMs: number,
 ): { rows: SupportRowVM[]; counts: SupportCounts } {
   const kept = rows.filter((r) => inDone(r, nowMs));
-  const views = { needs: 0, waiting: 0, done: 0 } as Record<SupportView, number>;
+  const views: Record<SupportView, number> = { needs: 0, waiting: 0, done: 0 };
   for (const r of kept) views[supportViewOf(r)] += 1;
   const inView = kept.filter((r) => supportViewOf(r) === supportFilter.view && rowMatches(r, supportFilter.q));
-  const kinds = { all: inView.length, question: 0, ask: 0 } as Record<SupportKindFilter, number>;
+  const kinds: Record<SupportKindFilter, number> = { all: inView.length, question: 0, ask: 0 };
   for (const r of inView) kinds[r.kind] += 1;
   const ofKind = inView.filter((r) => supportFilter.kind === "all" || r.kind === supportFilter.kind);
   const topics = SUPPORT_TOPICS.map((topic) => ({

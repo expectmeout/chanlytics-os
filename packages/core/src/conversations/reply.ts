@@ -348,20 +348,18 @@ async function shapeEmailReply(
     body: text,
   });
   if (!frozen) throw new AppError("conflict", NO_MAILBOX_REFUSAL);
-  return {
-    id,
-    meta: {
-      email: {
-        subject: frozen.subject,
-        to: [to],
-        parent_id: parent.messageId,
-        in_reply_to: parent.rfcMessageId,
-        request: frozen.request,
-        ...(frozen.own ? { own_request: frozen.own } : {}),
-        ...(frozen.signature ? { signature: frozen.signature } : {}),
-      },
-    } as Json,
+  const meta: Json = {
+    email: {
+      subject: frozen.subject,
+      to: [to],
+      parent_id: parent.messageId,
+      in_reply_to: parent.rfcMessageId,
+      request: frozen.request,
+      ...(frozen.own ? { own_request: frozen.own } : {}),
+      ...(frozen.signature ? { signature: frozen.signature } : {}),
+    },
   };
+  return { id, meta };
 }
 
 /** What a workspace with no mailbox is told, by a reply and by a first email alike. */
@@ -391,7 +389,8 @@ async function shapeFirstEmail(
   const frozen = await ports.email.first({ tenantId: conv.tenant_id, messageId: id, to, subject: named, body: text });
   if (!frozen) throw new AppError("conflict", NO_MAILBOX_REFUSAL);
   const email = { subject: frozen.subject, to: [to], request: frozen.request };
-  return { id, meta: { email: frozen.signature ? { ...email, signature: frozen.signature } : email } as Json };
+  const meta: Json = { email: frozen.signature ? { ...email, signature: frozen.signature } : email };
+  return { id, meta };
 }
 
 /**

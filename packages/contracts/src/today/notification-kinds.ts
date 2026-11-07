@@ -20,6 +20,7 @@ import { agoShort } from "../shared/time";
 // nothing of the bell's feed.
 import type { ServerNotificationKind } from "./notifications/feed-input";
 import { BELL_LIST_ROWS, BELL_WINDOW_DAYS, type PushKind } from "./push";
+import { isOneOf } from "../shared/unknown";
 
 /**
  * How each kept kind reaches the owner, beyond the row on the bell: by email as well, or on the bell alone.
@@ -328,7 +329,7 @@ export const BELL_LINE_KINDS = [
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */
 const EMAIL_CHOICE_KINDS: readonly EmailChoiceKind[] = ALERT_TOPICS.flatMap((t) =>
-  t.email === "choice" ? (t.kinds as readonly EmailChoiceKind[]) : [],
+  t.email === "choice" ? t.kinds : [],
 );
 
 /**
@@ -351,7 +352,7 @@ export function emailsFor(
   kind: string | null | undefined,
 ): boolean {
   if (!emailsNotificationKind(kind)) return false;
-  return !(emailOffOf(notifications) as readonly string[]).includes(kind ?? "");
+  return !isOneOf(emailOffOf(notifications), kind ?? "");
 }
 
 /** Whether a topic's email is on for this business: always, or a choice it has not turned off. */
@@ -360,8 +361,8 @@ function topicEmailed(
   notifications: { email_off?: readonly unknown[] | null } | null | undefined,
 ): boolean {
   if (topic.email === null) return false;
-  const off = emailOffOf(notifications) as readonly string[];
-  return topic.email === "always" || !topic.kinds.some((k) => off.includes(k));
+  const off = emailOffOf(notifications);
+  return topic.email === "always" || !topic.kinds.some((k) => isOneOf(off, k));
 }
 
 /** Whether a topic reaches this member's phones: a topic phones are told, none of whose kinds the member turned off. */
@@ -392,7 +393,7 @@ function switchKinds(off: Set<string>, kinds: readonly string[], on: boolean): v
 export function withTopicPush(pushOff: readonly string[], topic: AlertTopic, on: boolean): PushKind[] {
   const off = new Set(pushOff);
   if (topic.phone) switchKinds(off, topic.kinds, on);
-  return ALERT_TOPICS.flatMap((t) => (t.phone ? (t.kinds as readonly PushKind[]) : [])).filter((k) => off.has(k));
+  return ALERT_TOPICS.flatMap((t) => (t.phone ? t.kinds : [])).filter((k) => off.has(k));
 }
 
 /**

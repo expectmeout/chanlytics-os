@@ -8,6 +8,7 @@ import {
   type BillingPriceDto,
   type BillingStatus,
 } from "./dtos";
+import { isOneOf } from "../../shared/unknown";
 
 /** An invoice's status in an owner's words. A word Stripe adds later is shown as Stripe says it; none, as a dash. */
 export const INVOICE_STATUS_WORDS: Record<string, string> = {
@@ -55,7 +56,7 @@ export type CheckoutReturn = (typeof CHECKOUT_RETURNS)[number];
 export const CHECKOUT_RETURN_ROUTE: Record<CheckoutReturn, string> = { billing: "admin/billing", start: "start" };
 
 export function isCheckoutReturn(value: unknown): value is CheckoutReturn {
-  return typeof value === "string" && (CHECKOUT_RETURNS as readonly string[]).includes(value);
+  return typeof value === "string" && isOneOf(CHECKOUT_RETURNS, value);
 }
 
 /** The words the pages say for what came back from Stripe (the query the card reads once). */
@@ -91,7 +92,7 @@ export function billingAccountDto(row: {
 }): BillingAccountDto {
   return {
     mode: row.mode === "direct" ? "direct" : "stripe",
-    status: (BILLING_STATUSES as readonly string[]).includes(row.status ?? "") ? (row.status as BillingStatus) : "none",
+    status: isOneOf(BILLING_STATUSES, row.status) ? row.status : "none",
     price_id: row.price_id ?? null,
     current_period_end: row.current_period_end ?? null,
     trial_end: row.trial_end ?? null,

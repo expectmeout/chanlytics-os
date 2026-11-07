@@ -139,7 +139,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **What is measured may only fall.** `docs/debt.md` names every number the build holds, by the key
   `check:debt` gives its measure (`tests/_measures.mjs`): functions over 150 lines, 30
   branches or 5 levels; files over 800 lines, and the suite's test files over 1600; directories over 20 modules; window globals and
-  publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`; an index read
+  publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`, and any other assertion that names a type (`assertions`, decision 0112); an index read
   the compiler lets pass; a table name, or a SQL function called by name, outside `packages/db`; a route file that
   imports a repository or a provider client; dead exports; a duration written as a
   bare number (name it from `contracts/shared/time.ts`, or give it a constant); a width the layout changes at that is

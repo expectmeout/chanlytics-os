@@ -253,7 +253,7 @@ function businessesPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
     ["interested", "Interested", interested],
     ["booked", "Booked", booked],
     // Won (00426): a deal naming the business, won; not said where the database does not count it.
-    ...(isCount(won) ? ([["won", "Won", won]] as MixEntry[]) : []),
+    ...(isCount(won) ? ([["won", "Won", won]] satisfies MixEntry[]) : []),
     ["said_no", "Said no", said_no],
   ];
   const shares =

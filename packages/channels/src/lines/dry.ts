@@ -59,115 +59,121 @@ export function dryProvider(seed = 1): DryProvider {
     name: "dry",
     calls,
     owned,
-    async createSubaccount(master, friendlyName) {
+    createSubaccount(master, friendlyName) {
       rec("createSubaccount", acctOf(master), friendlyName);
       const acct = { sid: next("AC"), token: next("tok") };
       subaccounts.set(friendlyName, acct);
-      return { ...acct, status: "active" };
+      return Promise.resolve({ ...acct, status: "active" });
     },
-    async findSubaccount(master, friendlyName) {
+    findSubaccount(master, friendlyName) {
       rec("findSubaccount", acctOf(master), friendlyName);
-      return subaccounts.get(friendlyName) ?? null;
+      return Promise.resolve(subaccounts.get(friendlyName) ?? null);
     },
     readSubaccount: (_master, sid) => Promise.resolve([...subaccounts.values()].find((a) => a.sid === sid) ?? null),
     closeSubaccount(master, sid) {
       rec("closeSubaccount", acctOf(master), sid);
       return Promise.resolve();
     },
-    async findTrunk(acct, domainName) {
+    findTrunk(acct, domainName) {
       rec("findTrunk", acctOf(acct), domainName);
       const sid = trunks.get(`${acctOf(acct)} ${domainName}`);
-      return sid ? { sid, domainName } : null;
+      return Promise.resolve(sid ? { sid, domainName } : null);
     },
-    async findCredentialList(acct, friendlyName) {
+    findCredentialList(acct, friendlyName) {
       rec("findCredentialList", acctOf(acct), friendlyName);
       const sid = lists.get(`${acctOf(acct)} ${friendlyName}`);
-      return sid ? { sid } : null;
+      return Promise.resolve(sid ? { sid } : null);
     },
-    async findCredential(acct, listSid, username) {
+    findCredential(acct, listSid, username) {
       rec("findCredential", acctOf(acct), listSid, username);
       const sid = credentials.get(`${listSid} ${username}`);
-      return sid ? { sid } : null;
+      return Promise.resolve(sid ? { sid } : null);
     },
-    async deleteCredential(acct, listSid, credentialSid) {
+    deleteCredential(acct, listSid, credentialSid) {
       rec("deleteCredential", acctOf(acct), listSid, credentialSid);
       for (const [k, v] of credentials) if (v === credentialSid) credentials.delete(k);
+      return Promise.resolve();
     },
-    async findOrigination(acct, trunkSid, sipUrl) {
+    findOrigination(acct, trunkSid, sipUrl) {
       rec("findOrigination", acctOf(acct), trunkSid, sipUrl);
       const sid = originations.get(`${trunkSid} ${sipUrl}`);
-      return sid ? { sid } : null;
+      return Promise.resolve(sid ? { sid } : null);
     },
-    async searchLocal(acct, q) {
+    searchLocal(acct, q) {
       rec("searchLocal", acctOf(acct), q);
-      return dryNumbers(q);
+      return Promise.resolve(dryNumbers(q));
     },
-    async buyNumber(acct, e164, friendlyName) {
+    buyNumber(acct, e164, friendlyName) {
       rec("buyNumber", acctOf(acct), e164, friendlyName);
       const sid = next("PN");
       owned.set(sid, e164);
-      return { sid, e164 };
+      return Promise.resolve({ sid, e164 });
     },
     // The dry provider already keeps what it "sold", so it can answer honestly --
     // which is what makes the saga's lookup-before-buy testable without a carrier.
-    async ownedNumber(acct, e164) {
+    ownedNumber(acct, e164) {
       rec("ownedNumber", acctOf(acct), e164);
-      for (const [sid, held] of owned) if (held === e164) return { sid, e164 };
-      return null;
+      for (const [sid, held] of owned) if (held === e164) return Promise.resolve({ sid, e164 });
+      return Promise.resolve(null);
     },
-    async releaseNumber(acct, numberSid) {
+    releaseNumber(acct, numberSid) {
       rec("releaseNumber", acctOf(acct), numberSid);
       owned.delete(numberSid);
+      return Promise.resolve();
     },
-    async createTrunk(acct, o) {
+    createTrunk(acct, o) {
       rec("createTrunk", acctOf(acct), o);
       const sid = next("TK");
       trunks.set(`${acctOf(acct)} ${o.domainName}`, sid);
-      return { sid, domainName: o.domainName };
+      return Promise.resolve({ sid, domainName: o.domainName });
     },
-    async deleteTrunk(acct, trunkSid) {
+    deleteTrunk(acct, trunkSid) {
       rec("deleteTrunk", acctOf(acct), trunkSid);
+      return Promise.resolve();
     },
     deleteCampaign: () => Promise.resolve(),
-    async createCredentialList(acct, friendlyName) {
+    createCredentialList(acct, friendlyName) {
       rec("createCredentialList", acctOf(acct), friendlyName);
       const sid = next("CL");
       lists.set(`${acctOf(acct)} ${friendlyName}`, sid);
-      return { sid };
+      return Promise.resolve({ sid });
     },
-    async addCredential(acct, listSid, username) {
+    addCredential(acct, listSid, username) {
       // The password is deliberately not recorded: a ledger is not a vault.
       rec("addCredential", acctOf(acct), listSid, username);
       // A list holds a username once, as Twilio's does: the second is refused.
-      if (credentials.has(`${listSid} ${username}`)) throw new Error(`add credential: ${username} already exists`);
+      if (credentials.has(`${listSid} ${username}`))
+        return Promise.reject(new Error(`add credential: ${username} already exists`));
       const sid = next("CR");
       credentials.set(`${listSid} ${username}`, sid);
-      return { sid };
+      return Promise.resolve({ sid });
     },
-    async attachCredentialList(acct, trunkSid, listSid) {
+    attachCredentialList(acct, trunkSid, listSid) {
       rec("attachCredentialList", acctOf(acct), trunkSid, listSid);
+      return Promise.resolve();
     },
-    async addOrigination(acct, trunkSid, o) {
+    addOrigination(acct, trunkSid, o) {
       rec("addOrigination", acctOf(acct), trunkSid, o);
       const sid = next("OU");
       originations.set(`${trunkSid} ${o.sipUrl}`, sid);
-      return { sid };
+      return Promise.resolve({ sid });
     },
-    async attachNumber(acct, trunkSid, numberSid) {
+    attachNumber(acct, trunkSid, numberSid) {
       rec("attachNumber", acctOf(acct), trunkSid, numberSid);
+      return Promise.resolve();
     },
-    async createMessagingService(acct, o) {
+    createMessagingService(acct, o) {
       rec("createMessagingService", acctOf(acct), o);
-      return { sid: next("MG") };
+      return Promise.resolve({ sid: next("MG") });
     },
-    async addNumberToService(acct, serviceSid, numberSid) {
+    addNumberToService(acct, serviceSid, numberSid) {
       rec("addNumberToService", acctOf(acct), serviceSid, numberSid);
-      return { sid: next("PH") };
+      return Promise.resolve({ sid: next("PH") });
     },
-    async sendSms(acct, o) {
+    sendSms(acct, o) {
       // Recorded, never delivered: the dry provider is for previews and tests.
       rec("sendSms", acctOf(acct), o.serviceSid, o.to);
-      return { ok: true, sid: next("SM"), status: 201, code: null };
+      return Promise.resolve({ ok: true, sid: next("SM"), status: 201, code: null });
     },
     plantText(to, text) {
       received.set(to, [...(received.get(to) ?? []), text]);

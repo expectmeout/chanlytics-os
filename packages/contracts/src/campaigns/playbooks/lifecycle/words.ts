@@ -76,7 +76,7 @@ export const LIFECYCLE_WORDS = {
     after: "The day after each visit",
     proposal: "When a proposal waits for an answer",
     quiet: "Brings back people who've gone quiet",
-  } as Record<string, string>,
+  },
   monthsOffer: { name: "The month's offer" },
   /** A time a cancellation freed, offered to the people who asked and never booked (decision 0082): its line off. */
   freedTime: {

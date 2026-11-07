@@ -1,6 +1,7 @@
 /** Models: routes. */
 
 import { HAIKU_5_5, MODEL_IDS, OPUS_5_5, SONNET_5, SONNET_5_5, modelTakes, type ModelId } from "./ids";
+import { isOneOf } from "../../shared/unknown";
 
 /**
  * How hard a request asks a model to think (`output_config.effort`), least first: the levels the gateway lets through,
@@ -381,7 +382,7 @@ export function secondKeyFloorOf(purpose: ModelPurpose): number | null {
 
 /** Whether a string is one of the platform's model ids. */
 export function isModelId(value: unknown): value is ModelId {
-  return typeof value === "string" && (MODEL_IDS as readonly string[]).includes(value);
+  return typeof value === "string" && isOneOf(MODEL_IDS, value);
 }
 
 /**

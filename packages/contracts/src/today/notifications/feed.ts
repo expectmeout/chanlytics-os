@@ -21,10 +21,10 @@ import {
   type FeedThread,
   type NotificationDto,
   type NotificationItem,
-  type NotificationKind,
   type NotificationRow,
   type NotificationsDto,
 } from "./feed-input";
+import { entryOf, isOneOf } from "../../shared/unknown";
 
 /** Everything that needs the owner right now, newest first. */
 export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
@@ -179,7 +179,7 @@ export function jobNewsWords(
   end: JobEnd,
   how: { attempts: number; resumed: boolean | null },
 ): { title: string; lead: string; to: string } {
-  const item = (JOB_WORK as Record<string, typeof JOB_WORK_OTHER>)[jobKind] ?? JOB_WORK_OTHER;
+  const item = entryOf(JOB_WORK, jobKind) ?? JOB_WORK_OTHER;
   const { attempts, resumed } = how;
   const tries = attempts > 1 ? ` after ${attempts} tries` : "";
   const lead =
@@ -451,9 +451,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
       const route = job ? job.route : otherRow.kind === "reach_out_day" ? REACH_OUT_DAY_ROUTE : otherRow.route;
       const row: NotificationRow = {
         key: `${SERVER_KEY_PREFIX}${otherRow.id}`,
-        kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(otherRow.kind)
-          ? (otherRow.kind as NotificationKind)
-          : "alert",
+        kind: isOneOf(SERVER_NOTIFICATION_KINDS, otherRow.kind) ? otherRow.kind : "alert",
         at,
         title: job ? job.title : otherRow.title,
         message: job ? job.message : firstLine(otherRow.body),

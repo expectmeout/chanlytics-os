@@ -15,6 +15,7 @@ import { extractContacts, sameVisitStart, type OwnAddresses } from "./people/mat
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone, E164 } from "../shared/phone";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
+import { isOneOf } from "../shared/unknown";
 
 /* ------------------------------------------------------------------ the tools whose mail is recognised */
 
@@ -226,8 +227,7 @@ const NOTICE_HOLDS = [
   "gone",
 ] as const;
 export type NoticeHold = (typeof NOTICE_HOLDS)[number];
-export const isNoticeHold = (value: unknown): value is NoticeHold =>
-  (NOTICE_HOLDS as readonly unknown[]).includes(value);
+export const isNoticeHold = (value: unknown): value is NoticeHold => isOneOf(NOTICE_HOLDS, value);
 
 /** The booking a notice states, read strictly. Instants are epoch ms in the business's zone. */
 export interface NoticeReading {

@@ -454,7 +454,7 @@ export function leadRail(
     "ready",
     "nurture",
     "converted",
-    ...(counts.said_no > 0 ? (["said_no"] as LeadList[]) : []),
+    ...(counts.said_no > 0 ? (["said_no"] satisfies LeadList[]) : []),
     "not_a_fit",
   ];
   const rowOf = (leadSearch: LeadSearchDto): LeadRailRow => ({

@@ -2,8 +2,9 @@
  * A deal's amount in words and back (0004): "$2,500 a month" from its cents and how it recurs, cents from what a
  * person typed, and what a set of deals comes to. The deal card, the sheet, the Pipeline and Reports say it so.
  */
-import { DEAL_PERS, DEAL_PER_WORDS, type DealPer } from "./words";
+import { DEAL_PERS, DEAL_PER_WORDS } from "./words";
 import { numberFormat } from "../shared/time";
+import { isOneOf } from "../shared/unknown";
 
 /** "$2,500 a month", "$999.50", "$1,200 a year"; null without an amount. */
 export function amountWords(
@@ -19,7 +20,7 @@ export function amountWords(
     minimumFractionDigits: whole ? 0 : 2,
     maximumFractionDigits: whole ? 0 : 2,
   }).format(cents / 100);
-  const item = per && (DEAL_PERS as readonly string[]).includes(per) ? DEAL_PER_WORDS[per as DealPer] : null;
+  const item = per && isOneOf(DEAL_PERS, per) ? DEAL_PER_WORDS[per] : null;
   return item && per !== "once" ? `${money} ${item}` : money;
 }
 

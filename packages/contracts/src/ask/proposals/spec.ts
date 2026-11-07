@@ -4,6 +4,7 @@
  */
 import type { AskProposal, AskProposalOutcome } from "../thread-words";
 import type { ApiRouteKey } from "../../route-keys.generated";
+import { listOrEmpty, textOrEmpty } from "../../shared/unknown";
 
 /**
  * What a spec reads of what it commits: a card of Ask's, or the same act pressed on a sheet (the dashboard's
@@ -180,7 +181,7 @@ export const ASK_SENDS: ReadonlySet<AskProposal["kind"]> = /* @__PURE__ */ (() =
 /* ------------------------------------------------------------ shared by the families */
 
 /** A payload field as the route's string param: the proposal carries ids as JSON, the route takes them as text. */
-export const asText = (value: unknown): string => (value == null ? "" : String(value));
+export const asText = textOrEmpty;
 /** A route's answer as a record to read fields from. */
 export const rec = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -200,8 +201,10 @@ export const wasIn = (data: unknown, key: string): unknown => {
   return Object.prototype.hasOwnProperty.call(was, key) ? was[key] : undefined;
 };
 /** A payload id that names something, or null: a route with a hole in it is no route. */
-export const idIn = (pl: Record<string, unknown> | undefined, key: string): string | null =>
-  typeof pl?.[key] === "string" && pl[key] ? (pl[key] as string) : null;
+export const idIn = (pl: Record<string, unknown> | undefined, key: string): string | null => {
+  const id = pl?.[key];
+  return typeof id === "string" && id ? id : null;
+};
 export const refuseWith = (words: string): ProposalRefusal => ({ refused: words });
 /** The ids a payload names, as text, each once. */
 export const uniqueIds = (value: unknown): string[] =>
@@ -243,14 +246,16 @@ export function inBatches<T>(items: readonly T[], size: number = BATCH_SIZE): T[
  * order, so the receipt says the selection's count and its first reason, as one request of them all would.
  */
 export function gatherCounts(answers: readonly unknown[]): Record<string, unknown> {
-  const out: Record<string, unknown> = { done: 0, failed: [], skipped: [] };
+  let done = 0;
+  const failed: unknown[] = [];
+  const skipped: unknown[] = [];
   for (const a of answers) {
     const d = rec(a);
-    out.done = (out.done as number) + (typeof d.done === "number" ? d.done : 0);
-    if (Array.isArray(d.failed)) (out.failed as unknown[]).push(...(d.failed as unknown[]));
-    if (Array.isArray(d.skipped)) (out.skipped as unknown[]).push(...(d.skipped as unknown[]));
+    done += typeof d.done === "number" ? d.done : 0;
+    failed.push(...listOrEmpty(d.failed));
+    skipped.push(...listOrEmpty(d.skipped));
   }
-  return out;
+  return { done, failed, skipped };
 }
 /** A map's own entry, never one its prototype lends ("constructor"). */
 export const ownEntry = <T>(record: Partial<Record<string, T>>, key: string): T | undefined =>

@@ -11,6 +11,7 @@
  * (MODEL_TAKES.systemMessages) is sent the words inside the person's turn before it, ahead of that turn's last block,
  * where Ask said them before (foldWordsMessages).
  */
+import { listOrEmpty } from "../shared/unknown";
 
 /** A text block a words message may hold: its text, and the cache's marker where a request put one. */
 interface WordsBlock {
@@ -57,7 +58,7 @@ export function isWordsMessage(message: unknown): message is WordsMessage {
  * is; one with no person's turn before it is dropped, which the API would refuse anyway.
  */
 export function foldWordsMessages(body: Record<string, unknown>): Record<string, unknown> {
-  const messages = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
+  const messages = listOrEmpty(body.messages);
   if (!messages.some(isWordsMessage)) return body;
   const out: unknown[] = [];
   for (const message of messages) {

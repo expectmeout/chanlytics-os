@@ -7,7 +7,7 @@
  */
 import { replyWhy } from "../brain";
 import { reasonLabelOf } from "../../conversations/escalations";
-import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS, type PolicyMode } from "../workspace-config/policy-classes";
+import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS } from "../workspace-config/policy-classes";
 import { delayWords } from "../../campaigns/playbooks/triggers/notices";
 import { MIN_MS, SECOND_MS } from "../../shared/time";
 import type { SpendWords } from "../../workspace/billing/dtos";
@@ -99,7 +99,7 @@ function yoursBecause(then: TryItThen): string {
 /** The sentence under the answer: what happens next, by the reply row's mode, the hold, and a hand-off. */
 function thenWords(then: TryItThen, confidence: number | null): TryItVM["then"] {
   if (then.mode === "never" || then.mode === "ask") {
-    const head = POLICY_MODE_WORDS[then.mode as PolicyMode].head;
+    const head = POLICY_MODE_WORDS[then.mode].head;
     return {
       words: `Replies are set to ${head}, so it would not answer this: it ${then.mode === "ask" ? "waits for you" : "stays out"}.`,
       tone: "yours",
