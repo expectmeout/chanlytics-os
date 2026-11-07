@@ -12,7 +12,7 @@ import { formatPhoneDisplay, type FirstRunPhoneCodeVM, type FirstRunPhoneVM } fr
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordField, RecordToggleGroup } from "../../kit/record/field";
-import { gate, type LegacyFlash } from "../../legacy-verbs";
+import { gate, type FrameFlash } from "../../frame-verbs";
 import type { LineChoice } from "../surface";
 import { markedLabel } from "./find";
 import { PHONE_SENT_MS, type KeptPhoneChoice } from "./memory";
@@ -35,7 +35,7 @@ interface PhoneProps {
   choice: KeptPhoneChoice | null;
   setChoice: (c: KeptPhoneChoice | null) => void;
   W: PhoneWords;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   /**
    * Which row of Switch it on's list draws it (decision 0073). `number`: the number on its way, which it buys, once; the

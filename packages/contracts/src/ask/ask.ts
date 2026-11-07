@@ -8,7 +8,7 @@
  * opens -- is citations.ts's; the answer -- its shape and how it is read back
  * -- ask-answer.ts's, and the format the model writes it in answer-format.ts's.
  * The route that runs the model lives in the dashboard; the Line that shows
- * the answer lives in the legacy pages; both read from here.
+ * the answer lives in the shell's pages; both read from here.
  *
  * This module holds the limits, the message and its cards (and what became of each), where a question is asked
  * from: the row in view (AskScope, scopeFromRoute) and the pages Ask knows it is on (ASK_SURFACES), and the shapes of
@@ -39,7 +39,7 @@ import type { TemplateCategoryChoice } from "../campaigns/templates/templates";
 export const ASK_MAX_CHARS = 1000;
 
 /**
- * The column the Line draws an answer in, as the tab measures it when a question is sent (legacy-bridge/ask/column.ts):
+ * The column the Line draws an answer in, as the tab measures it when a question is sent (bridge/ask/column.ts):
  * its width in CSS pixels, and whether a phone is looking. It rides with the question and is told to the model in the
  * turn's words, so the answer is shaped for the space it is read in (18 Oct 2026: a desk's docked panel draws answers
  * 408px wide, a phone 358px). None from an older tab or a script.

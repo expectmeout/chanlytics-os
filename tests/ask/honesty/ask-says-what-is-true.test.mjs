@@ -38,7 +38,7 @@ const { runTool, buildProposal, newToolContext } = await import(at("apps/dashboa
 const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
 const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
-const { askPalette, quickAnswer } = await import(at("apps/dashboard/src/legacy-bridge/ask/palette.ts"));
+const { askPalette, quickAnswer } = await import(at("apps/dashboard/src/bridge/ask/palette.ts"));
 
 beforeEach(() => {
   readerCache.clear();

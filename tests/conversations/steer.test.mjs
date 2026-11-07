@@ -12,12 +12,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameSteer, whisperText } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
-import { installLegacyReact, settle } from "../_legacy-react.mjs";
+import { installStubReact, settle } from "../_stub-react.mjs";
 
-installLegacyReact({});
+installStubReact({});
 const S = "../../apps/dashboard/src";
 const { steerDraft } = await import(`${S}/surfaces/inbox/verbs.ts`);
-const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
+const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 
 test("the frame quotes the owner, asks for a rewrite that keeps what was right, and says the rules still hold", () => {
   const f = frameSteer("  mention Saturday is full  ");
@@ -131,5 +131,5 @@ test("the Inbox offers the rewrite only on a real draft that is still counting d
   assert.ok(box.includes('data-testid="steer-box"'));
   assert.ok(box.includes("Rewritten — the new draft waits its turn like the first one"));
   assert.ok(box.includes('{...gate("approve")}'), "same door as Approve and Hold");
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/components.css").includes(".ix-steer-input {"));
+  assert.ok(readRaw("apps/dashboard/src/styles/components.css").includes(".ix-steer-input {"));
 });

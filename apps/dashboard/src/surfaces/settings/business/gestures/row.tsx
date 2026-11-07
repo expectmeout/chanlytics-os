@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { FoldSection } from "@/legacy-bridge/business-tab";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import type { FoldSection } from "@/bridge/business-tab";
+import type { FrameFlash } from "../../../frame-verbs";
 import { useRecordFold } from "../../../kit/record/hooks";
 import { RecordInline } from "../../../kit/record/inline";
 import { RecordRow } from "../../../kit/record/row";
@@ -31,7 +31,7 @@ import {
 /** A row's one-key change with its toast's words (save.tsx PATCH_OF), or the toast the server's answer makes. */
 interface BtCommit {
   change: RowChange;
-  said: ReactNode | ((answer: unknown) => LegacyFlash);
+  said: ReactNode | ((answer: unknown) => FrameFlash);
 }
 /** The other answer a row disagrees with, and the draft that takes it (`use`). */
 export interface BtDisputed<D> {

@@ -457,7 +457,7 @@ test("since_last_ms is known however long the thread: the read keeps the newest 
 
 test("the client sends opened_ms with the question when the palette measured one, and nothing when it did not; and a scope when it has one, null for none, nothing for no opinion", async () => {
   const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-  const { askApi } = await import(at("apps/dashboard/src/legacy-bridge/ask/api.ts"));
+  const { askApi } = await import(at("apps/dashboard/src/bridge/ask/api.ts"));
   const bodies = [];
   const client = createApi({
     fetch: async (_url, init) => {

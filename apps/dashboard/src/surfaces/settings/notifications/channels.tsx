@@ -6,14 +6,14 @@
 import { useState, type ReactNode } from "react";
 import { personInitials, type PhoneDto } from "@chanlytics/contracts";
 import { ALERT_ADDRESSES_MIN, ALERT_PANE_WORDS as W, phoneLine } from "@chanlytics/contracts/alert-pane";
-import type { BellApi } from "@/legacy-bridge/notifications";
+import type { BellApi } from "@/bridge/notifications";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordField, RecordSwitch } from "../../kit/record/field";
 import { RecordChips, RecordRow } from "../../kit/record/row";
-import { gateTitle, showTip, type GateProps, type LegacyFlash } from "../../legacy-verbs";
+import { gateTitle, showTip, type GateProps, type FrameFlash } from "../../frame-verbs";
 import { object } from "../../shell-doors";
 
 /** An address on the list, and whose it is: a teammate's name and face, "you", or no teammate. */
@@ -211,11 +211,11 @@ function PhonesRow({ phones, now }: { phones: PhoneDto[]; now: number }) {
 }
 
 /**
- * This browser: the bell's own switch (legacy-bridge/notifications.ts), kept in this browser, the same one the bell's
+ * This browser: the bell's own switch (bridge/notifications.ts), kept in this browser, the same one the bell's
  * popover and the account menu stand on. Drawn only where a browser can alert (never in the phone app's view); one that
  * refused says so, since only its own settings can let alerts through again.
  */
-function BrowserRow({ flash }: { flash: (f: LegacyFlash) => void }) {
+function BrowserRow({ flash }: { flash: (f: FrameFlash) => void }) {
   const api = object<BellApi>("__notifs") ?? null;
   const [alerts, setAlerts] = useState(() => api?.alerts() ?? null);
   if (!api || !alerts?.can) return null;
@@ -257,7 +257,7 @@ export function ChannelsCard({
 }: {
   email: EmailRowProps;
   phones: PhoneDto[];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   now: number;
 }) {
   return (

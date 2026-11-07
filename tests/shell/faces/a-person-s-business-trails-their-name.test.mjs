@@ -28,11 +28,11 @@ import {
   toLeadRowVM,
   toLiveCallVM,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, daysAgo, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
 
 const opened = [];
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false, CHANLY: { nav: (to) => opened.push(to) } });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false, CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../../apps/dashboard/src";
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { businessTrailFor } = await import(`${S}/surfaces/people/business-trail.ts`);

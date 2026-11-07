@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, textOf, walk } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, textOf, walk } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
@@ -94,7 +94,7 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 /* -------------------------------- a browser -------------------------------- */
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../apps/dashboard/src";
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
@@ -118,7 +118,7 @@ Object.assign(globalThis, {
   setInterval: () => 1,
   clearInterval() {},
 });
-// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
+// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/frame-verbs.ts).
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);

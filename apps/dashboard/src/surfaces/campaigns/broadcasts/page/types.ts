@@ -26,8 +26,8 @@ import type { bcWhenNote } from "../when";
 export type Setter<T> = Dispatch<SetStateAction<T>>;
 
 /**
- * What the shell's toast takes (frame/flash.tsx `usePPToast`): its words, and the acts beside them. `LegacyFlash`
- * (legacy-verbs.ts) names only the tone and the words; the toast's own take an act and doors too.
+ * What the shell's toast takes (frame/flash.tsx `usePPToast`): its words, and the acts beside them. `FrameFlash`
+ * (frame-verbs.ts) names only the tone and the words; the toast's own take an act and doors too.
  */
 interface BcFlash {
   tone?: string;

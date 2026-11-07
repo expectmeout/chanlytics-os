@@ -21,7 +21,7 @@ import "./globals.css";
  * resolve ("next/font/google queries have exactly one entry", vercel/next.js#99114): the production build of
  * #1348 died on it on 30 Sep 2026 while CI's build of the same commit passed. A build asks nothing over the
  * network now. Each weight range is the set of weights that was loaded before, so a heavier request still renders
- * as it did. The CSS variables are what the legacy design system consumes (tokens.css --font-sans/--font-mono), so
+ * as it did. The CSS variables are what the design system consumes (tokens.css --font-sans/--font-mono), so
  * the literal family name "Geist" never has to resolve for the UI to look right.
  *
  * Glass's type is Mona Sans, the canvases' (tokens.css, the look's --font-sans): three @font-face rules in globals.css
@@ -87,7 +87,7 @@ export const viewport: Viewport = {
   // the data-theme below, resolved from the member's stored preference. Anyone whose two disagreed read every screen
   // through a strip of the other theme, for good, because nothing in the app ever re-read the meta. One colour
   // stands here now, the dark the document below also stands in, and it is what a device running no script keeps;
-  // the boot script writes the resolved theme's over it before first paint, and LegacyApp's paintThemeColor writes
+  // the boot script writes the resolved theme's over it before first paint, and FrameApp's paintThemeColor writes
   // it again on every change.
   themeColor: themeColorOf("dark"),
 };

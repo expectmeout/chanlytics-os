@@ -13,7 +13,7 @@
  * - The pages outside the shell load the kit when one of them draws it (§3.3). A module of theirs (app/ but its (os)
  *   group, which the shell draws; src/auth; src/yes) that writes a kit class in a className, or imports the kit's
  *   components, which write them, needs kit.css among app/globals.css's imports. None draws it yet, and
- *   repo/legacy-harness.test.mjs holds globals.css to the tokens alone until one does.
+ *   repo/mockup-harness.test.mjs holds globals.css to the tokens alone until one does.
  *
  * Each check also runs on fixtures, where it must find what it looks for.
  */
@@ -189,7 +189,7 @@ test("a page outside the shell that draws the kit has app/globals.css import it 
   assert.deepEqual(
     unloaded(uses, importsKit(globals, GLOBALS_CSS)),
     [],
-    "import kit.css in globals.css, right after the tokens, and let repo/legacy-harness.test.mjs say so too",
+    "import kit.css in globals.css, right after the tokens, and let repo/mockup-harness.test.mjs say so too",
   );
   // The checks, where each must find what it looks for.
   const fixture = (code) =>
@@ -220,7 +220,7 @@ test("a page outside the shell that draws the kit has app/globals.css import it 
   assert.deepEqual(unloaded(drawing, false), ["apps/dashboard/app/login/page.tsx: btn"]);
   assert.deepEqual(unloaded(drawing, true), []);
   assert.deepEqual(unloaded([["apps/dashboard/src/yes/DeskSign.tsx", none]], false), []);
-  const tokens = '@import "../src/legacy/styles/tokens.css";';
+  const tokens = '@import "../src/styles/tokens.css";';
   assert.equal(importsKit(`${tokens}\n@import "../src/surfaces/kit/kit.css";`, GLOBALS_CSS), true);
   assert.equal(importsKit(tokens, GLOBALS_CSS), false);
 });

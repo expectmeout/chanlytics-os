@@ -270,7 +270,7 @@ test.describe("Ask on a real workspace", () => {
 
 /**
  * One paid question on each of five surfaces, each carrying its page the way the palette sends it: the context is the
- * palette's own (window.__ask.context, legacy-bridge/ask/context.ts, over what the page drew), warmed as the Line
+ * palette's own (window.__ask.context, bridge/ask/context.ts, over what the page drew), warmed as the Line
  * warms it on open (POST ask/warm), then sent with the question. The turn answers, carries no failure and names
  * nothing the workspace does not hold. The eval's cases on these surfaces (tooling/evals/ask-cases.json) grade the
  * answers; this proves the page rides a real turn end to end.

@@ -19,7 +19,7 @@ export const CV_ICON: Record<string, string> = {
 
 // ONE rule for "is this row in that tab", read by the filter AND the counts, so
 // a tab can never show a number it does not then list. `chats` is the mockup's
-// grouped tab; a real workspace gets one tab per wire (legacy-bridge
+// grouped tab; a real workspace gets one tab per wire (bridge
 // surface-data.ts). "mail" is the seed's spelling of what the view model calls
 // "email" — the filter carried only the seed's, so the Email tab was empty on
 // the mockup and matched nothing at all on a real workspace.

@@ -17,7 +17,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { NOTE_WORDS, isPersonRow, todaySteps, withSteps, zoneDayKey, clockTime } from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh,
   again,
   all,
@@ -28,14 +28,14 @@ import {
   press,
   quiet,
   redrawWanted,
-} from "../../_legacy-react.mjs";
+} from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { NOW, ZONE, handoffDay, peopleWithSteps } from "./_world.mjs";
 
 const went = [];
 const flashes = [];
 const opened = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __surfaceState: () => "live",
   appNavigate: (to) => went.push(to),
@@ -50,7 +50,7 @@ const W = globalThis.window;
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 // The seam's own signal, from the module the TSX reads it through: a surface's rows landed.
-const { surfaceMoved: surfaceLanded } = await import("../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { surfaceMoved: surfaceLanded } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 
 const nowMs = NOW.getTime();
 /** Six steps are due (Di, Hal, Ana, Gus, Cy, Ben); Eli's is ahead and Flo has none. */
@@ -407,7 +407,7 @@ test("Today's steps are People's rows, so a step done anywhere moves Today when 
   // The verbs and the live feed both read People again, from whichever page they are made on.
   globalThis.window ??= globalThis;
   globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   const keysOf = (route) => AFTER[route]().map((o) => o.key);
   for (const route of [
     "POST contacts/[id]/notes",

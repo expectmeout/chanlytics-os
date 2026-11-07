@@ -20,7 +20,7 @@ import {
   priceChoiceWrites,
   takesBookingRequests,
 } from "@chanlytics/contracts";
-import { unmount, all, byTestId, textOf, press } from "../../_legacy-react.mjs";
+import { unmount, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { POLICIES, W, drawTab, redrawTab, saving } from "../../_business-tab-harness.mjs";
 
 after(() => unmount());

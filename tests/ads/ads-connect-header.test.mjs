@@ -6,10 +6,10 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { memberWords, stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, unmount, all, byTestId, find, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, unmount, all, byTestId, find, textOf } from "../_stub-react.mjs";
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/studio",
     hash: "",

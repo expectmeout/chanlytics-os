@@ -4,7 +4,7 @@
  * visit make the same call and say the same receipt. Booked it answers with the reply it drafts for the member to send;
  * the page carries it into the thread's box.
  */
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb } from "@/bridge/verbs/commit";
 
 /** What the door answered: the reply Booked it drafts (null for Can't) and the receipt, or its refusal in a sentence. */
 type RequestAnswered = { ok: true; reply: string | null; receipt: string } | { ok: false; message: string };

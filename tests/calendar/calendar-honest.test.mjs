@@ -43,7 +43,7 @@ import {
 import { createRequire } from "node:module";
 import { hookFrames } from "../_hook-frames.mjs";
 import { keysDrawn } from "../_keys.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_stub-react.mjs";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -184,7 +184,7 @@ globalThis.React = {
   // A store outside React (the seam): the value it holds now, which each draw here asks again.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
-// A layout effect is an effect here, as it is on the kit's stub (_legacy-react.mjs): the board fits its hour in one. One
+// A layout effect is an effect here, as it is on the kit's stub (_stub-react.mjs): the board fits its hour in one. One
 // with no dependencies runs after every draw, as React runs it: the page says its bar to the frame so (kit/head/standing.ts
 // useStanding), and the frame draws what the last draw said.
 globalThis.React.useLayoutEffect = (fn, deps) => {
@@ -197,7 +197,7 @@ globalThis.React.useLayoutEffect = (fn, deps) => {
   cells[k] = { cleanup: typeof done === "function" ? done : null };
 };
 // The TSX surface imports its hooks from "react", which under this runner has none: the same stub is set on that module.
-const reactModule = createRequire(new URL("../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))("react");
+const reactModule = createRequire(new URL("../../apps/dashboard/src/bridge/_.js", import.meta.url))("react");
 for (const hook of [
   "useState",
   "useReducer",
@@ -271,7 +271,7 @@ const { CALENDAR_PAGE, CR_WARM_MS, fitDeskHourPx, fitHourPx } = await import(`${
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
 const CR_HOUR_MIN_PX = fitHourPx(0, 1);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
-const { setStatus } = await import("../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { setStatus } = await import("../../apps/dashboard/src/bridge/surface-status.ts");
 const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { calendarAddress, calendarParam } = await import(`${S}/calendar/address.ts`);
 const realVerbs = { ...calendar };
@@ -475,7 +475,7 @@ const settingsItem = (tree, label) =>
     .find((i) => i.label === label);
 
 test("REGRESSION (D14): on a desk an appointment opens in the peek at the board's edge, named by its title; Escape closes it, and the board holds still behind it", () => {
-  // The visit opened as Ask's legacy modal (lane E): it is the peek People's, the Pipeline's and Leads' pages draw, beside
+  // The visit opened as Ask's old modal (lane E): it is the peek People's, the Pipeline's and Leads' pages draw, beside
   // a board that stays live, never a modal that holds the page.
   fresh();
   let tree = page();
@@ -1735,7 +1735,7 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
 test("(C2) the bridge's refresh reads through the runner, fresh when asked, says whether a read landed, and never leaves fresh behind", async () => {
   // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
   leave();
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   const { calendarOverride } = await import(`${S}/calendar/surface.ts`);
   const seen = [];
   const was = {
@@ -1800,7 +1800,7 @@ test("a window the board has read paints at once on the way back, and is read ag
   leave();
   // Measured on the salon's workspace, 22 Sep: the board held one window, so back to this week, and back to December,
   // were 390-500ms of "Reading those days…" each, and leaving for Reports read today's weeks again besides.
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   const { calendarOverride, getCalendarSpan } = await import(`${S}/calendar/surface.ts`);
   const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
   const seen = [];
@@ -1884,7 +1884,7 @@ test("a window the board has read paints at once on the way back, and is read ag
 test("REGRESSION: two moves whose reads overlap land as the second, and neither says it could not read the days -- the first, its answer dropped, put the span back under the second, whose own answer was then dropped too", async () => {
   // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
   leave();
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   const { calendarOverride, getCalendarSpan, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
   const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
   setCalendarSpan(null);
@@ -2002,7 +2002,7 @@ test("a window read ahead is held and paints at once when the board gets there; 
   // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
   leave();
   const { warmCalendar, calendarOverride, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   // The weeks the board last looked at stay with the module: this one begins on the weeks around today.
   setCalendarSpan(null);
   const { windowFor, zoneDayKey, shiftMonth: monthOf } = await import("@chanlytics/contracts");

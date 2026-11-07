@@ -11,7 +11,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { UnsavedAsk } from "../../../kit/record/work";
 import type { UnsavedWork } from "../../../kit/record/work";
-import { gate, routeDoor } from "../../../legacy-verbs";
+import { gate, routeDoor } from "../../../frame-verbs";
 import type { Step } from "./new-state";
 
 interface FootProps {

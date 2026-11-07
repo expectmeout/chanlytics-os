@@ -7,14 +7,14 @@
  */
 import { useState } from "react";
 import type { MailboxConnectionDto, MailboxSignsChoice, SetupDto } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Confirm } from "../../kit/confirm/confirm";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Switch } from "../../kit/switch/switch";
-import { refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, type FrameFlash } from "../../frame-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
 
@@ -31,7 +31,7 @@ interface SheetProps {
   email: Email;
   businessName: string | null;
   owner: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   onClose: () => void;
   /** Remove, once asked: the block's act, which closes the sheet when it is done. */
   onRemove: () => Promise<void>;

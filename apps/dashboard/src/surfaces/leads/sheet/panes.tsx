@@ -28,7 +28,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Popover } from "../../kit/popover/popover";
 import { RecordDisclosure } from "../../kit/record/disclosure";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { LeadCallMenu } from "../cells/call-menu";
 import { SentEmail, SheetEmail, type EmailBox } from "./email-box";
 import { ldCheckMark } from "../peek/hint";

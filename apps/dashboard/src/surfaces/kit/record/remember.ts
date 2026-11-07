@@ -1,6 +1,6 @@
 /**
  * The record kit's memory of a fold a member left open (canvas A, P9.4: "open or closed is remembered"): the tab's
- * memory (legacy-bridge/tab-memory.ts, through shell-verbs.ts tabMemory), a place per fold under the page `folds`, so a
+ * memory (bridge/tab-memory.ts, through shell-verbs.ts tabMemory), a place per fold under the page `folds`, so a
  * fold stays as the member left it across the walk from person to person and a phone's tab switches, for this tab, and
  * is forgotten at sign-out. Only "open" is kept: closed is the default, and a place with nothing in it is forgotten.
  * Read once, as the fold is drawn, so a fold left open is drawn open on the first paint.

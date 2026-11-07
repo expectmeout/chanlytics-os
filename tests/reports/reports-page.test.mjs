@@ -24,7 +24,7 @@ import {
   shiftKey,
 } from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh,
   again,
   all,
@@ -35,7 +35,7 @@ import {
   press,
   settle,
   atWidth,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import {
   reportDto,
   quiet,
@@ -66,7 +66,7 @@ import { until } from "../shared/_until.mjs";
 
 const went = [];
 const flashed = [];
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.__WORKSPACES = [
   {
     id: "w1",
@@ -88,9 +88,9 @@ const { peopleSample, receptionistSample, reviewsSample } = await import(`${S}/s
 const { campaignsSample } = await import(`${S}/surfaces/reports/campaigns-sample.ts`);
 const { toCampaignLensVM, toPeopleReportVM, toReceptionistReportVM, PEOPLE_RHYTHM_UNIT } =
   await import("@chanlytics/contracts/report-lens");
-const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
-const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
-// The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
+const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
+const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
+// The shell's doors, which the surface reaches through the bridge's verbs (surfaces/frame-verbs.ts).
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   usePPToast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])],
@@ -2425,7 +2425,7 @@ test("REGRESSION: a period nobody wrote or called in still says its deals -- the
 });
 
 test("REGRESSION: recording a deal re-reads Reports as well as People -- an open session kept the Deals section's old numbers until a reload", async () => {
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   // And the audiences with them (W3): a deal moved changes the deal lists and who a follow-up reaches, read where a page draws them
   // and left for those pages from Reports, which draws neither (S10-6).
   assert.deepEqual(

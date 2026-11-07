@@ -34,8 +34,8 @@
         "middleware.ts",
         "next.config.ts",
         "src/*.ts",
-        "src/legacy-bridge/manifest.ts",
-        "src/legacy-bridge/**/*.{ts,tsx}",
+        "src/bridge/manifest.ts",
+        "src/bridge/**/*.{ts,tsx}",
         "src/**/*.type-test.ts"
       ],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.{ts,mjs}"]

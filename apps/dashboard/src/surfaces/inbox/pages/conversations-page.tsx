@@ -70,7 +70,7 @@ function cvTrail(personId: string | null | undefined) {
   ) : null;
 }
 
-// The box's words, kept per tab in the tab's storage (the loading standard's F, legacy-bridge/tab-memory.ts): a
+// The box's words, kept per tab in the tab's storage (the loading standard's F, bridge/tab-memory.ts): a
 // search typed on Phone is there again after a trip to People or a refresh; none on the standalone harness.
 const cvPlace = (channel: string): Record<string, unknown> => {
   const memory = tabMemory();

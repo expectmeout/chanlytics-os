@@ -18,8 +18,8 @@ import {
   type LifecycleTemplate,
   type TemplateHolds,
 } from "@chanlytics/contracts";
-import { surfaceMoved } from "@/legacy-bridge/surface-status";
-import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
+import { surfaceMoved } from "@/bridge/surface-status";
+import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import type { TemplateDto } from "./inbox/types";
 import { onSurfaceValue, setSurfaceValue, surfaceValue, type SurfaceKey, type SurfaceValues } from "./surface-values";
 

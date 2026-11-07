@@ -22,7 +22,7 @@ import { useState } from "react";
 import { campaignEmailRules, namedProblem, validateEmailVersion, validateSmsVersion } from "@chanlytics/contracts";
 import type { EmailRules, OwnVersionChannel, SlotSet, SlotValue, VersionWords } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { FieldError } from "../../kit/field-error/field-error";

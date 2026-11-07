@@ -33,14 +33,14 @@ import {
   type TodayZoneDayVM,
   type TodayZoneLineVM,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { pageClock, type PageClock } from "@/legacy-bridge/zone";
+import { api } from "@/bridge/api";
+import { pageClock, type PageClock } from "@/bridge/zone";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import { Button, Meter } from "../../kit";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
 import { TODAY_HELPERS } from "../helpers";

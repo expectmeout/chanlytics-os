@@ -1,7 +1,7 @@
 /**
  * The policy chips say a workspace's own modes, and none before they are read.
  *
- * The policy store (legacy-bridge/policy-store.ts) answered from the mockup's seeded charter while `__POLICIES` was
+ * The policy store (bridge/policy-store.ts) answered from the mockup's seeded charter while `__POLICIES` was
  * undefined, which in the app is a cold tab before GET settings lands, or a settings read that failed twice: a real
  * workspace's chips (the kit's PolicyChip, beside a broadcast run waiting on its owner, an approval, a playbook) said
  * "Replies · holds it" from the seed, a mode the database never said. And settings landing told no chip, since the
@@ -61,8 +61,8 @@ globalThis.window.fetch = async (url) => {
 
 const quiet = console.error;
 console.error = () => {};
-const { installPolicyStore } = await importSrc("apps/dashboard/src/legacy-bridge/policy-store.ts");
-const { settingsOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+const { installPolicyStore } = await importSrc("apps/dashboard/src/bridge/policy-store.ts");
+const { settingsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/settings.ts");
 console.error = quiet;
 installPolicyStore(globalThis.window);
 

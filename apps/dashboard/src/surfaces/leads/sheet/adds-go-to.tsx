@@ -10,8 +10,8 @@ import { LEAD_SHEET_WORDS as W, leadPickerRowsOf } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup } from "../../kit/menu/menu";
-import { gate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import type { LeadAim } from "./use-aim";
 
 export function AddsGoTo({
@@ -20,7 +20,7 @@ export function AddsGoTo({
   onNew,
 }: {
   aim: LeadAim;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   /** Choose every lead shown and open Add at New; none where nothing is shown to add. */
   onNew: (() => void) | null;
 }) {

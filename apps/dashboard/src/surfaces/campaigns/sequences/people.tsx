@@ -33,8 +33,8 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { RecordDisclosure } from "../../kit/record/disclosure";
-import { canDo, gate, routeDoor } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, routeDoor } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { leadOverDoor, useLeadOver } from "../../leads/sheet/lead-over";
 import { tripNow } from "./trip";
 import { SequenceNeeds } from "./needs";
@@ -42,7 +42,7 @@ import { usePeopleRead } from "./use-record";
 import { pressed } from "./verbs";
 import { RewriteAsk } from "../reach-out/rewrite-ask";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** The groups folded under Needs you, in their order: added and not planned yet among those still to come. */
 const FOLDED: readonly SequencePeopleGroup[] = ["next", "queued", "in", "done", "left"];

@@ -447,7 +447,7 @@ test("the door: idempotent, one language at a time, synced in when the number's 
       b.includes("slotKinds: defaultSlotKinds"),
     "the library reaches the pages (imported by them since decision 0015, no longer published on window)",
   );
-  const refreshMap = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const refreshMap = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   assert.deepEqual(
     refreshMap.AFTER["POST templates/starter"]().map((o) => o.key),
     ["settings"],
@@ -639,7 +639,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
     "presence, the bell and the theme are one group",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/styles/components.css").includes(
+    readCode("apps/dashboard/src/styles/components.css").includes(
       ".tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }",
     ),
   );

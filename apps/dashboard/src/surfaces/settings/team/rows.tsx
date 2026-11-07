@@ -20,7 +20,7 @@ import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordSwitch } from "../../kit/record/field";
-import { gatedProps } from "../../legacy-verbs";
+import { gatedProps } from "../../frame-verbs";
 import type { TeamPerson } from "./people";
 
 /** What the card has asked on a row, and of whom. */

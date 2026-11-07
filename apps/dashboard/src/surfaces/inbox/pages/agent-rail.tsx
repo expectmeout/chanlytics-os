@@ -9,7 +9,7 @@
  *   5. Train the agent — single segmented control replacing 3 flat buttons
  */
 import { useEffect, useReducer, useState } from "react";
-import { askAbout } from "../../legacy-verbs";
+import { askAbout } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { Button } from "../../kit/button/button";
 import { Menu } from "../../kit/menu/menu";
@@ -30,7 +30,7 @@ interface AskedOfAgent {
   a: string;
 }
 
-/** What the rail asks Ask: the demo's seed palette also takes a canned `answer` and `links` (legacy CLAUDE.md, "Window contracts"). */
+/** What the rail asks Ask: the demo's seed palette also takes a canned `answer` and `links` (mockup/CLAUDE.md, "Window contracts"). */
 interface RailAsk {
   prompt?: string;
   mode?: string;

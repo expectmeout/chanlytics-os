@@ -10,7 +10,7 @@ import type { LeadRailRow, leadRail } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { editorBox, focusAsDrawn, gate } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, gate } from "../../frame-verbs";
 import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import { RailEmpty, RailRow, RailSection, railQuiet } from "../../people/rail/rail-kit";
 import { LeadsRailViews, type LeadNamed } from "./rail-views";

@@ -16,7 +16,7 @@ import {
   TRY_IT_MAX_EXCHANGES,
   tryItVM,
 } from "@chanlytics/contracts";
-import { unmount, all, find, byTestId, textOf, press, settle, classes } from "../../_legacy-react.mjs";
+import { unmount, all, find, byTestId, textOf, press, settle, classes } from "../../_stub-react.mjs";
 import { W, drawTab, redrawTab, foldOf, openFold, openFolds } from "../../_business-tab-harness.mjs";
 
 after(() => unmount());

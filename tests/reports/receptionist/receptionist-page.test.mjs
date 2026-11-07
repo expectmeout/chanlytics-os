@@ -12,12 +12,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { shiftKey } from "@chanlytics/contracts";
 import { toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
-import { installLegacyReact, fresh, all, byTestId, textOf, classes, find, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, all, byTestId, textOf, classes, find, press } from "../../_stub-react.mjs";
 import { quiet, rday, surface } from "../_report-world.mjs";
 import { FACTS, NO_FUNCTION, QUIET, READ_AT, dtoWith, ownHeld } from "./_receptionist-world.mjs";
 
 const navigated = [];
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, { CHANLY: { nav: (to) => navigated.push(to), R: { admin: (pane) => `admin/${pane}` } } });
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
@@ -37,10 +37,10 @@ const S = "../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
-const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
+const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
 const { forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const SERIES = await import(`${S}/surfaces/reports/series.ts`);
-const CHARTS_CSS = readFileSync(new URL(`${S}/legacy/styles/charts.css`, import.meta.url), "utf8");
+const CHARTS_CSS = readFileSync(new URL(`${S}/styles/charts.css`, import.meta.url), "utf8");
 const { DotPlot } = await import(`${S}/surfaces/kit/charts/dot.tsx`);
 const { BarList } = await import(`${S}/surfaces/kit/charts/bar.tsx`);
 const { LineChart } = await import(`${S}/surfaces/kit/charts/line.tsx`);

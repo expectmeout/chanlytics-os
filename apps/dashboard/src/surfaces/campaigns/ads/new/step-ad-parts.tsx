@@ -14,7 +14,7 @@ import { Picker } from "../../../kit/picker/picker";
 import type { PickerGroup } from "../../../kit/picker/picker";
 import { RecordDisclosure } from "../../../kit/record/disclosure";
 import { Segmented } from "../../../kit/segmented/segmented";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { cmChevron } from "../../parts/picks";
 import { adsInPreview } from "../shown";
 import { Cap, Ctl, OnOffRow, Sec } from "./new-bits";

@@ -1,7 +1,8 @@
 # @chanlytics/edge
 
 What the outside world knocks on: provider webhooks, the job tick, cron sweeps and the admin doors the dashboard calls.
-Node functions on Vercel (project `chanlytics-messaging`), each bundled by esbuild with the packages' sources
+"Edge" means the edge of our system. These are Node functions on Vercel, not Vercel's Edge Runtime (project
+`chanlytics-messaging`), each bundled by esbuild with the packages' sources
 (`tooling/scripts/edge-functions.mjs`). A member of the public experiences this code, so treat it that way.
 
 ## What is where

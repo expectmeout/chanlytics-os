@@ -2,16 +2,16 @@
  * The kit's table (decision 0083): `DataTable` over a table from `useDataTable` and the state from `useTableState`, and
  * the rules over its columns (kit/table/columns.ts). Moved from people/people-table.test.mjs with the table it held: what
  * the table says its rows are, its headings, the window of a long list's rows, its groups, a phone's cards, a desk's
- * widths and edges, and how its rows arrive. Drawn on the shared stub React (_legacy-react.mjs) over the real TSX; the
+ * widths and edges, and how its rows arrive. Drawn on the shared stub React (_stub-react.mjs) over the real TSX; the
  * widths a desk draws are written by the table's layout effect onto its elements, which the stub has none of, so their
  * sums and the writer are table-widths.test.mjs's.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const { DataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/data-table.tsx");
 const { chosenSortOf, useTableState } = await importSrc("apps/dashboard/src/surfaces/kit/table/state.ts");
 const { useDataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/use-data-table.ts");

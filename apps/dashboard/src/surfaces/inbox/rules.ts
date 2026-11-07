@@ -3,7 +3,7 @@
  * on you, the bucket a thread sits in, the order a bucket stands in, a draft's own key in the veto store, and the
  * thread a route names. The pages read them, and so does needs-you.ts for the parts it says apart (through `ixWaiting`):
  * the Inbox's band and head, and Ask's Right now, so no two of them can say different numbers (the badge's one count is
- * Today's rows above To do, 0048 amended 2 Nov 2026); the standalone mockup gets `ixWaitsOnYou` from legacy-globals.ts.
+ * Today's rows above To do, 0048 amended 2 Nov 2026); the standalone mockup gets `ixWaitsOnYou` from mockup-globals.ts.
  */
 import {
   HOUR_MS,

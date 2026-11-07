@@ -18,7 +18,7 @@ import {
   type SequenceRowDto,
 } from "@chanlytics/contracts";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import type { ReportsSurface } from "../surface";
 import type { OneRead } from "./campaigns-one";
 

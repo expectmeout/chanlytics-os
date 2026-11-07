@@ -11,7 +11,7 @@
  *   and a tab pressed opens with the words last typed on it.
  * - The rows are the surface's newest read. The page held its list and its tabs' counts on a counter only a decision
  *   moved, so what the live feed read again while the page was open never reached the screen (5 Oct 2026): the stub
- *   keeps useMemo as React does (_legacy-react.mjs), or a memo on the wrong inputs could never show.
+ *   keeps useMemo as React does (_stub-react.mjs), or a memo on the wrong inputs could never show.
  * Run against the page (surfaces/inbox/pages/conversations-page.tsx) on a stub React, over the rows the seam holds, with the
  * tab's memory installed as the app installs it.
  */
@@ -19,16 +19,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toCallVM, stateOf } from "@chanlytics/contracts";
 import { legacyAddress } from "../../shell/address/_address.mjs";
-import {
-  installLegacyReact,
-  fresh as freshTree,
-  again,
-  all,
-  find,
-  byTestId,
-  textOf,
-  press,
-} from "../../_legacy-react.mjs";
+import { installStubReact, fresh as freshTree, again, all, find, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
@@ -37,7 +28,7 @@ const NOW = new Date("2026-09-14T14:00:00Z");
 /* ---------------------------------- the window ---------------------------------- */
 
 const went = [];
-installLegacyReact({
+installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
@@ -61,7 +52,7 @@ const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const cvRules = await import(`${S}/surfaces/inbox/cv-rules.ts`);
 const { cvRoute: route, cvAddress: address } = cvRules;
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-const { installTabMemory, clearTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
+const { installTabMemory, clearTabMemory } = await import(`${S}/bridge/tab-memory.ts`);
 installTabMemory(globalThis.window);
 const TM = globalThis.window.__tabMemory;
 

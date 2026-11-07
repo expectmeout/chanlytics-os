@@ -12,7 +12,7 @@ import { CALENDAR_RUN_SHEET_WORDS as W, sendOnceRoute, type CalendarRunMark } fr
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { Sheet } from "../kit/sheet/sheet";
-import { navigate } from "../legacy-verbs";
+import { navigate } from "../frame-verbs";
 
 /** A mark's look: still to come is hollow, a run waiting is the page's one amber, a failed one is danger, the rest quiet. */
 export function markLook(m: CalendarRunMark): string {

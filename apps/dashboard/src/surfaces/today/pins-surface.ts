@@ -9,10 +9,10 @@
  * dear read is, since each is a read of everyone on the server.
  */
 import { pinTokens, type ListCountsDto } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
-import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
+import { read } from "@/bridge/api";
+import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
+import { DEAR_READ_LONGEST_WAIT_MS } from "@/bridge/surface-realtime";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 /** The pinned lists' counts by token, the tokens they were read for, and when. */

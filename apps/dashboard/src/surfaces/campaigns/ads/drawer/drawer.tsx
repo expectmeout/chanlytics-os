@@ -18,7 +18,7 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Menu } from "../../../kit/menu/menu";
 import type { MenuItem } from "../../../kit/menu/menu";
-import { gate } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
 import { useKept } from "../../home/pane-sheet";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPreviewFold } from "../../parts/preview-fold";

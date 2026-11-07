@@ -7,10 +7,10 @@
  * verbs (surface.ts), since Sequences' surface and its doors, which the frame loads, read it.
  */
 import type { ReachOutSourceDto } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
-import { firstDrawWaitsFor } from "@/legacy-bridge/surface-status";
-import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
+import { read } from "@/bridge/api";
+import { readCache } from "@/bridge/read-cache";
+import { firstDrawWaitsFor } from "@/bridge/surface-status";
+import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 
 const searchesHeld = readCache<ReachOutSourceDto[]>("reach_out_sources", () => true, { tab: true });
 

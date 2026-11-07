@@ -10,9 +10,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const heard = {};
 const doc = {
   body: { name: "body" },

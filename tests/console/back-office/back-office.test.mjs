@@ -113,7 +113,7 @@ import { importSrc, readCode, readRaw } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { setupDtoFor } from "../../../apps/dashboard/src/server/workspace/setup.ts";
 import { platformWaitlist, platformWaitlistInvited } from "../../../apps/dashboard/src/server/console/platform.ts";
-import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 
 const NOW = Date.parse("2026-09-09T18:00:00Z");
 const DAY = 86_400_000;
@@ -582,7 +582,7 @@ test("the nav's one bit rides on the payload the seam already fetches", () => {
   // has none yet. A missing field reads as false and hides the tab from an
   // admin whose only workspace was removed.
   assert.equal((route.match(/platform_admin: platformAdmin/g) ?? []).length, 2);
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/surface-data.ts");
   assert.match(bridge, /platform_admin\?: boolean;/);
   // It is not the authorization, and the comment says so where somebody would
   // otherwise be tempted to trust it.
@@ -1040,7 +1040,7 @@ test("no cross-tenant action happens that nobody can be held to", () => {
 test("the back office is read on demand, not published to every browser", async () => {
   // A surface would make every customer's browser fetch a page it will never be
   // allowed to see, on every boot, for two accounts' benefit.
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/platform.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/platform.ts");
   assert.ok(!bridge.includes("SurfaceOverride"), "not a surface");
   assert.ok(
     bridge.includes("rows: platformRows") && bridge.includes("steps: setupSteps"),
@@ -1048,13 +1048,13 @@ test("the back office is read on demand, not published to every browser", async 
   );
   // Nothing reads the verbs off the window (the pane imports them), so nothing publishes them there (O4b).
   assert.ok(!bridge.includes("installPlatform"), "no window name for the verbs");
-  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installPlatform"));
+  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installPlatform"));
   // Classified as a real PANE of Settings -- without that line the shell's
   // honesty gate fell through to the page's "demo" and a platform admin who
   // clicked Back office got the Not-in-this-release card -- but never as a
   // SURFACE of its own: it waits for who is looking alone, as every pane drawn from none of the settings read does
   // since #1890, and nothing fetches the back office at boot.
-  const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   assert.equal(registry.SURFACE_STATES["admin/platform"], "real", "the pane is reachable");
   assert.equal(registry.ROUTE_SURFACE["admin/platform"], "workspace", "and it waits for who is looking");
   assert.ok(!JSON.stringify(registry).includes('"platform"'), "no surface of its own, so none is fetched at boot");
@@ -1116,7 +1116,7 @@ const { WorkspacesScreen } = await import(`${S}/workspaces.tsx`);
 const { WorkspaceScreen } = await import(`${S}/workspace.tsx`);
 const { PartnersScreen } = await import(`${S}/partners.tsx`);
 const { SpeedTab } = await import(`${S}/health/speed.tsx`);
-/** The back office's words the App speed tab reads, as the bridge hands them (legacy-bridge/platform.ts). */
+/** The back office's words the App speed tab reads, as the bridge hands them (bridge/platform.ts). */
 const { pageSpeedWords, platformDaysWords } = await import("@chanlytics/contracts");
 const WORDS = { vitalsWords: pageVitalsWords, speedWords: pageSpeedWords, daysWords: platformDaysWords };
 const { WorkspaceRow } = await import(`${S}/rows.tsx`);
@@ -1128,7 +1128,7 @@ const { Search } = await import("../../../apps/dashboard/src/surfaces/kit/search
 const { SubTabs } = await import("../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");
 const { RecordTip } = await import("../../../apps/dashboard/src/surfaces/kit/record/field.tsx");
 // The verbs the screens read, which a test stands in whole, as it once replaced window.__platform.
-const { backOffice } = await import("../../../apps/dashboard/src/legacy-bridge/platform.ts");
+const { backOffice } = await import("../../../apps/dashboard/src/bridge/platform.ts");
 
 /** Who is looking, as GET platform/me answers: an owner on the Console's staff. */
 const ME = { user_id: "u-admin", email: "ruben@rjcapital.io", name: "Ruben", role: "owner" };

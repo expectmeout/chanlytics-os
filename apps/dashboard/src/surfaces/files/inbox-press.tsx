@@ -3,11 +3,11 @@ import { useState } from "react";
 import { FILE_WORDS as W, inboxCleanOf, type FileDto } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Notice } from "../kit/notice/notice";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { FrameFlash } from "../frame-verbs";
 import { fileVerbs } from "./verbs";
 
 export /** What the Inbox says of itself, and its one press: what the look found nothing against, kept at once. */
-function InboxPress({ inbox, flash }: { inbox: readonly FileDto[]; flash: (f: LegacyFlash) => void }) {
+function InboxPress({ inbox, flash }: { inbox: readonly FileDto[]; flash: (f: FrameFlash) => void }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const clean = inbox.filter(inboxCleanOf);

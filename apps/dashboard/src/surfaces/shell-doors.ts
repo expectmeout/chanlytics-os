@@ -5,10 +5,10 @@
  * the three readers, the role gate and the toast. Each door is a line to delete on the day its owner moves.
  */
 import type { ReactNode } from "react";
-import { useLegacyToast, windowFn, windowObject, windowValue } from "./legacy-verbs";
+import { useFrameToast, windowFn, windowObject, windowValue } from "./frame-verbs";
 
 /*
- * The three readers are legacy-verbs' (OW6: the one set of them, with no copy beside it), named as the surfaces' `shell.ts`
+ * The three readers are frame-verbs' (OW6: the one set of them, with no copy beside it), named as the surfaces' `shell.ts`
  * files use them: a name off the window whatever it holds, a function the shell published, an object it published.
  */
 export { windowValue };
@@ -35,5 +35,5 @@ export interface Flash {
 
 /** The toast's node, to be drawn by the page, and the flash that raises one. */
 export function useToast(): [ReactNode, (flash: Flash) => void] {
-  return useLegacyToast();
+  return useFrameToast();
 }

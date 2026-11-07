@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, kitPages } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, kitPages } from "../_stub-react.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -65,7 +65,7 @@ const role = { now: "owner" };
 const asRole = (r) => {
   role.now = r;
 };
-installLegacyReact({
+installStubReact({
   __roleGate: roleGate,
   ST_STORE: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now, get: (k, fallback) => fallback },
   __chrome: { state: stateOf },
@@ -341,7 +341,7 @@ const SRC = "../../apps/dashboard/src";
 test("REGRESSION (C17, C21): a viewer on Templates finds New message where it always is, gated with the reason -- it was hidden with no word -- and nothing listens for an event nobody sends", async () => {
   asRole("viewer");
   const listening = [];
-  installLegacyReact({
+  installStubReact({
     __DEMO_MODE: false,
     __surfaceState: () => "live",
     __ME: { role: "viewer" },

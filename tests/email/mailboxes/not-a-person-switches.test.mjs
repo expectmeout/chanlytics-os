@@ -5,9 +5,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, find, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const { NotAPersonSwitches } =
   await import("../../../apps/dashboard/src/surfaces/settings/connections/left-senders.tsx");
 const { MAILBOX_SENDERS_WORDS: W } = await import("../../../packages/contracts/src/email/mailbox-senders.ts");

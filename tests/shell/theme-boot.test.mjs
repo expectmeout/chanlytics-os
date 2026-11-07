@@ -4,13 +4,13 @@
  * The document came down with data-theme="dark" hard-coded and was corrected in an effect after the bundle (2.7 MB)
  * had mounted, so a light-theme workspace opened dark and flipped on every refresh. A script inline in the head
  * stamps the theme the app will resolve, from the same preference the app reads, before anything paints. It is
- * contracts' own text, and this runs it against the app's own reading of the same bytes -- legacy-bridge/
- * device-prefs.ts, which LegacyApp holds: its loadPrefs, then the stamps it works out -- for everything a device could
+ * contracts' own text, and this runs it against the app's own reading of the same bytes -- bridge/
+ * device-prefs.ts, which FrameApp holds: its loadPrefs, then the stamps it works out -- for everything a device could
  * hold and both settings.
  *
  * The bars above and below the page had the same bug for longer: theme-color was a pair of metas keyed off
  * (prefers-color-scheme), so they followed the PHONE while the page followed the member's preference, and the two
- * never had to agree. The script now paints them from the theme it resolved, and LegacyApp's paintThemeColor
+ * never had to agree. The script now paints them from the theme it resolved, and FrameApp's paintThemeColor
  * repaints them on every change; both run here, against the one colour per theme contracts keeps.
  *
  * The look travels as the theme does (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.2): the same
@@ -35,8 +35,8 @@ import {
 } from "../../packages/contracts/src/shell/chrome.ts";
 import { routeOfAddress, routeOfPath } from "../../packages/contracts/src/shell/address.ts";
 import { FIRST_RUN_ROUTE } from "../../packages/contracts/src/setup/first-run-route.ts";
-import { paintThemeColor } from "../../apps/dashboard/src/legacy-bridge/theme-color.ts";
-import { loadPrefs, choosePref, documentStamps } from "../../apps/dashboard/src/legacy-bridge/device-prefs.ts";
+import { paintThemeColor } from "../../apps/dashboard/src/bridge/theme-color.ts";
+import { loadPrefs, choosePref, documentStamps } from "../../apps/dashboard/src/bridge/device-prefs.ts";
 import * as manifestModule from "../../apps/dashboard/app/manifest.ts";
 import { OUTLINE_ROUTES } from "../../apps/dashboard/src/surfaces/frame/places.ts";
 
@@ -461,7 +461,7 @@ const appSidebar = (stored, storageThrows = false) =>
 
 /**
  * Whether the app draws the address full screen: a workspace's address whose route's page is the first run
- * (surfaces/frame/app-shell.tsx). The home draws no frame at all: it sends the tab on to its workspace (LegacyHost).
+ * (surfaces/frame/app-shell.tsx). The home draws no frame at all: it sends the tab on to its workspace (FrameHost).
  */
 const appFullScreen = (pathname, hash) =>
   routeOfPath(pathname) !== null && routeOfAddress({ pathname, hash }).split(/[/?]/)[0] === FIRST_RUN_ROUTE;

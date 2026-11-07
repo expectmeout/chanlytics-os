@@ -13,7 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toastShape, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks } from "../_legacy-react.mjs";
+import { kitHooks } from "../_stub-react.mjs";
 
 /* ---------------------------- the shape ------------------------------- */
 

@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from "react";
 import { CONSENT_SOURCES, offersYesRefusal } from "@chanlytics/contracts";
-import { mayAtLeast, refusalToast } from "../../legacy-verbs";
+import { mayAtLeast, refusalToast } from "../../frame-verbs";
 import type { ReceptionistMany } from "../people-detail";
 import { setPersonConsentMany, setPersonMarketingConsentMany, setPersonReceptionistMany } from "../people-detail";
 import { lists } from "../people-lists";

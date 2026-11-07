@@ -24,7 +24,7 @@ import {
   identityWords,
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
-import { installLegacyReact, fresh, again, all, byTestId, classes, press, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, classes, press, textOf } from "../_stub-react.mjs";
 
 test("the theme: a choice, or the device's; unknown values fall back; the sidebar has two states", () => {
   assert.equal(resolveTheme("light", true), "light");
@@ -180,7 +180,7 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
 });
 
 test("the wiring: the pill is retired, the shell bridge carries its two actions and its status, the page has the menus, the rail and the sheet", () => {
-  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(!app.includes("bridge-pill") && !app.includes("pill-signout"), "no floating pill");
   assert.ok(
     app.includes("installShell();") &&
@@ -208,12 +208,9 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     "look={look}",
   ])
     assert.ok(app.includes(pin), `the page wears and keeps what device-prefs.ts says: ${pin}`);
-  assert.ok(
-    !readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"),
-    "the pill's styles are gone",
-  );
+  assert.ok(!readRaw("apps/dashboard/src/bridge/frame.css").includes(".bridge-pill"), "the pill's styles are gone");
 
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/shell.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/shell.ts");
   assert.ok(
     bridge.indexOf("sealSurfaceCache();") < bridge.indexOf('form.action = "/auth/signout";'),
     "the cache is cleared before the server ends the session",
@@ -281,7 +278,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     ),
   );
 
-  const css = readRaw("apps/dashboard/src/legacy/styles/components.css");
+  const css = readRaw("apps/dashboard/src/styles/components.css");
   for (const pin of [
     ".sidebar.collapsed .nav-item { justify-content: center;",
     ".sb-menu { position: fixed;",
@@ -290,7 +287,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
   ])
     assert.ok(css.includes(pin), pin);
   assert.ok(
-    readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(
+    readRaw("apps/dashboard/src/styles/mobile.css").includes(
       ".side-wrap .sidebar.collapsed { width: min(248px, 84vw); }",
     ),
     "the drawer is never a rail",
@@ -300,7 +297,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
 test("the account chip says it opens a menu with the chevrons the workspace row draws, in the same ink", async () => {
   // Both buttons open a popover from the sidebar. The row at the top always drew the chevrons; the chip at the foot drew
   // none, so nothing said it was a button (Ruben, 11 Oct 2026). Drawn as a person sees them, and the rail hides each.
-  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
   fresh();
@@ -327,7 +324,7 @@ test("the account chip says it opens a menu with the chevrons the workspace row 
 test("the workspace row says its name, and under it how many workspaces there are only where there is more than one; never the lines", async () => {
   // "1 of 1 line on" under the name said again what Today says, for any workspace (Ruben, 11 Oct 2026). What the row's
   // menu does is switch, so the line under the name says how many there are to switch between.
-  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
   globalThis.window.TODAY_DATA = { standing: { lines: { short: "1 of 1 line on" } } };
@@ -370,7 +367,7 @@ test("the workspace row says its name, and under it how many workspaces there ar
 
 test("the workspace's circle wears its own logo over its initials, and its initials alone without one; never Ask's three", async () => {
   // 00407: the circle said Ask's three for every business. The initials are contracts' rule, through the bridge.
-  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
   globalThis.window.__identity = { workspace: workspaceInitials, words: identityWords };
@@ -471,7 +468,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
 test("the account menu offers the look only once contracts does: none while it is not offered, then the looks under the theme, a press handing it to the shell", async () => {
   // The real sidebar on the stub React, its account menu opened as a person opens it. The chrome's words are what
   // the bridge publishes (shell.ts installShell), with the flag as contracts has it and then turned on.
-  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  installStubReact({ usePPToast: () => [null, () => {}] });
   globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   const picked = [];
   const themed = [];

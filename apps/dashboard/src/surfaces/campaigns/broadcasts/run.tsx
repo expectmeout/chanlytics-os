@@ -22,8 +22,8 @@ import {
   sequenceRoute,
 } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
-import { goToRoute } from "@/legacy-bridge/workspace";
-import { pageClock } from "@/legacy-bridge/zone";
+import { goToRoute } from "@/bridge/workspace";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
@@ -33,7 +33,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { gate, gatedProps, navigate, replaceRoute, touchSwipe } from "../../legacy-verbs";
+import { gate, gatedProps, navigate, replaceRoute, touchSwipe } from "../../frame-verbs";
 import { CmDot } from "../parts/head";
 import { CmPane, useCmPhone } from "../parts/split";
 import { ReachOutRun, RoRunDock, roRunHead, roRunWaits } from "../reach-out/approval";

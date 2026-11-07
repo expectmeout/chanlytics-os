@@ -7,10 +7,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, LEAD_VIEW_SORTS } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, find, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, find, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const { LEAD_COLUMNS, leadViewNow, LEAD_VIEW_EXTRA, mayRowAct } = await importSrc(
   "apps/dashboard/src/surfaces/leads/cells/columns.tsx",
 );

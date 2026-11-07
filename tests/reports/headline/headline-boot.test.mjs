@@ -11,14 +11,14 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { headlineOf } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { importSrc } from "../../_source.mjs";
 import { campaignDto, cday, reportDto, rday } from "../_report-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-installLegacyReact();
+installStubReact();
 Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
@@ -28,7 +28,7 @@ console.error = () => {};
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
 console.error = keepError;
-const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
 const reportsRoute = await importSrc("apps/dashboard/app/api/v1/reports/route.ts");
 const campaignsRoute = await importSrc("apps/dashboard/app/api/v1/reports/campaigns/route.ts");
@@ -101,26 +101,26 @@ globalThis.window.fetch = async (url) => {
 };
 globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
 const S = "apps/dashboard/src";
-const { startSurfaces } = await importSrc(`${S}/legacy-bridge/surface-runner.ts`);
-/** Every other override the app registers (LegacyApp.tsx), recorded rather than read: the runner decides what is read. */
+const { startSurfaces } = await importSrc(`${S}/bridge/surface-runner.ts`);
+/** Every other override the app registers (FrameApp.tsx), recorded rather than read: the runner decides what is read. */
 const OTHERS = [
-  (await importSrc(`${S}/legacy-bridge/surface-data.ts`)).workspaceOverride,
+  (await importSrc(`${S}/bridge/surface-data.ts`)).workspaceOverride,
   (await importSrc(`${S}/surfaces/inbox/conversations-surface.ts`)).conversationsOverride,
   (await importSrc(`${S}/surfaces/inbox/surface.ts`)).inboxOverride,
   (await importSrc(`${S}/surfaces/today/override.ts`)).todayOverride,
-  (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
+  (await importSrc(`${S}/bridge/surfaces/settings.ts`)).settingsOverride,
   (await importSrc(`${S}/surfaces/people/surface.ts`)).peopleOverride,
   (await importSrc(`${S}/surfaces/leads/override.ts`)).leadsOverride,
   (await importSrc(`${S}/surfaces/live/surface.ts`)).liveOverride,
   (await importSrc(`${S}/surfaces/campaigns/broadcasts/surface.ts`)).broadcastsOverride,
   (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
   (await importSrc(`${S}/surfaces/campaigns/reach-out/override.ts`)).reachOutsOverride,
-  (await importSrc(`${S}/legacy-bridge/reach-out/replies.ts`)).repliesOverride,
+  (await importSrc(`${S}/bridge/reach-out/replies.ts`)).repliesOverride,
   (await importSrc(`${S}/surfaces/settings/partner/surface.ts`)).partnerOverride,
   (await importSrc(`${S}/surfaces/calendar/surface.ts`)).calendarOverride,
-  (await importSrc(`${S}/legacy-bridge/surfaces/notifications.ts`)).notificationsOverride,
+  (await importSrc(`${S}/bridge/surfaces/notifications.ts`)).notificationsOverride,
   (await importSrc(`${S}/surfaces/setup/override.ts`)).setupOverride,
-  (await importSrc(`${S}/legacy-bridge/google.ts`)).googleOverride,
+  (await importSrc(`${S}/bridge/google.ts`)).googleOverride,
   // The Reviews lens's own read: on demand, drawn on that lens alone, so neither page's boot reads it.
   (await importSrc(`${S}/surfaces/reports/reviews-surface.ts`)).reviewsOverride,
   // The Receptionist lens's, the same: on demand, drawn on that lens alone.

@@ -48,9 +48,9 @@ export async function writeReach() {
   standInWindow();
   const { liveTablesOf } = await importSrc("packages/contracts/src/activity/record-kinds.ts");
   const { watchedEvents, narrowedUpdates } = await importSrc("packages/db/src/realtime.ts");
-  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-  const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
+  const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   const { PAGE_HEARS, PERSON_ROUTE, drawsTheScreen, routeFamilyOf } = registry;
 
   const { routes } = traceRoutes();

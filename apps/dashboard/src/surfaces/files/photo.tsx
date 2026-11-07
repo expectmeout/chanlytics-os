@@ -7,7 +7,7 @@ import { FILE_WORDS as W, fileSaidOf, fileViewOf, type FileDto } from "@chanlyti
 import { Button } from "../kit/button/button";
 import { Meter } from "../kit/meter/meter";
 import { Press } from "../kit/press";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { FrameFlash } from "../frame-verbs";
 import { takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
 
 export /** A picture where it can be drawn. One Storage can't draw keeps its ground and says its name, never a broken glyph. */
@@ -55,7 +55,7 @@ function Photo({ file, onOpen }: { file: FileDto; onOpen: () => void }) {
 }
 
 /** A photo on its way: dim while it goes, and where it failed, its picture, its words, and what can be done about it. */
-function OnItsWay({ photo, flash }: { photo: SendingPhoto; flash: (f: LegacyFlash) => void }) {
+function OnItsWay({ photo, flash }: { photo: SendingPhoto; flash: (f: FrameFlash) => void }) {
   const failed = photo.state === "failed";
   return (
     <div
@@ -100,7 +100,7 @@ function OnItsWay({ photo, flash }: { photo: SendingPhoto; flash: (f: LegacyFlas
 }
 
 export /** The grid's head: what is on its way, and one press for all that failed. */
-function PhotosOnTheirWay({ photos, flash }: { photos: readonly SendingPhoto[]; flash: (f: LegacyFlash) => void }) {
+function PhotosOnTheirWay({ photos, flash }: { photos: readonly SendingPhoto[]; flash: (f: FrameFlash) => void }) {
   const failed = photos.filter((p) => p.state === "failed").length;
   return (
     <>

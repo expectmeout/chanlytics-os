@@ -11,11 +11,11 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import type { AskProposal, AskProposalOutcome, SpeechPurpose } from "@chanlytics/contracts";
-import type { BellApi } from "@/legacy-bridge/notifications";
-import type { PageClock } from "@/legacy-bridge/zone";
-import { surfaceHook } from "@/legacy-bridge/surface-status";
-import type { SurfaceNames } from "@/legacy-bridge/surface-status";
-import { askAbout, askCalls, canDo, mayAtLeast } from "../legacy-verbs";
+import type { BellApi } from "@/bridge/notifications";
+import type { PageClock } from "@/bridge/zone";
+import { surfaceHook } from "@/bridge/surface-status";
+import type { SurfaceNames } from "@/bridge/surface-status";
+import { askAbout, askCalls, canDo, mayAtLeast } from "../frame-verbs";
 import { fn, object, type Flash } from "../shell-doors";
 
 export { askAbout, canDo, mayAtLeast };
@@ -45,7 +45,7 @@ export function appNavigate(route: string): void {
 /* -------------------------------- the voice -------------------------------- */
 
 /**
- * Ask's one voice, reading aloud (legacy-verbs.ts askCalls, legacy-bridge/ask/speech.ts): the brief's words, spoken as the vendor
+ * Ask's one voice, reading aloud (frame-verbs.ts askCalls, bridge/ask/speech.ts): the brief's words, spoken as the vendor
  * makes them, through one player the bridge owns (never the pane's, so a pane drawn again mid-sentence changes nothing
  * of the clip). Nobody speaks back: Today's Listen is not a conversation (the spec's §3.5 as amended 4 Oct 2026).
  */
@@ -80,12 +80,12 @@ export function askSpeech(): AskSpeech | undefined {
 
 /* ------------------------------- Ask's cards ------------------------------- */
 
-/** What a card's press commits, as Ask's door answers (legacy-bridge/ask/commit.ts CommitResult). */
+/** What a card's press commits, as Ask's door answers (bridge/ask/commit.ts CommitResult). */
 type AskCardCommit =
   | { ok: true; receipt: string; undo: Record<string, unknown> | null; made: { kind: string; id: string } | null }
   | { ok: false; message: string; moved?: boolean };
 
-/** Ask's cards, pressed where the Line is not open (legacy-verbs.ts askCalls): the verb walk a card commits by, and its outcome kept. */
+/** Ask's cards, pressed where the Line is not open (frame-verbs.ts askCalls): the verb walk a card commits by, and its outcome kept. */
 interface AskCardDoor {
   commit(p: AskProposal): Promise<AskCardCommit>;
   outcome(messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean>;
@@ -114,7 +114,7 @@ export function surfaceFailed(key: string): boolean {
 
 /**
  * The surfaces a page draws from, so it draws again when any of them moves: their rows landed, their status changed (the
- * legacy `useSurface(names)` of the shell, over the same hook: surface-status.ts `surfaceHook`). Answers how often they have
+ * the shell's `useSurface(names)` of the shell, over the same hook: surface-status.ts `surfaceHook`). Answers how often they have
  * moved, a number the pages ignore.
  */
 export const useMoved: (names: SurfaceNames) => number = surfaceHook({ useCallback, useSyncExternalStore });

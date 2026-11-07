@@ -57,8 +57,8 @@ const win = {
 };
 globalThis.window = win;
 
-const cache = await importSrc("apps/dashboard/src/legacy-bridge/surface-cache.ts");
-const { installShell } = await importSrc("apps/dashboard/src/legacy-bridge/shell.ts");
+const cache = await importSrc("apps/dashboard/src/bridge/surface-cache.ts");
+const { installShell } = await importSrc("apps/dashboard/src/bridge/shell.ts");
 
 test("REGRESSION (defect 52): a read that lands while the sign-out waits for the phone writes nothing back", async () => {
   // Someone's workspace, booted: the Inbox read and cached.

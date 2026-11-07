@@ -22,7 +22,7 @@ import type { PeopleMenuItem } from "../menu-groups";
 import { Icon } from "../../kit/icon/icon";
 import { can, pick } from "../../kit/record/dom";
 import { RecordToggleGroup } from "../../kit/record/field";
-import { gate, openDealSheet } from "../../legacy-verbs";
+import { gate, openDealSheet } from "../../frame-verbs";
 import { passDeals } from "../people-detail";
 import { P, dealSheetOffered } from "./pipe";
 import type { Flash } from "../types";
@@ -60,7 +60,7 @@ type MoreItems = PeopleMenuItem[];
 // The deal's own acts, as the thread's Deal group offers them (the deal kit's menu), then the two doors. The send is
 // the peek's, whose card holds the person the words are for: it is not offered here. A member who may not record a
 // deal is not shown the acts at all -- an item's secondary acts stay out of sight for a role that may not press them
-// (legacy/CLAUDE.md, role gates) -- and keeps the two doors.
+// (mockup/CLAUDE.md, role gates) -- and keeps the two doors.
 const pipeRowItems = (
   r: PipelineRowVM,
   {

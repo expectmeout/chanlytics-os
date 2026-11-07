@@ -21,12 +21,12 @@ import {
   type LineCodeDto,
   type SetupDto,
 } from "@chanlytics/contracts";
-import type { GoogleSurface } from "@/legacy-bridge/google";
-import { googleVerbs } from "@/legacy-bridge/google";
-import { pageClock } from "@/legacy-bridge/zone";
+import type { GoogleSurface } from "@/bridge/google";
+import { googleVerbs } from "@/bridge/google";
+import { pageClock } from "@/bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
-import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { useAdsShown } from "../../campaigns/ads/shown";
 import { useSurface } from "../../use-surface";
 import { channelVMs } from "../../channels/surface";
@@ -93,7 +93,7 @@ function InstagramNote({ note, onOk }: { note: string | null; onOk: () => void }
 }
 
 /** The workspace's Instagram account turned off (the row that speaks for it, contracts channelFor), said as a toast. */
-async function disconnectInstagram(channels: readonly ChannelVM[] | undefined): Promise<LegacyFlash> {
+async function disconnectInstagram(channels: readonly ChannelVM[] | undefined): Promise<FrameFlash> {
   const account = channelFor(channels ?? [], "instagram");
   const res = account ? await igConnect.disconnect(account.id) : { ok: false, message: "Nothing to disconnect." };
   return res.ok
@@ -172,7 +172,7 @@ function rowsOf(
 async function runVerb(
   r: Row,
   k: {
-    flash: (f: LegacyFlash) => void;
+    flash: (f: FrameFlash) => void;
     setBusy: (b: boolean) => void;
     setArm: (a: Arm | null) => void;
     toggleEmail: () => void;
@@ -323,7 +323,7 @@ function emailCardOf(
   r: Row,
   S: SetupSurface | null | undefined,
   o: {
-    flash: (f: LegacyFlash) => void;
+    flash: (f: FrameFlash) => void;
     note: ReturnType<typeof connectedMailboxes.outcome>;
     onNote: () => void;
     openLeft: boolean;
@@ -371,7 +371,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   const [signup, setSignup] = useState(false);
   const [leftOpenAt, setLeftOpenAt] = useState<string | null>(() => signupLeftOpenAt());
   const [signupSaid, setSignupSaid] = useState<string | null>(null);
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   // The WhatsApp and phone rows, from the channels read (surfaces/channels/surface.ts), which hears them wherever the tab is:
   // undefined while it is read, null where it failed (the wiring's second audit, W-channel-team-plus-1, S3-1). Each says when a
   // customer last came in by the later of that read's time and Setup's, which hears the first call and the first message, so

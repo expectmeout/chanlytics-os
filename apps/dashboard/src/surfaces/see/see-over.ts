@@ -4,7 +4,7 @@
  * Opening it is one entry in the history, so Back closes it and the page under it is as it was left; one open is moved to
  * another in place. A move to another page leaves the query behind, so the sheet closes with the page.
  *
- * The frame's own move (legacy-bridge/workspace.ts goToRoute) asks `inPlace` before it moves: a press anywhere on a mention
+ * The frame's own move (bridge/workspace.ts goToRoute) asks `inPlace` before it moves: a press anywhere on a mention
  * of a run or a message -- a door (frame-doors.ts routeDoor), the bell's row, a page's own press -- opens the thing over the page
  * it was pressed on, rather than taking the person to the thing's home. A run's home is beside Sequences' list, so on
  * Campaigns' own pages a press on a run goes there; a message's is the Library (Messages), so only there does a press go

@@ -1,13 +1,13 @@
 /**
  * Settings › Business, the page, as every test of it draws it: the stub React, the app's globals as the bridge publishes
- * them, every legacy file both load lists carry, the bridge installed from its real module, Marisa's record as the
+ * them, every file both load lists carry, the bridge installed from its real module, Marisa's record as the
  * settings read hands it over, and the presses a person makes. Not named *.test.mjs, so the runner skips it: the page's
  * own tests (business-tab-page.test.mjs) and each card's (business-tab-open.test.mjs) import it and share one page.
  *
  * Every claim in those files is something the page drew, or something a press on it sent: no source-text assertions.
  * The page draws from what the settings read hands over (`__SETTINGS`, with the preview the server resolved, and
  * `__FACTS`), and every sentence with a judgement in it is contracts', through the bridge the app installs
- * (legacy-bridge/business-tab.ts). A save goes through a stand-in for the bridge's versioned PUT (saving()) that records
+ * (bridge/business-tab.ts). A save goes through a stand-in for the bridge's versioned PUT (saving()) that records
  * what it was sent and says the server accepted it.
  *
  * Each test file ends with `after(() => unmount())`: the last page drawn goes as React would take it away, since the
@@ -24,10 +24,9 @@ import {
   timezoneCity,
   knownTimezones,
 } from "@chanlytics/contracts";
-import { installLegacyReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import { installStubReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
-const L = "../apps/dashboard/src/legacy";
+installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
 const went = [];
 Object.assign(globalThis, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
@@ -46,18 +45,18 @@ Object.assign(globalThis, {
     also: zoneSearchWords,
   },
 });
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+(await import("../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The tab is TSX (surfaces/settings/business, decision 0015 step 11): every part on the window by its JSX name.
 await import("./receptionist/business-tab/_business-parts.mjs");
 const W = globalThis.window;
 // The tab's helpers, from the module the tab imports: the gap line, and what each row will tell the receptionist.
-const { BUSINESS_TAB, loadSaveRules } = await import("../apps/dashboard/src/legacy-bridge/business-tab.ts");
+const { BUSINESS_TAB, loadSaveRules } = await import("../apps/dashboard/src/bridge/business-tab.ts");
 // And the save's own rules, which the tab asks for as it mounts (business-tab.jsx): here before any page is drawn, as
 // they are in the app by the time a fold is open.
 await loadSaveRules();
 // What the receptionist is told, read off the settings read as the tab reads it (inbox-verbs.ts composedPrompt, which
 // the prompt sheet imports): a test that wants another answer writes the settings read's `prompt`.
-const { composedPrompt } = await import("../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+const { composedPrompt } = await import("../apps/dashboard/src/bridge/inbox-verbs.ts");
 // The settings read's own preview, built as the server builds it: a row's draft is resolved with its inputs (Task 3.1).
 const { composePromptPreview } = await import("../apps/dashboard/src/server/receptionist/prompt-preview.ts");
 

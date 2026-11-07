@@ -23,7 +23,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh as freshTree,
   again,
   unmount,
@@ -32,7 +32,7 @@ import {
   textOf,
   press,
   settle,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 
 const { stateOf, NEW_WORDS: W } = contracts;
 const TID = "t-studio";
@@ -44,7 +44,7 @@ const NOW = Date.now();
 const went = [];
 const replaced = [];
 const toasts = [];
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/studio",
     hash: "#/broadcasts",
@@ -57,10 +57,10 @@ installLegacyReact({
   __ACTIVE_WORKSPACE: TID,
 });
 const SRC = "../../apps/dashboard/src";
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 // The tab's memory, as the app installs it (surface-cache.ts): the one store every composer keeps its words in.
-const { installTabMemory, clearTabMemory } = await import(`${SRC}/legacy-bridge/tab-memory.ts`);
+const { installTabMemory, clearTabMemory } = await import(`${SRC}/bridge/tab-memory.ts`);
 installTabMemory(globalThis);
 const TM = globalThis.__tabMemory;
 // What the shell still owns and the pages draw by name (Confirm, StatePill, PolicyChip, the sheet, the unsaved-work rule):
@@ -81,9 +81,7 @@ Object.assign(globalThis, {
 });
 // React's context, which the react-server condition this suite runs under has none of: Campaigns' toast is held in one at the
 // route's mount (home/route-toast.ts), and New, drawn here on its own, reads its default -- none -- and says its own toast.
-const react = createRequire(path.join(path.dirname(fileURLToPath(import.meta.url)), `${SRC}/legacy-bridge/_.js`))(
-  "react",
-);
+const react = createRequire(path.join(path.dirname(fileURLToPath(import.meta.url)), `${SRC}/bridge/_.js`))("react");
 react.createContext ??= (value) => ({ value, Provider: "Provider" });
 react.useContext ??= (context) => context.value;
 const { NewSequence } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-page.tsx`);

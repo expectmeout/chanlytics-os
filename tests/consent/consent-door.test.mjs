@@ -14,13 +14,13 @@ import {
   all,
   byTestId,
   fresh,
-  installLegacyReact,
+  installStubReact,
   installRoleStore,
   settle,
   textOf,
   unmount,
   walk,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import {
   answerSaidOf,
   CARRIER_CONSENT_SOURCE,
@@ -206,7 +206,7 @@ test("the front desk's consent changes take one bucket: sixty a minute", () => {
  * The two asks, RENDERED — no browser, no jsdom.
  *
  * The ask and the page that holds it are TSX (surfaces/people/person). They are drawn here on the stub React the page tests
- * share (_legacy-react.mjs), so their bodies run for real: real branching, real clicks, real calls into whatever recorder
+ * share (_stub-react.mjs), so their bodies run for real: real branching, real clicks, real calls into whatever recorder
  * the ask was handed. The page is drawn over a wire that answers as the routes do, so the courier it imports
  * (people-detail.ts) makes the request it would make in the browser and the test reads that request.
  * registration-path.test.mjs names the same tradeoff — a source scan answers "does this control write the column it is
@@ -217,10 +217,10 @@ test("the front desk's consent changes take one bucket: sixty a minute", () => {
  * one line that mattered wrote `contacts.consent`. Only running it and watching
  * where the write goes catches that.
  * -------------------------------------------------------------------------- */
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
 const W = globalThis;
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";
-const BRIDGE = "../../apps/dashboard/src/legacy-bridge";
+const BRIDGE = "../../apps/dashboard/src/bridge";
 // What the shell still provides around a person's page: who is signed in, the workspace's name (the desk's script says
 // it), the shell's toast, and the role store the gates ask (the frame's, completed by the bridge).
 const toasts = [];

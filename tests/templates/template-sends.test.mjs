@@ -149,10 +149,10 @@ test("a count whose times were not kept is said without a when, rather than with
   assert.deepEqual(templateSentWords({ count: 3, lastAt: null }, TZ, NOW), { count: "3", when: null });
 });
 
-/* ------------------ what the page is handed (legacy-bridge) ------------------ */
+/* ------------------ what the page is handed (bridge) ------------------ */
 
 // The settings surface as it runs in the browser: the workspace on the window,
-// whose clock says the dates (legacy-bridge/zone.ts), and a wire that answers
+// whose clock says the dates (bridge/zone.ts), and a wire that answers
 // the reads the surface makes. Tokyo, so a date said by the browser's clock or
 // by UTC's comes out a day early.
 const WS = "t-salon";
@@ -195,7 +195,7 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const quiet = console.error;
 console.error = () => {};
-const { settingsOverride } = await import("../../apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+const { settingsOverride } = await import("../../apps/dashboard/src/bridge/surfaces/settings.ts");
 const { clockDate } = await import("@chanlytics/contracts");
 console.error = quiet;
 

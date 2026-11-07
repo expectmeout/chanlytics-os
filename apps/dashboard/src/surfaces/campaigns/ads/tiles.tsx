@@ -14,7 +14,7 @@ import { ListRow } from "../../kit/list-row/list-row";
 import { Panel } from "../../kit/panel/panel";
 import { Tooltip } from "../../kit/tooltip/tooltip";
 import { cx } from "../../kit/variants";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { cmRowPress } from "../parts/head";
 import { adsInPreview } from "./shown";
 

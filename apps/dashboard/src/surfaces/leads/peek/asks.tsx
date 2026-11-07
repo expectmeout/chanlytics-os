@@ -7,7 +7,7 @@
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import { Field } from "../../kit/field/field";
 import type { LeadPeekVM } from "@chanlytics/contracts";
-import { confirmPart } from "../../legacy-parts";
+import { confirmPart } from "../../frame-parts";
 import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 

@@ -201,7 +201,7 @@ test("a derived row that is not a hold's keeps this device's marks whatever the 
 
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
-const bridge = await importSrc("apps/dashboard/src/legacy-bridge/notifications.ts");
+const bridge = await importSrc("apps/dashboard/src/bridge/notifications.ts");
 const requests = [];
 const was = globalThis.window;
 globalThis.window = {

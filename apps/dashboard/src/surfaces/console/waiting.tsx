@@ -5,12 +5,12 @@
  */
 import { useState } from "react";
 import { staffMay, type ConsoleWhy, type PlatformQueueVM, type StaffRole } from "@chanlytics/contracts";
-import type { PlatformApi } from "@/legacy-bridge/platform";
+import type { PlatformApi } from "@/bridge/platform";
 import { Button } from "../kit/button/button";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { FrameFlash } from "../frame-verbs";
 import { WhyAsk } from "./why";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 type WaitingRowVM = PlatformQueueVM["rows"][number];
 
 /**

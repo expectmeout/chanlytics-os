@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 
 const { setupSteps, smsStateRow, connectionRows, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -255,7 +255,7 @@ globalThis.window = {
   __ACTIVE_WORKSPACE: TID,
 };
 // What the bridge publishes before the pages run: the phone checks, the broken-config words, the hard limits' words.
-await import("../../../apps/dashboard/src/legacy-bridge/seed-globals.ts");
+await import("../../../apps/dashboard/src/bridge/seed-globals.ts");
 
 let cells = new Map();
 let frames = [];
@@ -461,7 +461,7 @@ const workspace = (over = {}, rules = {}) => {
     __POLICIES: { role: "owner", rows: [] },
     ...over,
   });
-  // The seam's settings value beside the globals it copies (legacy-bridge/surfaces/settings.ts), for the moved panes.
+  // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.
   setSurfaceValue("settings", {
     settings: globalThis.window.__SETTINGS ?? null,
     facts: globalThis.window.__FACTS ?? null,
@@ -572,7 +572,7 @@ test("a settings control is named by the row it sits in: what the row hands it l
   // SetRow mints an id for its label and hands it to its control as aria-labelledby. The dials each
   // take their own props and give the rest to their element -- spelled out with window.propsWithout, because in the
   // standalone harness an object rest's excluded keys are a `var _excluded` every file shares, and one loaded later
-  // put another file's keys in force (legacy-harness.test.mjs). This stub draws a component when it is created, before
+  // put another file's keys in force (mockup-harness.test.mjs). This stub draws a component when it is created, before
   // the row clones it; the row's clone is drawn here, as React draws it.
   workspace();
   const wasGate = globalThis.window.gate;

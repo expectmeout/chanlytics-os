@@ -27,14 +27,14 @@ import {
   type SequenceType,
   type SequencesPageDto,
 } from "@chanlytics/contracts";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { routeOnScreen } from "@/bridge/workspace";
 import { ListRow } from "../../kit/list-row/list-row";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { PUSH_WAIT_MS, pushesOver } from "../../kit/motion/held-list";
 import { Search } from "../../kit/search/search";
 import { StatePill } from "../../kit/pill/state-pill";
-import { navigate, routeDoor } from "../../legacy-verbs";
+import { navigate, routeDoor } from "../../frame-verbs";
 import { usePageSearch } from "../../kit/head/page-search";
 import { ListBar, groupedOf, type SequencesType, type SequencesView } from "./list-bar";
 import { useRecordsAhead } from "./use-record";

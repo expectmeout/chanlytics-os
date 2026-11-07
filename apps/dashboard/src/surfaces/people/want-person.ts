@@ -11,7 +11,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { MIN_MS, type PersonRowVM } from "@chanlytics/contracts";
-import { refreshSurface } from "../legacy-verbs";
+import { refreshSurface } from "../frame-verbs";
 import { onSurfaceValue, surfaceValue } from "../surface-values";
 import { threadPersonRow } from "./surface";
 

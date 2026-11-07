@@ -16,7 +16,7 @@ import {
   describeSettingsChange,
   parseTenantConfigResult,
 } from "@chanlytics/contracts";
-import { unmount, byTestId, textOf } from "../_legacy-react.mjs";
+import { unmount, byTestId, textOf } from "../_stub-react.mjs";
 import { W, drawTab, openFold, redrawTab, saveRow, saving, typeInto } from "../_business-tab-harness.mjs";
 
 after(() => unmount());

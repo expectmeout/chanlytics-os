@@ -1,14 +1,14 @@
 /**
- * What People asks of the shell that legacy-verbs.ts does not already carry: where the tab is, where it goes, where it
+ * What People asks of the shell that frame-verbs.ts does not already carry: where the tab is, where it goes, where it
  * keeps a place, what the export of a list is called. Each is the module that owns the thing (the address is
  * workspace.ts, the place is tab-memory.ts, a route's link is the client's), imported where the JSX read the window,
  * and a line to delete with the frame's step.
  */
 import type { ReactNode } from "react";
-import { api } from "@/legacy-bridge/api";
-import { tabMemoryFor } from "@/legacy-bridge/tab-memory";
-import { goToRoute, routeOnScreen } from "@/legacy-bridge/workspace";
-import { useLegacyToast } from "../legacy-verbs";
+import { api } from "@/bridge/api";
+import { tabMemoryFor } from "@/bridge/tab-memory";
+import { goToRoute, routeOnScreen } from "@/bridge/workspace";
+import { useFrameToast } from "../frame-verbs";
 import type { Flash } from "./types";
 
 /** The route on screen, `clients/seg:x`, as the address says it. */
@@ -36,5 +36,5 @@ export const personExportLink = (person: string): string =>
 
 /** The shell's toast as People uses it: its node to draw, and the flash that raises one (with an Undo). */
 export function usePeopleToast(): [ReactNode, Flash] {
-  return useLegacyToast();
+  return useFrameToast();
 }

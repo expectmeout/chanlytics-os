@@ -7,8 +7,8 @@
  */
 import { appointmentWordOf, guardrailsInForce, hoursLines, publicPagePath } from "@chanlytics/contracts";
 import type { AdsRead, AppointmentWord } from "@chanlytics/contracts";
-import { workspaceOverride } from "@/legacy-bridge/surface-data";
-import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
+import { workspaceOverride } from "@/bridge/surface-data";
+import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import { surfaceValue } from "../../surface-values";
 import { adsInPreview } from "./shown";
 

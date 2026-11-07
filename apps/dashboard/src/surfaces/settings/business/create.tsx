@@ -19,11 +19,11 @@
 // It holds no hook of its own (the fold and the rows hold theirs, drawn on every render).
 
 import type { ComponentProps } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { EmptyState } from "../../kit/empty/empty";
 import { RecordField } from "../../kit/record/field";
-import { canDo, gate, windowValue } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, windowValue } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { BtFold } from "./gestures/fold";
 import { BtZoneRow } from "./open";
 import { businessTabSave } from "./saver";
@@ -123,7 +123,7 @@ const btcMayChange = () => !windowValue("canDo") || canDo("settings");
  * The card a workspace with no receptionist is shown. A role that may not change the business reads the empty state
  * with its act gated, saying why at the press, as the old card's did; the fold never opens for it.
  */
-export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: LegacyFlash) => void }) => {
+export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: FrameFlash) => void }) => {
   const S = businessTabSave;
   const F = factsNow()?.facts;
   // The line it answers, the transfer number and the number the business keeps and forwards to that line, as the

@@ -10,7 +10,7 @@ import { ADS_SCOPE_ALL, adsReportRoute, isAdsScope } from "@chanlytics/contracts
 import type { AdsScope, LensId, ReportFactVM, ReportsParts } from "@chanlytics/contracts";
 import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
 import { adsInPreview } from "../../campaigns/ads/shown";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { adsAreOn } from "../chrome";
 import type { ReportsSurface } from "../surface";
 

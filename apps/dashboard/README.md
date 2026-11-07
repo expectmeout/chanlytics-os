@@ -11,12 +11,13 @@ compiled in.
   pipeline, the environment, the logger, the rate limits. `src/server/readers/` is the one place a read lives, so the
   number Ask says is the number the page shows.
 - `src/surfaces/<surface>/`: what a page draws, and `src/surfaces/kit/` the parts every page draws with.
-- `src/client/`: the typed calls to the API. `src/legacy-bridge/`: the seam between the data layer and the pages.
-- `src/legacy/`: the shell's stylesheets and the standalone mockup. Nothing new goes here.
+- `src/client/`: the typed calls to the API. `src/bridge/`: the seam between the data layer and the pages, and the frame every page sits in.
+- `src/styles/`: the design tokens and the stylesheets of the frame and the pages that have not taken theirs yet.
+- `mockup/`: the standalone mockup, for design review. It is not the app, and nothing new goes in it.
 
 ## What it may import
 
-Browser code (`legacy-bridge`, `client`, `yes`, `auth`, `surfaces`) never imports `src/server` or
+Browser code (`bridge`, `client`, `yes`, `auth`, `surfaces`) never imports `src/server` or
 `@chanlytics/core|jobs|channels`. Server code never imports the shell, the bridge or the client.
 
 ## Run and test

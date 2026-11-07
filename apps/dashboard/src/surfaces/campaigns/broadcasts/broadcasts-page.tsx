@@ -25,7 +25,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { SEQUENCES_ROUTE, type ConsentChannel } from "@chanlytics/contracts";
-import { backFrom, canDo, useLegacyToast } from "../../legacy-verbs";
+import { backFrom, canDo, useFrameToast } from "../../frame-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
@@ -92,7 +92,7 @@ interface BroadcastsPageState extends BroadcastsPageProps {
 // (page/) work out what its screens say, on every draw as before, and return the elements they draw. It is one hook,
 // kept whole as the send screen that shared it left (decision 0065 step 7): a run's screen holds the one state.
 function useBroadcastsPage({ data, initialRun = null, flash: hosted, over }: BroadcastsPageState) {
-  const [ownToast, ownFlash]: [ReactNode, Flash] = useLegacyToast();
+  const [ownToast, ownFlash]: [ReactNode, Flash] = useFrameToast();
   const flash = hosted ?? ownFlash;
   const toastNode = hosted ? null : ownToast;
   // Who may send, approve or stop: the role store's answer, View-as included.

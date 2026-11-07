@@ -6,15 +6,15 @@
  * one read. Each is a line to delete on the day its owner gives the tab an import or a seam value instead; nothing here
  * is new behaviour.
  */
-import type { PoliciesSurface } from "@/legacy-bridge/policy-store";
-import type { SettingsRecord, SettingsSurface } from "@/legacy-bridge/surfaces/settings";
+import type { PoliciesSurface } from "@/bridge/policy-store";
+import type { SettingsRecord, SettingsSurface } from "@/bridge/surfaces/settings";
 import type { CalendarSurface } from "../../calendar/surface";
 import type { calendar } from "../../calendar/verbs";
 import type { SetupSurface } from "../../setup/surface";
 
 declare global {
   interface Window {
-    /** The settings read's globals (legacy-bridge/surfaces/settings.ts writes them). */
+    /** The settings read's globals (bridge/surfaces/settings.ts writes them). */
     __SETTINGS?: SettingsRecord;
     __FACTS?: SettingsSurface["facts"];
     __POLICIES?: PoliciesSurface | null;

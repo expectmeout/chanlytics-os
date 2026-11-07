@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
 const { uiRows, modeLabel, dbMode, installPolicyStore, UI_ROWS, UI_MODES } = await import(
-  pathToFileURL(path.join(ROOT, "apps/dashboard/src/legacy-bridge/policy-store.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/dashboard/src/bridge/policy-store.ts")).href
 );
 
 const REAL = {

@@ -11,8 +11,8 @@ import type {
   FirstRunTryVM,
   WhatsappChoice,
 } from "@chanlytics/contracts";
-import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
+import type { FrameFlash } from "../../../frame-verbs";
 import type { CardBrain } from "../inputs";
 import type { KeptPhoneChoice } from "../memory";
 import { FrLive } from "../parts";
@@ -34,7 +34,7 @@ export function FrGoLive(o: {
   brain: CardBrain | null;
   canEdit: boolean;
   owner: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   leave: (to: string) => void;
   back: string | null;

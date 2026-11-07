@@ -120,7 +120,7 @@ const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surfac
 const { installSetup, setupOverride } = await importSrc("apps/dashboard/src/surfaces/setup/override.ts");
 // The seam's own store, the module instance the surface writes (surface-values.ts): a first read is "no value yet".
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 installSetup(globalThis.window);
 const w = globalThis.window;
 
@@ -352,7 +352,7 @@ test("the first run asks for the receptionist through its route: written, nothin
   wire.receptionist = refused(403, "forbidden", "Only an owner can do this.");
   assert.deepEqual(await setupVerbs.receptionist(), { ok: false, wrote: false, message: "Only an owner can do this." });
   wire.receptionist = null;
-  const { AFTER } = await import("../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await import("../../apps/dashboard/src/bridge/refresh-map.ts");
   // All of a save's re-reads but the workspace's: a save may rename the business (00439), the first receptionist does not.
   assert.deepEqual(
     AFTER["POST settings/receptionist"]().map((o) => o.key),

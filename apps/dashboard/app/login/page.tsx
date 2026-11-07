@@ -9,7 +9,7 @@ import {
   verifyCodeWords,
 } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
-import { sealSurfaceCache } from "@/legacy-bridge/surface-cache";
+import { sealSurfaceCache } from "@/bridge/surface-cache";
 import { signInLandingOf, signInReturnOf } from "@/auth/sign-in-return";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";

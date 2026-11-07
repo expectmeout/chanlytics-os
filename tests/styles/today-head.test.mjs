@@ -6,9 +6,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
+import { installStubReact } from "../_stub-react.mjs";
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const { todayGreeting } = await import("../../apps/dashboard/src/surfaces/today/chrome.ts");
 const { PageHead } = await import("../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 

@@ -1,5 +1,5 @@
 /**
- * Where Glass's page light drifts (apps/dashboard/src/legacy/styles/components.css, `.pg-light` and `pg-pool-*`): on a
+ * Where Glass's page light drifts (apps/dashboard/src/styles/components.css, `.pg-light` and `pg-pool-*`): on a
  * desk, by layers moved by a transform; never on a phone, and never where less motion is asked.
  *
  * The drift moved the three pools' centres, six registered properties every element inherits, on the app's root. So
@@ -20,7 +20,7 @@ import path from "node:path";
 import { transform } from "lightningcss";
 import { ROOT } from "../../_source.mjs";
 
-const SHEET = "apps/dashboard/src/legacy/styles/components.css";
+const SHEET = "apps/dashboard/src/styles/components.css";
 /** The widest window the shell draws as a phone (mobile.css and every `max-width: 900px` block of this sheet). */
 const PHONE_MAX = 900;
 

@@ -14,7 +14,7 @@
  * nothing of it is drawn as the page goes.
  */
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { nothing } from "../../legacy-parts";
+import { nothing } from "../../frame-parts";
 import type { ReactNode } from "react";
 import type { SurfaceViews } from "../../routes";
 

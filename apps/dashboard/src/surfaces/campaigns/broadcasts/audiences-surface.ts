@@ -13,11 +13,11 @@
  * came back (W-review-facts-rules-2).
  */
 import type { AudienceKind, AudiencePreview, AskedPurpose, ConsentChannel, ReachCounts } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { read } from "@/bridge/api";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
+import { DEAR_READ_LONGEST_WAIT_MS } from "@/bridge/surface-realtime";
+import { workspaceZone } from "@/bridge/zone";
 import { codeOnce } from "@/lib/code-once";
 import { everyPerson } from "@/surfaces/people/surface";
 import { setSurfaceValue } from "../../surface-values";

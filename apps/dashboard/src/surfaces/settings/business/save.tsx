@@ -18,7 +18,7 @@ import {
   whyNotAPhone,
 } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { pageConsole, saveSettingsFn, settingsNow, tzApi, workspaceApi } from "./shell";
 
 /* ------------------------------------ the config, as far as this tab reads it ------------------------------------ */
@@ -72,7 +72,7 @@ export interface StoredRules extends StoredRuleFields {
 /** The business profile, as far as the tab reads it; any other key it keeps is kept (the index). */
 /**
  * The profile's fields this tab names, and nothing else: what the settings read's snapshot is typed by, so it has a
- * fingerprint and is drawn across a deploy that left its type alone (legacy-bridge/surfaces/settings.ts, surface-cache.ts
+ * fingerprint and is drawn across a deploy that left its type alone (bridge/surfaces/settings.ts, surface-cache.ts
  * SURFACE_SHAPES). A type and not an interface, so a Profile, which keeps every key besides, is one.
  */
 export type StoredProfile = {
@@ -130,10 +130,10 @@ interface JobBase {
   /** The row's or the fold's id. */
   row: string;
   /** The toast once the server takes it, or the toast its answer makes (a rename says what it renamed, who.tsx). */
-  said?: ReactNode | ((answer: unknown) => LegacyFlash);
+  said?: ReactNode | ((answer: unknown) => FrameFlash);
   /** Runs then too (the row closes). */
   done?: () => unknown;
-  flash?: (flash: LegacyFlash) => unknown;
+  flash?: (flash: FrameFlash) => unknown;
 }
 
 /** A row's job: its one-key change. */
@@ -475,7 +475,7 @@ const btTabSaver = btSaver();
 /** What a workspace door's job carries: the editor's close and the toast. */
 interface DoorJob {
   done?: () => unknown;
-  flash?: (flash: LegacyFlash) => unknown;
+  flash?: (flash: FrameFlash) => unknown;
 }
 
 /** What a courier answers. */

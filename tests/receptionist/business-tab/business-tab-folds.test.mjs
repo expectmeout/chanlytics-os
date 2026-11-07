@@ -30,19 +30,18 @@ import {
   PROFILE_LIMITS,
   profileRefusal,
 } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { withStanding } from "../_prompt-rules.mjs";
 
 // The folds import what a new receptionist starts with, what the instructions box opens with, the product's wording for
 // the three messages, the names in a message nothing fills in and the web-address normalizer (contracts'), so a test
 // runs them as the tab does.
-installLegacyReact();
+installStubReact();
 await import("./_business-parts.mjs");
 const W = globalThis.window;
 const S = W.__businessTabSave;
 // What each fold's "It will say" is asked of: every fold here must be one consequenceOf knows by name.
-const { BUSINESS_TAB, FOLD_BLOCK, loadSaveRules } =
-  await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
+const { BUSINESS_TAB, FOLD_BLOCK, loadSaveRules } = await import("../../../apps/dashboard/src/bridge/business-tab.ts");
 // And what the save's own schema refuses, which schemaProblems puts under the fold's fields: its rules here, as the tab
 // has them by the time a fold is open.
 await loadSaveRules();

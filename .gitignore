@@ -22,8 +22,8 @@ coverage/
 *.mp4
 review-videos/
 _gen/
-apps/dashboard/src/legacy/screenshots/
-apps/dashboard/src/legacy/uploads/
+apps/dashboard/mockup/screenshots/
+apps/dashboard/mockup/uploads/
 
 # misc
 *.log

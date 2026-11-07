@@ -28,7 +28,7 @@ import {
   type VisitSheetVM,
   type VisitWord,
 } from "@chanlytics/contracts";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { Button } from "../../kit/button/button";
@@ -40,7 +40,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../legacy-verbs";
+import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../frame-verbs";
 import { openStepSheet } from "../../people/deal/deal-verbs";
 import { sayVisit } from "../../visit-line";
 import { answerRequest } from "../../booking-request";

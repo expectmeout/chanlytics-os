@@ -1,6 +1,6 @@
 /** The turn: a question asked, what its stream sends, and what is done as it lands. */
 import type { AskAnswer, AskAttached, AskMessageVM, AskScope, AskThreadVM, PageContext } from "@chanlytics/contracts";
-import type { SendEvent } from "@/legacy-bridge/ask";
+import type { SendEvent } from "@/bridge/ask";
 import type { AskedHow, Conversation, Line, Turn } from "./types";
 import { withAnswerLanded } from "@chanlytics/contracts";
 import { allArrived, photosAsked } from "./attached";
@@ -77,7 +77,7 @@ const arTwinOf = async (
 const arFilesAsked = (attached: Line["attached"], how: AskedHow | undefined): readonly AskAttached[] =>
   how?.files ?? (how?.fresh ? [] : photosAsked(attached));
 
-/** The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes. */
+/** The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes. */
 const arPageNow = (A: Line["A"], q: string, base: Conversation | null): PageContext | null => {
   try {
     return A.context ? A.context(arRoute(), q, base && base.messages) : null;

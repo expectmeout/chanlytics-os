@@ -55,7 +55,7 @@ const json = (status, body) =>
 const quiet = console.error;
 console.error = () => {};
 const SRC = "../../apps/dashboard/src";
-const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
+const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
 const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { campaignMessagesOf } = await import("@chanlytics/contracts");
 console.error = quiet;

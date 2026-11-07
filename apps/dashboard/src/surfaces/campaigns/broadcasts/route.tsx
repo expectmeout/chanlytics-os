@@ -9,7 +9,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { LIFECYCLE_WORDS, SEQUENCES_ROUTE, retiredRouteOf, routeOfPath } from "@chanlytics/contracts";
-import { replaceRoute } from "../../legacy-verbs";
+import { replaceRoute } from "../../frame-verbs";
 
 export function BroadcastsRoute() {
   const route = routeOfPath(usePathname()) ?? "broadcasts";

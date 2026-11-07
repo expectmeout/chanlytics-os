@@ -3,7 +3,7 @@
 // Chanlytics — a lead's own receptionist, Call it (decision 0079, L3).
 //
 // A call in the browser to the business's own receptionist, as a caller would make one: the rehearsal's own call
-// (legacy-bridge/rehearse/call.ts, the vendor's web client loaded on the press), made by the preview's door
+// (bridge/rehearse/call.ts, the vendor's web client loaded on the press), made by the preview's door
 // (POST previews/<token>/call), which counts it against the preview's six minutes, three at most a call. The page says
 // where the call stands (connecting, on the call, ended), lets them mute it and end it, and says what is left; a
 // microphone the browser kept off, and a call that could not start, are said in the page's own words. What was said on
@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LEAD_PREVIEW_WORDS as W, MIN_MS } from "@chanlytics/contracts";
-import { startCall, type CallSession } from "@/legacy-bridge/rehearse/call";
+import { startCall, type CallSession } from "@/bridge/rehearse/call";
 import { Button } from "../kit/button/button";
 import { Panel } from "../kit/panel/panel";
 import { previewVerbs } from "./verbs";

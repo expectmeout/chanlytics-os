@@ -1,6 +1,6 @@
 /**
  * Time is a notice nobody sends (decision 0058, amended for the wiring's second audit, lane R8): what a page says of the clock
- * moves with no record changing, so no notice of the feed ever tells it. The runner keeps one clock (legacy-bridge/hearing/
+ * moves with no record changing, so no notice of the feed ever tells it. The runner keeps one clock (bridge/hearing/
  * clock.ts), and every surface whose view model is made with the moment says how it keeps up with it.
  *
  *  1. The clock, run with a stand-in window and a clock of the test's own: a surface that is made again from what it holds
@@ -42,8 +42,8 @@ Object.assign(globalThis, {
   __ACTIVE_WORKSPACE: "t1",
 });
 
-const { watchTheClock, HEAL_AFTER_MS } = await importSrc("apps/dashboard/src/legacy-bridge/hearing/clock.ts");
-const { surfaceMoved } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { watchTheClock, HEAL_AFTER_MS } = await importSrc("apps/dashboard/src/bridge/hearing/clock.ts");
+const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 
 /* ------------------------------------------------------------------------------------------------------------------------ *
  * 1. The clock                                                                                                             *

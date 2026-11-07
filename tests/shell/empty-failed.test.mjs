@@ -16,7 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, toTodayVM, toLiveVM, reportFacts } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages, useStubHooks } from "../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../_stub-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -537,7 +537,7 @@ test("a team that could not be read draws the one FailedRead, and its Retry re-r
 test("a period the page has read paints at once when picked again and is read again behind; an answer for a period left is dropped", async () => {
   // The loading standard's held views on Reports: the page held one period, so going back to one it had shown was a
   // read of its own, and the old period stayed dimmed under the new tab until it landed.
-  const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
   const { setReportRange } = await import("../../apps/dashboard/src/surfaces/reports/period.ts");
   const parked = [];
   const asked = [];

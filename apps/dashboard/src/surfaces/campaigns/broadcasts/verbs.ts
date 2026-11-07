@@ -24,7 +24,7 @@ import {
   type ParamSpec,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { visitWordHere } from "../../workspace-word";
 import type { Output } from "@/client/api";
 import { surfaceValue } from "../../surface-values";

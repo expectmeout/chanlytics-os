@@ -14,7 +14,7 @@
 import { useState, type ReactNode } from "react";
 import { stateOf, type SetupRowVM, type SetupVerb } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
-import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs, type SetupSurface } from "../surface";
 import { pressVerb, type RowActs } from "./acts";
 import { SetupCardRow, type SetupCardAct } from "./card-row";
@@ -40,7 +40,7 @@ interface SetupRowsProps {
   look?: "row" | "card";
   primary?: string | null;
   left?: ReactNode;
-  flash?: ((f: LegacyFlash) => void) | null;
+  flash?: ((f: FrameFlash) => void) | null;
   /** A row of the caller's after Setup's, in the same list: Today's door to the reminder. */
   tail?: ReactNode;
   /**
@@ -107,7 +107,7 @@ export const SetupRows = ({
   skip = null,
   testid = "setup-rows",
 }: SetupRowsProps) => {
-  const [toastNode, own] = useLegacyToast();
+  const [toastNode, own] = useFrameToast();
   const flash = lent || own;
   const [chooser, setChooser] = useState(false);
   const [forwarding, setForwarding] = useState(false);

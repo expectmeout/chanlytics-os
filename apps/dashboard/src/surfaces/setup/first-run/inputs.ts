@@ -3,8 +3,8 @@
  * holds (its name and its clock), and the settings read's brain and resolved numbers.
  */
 import { DEFAULT_TIMEZONE, type ReceptionistCardInputs } from "@chanlytics/contracts";
-import { workspaceOverride, type Workspace } from "@/legacy-bridge/surface-data";
-import type { SettingsSurface, WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
+import { workspaceOverride, type Workspace } from "@/bridge/surface-data";
+import type { SettingsSurface, WorkspaceSettings } from "@/bridge/surfaces/settings";
 import type { SetupSurface } from "../surface";
 
 /** The workspace this tab holds, from the list the shell already has: its name and clock. */

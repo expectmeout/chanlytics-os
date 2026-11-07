@@ -14,7 +14,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { isThinShare, lensEmpty } from "@chanlytics/contracts";
 import { toCampaignLensVM } from "@chanlytics/contracts/report-lens";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, classes, find, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, classes, find, press } from "../../_stub-react.mjs";
 import { quiet, surface } from "../_report-world.mjs";
 import {
   CAMPAIGNS,
@@ -30,7 +30,7 @@ import {
 import { NOTHING_WRITTEN, beforeBusinesses, reachCounts, reachOuts, reachStep } from "./_reach-out-world.mjs";
 
 const navigated = [];
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, { CHANLY: { nav: (to) => navigated.push(to), R: { admin: (pane) => `admin/${pane}` } } });
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
@@ -50,7 +50,7 @@ const S = "../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
-const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
+const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
 const { standingSaid, forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { RPT_CHANNEL_COLORS } = await import(`${S}/surfaces/reports/series.ts`);
 const { campaignsSample } = await import(`${S}/surfaces/reports/campaigns-sample.ts`);

@@ -11,9 +11,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { again, all, fresh, find, installLegacyReact } from "../_legacy-react.mjs";
+import { again, all, fresh, find, installStubReact } from "../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const { Picker } = await import("../../apps/dashboard/src/surfaces/kit/picker/picker.tsx");
 const { Select } = await import("../../apps/dashboard/src/surfaces/kit/select/select.tsx");
 

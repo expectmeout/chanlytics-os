@@ -4,7 +4,7 @@
  * EXPO_PUBLIC_SITE_ORIGIN is inlined at bundle time by a static read (the only way Expo inlines an EXPO_PUBLIC_
  * variable), so it is read here once and nowhere else; unset, the shell holds the product's own address. The User-Agent token is what contracts' inAppFrom parses
  * ("ChanlyticsApp/1.2.0 (ios)"); the two are held to each other by test/site.test.mjs. A workspace page's address is
- * legacy-bridge/workspace.ts's: /w/<slug>, with the hash route after it.
+ * bridge/workspace.ts's: /w/<slug>, with the hash route after it.
  */
 import { APP_ROUTE_RE } from "@chanlytics/contracts/phone-app";
 

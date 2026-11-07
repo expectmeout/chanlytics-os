@@ -14,7 +14,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 
 // New exports are read at run time, so a missing one fails its own test and not the file.
 const contracts = await import("@chanlytics/contracts");
@@ -396,7 +396,7 @@ test("the thread knows what the composer needs: whether they said yes to offers,
 /* -------------------------------- a browser -------------------------------- */
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/marisas",
     hash: "",

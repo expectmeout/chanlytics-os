@@ -6,7 +6,7 @@
  * hears), what each write changes, and the surfaces the refresh map re-reads after it. Four times a reader began to draw a record
  * and the lists fell behind (#1399, #1417, #1423, #1551). The tracer (tooling/scripts/trace-routes.mjs, ported from the Wiring
  * Blueprint's; a-route-is-followed-to-its-tables.test.mjs holds it to its word) follows every route of the dashboard to the tables
- * it reads and writes, the writes with the event each makes; the surfaces are the ones LegacyApp.tsx registers, from the modules it
+ * it reads and writes, the writes with the event each makes; the surfaces are the ones FrameApp.tsx registers, from the modules it
  * imports them from, run as they are.
  *
  *  1. Reads are heard. The tables a surface's GET routes read must be ones it hears, or be listed in baselines/reads-not-heard.json
@@ -63,12 +63,12 @@ Object.assign(globalThis, {
 
 const { liveTablesOf } = await importSrc("packages/contracts/src/activity/record-kinds.ts");
 const { watchedEvents, watchedTables } = await importSrc("packages/db/src/realtime.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-const { PAGE_HEARS, PERSON_ROUTE } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
+const { PAGE_HEARS, PERSON_ROUTE } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
-/** Every surface the shell registers (LegacyApp.tsx), with the module that holds its override, as the shell imports it. */
+/** Every surface the shell registers (FrameApp.tsx), with the module that holds its override, as the shell imports it. */
 const SURFACES = registeredSurfaces();
 
 const { routes, tables } = traceRoutes();

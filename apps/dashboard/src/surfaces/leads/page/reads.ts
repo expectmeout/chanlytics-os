@@ -17,9 +17,9 @@ import {
   type LeadStatusGroup,
   type PersonRowVM,
 } from "@chanlytics/contracts";
-import { hrefOfRoute } from "@/legacy-bridge/workspace";
+import { hrefOfRoute } from "@/bridge/workspace";
 import type { TableState } from "../../kit/table/state";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import { placeLoad } from "../../people/shell-verbs";
 import type { Flash } from "../../people/types";
 import { leadPhotoWarm } from "../peek/seams";

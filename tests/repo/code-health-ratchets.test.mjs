@@ -326,8 +326,8 @@ test("the test-length measure counts a file's lines as file-length does, over th
 // clock and a name that shadows a helper are none. A miss would let a new count of turns in unseen.
 test("the counted-waits measure counts waits of a fixed count of turns or time, and nothing else", () => {
   const lines = [
-    'import { settle } from "../_legacy-react.mjs";',
-    'import * as LR from "../_legacy-react.mjs";',
+    'import { settle } from "../_stub-react.mjs";',
+    'import * as LR from "../_stub-react.mjs";',
     'import { until } from "../shared/_until.mjs";',
     "const tick = () => new Promise((r) => setTimeout(r, 0));",
     "const turn = () => new Promise((go) => setImmediate(go));",
@@ -337,8 +337,8 @@ test("the counted-waits measure counts waits of a fixed count of turns or time, 
     "const looked = async (cond) => { for (const from = Date.now(); !cond() && Date.now() - from < 5000; ) await tick(); };",
     "const flush = async () => { for (let i = 0; i < 30; i += 1) await Promise.resolve(); };",
     "const open = async () => { draw(); await many(); return draw(); }; // yes",
-    'const L = await import("../_legacy-react.mjs");',
-    'const { settle: s } = await import("../_legacy-react.mjs");',
+    'const L = await import("../_stub-react.mjs");',
+    'const { settle: s } = await import("../_stub-react.mjs");',
     "await tick(); // yes",
     "await turn(); // yes",
     "await sleep(260); // yes",

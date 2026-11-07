@@ -11,12 +11,12 @@ import {
   type LeadPickerRowVM,
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Popover } from "../../kit/popover/popover";
-import { gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { SheetNew, SheetPicker, type NewStart } from "../sheet/picker";
 import type { LeadAim } from "../sheet/use-aim";
 import { laterLead } from "../surface";
@@ -27,7 +27,7 @@ interface BulkAddProps {
   aim: LeadAim;
   /** The search they are seen in: Later is its own, and Ask's draft for New writes from it. */
   search: { id: string; name: string } | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   /** What stays selected after: those the add left out, or none. */
   onDone: (keep: string[]) => void;
   busy: boolean;

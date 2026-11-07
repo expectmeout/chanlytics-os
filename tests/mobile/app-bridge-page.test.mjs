@@ -1,5 +1,5 @@
 /**
- * The page's side of the bridge to the native shell (legacy-bridge/app-bridge.ts), run against a window of its own:
+ * The page's side of the bridge to the native shell (bridge/app-bridge.ts), run against a window of its own:
  * nothing is installed outside the app; inside, the page says its route, that a person is in, and the workspace at
  * install, then every route change, every needs-you count and every workspace change; the shell's navigate moves the
  * route (a path in a workspace, decision 0015), its menu and top become the shell's own events, and a message that
@@ -7,7 +7,7 @@
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { installAppBridge } from "../../apps/dashboard/src/legacy-bridge/app-bridge.ts";
+import { installAppBridge } from "../../apps/dashboard/src/bridge/app-bridge.ts";
 
 globalThis.CustomEvent ??= class CustomEvent extends Event {
   constructor(type, init) {
@@ -182,7 +182,7 @@ test("a tapped push for another workspace opens that workspace's page, sealing w
     removeItem: (k) => kept.delete(k),
   };
   globalThis.window = win;
-  const cache = await import("../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+  const cache = await import("../../apps/dashboard/src/bridge/surface-cache.ts");
   // The cache's slot for this page's workspace (its address, /w/acme-plumbing): local storage, one slot a workspace.
   const CACHE = "chanlytics.surfaces.v2:acme-plumbing";
   try {

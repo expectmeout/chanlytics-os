@@ -26,7 +26,7 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { templates as templateVerbs } from "../../templates/verbs";
 import { tplOwn } from "../../templates/words";
 import { channelsSaidOf, heldMessageOf } from "./new-model";

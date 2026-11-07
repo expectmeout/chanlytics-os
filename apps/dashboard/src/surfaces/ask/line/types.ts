@@ -12,9 +12,9 @@ import type {
   AskSurface,
   AskThreadVM,
 } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
-import type { Mascot } from "@/legacy-bridge/mascot";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { AskApi } from "@/bridge/ask";
+import type { Mascot } from "@/bridge/mascot";
+import type { FrameFlash } from "../../frame-verbs";
 import type { ahSlideFrom, useAskSpeech, useAskTalk, useHoldPress, useHoldSpace } from "../hooks";
 import type { LineRow, LineSection } from "../home";
 import type { LineWords } from "../words";
@@ -152,7 +152,7 @@ export interface LineState {
   slideFrom: Ref<ReturnType<typeof ahSlideFrom>>;
   speech: ReturnType<typeof useAskSpeech>;
   toastNode: ReactNode;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   inputRef: ElementRef<HTMLTextAreaElement>;
   faceRef: ElementRef<HTMLSpanElement>;
   heroRef: ElementRef<HTMLDivElement>;

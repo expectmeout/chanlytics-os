@@ -10,7 +10,7 @@ import { useState } from "react";
 import { FACT_SUGGEST_WORDS as W, type FactSuggestionDto } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { RecordRow } from "../../kit/record/row";
-import { gate, type LegacyFlash } from "../../legacy-verbs";
+import { gate, type FrameFlash } from "../../frame-verbs";
 import { autonomyVerbs } from "./verbs";
 
 export function LearnedFromYou({
@@ -18,7 +18,7 @@ export function LearnedFromYou({
   flash,
 }: {
   suggestions: readonly FactSuggestionDto[] | null | undefined;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   // The suggestions answered here, gone from the card at once while the settings are read again behind the verb.
   const [gone, setGone] = useState<readonly string[]>([]);

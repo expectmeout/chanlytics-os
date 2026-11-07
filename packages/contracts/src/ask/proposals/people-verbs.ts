@@ -1,6 +1,6 @@
 /**
  * The verbs a person's sheets commit that Ask does not propose yet, in the same shape as a card's spec (spec.ts), so a
- * sheet and a card make the same call for the same act through one walk (the dashboard's legacy-bridge/verbs): their
+ * sheet and a card make the same call for the same act through one walk (the dashboard's bridge/verbs): their
  * answers to the two questions, for one person or many; the receptionist for many; a note line under many; a person
  * added by hand; two records of one person made one. Each body is the one its door's own schema reads
  * (people/doors/person-bodies.ts, on the server, which refuses in its own words), and each receipt is the sentence the

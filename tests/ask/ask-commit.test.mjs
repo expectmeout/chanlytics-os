@@ -30,9 +30,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { commitProposal, undoProposal, editReply } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
+const { commitProposal, undoProposal, editReply } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { recordDecision } = await import(at("apps/dashboard/src/server/shared/verbs.ts"));
-const { installTabMemory } = await import(at("apps/dashboard/src/legacy-bridge/tab-memory.ts"));
+const { installTabMemory } = await import(at("apps/dashboard/src/bridge/tab-memory.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";

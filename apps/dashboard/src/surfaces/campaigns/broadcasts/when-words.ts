@@ -4,7 +4,7 @@
  */
 import { runApprovalRefusal, runDaysAt, waitingRunOffer, whenItGoes } from "@chanlytics/contracts";
 import type { WaitingRunOffer, WhenItGoesReceipt } from "@chanlytics/contracts";
-import { pageClock, type PageClock } from "@/legacy-bridge/zone";
+import { pageClock, type PageClock } from "@/bridge/zone";
 
 /** A waiting run as the approve verb reads it: whose it is, the day it was made for, and its moment. */
 interface WaitingRun {

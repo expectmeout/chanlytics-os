@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { LIST_MESSAGES_EACH, memberWords, stateOf, toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again as drawAgain } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again as drawAgain } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -191,7 +191,7 @@ test("Conversations' box: the threads whose messages say the words, past each th
 
 /* ---------------------------------------------------------------- the page */
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor/today",

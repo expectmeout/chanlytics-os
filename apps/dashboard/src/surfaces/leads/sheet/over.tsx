@@ -7,17 +7,17 @@
  */
 import { useEffect, useState } from "react";
 import { addressOf, toLeadPeekVM, type LeadPeekVM, type LeadRowDto } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { useCmPhone } from "../../campaigns/parts/split";
-import { navigate, refusalToast, useLegacyToast } from "../../legacy-verbs";
+import { navigate, refusalToast, useFrameToast } from "../../frame-verbs";
 import type { PeekActs } from "../peek/types";
 import { setLeadStage } from "../surface";
 import { closeLeadOver } from "./lead-over";
 import { LeadSheet } from "./sheet";
 import { useLeadAim } from "./use-aim";
 
-type Flash = ReturnType<typeof useLegacyToast>[1];
+type Flash = ReturnType<typeof useFrameToast>[1];
 
 /** The lead, read by its id as a row of the list: null while it is read, or where it is not this workspace's. */
 function useLeadRow(leadId: string): { row: LeadRowDto | null; failed: boolean } {
@@ -85,7 +85,7 @@ function overActs(vm: LeadPeekVM, flash: Flash): PeekActs {
 
 /** The lead over the page: its sheet once its row is read; nothing while it is, and Close where it is not here. */
 export function LeadSheetOver({ leadId }: { leadId: string }) {
-  const [toast, flash] = useLegacyToast();
+  const [toast, flash] = useFrameToast();
   const phone = useCmPhone();
   const { row, failed } = useLeadRow(leadId);
   const aim = useLeadAim({ searches: [], searchId: null });

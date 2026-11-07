@@ -12,7 +12,7 @@ import { NEW_CONVERSATION_WORDS as W } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn } from "../../frame-verbs";
 import type { SheetState } from "./state";
 
 /** Who was found: each a press that picks them, with where their deal stands or when they were last heard. */

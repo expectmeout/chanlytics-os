@@ -8,9 +8,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, byTestId, find, press, settle, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, press, settle, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false });
+installStubReact({ __DEMO_MODE: false });
 const S = "../../../apps/dashboard/src";
 // A path written out, so the dead-exports check (knip) sees what the test reads of the module.
 const { PeriodPicker, loadPeriodPopover } =

@@ -18,12 +18,12 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { MIN_MS, headlineOf, reportDaysCount } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { CALENDAR, reportDto } from "../_report-world.mjs";
 import { dtoWith } from "./_people-world.mjs";
 
-installLegacyReact();
+installStubReact();
 Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
@@ -49,8 +49,8 @@ const { keepReportPeriod, shownReportPeriod, reportsOverride } = await importSrc
 );
 const { setReportRange } = await importSrc("apps/dashboard/src/surfaces/reports/period.ts");
 const { surfaceValue, setSurfaceValue, followState } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { setStatus } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { setStatus } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 console.error = keepError;
 
 const DAYS = { "7d": 7, "30d": 30, "90d": 90 };
@@ -673,7 +673,7 @@ test("a write that makes the read wrong forgets it, and nothing reads it from th
     await reportsPeopleOverride.apply();
     assert.equal(reportsPeople.isStale(), false);
     asked.length = 0;
-    const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+    const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
     elsewhere("inbox");
     // A reply is a conversation's, and a hold moves nothing the lens counts: what it holds is left as it is.
     AFTER["POST conversations/[id]/reply"]();

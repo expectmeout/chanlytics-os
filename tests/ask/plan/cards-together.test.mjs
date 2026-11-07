@@ -8,11 +8,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cardsTogether, holdsAlike, openCardOf, wordsLessHolds } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, textOf, press, kitPages } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, textOf, press, kitPages } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, { canDo: () => true, gate: () => ({}) });
 const { AskCards } = await import("../../../apps/dashboard/src/surfaces/ask/card.tsx");
@@ -21,7 +21,7 @@ const { askText } = await import("../../../apps/dashboard/src/surfaces/ask/words
 const W = globalThis.window;
 const t = askText("en");
 
-const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 const REVIEW = "WhatsApp waits: its version goes for review when you approve, and that cannot be taken back.";
 const OWN = "The month has room for 12 of them.";
 const card = (n, over = {}) => ({

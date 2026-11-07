@@ -6,11 +6,11 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { LEAD_REWRITE_CHANGE_MAX, REWRITE_WORDS as W, rewroteWords, type RewriteStep } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
-import { checkOpeningNow } from "@/legacy-bridge/verbs/openings";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
+import { checkOpeningNow } from "@/bridge/verbs/openings";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
-import { focusAsDrawn, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { focusAsDrawn, gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 
 /** What a landed rewrite keeps for its Undo: the verb's own record (contracts sequenceSendDecideSpec.undo). */
 export type RewriteUndo = Record<string, unknown>;
@@ -21,7 +21,7 @@ interface RewriteAskProps {
   runId: string | null;
   name: string;
   /** The page's toast; none where the place draws no toast, and then the ask says what came back itself. */
-  flash: ((f: LegacyFlash) => void) | null;
+  flash: ((f: FrameFlash) => void) | null;
   /** Said once the decision landed and again once the opening did: the place reads its rows again. */
   moved: () => void;
   onBack: () => void;
@@ -33,7 +33,7 @@ interface RewriteAskProps {
 }
 
 /** The undo of a landed rewrite: the opening it replaced, back, said in the place's toast. */
-export async function undoRewrite(kept: RewriteUndo, flash: ((f: LegacyFlash) => void) | null): Promise<void> {
+export async function undoRewrite(kept: RewriteUndo, flash: ((f: FrameFlash) => void) | null): Promise<void> {
   const u = await undoVerb("sequence_send_decide", kept);
   if (flash) flash(u.ok ? { tone: "ok", msg: u.receipt } : refusalToast(u));
 }

@@ -54,9 +54,8 @@ apps/dashboard/app/
   yes/
 apps/dashboard/src/
   auth/
+  bridge/
   client/
-  legacy/
-  legacy-bridge/
   lib/
   server/
   surfaces/
@@ -82,7 +81,7 @@ apps/dashboard/src/server/
   receptionist/
   shared/
   workspace/
-apps/dashboard/src/legacy-bridge/
+apps/dashboard/src/bridge/
   ask/
   billing/
   hearing/
@@ -92,7 +91,7 @@ apps/dashboard/src/legacy-bridge/
   rehearse/
   surfaces/
   verbs/
-apps/dashboard/src/legacy/
+apps/dashboard/mockup/
   data/
 apps/mobile/src/
   app/

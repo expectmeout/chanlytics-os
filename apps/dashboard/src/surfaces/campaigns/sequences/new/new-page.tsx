@@ -31,11 +31,11 @@ import {
   type ReachOutSourceDto,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { runningOf } from "@/lib/new-checks";
 import { Button } from "../../../kit/button/button";
 import { keepTabDraft, tabDraft, useUnsavedWork } from "../../../kit/record/work";
-import { canDo, navigate, refusalToast, useLegacyToast } from "../../../legacy-verbs";
+import { canDo, navigate, refusalToast, useFrameToast } from "../../../frame-verbs";
 import { useReadsHere, useSurface } from "../../../use-surface";
 import { broadcasts } from "../../broadcasts/verbs";
 import { useCampaignsToast } from "../../home/route-toast";
@@ -136,7 +136,7 @@ function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
 }
 
 type Reads = NonNullable<ReturnType<typeof useNewReads>>;
-type Flash = ReturnType<typeof useLegacyToast>[1];
+type Flash = ReturnType<typeof useFrameToast>[1];
 type Fixed = Omit<NewDraftAsk, "words">;
 
 /** The choices a door's address made, which every draft from this New keeps, and the line it opens on. */
@@ -336,7 +336,7 @@ interface NewSequenceProps {
 /** New, on the moment, for whom, or on the kept one-off its address names. */
 export function NewSequence({ moment = null, who = null, to = null, kept = null }: NewSequenceProps) {
   const reads = useNewReads(useSources());
-  const [toast, flash] = useLegacyToast();
+  const [toast, flash] = useFrameToast();
   const { door, seed, notice } = useDoor(moment, who, to, reads);
   // What this address held when New last closed over it, kept in the tab: the draft, and the line.
   const here = [moment, who, to, kept].map((x) => x ?? "").join("|");

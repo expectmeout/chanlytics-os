@@ -47,7 +47,7 @@ export interface PromptPreviewDto {
   /**
    * What the two texts were resolved with besides the brain and the zone: the
    * Autonomy rows and what the platform knows. The Business tab resolves a
-   * fold's unsaved draft with them (legacy-bridge/business-tab.ts), so what a
+   * fold's unsaved draft with them (bridge/business-tab.ts), so what a
    * fold says the receptionist will be told has the rules and the provisioned
    * number the edge would give it.
    */

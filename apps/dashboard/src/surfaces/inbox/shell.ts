@@ -11,7 +11,7 @@
  */
 import type { HTMLAttributes } from "react";
 import { codeOnce } from "@/lib/code-once";
-import { canDo, navigate } from "../legacy-verbs";
+import { canDo, navigate } from "../frame-verbs";
 import { fn, windowValue, object, type Flash } from "../shell-doors";
 
 /* The role gate and the toast are the doors every surface shares (shell-doors.ts). */
@@ -135,8 +135,8 @@ export function hasDealSheet(): boolean {
 
 /* ----------------------------------- Ask ----------------------------------- */
 
-/* What Ask is told is on screen is one ledger with one writer (legacy-bridge/ask/on-screen.ts), as every page says it. */
-export { askOnScreenKey, setAskOnScreen } from "../legacy-verbs";
+/* What Ask is told is on screen is one ledger with one writer (bridge/ask/on-screen.ts), as every page says it. */
+export { askOnScreenKey, setAskOnScreen } from "../frame-verbs";
 
 /* ----------------------------- the mockup's seeds ----------------------------- */
 

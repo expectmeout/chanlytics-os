@@ -86,7 +86,7 @@ const change = (input, rows = tables(), faults = {}) => {
 const said = (r) => JSON.parse(r.result).error;
 /**
  * A card's commit or undo, sent to the real PUT over the same rows. `undoOf` is the decision an undo names, as the
- * commit runner sends it (legacy-bridge/ask/commit.ts: the x-undo-of header, the route's ctx.undoOf).
+ * commit runner sends it (bridge/ask/commit.ts: the x-undo-of header, the route's ctx.undoOf).
  */
 const sendTo = async (rows, call, undoOf) => {
   assert.equal(call.route, "PUT playbooks/[id]");

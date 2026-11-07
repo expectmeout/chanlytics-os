@@ -2,7 +2,7 @@
  * A read that follows what Reports shows, made once for every one of them: Today's headline (headline.ts), which follows
  * the period by name kept in this browser, and the Reviews lens's (reviews-surface.ts), which follows the range on
  * screen, the days a member picked among them. Part of the SurfaceData seam
- * (legacy-bridge/surface-data.ts); a page reads what one publishes through `useSurface(key)`, or through
+ * (bridge/surface-data.ts); a page reads what one publishes through `useSurface(key)`, or through
  * `useFollower(key)` where it must also say how that stands against what is shown.
  *
  * Each says what it follows (`shown`) and which range a value of its is of (`of`), both by the range's one name
@@ -22,11 +22,11 @@
  * not be made. Its page draws the value and the state; none of this is the page's to work out.
  */
 import { reportRangeKey, type ReportRange } from "@chanlytics/contracts";
-import { heldViews } from "@/legacy-bridge/held-views";
-import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import type { ReadsDeclaration } from "@/legacy-bridge/surface-realtime";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { isSurfaceDegraded, isSurfaceFailed, surfaceMoved } from "@/legacy-bridge/surface-status";
+import { heldViews } from "@/bridge/held-views";
+import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import type { ReadsDeclaration } from "@/bridge/surface-realtime";
+import { declareReads } from "@/bridge/surface-registry";
+import { isSurfaceDegraded, isSurfaceFailed, surfaceMoved } from "@/bridge/surface-status";
 import { declareFollower, setSurfaceValue, surfaceValue, type SurfaceKey, type SurfaceValues } from "../surface-values";
 
 /**

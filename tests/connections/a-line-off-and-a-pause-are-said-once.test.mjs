@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import * as C from "@chanlytics/contracts";
 import { FACTS_UNAVAILABLE, GREETING_DEFAULT } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
-import { installLegacyReact, fresh, again, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, textOf } from "../_stub-react.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -191,7 +191,7 @@ test("Live: the line note says what a caller gets, and the page draws the view m
   assert.equal(vm.line.offWords, `The line is switched off — ${C.PHONE_LINE_OFF.gets}.`);
   assert.deepEqual(contradicting(words(vm)), []);
 
-  installLegacyReact({ __DEMO_MODE: false });
+  installStubReact({ __DEMO_MODE: false });
   const { LrList } = await import(at("apps/dashboard/src/surfaces/live/list.tsx"));
   fresh();
   const drawn = textOf(

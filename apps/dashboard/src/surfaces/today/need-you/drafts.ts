@@ -16,8 +16,8 @@ import {
   type ReplyDraftKind,
   type ReplyDraftView,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { api } from "@/bridge/api";
+import { onSurfaceMoved } from "@/bridge/surface-status";
 import { surfaceValue } from "../../surface-values";
 
 /**

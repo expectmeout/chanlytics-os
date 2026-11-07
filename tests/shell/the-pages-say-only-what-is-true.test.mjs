@@ -20,14 +20,14 @@ import { toTodayVM, toCallVM, toInboxThreadVM, stateOf, replyWaitsOnYou } from "
 import { hookFrames } from "../_hook-frames.mjs";
 import {
   kitPages,
-  installLegacyReact,
+  installStubReact,
   useStubHooks,
   fresh as freshTree,
   again as againTree,
   find,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -666,8 +666,8 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 
 /* ------------- Campaigns: an approve says when the run really goes ------------- */
 
-// The pages' one clock (legacy-bridge/zone.ts): the workspace's zone once one is published.
-const { installClock } = await import("../../apps/dashboard/src/legacy-bridge/zone.ts");
+// The pages' one clock (bridge/zone.ts): the workspace's zone once one is published.
+const { installClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
 installClock();
 // The schedule box and the receipt's words, and the ledger's numbers: TSX modules of Broadcasts (decision 0015). The box
 // is the day and time New's When sheet draws (decision 0065 step 7: the send screen that drew it after its "now or later" left).
@@ -998,14 +998,14 @@ test("REGRESSION: the Terms name the password among the ways to sign in -- they 
 
 /* ------------- Campaigns, drawn as TSX (decision 0015): the pages that hold state ------------- */
 
-// The stub React that patches `react` itself (_legacy-react.mjs) replaces this file's own, so these come last: the pages
+// The stub React that patches `react` itself (_stub-react.mjs) replaces this file's own, so these come last: the pages
 // above were drawn on this file's stub. A TSX page reads its data through the seam and imports its verbs, so a test hands the
 // seam a value (setSurfaceValue) and holds a verb where the page presses it.
 let campaigns = null;
 const campaignsWorld = async () => {
   if (campaigns) return campaigns;
   const toasts = [];
-  installLegacyReact({
+  installStubReact({
     __DEMO_MODE: false,
     __surfaceState: () => "live",
     __ME: { role: "owner" },

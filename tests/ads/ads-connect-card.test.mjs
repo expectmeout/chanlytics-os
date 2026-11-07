@@ -7,10 +7,10 @@
  */
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../_stub-react.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-11T09:19:00-04:00") });
-installLegacyReact();
+installStubReact();
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { AdAccounts } = await import("../../apps/dashboard/src/surfaces/settings/connections/ad-accounts.tsx");
 

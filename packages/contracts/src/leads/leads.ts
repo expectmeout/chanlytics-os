@@ -264,7 +264,7 @@ export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now
 
 /**
  * Every word the Leads scope's own markup says, spelled once here and seeded onto the window as `window.__LEAD_WORDS`
- * by `seed-globals.ts`, because the legacy pages import nothing. A words record is a global seeded once at boot, like
+ * by `seed-globals.ts`, because the shell's pages import nothing. A words record is a global seeded once at boot, like
  * `__FACT_WORDS`, not a courier's -- the courier carries acts. Task 19 adds the facts' own words (the stages, the
  * endings, the guardrail sentences) to THIS record; there is one `LEAD_WORDS` and nothing else holds a lead's words.
  * A sentence the server also says is not here: the routes' toasts are the routes' own.

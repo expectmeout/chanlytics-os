@@ -8,7 +8,7 @@
  * holds, saying so; its Open is the Library.
  *
  * Executed through the real registry over a workspace in memory, the edge's answer about email a stubbed fetch; the walk
- * (legacy-bridge/ask/commit.ts) over the typed client on a fake fetch; and a card's commit body through the door itself.
+ * (bridge/ask/commit.ts) over the typed client on a fake fetch; and a card's commit body through the door itself.
  * Nothing a card is made from is written.
  */
 import { test, beforeEach, after } from "node:test";
@@ -31,7 +31,7 @@ const C = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
+const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const messageRoute = await import(at("apps/dashboard/app/api/v1/templates/message/route.ts"));

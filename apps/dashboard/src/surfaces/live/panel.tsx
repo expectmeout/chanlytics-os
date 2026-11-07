@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef } from "react";
 import { callNoteLines, type LiveCallVM } from "@chanlytics/contracts";
-import { navigate, routeDoor, touchSwipe } from "../legacy-verbs";
+import { navigate, routeDoor, touchSwipe } from "../frame-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { carriedOver, heldAlong, heldUnder } from "../kit/motion/held-list";
 import { scrollerOf } from "../kit/motion/page-scroll";

@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { memberWords, stateOf } from "@chanlytics/contracts";
-import { installLegacyReact } from "../_legacy-react.mjs";
+import { installStubReact } from "../_stub-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -146,7 +146,7 @@ test("a malformed id in ?ids= is a 404, more than a hundred is refused, and the 
 
 /* ------------------------------------------------------- the surfaces, by id */
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/harbor",

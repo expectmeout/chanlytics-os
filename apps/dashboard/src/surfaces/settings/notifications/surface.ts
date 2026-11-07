@@ -8,9 +8,9 @@
  * what it can without it (the email and the browser) and offers no phone tick.
  */
 import type { MemberAlertsDto } from "@chanlytics/contracts";
-import { ON_DEMAND_STALE_MIN, readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { read } from "@/legacy-bridge/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { ON_DEMAND_STALE_MIN, readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import { read } from "@/bridge/api";
+import { declareReads } from "@/bridge/surface-registry";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 
 export interface AlertsSurface {

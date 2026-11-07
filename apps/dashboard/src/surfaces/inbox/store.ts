@@ -4,7 +4,7 @@
  * it, `VW_UTIL`), and what a page reads of the two surfaces' rows (`inboxData`, `conversationsData`).
  *
  * `IX_STORE` is shared: the sidebar's badge, the top bar's bell, Today and the demo's pages read it. It is published once,
- * under its old name, for the pages that have not moved (legacy-globals.ts). The veto store has no reader beyond the
+ * under its old name, for the pages that have not moved (mockup-globals.ts). The veto store has no reader beyond the
  * Inbox, and is not published.
  */
 import { INBOX_BUCKET_WORDS } from "@chanlytics/contracts";

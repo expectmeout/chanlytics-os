@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 import { COMBINE_WORDS, combineOf, personTabRoute } from "@chanlytics/contracts";
 import { Confirm } from "../../../kit/confirm/confirm";
 import { Icon } from "../../../kit/icon/icon";
-import { navigate } from "../../../legacy-verbs";
+import { navigate } from "../../../frame-verbs";
 import { keptOf, mergePerson } from "../../people-detail";
 import { MERGE_CLOSED } from "../ctx";
 import type { PageCtx } from "../ctx";

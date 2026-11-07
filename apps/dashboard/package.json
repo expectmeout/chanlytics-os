@@ -4,7 +4,7 @@
   "private": true,
   "imports": {
     "#frame-shell": {
-      "browser": "./src/legacy-bridge/LegacyApp.tsx",
+      "browser": "./src/bridge/FrameApp.tsx",
       "default": "./src/frame-shell.ts"
     }
   },

@@ -12,10 +12,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NEW_SINCE_WORDS, newSinceOf, toPersonRowVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, all, find, byTestId, classes } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, all, find, byTestId, classes } from "../../_stub-react.mjs";
 import { personDto } from "../../consent/_person-row.mjs";
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../apps/dashboard/src";
 const { PersonTimeline } = await import(`${S}/surfaces/people/person/timeline.tsx`);
 const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);

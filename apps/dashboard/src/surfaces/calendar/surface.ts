@@ -1,14 +1,14 @@
 /**
  * The Calendar's override: the span the page shows, held between reads, and the bookings over it (moved from
- * legacy-bridge/surfaces/calendar.ts, decision 0015). Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the page
+ * bridge/surfaces/calendar.ts, decision 0015). Part of the SurfaceData seam (bridge/surface-data.ts); the page
  * reads what it publishes through `useSurface("calendar")`.
  */
-import { read } from "@/legacy-bridge/api";
-import { heldViews } from "@/legacy-bridge/held-views";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
-import { knownZone } from "@/legacy-bridge/zone";
+import { read } from "@/bridge/api";
+import { heldViews } from "@/bridge/held-views";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
+import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
+import { knownZone } from "@/bridge/zone";
 import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { calendarAddress, calendarParam } from "./address";

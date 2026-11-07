@@ -466,7 +466,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   // from: `useSetState` was an alias declared at the top of settings.jsx, so
   // it left with the code and arrived undefined -- a break no source-reading
   // test could see, and the browser found. The TSX imports what it uses; the
-  // toast is the verbs module's `useLegacyToast`, not a window helper.
+  // toast is the verbs module's `useFrameToast`, not a window helper.
   for (const f of [pane, row, form]) {
     assert.ok(
       !f.includes("useSetState") && !f.includes("useSetEffect"),
@@ -475,12 +475,12 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     assert.ok(!f.includes("usePPToast"), "the toast is reached through the verbs module, not the window");
   }
   assert.ok(
-    pane.includes('import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";') &&
-      pane.includes("const [toastNode, flash] = useLegacyToast();"),
+    pane.includes('import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";') &&
+      pane.includes("const [toastNode, flash] = useFrameToast();"),
   );
   // No legacy page is loaded for the pane or the form any more (both files are gone), and the form is drawn by the pane
   // as the component it is.
-  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
+  const manifest = readCode("apps/dashboard/src/bridge/manifest.ts");
   for (const f of ["integrations-real.jsx", "business-record.jsx", "sending-domains.jsx"])
     assert.ok(!manifest.includes(`@/legacy/pages/${f}`), f);
   assert.ok(pane.includes("<BusinessRecordForm line={ownLine} flash={flash} />"));
@@ -502,7 +502,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     fromContracts && /\bconnectionRows\b/.test(fromContracts[1]) && /\bCONNECTION_GROUP_WORDS\b/.test(fromContracts[1]),
     "the pane imports contracts' rows and group words",
   );
-  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installConnections"));
+  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installConnections"));
   const edge = readCode("apps/edge/lib/google/google-config.ts");
   assert.ok(
     edge.includes("export function googleAudience(): GoogleAudience | null {") &&

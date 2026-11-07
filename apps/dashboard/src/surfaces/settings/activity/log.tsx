@@ -17,12 +17,12 @@ import {
   type ActivityMemberDto,
   type ActivityPageDto,
 } from "@chanlytics/contracts";
-import { activity } from "@/legacy-bridge/activity";
-import { pageClock } from "@/legacy-bridge/zone";
+import { activity } from "@/bridge/activity";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { holdStill, listRoute, routeDoor } from "../../legacy-verbs";
+import { holdStill, listRoute, routeDoor } from "../../frame-verbs";
 import { activityMark } from "./marks";
 
 type Row = ActivityPageDto["rows"][number];

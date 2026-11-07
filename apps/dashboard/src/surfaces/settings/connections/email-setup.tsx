@@ -8,7 +8,7 @@ import { useState } from "react";
 import type { SetupDto } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { RecordField } from "../../kit/record/field";
-import { gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { mailbox as MAILBOX } from "./mailbox";
 
 type Email = NonNullable<SetupDto["email"]>;
@@ -16,7 +16,7 @@ type Email = NonNullable<SetupDto["email"]>;
 interface EmailSetupProps {
   email: Email;
   businessName: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   onClose: () => void;
 }
 

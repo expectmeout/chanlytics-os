@@ -5,7 +5,7 @@
 // only puts the draft to them. Nothing about a greeting stops a save: the owner writes what they want, and the notes
 // say what it means.
 
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { GreetingNote } from "@chanlytics/contracts";
 import { trimmed, type Profile } from "../save";
 

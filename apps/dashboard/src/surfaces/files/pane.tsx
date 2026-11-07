@@ -27,7 +27,7 @@ import { Notice } from "../kit/notice/notice";
 import { Segmented } from "../kit/segmented/segmented";
 import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { doAsked } from "../kit/sheet/back";
-import { canDo, gate, refreshSurface, type LegacyFlash } from "../legacy-verbs";
+import { canDo, gate, refreshSurface, type FrameFlash } from "../frame-verbs";
 import { useSurface } from "../use-surface";
 import { hearFileAsked } from "./file-asked";
 import { FileSheet } from "./file-sheet";
@@ -93,7 +93,7 @@ function MoreFiles({ more, busy, shown }: { more: () => void; busy: boolean; sho
 /** How near the end of a shelf the next page is asked for: a thumb's flick away, so it is there as they arrive. */
 const MORE_NEAR: IntersectionObserverInit = { rootMargin: "800px 0px" };
 
-export function PaneFiles({ flash }: { flash: (f: LegacyFlash) => void }) {
+export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
   const held = useSurface("files");
   const sending = useSending();
   // A shelf pressed, until its read is in: what it holds stands until then, and the press answers at once.
