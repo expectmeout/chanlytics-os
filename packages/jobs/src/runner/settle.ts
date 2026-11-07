@@ -34,7 +34,14 @@ import { failQueuedSend } from "@chanlytics/db/jobs";
 import { keepFileLook } from "@chanlytics/db/files";
 import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
 import { noteImport } from "@chanlytics/db/imports";
-import { recordPreviewBuilt } from "@chanlytics/db/campaigns";
+import {
+  countBroadcastSends,
+  failInterruptedBroadcast,
+  findBroadcastState,
+  recordPreviewBuilt,
+} from "@chanlytics/db/campaigns";
+import { findEmailThreadOf, markMailboxIntakeFailed } from "@chanlytics/db/email";
+import { countLiveBroadcastJobs } from "@chanlytics/db/jobs";
 import { carriedBy, nextBatch } from "./batch-carry";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
@@ -131,12 +138,7 @@ async function noteMailboxTrouble(
   // error -- a mailbox deleted since the webhook, or one that is not this
   // workspace's -- and reporting that as a mark would be this file telling the
   // same kind of lie it exists to stop.
-  const { data, error } = await db
-    .from("mailboxes")
-    .update({ last_error: MAILBOX_INTAKE_FAILED })
-    .eq("id", mailboxId)
-    .eq("tenant_id", tenantId)
-    .select("id");
+  const { data, error } = await markMailboxIntakeFailed(db, { tenantId, mailboxId, lastError: MAILBOX_INTAKE_FAILED });
   if (error) {
     logger().error("mailbox_trouble_not_marked", { tenant_id: tenantId, mailbox_id: mailboxId, error: error.message });
     return { mailbox: "failed" };
@@ -163,13 +165,7 @@ async function howFar(
   tenantId: string,
   broadcastId: string,
 ): Promise<{ reached: number; remaining: number; error?: string }> {
-  const of = (state: string) =>
-    db
-      .from("sequence_sends")
-      .select("contact_id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .eq("batch_id", broadcastId)
-      .eq("state", state);
+  const of = (state: string) => countBroadcastSends(db, { tenantId, broadcastId }, { state });
   const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
   const error = sent.error?.message ?? queued.error?.message;
   return { reached: sent.count ?? 0, remaining: queued.count ?? 0, ...(error ? { error } : {}) };
@@ -187,13 +183,11 @@ async function failBroadcast(
   reason: string,
   far: { reached: number; remaining: number },
 ): Promise<Settled[]> {
-  const { data, error } = await db
-    .from("sequence_batches")
-    .update({ state: "failed", failure: "run_interrupted", finished_at: new Date().toISOString() })
-    .eq("id", broadcastId)
-    .eq("tenant_id", job.tenant_id)
-    .in("state", ["scheduled", "sending"])
-    .select("id");
+  const { data, error } = await failInterruptedBroadcast(
+    db,
+    { tenantId: job.tenant_id, broadcastId },
+    new Date().toISOString(),
+  );
   if (error) return [{ what: "broadcast", changed: false, ...far, error: `${reason}; then ${error.message}` }];
   // No row means it finished by itself between the read and here, and there is
   // nothing to tell anyone about work that completed.
@@ -267,13 +261,7 @@ async function settleIntake(db: Db, job: TerminalJob): Promise<Settled[]> {
   // sees. It is cleared by the next email that is taken in, so a workspace
   // whose mail is flowing does not carry an old failure.
   const mailbox = await noteMailboxTrouble(db, job.tenant_id, idFrom(job.payload, "mailbox_id"));
-  const { data, error } = await db
-    .from("messages")
-    .select("conversation_id")
-    .eq("tenant_id", job.tenant_id)
-    .eq("channel", "email")
-    .eq("external_id", receivedId)
-    .maybeSingle();
+  const { data, error } = await findEmailThreadOf(db, { tenantId: job.tenant_id, externalId: receivedId });
   if (error) return [{ what: "email", changed: false, ...mailbox, error: error.message }];
   const conversationId = (data as { conversation_id?: string | null } | null)?.conversation_id ?? null;
   if (!conversationId) return [{ what: "email", changed: false, ...mailbox }];
@@ -297,12 +285,7 @@ async function settleBroadcast(db: Db, job: TerminalJob): Promise<Settled[]> {
   // flight, so one that finished between the read and here is left exactly as
   // it finished; when no fresh run can be written, or too many already have
   // been, it falls back to the honest failure with the reason.
-  const { data: row, error: readErr } = await db
-    .from("sequence_batches")
-    .select("id, state")
-    .eq("id", broadcastId)
-    .eq("tenant_id", job.tenant_id)
-    .maybeSingle();
+  const { data: row, error: readErr } = await findBroadcastState(db, { tenantId: job.tenant_id, broadcastId });
   if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
   // 'scheduled' as well as 'sending': a run killed before it could move the
   // row off 'scheduled' sent nobody, and leaving it there stranded the whole
@@ -322,14 +305,7 @@ async function settleBroadcast(db: Db, job: TerminalJob): Promise<Settled[]> {
   // broadcast must never do. A read that cannot say is treated as "yes",
   // because the cost of guessing wrong that way is only a broadcast that
   // shows as sending.
-  const live = await db
-    .from("jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", job.tenant_id)
-    .eq("kind", "broadcast_send")
-    .eq("payload->>broadcast_id", broadcastId)
-    .in("state", ["scheduled", "fired"])
-    .neq("id", job.id);
+  const live = await countLiveBroadcastJobs(db, { tenantId: job.tenant_id, broadcastId, besides: job.id });
   if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
   if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
 

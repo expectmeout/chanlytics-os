@@ -8,11 +8,11 @@ export {
   forgetEveryPhone,
   getMemberAlerts,
   getMemberViews,
+  keepMemberView,
   listActivityTokens,
   listMembersPushed,
   pushNamesFor,
   setMemberPushOff,
-  keepMemberView,
   setMemberView,
 } from "./member-alerts";
 export type { MemberAlerts } from "./member-alerts";

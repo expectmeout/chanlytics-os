@@ -1,6 +1,17 @@
 /**
  * The campaigns domain: `@chanlytics/db/campaigns`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export {
+  countBroadcastSends,
+  failBroadcastRun,
+  failInterruptedBroadcast,
+  findBroadcastRun,
+  findBroadcastState,
+  listBatchPeople,
+  listBroadcastMessagesTo,
+  startBroadcastRun,
+  writeBroadcastSend,
+} from "./broadcast-run";
 export { listMomentSchedules, listRunsInSpan } from "./calendar-runs";
 export type { MomentScheduleRow, SpanRunRow } from "./calendar-runs";
 export {

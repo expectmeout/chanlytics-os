@@ -55,5 +55,13 @@ export type {
 } from "./control-plane/config";
 export { exportSectionPages, personExportPages } from "./export";
 export type { ExportPage, ExportSectionPages, PersonExportPages } from "./export";
+export {
+  findConfigRow,
+  findWorkspaceNameSlug,
+  findWorkspaceNameZone,
+  findWorkspaceSlug,
+  findWorkspaceZoneStatus,
+  listWorkspaceZones,
+} from "./rows";
 export { requestSetup } from "./setup";
 export { addToWaitlist, getWaitlistWaiting, markWaitlistInvited, refreshWaitlistRow } from "./waitlist";

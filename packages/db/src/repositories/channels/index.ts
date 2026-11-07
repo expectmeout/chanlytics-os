@@ -45,3 +45,11 @@ export {
   resolveChannelDetailed,
 } from "./routing";
 export type { ChannelLookup, RoutedChannel, WhatsappNumberRow } from "./routing";
+export {
+  finalizeQueuedMessage,
+  findMessageWrittenAt,
+  findOutboxMessage,
+  findTemplateCategory,
+  listPersonRepliesAfter,
+  stampThreadSent,
+} from "./send-door";

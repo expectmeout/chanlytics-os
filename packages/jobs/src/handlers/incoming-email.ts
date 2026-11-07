@@ -29,7 +29,7 @@ import {
   stampMailboxReceived,
   keepForwardingConfirmation,
 } from "@chanlytics/db/email";
-import { markProcessed } from "@chanlytics/db/channels";
+import { findOutboxMessage, markProcessed } from "@chanlytics/db/channels";
 import { findReachOutReply } from "@chanlytics/db/campaigns";
 import type { Json } from "@chanlytics/db/types";
 import { hasMemberAddress } from "@chanlytics/db/calendar";
@@ -48,12 +48,7 @@ export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<vo
       // so a read that failed and a message that is gone stay separable; the
       // verb turns the error into the job's loud failure.
       queued: async (id) => {
-        const { data, error } = await ctx.db
-          .from("messages")
-          .select("id, status, body, template_name, channel, sender, meta")
-          .eq("id", id)
-          .eq("tenant_id", job.tenant_id)
-          .maybeSingle();
+        const { data, error } = await findOutboxMessage(ctx.db, job.tenant_id, id);
         if (error) throw new Error(error.message);
         if (!data) return null;
         // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
