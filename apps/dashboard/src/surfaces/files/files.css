@@ -186,7 +186,7 @@
   position: absolute;
   width: 49%;
   height: 49%;
-  border-radius: 26%;
+  border-radius: var(--radius-ask);
   background: var(--accent);
   box-shadow: var(--shadow-sm);
 }

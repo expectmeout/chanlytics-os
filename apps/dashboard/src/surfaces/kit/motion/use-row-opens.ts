@@ -6,40 +6,37 @@
  */
 import { useCallback } from "react";
 
-/** How long a row takes to open, and on what: the house's ease-out, as a card's height glides. */
+/** How long a row takes to open: as long as a card's height glides. */
 const OPEN_MS = 220;
-const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 
-const lessMotion = (): boolean =>
-  typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** A row opens once: its second hand-over (React's strict mode gives a ref each element twice) would measure it shut. */
+const rowsOpened = new WeakSet<HTMLElement>();
 
-/** What has opened: a row opens once, and its second hand-over (React's strict mode gives a ref each element twice) would measure it shut. */
-const opened = new WeakSet<HTMLElement>();
-
-/** Open a row where it now stands. Answers how long it takes, or 0 where it stands open at once. */
-export function openRow(row: HTMLElement): number {
-  if (opened.has(row) || lessMotion() || typeof row.animate !== "function") return 0;
-  opened.add(row);
+/** Open a row where it now stands, on the house's ease-out, read off the row as a card's glide reads it. */
+function letRowOpen(row: HTMLElement): void {
+  if (rowsOpened.has(row) || typeof row.animate !== "function") return;
+  if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  rowsOpened.add(row);
   const card = row.closest<HTMLElement>("[data-glides]");
   card?.setAttribute("data-rising", "");
+  const easing = getComputedStyle(row).getPropertyValue("--ease-out").trim() || "ease-out";
   const run = row.animate(
     [
       { height: "0px", opacity: 0 },
       { height: `${row.offsetHeight}px`, opacity: 1 },
     ],
-    { duration: OPEN_MS, easing: EASE_OUT },
+    { duration: OPEN_MS, easing },
   );
   const done = () => card?.removeAttribute("data-rising");
   run.onfinish = done;
   run.oncancel = done;
-  return OPEN_MS;
 }
 
 /** A callback ref for a row that may come later: it opens as it is first drawn, where `wanted` says this page saw it come. */
 export function useRowOpens(wanted: boolean): (row: HTMLElement | null) => void {
   return useCallback(
     (row: HTMLElement | null) => {
-      if (row && wanted) openRow(row);
+      if (row && wanted) letRowOpen(row);
     },
     [wanted],
   );

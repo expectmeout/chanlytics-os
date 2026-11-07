@@ -61,7 +61,7 @@ const out = await build({
       'export { fileVerbs } from "../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
       'export { Photo, PhotosOnTheirWay } from "../../apps/dashboard/src/surfaces/files/photo.tsx";\n' +
-      'export { openRow } from "../../apps/dashboard/src/surfaces/kit/motion/use-row-opens.ts";\n' +
+      'export { useRowOpens } from "../../apps/dashboard/src/surfaces/kit/motion/use-row-opens.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tests/files"),
@@ -445,14 +445,24 @@ test("Ask's three stand on a photo only while the look is out", () => {
   assert.match(tile("done"), />Bench tools</);
 });
 
-test("a row that comes opens, its card following it frame by frame, and stands at once for someone who asked for less motion", () => {
+test("a row that comes opens once, its card following it frame by frame, and stands at once for someone who asked for less motion", () => {
+  const refOf = (wanted) => {
+    let ref;
+    S.renderToStaticMarkup(
+      S.createElement(() => {
+        ref = S.useRowOpens(wanted);
+        return null;
+      }),
+    );
+    return ref;
+  };
   const attributes = new Set();
   const card = {
     setAttribute: (name) => attributes.add(name),
     removeAttribute: (name) => attributes.delete(name),
   };
   const runs = [];
-  const row = {
+  const aRow = () => ({
     offsetHeight: 36,
     closest: () => card,
     animate(frames, options) {
@@ -460,21 +470,34 @@ test("a row that comes opens, its card following it frame by frame, and stands a
       runs.push(run);
       return run;
     },
-  };
+  });
   globalThis.matchMedia = () => ({ matches: false });
-  assert.ok(S.openRow(row) > 0);
-  assert.ok(attributes.has("data-rising"), "the card follows the row, rather than gliding to its first frame");
-  assert.equal(runs[0].frames[0].height, "0px");
-  assert.equal(runs[0].frames[1].height, "36px");
-  assert.equal(S.openRow(row), 0, "handed over twice, it opens once: the second would measure it shut");
-  assert.equal(runs.length, 1);
-  runs[0].onfinish();
-  assert.ok(!attributes.has("data-rising"));
-  globalThis.matchMedia = () => ({ matches: true });
-  assert.equal(S.openRow({ ...row }), 0);
-  assert.equal(runs.length, 1);
-  assert.ok(!attributes.has("data-rising"));
-  delete globalThis.matchMedia;
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => "cubic-bezier(0.22, 1, 0.36, 1)" });
+  try {
+    refOf(false)(aRow());
+    assert.equal(runs.length, 0, "a page that opened with its shelves draws them at once");
+
+    const open = refOf(true);
+    const row = aRow();
+    open(null);
+    open(row);
+    assert.ok(attributes.has("data-rising"), "the card follows the row, rather than gliding to its first frame");
+    assert.equal(runs[0].frames[0].height, "0px");
+    assert.equal(runs[0].frames[1].height, "36px");
+    assert.equal(runs[0].options.easing, "cubic-bezier(0.22, 1, 0.36, 1)");
+    open(row);
+    assert.equal(runs.length, 1, "handed over twice, it opens once: the second would measure it shut");
+    runs[0].onfinish();
+    assert.ok(!attributes.has("data-rising"));
+
+    globalThis.matchMedia = () => ({ matches: true });
+    open(aRow());
+    assert.equal(runs.length, 1);
+    assert.ok(!attributes.has("data-rising"));
+  } finally {
+    delete globalThis.matchMedia;
+    delete globalThis.getComputedStyle;
+  }
 });
 
 /* --------------------------------------------------- the three steps, over the real client */
