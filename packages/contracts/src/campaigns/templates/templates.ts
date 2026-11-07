@@ -198,7 +198,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
     value: {
       name,
       language: templateDraftInput.language,
-      category: templateDraftInput.category as TemplateCategoryChoice,
+      category: templateDraftInput.category,
       body,
       footer: footer || null,
       examples,

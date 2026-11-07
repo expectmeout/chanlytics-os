@@ -145,7 +145,7 @@ function asked(raw: unknown): Asked {
         : null;
   return {
     templateId,
-    kind: kind as AudienceKind,
+    kind,
     audienceId,
     ref,
     // Which of WhatsApp, text and email it may go by: WhatsApp alone when it names none, as every broadcast went before.

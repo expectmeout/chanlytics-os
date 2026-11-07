@@ -209,9 +209,7 @@ function groundRef(value: unknown, read: AskReadSet): AskSource | null {
   const page = row || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }];
   const tries: AskCitation[] = [
     ...(kind === "page" ? page : []),
-    ...[kind, ...ROW_KINDS]
-      .filter((k) => k !== "page")
-      .map((k) => ({ kind: k as AskCitationKind, id: row ?? spelled, label })),
+    ...[kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row ?? spelled, label })),
     ...page,
   ];
   const kept = groundCitations(tries, read).kept[0];

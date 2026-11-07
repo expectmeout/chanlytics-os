@@ -104,7 +104,7 @@ const PAGE_MESSAGES: { [K in PageMessage["t"]]: (v: Record<string, unknown>) => 
     isOneOf(APP_FILE_TYPES, v.type) &&
     typeof v.text === "string" &&
     v.text.length <= APP_FILE_MAX_CHARS
-      ? { t: "file", name: v.name, type: v.type as AppFileType, text: v.text }
+      ? { t: "file", name: v.name, type: v.type, text: v.text }
       : null,
 };
 

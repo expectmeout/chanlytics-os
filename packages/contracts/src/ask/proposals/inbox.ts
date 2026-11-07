@@ -108,7 +108,7 @@ export const threadVerbSpec: ProposalSpec = {
     // Every proposable verb but resolve has its route: ASK_THREAD_ROUTES satisfies the whole list.
     return verb === "resolve"
       ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } }
-      : threadCall(verb as RoutedVerb, p.payload.conversation_id, p.payload.until);
+      : threadCall(verb, p.payload.conversation_id, p.payload.until);
   },
   receipt: (p) => {
     const verb = asText(p.payload.verb);

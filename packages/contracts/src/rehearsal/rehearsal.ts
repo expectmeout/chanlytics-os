@@ -113,7 +113,7 @@ export function turnsOfTranscript(raw: unknown): RehearsalTurn[] {
     const content = (item as { content?: unknown }).content;
     const name = (item as { name?: unknown }).name;
     if (role === "tool_call_invocation" && isOneOf(REHEARSAL_SHOWN_TOOLS, name)) {
-      out.push({ role: "tool", content: name as string });
+      out.push({ role: "tool", content: name });
       continue;
     }
     if ((role !== "agent" && role !== "user") || typeof content !== "string" || !content.trim()) continue;
