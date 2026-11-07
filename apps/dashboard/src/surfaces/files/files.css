@@ -10,7 +10,7 @@
 }
 
 /* What the head says keeps its line while Add is counting, or the grid would move down as a batch starts and up as it ends. */
-.files-head[data-adding] .rec-card-title {
+.files-head[data-adding] .files-heading {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

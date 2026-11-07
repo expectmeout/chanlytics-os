@@ -85,7 +85,7 @@ const swap = (key: number, change: Partial<SendingPhoto>) =>
   set({ photos: now.photos.map((p) => (p.key === key ? { ...p, ...change } : p)) });
 
 /** Whether a photo is still on its way, rather than here or stopped. */
-export const stillGoing = (p: SendingPhoto): boolean => p.state === "waiting" || p.state === "sending";
+export const stillGoing = (photo: SendingPhoto): boolean => photo.state === "waiting" || photo.state === "sending";
 
 /**
  * A list in the order what was added on this visit was drawn. The server's is newest first, so a batch read back would turn itself over
@@ -174,11 +174,11 @@ function handOver(arrived: readonly SendingPhoto[]): void {
  * as many as are about to be on screen, so none of a long batch drops under the end of a page.
  */
 function readThenHandOver(arrived: readonly SendingPhoto[], tries = READS_AT_THE_END): void {
-  const held = surfaceValue("files");
-  const shown = (held?.dto.files.length ?? 0) + arrived.length;
+  const before = surfaceValue("files");
+  const shown = (before?.dto.files.length ?? 0) + arrived.length;
   if (shown > FILES_PAGE) readFilesUpTo(shown);
   void Promise.resolve(refreshSurface("files")).then(() => {
-    if (surfaceValue("files")?.fetchedAt !== held?.fetchedAt) handOver(arrived);
+    if (surfaceValue("files")?.fetchedAt !== before?.fetchedAt) handOver(arrived);
     else if (tries > 1) setTimeout(() => readThenHandOver(arrived, tries - 1), READ_AGAIN_AFTER_MS);
   });
 }

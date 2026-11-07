@@ -176,7 +176,7 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
   return (
     <section className="rec-card set-card files-page" data-testid="rec-card-files">
       <div className="rec-card-head files-head" data-adding={left > 0 || undefined}>
-        <h2 className="rec-card-title">{heading}</h2>
+        <h2 className="rec-card-title files-heading">{heading}</h2>
         {!emptyPage && (
           <span className="files-head-act">
             <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
