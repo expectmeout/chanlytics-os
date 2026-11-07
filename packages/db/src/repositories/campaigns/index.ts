@@ -184,6 +184,7 @@ export type {
   ReachOutSendInsert,
   ReachOutSendRow,
 } from "./reach-out/reach-out";
+export { countSentByStep } from "./reach-out/proof";
 export { decideSendDoor, sendOpeningsOf, undoSendRewrite } from "./reach-out/rewrite";
 export { findLeadStepOpening } from "./reach-out/rewrite";
 export {

@@ -143,6 +143,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "admin/hours": [...SETTINGS_READ, "partner", "calendar?around=today"],
   // Setup's read is its connections and the member's saved views beside them (setup/surface.ts), as Today's reads.
   "admin/receptionist": [...SETTINGS_READ, "partner", "setup", "views"],
+  // How it reaches out (decision 0113): the record's rows from the settings read, and what it shows beyond it (its mailbox,
+  // the month, the claims' counts, the voice, the newest sequence), kept by its pane (settings/frame/pane-reads.ts).
+  "admin/outreach": [...SETTINGS_READ, "partner", "settings/reach-out"],
   "admin/team": [...SETTINGS_READ, "partner", "team/partner"],
   "admin/notifications": [...SETTINGS_READ, "partner", "me/alerts"],
   "admin/profile": ["partner", "views"],
