@@ -10,7 +10,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAddressesSuppressed, mayWorkspaceSpend } from "@chanlytics/db/campaigns";
 import { getErasureDigests } from "@chanlytics/db/people";
-import { upsertLeadCompany, recordLeadSiteReadsSpent } from "@chanlytics/db/leads";
+import {
+  findLeadRound,
+  findLeadRun,
+  insertLeadRuns,
+  listLeadFacts,
+  listLeadPlacesAt,
+  listLeadsAtPlaces,
+  listLeadsSharing,
+  listPeopleSharing,
+  listPlacesSuppressed,
+  listRunsOfRound,
+  listSearchMembers,
+  recordLeadSiteReadsSpent,
+  upsertLeadCompany,
+} from "@chanlytics/db/leads";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import {
@@ -87,7 +101,7 @@ export function leadDb(db: Db): LeadDb {
   async function membersWhere(col: "round_id" | "search_id", id: string): Promise<LeadMemberRow[]> {
     const members = must<Database["public"]["Tables"]["lead_search_members"]["Row"][]>(
       "lead_search_members read",
-      await db.from("lead_search_members").select("*").eq(col, id),
+      await listSearchMembers(db, col, id),
     );
     if (!members.length) return [];
     type LeadFacts = Pick<
@@ -107,16 +121,7 @@ export function leadDb(db: Db): LeadDb {
     >;
     const leads = await inParts(
       members.map((m) => m.lead_id),
-      async (part) =>
-        must<LeadFacts[]>(
-          "leads read",
-          await db
-            .from("leads")
-            .select(
-              "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
-            )
-            .in("id", part),
-        ),
+      async (part) => must<LeadFacts[]>("leads read", await listLeadFacts(db, part)),
     );
     const byId = new Map(leads.map((l) => [l.id, l]));
     return members.map((member): LeadMemberRow => {
@@ -206,7 +211,8 @@ export function leadDb(db: Db): LeadDb {
     async runsEnsure(rows) {
       if (!rows[0]) return [];
       // The id is derived from the round, the phase and the term (core runIdFor): a second inserter meets the first row and inserts nothing.
-      const ins = await db.from("lead_runs").upsert(
+      const ins = await insertLeadRuns(
+        db,
         rows.map((row) => ({
           ...row,
           state: "claimed",
@@ -222,14 +228,13 @@ export function leadDb(db: Db): LeadDb {
           usage_usd: 0,
           finished_at: null,
         })),
-        { onConflict: "id", ignoreDuplicates: true },
       );
       must("lead_runs insert", ins);
-      const back = await db.from("lead_runs").select("*").eq("round_id", rows[0].round_id);
+      const back = await listRunsOfRound(db, rows[0].round_id);
       return must<RunRow[]>("lead_runs read back", back).map(runOf);
     },
     async round(id) {
-      const rows = await db.from("lead_rounds").select("*").eq("id", id).maybeSingle();
+      const rows = await findLeadRound(db, id);
       const row = must<Database["public"]["Tables"]["lead_rounds"]["Row"] | null>("lead_rounds read", rows);
       if (!row) return null;
       return {
@@ -258,14 +263,12 @@ export function leadDb(db: Db): LeadDb {
       };
     },
     async run(id) {
-      const r = await db.from("lead_runs").select("*").eq("id", id).maybeSingle();
+      const r = await findLeadRun(db, id);
       const row = must<RunRow | null>("lead_runs read", r);
       return row ? runOf(row) : null;
     },
     async runsOfRound(roundId) {
-      return must<RunRow[]>("lead_runs of round", await db.from("lead_runs").select("*").eq("round_id", roundId)).map(
-        runOf,
-      );
+      return must<RunRow[]>("lead_runs of round", await listRunsOfRound(db, roundId)).map(runOf);
     },
     membersOfRound: (roundId) => membersWhere("round_id", roundId),
     membersOfSearch: (searchId) => membersWhere("search_id", searchId),
@@ -274,17 +277,12 @@ export function leadDb(db: Db): LeadDb {
       if (!placeIds.length) return out;
       const leads = must<{ id: string; place_id: string | null }[]>(
         "leads by place",
-        await db
-          .from("leads")
-          .select("id, place_id")
-          .eq("tenant_id", tenantId)
-          .in("place_id", placeIds)
-          .is("erased_at", null),
+        await listLeadsAtPlaces(db, tenantId, placeIds),
       );
       for (const l of leads) if (l.place_id) out.set(l.place_id, l.id);
       const places = must<{ lead_id: string; place_id: string }[]>(
         "lead_places by place",
-        await db.from("lead_places").select("lead_id, place_id").eq("tenant_id", tenantId).in("place_id", placeIds),
+        await listLeadPlacesAt(db, tenantId, placeIds),
       );
       for (const x of places) if (!out.has(x.place_id)) out.set(x.place_id, x.lead_id);
       return out;
@@ -295,7 +293,7 @@ export function leadDb(db: Db): LeadDb {
         if (!values.length) return;
         const rows = must<Record<string, string | null>[]>(
           `leads by ${col}`,
-          await db.from("leads").select(`id, ${col}`).eq("tenant_id", tenantId).in(col, values).is("erased_at", null),
+          await listLeadsSharing(db, tenantId, col, values),
         );
         for (const r of rows) if (r[col]) out.push({ key: r[col], share: { kind, lead_id: r.id as string } });
       };
@@ -306,12 +304,7 @@ export function leadDb(db: Db): LeadDb {
         if (!values.length) return;
         const rows = must<Record<string, string | null>[]>(
           `contacts by ${col}`,
-          await db
-            .from("contacts")
-            .select(`id, ${col}`)
-            .eq("tenant_id", tenantId)
-            .in(col, values)
-            .is("erased_at", null),
+          await listPeopleSharing(db, tenantId, col, values),
         );
         for (const r of rows)
           if (r[col]) out.push({ key: r[col], share: { kind, contact_id: asContactId(r.id as string) } });
@@ -328,13 +321,9 @@ export function leadDb(db: Db): LeadDb {
       const [held, rows] = await Promise.all([
         getAddressesSuppressed(db, tenantId, keys.emails),
         byHash.size
-          ? db
-              .from("lead_suppressions")
-              .select("hash")
-              .eq("tenant_id", tenantId)
-              .eq("kind", "place")
-              .in("hash", [...byHash.keys()])
-              .then((r) => must<{ hash: string }[]>("lead_suppressions read", r))
+          ? listPlacesSuppressed(db, tenantId, [...byHash.keys()]).then((r) =>
+              must<{ hash: string }[]>("lead_suppressions read", r),
+            )
           : [],
       ]);
       const emails = new Set(keys.emails.filter((e) => held.has(e.trim().toLowerCase())));

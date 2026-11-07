@@ -18,6 +18,8 @@ import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { sendOpsMail, reachesTenant, type NotifyPorts } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { logger, errField } from "../shared/log.js";
+import { findLeadSearchName, findRoundToTell } from "@chanlytics/db/leads";
+import { findWorkspaceSlug } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 
@@ -27,11 +29,7 @@ export async function tellLeadQuestion(
   ports: Pick<NotifyPorts, "send"> = {},
 ): Promise<boolean> {
   try {
-    const { data: r, error: rErr } = await db
-      .from("lead_rounds")
-      .select("tenant_id, search_id, state, question")
-      .eq("id", roundId)
-      .maybeSingle();
+    const { data: r, error: rErr } = await findRoundToTell(db, roundId);
     if (rErr) throw new Error(`cannot read the round: ${rErr.message}`);
     const query = r?.question as { sentence?: unknown } | null | undefined;
     // Answered, stopped or ended since: there is nothing left to ask.
@@ -39,8 +37,8 @@ export async function tellLeadQuestion(
     const target = { tenantId: r.tenant_id, ...(await loadTenantNotifications(db, r.tenant_id)) };
     if (!reachesTenant(target)) return false;
     const [searchRead, tenantRead] = await Promise.all([
-      db.from("lead_searches").select("name").eq("id", r.search_id).eq("tenant_id", r.tenant_id).maybeSingle(),
-      db.from("tenants").select("slug").eq("id", r.tenant_id).maybeSingle(),
+      findLeadSearchName(db, r.tenant_id, r.search_id),
+      findWorkspaceSlug(db, r.tenant_id),
     ]);
     // A mail with a link to no workspace is no question asked: the round waits, and its next tell tries again.
     if (searchRead.error) throw new Error(`cannot read the search: ${searchRead.error.message}`);

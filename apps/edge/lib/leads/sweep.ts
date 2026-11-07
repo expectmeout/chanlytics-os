@@ -28,6 +28,19 @@ import { scheduleJobOnce } from "@chanlytics/jobs";
 import { leadDb } from "./db.js";
 import type { Json } from "@chanlytics/db/types";
 import type { SweepTick } from "../ops/sweep-door.js";
+import {
+  claimLeadRun,
+  endLeadRound,
+  endStuckLeadRound,
+  listCollectJobs,
+  listLeasedRuns,
+  listOpenRounds,
+  listRoundJobs,
+  listRunsInStates,
+  listRunsOfRounds,
+  markLeadRunUnknown,
+  releaseLeadRun,
+} from "@chanlytics/db/leads";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
@@ -37,8 +50,6 @@ const RUNS_IN_CHUNK = 100;
 /** The deadline the sweep hands the lead runner, from its start, inside the function's sixty seconds (vercel.json). */
 const SWEEP_DEADLINE_MS = 50_000;
 
-const RUN_COLUMNS =
-  "id, tenant_id, round_id, purpose, term, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at";
 type RunRead = Omit<SweepRunRow, "part" | "collect_scheduled" | "collects_failed"> & { term: string | null };
 /** The kinds of a round's own jobs, read by the round they name. */
 const ROUND_JOB_KINDS = ["lead_round_start", "lead_check"];
@@ -68,20 +79,17 @@ async function sweepRows(
   db: SweepTick["db"],
 ): Promise<{ runs: SweepRunRow[]; rounds: SweepRoundRow[]; roundJobs: Map<string, SweepRoundJobs> }> {
   const [live, leased, open] = await Promise.all([
-    db.from("lead_runs").select(RUN_COLUMNS).in("state", ["claimed", "starting", "running", "unknown"]),
-    db.from("lead_runs").select(RUN_COLUMNS).not("lease_owner", "is", null),
+    listRunsInStates(db, ["claimed", "starting", "running", "unknown"]),
+    listLeasedRuns(db),
     // Every round that has not ended, not only one waiting: a round whose start job died sits in 'queued' with no run,
     // and only the sweep carries it on (00140's trigger_leads_sweep).
-    db
-      .from("lead_rounds")
-      .select("id, tenant_id, state, purpose, ending_pending, waiting_since, state_since, created_at")
-      .neq("state", "ended"),
+    listOpenRounds(db),
   ]);
   const rounds = rowsOf(open as { data: SweepRoundRow[] | null; error: { message: string } | null });
   const roundIds = rounds.map((r) => r.id);
   const ofRounds = await inChunks(roundIds, async (part) =>
     rowsOf(
-      (await db.from("lead_runs").select(RUN_COLUMNS).in("round_id", part)) as {
+      (await listRunsOfRounds(db, part)) as {
         data: RunRead[] | null;
         error: { message: string } | null;
       },
@@ -96,24 +104,15 @@ async function sweepRows(
     byId.set(r.id, r);
   // These runs' collects, coming, failed for good (a failed row is kept 90 days, 00215) or the sweep's own carry-ons,
   // read for these runs alone, never the ledger's whole history, a part at a time under the gateway's line.
-  const collectsOf = (states: string[], part: string[], carriesOnly: boolean) => {
-    const q = db.from("jobs").select("payload, state, created_at").eq("kind", "lead_collect").in("state", states);
-    // A run polls every 15 seconds while it runs, so its finished collects are read only where the sweep wrote them.
-    return (carriesOnly ? q.like("payload->>seq", "r%") : q).in("payload->>run_id", part);
-  };
+  // A run polls every 15 seconds while it runs, so its finished collects are read only where the sweep wrote them.
+  const collectsOf = (states: string[], part: string[], carriesOnly: boolean) =>
+    listCollectJobs(db, part, states, carriesOnly);
   const collects = await inChunks([...byId.keys()], async (part) => [
     ...rowsOf((await collectsOf(["scheduled", "fired", "failed"], part, false)) as JobRows),
     ...rowsOf((await collectsOf(["done"], part, true)) as JobRows),
   ]);
   const roundJobsRead = await inChunks(roundIds, async (part) =>
-    rowsOf(
-      (await db
-        .from("jobs")
-        .select("kind, payload, state, created_at")
-        .in("kind", ROUND_JOB_KINDS)
-        .in("state", ["scheduled", "fired", "failed", "done"])
-        .in("payload->>round_id", part)) as JobRows,
-    ),
+    rowsOf((await listRoundJobs(db, part, ROUND_JOB_KINDS, ["scheduled", "fired", "failed", "done"])) as JobRows),
   );
   return assemble([...byId.values()], rounds, collects, roundJobsRead);
 }
@@ -296,26 +295,19 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
           break;
         }
         case "mark_unknown": {
-          const { error } = await db.rpc("lead_run_mark_unknown", { p_run_id: action.runId, p_owner: action.owner });
+          const { error } = await markLeadRunUnknown(db, action.runId, action.owner);
           if (error) throw new Error(error.message);
           counts.marked_unknown += 1;
           break;
         }
         case "release_lease": {
-          const { error } = await db.rpc("lead_run_release", {
-            p_run_id: action.runId,
-            p_owner: action.owner,
-            p_gen: action.gen,
-          });
+          const { error } = await releaseLeadRun(db, action.runId, action.owner, action.gen);
           if (error) throw new Error(error.message);
           counts.released += 1;
           break;
         }
         case "end_question": {
-          const { error } = await db.rpc("lead_round_end", {
-            p_round_id: action.roundId,
-            p_ending: "question_unanswered",
-          });
+          const { error } = await endLeadRound(db, action.roundId, "question_unanswered");
           if (error) throw new Error(error.message);
           counts.questions_ended += 1;
           break;
@@ -329,20 +321,16 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
         case "end_stuck": {
           // Nothing can carry it on: the door looks again under its own lock and ends it with the ending it had pending,
           // giving back its allowance and its share of the day's cap (00140's lead_round_end).
-          const { error } = await db.rpc("lead_round_end_stuck", {
-            p_round_id: action.roundId,
-            p_since: action.since,
-            p_ending: action.ending,
-          });
+          const { error } = await endStuckLeadRound(db, action.roundId, action.since, action.ending);
           if (error) throw new Error(error.message);
           counts.rounds_ended += 1;
           break;
         }
         case "orphan": {
           // A row nobody claimed in an hour: the sweep claims it and marks it unknown, and the next tick reconciles it.
-          const claimed = await db.rpc("lead_run_claim", { p_run_id: action.runId, p_owner: action.owner });
+          const claimed = await claimLeadRun(db, action.runId, action.owner);
           if (claimed.error) throw new Error(claimed.error.message);
-          const marked = await db.rpc("lead_run_mark_unknown", { p_run_id: action.runId, p_owner: action.owner });
+          const marked = await markLeadRunUnknown(db, action.runId, action.owner);
           if (marked.error) throw new Error(marked.error.message);
           counts.marked_unknown += 1;
           break;

@@ -35,3 +35,32 @@ export {
   stopSearchRound,
   undoLeadOperation,
 } from "./search-acts";
+export {
+  findLeadRound,
+  findLeadRun,
+  findLeadSearchName,
+  findRoundToTell,
+  findRunForDelivery,
+  insertLeadRuns,
+  listLeadFacts,
+  listLeadPlacesAt,
+  listLeadsAtPlaces,
+  listLeadsSharing,
+  listPeopleSharing,
+  listPlacesSuppressed,
+  listRunsOfRound,
+  listSearchMembers,
+} from "./finder";
+export {
+  claimLeadRun,
+  endLeadRound,
+  endStuckLeadRound,
+  listCollectJobs,
+  listLeasedRuns,
+  listOpenRounds,
+  listRoundJobs,
+  listRunsInStates,
+  listRunsOfRounds,
+  markLeadRunUnknown,
+  releaseLeadRun,
+} from "./sweep";
