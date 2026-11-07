@@ -56,6 +56,12 @@ export async function showMoreFiles(): Promise<void> {
   setSurfaceValue("files", { dto: { ...more, files }, fetchedAt: Date.now() });
 }
 
+/** The next read of the shelf on show asks for this many, where a batch that just arrived would run past a page. */
+export function readFilesUpTo(limit: number): void {
+  const shelf = surfaceValue("files")?.dto.shelf;
+  if (shelf) onScreen = { shelf, limit };
+}
+
 export const filesOverride: SurfaceOverride = {
   key: "files",
   value: "files",

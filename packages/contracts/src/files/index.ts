@@ -33,6 +33,7 @@ export {
   postNameOf,
   shelfFilterOf,
   shelfOf,
+  uploadNameOf,
   whoStandsOf,
 } from "./files";
 export type {

@@ -33,7 +33,7 @@ import { hearFileAsked } from "./file-asked";
 import { FileSheet } from "./file-sheet";
 import { InboxPress } from "./inbox-press";
 import { Photo, PhotosOnTheirWay } from "./photo";
-import { addPhotos, clearSaid, useSending } from "./sending";
+import { addPhotos, clearSaid, inLandedOrder, stillGoing, useSending } from "./sending";
 import { showFilesShelf, showMoreFiles } from "./surface";
 import { FILE_PICKS, fileVerbs } from "./verbs";
 import "./files.css";
@@ -139,10 +139,21 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
       .catch(() => flash({ tone: "danger", msg: <>{W.failedRead}</> }))
       .finally(() => setPressed((was) => (was === s ? null : was)));
   };
-  // In the Inbox what the look found nothing against comes first, and what is left for a person to open comes after it.
-  const shown = shelf === "inbox" ? [...files.filter(inboxCleanOf), ...files.filter((f) => !inboxCleanOf(f))] : files;
   const going = sending.photos;
-  const left = going.filter((p) => p.state !== "failed").length;
+  const left = going.filter(stillGoing).length;
+  // What has arrived stands where it is, under the tile it has, until the list has taken them all over.
+  const standing = new Set(going.flatMap((p) => (p.id ? [p.id] : [])));
+  const listed = inLandedOrder(files).filter((f) => !standing.has(f.id));
+  // In the Inbox what the look found nothing against comes first, and what is left for a person to open comes after it.
+  const shown =
+    shelf === "inbox" ? [...listed.filter(inboxCleanOf), ...listed.filter((f) => !inboxCleanOf(f))] : listed;
+  // A first batch says what it has come to as it lands: the tally has none of them until the list is read, at its end.
+  const heading =
+    tally.total > 0
+      ? filesSayOf(tally)
+      : standing.size > 0
+        ? filesSayOf({ kept: standing.size, waiting: 0, looking: 0 })
+        : W.title;
   // Nothing here yet: the one thing to do stands where the eye is, and not again in the corner.
   const emptyPage = tally.total === 0 && going.length === 0;
   const add = () => picker.current?.click();
@@ -150,7 +161,10 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
   const chosen = (e: ChangeEvent<HTMLInputElement>) => {
     const list = [...(e.currentTarget.files ?? [])];
     e.currentTarget.value = "";
-    if (list.length) addPhotos(list, flash);
+    if (!list.length) return;
+    // A photo added is a kept one: they land on the shelf that shows them, never one they would leave as the list is read.
+    if (here !== "all") choose("all");
+    addPhotos(list, flash);
   };
   // The sheet hands focus back to what opened it; if a change took that photo off the grid, focus has nowhere to go.
   const closeSheet = () => {
@@ -161,12 +175,12 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
   };
   return (
     <section className="rec-card set-card files-page" data-testid="rec-card-files">
-      <div className="rec-card-head files-head">
-        <h2 className="rec-card-title">{tally.total > 0 ? filesSayOf(tally) : W.title}</h2>
+      <div className="rec-card-head files-head" data-adding={left > 0 || undefined}>
+        <h2 className="rec-card-title files-heading">{heading}</h2>
         {!emptyPage && (
           <span className="files-head-act">
             <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
-              {left > 0 ? W.adding(sending.finished, sending.finished + left) : W.add}
+              {left > 0 ? W.adding(sending.finished + 1, sending.finished + left) : W.add}
             </Button>
           </span>
         )}
@@ -210,7 +224,7 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
             </p>
           )}
           <div ref={grid} className="files-grid" data-testid="fl-grid" aria-busy={pressed !== null || undefined}>
-            <PhotosOnTheirWay photos={going} flash={flash} />
+            <PhotosOnTheirWay photos={going} flash={flash} onOpen={setOpenId} />
             {shown.map((f) => (
               <Photo key={f.id} file={f} onOpen={() => setOpenId(f.id)} />
             ))}
