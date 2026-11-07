@@ -155,8 +155,9 @@ what a page shows them. So a picture needs one place, one name and a written rec
     copies door as a picture made for one turn, kept at Anthropic for a day (`FILE_PICTURE_KEEP_S`), past any live chain, and
     written on no row. About a cent a zoom.
 22. **Once a picture is open, the rounds after it think at the draft's effort** (`effort.ts lookHarder`), by the effort message
-    that already raises a draft, appended after the results, so the cache holds; a question that came with pictures is raised from
-    its first round. Judging what it sees is the work the low effort was never meant for. Once a turn, as a draft is, and never
+    that already raises a draft, appended after the results, so the cache holds; a question that came with pictures, the scope's
+    photo or one attached, is raised from its first round, at its first request (`open`). Judging what it sees is the work the low
+    effort was never meant for. Once a turn, as a draft is, and never
     on a spoken turn.
 23. **An answer's history line says what Ask opened in that turn**, by the name that opens it now (`[Opened: storefront-dusk (A
 shopfront at dusk.)]`, contracts `withFilesOpened`), as a question's says what it came with, and a rule tells it that a
@@ -222,11 +223,45 @@ On production, 6 November 2026, in the test workspace.
 - It warned, unasked, that the sign in the picture read another business's name and that Files flags it as possibly stock, and it
   asked for the hours and did not guess them.
 
+## What the first turn with eyes proved
+
+On production, 7 November 2026, in the test workspace, on a drawn shopfront of 1,600 by 1,200 whose window sign is 12 px and its
+fine print 9.5 px: from the photo's sheet, Ask about this photo, and one question asking for the hours and the small print exactly,
+then a post saying we're open Saturdays. Three rounds, 10.8 s, the card on screen at 13.3 s; $0.76, of which the look was $0.0006.
+
+- The label said the size, `(1568×1176)`, and the box Ask named, `[262, 560, 624, 705]`, is the sign to the pixel against the
+  drawing: the copy maps one to one, as the docs say. The cut, 369 by 148 of the original shown at 1,000 by 401, reads every line
+  of the fine print.
+- The effort rose after the round that opened pictures (`draft.by: picture`), and the raise cost the cache nothing: the two rounds
+  after it read 40,156 and 43,350 tokens from it.
+- The two beats worked as drawn: the first call drew "Now open Saturdays" and showed it; Ask looked, changed the line to the owner's
+  own words, "We're open Saturdays", drew again, and only then made the card, with the key, in 7 ms. Its band sits under the photo,
+  clear of the sign. Two rounds more than a one-call post here, one for the look and one because it changed what it saw; a round
+  about 2 s and 5 cents, as estimated.
+- `opened` is on the answer's row, so a cold follow-up will know what it looked at.
+
+Two things were wrong, both small:
+
+- The owner's question went unanswered. The card's call was the turn's last message, and nothing was written beside it, so the
+  turn's end said only that there was a card to review. The note under a drawn post ended "Say nothing to the person until it is
+  [made]", and Ask read it as say nothing at all. The note has to say where the answer goes: beside the call that makes the card,
+  since that call ends the turn. Fixed the same day: the note and the tool's description say the call that makes the card ends the
+  turn, so the answer to the rest of what they asked goes beside it, in the same message, and that nothing written beside the look
+  reaches them (which code holds: `besideActs` sets it aside).
+- The first round ran at the turn's own effort, though the photo was in the question from its first byte: it came by the sheet (the
+  "about" chip), not as an attachment, and only an attachment raised the effort from round one. At that effort Ask called the zoom
+  and the post in one breath, before it had read the sign. The scope's picture is known once the first reads are in, before the
+  first request, so the raise belongs there. Fixed the same day: `effort.open` is told whether the question's pictures are there
+  (`questionPictures`, the scope's or attached) and raises before the first request; an attachment alone decided it before.
+
+The first $0.30 of the $0.76 is the cold prefix written twice: the sheet's warm fires as Ask opens, and the script typed its
+question inside a second, before the warm had written. A person typing for ten seconds reads it, and the turn costs about $0.49.
+
 ## What is left to prove
 
 - A real iPhone: what it hands over when asked for HEIC too, and sending from one on a weak line, in Files and in the Line. Share
-  from a post, twice on one page, to Instagram and to Save Image; a post from a photo the camera just took; and the sheet's Ask about
-  this photo, which has had no real turn.
+  from a post, twice on one page, to Instagram and to Save Image; and a post from a photo the camera just took.
+- A zoom of a HEIC, which cuts Storage's 2,500 px copy, and of a photo over 12 MB; and the two fixes above, on a second real turn.
 - That a real phone reuses the cached redirect.
 - The file_purge a start leaves itself, a day on: `file_never_filed` in the logs for bytes that never became a file.
 - A real Google profile's media list and a real listing's photos, on the first real connection. Whether Places names the business

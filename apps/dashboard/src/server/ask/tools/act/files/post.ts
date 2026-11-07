@@ -35,7 +35,10 @@ import { filesNamed } from "../../read/files";
  *
  * Ask looks at its own work before anyone else does (Ask's eyes): the first call draws the post and answers the picture, and the
  * card is made only by a second call that carries the key the drawing answered, which is the plan whole, so a plan changed since
- * the look is drawn and looked at again. Code holds it, not the model's good will.
+ * the look is drawn and looked at again. Code holds it, not the model's good will. The call that makes the card ends the turn
+ * (loop.ts, cards alone), so what the model has to say, the rest of what was asked, is written beside that call; beside the look
+ * it is set aside (turn-end.ts besideActs). The first real turn (7 Nov 2026) answered nothing: the note then said to say nothing
+ * until the card was made, and the model took it as nothing at all.
  */
 
 /** What the owner has said, as a post's words are held to it: this thread's questions and their Settings. A morning's turn asks itself. */
@@ -49,7 +52,7 @@ export const postLookKeyOf = (plan: PostPlan): string =>
   createHash("sha256").update(JSON.stringify(plan)).digest("hex").slice(0, 10);
 
 const LOOK_NOTE =
-  "Look at the post as drawn, with the owner's eyes: do the words sit on the calmer end, clear of the sign, of any face and of what the photo is of; do they read; are the voice and layout right for this business, and for how their last post looked? If something is wrong, change the plan and call again. If it is right, call again with looked set to look_key: only then is the card made. Say nothing to the person until it is.";
+  "Look at the post as drawn, with the owner's eyes: do the words sit on the calmer end, clear of the sign, of any face and of what the photo is of; do they read; are the voice and layout right for this business, and for how their last post looked? If something is wrong, change the plan and call again. If it is right, call again with looked set to look_key: only then is the card made. That call ends the turn, so your answer to the person goes beside it, in the same message: the rest of what they asked, their question or what they had you read, answered in full, and a line on the post. Anything written beside this look is set aside.";
 
 const postInput = z.object({
   file: z
@@ -195,7 +198,7 @@ async function postOutcome(t: ToolContext, input: z.infer<typeof postInput>): Pr
 export const postAct = defineAct({
   name: "propose_post",
   description:
-    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, unless it came with the question, and choose where the words go after seeing it. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made. Asked only for a post, propose one at once: a short plain headline from the photo and what you know of the business, rather than asking what it should say, since the owner can change the words, the type and the layout on the card itself, for nothing. So propose once and don't offer alternatives. A price, a number or a promise they have not said is refused, so leave those out, or use theirs. One photo a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, unless it came with the question, and choose where the words go after seeing it. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn: answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once: a short plain headline from the photo and what you know of the business, rather than asking what it should say, since the owner can change the words, the type and the layout on the card itself, for nothing. So propose once and don't offer alternatives. A price, a number or a promise they have not said is refused, so leave those out, or use theirs. One photo a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
   kind: "post",
   input: postInput,
   label: "Making a post",

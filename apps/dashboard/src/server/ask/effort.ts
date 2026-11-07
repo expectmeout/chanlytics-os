@@ -29,7 +29,9 @@ import type { turnMeter } from "./turn-end";
  * A draft is found two ways: the question's words, as the planner reads them (cross-page.ts draftAsked: a setup, an
  * offer, a draft named), before the first round; and a round at the turn's own effort that begins one anyway (a call in
  * DRAFT_CALLS), which is set aside unrun and asked again at the draft's effort, at the cost of the round it took. A
- * spoken turn is never raised: a listener waits on silence, and the voice door's budget is a typed turn's.
+ * spoken turn is never raised: a listener waits on silence, and the voice door's budget is a typed turn's. A question that
+ * came with pictures (open), or a round that opened one (lookHarder), is raised the same way: judging what it sees is work
+ * the low effort was never meant for (Ask's eyes, decision 0099).
  */
 
 /**
@@ -64,20 +66,22 @@ export function turnEffort(
   model: AskModelProfile,
   input: Pick<TurnInput, "text" | "spoken">,
   meter: ReturnType<typeof turnMeter>,
-  { pictures = false }: { pictures?: boolean } = {},
 ) {
   const draft: ModelEffort | null = input.spoken ? null : model.draft;
   if (draft && draftAsked(input.text)) meter.draft = { effort: draft, by: "question" };
-  // A question that came with pictures is judged from its first round (Ask's eyes): the turn thinks at the draft's effort.
-  else if (draft && pictures) meter.draft = { effort: draft, by: "picture" };
   const wanted = (): ModelEffort => (meter.draft ? draft : null) ?? model.effort;
   return {
     /**
      * The turn's first request's messages, the question last, given the effort the turn is asked at: an effort message
      * after the question where the one in force there is another (a replayed draft before a turn that is none, or a
-     * draft after one that was none); appended, never an edit of what was sent.
+     * draft after one that was none); appended, never an edit of what was sent. A question that came with pictures (the
+     * scope's photo or one attached, loop/first-reads.ts questionPictures, known once the first reads are in) is judged
+     * from its first round (Ask's eyes): the turn thinks at the draft's effort. The first real turn with eyes (7 Nov 2026)
+     * ran its first round at the turn's own effort, its photo in by the sheet and not attached, and called the zoom and
+     * the post in one breath, before it had read the sign.
      */
-    open(messages: Msg[]): void {
+    open(messages: Msg[], { pictures = false }: { pictures?: boolean } = {}): void {
+      if (draft && pictures && !meter.draft) meter.draft = { effort: draft, by: "picture" };
       const at = wanted();
       if (effortInForce(messages, model.effort) !== at) messages.push(effortMessage(at));
     },
