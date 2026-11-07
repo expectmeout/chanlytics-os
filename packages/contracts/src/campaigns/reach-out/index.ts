@@ -330,6 +330,7 @@ export type {
 } from "./words/opening";
 export { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SLOTS, REACH_OUT_SUBJECT_MAX } from "./words/slots";
 export type { ReachOutSlot } from "./words/slots";
+export { unbackedNumbers } from "./words/numbers";
 export {
   REACH_OUT_REFUSAL_WORDS,
   REACH_OUT_SETTINGS_WORDS,

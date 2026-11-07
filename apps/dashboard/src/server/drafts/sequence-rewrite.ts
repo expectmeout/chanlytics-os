@@ -70,11 +70,19 @@ function rewriteAsked(known: RewriteKnown, ask: RewriteAsk): string {
     .join("\n\n");
 }
 
-/** The words the model answered, judged as a draft's are: a subject it left empty stays as it was, and an opening stays. */
-function rewriteKept(answer: z.infer<typeof RewriteAnswerSchema>, ask: RewriteAsk): LeadRewriteDto {
+/**
+ * The words the model answered, judged as a draft's are: a subject it left empty stays as it was, and an opening stays.
+ * A number the owner's own email already said is theirs to keep; one the rewrite adds stands only in a claim (0113).
+ */
+function rewriteKept(
+  answer: z.infer<typeof RewriteAnswerSchema>,
+  ask: RewriteAsk,
+  known: RewriteKnown,
+): LeadRewriteDto {
   const first = ask.subject !== null;
   const sentence = answer.cannot.trim() || null;
-  const email = leadEmail({ subject: answer.subject.trim() || (ask.subject ?? ""), body: answer.body }, first);
+  const backing = [...(known.proof ?? []), known.business, ask.subject ?? "", ask.body];
+  const email = leadEmail({ subject: answer.subject.trim() || (ask.subject ?? ""), body: answer.body }, first, backing);
   if (!email.body) throw new AppError("validation", sentence ?? LEAD_BUILD_WORDS.rewriteBroke, 422);
   if (wordsNeedOpening(ask) && !wordsNeedOpening(email))
     throw new AppError("validation", LEAD_BUILD_WORDS.rewriteLostOpening, 422);
@@ -102,7 +110,7 @@ export async function rewriteFrom(
     RewriteAnswerSchema,
     "rewrite",
   );
-  return rewriteKept(answer, ask);
+  return rewriteKept(answer, ask, known);
 }
 
 /** The route's handle: what the drafter reads of the business and its owner, then the rewrite. Only a sequence to leads. */

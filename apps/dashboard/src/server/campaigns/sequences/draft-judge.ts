@@ -15,6 +15,7 @@ import {
   newWaitOf,
   numberedValues,
   slugTemplateName,
+  unbackedNumbers,
   validateReachOutWords,
   violatesNoPrices,
   newListOf,
@@ -120,6 +121,12 @@ export interface DraftKnown {
   goal?: string | null;
   /** What the business does, in its own words (business_records.about), as the check's writer reads it (0078). */
   about?: string | null;
+  /** What a cold email offers, who it is for and what it fixes: How it reaches out's, with their fallbacks (0113). */
+  offer?: string | null;
+  whoFor?: string | null;
+  fixes?: string | null;
+  /** The claims the owner stands behind, the only place Ask may take a number about the business from (0113). */
+  proof?: string[];
   /** Its services' names, as Business lists them. */
   services?: string[];
   /** How it sounds, in its own words (profile.tone), as the receptionist is composed with it. */
@@ -256,10 +263,14 @@ function peopleMessage(
 }
 
 /**
- * A lead's email: kept where it holds as every email must, and a first one with no link (the check says so), else left for
- * the owner to write.
+ * A lead's email: kept where it holds as every email must, a first one with no link (the check says so), and no number
+ * about the business that the owner's claims or its name do not back (decision 0113), else left for the owner to write.
  */
-export function leadEmail(newDraftAnswerStep: Pick<NewDraftAnswerStep, "subject" | "body">, first: boolean): NewEmail {
+export function leadEmail(
+  newDraftAnswerStep: Pick<NewDraftAnswerStep, "subject" | "body">,
+  first: boolean,
+  backing: readonly string[],
+): NewEmail {
   const item = {
     subject: first ? cleanWords(newDraftAnswerStep.subject) || null : null,
     body: cleanWords(newDraftAnswerStep.body),
@@ -267,7 +278,8 @@ export function leadEmail(newDraftAnswerStep: Pick<NewDraftAnswerStep, "subject"
   const holds =
     validateReachOutWords(item, first).length === 0 &&
     !violatesNoPrices(`${item.subject ?? ""} ${item.body}`) &&
-    !(first && linkCount(item.body) > 0);
+    !(first && linkCount(item.body) > 0) &&
+    unbackedNumbers(`${item.subject ?? ""}\n${item.body}`, backing).length === 0;
   return holds ? item : { subject: first ? item.subject : null, body: "" };
 }
 
@@ -290,8 +302,11 @@ function judgeStep(
     if (first || !hand) return { dropped: NEW_WORDS.cannot.stepDropped };
     return { step: { ...base, does: newDraftAnswerStep.does, message: null, email: null, hand } };
   }
-  if (params.audience === "leads")
-    return { step: { ...base, does: "message", message: null, email: leadEmail(newDraftAnswerStep, first), hand: "" } };
+  if (params.audience === "leads") {
+    const backing = [...(params.known.proof ?? []), params.known.business];
+    const email = leadEmail(newDraftAnswerStep, first, backing);
+    return { step: { ...base, does: "message", message: null, email, hand: "" } };
+  }
   const message = peopleMessage(newDraftAnswerStep, first, params.known, params.moment);
   if (!message) return { dropped: first ? NEW_WORDS.cannot.noMessage : NEW_WORDS.cannot.stepDropped };
   return { step: { ...base, does: "message", message, email: null, hand: "" } };

@@ -135,6 +135,7 @@ export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMET
 export { US_STATE_ZONES, zoneOfRegion } from "./campaigns/reach-out/us-zones";
 export { CHAIN_MIN_LISTINGS, chainOf, customerDomainOf, heldClaimOf, HOLD_DOOR_WORDS, holdDoors, HOLDS_INCLUDED_FOR_CHAIN, holdWords, isReachOutHold, OPENING_CLAIM_KINDS, openingClaimWords, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, REACH_OUT_HOLDS, reachOutCountryOf } from "./campaigns/reach-out/words/claims";
 export { ANGLE_WORDS_MAX, emailWordCount, linkCount, linksIn, OPENING_CHARS_MAX, OPENING_WORDS_MAX, REACH_OUT_AFTER_DAYS, REACH_OUT_GAP_MINUTES, REACH_OUT_NAME_MAX, REACH_OUT_STEPS_MAX, REACH_OUT_WORDS_MAX, reachOutRules, reachOutSlotFault, shoutingLine, SIGNED_BY_MAX, slotCount, validateReachOutWords, wordCount, wordsIssueWords, wordsNeedOpening } from "./campaigns/reach-out/words/limits";
+export { unbackedNumbers } from "./campaigns/reach-out/words/numbers";
 export { chainIssueWords, checkOpening, factValue, isOpeningFactKey, isOpeningProblem, OPENING_FACT_KEYS, OPENING_PROBLEMS, openingProblemWords, validateReachOutChain } from "./campaigns/reach-out/words/opening";
 export { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SLOTS, REACH_OUT_SUBJECT_MAX } from "./campaigns/reach-out/words/slots";
 export { SEQUENCE_ACT_REASONS, SEQUENCE_ACT_WHY, SEQUENCE_ACT_WORDS, SEQUENCE_ACTS, sequenceActsOf, sequenceResumeAsk } from "./campaigns/sequences/acts";
