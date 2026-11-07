@@ -1531,7 +1531,7 @@ test("a row's Source says where its facts came from: a Maps listing, a business 
   assert.equal(toLeadRowVM(row({ place_id: null }), TZ, NOW).source, "Your list");
 });
 
-test("the rail draws a sequence's own list with the sequences, apart from the search its leads came from", () => {
+test("the rail draws a sequence's own list with the sequences, apart from the search its leads came from, and the head counts no more", () => {
   const search = searchWith({ id: SEARCH_A, name: "Agency owners" }, { counted: 20 });
   const list = searchWith({ id: SEARCH_B, name: "Agency owners", via: "chosen", sequence_list: true }, { counted: 20 });
   const empty = searchWith(
@@ -1559,6 +1559,12 @@ test("the rail draws a sequence's own list with the sequences, apart from the se
     "unless it is the one open",
   );
   assert.deepEqual(leadRail(COUNTS, [search], NOW).sequences, [], "a server before 00496 says none");
+  assert.deepEqual(
+    leadsStanding(COUNTS, [search, list, empty, own]).parts,
+    ["272 not contacted", `${rail.searches.length} searches`],
+    "the head counts the searches the rail lists: a sequence's own list is none",
+  );
+  assert.equal(leadsStanding(COUNTS, [search, list]).parts[1], "1 search", "a search beside its sequence's list");
 });
 
 test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {
