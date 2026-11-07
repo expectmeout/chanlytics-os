@@ -54,9 +54,10 @@ const SEEDED = [ZILKER, TRAVIS, MUELLER, KETTLEBELL, FITCORP, HYDE_PARK];
  * The seed's own arithmetic, as `leadsStanding` counts it: the rail's numbers
  * are the COUNTED Qualified leads (lead_list_counts), so the six seeded places
  * stand as three leads -- two Ready and one Contacted -- and the waiting
- * search's three left-out places count for nothing: two kept searches.
+ * search's three left-out places count for nothing: two kept searches, and the
+ * list a copy's reach-out writes to (e2e-harness/copy-states.mjs), which counts.
  */
-const STANDING = "3 leads · 2 not contacted · 2 searches";
+const STANDING = "3 leads · 2 not contacted · 3 searches";
 /** contracts LEAD_NOT_A_FIT_ASK.short.chain: the why the Not a fit toast offers first. */
 const WHY_CHAIN_SHORT = "Chain";
 
