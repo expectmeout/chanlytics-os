@@ -418,6 +418,14 @@ export interface LeadRailRow {
 }
 
 /**
+ * The rows the rail lists under Searches: every search but a sequence's own list (00496 sequence_list), which it files
+ * under Sequences. The standing line counts these too, so the head never says a search more than the rail lists.
+ */
+function searchesListed(rows: LeadSearchDto[]): LeadSearchDto[] {
+  return rows.filter((s) => !s.sequence_list);
+}
+
+/**
  * The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks, then the sequences'
  * own lists (00496 sequence_list), apart: a sequence's list is named for it and holds the leads added to it by hand, so
  * among the searches it read as the search its leads came from, twice (the walk of 30 Oct 2026). One with nobody on it
@@ -456,7 +464,7 @@ export function leadRail(
   });
   return {
     lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
-    searches: searches.filter((s) => !s.sequence_list).map(rowOf),
+    searches: searchesListed(searches).map(rowOf),
     sequences: searches.filter((s) => s.sequence_list && ((s.round?.counted ?? 0) > 0 || s.id === open)).map(rowOf),
   };
 }
@@ -483,17 +491,21 @@ export function leadSearchEmptyWords(
   return null;
 }
 
-/** "322 leads · 272 new · 3 searches", and "1 search needs you" when one waits. */
+/**
+ * "322 leads · 272 not contacted · 3 searches", the searches being the ones the rail lists under Searches (a sequence's
+ * own list is not one), and "1 search needs you" when one waits.
+ */
 export function leadsStanding(
   counts: LeadCounts,
   searches: LeadSearchDto[],
 ): { total: string; parts: string[]; needsYou: { count: number; searchId: string } | null } {
   const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
+  const count = searchesListed(searches).length;
   return {
     total: `${counts.all} leads`,
     parts: [
       `${counts.ready} ${LEAD_STAGE_WORDS.ready.toLowerCase()}`,
-      `${searches.length} ${searches.length === 1 ? "search" : "searches"}`,
+      `${count} ${count === 1 ? "search" : "searches"}`,
     ],
     needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null,
   };
