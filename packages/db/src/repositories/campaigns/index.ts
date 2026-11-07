@@ -281,6 +281,7 @@ export {
   insertDecision,
   listChainSteps,
   listLeadClocks,
+  pauseStepRow,
   planReachOutRun,
   recordReachOutBooked,
   stampStepRun,
@@ -319,6 +320,8 @@ export {
 export type { GoingRunRow, StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./stranded-runs";
 export {
   countLiveRunsOfTemplate,
+  findTemplateIn,
+  findTemplateToTranslate,
   listRunningStepsOfTemplate,
   setTemplateHidden,
   setTemplateTitle,

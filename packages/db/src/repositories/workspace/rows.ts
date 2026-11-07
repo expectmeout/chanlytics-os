@@ -76,3 +76,7 @@ export const findNewWorkspace = async (db: Db, tenantId: string) =>
 /** The workspace's switch, when its last member left it (00262), and its clock. */
 export const findWorkspaceStanding = async (db: Db, tenantId: string) =>
   db.from("tenants").select("status, left_empty_at, timezone").eq("id", tenantId).maybeSingle();
+
+/** The workspace's word for an appointment, as stored, or none. */
+export const findAppointmentWord = async (db: Db, tenantId: string) =>
+  db.from("tenants").select("appointment_word").eq("id", tenantId).maybeSingle();

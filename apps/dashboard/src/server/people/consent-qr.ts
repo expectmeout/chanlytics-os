@@ -12,6 +12,7 @@ import { isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import { findChannelNumber } from "@chanlytics/db/channels";
 
 export async function findConsentQr(ctx: RouteContext, member: Member) {
   const tenantId = member.tenantId;
@@ -28,15 +29,7 @@ export async function findConsentQr(ctx: RouteContext, member: Member) {
   if (!takesSignUps(open))
     throw new AppError("conflict", "The workspace is not taking sign-ups, so there is no code to hand out.", 409);
   // The oldest active number, the one Connections shows: a workspace may hold two, and the code says the same one each time.
-  const { data: ch, error } = await ctx.supabase
-    .from("tenant_channels")
-    .select("number_e164")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: ch, error } = await findChannelNumber(ctx.supabase, tenantId, "whatsapp");
   if (error) throw new Error(error.message);
   const link = optInLink(ch?.number_e164);
   if (!link) throw new AppError("not_found", "No WhatsApp number to say yes to yet.", 404);

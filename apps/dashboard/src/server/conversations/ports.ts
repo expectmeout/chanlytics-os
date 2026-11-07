@@ -8,16 +8,22 @@
  */
 import crypto from "node:crypto";
 import {
+  callBackMessage,
   claimIdempotencyKey,
+  findTemplateForReply,
   handBackThread,
-  markThreadNotACustomer,
-  replyAnywayThread,
   keepIdempotencyReceipt,
+  linkHoldDecision,
+  markThreadNotACustomer,
+  patchThreadBack,
+  queueMemberReply,
   releaseIdempotencyKey,
+  replyAnywayThread,
+  resolveHold,
+  sendQueuedNow,
   takeIdempotencyKey,
   takeOverThread,
-  callBackMessage,
-  sendQueuedNow,
+  wakeThreadBack,
   withdrawMemberMessage,
 } from "@chanlytics/db/conversations";
 import { findLastInboundEmail, findLastOutboundEmailSubject } from "@chanlytics/db/email";
@@ -120,21 +126,9 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
       if (done.resolvedEscalations === 0) log.info("resolve_escalation_noop", { conversation: id });
       return { decision_id: done.decisionId };
     },
-    snooze: (id, until) =>
-      changed(
-        ctx.supabase.from("conversations").update(conversationPatch("snooze", { until })).eq("id", id).select("id"),
-      ),
-    wake: (id) =>
-      changed(
-        ctx.supabase
-          .from("conversations")
-          .update(conversationPatch("wake"))
-          .eq("id", id)
-          .eq("state", "snoozed")
-          .select("id"),
-      ),
-    archive: (id) =>
-      changed(ctx.supabase.from("conversations").update(conversationPatch("archive")).eq("id", id).select("id")),
+    snooze: (id, until) => changed(patchThreadBack(ctx.supabase, id, conversationPatch("snooze", { until }))),
+    wake: (id) => changed(wakeThreadBack(ctx.supabase, id, conversationPatch("wake"))),
+    archive: (id) => changed(patchThreadBack(ctx.supabase, id, conversationPatch("archive"))),
     // Control is written by the service role -- the column grant fences these
     // columns off from a member's own session (00132), exactly as it fences the
     // ledger -- so it goes the way scheduling a job goes.
@@ -148,17 +142,9 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
 
 export function escalationPorts(ctx: RouteContext): EscalationPorts {
   return {
-    resolve: (id) =>
-      changed(
-        ctx.supabase
-          .from("escalations")
-          .update({ state: "resolved", resolved_by_user_id: ctx.userId })
-          .eq("id", id)
-          .eq("state", "open")
-          .select("id"),
-      ),
+    resolve: (id) => changed(resolveHold(ctx.supabase, id, ctx.userId)),
     link: async (id, decisionId) => {
-      const { error } = await ctx.supabase.from("escalations").update({ decision_id: decisionId }).eq("id", id);
+      const { error } = await linkHoldDecision(ctx.supabase, id, decisionId);
       if (error) log.error("resolve_link_decision_failed", { id, error: error.message });
     },
     record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
@@ -261,14 +247,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       }
     },
     template: async (tenantId, name, language) => {
-      const { data, error } = await ctx.supabase
-        .from("templates")
-        .select("name, language, body_preview, meta_status, category, variables")
-        .eq("tenant_id", tenantId)
-        .eq("channel", "whatsapp")
-        .eq("name", name)
-        .eq("language", language)
-        .maybeSingle();
+      const { data, error } = await findTemplateForReply(ctx.supabase, tenantId, name, language);
       // A message that cannot be read is not one that does not exist: the verb would refuse it as missing.
       if (error) throw new Error(`cannot read the message ${name}: ${error.message}`);
       return data ?? null;
@@ -288,11 +267,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     claimForReply: async (id, until, userId, nowIso) => {
       try {
         return await changed(
-          ctx.supabase
-            .from("conversations")
-            .update(conversationPatch("reply_claim", { until, user: userId, now: nowIso }))
-            .eq("id", id)
-            .select("id"),
+          patchThreadBack(ctx.supabase, id, conversationPatch("reply_claim", { until, user: userId, now: nowIso })),
         );
       } catch (e) {
         log.error("reply_claim_failed", { id, error: e });
@@ -300,11 +275,12 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       }
     },
     queue: async (row) => {
-      const { data, error } = await ctx.supabase
-        .from("messages")
-        .insert({ ...row, direction: "outbound", sender: "human", status: "queued" })
-        .select("id")
-        .single();
+      const { data, error } = await queueMemberReply(ctx.supabase, {
+        ...row,
+        direction: "outbound",
+        sender: "human",
+        status: "queued",
+      });
       if (error) throw new Error(`reply insert: ${error.message}`);
       return data.id;
     },

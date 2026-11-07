@@ -13,7 +13,7 @@ import {
   type BusinessRecordDto,
   type RegistrationPath,
 } from "@chanlytics/contracts";
-import { findBusinessOnRecord } from "@chanlytics/db/lines";
+import { findBusinessOnRecord, listLineNumbersOf } from "@chanlytics/db/lines";
 import { findWorkspacePublicSlug } from "@chanlytics/db/workspace";
 import { callEdgeLines } from "@/server/connections/lines";
 import { edgeRefusalWords } from "@/server/shared/edge";
@@ -58,7 +58,7 @@ export async function readBusinessRecord(ctx: RouteContext, member: Member) {
  * (lines_member_select, 00066), so the session client can answer it.
  */
 async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<string[]> {
-  const { data, error } = await ctx.supabase.from("lines").select("e164").eq("tenant_id", tenantId);
+  const { data, error } = await listLineNumbersOf(ctx.supabase, tenantId);
   if (error) throw new Error(`reading this workspace's numbers: ${error.message}`);
   return (data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
 }

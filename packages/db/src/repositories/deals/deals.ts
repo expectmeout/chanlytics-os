@@ -103,3 +103,20 @@ export async function recordDeal(
   });
   return { data, error };
 }
+
+/** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */
+export const DEAL_DTO_COLUMNS =
+  "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason";
+
+/** A person's deals, as a DealDto reads them. */
+export const listDealRowsOf = async (db: SupabaseClient<Database>, tenantId: string, contactId: string) =>
+  db.from("deals").select(DEAL_DTO_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId);
+
+/** One page (`from` to `to`) of the workspace's deals, as the deals report counts them. */
+export const pageDealReport = async (db: SupabaseClient<Database>, tenantId: string, from: number, to: number) =>
+  db
+    .from("deals")
+    .select("stage, proposed_at, decided_at, amount_cents, per, currency, lost_reason, contact_id")
+    .eq("tenant_id", tenantId)
+    .order("id")
+    .range(from, to);

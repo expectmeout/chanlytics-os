@@ -7,6 +7,7 @@ export {
   findLastCallIn,
   findLastConnectedCallIn,
   listCallRows,
+  markRecordingOpened,
   pageCallRows,
 } from "./call-rows";
 export {

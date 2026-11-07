@@ -35,7 +35,7 @@ export {
   writeInstagramAccount,
 } from "./instagram";
 export type { InstagramAccountRow } from "./instagram";
-export { removeMedia, storeMedia } from "./media";
+export { removeMedia, signMediaUrl, signMediaUrls, storeMedia } from "./media";
 export {
   findChannelNumber,
   findLineWrittenTo,

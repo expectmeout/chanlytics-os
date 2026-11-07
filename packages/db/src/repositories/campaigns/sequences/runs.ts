@@ -79,3 +79,7 @@ export const insertDecision = async (db: Db, row: Database["public"]["Tables"]["
 /** A booking the workspace's calendar saw, counted to the reach-out that brought it (reach_out_booked). */
 export const recordReachOutBooked = async (db: Db, args: Database["public"]["Functions"]["reach_out_booked"]["Args"]) =>
   db.rpc("reach_out_booked", args);
+
+/** A step paused. */
+export const pauseStepRow = async (db: Db, stepId: string) =>
+  db.from("sequence_steps").update({ state: "paused" }).eq("id", stepId);

@@ -63,3 +63,11 @@ export const getGoogleCredentials = async (db: Db, tenantId: string) =>
 /** The workspace's Google token dropped from Vault (drop_google_credentials). */
 export const dropGoogleCredentials = async (db: Db, tenantId: string) =>
   db.rpc("drop_google_credentials", { p_tenant_id: tenantId });
+
+/** The workspace's connection as the Connections page shows it: who and when, never where the token is. */
+export const findConnectionCard = async (db: Db, tenantId: string) =>
+  db
+    .from("google_connections")
+    .select("google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();

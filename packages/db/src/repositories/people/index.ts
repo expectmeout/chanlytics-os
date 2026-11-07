@@ -19,6 +19,18 @@ export {
 } from "./lists";
 export type { ListRow, SavedListRow, WriteError } from "./lists";
 export {
+  addBulkNote,
+  countPeopleListed,
+  findPersonNote,
+  listPeopleStanding,
+  listPeopleWith,
+  listPersonNotes,
+  pageReplyRules,
+  setPersonName,
+  setPersonNotes,
+  setPersonProposal,
+} from "./member-reads";
+export {
   decidePersonNote,
   editPersonNote,
   listNoteCandidates,

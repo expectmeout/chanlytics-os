@@ -39,7 +39,7 @@ export {
   suppressEmailOf,
 } from "./email";
 export type { InboundEmailFacts, IngestEmailParams, MailboxRow } from "./email";
-export { findEmailThreadOf, markMailboxIntakeFailed } from "./intake";
+export { addMailbox, findEmailThreadOf, markMailboxIntakeFailed, setMailboxName } from "./intake";
 export { listUnknownMailboxEmails, requestMailboxesSweep } from "./reconcile";
 export type { UnknownMailboxEmail } from "./reconcile";
 export { getMailboxLeftSince, keepSenderReading, recordDomainSaidAutomated } from "./senders";

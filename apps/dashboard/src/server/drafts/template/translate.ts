@@ -27,6 +27,7 @@ import type { WorkspaceFacts } from "@/server/ask/prompt/stable-system";
 import { log } from "@/server/shared/log";
 import { askOnce, extractJson, workspaceFor, writeIn } from "./draft";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";
+import { findTemplateIn, findTemplateToTranslate } from "@chanlytics/db/campaigns";
 
 /* ---------------------------- in another language ---------------------------- */
 
@@ -96,12 +97,7 @@ export async function getTranslationSource(
       button: null,
     };
   } else {
-    const { data, error } = await ctx.supabase
-      .from("templates")
-      .select("id, name, language, category, body_preview, variables, components")
-      .eq("tenant_id", tenantId)
-      .eq("id", ref.id)
-      .maybeSingle();
+    const { data, error } = await findTemplateToTranslate(ctx.supabase, tenantId, ref.id);
     if (error) throw new Error(error.message);
     if (!data) return { ok: false, code: "not_found", message: "That template is not on file here." };
     const parts = templateParts(data.components);
@@ -156,14 +152,7 @@ export async function getTranslationSource(
   }
   if (source.language === language)
     return { ok: false, code: "conflict", message: `It is written in ${languageLabel(language)} already.` };
-  const { data: have, error: hErr } = await ctx.supabase
-    .from("templates")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp")
-    .eq("name", source.name)
-    .eq("language", language)
-    .maybeSingle();
+  const { data: have, error: hErr } = await findTemplateIn(ctx.supabase, tenantId, source.name, language);
   if (hErr) throw new Error(hErr.message);
   if (have) return { ok: false, code: "conflict", message: `It is on file in ${languageLabel(language)} already.` };
   return { ok: true, source };

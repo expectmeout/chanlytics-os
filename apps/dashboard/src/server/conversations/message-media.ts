@@ -9,15 +9,11 @@ import { requireUuid } from "@/server/shared/request-guards";
 import { findSignedMediaUrl } from "@/server/conversations/media";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member, Params } from "@/server/shared/route";
+import { findMessageMediaRow } from "@chanlytics/db/conversations";
 
 export async function findMessageMedia(ctx: RouteContext & { params: Params }, member: Member) {
   const id = requireUuid(ctx.params.id, "message");
-  const { data, error } = await ctx.supabase
-    .from("messages")
-    .select("id, media")
-    .eq("id", id)
-    .eq("tenant_id", member.tenantId)
-    .maybeSingle();
+  const { data, error } = await findMessageMediaRow(ctx.supabase, member.tenantId, id);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Message not found.");
   const media = data.media as { storage_path?: string; fetch_state?: string } | null;

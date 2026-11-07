@@ -16,3 +16,11 @@ export const storeMedia = async (db: Db, path: string, bytes: MediaBytes, conten
 
 /** These paths removed from the media bucket: the objects that went come back. */
 export const removeMedia = async (db: Db, paths: string[]) => db.storage.from("media").remove(paths);
+
+/** A signed address for one object of the media bucket, good for `seconds`. */
+export const signMediaUrl = async (db: Db, path: string, seconds: number) =>
+  db.storage.from("media").createSignedUrl(path, seconds);
+
+/** Signed addresses for these objects of the media bucket, good for `seconds`. */
+export const signMediaUrls = async (db: Db, paths: string[], seconds: number) =>
+  db.storage.from("media").createSignedUrls(paths, seconds);

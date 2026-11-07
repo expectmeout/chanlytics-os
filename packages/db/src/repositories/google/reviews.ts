@@ -85,3 +85,14 @@ export const listUnrepliedProfileReviews = async (db: Db, tenantId: string, limi
     .is("reply_text", null)
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);
+
+/** The workspace's newest reviews, `limit` of them, with the reply the receptionist holds and when it goes. */
+export const listRecentReviews = async (db: Db, tenantId: string, limit: number) =>
+  db
+    .from("google_reviews")
+    .select(
+      "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, draft_text, posts_at, maps_uri, first_seen_at",
+    )
+    .eq("tenant_id", tenantId)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(limit);

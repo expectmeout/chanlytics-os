@@ -1,13 +1,15 @@
 import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
 import {
-  PEOPLE_PAGE,
   addPersonByHand,
+  countPeopleListed,
+  findPersonRow,
   listEveryoneIn,
   listEveryoneOnceIn,
-  peopleCursorOf,
   listPeoplePage,
-  findPersonRow,
+  pageReplyRules,
+  PEOPLE_PAGE,
   type PeopleCursor,
+  peopleCursorOf,
 } from "@chanlytics/db/people";
 import { readAllRows } from "@chanlytics/db/shared";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
@@ -96,19 +98,12 @@ export async function listPeople(
  * one whole order, so no page repeats or skips a row, and the row everyone without their own follows is on the first.
  */
 function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: string) {
-  return readAllRows("reply policies", (from, to) =>
-    ctx.supabase
-      .from("policies")
-      .select("subject_type, subject_id, mode")
-      .eq("tenant_id", tenantId)
-      .eq("class", "reply")
-      .order("subject_type", { ascending: true, nullsFirst: true })
-      .order("id")
-      .range(from, to),
-  ).catch((e: unknown) => {
-    log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
-    return null;
-  });
+  return readAllRows("reply policies", (from, to) => pageReplyRules(ctx.supabase, tenantId, from, to)).catch(
+    (e: unknown) => {
+      log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
+      return null;
+    },
+  );
 }
 
 /**
@@ -184,15 +179,8 @@ export async function countPeople(
   tenantId: string,
   otherQuery: string | null,
 ): Promise<number> {
-  let query = ctx.supabase
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .is("erased_at", null)
-    .is("merged_into_contact_id", null)
-    // Who people_page lists (00547).
-    .or(stillListed(Date.now()));
   const needle = searchNeedle(otherQuery);
+  let searchOr: string | null = null;
   if (needle) {
     const digits = needle.replace(/\D/g, "");
     const clauses = [
@@ -201,9 +189,10 @@ export async function countPeople(
       `email.ilike.*${needle}*`,
       ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : []),
     ];
-    query = query.or(clauses.join(","));
+    searchOr = clauses.join(",");
   }
-  const { count, error } = await query;
+  // Who people_page lists (00547).
+  const { count, error } = await countPeopleListed(ctx.supabase, tenantId, stillListed(Date.now()), searchOr);
   if (error) throw new Error(error.message);
   return count ?? 0;
 }

@@ -35,6 +35,8 @@ import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels/tokens";
 import { requestId, requestTimings, requestTouches } from "@chanlytics/log";
 import { log, noteTenant, withRequestId } from "./log";
 import { tenantFactsOf } from "./tenant";
+import { listMyMemberships } from "@chanlytics/db/workspace";
+import { findPlanStanding } from "@chanlytics/db/billing";
 
 /**
  * Whether the Auth server still knows a session: `live`, `gone` (revoked, signed out elsewhere, its user deleted), or
@@ -346,11 +348,7 @@ async function resolveMember(
   wanted: string | null | undefined,
   opts: { defaultAllowed?: boolean },
 ): Promise<MemberContext> {
-  const { data, error } = await ctx.supabase
-    .from("memberships")
-    .select("tenant_id, role, tenants (slug, name, timezone)")
-    .eq("user_id", ctx.userId)
-    .order("created_at", { ascending: true });
+  const { data, error } = await listMyMemberships(ctx.supabase, ctx.userId);
   if (error) throw new Error(error.message);
 
   const rows = data ?? [];
@@ -516,11 +514,7 @@ export async function requireSpend(
   member: MemberContext,
   doing: SpendWords = SPEND_NUMBER,
 ): Promise<void> {
-  const { data, error } = await ctx.supabase
-    .from("billing_accounts")
-    .select("mode, status")
-    .eq("tenant_id", member.tenantId)
-    .maybeSingle();
+  const { data, error } = await findPlanStanding(ctx.supabase, member.tenantId);
   // No row is not permission. Every workspace gets one at creation
   // (create_workspace_for), so its absence means something is wrong with this
   // workspace, not that it may spend freely.

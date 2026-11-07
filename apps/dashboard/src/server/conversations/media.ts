@@ -5,6 +5,8 @@ import type { Database } from "@chanlytics/db/types";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
+import { signMediaUrl, signMediaUrls } from "@chanlytics/db/channels";
+import { markRecordingOpened } from "@chanlytics/db/voice";
 
 /**
  * Stored media, signed for a member (the attachments of a thread, the recordings of a call). The bucket is private and
@@ -13,8 +15,7 @@ import { log } from "@/server/shared/log";
  * repositories/erasure/legs.ts), and the recording's audit row is written on the member's own session.
  */
 
-/** The private bucket every stored file of a workspace is kept in, under its own folder (inWorkspace). */
-const mediaBucket = () => serviceDb().storage.from("media");
+/** The private bucket every stored file of a workspace is kept in, under its own folder (inWorkspace), signed here. */
 
 /**
  * Short-lived signed URL for a private media object (an attachment, a call recording) of this workspace. A path outside
@@ -25,7 +26,7 @@ export async function findSignedMediaUrl(tenantId: string, storagePath: string, 
     log.error("signed_media_url_refused", { tenant_id: tenantId });
     throw new AppError("not_found", "This workspace has no such attachment.");
   }
-  const { data, error } = await mediaBucket().createSignedUrl(storagePath, seconds);
+  const { data, error } = await signMediaUrl(serviceDb(), storagePath, seconds);
   if (error) {
     log.error("signed_media_url_failed", { error: error.message });
     return null;
@@ -46,7 +47,7 @@ export async function listSignedMediaUrls(
   const own = storagePaths.filter((p) => inWorkspace(tenantId, p));
   if (own.length < storagePaths.length) log.error("signed_media_url_refused", { tenant_id: tenantId });
   if (!own.length) return storagePaths.map(() => null);
-  const { data, error } = await mediaBucket().createSignedUrls(own, seconds);
+  const { data, error } = await signMediaUrls(serviceDb(), own, seconds);
   if (error) {
     log.error("signed_media_url_failed", { error: error.message });
     return storagePaths.map(() => null);
@@ -62,7 +63,7 @@ export async function listSignedMediaUrls(
  * refuses the recording rather than serve it unrecorded; a database 00277 has not reached yet serves it, and says so.
  */
 export async function recordOpeningOfRecording(db: SupabaseClient<Database>, callId: string): Promise<void> {
-  const { error } = await db.rpc("recording_opened", { p_call_id: callId });
+  const { error } = await markRecordingOpened(db, callId);
   if (!error) return;
   if (error.code === "PGRST202") {
     log.warn("recording_audit_unavailable", { call_id: callId });

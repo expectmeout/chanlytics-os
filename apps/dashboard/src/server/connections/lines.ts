@@ -9,17 +9,15 @@ import type { Database } from "@chanlytics/db/types";
 import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeBody } from "../shared/edge";
 import { deployment } from "../shared/env";
+import { listLinesForPage } from "@chanlytics/db/lines";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
-const LINE_COLUMNS =
-  "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
-
 /**
  * The workspace's lines, as the page is told of them (contracts lineDtoOf, the edge's verb answers' own builder).
  * `registered` is not said here: it is derived from the brand and campaign SIDs, and no provider id crosses this boundary.
  */
 export async function listLines(db: SupabaseClient<Database>, tenantId: string): Promise<LineDto[]> {
-  const { data, error } = await db.from("lines").select(LINE_COLUMNS).eq("tenant_id", tenantId).order("created_at");
+  const { data, error } = await listLinesForPage(db, tenantId);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => lineDtoOf(r));
 }

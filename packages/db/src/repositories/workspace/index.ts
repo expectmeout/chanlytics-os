@@ -56,6 +56,7 @@ export type {
 export { exportSectionPages, personExportPages } from "./export";
 export type { ExportPage, ExportSectionPages, PersonExportPages } from "./export";
 export {
+  findAppointmentWord,
   findConfigRow,
   findConfigRowVersioned,
   findNewWorkspace,
@@ -74,6 +75,22 @@ export {
   listWorkspaceZones,
   patchConfigRow,
 } from "./rows";
+export {
+  findCallScope,
+  findErasableScope,
+  findMessageScope,
+  findPersonScope,
+  findPlaybookScope,
+  findReplyLimits,
+  findRunScope,
+  findTemplateScope,
+  findThreadScope,
+  listCustomerWrites,
+  listMyMemberships,
+  recordDecisionRow,
+  resolveOpenHolds,
+  takeRateBucket,
+} from "./scopes";
 export { findSetupAsked, requestSetup } from "./setup";
 export {
   countOffersReach,

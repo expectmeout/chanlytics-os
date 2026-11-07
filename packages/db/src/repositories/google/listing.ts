@@ -60,3 +60,26 @@ export const patchGoogleListingAtPlace = async (db: Db, tenantId: string, placeI
 /** The workspace's listing's name and address, as Google verified them. */
 export const findGoogleListingAddress = async (db: Db, tenantId: string) =>
   db.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle();
+
+/** The workspace's listing as the Connections page shows it: never Google's facts, which the receptionist reads. */
+export const findListingCard = async (db: Db, tenantId: string) =>
+  db
+    .from("google_listings")
+    .select(
+      "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error",
+    )
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+/** The workspace's listing's name, address and Google's facts. */
+export const findGoogleListingFacts = async (db: Db, tenantId: string) =>
+  db.from("google_listings").select("name, address, facts").eq("tenant_id", tenantId).maybeSingle();
+
+/** The days of the workspace's listing since `sinceDay`, oldest first: its rating and its count. */
+export const listListingDaysSince = async (db: Db, tenantId: string, sinceDay: string) =>
+  db
+    .from("google_listing_days")
+    .select("day, rating, review_count")
+    .eq("tenant_id", tenantId)
+    .gte("day", sinceDay)
+    .order("day", { ascending: true });

@@ -76,3 +76,6 @@ export const findLastConnectedCallIn = async (db: Db, tenantId: string) =>
     .order("started_at", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
+
+/** A recording's opening kept on its call (recording_opened). */
+export const markRecordingOpened = async (db: Db, callId: string) => db.rpc("recording_opened", { p_call_id: callId });

@@ -13,6 +13,8 @@ import {
   addPersonNote,
   decidePersonNote,
   editPersonNote,
+  findPersonNote,
+  listPersonNotes,
   logPersonCall,
   markPersonNoteDone,
   removePersonNote,
@@ -20,6 +22,7 @@ import {
 } from "@chanlytics/db/people";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
+import { readTeamRoster } from "@chanlytics/db/workspace";
 
 type Ctx = Pick<RouteContext, "supabase">;
 
@@ -60,9 +63,6 @@ type NoteRow = {
   for_seen_at?: string | null;
 };
 
-const NOTE_COLUMNS =
-  "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, version, created_at, updated_at, due_on, done_at, done_by, deal_id, for_seen_at";
-
 /** A stored note as the page reads it, with the names of who wrote it and who it is for (0007). */
 function toNoteDto(note: NoteRow, names: Map<string, string>, me: string): PersonNoteDto {
   return {
@@ -96,7 +96,7 @@ function toNoteDto(note: NoteRow, names: Map<string, string>, me: string): Perso
 /** The team by name: who wrote a note and who it is for. A member is called as everywhere else (memberWords): the name they gave, else their address. */
 async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
   const { data, error } = await Promise.resolve()
-    .then(() => ctx.supabase.rpc("team_roster", { p_tenant_id: tenantId }))
+    .then(() => readTeamRoster(ctx.supabase, tenantId))
     .then(
       (r) => r,
       (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
@@ -120,15 +120,7 @@ export async function getPersonNotes(
 ): Promise<{ notes?: PersonNoteDto[]; team?: PersonNoteTeamDto[] }> {
   const [rows, team] = await Promise.all([
     Promise.resolve()
-      .then(() =>
-        ctx.supabase
-          .from("person_notes")
-          .select(NOTE_COLUMNS)
-          .eq("tenant_id", tenantId)
-          .eq("contact_id", contactId)
-          .order("created_at", { ascending: false })
-          .limit(200),
-      )
+      .then(() => listPersonNotes(ctx.supabase, tenantId, contactId, 200))
       .then(
         (r) => r,
         (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
@@ -148,12 +140,7 @@ export async function getPersonNotes(
 
 /** The note a door acts on, read under RLS and on this person: a note on anyone else is a 404. */
 export async function noteOn(ctx: RouteContext, contactId: string, noteId: string): Promise<NoteRow> {
-  const { data, error } = await ctx.supabase
-    .from("person_notes")
-    .select(NOTE_COLUMNS)
-    .eq("id", noteId)
-    .eq("contact_id", contactId)
-    .maybeSingle();
+  const { data, error } = await findPersonNote(ctx.supabase, contactId, noteId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", NOTE_REFUSALS.not_found, 404);
   return data;

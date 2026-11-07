@@ -1,6 +1,13 @@
 import "server-only";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
-import { getDealOnFile, recordDeal, listYesesSince, type DealMove } from "@chanlytics/db/deals";
+import {
+  type DealMove,
+  getDealOnFile,
+  listDealRowsOf,
+  listYesesSince,
+  pageDealReport,
+  recordDeal,
+} from "@chanlytics/db/deals";
 import { readAllRows } from "@chanlytics/db/shared";
 import {
   AppError,
@@ -25,6 +32,7 @@ import {
   type PersonRowDto,
 } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
+import { findAppointmentWord } from "@chanlytics/db/workspace";
 
 /**
  * What this workspace calls an appointment (tenants.appointment_word, 00458), by contracts' one derivation
@@ -35,8 +43,7 @@ export async function getAppointmentWord(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
 ): Promise<AppointmentWord> {
-  const read = (columns: string) => ctx.supabase.from("tenants").select(columns).eq("id", tenantId).maybeSingle();
-  const r = await read("appointment_word");
+  const r = await findAppointmentWord(ctx.supabase, tenantId);
   const word = r.error ? null : (r.data as { appointment_word?: unknown } | null)?.appointment_word;
   return appointmentWordOf(typeof word === "string" ? word : null);
 }
@@ -66,9 +73,8 @@ export async function findDealPace(
   }
 }
 
-/** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */
-export const DEAL_DTO_COLUMNS =
-  "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason";
+/** The columns a deal is read with (contracts DealDto) are packages/db's, where its reads are; the person reader reads them here. */
+export { DEAL_DTO_COLUMNS } from "@chanlytics/db/deals";
 
 /**
  * The deal a person's People row shows now, by people_list's own rule (contracts pickCurrentDeal: an open one first,
@@ -82,11 +88,7 @@ export async function findCurrentDeal(
   contactId: string,
 ): Promise<DealDto | null> {
   try {
-    const r = await ctx.supabase
-      .from("deals")
-      .select(DEAL_DTO_COLUMNS)
-      .eq("tenant_id", tenantId)
-      .eq("contact_id", contactId);
+    const r = await listDealRowsOf(ctx.supabase, tenantId, contactId);
     if (r.error || !r.data) return null;
     return pickCurrentDeal(r.data as unknown as DealDto[]);
   } catch {
@@ -142,14 +144,9 @@ export async function readDealReport(
 ): Promise<DealReportDto | null> {
   // Every page of them (readAllRows), by id: PostgREST answers a thousand rows whatever a select asks for, so past a
   // thousand deals every figure here counted an arbitrary thousand.
-  const data = await readAllRows("deals", (from, to) =>
-    ctx.supabase
-      .from("deals")
-      .select("stage, proposed_at, decided_at, amount_cents, per, currency, lost_reason, contact_id")
-      .eq("tenant_id", tenantId)
-      .order("id")
-      .range(from, to),
-  ).catch(() => null);
+  const data = await readAllRows("deals", (from, to) => pageDealReport(ctx.supabase, tenantId, from, to)).catch(
+    () => null,
+  );
   if (!data) return null;
   if (!data.length) return none();
   const since = span?.since ?? now.getTime() - days * DAY_MS;

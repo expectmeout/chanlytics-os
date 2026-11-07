@@ -28,6 +28,20 @@ import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
 import { log } from "@/server/shared/log";
+import {
+  findCallScope,
+  findErasableScope,
+  findMessageScope,
+  findPersonScope,
+  findPlaybookScope,
+  findReplyLimits,
+  findRunScope,
+  findTemplateScope,
+  findThreadScope,
+  listCustomerWrites,
+  recordDecisionRow,
+  resolveOpenHolds,
+} from "@chanlytics/db/workspace";
 
 export interface VerbConversation {
   id: string;
@@ -86,13 +100,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   // PostgREST, come back as 22P02, and surface as a generic 500 "Something
   // went wrong" — a typo in a URL reading as a server fault.
   const convId = requireUuid(id, "conversation");
-  const { data, error } = await ctx.supabase
-    .from("conversations")
-    .select(
-      "id, tenant_id, state, paused_until, snooze_until, set_aside_at, set_aside_why, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, name_source, name_settled_at, consent, dnc, marketing_consent, email, email_suppressed_at, contact_identities (channel, external_id, created_at))",
-    )
-    .eq("id", convId)
-    .maybeSingle();
+  const { data, error } = await findThreadScope(ctx.supabase, convId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Conversation not found.");
   // tenant_id is a uuid column, so the check cannot refuse a row this read returns: it names what the id is.
@@ -147,11 +155,7 @@ interface VerbContact {
  */
 async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> {
   const contactId = requireUuid(id, "contact");
-  const { data: contact, error } = await ctx.supabase
-    .from("contacts")
-    .select("id, tenant_id, erased_at, marketing_consent")
-    .eq("id", contactId)
-    .maybeSingle();
+  const { data: contact, error } = await findPersonScope(ctx.supabase, contactId);
   if (error) throw new Error(error.message);
   if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
   return { id: contact.id, tenant_id: contact.tenant_id, marketing_consent: contact.marketing_consent ?? null };
@@ -184,11 +188,7 @@ interface VerbMessage {
 /** The message a verb acts on (a held draft to rewrite), read under RLS: one the caller cannot see is a 404. */
 async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMessage> {
   const messageId = requireUuid(id, "message");
-  const { data, error } = await ctx.supabase
-    .from("messages")
-    .select("id, tenant_id, conversation_id, sender, status")
-    .eq("id", messageId)
-    .maybeSingle();
+  const { data, error } = await findMessageScope(ctx.supabase, messageId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Message not found.", 404);
   return data;
@@ -206,11 +206,7 @@ export interface VerbCall {
 /** The call a verb acts on (a whisper into it, its recording), read under RLS: one the caller cannot see is a 404. */
 async function loadCall(ctx: RouteContext, id: string): Promise<VerbCall> {
   const callId = requireUuid(id, "call");
-  const { data, error } = await ctx.supabase
-    .from("calls")
-    .select("id, tenant_id, retell_call_id, status, recording")
-    .eq("id", callId)
-    .maybeSingle();
+  const { data, error } = await findCallScope(ctx.supabase, callId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Call not found.", 404);
   return data;
@@ -235,16 +231,7 @@ export async function replyChannelOf(
   ctx: RouteContext,
   conv: { id: string; tenant_id: string },
 ): Promise<WrittenChannel> {
-  const { data, error } = await ctx.supabase
-    .from("messages")
-    .select("channel, meta")
-    .eq("conversation_id", conv.id)
-    .eq("tenant_id", conv.tenant_id)
-    .eq("direction", "inbound")
-    .eq("sender", "customer")
-    .in("type", ["text", "template", "media"])
-    .order("channel_ts", { ascending: false, nullsFirst: false })
-    .limit(LAST_WROTE_LOOKBACK);
+  const { data, error } = await listCustomerWrites(ctx.supabase, conv.tenant_id, conv.id, LAST_WROTE_LOOKBACK);
   if (error) throw new Error(`reading the last inbound: ${error.message}`);
   const theirs = data ?? [];
   const wrote = theirs.find((m) => isPersonsWords(m.meta)) ?? theirs[0];
@@ -280,12 +267,7 @@ export async function recordDecision(
         ? { ...(payload as Record<string, Json>), via: ctx.via }
         : payload,
   };
-  const insert = (undoOf: string | null) =>
-    ctx.supabase
-      .from("decisions")
-      .insert({ ...row, undo_of: undoOf })
-      .select("id")
-      .single();
+  const insert = (undoOf: string | null) => recordDecisionRow(ctx.supabase, { ...row, undo_of: undoOf });
   let attempt = await insert(ctx.undoOf ?? null);
   if (attempt.error && ctx.undoOf && attempt.error.code === "23503") {
     // The undo names a decision this database does not have: a card kept from
@@ -309,12 +291,7 @@ export async function resolveOpenEscalation(
   // zero rows and returns success. Without counting rows, a permission failure
   // here would look identical to "there was nothing open to resolve", and the
   // thread would sit in Needs You with the operator believing they cleared it.
-  const { data, error } = await ctx.supabase
-    .from("escalations")
-    .update({ state: "resolved", resolved_by_user_id: ctx.userId, decision_id: decisionId })
-    .eq("conversation_id", conversationId)
-    .eq("state", "open")
-    .select("id");
+  const { data, error } = await resolveOpenHolds(ctx.supabase, conversationId, ctx.userId, decisionId);
   if (error) log.error("resolve_escalation_failed", { conversation: conversationId, error: error.message });
   else if (!data || data.length === 0) log.info("resolve_escalation_noop", { conversation: conversationId });
 }
@@ -329,13 +306,7 @@ export async function resolveOpenEscalation(
  * through contracts' pauseMsOf, the rule the edge and the pane read too.
  */
 export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<number> {
-  const { data, error } = await ctx.supabase
-    .from("policies")
-    .select("limits")
-    .eq("tenant_id", tenantId)
-    .eq("class", "reply")
-    .is("subject_type", null)
-    .maybeSingle();
+  const { data, error } = await findReplyLimits(ctx.supabase, tenantId);
   // A pause that cannot be read is not the default one: a member's take-over would hold for the wrong time.
   if (error) throw new Error(`cannot read the workspace's reply pause: ${error.message}`);
   return pauseMsOf(data?.limits as { pause_hours?: unknown } | null);
@@ -400,11 +371,7 @@ interface VerbErasure {
  */
 async function loadErasable(ctx: RouteContext, id: string): Promise<VerbErasure> {
   const contactId = requireUuid(id, "contact");
-  const { data, error } = await ctx.supabase
-    .from("contacts")
-    .select("id, tenant_id, phone_e164, email, erased_at")
-    .eq("id", contactId)
-    .maybeSingle();
+  const { data, error } = await findErasableScope(ctx.supabase, contactId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Contact not found.");
   return data;
@@ -433,13 +400,7 @@ export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? 
 /** The broadcast a verb acts on (approved, canceled), read under RLS: one the caller cannot see is a 404. */
 async function loadBroadcast(ctx: RouteContext, id: string) {
   const broadcastId = requireUuid(id, "broadcast");
-  const { data, error } = await ctx.supabase
-    .from("sequence_batches")
-    .select(
-      "id, tenant_id, state, name, recipient_count, playbook_id:step_id, run_for, audience, scheduled_for, offered_start",
-    )
-    .eq("id", broadcastId)
-    .maybeSingle();
+  const { data, error } = await findRunScope(ctx.supabase, broadcastId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Run not found.", 404);
   return { ...data, tenant_id: asTenantId(data.tenant_id) };
@@ -457,11 +418,7 @@ export const sequenceScope = row((ctx, params) => loadSequence(ctx, String(param
 /** The template a verb acts on (hidden, titled, deleted), read under RLS: one the caller cannot see is a 404. */
 async function loadTemplate(ctx: RouteContext, id: string) {
   const templateId = requireUuid(id, "template");
-  const { data, error } = await ctx.supabase
-    .from("templates")
-    .select("id, tenant_id, name, language")
-    .eq("id", templateId)
-    .maybeSingle();
+  const { data, error } = await findTemplateScope(ctx.supabase, templateId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Template not found.", 404);
   return data;
@@ -472,12 +429,8 @@ export const templateScope = row((ctx, params) => loadTemplate(ctx, String(param
 async function loadPlaybook(ctx: RouteContext, id: string) {
   // A person reads "campaign", never "playbook" (decision 19): the 404s below are said in a toast.
   const playbookId = requireUuid(id, "campaign");
-  const { data, error } = await ctx.supabase
-    .from("sequence_steps")
-    // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
-    .select("id, tenant_id, name, state, trigger, policy_class, template_id")
-    .eq("id", playbookId)
-    .maybeSingle();
+  // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
+  const { data, error } = await findPlaybookScope(ctx.supabase, playbookId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   return data;

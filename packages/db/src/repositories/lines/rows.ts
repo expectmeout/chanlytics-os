@@ -180,3 +180,13 @@ export const saveForwardingVerified = async (db: Db, tenantId: string, lineId: s
     .eq("tenant_id", tenantId)
     .eq("forwarding_state", "instructed")
     .select("id");
+
+/** The workspace's lines as the Connections page shows them, oldest first: never a provider's id. */
+export const listLinesForPage = async (db: Db, tenantId: string) =>
+  db
+    .from("lines")
+    .select(
+      "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts",
+    )
+    .eq("tenant_id", tenantId)
+    .order("created_at");

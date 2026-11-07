@@ -14,7 +14,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HOUR_MS, emailWires, holdOf, replyHoldDtoOf, type MetricsSummaryDto } from "@chanlytics/contracts";
-import { listFirstReplies } from "@chanlytics/db/reports";
+import { listFirstReplies, readMetricsSummary } from "@chanlytics/db/reports";
 import type { Database } from "@chanlytics/db/types";
 import { getEmailLine } from "../connections/email";
 import { findBookedSince, findBookingsLately } from "./bookings";
@@ -80,7 +80,7 @@ export async function findMetricsSummary(
   // plpgsql aggregates on Today's wall clock.
   const day = days === REPLIES_WINDOW_DAYS;
   const [res, email, lately] = await Promise.all([
-    supabase.rpc("metrics_summary", { p_tenant_id: tenantId, p_days: days }),
+    readMetricsSummary(supabase, tenantId, days),
     // A mailbox that cannot be read is a line that cannot be counted, which is
     // its own state (callsRead is the same shape), never a blank Today and
     // never a count that is short by one.

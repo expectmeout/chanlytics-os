@@ -25,7 +25,12 @@ export { findEscalationState } from "./escalations";
 export { claimIdempotencyKey, keepIdempotencyReceipt, releaseIdempotencyKey, takeIdempotencyKey } from "./idempotency";
 export type { IdempotencyClaim, IdempotencyHold } from "./idempotency";
 export {
+  findMessageMediaRow,
+  findMessageMeta,
+  findMessageState,
+  findTemplateForReply,
   findThreadForExport,
+  linkHoldDecision,
   listHoldsHandedBack,
   listHoldsWaiting,
   listThreadMessages,
@@ -34,7 +39,11 @@ export {
   pageMessagesOfThreads,
   pageThreadForExport,
   pageThreadRows,
+  patchThreadBack,
+  queueMemberReply,
+  resolveHold,
   THREAD_MESSAGE_COLUMNS,
+  wakeThreadBack,
 } from "./reads";
 export { assembleHistory, HISTORY_COLUMNS, readDealForPhone, readLeadContext, readThreadState } from "./thread/history";
 export type { LeadContext, PgThreadState, ThreadTurn } from "./thread/history";

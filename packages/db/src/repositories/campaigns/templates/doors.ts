@@ -34,3 +34,23 @@ export const listRunningStepsOfTemplate = async (db: Db, tenantId: string, key: 
     .eq("template_name", key.name)
     .eq("template_language", key.language)
     .eq("state", "running");
+
+/** One of the workspace's templates as a translation is made from it, or none. */
+export const findTemplateToTranslate = async (db: Db, tenantId: string, templateId: string) =>
+  db
+    .from("templates")
+    .select("id, name, language, category, body_preview, variables, components")
+    .eq("tenant_id", tenantId)
+    .eq("id", templateId)
+    .maybeSingle();
+
+/** The workspace's WhatsApp template of this name in `language`, if one is filed: its id, or none. */
+export const findTemplateIn = async (db: Db, tenantId: string, name: string, language: string) =>
+  db
+    .from("templates")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .eq("name", name)
+    .eq("language", language)
+    .maybeSingle();

@@ -31,6 +31,7 @@ export {
   listLineNumbersOf,
   listLinesAwaitingCarriers,
   listLinesAwaitingForwarding,
+  listLinesForPage,
   listLinesOf,
   listLinesOfWorkspaces,
   listStuckLines,

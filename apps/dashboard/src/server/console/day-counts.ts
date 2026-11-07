@@ -2,6 +2,7 @@ import "server-only";
 
 import { PLATFORM_DAYS_READ, type PlatformDayRowDto } from "@chanlytics/contracts";
 import type { BackOffice } from "../shared/back-office";
+import { readPlatformMetrics } from "@chanlytics/db/ops";
 
 /**
  * Each workspace's day, counted (00277 platform_metrics, rolled up nightly): the back office's read of the last days.
@@ -14,7 +15,7 @@ export async function listPlatformDays(
   office: BackOffice,
   days: number = PLATFORM_DAYS_READ.days,
 ): Promise<PlatformDayRowDto[] | null> {
-  const result = await office.db.rpc("platform_metrics_read", { p_days: days }).then(
+  const result = await readPlatformMetrics(office.db, days).then(
     (x) => x,
     () => ({ data: null, error: { code: "unreachable", message: "unreadable" } }),
   );

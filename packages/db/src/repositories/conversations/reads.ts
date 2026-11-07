@@ -136,3 +136,57 @@ export const listHoldsHandedBack = async (
     .in("reason", [...handBack])
     .order("created_at", { ascending: false })
     .limit(limit);
+
+/** A message's workspace, thread and state, or none. */
+export const findMessageState = async (db: Db, messageId: string) =>
+  db.from("messages").select("id, tenant_id, conversation_id, status").eq("id", messageId).maybeSingle();
+
+/** One of the workspace's messages' media, or none. */
+export const findMessageMediaRow = async (db: Db, tenantId: string, messageId: string) =>
+  db.from("messages").select("id, media").eq("id", messageId).eq("tenant_id", tenantId).maybeSingle();
+
+/** One of the workspace's messages' meta, or none. */
+export const findMessageMeta = async (db: Db, tenantId: string, messageId: string) =>
+  db.from("messages").select("meta").eq("id", messageId).eq("tenant_id", tenantId).maybeSingle();
+
+/** A hold resolved by a member, only while open: its id back, none when it was not open. */
+export const resolveHold = async (db: Db, escalationId: string, userId: string) =>
+  db
+    .from("escalations")
+    .update({ state: "resolved", resolved_by_user_id: userId })
+    .eq("id", escalationId)
+    .eq("state", "open")
+    .select("id");
+
+/** A hold linked to the decision that resolved it. */
+export const linkHoldDecision = async (db: Db, escalationId: string, decisionId: string) =>
+  db.from("escalations").update({ decision_id: decisionId }).eq("id", escalationId);
+
+/** The workspace's WhatsApp template of a name and language as a reply sends it, or none. */
+export const findTemplateForReply = async (db: Db, tenantId: string, name: string, language: string) =>
+  db
+    .from("templates")
+    .select("name, language, body_preview, meta_status, category, variables")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .eq("name", name)
+    .eq("language", language)
+    .maybeSingle();
+
+/** A thread written (a reply's claim on it), its id back: none when the member may not write it. */
+export const patchThreadBack = async (
+  db: Db,
+  conversationId: string,
+  set: Database["public"]["Tables"]["conversations"]["Update"],
+) => db.from("conversations").update(set).eq("id", conversationId).select("id");
+
+/** A member's reply queued on a thread, its id back. */
+export const queueMemberReply = async (db: Db, row: Database["public"]["Tables"]["messages"]["Insert"]) =>
+  db.from("messages").insert(row).select("id").single();
+
+/** A snoozed thread woken, only while it is snoozed: its id back, none when it was not. */
+export const wakeThreadBack = async (
+  db: Db,
+  conversationId: string,
+  set: Database["public"]["Tables"]["conversations"]["Update"],
+) => db.from("conversations").update(set).eq("id", conversationId).eq("state", "snoozed").select("id");
