@@ -619,7 +619,12 @@ test('every read of "said yes to offers" points at the offers column', () => {
     .map((p) => readCode(p))
     .join("\n");
   assert.match(setup, /const offers = setupInputs\.consent\.offers;/, "the Setup row reads the offers count");
-  const server = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+  const server = [
+    "apps/dashboard/src/server/setup/channel-rows.ts",
+    "apps/dashboard/src/server/setup/setup.ts",
+    // The counts themselves, packages/db's (decision 0111).
+    "packages/db/src/repositories/workspace/setup-rows.ts",
+  ]
     .map((p) => readCode(p))
     .join("\n");
   assert.match(

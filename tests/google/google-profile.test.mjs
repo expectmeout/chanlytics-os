@@ -877,11 +877,13 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   );
   assert.ok(cb.includes('if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");'));
   assert.ok(!cb.includes("client_secret"), "the dashboard never sees the secret");
+  // The read is packages/db's (decision 0111): who and when, never where the token is.
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
-    /export const CONNECTION_COLUMNS =\s*"google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";/.test(
-      server,
-    ),
+    server.includes("findConnectionCard(db, tenantId)") &&
+      /\.select\("google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error"\)/.test(
+        readCode("packages/db/src/repositories/google/connection.ts"),
+      ),
     "never credentials_ref",
   );
   const reply = readCode(

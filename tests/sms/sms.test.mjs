@@ -418,7 +418,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   const sql = readRaw("supabase/migrations/00074_texting.sql");
   assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));
-  const edge = readCode("apps/edge/lib/lines/lines.ts");
+  // With the routing reads it names, packages/db's (decision 0111).
+  const edge = readCode("apps/edge/lib/lines/lines.ts", "packages/db/src/repositories/lines/routing.ts");
   assert.ok(
     edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") &&
       /\.eq\("kind", kind\)\s*\.eq\("external_id", externalId\)/.test(edge),

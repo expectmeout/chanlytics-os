@@ -345,6 +345,8 @@ test("the view model: delivered and read over sent, open while scheduled or send
 test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
   // The job is broadcast-send.ts (Reach out Part 2.5); that the dispatch map names it is store-retired.test.mjs's.
   const h = readCode("packages/jobs/src/handlers/broadcast-send.ts");
+  // The person's row as the run reads it is packages/db's (decision 0111).
+  const people = readCode("packages/db/src/repositories/campaigns/broadcast-run.ts");
   // The batch is db's read now (campaigns/channels.ts listQueuedRecipients, run against the database in memory by
   // before-the-channel-columns.test.mjs), a page of the chunk's size.
   assert.ok(h.includes("batch: (id, limit) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit })"));
@@ -359,8 +361,8 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   assert.ok(
     // (The list is long enough to stand on its own lines, and ends with their answer about offers by email: an offer's
     // foot says whether they asked for it or are a customer.)
-    h.includes('"id, phone_e164, consent, dnc, marketing_consent, erased_at') &&
-      h.includes("wa_profile_name, email, email_marketing"),
+    people.includes('"id, phone_e164, consent, dnc, marketing_consent, erased_at') &&
+      people.includes("wa_profile_name, email, email_marketing"),
     "the person's row still carries what the run needs",
   );
   // The run marked sent and its broadcast.sent with the tally, in one transaction (00527 finish_broadcast, decision 0089).
@@ -374,7 +376,9 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   // a tally read from a page of rows undercounts the big ones and is then
   // written to the permanent record and read out to the owner.
   assert.ok(
-    h.includes('{ count: "exact", head: true }') && !h.includes('.select("state").eq("broadcast_id"'),
+    people.includes('{ count: "exact", head: true }') &&
+      h.includes("countBroadcastSends(") &&
+      !h.includes('.select("state").eq("broadcast_id"'),
     "the tally is a count, not a page of rows",
   );
 });
@@ -874,6 +878,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   const s = [
     "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
     "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
+    // The reads themselves, packages/db's (decision 0111).
+    "packages/db/src/repositories/campaigns/sequences/sent.ts",
   ]
     .map((p) => readCode(p))
     .join("\n");

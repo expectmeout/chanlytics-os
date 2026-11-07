@@ -5420,8 +5420,9 @@ const SETTINGS_ASKED = [
   "tenants.select",
   "google_listings.select",
   "google_listings.select",
-  "lines.select",
+  // What packages/db answers goes out as it is asked for (decision 0111): the workspace's channels ahead of its lines.
   "tenant_channels.select",
+  "lines.select",
   "policies.select",
 ];
 /** The preview's clock, apart: the rest of what the settings read answers does not move with the minute. */
@@ -6222,10 +6223,11 @@ const TEMPLATES_ALL_ASKED = [
   "templates.select",
   "rpc:template_sends",
   "sequence_batches.select",
+  // What packages/db answers goes out as it is asked for (decision 0111): the steps ahead of the sequences' names.
+  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(2).filter((k) => k !== "sequence_sends.select" && k !== "messages.select"),
   // 17 Oct 2026 (the Sequences phone review): the sequences' names, so a message says which sends it ("VIP color clients
   // · step 2"), read beside its steps.
   "sequences.select",
-  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(2).filter((k) => k !== "sequence_sends.select" && k !== "messages.select"),
   // 14 Oct 2026 (the wiring's second audit, S1-3): the business's zone, so a campaign past its last day reads ended.
   "tenants.select",
 ];

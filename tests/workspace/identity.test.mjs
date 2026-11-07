@@ -106,7 +106,12 @@ test("the wiring: one profile row per account, written by its owner only, read b
   assert.ok(!route.includes("getMemberContext("), "your name needs no workspace");
   assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("profile_set: {"));
 
-  const ws = readCode("apps/dashboard/app/api/v1/workspaces/route.ts", "apps/dashboard/src/server/workspace/list.ts");
+  // With the read it names, packages/db's (decision 0111).
+  const ws = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/list.ts",
+    "packages/db/src/repositories/auth/account.ts",
+  );
   assert.ok(
     /from\("profiles"\)\s*\.select\("display_name"\)\s*\.eq\("user_id", userId\)\s*\.maybeSingle\(\)/.test(ws),
     "the identity the seam fetches at boot carries the name",

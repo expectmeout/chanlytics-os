@@ -95,7 +95,11 @@ test("the dashboard: the route proves the operator, the service reaches the edge
   // `?all=1` is Settings' read and the composer still sees approved only: RUN through the route in
   // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in
   // readers.test.mjs. The columns moved with the body, to the reader.
-  const g = readCode("apps/dashboard/src/server/readers/templates.ts");
+  // With the read it names, packages/db's (decision 0111).
+  const g = readCode(
+    "apps/dashboard/src/server/readers/templates.ts",
+    "packages/db/src/repositories/campaigns/templates/page.ts",
+  );
   assert.ok(
     g.includes("category, meta_status, quality, rejected_reason, synced_at"),
     "the picker can tell marketing from utility",

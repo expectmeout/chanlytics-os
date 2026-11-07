@@ -82,7 +82,11 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
 test("F35: every pause reads the workspace's own pause_hours, not a hard-coded day", () => {
   const verbs = readCode("apps/dashboard/src/server/shared/verbs.ts");
   assert.ok(verbs.includes("export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<number>"));
-  assert.ok(verbs.includes('.eq("class", "reply")'));
+  // The rule's read is packages/db's (decision 0111).
+  assert.ok(
+    verbs.includes("findReplyLimits(ctx.supabase, tenantId)") &&
+      readCode("packages/db/src/repositories/workspace/scopes.ts").includes('.eq("class", "reply")'),
+  );
   for (const rel of ["apps/dashboard/src/server/conversations/ports.ts"]) {
     const src = readCode(rel);
     assert.ok(src.includes("pauseMsFor(ctx,"), `${rel} reads the limit`);
