@@ -566,12 +566,15 @@ const NEEDS_TYPES = new Set(
 export const withoutTypes = (config) =>
   config.map((block) => {
     const parserOptions = block.languageOptions?.parserOptions;
-    if (!parserOptions?.projectService) return block;
+    // A block of rules alone (the backend's strict rules) adds typed rules to files another block parses: off too.
+    const rules =
+      block.rules &&
+      Object.fromEntries(
+        Object.entries(block.rules).map(([rule, entry]) => [rule, NEEDS_TYPES.has(rule) ? "off" : entry]),
+      );
+    if (!parserOptions?.projectService) return rules ? { ...block, rules } : block;
     const { projectService: _service, tsconfigRootDir: _root, ...rest } = parserOptions;
-    const rules = Object.fromEntries(
-      Object.entries(block.rules ?? {}).map(([rule, entry]) => [rule, NEEDS_TYPES.has(rule) ? "off" : entry]),
-    );
-    return { ...block, languageOptions: { ...block.languageOptions, parserOptions: rest }, rules };
+    return { ...block, languageOptions: { ...block.languageOptions, parserOptions: rest }, rules: rules ?? {} };
   });
 
 export default [

@@ -623,7 +623,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   );
   assert.ok(
     readCode("packages/contracts/src/conversations/message-author.ts").includes(
-      '{ kind: "playbook", name: String(message.meta.playbook_name) }',
+      '{ kind: "playbook", name: textOrEmpty(message.meta.playbook_name) }',
     ),
   );
   assert.ok(
