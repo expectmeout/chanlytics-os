@@ -136,6 +136,12 @@
       "import": "./src/repositories/notices/index.ts",
       "default": "./src/repositories/notices/index.ts"
     },
+    "./ops": {
+      "types": "./src/repositories/ops/index.ts",
+      "bundled": "./dist/ops.js",
+      "import": "./src/repositories/ops/index.ts",
+      "default": "./src/repositories/ops/index.ts"
+    },
     "./partners": {
       "types": "./src/repositories/partners/index.ts",
       "bundled": "./dist/partners.js",

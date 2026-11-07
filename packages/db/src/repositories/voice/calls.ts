@@ -567,3 +567,15 @@ export async function callSecondsSince(db: Db, tenantId: string, sinceIso: strin
     return n + (typeof s === "number" && Number.isFinite(s) ? s : 0);
   }, 0);
 }
+
+/** The workspace's newest inbound call that connected: who called, and for how long. */
+export const findLastAnsweredCall = (db: Db, tenantId: string) =>
+  db
+    .from("calls")
+    .select("from_e164, duration_ms")
+    .eq("tenant_id", tenantId)
+    .eq("direction", "inbound")
+    .neq("status", "not_connected")
+    .order("started_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();

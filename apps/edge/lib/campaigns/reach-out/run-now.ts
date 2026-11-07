@@ -27,7 +27,7 @@ import { pg } from "../../shared/pg.js";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks/playbooks.js";
 import { logger } from "../../shared/log.js";
 import { runReachOutStep } from "./run-step.js";
-import { getSequenceModes } from "@chanlytics/db/campaigns";
+import { findStepRow, getSequenceModes } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { ReachOutRow } from "./run-context.js";
 import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE } from "@chanlytics/contracts";
@@ -52,12 +52,7 @@ export async function runPlaybookNow(
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const { data: p, error } = await db
-    .from("sequence_steps")
-    .select("*")
-    .eq("id", playbookId)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data: p, error } = await findStepRow(db, tenantId, playbookId);
   if (error) return refuse(500, "read_failed", error.message);
   if (!p) return refuse(404, "not_found");
   // A reach-out's root runs its first step now through the sweep's own step runner (Part 4, R13): the sheet's Start.

@@ -72,14 +72,17 @@ import {
   type RetellCallRead,
 } from "@chanlytics/channels/voice";
 import {
+  ingestCall,
+  linkCallMessage,
+  listCallsGoneQuiet,
   listCallsOwedAnAnalysis,
   listCallsOwedANotice,
-  ingestCall,
+  listCallsWithoutNote,
+  listRecordingsPending,
   recordCallNote,
-  linkCallMessage,
   setCallRecording,
 } from "@chanlytics/db/voice";
-import { resolveChannelDetailed } from "@chanlytics/db/channels";
+import { removeMedia, resolveChannelDetailed } from "@chanlytics/db/channels";
 import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import { settleCall } from "./call-webhook.js";
 import {
@@ -380,18 +383,7 @@ async function finishOwedNotices(leg: ProviderLeg) {
 async function writeMissingNotes(db: ProviderLeg["db"], log: Logger) {
   const notes = { candidates: 0, written: 0 };
   const grace = new Date(Date.now() - NOTE_GRACE_MS).toISOString();
-  const { data: unnoted, error: noteErr } = await db
-    .from("calls")
-    .select(
-      "id, tenant_id, retell_call_id, conversation_id, contact_id, direction, status, duration_ms, in_voicemail, summary, started_at",
-    )
-    .in("status", ["ended", "error", "not_connected"])
-    .is("message_id", null)
-    .not("conversation_id", "is", null)
-    // A missed call may carry no end: it is judged by when it was made.
-    .or(`ended_at.lt.${grace},and(ended_at.is.null,created_at.lt.${grace})`)
-    .order("ended_at", { ascending: true, nullsFirst: true })
-    .limit(MAX_NOTES_PER_TICK);
+  const { data: unnoted, error: noteErr } = await listCallsWithoutNote(db, grace, MAX_NOTES_PER_TICK);
   if (noteErr) log.error("calls_sweep_notes_query_failed", { error: noteErr.message });
   for (const row of unnoted ?? []) {
     if (!row.conversation_id) continue;
@@ -431,14 +423,11 @@ async function writeMissingNotes(db: ProviderLeg["db"], log: Logger) {
 async function retryRecordings(leg: ProviderLeg) {
   const { db, apiKey, provider, L } = leg;
   const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0, deferred: 0 };
-  const { data: pendingRec, error: recErr } = await db
-    .from("calls")
-    .select("id, tenant_id, retell_call_id, recording, ended_at")
-    .in("status", ["ended", "error"])
-    .filter("recording->>fetch_state", "eq", "pending")
-    .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
-    .order("updated_at", { ascending: true })
-    .limit(MAX_RECORDINGS_PER_TICK * 2);
+  const { data: pendingRec, error: recErr } = await listRecordingsPending(
+    db,
+    new Date(Date.now() - SETTLE_MS).toISOString(),
+    MAX_RECORDINGS_PER_TICK * 2,
+  );
   if (recErr) L.error("calls_sweep_recordings_query_failed", { error: recErr.message });
   for (const row of pendingRec ?? []) {
     const rec = (row.recording ?? {}) as { attempts?: number };
@@ -516,7 +505,7 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     {
       now: new Date(),
       remove: async (paths) => {
-        const { data, error } = await db.storage.from("media").remove(paths);
+        const { data, error } = await removeMedia(db, paths);
         return { removed: (data ?? []).map((o) => o.name), error: error?.message ?? null };
       },
     },
@@ -533,18 +522,15 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     return refuse(503, "no_provider_credentials");
   }
 
-  const { data: stale, error } = await db
-    .from("calls")
-    .select("id, tenant_id, retell_call_id, updated_at")
-    .eq("status", "ongoing")
-    // Two reasons to ask: nobody has heard from the call for SETTLE_MS, or it
-    // has simply run past OVERLONG_MS — long calls happen, and the Live page
-    // says such a call is being checked, which has to be true.
-    .or(
-      `updated_at.lt.${new Date(Date.now() - SETTLE_MS).toISOString()},started_at.lt.${new Date(Date.now() - OVERLONG_MS).toISOString()}`,
-    )
-    .order("updated_at", { ascending: true })
-    .limit(CALLS_PER_TICK);
+  // Two reasons to ask: nobody has heard from the call for SETTLE_MS, or it
+  // has simply run past OVERLONG_MS — long calls happen, and the Live page
+  // says such a call is being checked, which has to be true.
+  const { data: stale, error } = await listCallsGoneQuiet(
+    db,
+    new Date(Date.now() - SETTLE_MS).toISOString(),
+    new Date(Date.now() - OVERLONG_MS).toISOString(),
+    CALLS_PER_TICK,
+  );
   if (error) {
     L.error("calls_sweep_query_failed", { error: error.message });
     return refuse(500, "query_failed");

@@ -11,7 +11,7 @@
  * business.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getErasureDigests } from "@chanlytics/db/people";
+import { getErasureDigests, listErasedByEmail, listErasedByPhone } from "@chanlytics/db/people";
 import type { Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
@@ -28,11 +28,7 @@ async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Pro
   if (!unique.length) return out;
   const byHash = new Map([...(await getErasureDigests(db, tenantId, unique))].map(([p, h]) => [h, p]));
   const hashes = [...byHash.keys()];
-  const { data, error } = await db
-    .from("contacts")
-    .select("erased_phone_hash, erased_at, erasing_since")
-    .eq("tenant_id", tenantId)
-    .in("erased_phone_hash", hashes);
+  const { data, error } = await listErasedByPhone(db, tenantId, hashes);
   if (error) throw new Error(`erased_tombstones: ${error.message}`);
   for (const row of (data ?? []) as {
     erased_phone_hash: string | null;
@@ -78,11 +74,7 @@ export async function wasErasedBeforeEmail(
 ): Promise<boolean> {
   const digest = (await getErasureDigests(db, tenantId, [address])).get(address);
   if (!digest) throw new Error("erased_tombstones: the database made no digest of the address");
-  const { data, error } = await db
-    .from("contacts")
-    .select("erased_at, erasing_since")
-    .eq("tenant_id", tenantId)
-    .eq("erased_email_hash", digest);
+  const { data, error } = await listErasedByEmail(db, tenantId, digest);
   if (error) throw new Error(`erased_tombstones: ${error.message}`);
   return ((data ?? []) as Tombstone[]).some((t) => {
     const since = t.erasing_since ?? t.erased_at;

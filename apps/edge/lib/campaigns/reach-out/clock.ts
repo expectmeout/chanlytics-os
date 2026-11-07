@@ -29,25 +29,26 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  findWrittenEmail,
+  finishBatchSending,
+  getWrittenEmails,
+  type LeadSendRow,
   listClosedRunSends,
   listDraftsWaiting,
   listFinishableRuns,
   listHeldStale,
-  recordLeadWritten,
-  moveSend,
-  ofASequence,
   listQueuedOutcomes,
-  runHanded,
   listStaleSends,
   listStuckClaims,
-  withdrawEmail,
-  findWrittenEmail,
-  getWrittenEmails,
-  type LeadSendRow,
+  moveSend,
+  ofASequence,
   type ReachOutSendRow,
+  recordLeadWritten,
+  runHanded,
+  startBatchSending,
+  withdrawEmail,
 } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
-import { platformWide } from "@chanlytics/db/shared";
 import { sendMessageId } from "@chanlytics/core";
 import { draftRefusalOf, isWaitRefusal } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
@@ -285,18 +286,9 @@ export async function runReachOutClock(
     for (const id of await listFinishableRuns(db, PAGE, tenantId)) {
       // Through the runs' own moves (broadcasts_guard): a scheduled run starts, then finishes. The ids are the ones
       // listFinishableRuns just read, across every workspace when the clock sweeps them all: platformWide by design.
-      const { error: e1 } = await platformWide(db)
-        .from("sequence_batches")
-        .update({ state: "sending" })
-        .eq("id", id)
-        .eq("state", "scheduled");
+      const { error: e1 } = await startBatchSending(db, id);
       if (e1) throw new Error(`cannot start the run ${id}: ${e1.message}`);
-      const { data, error } = await platformWide(db)
-        .from("sequence_batches")
-        .update({ state: "sent", finished_at: now.toISOString() })
-        .eq("id", id)
-        .eq("state", "sending")
-        .select("id");
+      const { data, error } = await finishBatchSending(db, id, now.toISOString());
       if (error) throw new Error(`cannot finish the run ${id}: ${error.message}`);
       if ((data ?? []).length > 0) out.finished += 1;
     }

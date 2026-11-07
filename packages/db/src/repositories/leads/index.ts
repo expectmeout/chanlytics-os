@@ -2,6 +2,22 @@
  * The leads domain: `@chanlytics/db/leads`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  findLeadRound,
+  findLeadRun,
+  findLeadSearchName,
+  findRoundToTell,
+  findRunForDelivery,
+  insertLeadRuns,
+  listLeadFacts,
+  listLeadPlacesAt,
+  listLeadsAtPlaces,
+  listLeadsSharing,
+  listPeopleSharing,
+  listPlacesSuppressed,
+  listRunsOfRound,
+  listSearchMembers,
+} from "./finder";
+export {
   askForIdeasAgain,
   chooseLeadAddressee,
   claimIdeas,
@@ -35,22 +51,6 @@ export {
   stopSearchRound,
   undoLeadOperation,
 } from "./search-acts";
-export {
-  findLeadRound,
-  findLeadRun,
-  findLeadSearchName,
-  findRoundToTell,
-  findRunForDelivery,
-  insertLeadRuns,
-  listLeadFacts,
-  listLeadPlacesAt,
-  listLeadsAtPlaces,
-  listLeadsSharing,
-  listPeopleSharing,
-  listPlacesSuppressed,
-  listRunsOfRound,
-  listSearchMembers,
-} from "./finder";
 export {
   claimLeadRun,
   endLeadRound,

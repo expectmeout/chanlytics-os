@@ -21,3 +21,12 @@ export const markPersonNoteDone = (db: Db, args: Args<"person_note_done">) => db
 
 /** A note taken off the person (person_note_remove). */
 export const removePersonNote = (db: Db, args: Args<"person_note_remove">) => db.rpc("person_note_remove", args);
+
+/** The people a note could be suggested for, `limit` of them (note_candidates). */
+export const listNoteCandidates = (db: Pick<Db, "rpc">, limit: number) => db.rpc("note_candidates", { p_limit: limit });
+
+/** A note suggested on a person, through its door (person_note_suggest). */
+export const suggestPersonNote = (
+  db: Pick<Db, "rpc">,
+  args: Database["public"]["Functions"]["person_note_suggest"]["Args"],
+) => db.rpc("person_note_suggest", args);

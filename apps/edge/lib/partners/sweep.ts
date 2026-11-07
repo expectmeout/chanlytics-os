@@ -15,6 +15,7 @@
 import { json } from "../shared/http.js";
 import { sendPartnerLetters } from "./letters.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { sweepPartnerEarnings } from "@chanlytics/db/partners";
 
 interface Swept {
   judged: number;
@@ -23,7 +24,7 @@ interface Swept {
   void: number;
 }
 export async function sweepPartners({ db, L }: SweepTick): Promise<Response> {
-  const { data, error } = await db.rpc("partner_earnings_sweep", { p_now: new Date().toISOString() });
+  const { data, error } = await sweepPartnerEarnings(db, new Date().toISOString());
   if (error) {
     // The tick's answer says so, and sweep_health reads it as the clock's.
     L.error("partners_sweep_failed", { error: error.message });

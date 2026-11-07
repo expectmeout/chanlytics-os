@@ -4,9 +4,18 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../database.types";
+import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;
 
 /** The workspace's billing mode and status. */
 export const findPlanStanding = (db: Db, tenantId: string) =>
   db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle();
+
+/** The workspace's billing row, whole, or none. */
+export const findBillingAccount = (db: Db, tenantId: string) =>
+  db.from("billing_accounts").select("*").eq("tenant_id", tenantId).maybeSingle();
+
+/** The billing row of a Stripe customer, whichever workspace's, or none: Stripe names its customer, not the workspace. */
+export const findBillingAccountOfCustomer = (db: Db, customerId: string) =>
+  platformWide(db).from("billing_accounts").select("*").eq("stripe_customer_id", customerId).maybeSingle();

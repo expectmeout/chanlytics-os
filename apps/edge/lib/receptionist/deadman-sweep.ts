@@ -57,6 +57,7 @@ import { sweepUnfinished } from "./unfinished.js";
 import { sweepStrandedRuns } from "./stranded-runs.js";
 import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "@chanlytics/contracts";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { listDeadmanCandidates, markDeadmanAlerted } from "@chanlytics/db/conversations";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
@@ -129,7 +130,7 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
   }
   const fields = { ...unfinished, stranded };
 
-  const { data, error } = await db.rpc("deadman_candidates", { p_older_than: UNANSWERED_AFTER });
+  const { data, error } = await listDeadmanCandidates(db, UNANSWERED_AFTER);
   if (error) {
     L.error("deadman_query_failed", { error: error.message });
     return json(500, { ok: false });
@@ -243,7 +244,7 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
  * failing to stamp means it may repeat next tick. Noisy beats silent, but it must be visible.
  */
 async function markAlerted(db: SweepTick["db"], log: SweepTick["L"], c: Candidate): Promise<void> {
-  const { error } = await db.rpc("deadman_mark_alerted", { p_ids: [c.escalation_id] });
+  const { error } = await markDeadmanAlerted(db, [c.escalation_id]);
   if (error)
     log.error("deadman_mark_failed", { tenant_id: c.tenant_id, escalation: c.escalation_id, error: error.message });
 }

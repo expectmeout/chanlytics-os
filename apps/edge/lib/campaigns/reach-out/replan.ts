@@ -15,7 +15,7 @@
  * keeps its number, so its next email is the one it never wrote.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { moveSend, type ReachOutSendRow } from "@chanlytics/db/campaigns";
+import { listChainSteps, listLeadClocks, moveSend, type ReachOutSendRow } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion } from "@chanlytics/contracts";
@@ -45,11 +45,7 @@ type Move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>) => Promise<boo
 
 /** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00429), in one read. */
 async function stepAndRootOf(db: Db, tenantId: string, stepId: string, rootId: string) {
-  const { data, error } = await db
-    .from("sequence_steps")
-    .select("id, gap_minutes, mailbox_ids, after_step_id, owner_sends")
-    .eq("tenant_id", tenantId)
-    .in("id", [stepId, rootId]);
+  const { data, error } = await listChainSteps(db, tenantId, [stepId, rootId]);
   if (error) throw new Error(`the step: ${error.message}`);
   const rows = data ?? [];
   return {
@@ -126,11 +122,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
       const leads: Array<{ id: string; region: string | null; hours: unknown }> = [];
       const ids = [...new Set(mine.map((s) => s.lead_id))];
       for (let i = 0; i < ids.length; i += 100) {
-        const { data, error: le } = await db
-          .from("leads")
-          .select("id, region, hours")
-          .eq("tenant_id", tenantId)
-          .in("id", ids.slice(i, i + 100));
+        const { data, error: le } = await listLeadClocks(db, tenantId, ids.slice(i, i + 100));
         if (le) throw new Error(`the leads: ${le.message}`);
         leads.push(...(data ?? []));
       }

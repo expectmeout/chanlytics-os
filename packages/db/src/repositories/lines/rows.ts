@@ -149,3 +149,34 @@ export const listLinesAwaitingCarriers = (db: Db, states: readonly string[], lim
     .not("brand_sid", "is", null)
     .order("updated_at", { ascending: true })
     .limit(limit);
+
+/** The workspace's oldest forwarded number that forwards: its number, how it forwards, and its facts. */
+export const findForwardedLine = (db: Db, tenantId: string) =>
+  db
+    .from("lines")
+    .select("e164, forwarding_state, facts")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "forwarded")
+    .neq("forwarding_state", "none")
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+
+/** The workspace's forwarded numbers told how to forward and not yet heard from. */
+export const listLinesAwaitingForwarding = (db: Db, tenantId: string) =>
+  db
+    .from("lines")
+    .select("id, e164, facts")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "forwarded")
+    .eq("forwarding_state", "instructed");
+
+/** A forwarded number written as heard from, only while it still awaits it: its id back, none when it moved. */
+export const saveForwardingVerified = (db: Db, tenantId: string, lineId: string, values: LineUpdate) =>
+  db
+    .from("lines")
+    .update(values)
+    .eq("id", lineId)
+    .eq("tenant_id", tenantId)
+    .eq("forwarding_state", "instructed")
+    .select("id");

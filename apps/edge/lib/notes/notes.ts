@@ -63,6 +63,9 @@ import {
 import { listFactCorrectionsBatch, suggestFact, type FactCorrectionRow } from "@chanlytics/db/facts";
 import { askJson } from "../ai/model.js";
 import type { Logger } from "../shared/log.js";
+import { listNoteCandidates, suggestPersonNote } from "@chanlytics/db/people";
+import { type SupabaseClient } from "@supabase/supabase-js";
+import { type Database } from "@chanlytics/db/types";
 
 /** One look, as note_candidates hands it over. */
 interface NoteCandidate {
@@ -86,9 +89,8 @@ type AskNote = (
 ) => Promise<{ answer: unknown; tokens: { input: number; output: number } } | null>;
 
 /** The database the sweep needs: the batch, and the one door a suggestion goes through. */
-interface NotesDb {
-  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
-}
+/** The client's door calls the sweep makes (packages/db people), so a test can hand it a fake that answers them. */
+type NotesDb = Pick<SupabaseClient<Database>, "rpc">;
 
 /** The smallest model, in its schema, through the platform's one JSON-model transport (lib/ai/model.ts). */
 export const askNoteModel: AskNote = (system, user, forWhom) =>
@@ -125,14 +127,15 @@ export async function suggestNotes(deps: {
   const end = (reason: string) => {
     out.ended[reason] = (out.ended[reason] ?? 0) + 1;
   };
-  const { data, error } = await db.rpc("note_candidates", { p_limit: NOTE_SUGGEST_LIMITS.perRun });
+  const { data, error } = await listNoteCandidates(db, NOTE_SUGGEST_LIMITS.perRun);
   if (error) {
     L.error("notes_candidates_failed", { error: error.message });
     return out;
   }
   // The day's count per workspace, carried across this run's own suggestions so a busy batch keeps to the cap.
   const today = new Map<string, number>();
-  for (const row of (data ?? []) as NoteCandidate[]) {
+  const candidates: unknown[] = data ?? [];
+  for (const row of candidates as NoteCandidate[]) {
     out.looked += 1;
     const turns = (Array.isArray(row.turns) ? row.turns : []).filter(
       (t): t is NoteTurn => !!t && (t.who === "customer" || t.who === "business") && typeof t.text === "string",
@@ -185,7 +188,7 @@ export async function suggestNotes(deps: {
       end(checked.why);
       continue;
     }
-    const { data: door, error: doorErr } = await db.rpc("person_note_suggest", {
+    const { data: door, error: doorErr } = await suggestPersonNote(db, {
       p_tenant_id: row.tenant_id,
       p_contact_id: row.contact_id,
       p_body: checked.body,

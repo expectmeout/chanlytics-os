@@ -26,10 +26,11 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   closeMendedNotices,
-  forgetNotification,
-  recordMailSent,
   findNotice,
+  forgetNotification,
+  insertNotification,
   type KeptNotice,
+  recordMailSent,
 } from "@chanlytics/db/notices";
 import { findWorkspaceNamed } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
@@ -315,21 +316,17 @@ export async function recordNotification(
   const kind = keptKind(input.kind);
   const log = logger({ tenant_id: tenantId });
   try {
-    const { data, error } = await db
-      .from("notifications")
-      .insert({
-        tenant_id: tenantId,
-        kind,
-        title: input.title.slice(0, 200),
-        body: input.body.slice(0, 4000),
-        route: input.route ?? null,
-        subject_type: input.about?.type ?? null,
-        subject_id: input.about?.id ?? null,
-        ...(input.sourceEvent ? { source_event: input.sourceEvent } : {}),
-        ...(input.mailOwed ? { mail_due_at: new Date().toISOString() } : {}),
-      })
-      .select("id")
-      .single();
+    const { data, error } = await insertNotification(db, {
+      tenant_id: tenantId,
+      kind,
+      title: input.title.slice(0, 200),
+      body: input.body.slice(0, 4000),
+      route: input.route ?? null,
+      subject_type: input.about?.type ?? null,
+      subject_id: input.about?.id ?? null,
+      ...(input.sourceEvent ? { source_event: input.sourceEvent } : {}),
+      ...(input.mailOwed ? { mail_due_at: new Date().toISOString() } : {}),
+    });
     if (error || !data) {
       log.error("notification_record_failed", { kind, error: error?.message ?? "no row" });
       return null;

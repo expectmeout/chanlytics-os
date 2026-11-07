@@ -9,18 +9,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assembleBroadcast } from "@chanlytics/db/jobs";
 import {
-  recordCampaignMonthSent,
+  findRunFor,
+  findTextLineFacts,
+  findWhatsappChannelFacts,
   followUpsDue,
+  getPeopleHandRun,
   holdRecipients,
   leaveSequence,
-  getPeopleHandRun,
-  wasSequenceReached,
   listMessageVersionRows,
-  findTextLineFacts,
-  touchIndex,
-  listTouchesSince,
   listRunningStepsOn,
-  findWhatsappChannelFacts,
+  listTouchesSince,
+  recordCampaignMonthSent,
+  stampStepRun,
+  touchIndex,
+  wasSequenceReached,
 } from "@chanlytics/db/campaigns";
 import { getDealOnFile, listYesesSince } from "@chanlytics/db/deals";
 import { emitEvent } from "@chanlytics/db/events";
@@ -71,6 +73,7 @@ import {
 import { listFeedItems } from "../../calendar/availability.js";
 import { findCampaignsDomainVerified } from "../../email/campaigns-domain.js";
 import { emailCanSend } from "../../email/email.js";
+import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 
@@ -248,7 +251,7 @@ export async function loadTenantRunContext(
   ] = await Promise.all([
     // Its zone and whether it is paused. Every workspace has deals (0008, amended 18 Oct 2026): the proposal follow-up
     // runs wherever one is made (0006).
-    db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
+    findWorkspaceZoneStatus(db, tenantId),
     findAllPeople(db, tenantId),
     channelFacts(db, tenantId),
     // Every run, not only the playbooks': a message sent by hand is a touch too, and the week's breath is one
@@ -264,7 +267,7 @@ export async function loadTenantRunContext(
       (data) => ({ data, error: null as string | null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
-    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    findConfigRow(db, tenantId),
     // Every list the workspace keeps: a playbook on one runs on who is on it now. Unreadable is this tenant's
     // error, never a list of nobody.
     listSavedLists(db, tenantId).then(
@@ -383,13 +386,7 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       // says it failed rather than skipping the day.
       message: (name, language) => listMessageVersionRows(db, tenantId, { name, language }),
       alreadyRan: async (playbookId, runFor) => {
-        const { data, error } = await db
-          .from("sequence_batches")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("step_id", playbookId)
-          .eq("run_for", runFor)
-          .maybeSingle();
+        const { data, error } = await findRunFor(db, tenantId, playbookId, runFor);
         // A run that cannot be read is not one that never ran: answered false, it would send the day twice.
         if (error) throw new Error(`cannot read whether the playbook ran: ${error.message}`);
         return !!data;
@@ -405,11 +402,7 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       record: async (playbookId, runFor, at, data) => {
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
         // The run is kept (its batch says it ran, which alreadyRan reads); a stamp that fails is said, never the run's end.
-        const stamped = await db
-          .from("sequence_steps")
-          .update({ last_run_for: runFor, last_run_at: at.toISOString() })
-          .eq("id", playbookId)
-          .eq("tenant_id", tenantId);
+        const stamped = await stampStepRun(db, tenantId, playbookId, runFor, at.toISOString());
         if (stamped.error)
           logger({ tenant_id: tenantId }).warn("playbook_run_stamp_failed", {
             playbook_id: playbookId,

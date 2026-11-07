@@ -33,6 +33,7 @@ export {
   forgetNotification,
   holdFactsOf,
   holdTold,
+  insertNotification,
   listReviewsNamed,
   recordMailSent,
   reviewRowsByGoogleId,

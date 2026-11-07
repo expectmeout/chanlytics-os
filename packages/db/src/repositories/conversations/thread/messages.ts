@@ -12,6 +12,7 @@ import {
 } from "@chanlytics/contracts";
 import { IDS_PER_READ } from "../../people/pages";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
+import { type Json } from "../../../database.types";
 
 const NOTES_BUDGET = 1200;
 
@@ -352,3 +353,7 @@ export async function findOurLastWire(db: Db, tenantId: string, conversationId: 
   if (error) throw new Error(`reading the last outbound: ${error.message}`);
   return data?.channel ?? null;
 }
+
+/** What a message carries (its media, with where it is stored or why it is not) written on the workspace's row. */
+export const saveMessageMedia = (db: Db, tenantId: string, messageId: string, media: Json) =>
+  db.from("messages").update({ media }).eq("id", messageId).eq("tenant_id", tenantId);

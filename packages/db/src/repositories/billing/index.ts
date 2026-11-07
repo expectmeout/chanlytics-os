@@ -3,5 +3,12 @@
  */
 export { applyBilling, type BillingExpectation, type BillingPatch } from "./account";
 export { findPlanForRelease, listStripeAccountsIn } from "./ended";
-export { keepInvoiceAmount } from "./events";
-export { findPlanStanding } from "./plan";
+export {
+  completeBillingEvent,
+  findBillingEventState,
+  forgetBillingEvent,
+  insertBillingClaim,
+  keepInvoiceAmount,
+  reclaimBillingEvent,
+} from "./events";
+export { findBillingAccount, findBillingAccountOfCustomer, findPlanStanding } from "./plan";

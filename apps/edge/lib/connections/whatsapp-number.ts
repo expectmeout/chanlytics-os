@@ -31,7 +31,6 @@ import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js"
 import { pg } from "../shared/pg.js";
 import { emitEvent, recordActivation } from "@chanlytics/db/events";
 import type { Json } from "@chanlytics/db/types";
-import { platformWide, tenantDb } from "@chanlytics/db/shared";
 import {
   alreadyRegistered,
   exchangeCode,
@@ -52,6 +51,13 @@ import { startWhatsappHistory } from "../imports/history-import.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { UUID } from "@chanlytics/contracts";
+import {
+  findWhatsAppNumberHolder,
+  insertChannelRow,
+  patchWhatsAppNumberRow,
+  putChannelCredentials,
+  setChannelStatus,
+} from "@chanlytics/db/channels";
 
 interface ConnectBody {
   tenant_id?: string;
@@ -124,22 +130,11 @@ async function writeChannelRow(
   // A row from an earlier connection keeps the status it has until then; a new one is written disabled. Written
   // active here, a crash between this write and the token's left a number that took every message and answered
   // none of them, since the reply found no credential and was refused as absent (the wiring trace, 5 October 2026).
-  const mine = await db
-    .from("tenant_channels")
-    .update(fields)
-    .eq("kind", "whatsapp")
-    .eq("external_id", phoneNumberId)
-    .eq("tenant_id", tenantId)
-    .select("id")
-    .maybeSingle();
+  const mine = await patchWhatsAppNumberRow(db, tenantId, phoneNumberId, fields);
   let row = mine.data;
   let upErr = mine.error;
   if (!upErr && !row) {
-    const created = await tenantDb(db, tenantId)
-      .from("tenant_channels")
-      .insert({ ...fields, status: "disabled" })
-      .select("id")
-      .single();
+    const created = await insertChannelRow(db, tenantId, { ...fields, status: "disabled" });
     if (created.error?.code === "23505") {
       // Somebody got there between the read and the insert. Whose it is
       // decides the answer: another workspace's is the 409 this door exists to
@@ -148,12 +143,7 @@ async function writeChannelRow(
       // outlasted their patience — and telling them their own number belongs
       // to somebody else would be a worse answer than the upsert used to give.
       // Who holds the number now, whichever workspace it is: the answer this read exists for.
-      const mineNow = await platformWide(db)
-        .from("tenant_channels")
-        .select("id, tenant_id")
-        .eq("kind", "whatsapp")
-        .eq("external_id", phoneNumberId)
-        .maybeSingle();
+      const mineNow = await findWhatsAppNumberHolder(db, phoneNumberId);
       if (mineNow.error) return refuse(503, "read_failed", mineNow.error.message);
       if (mineNow.data?.tenant_id === tenantId) {
         log.info("wa_connect_raced_self");
@@ -192,12 +182,7 @@ interface SignupIds {
  */
 async function heldElsewhere(db: Db, log: Log, tenantId: string, phoneNumberId: string): Promise<Response | null> {
   // Every workspace's numbers, by design: the question is whether another holds this one.
-  const { data: taken, error: takenErr } = await platformWide(db)
-    .from("tenant_channels")
-    .select("id, tenant_id")
-    .eq("kind", "whatsapp")
-    .eq("external_id", phoneNumberId)
-    .maybeSingle();
+  const { data: taken, error: takenErr } = await findWhatsAppNumberHolder(db, phoneNumberId);
   if (takenErr) {
     log.info("wa_connect_channel_read_failed", { error: takenErr.message });
     return refuse(503, "channel_read_failed");
@@ -383,8 +368,7 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   const { pin, registration } = reg;
 
   // One writer for the row's status, so the only word a crash between the writes can leave is "disabled".
-  const setStatus = (id: string, status: "active" | "disabled") =>
-    db.from("tenant_channels").update({ status }).eq("id", id).eq("tenant_id", tenantId).select("id");
+  const setStatus = (id: string, status: "active" | "disabled") => setChannelStatus(db, tenantId, id, status);
 
   // 5. The channel row: routing key, number, WABA, and what Meta calls it.
   const config = {
@@ -408,10 +392,12 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   if (row instanceof Response) return row;
 
   // 6. The token, in Vault, through the one door that writes a credential.
-  const { error: credErr } = await db.rpc("put_channel_credentials", {
-    p_channel_id: row.id,
-    p_secret: { access_token: token, phone_id: phoneNumberId, pin, waba_id: wabaId } as unknown as Json,
-  });
+  const { error: credErr } = await putChannelCredentials(db, row.id, {
+    access_token: token,
+    phone_id: phoneNumberId,
+    pin,
+    waba_id: wabaId,
+  } as unknown as Json);
   if (credErr) {
     log.info("wa_connect_credentials_failed", { error: credErr.message });
     // Without credentials the row would ride the environment token: not this business's. Disable it.

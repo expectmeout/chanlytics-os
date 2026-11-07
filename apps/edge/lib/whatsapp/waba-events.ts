@@ -21,9 +21,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
-import { platformWide } from "@chanlytics/db/shared";
 import { keepChannelStanding } from "@chanlytics/db/jobs";
-import { setTemplateQuality } from "@chanlytics/db/campaigns";
+import { patchWhatsAppTemplate, patchWhatsAppTemplateBack, setTemplateQuality } from "@chanlytics/db/campaigns";
 import { mendWarnings, notify, type NotifyTarget } from "../shared/alerts/notify.js";
 import { syncTemplates } from "./template-admin.js";
 import {
@@ -41,13 +40,15 @@ import {
   MESSAGES_ROUTE,
 } from "@chanlytics/contracts";
 import { logger, errField, type Logger } from "../shared/log.js";
+import { findChannelConfig, listNumbersOfWaba, patchChannelRow } from "@chanlytics/db/channels";
+import { findConfigRow } from "@chanlytics/db/workspace";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function findNotifications(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<NotificationsConfig | null> {
-  const { data, error } = await db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await findConfigRow(db, tenantId);
   // Unread is not "tell nobody": an account's news would be dropped. Thrown, the delivery is tried again.
   if (error) throw new Error(`cannot read the workspace's notifications: ${error.message}`);
   return parseTenantConfig(data?.config ?? null)?.notifications ?? null;
@@ -77,13 +78,7 @@ interface Routed {
  */
 async function routeByWaba(db: SupabaseClient<Database>, wabaId: string, named: unknown): Promise<Routed | null> {
   // Meta names its account, not the workspace: the number is found across workspaces by that id, by design.
-  const { data, error } = await platformWide(db)
-    .from("tenant_channels")
-    .select("id, tenant_id, number_e164, config")
-    .eq("kind", "whatsapp")
-    .eq("waba_id", wabaId)
-    .eq("status", "active")
-    .order("created_at", { ascending: true });
+  const { data, error } = await listNumbersOfWaba(db, wabaId);
   if (error) {
     logger().error("waba_route_failed", { waba_id: wabaId, error: error.message });
     return null;
@@ -374,29 +369,20 @@ async function keepRating(
 ): Promise<void> {
   const failed = (step: "read" | "write", error: string) =>
     log.error("channel_quality_row_failed", { channel_id: routed.channelId, step, error });
-  const read = await db
-    .from("tenant_channels")
-    .select("config")
-    .eq("id", routed.channelId)
-    .eq("tenant_id", routed.tenantId)
-    .maybeSingle();
+  const read = await findChannelConfig(db, routed.tenantId, routed.channelId);
   if (read.error) return failed("read", read.error.message);
   const cfg = (read.data?.config && typeof read.data.config === "object" ? read.data.config : {}) as Record<
     string,
     unknown
   >;
-  const kept = await db
-    .from("tenant_channels")
-    .update({
-      config: {
-        ...cfg,
-        messaging_limit: value.current_limit,
-        quality_event: value.event ?? null,
-        quality_at: new Date().toISOString(),
-      } as unknown as Json,
-    })
-    .eq("id", routed.channelId)
-    .eq("tenant_id", routed.tenantId);
+  const kept = await patchChannelRow(db, routed.tenantId, routed.channelId, {
+    config: {
+      ...cfg,
+      messaging_limit: value.current_limit,
+      quality_event: value.event ?? null,
+      quality_at: new Date().toISOString(),
+    } as unknown as Json,
+  });
   if (kept.error) failed("write", kept.error.message);
 }
 
@@ -425,14 +411,12 @@ async function keepTemplateStatus(
   log: Logger,
 ): Promise<void> {
   const write = () =>
-    db
-      .from("templates")
-      .update({ meta_status: mapStatus(params.event), rejected_reason: params.reason })
-      .eq("tenant_id", params.tenantId)
-      .eq("channel", "whatsapp")
-      .eq("name", params.name)
-      .eq("language", params.language)
-      .select("id");
+    patchWhatsAppTemplateBack(
+      db,
+      params.tenantId,
+      { name: params.name, language: params.language },
+      { meta_status: mapStatus(params.event), rejected_reason: params.reason },
+    );
   let kept = await write();
   if (kept.error || !kept.data?.length) {
     await new Promise((r) => setTimeout(r, TEMPLATE_ROW_WAIT_MS));
@@ -493,15 +477,12 @@ export async function handleWabaChange(
           );
         }
       } else {
-        const { error } = await db
-          .from("templates")
-          .update({
-            category: mapCategory(typeof change.value.new_category === "string" ? change.value.new_category : null),
-          })
-          .eq("tenant_id", routed.tenantId)
-          .eq("channel", "whatsapp")
-          .eq("name", name)
-          .eq("language", language);
+        const { error } = await patchWhatsAppTemplate(
+          db,
+          routed.tenantId,
+          { name, language },
+          { category: mapCategory(typeof change.value.new_category === "string" ? change.value.new_category : null) },
+        );
         if (error) log.error("template_category_write_failed", { error: error.message });
       }
     }

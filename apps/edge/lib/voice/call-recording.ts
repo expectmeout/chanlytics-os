@@ -35,9 +35,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { fetchRecording } from "@chanlytics/channels/voice";
-import { setCallRecording } from "@chanlytics/db/voice";
+import { listRecordingsToPurge, markRecordingPurged, setCallRecording } from "@chanlytics/db/voice";
 import { DAY_MS, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
 import { logger } from "../shared/log.js";
+import { storeMedia } from "@chanlytics/db/channels";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
 /** The webhook's budget: the agent allows 20 s for the whole event and the upsert has already spent some. */
@@ -113,13 +114,7 @@ export async function purgeExpiredRecordings(
   limit = 50,
 ): Promise<PurgeOutcome> {
   const cutoff = new Date(ports.now.getTime() - RECORDING_RETENTION_DAYS * 86_400_000).toISOString();
-  const { data, error } = await db
-    .from("calls")
-    .select("id, tenant_id, recording")
-    .filter("recording->>fetch_state", "eq", "stored")
-    .lt("started_at", cutoff)
-    .order("started_at", { ascending: true })
-    .limit(limit);
+  const { data, error } = await listRecordingsToPurge(db, cutoff, limit);
   if (error) return { candidates: 0, purged: 0, error: error.message };
   const rows = (data ?? []) as {
     id: string;
@@ -145,18 +140,12 @@ export async function purgeExpiredRecordings(
   let failure: string | null = null;
   for (const row of rows) {
     // Replaces the whole value: the path and the size go with the audio.
-    const marked = await db
-      .from("calls")
-      .update({
-        recording: {
-          fetch_state: "purged",
-          purged_at: ports.now.toISOString(),
-          retention_days: RECORDING_RETENTION_DAYS,
-          mime: row.recording?.mime ?? null,
-        },
-      })
-      .eq("id", row.id)
-      .eq("tenant_id", row.tenant_id);
+    const marked = await markRecordingPurged(db, row.tenant_id, row.id, {
+      fetch_state: "purged",
+      purged_at: ports.now.toISOString(),
+      retention_days: RECORDING_RETENTION_DAYS,
+      mime: row.recording?.mime ?? null,
+    });
     // One bad row does not hold the rest of the batch: the audio is already
     // gone for all of them, and a row still marked `stored` comes back next
     // tick, where the removal is a no-op and only the marker is retried.
@@ -242,11 +231,7 @@ export async function copyRecording(
     const mime = sniffAudioType(result.bytes, result.mime);
     const ext = REC_EXT[mime] || "wav";
     const path = `${params.tenantId}/calls/${params.callId}.${ext}`;
-    const { error } = await withTimeout(
-      db.storage.from("media").upload(path, result.bytes, { contentType: mime, upsert: true }),
-      params.timeoutMs,
-      "storage upload",
-    );
+    const { error } = await withTimeout(storeMedia(db, path, result.bytes, mime), params.timeoutMs, "storage upload");
     if (error) {
       // The bucket refusing THIS file (a 4xx: too large, a policy) is a try
       // like any other, so such a copy ends failed instead of returning for

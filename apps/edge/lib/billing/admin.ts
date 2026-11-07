@@ -50,6 +50,7 @@ import {
   type BillingOp,
   type BillingOutcome,
 } from "./ops.js";
+import { findWorkspaceNameSlug, findWorkspaceSlug } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 
@@ -111,7 +112,7 @@ function answered(c: BillingCall, op: BillingOp, r: BillingOutcome): Response {
 }
 
 async function checkout(c: BillingCall): Promise<BillingOutcome | Response> {
-  const read = await c.db.from("tenants").select("name, slug").eq("id", c.tenantId).maybeSingle();
+  const read = await findWorkspaceNameSlug(c.db, c.tenantId);
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant.response;
   const { email, back } = checkoutRequest(c.body.email, c.body.return);
@@ -119,7 +120,7 @@ async function checkout(c: BillingCall): Promise<BillingOutcome | Response> {
 }
 
 async function portal(c: BillingCall): Promise<BillingOutcome> {
-  const slug = slugOf(await c.db.from("tenants").select("slug").eq("id", c.tenantId).maybeSingle());
+  const slug = slugOf(await findWorkspaceSlug(c.db, c.tenantId));
   return getPortal(c.db, c.tenantId, slug);
 }
 

@@ -56,3 +56,7 @@ export const deleteGoogleListingDays = (db: Db, tenantId: string) =>
 /** The workspace's listing changed only while it is still the place `placeId`: the rows written back, none when it moved. */
 export const patchGoogleListingAtPlace = (db: Db, tenantId: string, placeId: string, set: ListingUpdate) =>
   db.from("google_listings").update(set).eq("tenant_id", tenantId).eq("place_id", placeId).select("tenant_id");
+
+/** The workspace's listing's name and address, as Google verified them. */
+export const findGoogleListingAddress = (db: Db, tenantId: string) =>
+  db.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle();

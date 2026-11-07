@@ -9,6 +9,7 @@ export {
   claimGuardCorrection,
   findCallerName,
   findCanaryLine,
+  findLastAnsweredCall,
   getCanaryCallFacts,
   ingestCall,
   isWorkspaceCall,
@@ -24,3 +25,11 @@ export {
   stampCallConfigVersion,
 } from "./calls";
 export type { CanaryCallFacts, IngestCallResult, NormalizedCallInput, VoiceDoorKnocks } from "./calls";
+export {
+  findAgentOfCall,
+  listCallsGoneQuiet,
+  listCallsWithoutNote,
+  listRecordingsPending,
+  listRecordingsToPurge,
+  markRecordingPurged,
+} from "./sweeps";

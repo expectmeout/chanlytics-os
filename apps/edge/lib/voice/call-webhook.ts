@@ -55,13 +55,14 @@ import {
   type RoutedChannel,
 } from "@chanlytics/db/channels";
 import {
-  findCallerName,
-  ingestCall,
-  recordCallNote,
-  linkCallMessage,
   claimCallNotification,
   claimGuardCorrection,
+  findAgentOfCall,
+  findCallerName,
+  ingestCall,
+  linkCallMessage,
   markCallNoticeTold,
+  recordCallNote,
   stampCallConfigVersion,
 } from "@chanlytics/db/voice";
 import { emitEvent } from "@chanlytics/db/events";
@@ -312,12 +313,7 @@ async function erasureOf(
 async function routeDelivery(db: Db, input: { agentId: string | null; retellCallId: string }): Promise<ChannelLookup> {
   const log = logger();
   if (input.agentId) return resolveChannelDetailed(db, "voice", input.agentId);
-  const { data, error } = await db
-    .from("calls")
-    .select("agent_id")
-    .eq("retell_call_id", input.retellCallId)
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await findAgentOfCall(db, input.retellCallId);
   if (error) {
     // The REASON rides the log: an RLS or grant regression on `calls` must
     // read differently from a network blip, and the door's refusal names

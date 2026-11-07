@@ -1,6 +1,8 @@
 /**
  * The people domain: `@chanlytics/db/people`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { findPersonEmail, setPersonEmail } from "./email";
+export { listErasedByEmail, listErasedByPhone } from "./erased";
 export {
   addToList,
   archiveList,
@@ -16,7 +18,14 @@ export {
   setListRule,
 } from "./lists";
 export type { ListRow, SavedListRow, WriteError } from "./lists";
-export { decidePersonNote, editPersonNote, markPersonNoteDone, removePersonNote } from "./notes";
+export {
+  decidePersonNote,
+  editPersonNote,
+  listNoteCandidates,
+  markPersonNoteDone,
+  removePersonNote,
+  suggestPersonNote,
+} from "./notes";
 export {
   addPersonNote,
   adoptPersonName,

@@ -263,6 +263,19 @@ export {
   wasSequenceReached,
 } from "./sequences/reads";
 export type { SequenceGlance } from "./sequences/reads";
+export {
+  findChainAwaitingApproval,
+  findRunFor,
+  findStepRow,
+  finishBatchSending,
+  insertDecision,
+  listChainSteps,
+  listLeadClocks,
+  planReachOutRun,
+  recordReachOutBooked,
+  stampStepRun,
+  startBatchSending,
+} from "./sequences/runs";
 export { findConfirmationEmail, findSignupAskFacts } from "./signup-confirms";
 export {
   batchStatesOf,
@@ -299,6 +312,15 @@ export type {
   TemplateToSend,
   VersionRef,
 } from "./templates/templates";
+export {
+  deleteTemplateRow,
+  findWhatsAppTemplate,
+  listWhatsAppTemplateKeys,
+  patchWhatsAppTemplate,
+  patchWhatsAppTemplateBack,
+  saveTemplateRow,
+  saveTemplateRows,
+} from "./templates/whatsapp";
 export { followUpTouchesSince, getRecentTouches, listTouchesSince, touchIndex } from "./touches";
 export type { Touch, TouchIndex } from "./touches";
 export { isWorkspacePaused, reviewLinkOf } from "./workspace";

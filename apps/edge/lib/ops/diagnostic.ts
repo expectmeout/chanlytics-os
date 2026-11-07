@@ -28,6 +28,15 @@ import { listVoiceDoorKnocks } from "@chanlytics/db/voice";
 import { signatureOnly } from "../shared/door-auth.js";
 import { env } from "../shared/env.js";
 import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../shared/dashboard-origin.js";
+import {
+  listOperatorPages,
+  listWebhookAuths,
+  listWebhookDeliveries,
+  readJobsBacklog,
+  readNumberDrift,
+  readSweepHealth,
+} from "@chanlytics/db/ops";
+import { listVoiceRoutingRows } from "@chanlytics/db/lines";
 
 const META_APP_ID = metaAppId();
 
@@ -135,12 +144,12 @@ async function sweepHealth(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { sweeps: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db.rpc("sweep_health");
+    const { data, error } = await readSweepHealth(db);
     if (error) return { sweeps: { error: error.message.slice(0, 200) } };
     const rows = (data ?? []) as unknown as SweepHealthRow[];
     const sweeps = { ok: rows.every((r) => r.healthy), detail: rows };
     // Due work nobody has claimed: the honest measure of whether the heartbeat drains.
-    const { data: backlog, error: backlogErr } = await db.rpc("jobs_backlog");
+    const { data: backlog, error: backlogErr } = await readJobsBacklog(db);
     if (backlogErr) return { sweeps, jobs_backlog: null, jobs_backlog_error: backlogErr.message.slice(0, 200) };
     return { sweeps, jobs_backlog: typeof backlog === "number" ? backlog : null };
   } catch (e) {
@@ -159,10 +168,7 @@ async function pagerMemory(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { pages: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db
-      .from("operator_pages")
-      .select("key, first_at, last_at, count, alerted_at")
-      .order("last_at", { ascending: false });
+    const { data, error } = await listOperatorPages(db);
     if (error) return { pages: { error: error.message.slice(0, 200) } };
     const rows = (data ?? []) as PageRow[];
     return { pages: { ok: untoldPages(rows).length === 0, untold: untoldPages(rows), conditions: pageStates(rows) } };
@@ -184,7 +190,7 @@ async function numberDrift(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { numbers: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db.rpc("number_drift");
+    const { data, error } = await readNumberDrift(db);
     if (error) return { numbers: { error: error.message.slice(0, 200) } };
     const rows = (data ?? []) as unknown as { kind: string; tenant_id: string; detail: string }[];
     return { numbers: { ok: rows.length === 0, drift: rows } };
@@ -240,9 +246,7 @@ async function voiceAgentSettings(): Promise<Section> {
   if (!env.RETELL_API_KEY) return { voiceAgents: null };
   try {
     const db = pg();
-    const { data: rows } = db
-      ? await db.from("tenant_channels").select("external_id, status").eq("kind", "voice")
-      : { data: null };
+    const { data: rows } = db ? await listVoiceRoutingRows(db) : { data: null };
     const agents: unknown[] = [];
     for (const r of rows ?? []) {
       const a = await getAgent({ apiKey: env.RETELL_API_KEY }, r.external_id);
@@ -304,28 +308,10 @@ async function retellAuthEvidence(db: ReturnType<typeof pg>, retellKey: string):
     // Each voice door's knocks of the last seven days, signed or not (decision 0092): the evidence RETELL_DOORS_SIGNED
     // is set on, kept as rows since the log keeps a day. The call webhook's rows name no door: "webhook".
     doors: db ? await doorEvidence(db) : null,
-    recent: db
-      ? rowsOrError(
-          await db
-            .from("events")
-            .select("created_at, data")
-            .eq("kind", "webhook.auth")
-            .order("created_at", { ascending: false })
-            .limit(5),
-        )
-      : [],
+    recent: db ? rowsOrError(await listWebhookAuths(db, 5)) : [],
     // What the last deliveries DID — per event: status carried and
     // normalised, turns brought, whether the ingest declined them.
-    deliveries: db
-      ? rowsOrError(
-          await db
-            .from("events")
-            .select("created_at, subject_id, data")
-            .eq("kind", "webhook.delivery")
-            .order("created_at", { ascending: false })
-            .limit(20),
-        )
-      : [],
+    deliveries: db ? rowsOrError(await listWebhookDeliveries(db, 20)) : [],
   };
 }
 

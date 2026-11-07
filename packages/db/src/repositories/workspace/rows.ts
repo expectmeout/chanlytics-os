@@ -46,3 +46,33 @@ export const findWorkspaceCard = (db: Db, tenantId: string) =>
 /** The workspace's row with its time zone, as the database answered it (findWorkspaceZone reads the zone alone). */
 export const findWorkspaceZoneRow = (db: Db, tenantId: string) =>
   db.from("tenants").select("id, timezone").eq("id", tenantId).maybeSingle();
+
+/** "Did anything the runtime is built from change?": one text from one door (runtime_stamp). */
+export const findRuntimeStamp = (db: Db, tenantId: string) => db.rpc("runtime_stamp", { p_tenant_id: tenantId });
+
+/** The workspace's settings row and its version, as stored. */
+export const findConfigRowVersioned = (db: Db, tenantId: string) =>
+  db.from("tenant_config").select("config, version").eq("tenant_id", tenantId).maybeSingle();
+
+/** The workspace's settings row changed. */
+export const patchConfigRow = (
+  db: Db,
+  tenantId: string,
+  set: Database["public"]["Tables"]["tenant_config"]["Update"],
+) => db.from("tenant_config").update(set).eq("tenant_id", tenantId);
+
+/** The workspace's own rules (its policies of no subject): each one's class, mode and limits. */
+export const listWorkspaceRules = (db: Db, tenantId: string) =>
+  db.from("policies").select("class, mode, limits").eq("tenant_id", tenantId).is("subject_type", null);
+
+/** What the receptionist's runtime reads of the workspace: its name, address, clock and status. */
+export const findWorkspaceRuntimeRow = (db: Db, tenantId: string) =>
+  db.from("tenants").select("name, slug, timezone, status").eq("id", tenantId).maybeSingle();
+
+/** A new workspace as its sign-up is told: its id, name, address, clock and when it was made. */
+export const findNewWorkspace = (db: Db, tenantId: string) =>
+  db.from("tenants").select("id, name, slug, timezone, created_at").eq("id", tenantId).maybeSingle();
+
+/** The workspace's switch, when its last member left it (00262), and its clock. */
+export const findWorkspaceStanding = (db: Db, tenantId: string) =>
+  db.from("tenants").select("status, left_empty_at, timezone").eq("id", tenantId).maybeSingle();

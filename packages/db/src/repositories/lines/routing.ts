@@ -73,3 +73,22 @@ export const findVoiceRouting = (db: Db, tenantId: string) =>
     .order("created_at")
     .limit(1)
     .maybeSingle();
+
+/** Every voice routing row, whichever workspace's: its agent and its status (the diagnostic's read). */
+export const listVoiceRoutingRows = (db: Db) =>
+  platformWide(db).from("tenant_channels").select("external_id, status").eq("kind", "voice");
+
+/** Every active voice agent, whichever workspace's. */
+export const listActiveVoiceAgents = (db: Db) =>
+  platformWide(db).from("tenant_channels").select("external_id").eq("kind", "voice").eq("status", "active");
+
+/** The workspace's oldest voice routing row, whatever its status. */
+export const findVoiceRow = (db: Db, tenantId: string) =>
+  db
+    .from("tenant_channels")
+    .select("id, status, external_id, number_e164")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "voice")
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();

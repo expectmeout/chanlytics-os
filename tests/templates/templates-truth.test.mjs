@@ -106,7 +106,11 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   const w = readCode("apps/edge/lib/whatsapp/waba-events.ts");
   assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
   // Meta's verdict and its reason are written on the row: run in whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
-  assert.match(w, /\.from\("templates"\)\s*\.update\(\{\s*category: mapCategory\(/);
+  // The write is packages/db's (decision 0111): the template named by its name and language, its category moved.
+  assert.match(
+    w,
+    /patchWhatsAppTemplate\(\s*db,\s*routed\.tenantId,\s*\{ name, language \},\s*\{ category: mapCategory\(/,
+  );
   assert.ok(
     w.includes(
       'const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);',

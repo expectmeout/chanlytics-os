@@ -17,6 +17,7 @@ export {
   deleteGoogleListing,
   deleteGoogleListingDays,
   findGoogleListing,
+  findGoogleListingAddress,
   findGoogleListingPlace,
   listGoogleListingsDue,
   patchGoogleListing,

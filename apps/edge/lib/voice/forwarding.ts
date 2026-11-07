@@ -30,6 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
+import { listLinesAwaitingForwarding, saveForwardingVerified } from "@chanlytics/db/lines";
 
 export interface ForwardingCall {
   fromE164: string | null;
@@ -48,12 +49,7 @@ export async function markForwardingVerified(
 ): Promise<boolean> {
   const log = logger({ tenant_id: tenantId });
   try {
-    const { data, error } = await db
-      .from("lines")
-      .select("id, e164, facts")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "forwarded")
-      .eq("forwarding_state", "instructed");
+    const { data, error } = await listLinesAwaitingForwarding(db, tenantId);
     if (error || !data?.length) return false;
     const now = new Date().toISOString();
     for (const row of data) {
@@ -68,24 +64,18 @@ export async function markForwardingVerified(
         proof,
         headers: call.diverted === undefined ? "not_read" : call.diverted === null ? "none" : call.diverted.length,
       });
-      const upd = await db
-        .from("lines")
-        .update({
-          forwarding_state: "verified",
-          state_since: now,
-          facts: {
-            ...facts,
-            verified_at: now,
-            verified_call_id: call.callId,
-            verified_from: call.fromE164,
-            // "carrier": the call's headers named the kept number; "window": a call reached the line inside the test.
-            verified_by: proof === "carrier" ? "carrier" : "window",
-          },
-        })
-        .eq("id", row.id)
-        .eq("tenant_id", tenantId)
-        .eq("forwarding_state", "instructed")
-        .select("id");
+      const upd = await saveForwardingVerified(db, tenantId, row.id, {
+        forwarding_state: "verified",
+        state_since: now,
+        facts: {
+          ...facts,
+          verified_at: now,
+          verified_call_id: call.callId,
+          verified_from: call.fromE164,
+          // "carrier": the call's headers named the kept number; "window": a call reached the line inside the test.
+          verified_by: proof === "carrier" ? "carrier" : "window",
+        },
+      });
       if (upd.error || !upd.data?.length) continue;
       const kept = formatPhoneDisplay(row.e164) ?? row.e164 ?? "your number";
       await recordNotification(tenantId, {

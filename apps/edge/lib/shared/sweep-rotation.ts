@@ -38,6 +38,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDueCalendars, getDuePlaybooks, type DueCalendar, type DuePage, type DueStep } from "@chanlytics/db/jobs";
 import type { Database } from "@chanlytics/db/types";
+import { patchConfigRow } from "@chanlytics/db/workspace";
+import { noteSweepBacklog } from "@chanlytics/db/ops";
 
 type Db = SupabaseClient<Database>;
 
@@ -101,10 +103,7 @@ export async function markCalendarChecked(
   also: { failedSince?: Date | null } = {},
 ): Promise<void> {
   const failing = "failedSince" in also ? { calendar_failed_since: also.failedSince?.toISOString() ?? null } : {};
-  const { error } = await db
-    .from("tenant_config")
-    .update({ calendar_checked_at: now.toISOString(), ...failing })
-    .eq("tenant_id", tenantId);
+  const { error } = await patchConfigRow(db, tenantId, { calendar_checked_at: now.toISOString(), ...failing });
   if (error) throw new Error(`stamping the calendar read: ${error.message}`);
 }
 
@@ -136,7 +135,7 @@ export async function noteBacklog(
   sweep: string,
   remaining: number,
 ): Promise<{ ticks: number; alarm: boolean }> {
-  const { data, error } = await db.rpc("note_sweep_backlog", { p_sweep: sweep, p_remaining: remaining });
+  const { data, error } = await noteSweepBacklog(db, sweep, remaining);
   if (error) return { ticks: 0, alarm: false };
   const ticks = typeof data === "number" ? data : 0;
   return { ticks, alarm: ticks >= BACKLOG_TICKS_BEFORE_ALARM };

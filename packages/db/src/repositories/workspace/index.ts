@@ -57,15 +57,22 @@ export { exportSectionPages, personExportPages } from "./export";
 export type { ExportPage, ExportSectionPages, PersonExportPages } from "./export";
 export {
   findConfigRow,
+  findConfigRowVersioned,
+  findNewWorkspace,
+  findRuntimeStamp,
   findWorkspaceCard,
   findWorkspaceName,
   findWorkspaceNameSlug,
   findWorkspaceNameZone,
+  findWorkspaceRuntimeRow,
   findWorkspaceSlug,
+  findWorkspaceStanding,
   findWorkspaceZoneRow,
   findWorkspaceZoneStatus,
+  listWorkspaceRules,
   listWorkspaceStandings,
   listWorkspaceZones,
+  patchConfigRow,
 } from "./rows";
 export { findSetupAsked, requestSetup } from "./setup";
 export { addToWaitlist, getWaitlistWaiting, markWaitlistInvited, refreshWaitlistRow } from "./waitlist";

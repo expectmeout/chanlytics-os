@@ -34,8 +34,17 @@ export {
   notesForReceptionist,
   openConversation,
   replyAnswersAt,
+  saveMessageMedia,
   searchMessages,
   wasRepliedTo,
   wasTextReached,
 } from "./thread/messages";
 export type { MessageHit, MessageSender } from "./thread/messages";
+export {
+  failQueuedReply,
+  listDeadmanCandidates,
+  listQueuedReplies,
+  listRepliesSince,
+  listUnansweredInbound,
+  markDeadmanAlerted,
+} from "./unfinished";

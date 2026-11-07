@@ -18,6 +18,7 @@ import { DAY_MS } from "@chanlytics/contracts";
 import { MAX_ROWS } from "../shared/paged.js";
 import { logger, errField } from "../shared/log.js";
 import { finiteOrZero } from "@chanlytics/contracts";
+import { pageLlmUsage } from "@chanlytics/db/ai";
 
 /**
  * One model call's usage (usage.llm_tokens), on the conversation it answered: tokens in and out, and the quality
@@ -85,17 +86,7 @@ async function* usagePages(
   const until = new Date().toISOString();
   for (let from = 0; from < cap; from += MAX_ROWS) {
     const size = Math.min(MAX_ROWS, cap - from);
-    let query = db
-      .from("events")
-      .select("created_at, data")
-      .eq("kind", "usage.llm_tokens")
-      .gte("created_at", since)
-      .lte("created_at", until)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(from, from + size - 1);
-    if (tenantId) query = query.eq("tenant_id", tenantId);
-    const { data, error } = await query;
+    const { data, error } = await pageLlmUsage(db, { tenantId, since, until, from, to: from + size - 1 });
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as UsageRow[];
     if (rows.length) yield rows;

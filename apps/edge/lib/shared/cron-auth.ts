@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import type { Logger } from "./log.js";
 import { refuse } from "./http.js";
+import { getCronSweepKey } from "@chanlytics/db/ops";
 
 export async function authorizeCron(
   request: Request,
@@ -20,7 +21,7 @@ export async function authorizeCron(
   log: Pick<Logger, "error">,
 ): Promise<Response | null> {
   const presented = request.headers.get("x-cron-key") || "";
-  const { data: expected, error } = await db.rpc("get_cron_sweep_key");
+  const { data: expected, error } = await getCronSweepKey(db);
   if (error || !expected) {
     // The route does nothing without its key, and the 503 is what sweep_health() reads.
     log.error("cron_key_unavailable", { error: error?.message ?? "no cron_sweep_key in Vault" });

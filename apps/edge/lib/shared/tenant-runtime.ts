@@ -21,13 +21,23 @@ import {
   type KnownFacts,
 } from "@chanlytics/contracts";
 import {
-  listActiveWhatsappNumbers,
   findWhatsappLine,
+  findWhatsAppRouting,
+  getChannelCredentials,
+  listActiveWhatsappNumbers,
+  listWorkspaceChannels,
   type RoutedChannel,
   type WhatsappNumberRow,
 } from "@chanlytics/db/channels";
 import { listTemplatesToSend, findTextLineFacts } from "@chanlytics/db/campaigns";
-import { findWorkspaceNamed } from "@chanlytics/db/workspace";
+import {
+  findConfigRow,
+  findConfigRowVersioned,
+  findRuntimeStamp,
+  findWorkspaceNamed,
+  findWorkspaceRuntimeRow,
+  listWorkspaceRules,
+} from "@chanlytics/db/workspace";
 import {
   textRefusal,
   whatsappSender,
@@ -40,6 +50,7 @@ import {
 import type { SendResult } from "@chanlytics/channels/whatsapp";
 import { env } from "./env.js";
 import { logger, errField } from "./log.js";
+import { findGoogleListingAddress } from "@chanlytics/db/google";
 
 export interface TenantRuntime {
   tenantId: string;
@@ -142,7 +153,7 @@ const cacheKey = (routed: RoutedChannel): string =>
  * on every blip.
  */
 async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
-  const { data, error } = await db.rpc("runtime_stamp", { p_tenant_id: tenantId });
+  const { data, error } = await findRuntimeStamp(db, tenantId);
   if (error) {
     logger({ tenant_id: tenantId }).error("runtime_stamp_failed", { error: error.message });
     return null;
@@ -192,15 +203,7 @@ async function resolveWaCredentials(
     ref = routed.credentialsRef ?? null;
     externalId = routed.externalId;
   } else {
-    const { data, error } = await db
-      .from("tenant_channels")
-      .select("id, credentials_ref, external_id")
-      .eq("tenant_id", routed.tenantId)
-      .eq("kind", "whatsapp")
-      .eq("status", "active")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await findWhatsAppRouting(db, routed.tenantId);
     // A number that cannot be read is not a workspace with none: the reply would go nowhere and say nothing.
     if (error) throw new Error(`cannot read the workspace's WhatsApp number: ${error.message}`);
     channelId = data?.id ?? null;
@@ -209,7 +212,7 @@ async function resolveWaCredentials(
   }
   const envNumber = isEnvNumber(externalId);
   if (!channelId || !ref) return { creds: null, envNumber };
-  const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
+  const { data, error } = await getChannelCredentials(db, channelId);
   if (error) {
     logger().error("wa_credentials_lookup_failed", { tenant_id: routed.tenantId, error: error.message });
     return { creds: null, envNumber };
@@ -277,8 +280,8 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
 
   try {
     const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ, bookingMessage, textingLine] = await Promise.all([
-      db.from("tenant_config").select("config, version").eq("tenant_id", routed.tenantId).maybeSingle(),
-      db.from("policies").select("class, mode, limits").eq("tenant_id", routed.tenantId).is("subject_type", null),
+      findConfigRowVersioned(db, routed.tenantId),
+      listWorkspaceRules(db, routed.tenantId),
       // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
       // whichever channel happened to route this request.
       //
@@ -293,14 +296,14 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       // Resolving by tenant + kind closed the voice path; a WhatsApp message's
       // own number keys its entry (cacheKey), the oldest active every other's.
       resolveWaCredentials(db, routed),
-      db.from("tenants").select("name, slug, timezone, status").eq("id", routed.tenantId).maybeSingle(),
+      findWorkspaceRuntimeRow(db, routed.tenantId),
       // Taken with the load, so the first re-check compares like with like.
       runtimeStamp(db, routed.tenantId),
       // What the platform provisioned and what Google verified — the other half
       // of every fact the prompt states. Two small reads on a load that already
       // makes five, cached for the same ten minutes behind the same stamp.
-      db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", routed.tenantId),
-      db.from("google_listings").select("name, address").eq("tenant_id", routed.tenantId).maybeSingle(),
+      listWorkspaceChannels(db, routed.tenantId),
+      findGoogleListingAddress(db, routed.tenantId),
       bookingMessageOf(db, routed.tenantId),
       textingLineOf(db, routed.tenantId),
     ]);
@@ -456,7 +459,7 @@ async function credentialsOfNumber(
   const log = logger();
   try {
     if (ch.credentials_ref) {
-      const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
+      const { data, error } = await getChannelCredentials(db, ch.id);
       if (error) {
         log.error("wa_credentials_for_tenant_failed", { tenant_id: tenantId, error: error.message });
         return { outcome: "unavailable", error: error.message };
@@ -592,7 +595,7 @@ export async function loadTenantNotifications(
   const log = logger();
   try {
     const [cfgQ, chQ, named] = await Promise.all([
-      db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      findConfigRow(db, tenantId),
       // Filtered and bounded exactly as the two sibling readers above are.
       // `tenant_channels` has no unique constraint on (tenant_id, kind) and the
       // product ADDS a row rather than replacing one -- a reconnected number
@@ -602,15 +605,7 @@ export async function loadTenantNotifications(
       // env number": the env-default workspace's own alerts silently became
       // redacted platform notices with the customer's words withheld. Two
       // ACTIVE rows answer with the oldest, as getWaCredentialsForTenant does.
-      db
-        .from("tenant_channels")
-        .select("external_id")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "whatsapp")
-        .eq("status", "active")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
+      findWhatsAppRouting(db, tenantId),
       // The workspace's address word and name, for an alert mail's link and its top (notify.ts alertWorkspace): read beside the
       // recipients so the mail costs no query of its own. Like the channel above, its failure costs the answer it was
       // asked for -- a mail with no link -- and never the recipients.

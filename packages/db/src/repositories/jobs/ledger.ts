@@ -58,3 +58,14 @@ export const countLiveBroadcastJobs = (db: Db, params: { tenantId: string; broad
     .eq("payload->>broadcast_id", params.broadcastId)
     .in("state", ["scheduled", "fired"])
     .neq("id", params.besides);
+
+/** The live jobs of `kind` (scheduled or fired) naming any of these messages, with `dueSince` only those due after it. */
+export const listLiveJobsNaming = (db: Db, kind: string, messageIds: string[], dueSince?: string) => {
+  const query = db
+    .from("jobs")
+    .select("payload")
+    .eq("kind", kind)
+    .in("state", ["scheduled", "fired"])
+    .in("payload->>message_id", messageIds);
+  return dueSince ? query.gt("due_at", dueSince) : query;
+};
