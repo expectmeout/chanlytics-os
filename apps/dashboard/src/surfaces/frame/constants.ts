@@ -20,7 +20,7 @@ type ShellAddress = {
   hear: (fn: () => void) => () => void;
   warm?: (route: string) => void;
   warmSoon?: (routes: string[]) => void;
-  keepWarm?: (routes: string[]) => void;
+  keepWarm?: (routes: readonly string[]) => void;
 };
 const shellAddress = (): ShellAddress | null => {
   const s: Partial<ShellAddress> | undefined = frameShell();
@@ -73,7 +73,7 @@ const address = {
     const s = shellAddress();
     if (s && s.warmSoon) s.warmSoon(routes);
   },
-  keepWarm(routes: string[]): void {
+  keepWarm(routes: readonly string[]): void {
     const s = shellAddress();
     if (s && s.keepWarm) s.keepWarm(routes);
   },

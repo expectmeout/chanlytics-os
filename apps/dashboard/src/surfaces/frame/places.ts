@@ -110,5 +110,13 @@ export const PHONE_TABS: readonly PhonePlace[] = [
   { id: "people", route: "clients", icon: "users", label: "People", holds: ["clients", "segments"] },
 ];
 
+/**
+ * What a phone asks for ahead of a thumb (workspace.ts warmPhonePlaces, phone-tabs.tsx keepWarm): the bar's places, and the pages
+ * of their own a swipe walks to from one of them (the Inbox's strip; People's scopes are People's one page). A swipe crosses the
+ * page and touches no tab, so it reaches for nothing, and the page leaving goes with the finger: a page not fetched yet left the
+ * screen empty under the old title for as long as the router took, with its rows already in hand (881 ms on a phone, 7 Nov 2026).
+ */
+export const PHONE_WARM_ROUTES: readonly string[] = [...PHONE_TABS.map((t) => t.route), "conversations", "live"];
+
 /** The tab bar's last press, which opens the drawer: no place, so never lit. */
 export const PHONE_MORE = { label: "Menu", word: "More", icon: "menu" } as const;
