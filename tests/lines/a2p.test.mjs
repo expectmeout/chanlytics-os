@@ -678,7 +678,7 @@ test("the carriers' verdicts become the words the row uses", () => {
   // nothing moved a line from one to the other, so every text stayed held.
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED" }), "active");
   assert.ok(
-    readCode("apps/edge/lib/sms/sms-ingress.ts").includes('held: line.sms_state !== "active"'),
+    readCode("apps/edge/lib/sms/ingress.ts").includes('held: line.sms_state !== "active"'),
     "which is the state the inbound path reads",
   );
   assert.equal(smsStateFor({ brandStatus: "FAILED", campaignStatus: null }), "rejected");

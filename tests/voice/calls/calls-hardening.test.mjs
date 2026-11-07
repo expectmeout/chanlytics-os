@@ -186,6 +186,6 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
     tabs.includes("chrome.liveStillUp(c, live.heartbeatMs, Date.now())"),
     "the tab applies the heartbeat rule too",
   );
-  const today = readCode("packages/contracts/src/today/today-rows.ts");
+  const today = readCode("packages/contracts/src/today/rows.ts");
   assert.ok(today.includes('import { ANALYSIS_GRACE_MS } from "../voice/live"'), "one grace constant");
 });

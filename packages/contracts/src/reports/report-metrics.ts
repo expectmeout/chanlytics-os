@@ -9,7 +9,7 @@
  * report counts by, never a second spelling of it.
  */
 import { DELIVERY_RECEIPTS_WORDS, REPLY_DAYS, REPLY_WINDOW_WORDS, STUCK_DAYS } from "../campaigns/broadcasts/run-words";
-import { MISSED_CALL_TOUCH_WORDS } from "./receptionist/receptionist-record";
+import { MISSED_CALL_TOUCH_WORDS } from "./receptionist/record";
 import type { ReportMetric } from "./report-tiles";
 
 const METRIC_WORDS: Record<ReportMetric, string> = {

@@ -21,7 +21,7 @@ import { readRaw, readCode } from "../_source.mjs";
 const sql = readRaw("supabase/migrations/00021_create_workspace.sql");
 const route = readCode(
   "apps/dashboard/app/api/v1/workspaces/create/route.ts",
-  "apps/dashboard/src/server/workspace/workspace-create.ts",
+  "apps/dashboard/src/server/workspace/create.ts",
 );
 const boot = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
 const form = readCode("apps/dashboard/src/bridge/CreateWorkspace.tsx");

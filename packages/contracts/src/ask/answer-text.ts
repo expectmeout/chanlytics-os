@@ -3,10 +3,10 @@
  * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, a next question that
  * echoes a place already offered, whether its own words claim a write (claimsWrite), where its headline's first
  * sentence ends (firstSentence), and the formatting its words may carry, read as blocks the Line draws (answerBlocks)
- * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask-answer.ts's.
+ * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask/answer.ts's.
  */
-import type { AskAnswer, AskList, AskSource } from "./ask-answer";
-import type { AskLanguage } from "./ask-language";
+import type { AskAnswer, AskList, AskSource } from "./answer";
+import type { AskLanguage } from "./language";
 
 /* ------------------------------------------------------------- the answer */
 

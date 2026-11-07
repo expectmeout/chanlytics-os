@@ -10,7 +10,7 @@
  */
 import type { FeedItem } from "./feed";
 import { serviceNamedIn, type ConsultRules } from "./service-offer";
-import { matchPerson, type OwnAddresses, type PersonLike } from "./calendar-people";
+import { matchPerson, type OwnAddresses, type PersonLike } from "./people";
 import { bookingCopyTest, type BookingSighting } from "./booking-notice";
 import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { isConsultationTitle } from "../deals/deal-consultations";

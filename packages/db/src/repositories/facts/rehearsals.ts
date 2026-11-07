@@ -456,7 +456,7 @@ export async function keepVoiceAgent(
 
 /**
  * Every agent made before its number, across workspaces: the platform's converger keeps them on the shell beside the
- * voice rows' (voice-converge.ts), so a number bought later answers in an agent that is the product's own.
+ * voice rows' (voice/converge.ts), so a number bought later answers in an agent that is the product's own.
  */
 export async function voiceAgentsBeforeANumber(db: Db): Promise<string[]> {
   const { data, error } = await platformWide(db).from("voice_agents").select("agent_id");

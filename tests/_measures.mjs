@@ -590,7 +590,7 @@ export const MEASURES = [
       return out;
     },
     advice:
-      "Say it by the workspace's clock: contracts' clock.ts (clockTime, clockDate, clockNearWhen and the rest) with the workspace's zone, which a page reads from pageClock().zone() and a server from its tenant, or dateFormat(locale, { timeZone, … }). A day key, which is no instant, is formatted from its UTC noon with timeZone: \"UTC\" (calendar-words.ts).",
+      "Say it by the workspace's clock: contracts' clock.ts (clockTime, clockDate, clockNearWhen and the rest) with the workspace's zone, which a page reads from pageClock().zone() and a server from its tenant, or dateFormat(locale, { timeZone, … }). A day key, which is no instant, is formatted from its UTC noon with timeZone: \"UTC\" (calendar/words.ts).",
   },
   {
     name: "zones read outside zone-math",

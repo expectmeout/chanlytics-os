@@ -4,7 +4,7 @@ import { log } from "@/server/shared/log";
 import { env } from "../shared/env";
 
 /**
- * The profile this deployment runs Ask on (contracts ask-model.ts): ASK_MODEL in the environment, any Claude model's
+ * The profile this deployment runs Ask on (contracts ask/model.ts): ASK_MODEL in the environment, any Claude model's
  * id, at ASK_EFFORT, in fast mode unless ASK_SPEED says standard, a draft asked at ASK_DRAFT_EFFORT unless it says off,
  * its answer through the answer tool unless ASK_ANSWER_TOOL says off; the default for each when it is unset. Read on every
  * turn (five string compares) so a test can set them; a deployment sets them once. A value that reads as no model, no

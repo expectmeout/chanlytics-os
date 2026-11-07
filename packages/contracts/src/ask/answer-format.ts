@@ -1,10 +1,10 @@
 /**
- * The format the model writes Ask's answer in: the answer's shape (ask-answer.ts) as a JSON schema, the answer tool's
+ * The format the model writes Ask's answer in: the answer's shape (ask/answer.ts) as a JSON schema, the answer tool's
  * input (tools/answer.ts) and, less its chart, `output_config.format`, and read back by normalizeAnswer. It rides in every
  * request. Pure.
  */
-import { ASK_LANGUAGES } from "./ask-language";
-import { ASK_ANSWER_CAPS as C, ASK_LIST_STYLES } from "./ask-answer";
+import { ASK_LANGUAGES } from "./language";
+import { ASK_ANSWER_CAPS as C, ASK_LIST_STYLES } from "./answer";
 import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations";
 import { ASK_CHART_KINDS } from "./answer-text";
 

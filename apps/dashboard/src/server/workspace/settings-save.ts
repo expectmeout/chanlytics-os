@@ -24,7 +24,7 @@ import { filedNamesOf, putTenantConfig } from "@chanlytics/db";
 import { configRowOf } from "@/server/workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 import { feedVisibleTo, knownFacts, withHiddenFeed } from "@/server/readers/settings";
-import { renameWorkspace } from "@/server/workspace/workspace-list";
+import { renameWorkspace } from "@/server/workspace/list";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";

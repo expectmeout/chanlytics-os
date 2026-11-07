@@ -641,7 +641,7 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   assert.ok(dropped.includes("Read it before answering about it."), dropped);
 });
 
-test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
+test("the three quick questions are told by their words; the answers are ask/answer.ts's (ask-answer.test.mjs)", () => {
   const TZ = "America/New_York";
   assert.deepEqual(askIntent("who needs me right now?", NOW, TZ), { kind: "needs" });
   assert.deepEqual(askIntent("what's waiting on me", NOW, TZ), { kind: "needs" });

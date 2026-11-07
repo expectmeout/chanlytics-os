@@ -79,7 +79,7 @@ import {
   type ImportSource,
   type ImportState,
 } from "@chanlytics/contracts";
-import { calendarWeek } from "../calendar/calendar-week";
+import { calendarWeek } from "../calendar/week";
 import { teamRoster } from "./team";
 import { linesFor, linesStatus } from "../connections/lines";
 import { listingFor, listingFactsFor, connectionFor, googleReadiness } from "../connections/google";

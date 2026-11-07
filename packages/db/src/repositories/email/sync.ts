@@ -1,7 +1,7 @@
 /**
  * A connected mailbox's sync (decision 0056): one at a time (its lease), where it left off (its cursor and watch), and
  * which of the threads that changed hold an email this workspace sent (00424 mailbox_threads_known), so only those are
- * ever fetched. The edge's sync (lib/email/mailbox/mailbox-sync.ts) asks these as the service role.
+ * ever fetched. The edge's sync (lib/email/mailbox/sync.ts) asks these as the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";

@@ -423,7 +423,7 @@
     "POST /api/cron/calendar": {
       "wrapper": "sweepDoor",
       "sweep": "calendar",
-      "verb": "sweepCalendar in apps/edge/lib/calendar/calendar-sweep.ts",
+      "verb": "sweepCalendar in apps/edge/lib/calendar/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
@@ -465,7 +465,7 @@
     "POST /api/cron/google": {
       "wrapper": "sweepDoor",
       "sweep": "google",
-      "verb": "sweepGoogle in apps/edge/lib/google/google-sweep.ts",
+      "verb": "sweepGoogle in apps/edge/lib/google/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
@@ -488,14 +488,14 @@
     "POST /api/cron/leads": {
       "wrapper": "sweepDoor",
       "sweep": "leads",
-      "verb": "sweepLeads in apps/edge/lib/leads/leads-sweep.ts",
+      "verb": "sweepLeads in apps/edge/lib/leads/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
     "POST /api/cron/lines": {
       "wrapper": "sweepDoor",
       "sweep": "lines",
-      "verb": "sweepLines in apps/edge/lib/lines/lines-sweep.ts",
+      "verb": "sweepLines in apps/edge/lib/lines/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
@@ -505,7 +505,7 @@
       "sweep_options": {
         "noDbEvent": "mailboxes_no_db"
       },
-      "verb": "sweepMailboxes in apps/edge/lib/email/mailbox/mailbox-sweep.ts",
+      "verb": "sweepMailboxes in apps/edge/lib/email/mailbox/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
@@ -525,7 +525,7 @@
       "sweep_options": {
         "noDbEvent": "partners_no_db"
       },
-      "verb": "sweepPartners in apps/edge/lib/partners/partners-sweep.ts",
+      "verb": "sweepPartners in apps/edge/lib/partners/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
@@ -555,7 +555,7 @@
     "POST /api/cron/reach-out": {
       "wrapper": "sweepDoor",
       "sweep": "reach_out",
-      "verb": "sweepReachOut in apps/edge/lib/campaigns/reach-out/reach-out-sweep.ts",
+      "verb": "sweepReachOut in apps/edge/lib/campaigns/reach-out/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
@@ -590,7 +590,7 @@
       "wrapper": "door",
       "verb": "receiveInboundText in apps/edge/lib/sms/inbound-text.ts",
       "knock": "verifyTwilioSignature",
-      "knock_in": "planSmsIngress in apps/edge/lib/sms/sms-ingress.ts"
+      "knock_in": "planSmsIngress in apps/edge/lib/sms/ingress.ts"
     },
     "GET /api/instagram": {
       "wrapper": "door",
@@ -611,21 +611,21 @@
     },
     "POST /api/mailbox/gmail": {
       "wrapper": "door",
-      "verb": "receiveGmailPush in apps/edge/lib/email/mailbox/mailbox-push.ts",
+      "verb": "receiveGmailPush in apps/edge/lib/email/mailbox/push.ts",
       "knock": "verifyGooglePushToken",
-      "knock_in": "receiveGmailPush in apps/edge/lib/email/mailbox/mailbox-push.ts"
+      "knock_in": "receiveGmailPush in apps/edge/lib/email/mailbox/push.ts"
     },
     "POST /api/mailbox/graph": {
       "wrapper": "door",
-      "verb": "receiveGraphPush in apps/edge/lib/email/mailbox/mailbox-push.ts",
+      "verb": "receiveGraphPush in apps/edge/lib/email/mailbox/push.ts",
       "knock": "clientStateMatches",
-      "knock_in": "receiveGraphPush in apps/edge/lib/email/mailbox/mailbox-push.ts"
+      "knock_in": "receiveGraphPush in apps/edge/lib/email/mailbox/push.ts"
     },
     "POST /api/resend-webhook": {
       "wrapper": "door",
       "verb": "receiveResendEvent in apps/edge/lib/email/resend-event.ts",
       "knock": "verifyResendWebhook",
-      "knock_in": "planResendEvent in apps/edge/lib/email/email-ingress.ts"
+      "knock_in": "planResendEvent in apps/edge/lib/email/ingress.ts"
     },
     "POST /api/retell-availability": {
       "wrapper": "door",
@@ -662,9 +662,9 @@
     },
     "POST /api/sms-status": {
       "wrapper": "door",
-      "verb": "receiveSmsStatus in apps/edge/lib/sms/sms-status.ts",
+      "verb": "receiveSmsStatus in apps/edge/lib/sms/status.ts",
       "knock": "verifyTwilioSignature",
-      "knock_in": "receiveSmsStatus in apps/edge/lib/sms/sms-status.ts"
+      "knock_in": "receiveSmsStatus in apps/edge/lib/sms/status.ts"
     },
     "POST /api/stripe-webhook": {
       "wrapper": "door",

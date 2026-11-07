@@ -92,7 +92,7 @@ test("F48: one person's profile reads one person's rows; the metrics CTEs are no
 test("F51: a GET of the workspaces reads and writes nothing, from any site (a read never writes: decision 0047, lane 6)", () => {
   const route = readCode(
     "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/workspace-list.ts",
+    "apps/dashboard/src/server/workspace/list.ts",
   );
   // F51 kept the acceptance of an invitation from running on a cross-site read, by looking at the request's origin. The
   // acceptance is its own POST now, which the app's write guard holds to the app's own origin (with-route.ts, held by

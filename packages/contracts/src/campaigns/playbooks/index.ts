@@ -1,7 +1,6 @@
 /** Playbooks: a standing rule that sends one message, on the channels it holds, to newly eligible people who said yes. */
-export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
-export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/lifecycle-inputs";
-export type { LifecycleAnswer, LifecycleAnswerRead } from "./lifecycle/lifecycle-inputs";
+export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/inputs";
+export type { LifecycleAnswer, LifecycleAnswerRead } from "./lifecycle/inputs";
 export {
   chainResultsOf,
   isLedgerCampaign,
@@ -9,9 +8,10 @@ export {
   ledgerRowIn,
   lifecycleChainsOf,
   sentResultsOfSource,
-} from "./lifecycle/lifecycle-ledger";
-export type { LedgerStatus, LifecycleResume } from "./lifecycle/lifecycle-ledger";
-export { reachCountsOf } from "./lifecycle/lifecycle-tiles";
+} from "./lifecycle/ledger";
+export type { LedgerStatus, LifecycleResume } from "./lifecycle/ledger";
+export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
+export { reachCountsOf } from "./lifecycle/tiles";
 export type {
   LedgerWords,
   LifecycleAct,
@@ -52,15 +52,15 @@ export type {
   LifecycleTrigger,
   LifecycleWaiting,
   ReachCounts,
-} from "./lifecycle/lifecycle-types";
+} from "./lifecycle/types";
 export {
   channelsGoesByWords,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
   lifecycleChainStateOf,
   lifecycleStateOf,
-} from "./lifecycle/lifecycle-words";
-export type { LifecycleState } from "./lifecycle/lifecycle-words";
+} from "./lifecycle/words";
+export type { LifecycleState } from "./lifecycle/words";
 export { campaignBlockWords, campaignFixCard, campaignLine, campaignReachable, nobodyNamedWords } from "./new-campaign";
 export type { CampaignBlock } from "./new-campaign";
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./playbook-channels";

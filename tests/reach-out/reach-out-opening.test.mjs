@@ -1,5 +1,5 @@
 /**
- * The check before each send (packages/contracts reach-out-words.ts and reach-out-opening.ts), run: the opening read
+ * The check before each send (packages/contracts reach-out/words.ts and reach-out/opening.ts), run: the opening read
  * by code, the two code holds, what a held send says and what its owner can do, and the model's two answers; and the
  * opening a listing's own fields write (decision 0078, lead-hours.ts leadFactOf): open 24 hours, its closing times, or
  * its rating, said as one sentence by code, each passing the check's own rules against the record built from the same

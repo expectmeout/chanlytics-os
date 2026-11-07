@@ -285,7 +285,7 @@ test("bookkeeping that fails never fails the sweep", async () => {
 test("both sweeps are wired to it, and answer 503 on the alarm", () => {
   // The sweeps live in their domains' folders; api/cron/<name>.ts is the door that hands each its tick.
   for (const [file, sweep, cap, module] of [
-    ["calendar", "calendar", "CALENDAR_PER_TICK", "apps/edge/lib/calendar/calendar-sweep.ts"],
+    ["calendar", "calendar", "CALENDAR_PER_TICK", "apps/edge/lib/calendar/sweep.ts"],
     ["playbooks", "playbooks", "PLAYBOOKS_PER_TICK", "apps/edge/lib/campaigns/reach-out/playbooks-sweep.ts"],
   ]) {
     const src = readCode(module);

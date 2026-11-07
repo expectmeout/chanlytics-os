@@ -47,7 +47,7 @@ import {
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { listRuns } from "@/server/campaigns/broadcasts";
-import { calendarOf } from "@/server/calendar/calendar-settings";
+import { calendarOf } from "@/server/calendar/settings";
 import type { ZoneAndSettings } from "@/server/calendar/people-visits";
 import { archivedListWords } from "@/server/people/audience";
 import { templateValuePorts } from "@/server/ports/campaign-ports";

@@ -179,7 +179,7 @@ test("nothing outside the runner calls activateOverride directly", () => {
     // ONE predicate, shared with the middleware — which used to answer 401
     // for API paths before the wrapper ever ran.
     assert.match(wrapper, /isRetryableAuthError\(authErr\)/);
-    const predicate = readCode("apps/dashboard/src/server/auth/auth-errors.ts");
+    const predicate = readCode("apps/dashboard/src/server/auth/errors.ts");
     assert.match(predicate, /AuthRetryableFetchError|err\.status >= 500/);
     const middleware = readCode("apps/dashboard/proxy.ts");
     assert.match(middleware, /isRetryableAuthError\(authErr\)/, "the gate must not answer 401 for an outage");

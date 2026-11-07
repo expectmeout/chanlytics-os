@@ -1,5 +1,5 @@
 /**
- * The probe of the unsubscribe links (Reach out, Part 2.6): run by the mailboxes sweep (mailbox/mailbox-sweep.ts), with
+ * The probe of the unsubscribe links (Reach out, Part 2.6): run by the mailboxes sweep (mailbox/sweep.ts), with
  * no clock of its own.
  *
  * Every reach-out email carries a link the edge seals under UNSUBSCRIBE_SECRET (in its List-Unsubscribe header, which a

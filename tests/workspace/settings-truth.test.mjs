@@ -251,7 +251,7 @@ test("the workspace timezone is visible and an owner can change it", () => {
 
   const route = readCode(
     "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/workspace-list.ts",
+    "apps/dashboard/src/server/workspace/list.ts",
   );
   assert.ok(route.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(

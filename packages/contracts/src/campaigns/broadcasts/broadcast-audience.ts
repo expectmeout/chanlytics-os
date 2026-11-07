@@ -3,7 +3,7 @@
  * broadcasts.ts (Reach out Part 2.5), which re-exports it.
  */
 import { type AskedPurpose, type MessageAbout, PURPOSE_REFUSALS } from "../../consent/consent";
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { PEOPLE_LISTS } from "../../people/lists/builtin-lists";
 import { saidYesTo } from "../../people/person-consent";
 import type { PersonRowVM } from "../../people/person-row";

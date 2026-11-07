@@ -24,7 +24,7 @@ import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../g
 import { googleAudienceWords } from "../google/audience";
 import type { LineDto, SetupDto } from "./setup";
 import { SETUP_STATE_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
-import { ownLineStandOf } from "./setup-rows-phone";
+import { ownLineStandOf } from "./rows-phone";
 import { agoWords, HOUR_MS } from "../shared/time";
 import { checkedWords, connectionWords, listingLine } from "../google/google";
 import { formatPhoneDisplay } from "../shared/phone";

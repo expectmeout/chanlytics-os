@@ -47,7 +47,7 @@ import type { Channel as DoorChannel, Delivery } from "../deliver/deliver";
 
 /**
  * The wires a broadcast goes out on: every channel of the send door but an Instagram DM, which answers a person and never
- * starts a conversation (Meta lets a business start none, and no yes covers it: contracts consent-channels.ts).
+ * starts a conversation (Meta lets a business start none, and no yes covers it: contracts consent/channels.ts).
  */
 export type BroadcastChannel = Exclude<DoorChannel, "instagram">;
 type Channel = BroadcastChannel;

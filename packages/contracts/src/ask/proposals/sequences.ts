@@ -6,14 +6,14 @@
  * offers the same undo whichever hand pressed it. A sequence's state and a batch's approval are the campaign's and the run's own verbs (`playbook_change`, `run`).
  */
 import { plural } from "../../shared/words";
-import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../../campaigns/reach-out/reach-out-dtos";
-import { toSendSaidWords } from "../../campaigns/reach-out/reach-out-approval";
+import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../../campaigns/reach-out/dtos";
+import { toSendSaidWords } from "../../campaigns/reach-out/approval";
 import { SEQUENCES_ROUTE, runRoute, sequenceRoute } from "../../campaigns/sequences/sequence-address";
 import { SEQUENCE_TEST_WORDS } from "../../campaigns/sequences/sequence-test";
 import { VOICE_PASTE_MIN, VOICE_WORDS } from "../../campaigns/sequences/new-draft";
 import { MEMORY_ROUTE } from "./memory";
 import { leadsRoute } from "../../leads/lead-plan";
-import { handOf } from "../../campaigns/reach-out/reach-out-hand";
+import { handOf } from "../../campaigns/reach-out/hand";
 import { SEQUENCE_FLOW_WORDS } from "../../campaigns/sequences/sequence-words";
 import { REWRITE_WORDS, rewroteWords, theirsOf, type RewroteOpening } from "../../campaigns/sequences/sequence-held";
 import { LEAD_WORDS_BOX, type LeadEmailText } from "../../leads/sheet/lead-sheet-words";

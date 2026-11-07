@@ -4,13 +4,13 @@
  * providers' wires live on the edge and nowhere else.
  *
  * The door reads the body once as text (the token's body hash is checked over these bytes; a body that is not an object
- * is an empty one) and asks authorizeAdmin; mailboxesOp in lib/email/mailbox/mailbox-ops.ts is the op table and what
+ * is an empty one) and asks authorizeAdmin; mailboxesOp in lib/email/mailbox/ops.ts is the op table and what
  * each answer means.
  */
 import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
 import { readBody } from "../../lib/shared/admin-door.js";
 import { adminDoor } from "../../lib/shared/log.js";
-import { mailboxesOp, type Body } from "../../lib/email/mailbox/mailbox-ops.js";
+import { mailboxesOp, type Body } from "../../lib/email/mailbox/ops.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();

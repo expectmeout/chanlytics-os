@@ -36,13 +36,13 @@ import {
   visitsAt,
   type MatchVia,
   type VisitDto,
-} from "../calendar/calendar-people";
+} from "../calendar/people";
 import { bookedAfterAsk } from "../calendar/visit/booked-after-ask";
 import { visitDoor } from "../calendar/appointment-key";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { plural } from "../shared/words";
-import { visitTitleWithout } from "../calendar/visit/visit-service";
-import { visitLineOf, visitMarkOfDto, type VisitLineVM } from "../calendar/calendar-words";
+import { visitTitleWithout } from "../calendar/visit/service";
+import { visitLineOf, visitMarkOfDto, type VisitLineVM } from "../calendar/words";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isEmailStopped } from "../conversations/thread-contact";
 import { emailPreviewOf } from "../conversations/message-email";
@@ -256,7 +256,7 @@ export interface PersonRowVM {
   /** "Thu, Aug 20" — the day of the last visit, for the row when nothing is ahead. */
   lastVisitDay: string | null;
   /**
-   * The next / last visit as the one visit line (calendar-words.ts visitLineOf): its day, time, title, how it stands
+   * The next / last visit as the one visit line (calendar/words.ts visitLineOf): its day, time, title, how it stands
    * (Kept, Missed, Past once it has ended), how it was matched and what can be said of it. People's Visits cell and the
    * Inbox's chip draw these; the flat fields above stay what a list, a sort and a playbook read. Null without a visit.
    */
@@ -389,7 +389,7 @@ export interface PersonRowVM {
 }
 
 /**
- * A visit a person's read carries (VisitDto) as the one visit line every page draws (calendar-words.ts visitLineOf): the
+ * A visit a person's read carries (VisitDto) as the one visit line every page draws (calendar/words.ts visitLineOf): the
  * row's next and last, the person page's History, Coming up and Next visit. Its title without the person's own name, its
  * day by the business's clock, its mark from the record's row (visitMarkOfDto), and the door that opens it on the Calendar.
  */

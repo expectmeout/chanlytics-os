@@ -68,108 +68,6 @@ export type {
   VisitOnRecord,
 } from "./booking-notice";
 export { toCalendarVM } from "./calendar";
-export type {
-  CalendarDayDto,
-  CalendarFeedDto,
-  CalendarItemDto,
-  CalendarNoticesDto,
-  CalendarServiceDto,
-  CalendarWeekDto,
-  EarlierVisitsDto,
-  HeldNoticeDto,
-  VisitMark,
-  VisitOriginDto,
-} from "./calendar-dto";
-export {
-  afterPersonRefused,
-  allVisitsIn,
-  calendarOwnerOf,
-  describeVisits,
-  extractContacts,
-  guessName,
-  indexFeed,
-  matchPerson,
-  matchWordsOf,
-  ownAddressesOf,
-  peopleFromItems,
-  personInText,
-  SAME_VISIT_MS,
-  toVisitDto,
-  visitDateKey,
-  visitDay,
-  visitLine,
-  visitsIn,
-  visitsOf,
-  visitStartTime,
-  visitTime,
-} from "./calendar-people";
-export type {
-  CalendarPerson,
-  EventContacts,
-  FeedIndex,
-  MatchVia,
-  OwnAddresses,
-  PersonLike,
-  PersonMatch,
-  PersonVisitsDto,
-  Visit,
-  VisitDto,
-  Visits,
-} from "./calendar-people";
-export { CALENDAR_RUN_SHEET_WORDS, CALENDAR_SHOW_WORDS, calendarRunMarksOf, runMarkShown } from "./calendar-runs";
-export type {
-  CalendarMomentDto,
-  CalendarRunDto,
-  CalendarRunItem,
-  CalendarRunKind,
-  CalendarRunMark,
-  CalendarRunsDto,
-} from "./calendar-runs";
-export { coversSpan, frameOf, spanForView, windowFor } from "./calendar-views";
-export type { CalendarView } from "./calendar-views";
-export type {
-  CalendarBandVM,
-  CalendarBlockVM,
-  CalendarClosureVM,
-  CalendarDayVM,
-  CalendarServiceVM,
-  CalendarVM,
-  CalendarWindowVM,
-} from "./calendar-vm";
-export {
-  ADD_TO_PEOPLE_WORDS,
-  addToPeopleOf,
-  CALENDAR_FEED_WORDS,
-  clockLabel,
-  closureDatesLabel,
-  closuresFrom,
-  eventText,
-  feedNotes,
-  feedSourceLabel,
-  hoursLines,
-  readAgoLabel,
-  ruleParts,
-  rulesLine,
-  sightingStands,
-  VISIT_ASK_WORDS,
-  VISIT_REFUSALS,
-  VISIT_WORDS,
-  visitActsOf,
-  visitLineOf,
-  visitLineOfBlock,
-  visitMarkOfDto,
-  visitStands,
-  visitStateOf,
-} from "./calendar-words";
-export type {
-  CalendarFeedHealth,
-  CalendarFeedNoteVM,
-  VisitLineInput,
-  VisitLineVM,
-  VisitStateTone,
-  VisitStateVM,
-  VisitWord,
-} from "./calendar-words";
 export {
   dayKeyNamed,
   dayWordIn,
@@ -184,6 +82,18 @@ export {
   zoneMidnight,
 } from "./day-keys";
 export type { DayWord, WeekdayKey } from "./day-keys";
+export type {
+  CalendarDayDto,
+  CalendarFeedDto,
+  CalendarItemDto,
+  CalendarNoticesDto,
+  CalendarServiceDto,
+  CalendarWeekDto,
+  EarlierVisitsDto,
+  HeldNoticeDto,
+  VisitMark,
+  VisitOriginDto,
+} from "./dto";
 export { parseIcs } from "./feed";
 export type { BusyBlock, FeedAttendee, FeedItem, ParsedFeed, ParseOptions } from "./feed";
 export {
@@ -219,6 +129,51 @@ export {
 } from "./feed-url";
 export type { FeedFailure, FeedHorizon } from "./feed-url";
 export {
+  afterPersonRefused,
+  allVisitsIn,
+  calendarOwnerOf,
+  describeVisits,
+  extractContacts,
+  guessName,
+  indexFeed,
+  matchPerson,
+  matchWordsOf,
+  ownAddressesOf,
+  peopleFromItems,
+  personInText,
+  SAME_VISIT_MS,
+  toVisitDto,
+  visitDateKey,
+  visitDay,
+  visitLine,
+  visitsIn,
+  visitsOf,
+  visitStartTime,
+  visitTime,
+} from "./people";
+export type {
+  CalendarPerson,
+  EventContacts,
+  FeedIndex,
+  MatchVia,
+  OwnAddresses,
+  PersonLike,
+  PersonMatch,
+  PersonVisitsDto,
+  Visit,
+  VisitDto,
+  Visits,
+} from "./people";
+export { CALENDAR_RUN_SHEET_WORDS, CALENDAR_SHOW_WORDS, calendarRunMarksOf, runMarkShown } from "./runs";
+export type {
+  CalendarMomentDto,
+  CalendarRunDto,
+  CalendarRunItem,
+  CalendarRunKind,
+  CalendarRunMark,
+  CalendarRunsDto,
+} from "./runs";
+export {
   foldName,
   matchService,
   needsConsultation,
@@ -228,6 +183,8 @@ export {
   serviceNamedIn,
 } from "./service-offer";
 export type { ConsultRules, ServiceLike, ServiceOffer } from "./service-offer";
+export { coversSpan, frameOf, spanForView, windowFor } from "./views";
+export type { CalendarView } from "./views";
 export { bookedAfterAsk } from "./visit/booked-after-ask";
 export {
   BOOKING_REQUEST_INSTRUCTION,
@@ -264,8 +221,8 @@ export type {
   FreedTimeVerdict,
   StandingTime,
 } from "./visit/freed-time";
-export { visitTitleWithout } from "./visit/visit-service";
-export { CALENDAR_VISIT_SHEET_WORDS, visitSheetOf } from "./visit/visit-sheet";
+export { visitTitleWithout } from "./visit/service";
+export { CALENDAR_VISIT_SHEET_WORDS, visitSheetOf } from "./visit/sheet";
 export type {
   VisitMoreAct,
   VisitPrimaryAct,
@@ -273,7 +230,50 @@ export type {
   VisitSheetPerson,
   VisitSheetState,
   VisitSheetVM,
-} from "./visit/visit-sheet";
+} from "./visit/sheet";
+export type {
+  CalendarBandVM,
+  CalendarBlockVM,
+  CalendarClosureVM,
+  CalendarDayVM,
+  CalendarServiceVM,
+  CalendarVM,
+  CalendarWindowVM,
+} from "./vm";
+export {
+  ADD_TO_PEOPLE_WORDS,
+  addToPeopleOf,
+  CALENDAR_FEED_WORDS,
+  clockLabel,
+  closureDatesLabel,
+  closuresFrom,
+  eventText,
+  feedNotes,
+  feedSourceLabel,
+  hoursLines,
+  readAgoLabel,
+  ruleParts,
+  rulesLine,
+  sightingStands,
+  VISIT_ASK_WORDS,
+  VISIT_REFUSALS,
+  VISIT_WORDS,
+  visitActsOf,
+  visitLineOf,
+  visitLineOfBlock,
+  visitMarkOfDto,
+  visitStands,
+  visitStateOf,
+} from "./words";
+export type {
+  CalendarFeedHealth,
+  CalendarFeedNoteVM,
+  VisitLineInput,
+  VisitLineVM,
+  VisitStateTone,
+  VisitStateVM,
+  VisitWord,
+} from "./words";
 export {
   clockInZone,
   dayInZone,

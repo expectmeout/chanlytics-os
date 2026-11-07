@@ -7,7 +7,7 @@ import { broadcastFailureFix, broadcastFailureWords } from "./broadcast-failures
 import type { BroadcastRecipientDto } from "./broadcasts";
 import type { AnswerPurpose } from "./run-answers";
 import { HELD_REASONS } from "./run-words";
-import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/channels";
 import { STOP_WORDS } from "../../consent/consent";
 import { NEEDS_YOU_WORD } from "../../conversations/standing";
 import type { ParamSpec } from "../templates/templates";

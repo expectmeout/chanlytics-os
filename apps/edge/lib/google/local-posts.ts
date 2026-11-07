@@ -6,7 +6,7 @@
 import { createLocalPost, deleteLocalPost, reviewParent, type GbpPostAsked } from "@chanlytics/channels";
 import type { EdgeRefusal } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db";
-import { connectionOf, type Db } from "./google-rows.js";
+import { connectionOf, type Db } from "./rows.js";
 import { http } from "./places.js";
 import { tokenFor } from "./profile-credentials.js";
 

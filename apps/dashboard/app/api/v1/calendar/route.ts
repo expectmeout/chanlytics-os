@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
-import { weekFrom } from "@/server/calendar/calendar-week";
+import { weekFrom } from "@/server/calendar/week";
 import { load, readerContext } from "@/server/readers";
 import { sources } from "@/server/readers/calendar";
 

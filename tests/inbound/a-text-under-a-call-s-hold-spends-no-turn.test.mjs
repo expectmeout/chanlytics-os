@@ -1,6 +1,6 @@
 /**
  * A text that arrives while a call (or a person) holds the thread (00132) is set aside before the model is asked: the
- * send door's own question (core deliver-hold.ts heldByThread), asked in the gates (reply-gates.ts heldByTheLiveHold)
+ * send door's own question (core deliver/hold.ts heldByThread), asked in the gates (reply-gates.ts heldByTheLiveHold)
  * with the door's own answer, so no turn is spent on words the wire would refuse. The handler runs for real over the
  * world of ./_world.mjs, as whatsapp/inbound-executed.test.mjs runs it; the memory's hold comes from the world.
  */
@@ -34,7 +34,7 @@ const onCall = (until = Date.now() + 10 * 60_000) => ({
 });
 
 test("a text that arrives while a call holds the thread is set aside before the model is asked: the wire's own answer, a step early, and no turn spent on it", async () => {
-  // The model was asked, and the wire then refused its reply as human_has_it (deliver-hold.ts heldByThread): a turn
+  // The model was asked, and the wire then refused its reply as human_has_it (deliver/hold.ts heldByThread): a turn
   // spent on words that never went. The same answer, now before the model: nothing said, nobody asked (the call has
   // them), the message handled, and said as the wire says it.
   const held = world({ ...live, control: onCall() });

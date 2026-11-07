@@ -29,7 +29,7 @@ import {
   MIN_MS,
 } from "@chanlytics/contracts";
 import { mendWarnings } from "../ops/notify.js";
-import { ringOnce, tellOnce } from "./billing-notices.js";
+import { ringOnce, tellOnce } from "./notices.js";
 import { logger, errField } from "../shared/log.js";
 import { env } from "../shared/env.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";

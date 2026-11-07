@@ -799,7 +799,7 @@ test("the migration: the connection row, the three Vault doors for the service r
 
 test("the edge: the secret alone on the edge, a read before a row, the grant given back on every refusal, the profile's reviews replacing the public five", () => {
   // The library's modules that hold the client, the vault doors, the connection, the sync and the listing's check.
-  const lib = ["google-config", "profile-credentials", "profile-connection", "profile-sync", "listing-check"]
+  const lib = ["config", "profile-credentials", "profile-connection", "profile-sync", "listing-check"]
     .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
     .join("\n");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"])

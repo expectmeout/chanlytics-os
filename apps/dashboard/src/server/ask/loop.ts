@@ -190,7 +190,7 @@ export interface TurnResult {
   rounds: number;
   /** The model the rounds ran on (the deployment's profile). */
   model: string;
-  /** Where the time went and what the model was fed (ask-shape.ts): logged, and stored on the turn's row. */
+  /** Where the time went and what the model was fed (ask/shape.ts): logged, and stored on the turn's row. */
   shape: AskTurnShape;
   /**
    * The turn as the model was sent it (memory.ts): stored on the turn's row, never logged or shipped; null when the

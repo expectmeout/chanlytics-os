@@ -353,7 +353,7 @@ async function senderWordOf(
  * sender the workspace said is a person), and a tool's notice or a forwarding check the intake could not trust, which is
  * about the business's own appointments or settings. An automatic reply and a program's own mail (a notification, a
  * list, a no-reply sender's) are kept for the record, and nobody is asked to answer them, as a connected mailbox leaves
- * them where they are (edge mailbox-sorting.ts).
+ * them where they are (edge mailbox/sorting.ts).
  */
 function flaggedAs(
   taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation">,

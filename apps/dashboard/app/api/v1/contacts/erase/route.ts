@@ -1,6 +1,6 @@
 import { EraseManyBody } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/shared/route";
-import { eraseMany } from "@/server/people/people-many";
+import { eraseMany } from "@/server/people/many";
 
 /**
  * POST /api/v1/contacts/erase -- { ids, not_a_person? }

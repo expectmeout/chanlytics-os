@@ -1,7 +1,7 @@
 /**
  * The one place @chanlytics/core's public values are named. package.json exports only ".", so a name that is not
  * written here cannot be reached from an app. What it names: the send door (deliver.ts: deliver, deliverSafely,
- * templatePurpose and the types of what they take and return; deliver-text.ts: what it holds a text to, which a call
+ * templatePurpose and the types of what they take and return; deliver/text.ts: what it holds a text to, which a call
  * asks before it offers one), the wire senders (wire-senders.ts: the WhatsApp and email Senders, and the errors and
  * guards for a wire that could not be bound and for a send the provider did not take), each domain folder's own
  * index.ts (appointments, campaigns, conversations, inbound, leads, messages), the booking page's and the site's
@@ -31,8 +31,8 @@ export type {
   Wire,
   WirePayload,
 } from "./deliver/deliver";
-export { liveHoldOf } from "./deliver/deliver-hold";
-export { textRefusal } from "./deliver/deliver-text";
+export { liveHoldOf } from "./deliver/hold";
+export { textRefusal } from "./deliver/text";
 export {
   emailSender,
   isNotTakenError,

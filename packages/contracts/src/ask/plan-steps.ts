@@ -6,7 +6,7 @@
  * the browser's commit runner (bridge/ask/commit.ts) and the Line read these and nothing of how a plan is made.
  */
 import type { AskPlanStamp, AskProposal } from "./ask";
-import type { AskLanguage } from "./ask-language";
+import type { AskLanguage } from "./language";
 import { ASK_SENDS, PROPOSAL_WORDS, rec } from "./proposals/spec";
 
 /**
@@ -267,7 +267,7 @@ export function planGroupOf<P extends HeldCard>(
 }
 
 /**
- * The answer's sentences for a round's cards (ask-answer.ts answerForCards: the round that proposed and said nothing else,
+ * The answer's sentences for a round's cards (ask/answer.ts answerForCards: the round that proposed and said nothing else,
  * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8). The headline counts a
  * plan's cards as steps, as each card's head does ("Step 6 of 6"), and says how many send nothing, how many send (a kind
  * of ASK_SENDS) and how many wait for a send, pressed after it though they send nothing themselves, as a follow-up after

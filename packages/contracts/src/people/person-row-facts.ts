@@ -7,7 +7,7 @@
 import { agoWords, WEEK_MS } from "../shared/time";
 import { clockDate } from "../shared/clock";
 import { relationshipOnRecord, STOP_WORDS } from "../consent/consent";
-import { channelsWords, coveredChannels } from "../consent/consent-channels";
+import { channelsWords, coveredChannels } from "../consent/channels";
 import { consentSourceLabel, STOP_ENDED_OFFERS_SOURCE, type PersonConsent } from "./person-consent";
 import { fmtDate, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";

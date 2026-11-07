@@ -1,6 +1,6 @@
 /**
  * The answer while its JSON is still arriving (the Line's spec, 7.4): the headline and the detail read from a prefix of
- * what the model has written so far, drawn as the final message will draw them (ask-answer.ts sayAsDrawn), and Show's
+ * what the model has written so far, drawn as the final message will draw them (ask/answer.ts sayAsDrawn), and Show's
  * figures and rows as each one closes (the end-to-end review, C1). With the answer tool (ASK_ANSWER_TOOL) the answer's
  * JSON streams on every round, so a figure or a row can be drawn the moment its object is whole rather than when the
  * final lands. Each is grounded exactly as the final will ground it (normalizeAnswer), so a row the turn did not read is
@@ -16,9 +16,9 @@ import {
   type AskAnswer,
   type AskFigure,
   type AskItem,
-} from "./ask-answer";
+} from "./answer";
 import { opensWithBlock } from "./answer-text";
-import type { AskLanguage } from "./ask-language";
+import type { AskLanguage } from "./language";
 import type { AskReadSet } from "./citations";
 
 /**

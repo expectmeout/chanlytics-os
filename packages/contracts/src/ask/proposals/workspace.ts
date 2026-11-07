@@ -1,12 +1,7 @@
 /**
  * The workspace's cards: what the receptionist may do alone, the settings it follows, and who is on the team.
  */
-import {
-  ASK_ANSWERS_PANE,
-  ASK_ANSWERS_ROWS,
-  applySettingsChange,
-  type AskSettingsChange,
-} from "../ask-settings-change";
+import { ASK_ANSWERS_PANE, ASK_ANSWERS_ROWS, applySettingsChange, type AskSettingsChange } from "../settings-change";
 import { asText, rec, refuseWith, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
 
 const policyBody = (cls: unknown, mode: unknown, confidence: unknown): Record<string, unknown> => {

@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { CONSENT_CHANNELS, channelsOfYes } from "../../packages/contracts/src/consent/consent-channels.ts";
+import { CONSENT_CHANNELS, channelsOfYes } from "../../packages/contracts/src/consent/channels.ts";
 import {
   STOP_ENDED_OFFERS_SOURCE,
   WHATSAPP_CONSENT_SOURCE,

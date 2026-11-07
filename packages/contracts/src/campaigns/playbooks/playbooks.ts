@@ -9,9 +9,9 @@
  * once"; a playbook is "keep doing this".
  */
 import type { ParamSpec } from "../templates/templates";
-import { visitStartTime, type VisitDto } from "../../calendar/calendar-people";
+import { visitStartTime, type VisitDto } from "../../calendar/people";
 import { freedTimeWords } from "../../calendar/visit/freed-time";
-import { visitServiceOf } from "../../calendar/visit/visit-service";
+import { visitServiceOf } from "../../calendar/visit/service";
 import type { ListRef } from "../../people/lists/list-token";
 import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";

@@ -27,7 +27,7 @@ import { appendMessage, createThread, listThreads, readThread, touchThread } fro
  * they can just conversate with the ask so the ask can update the card"): its search as a card in Ask, made from the plan
  * the idea already holds, with no model asked and nothing spent, kept as the first answer of a thread of its own, so the
  * Line opens on it and a change said there is a turn like any other (the card it makes replaces this one, contracts
- * leads/search/search-card.ts). The idea is read from the workspace's own ideas by its words, never taken from the page.
+ * leads/search/card.ts). The idea is read from the workspace's own ideas by its words, never taken from the page.
  */
 
 /** What the answer over the card says: why this idea, and that a change is said here. */

@@ -46,7 +46,7 @@ import {
 } from "@chanlytics/db";
 import type { PoolRead } from "@/lib/campaign-channels";
 import { runningOf } from "@/lib/new-checks";
-import { calendarOf } from "../../calendar/calendar-settings";
+import { calendarOf } from "../../calendar/settings";
 import { chainReportOf, chainsOf } from "../reach-outs";
 import { reachOutSourcesOf } from "../../leads/lead-workbench";
 import { log } from "../../shared/log";

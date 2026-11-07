@@ -46,18 +46,18 @@
  *                 two need the calendar's feed; a proposal's is theirs where a deal was ever recorded or the owner
  *                 says some customers get one; the words name what they book in the owner's words, say who a card reaches
  *                 nobody of today, and are said in the question's language; the answer leads with what comes first
- *                 (PlanLead: its headline, the Open to where it is set, and the next question); journey/journey-plan.ts
+ *                 (PlanLead: its headline, the Open to where it is set, and the next question); journey/plan.ts
  */
 import { isDayKey, shiftKey } from "../calendar/day-keys";
 import type { Note } from "../config/workspace-config/business-profile";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
-import type { ConsentChannel } from "../consent/consent-channels";
+import type { ConsentChannel } from "../consent/channels";
 import { BROADCAST_NAME_MAX } from "../campaigns/broadcasts/broadcasts";
 import { OFFER_PLAN_WORDS, dayReadWrong, isTheAsk } from "../campaigns/broadcasts/offer-plan-words";
 import { CHANNEL_WORDS } from "../campaigns/broadcasts/reach-for";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { JourneyStageId } from "../journey/journey";
-import { JOURNEY_PLAN_WORDS, journeyPlan, type PlanLead } from "../journey/journey-plan";
+import { JOURNEY_PLAN_WORDS, journeyPlan, type PlanLead } from "../journey/plan";
 import { parseListToken } from "../people/lists/list-token";
 import { campaignDayWords, campaignRunsOn, localDate } from "../campaigns/playbooks/playbook-schedule";
 import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../campaigns/playbooks/playbook-triggers";
@@ -68,7 +68,7 @@ import { starterByName, starterText } from "../campaigns/templates/starter-looku
 import { messageLanguageCode } from "../campaigns/templates/starter-templates";
 import { languageBase } from "../campaigns/templates/template-languages";
 import type { MessageRead } from "./ask";
-import { clip } from "./ask-answer";
+import { clip } from "./answer";
 import { sendWaitsForReview, stepToken } from "./plan-steps";
 
 /** What the owner asked for, as the model states it: an offer in their words and dates, or the journey to cover. */
@@ -247,7 +247,7 @@ const unreadWords = (what: string): string =>
 /**
  * What a plan says in English: its refusals, the model's to say back in the question's language (each ends on what to
  * do), what its cards are titled and its note says, and each step's why. Its words for the person are an offer's
- * OFFER_PLAN_WORDS and a setup's own (journey-plan.ts), in the question's language. WhatsApp's review is WhatsApp's.
+ * OFFER_PLAN_WORDS and a setup's own (journey/plan.ts), in the question's language. WhatsApp's review is WhatsApp's.
  */
 export const PLAN_WORDS = {
   noOffer:

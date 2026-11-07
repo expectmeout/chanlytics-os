@@ -110,7 +110,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   );
   // tzClock, and the four places Today says a closing or a last time with it.
   const today = ["clock", "facts", "figures", "rows", "queue"]
-    .map((m) => readCode(`packages/contracts/src/today/today-${m}.ts`))
+    .map((m) => readCode(`packages/contracts/src/today/${m}.ts`))
     .join("\n");
   assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
   const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");

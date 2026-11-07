@@ -1,12 +1,12 @@
 /**
  * The history import's calendar part (decision 0073, R20): when a mailbox connects with its calendar ticked, one read of
- * the workspace's calendar now (the sweep's own read, calendar-sweep.ts readOneCalendar: People, the bookings, the
+ * the workspace's calendar now (the sweep's own read, calendar/sweep.ts readOneCalendar: People, the bookings, the
  * appointments and the ledger), whatever the hour, so the visits are in while the owner goes on.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS, IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
 import { dueCalendars, noteImport, type Database } from "@chanlytics/db";
-import { readOneCalendar, type Kept } from "../calendar/calendar-sweep.js";
+import { readOneCalendar, type Kept } from "../calendar/sweep.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;

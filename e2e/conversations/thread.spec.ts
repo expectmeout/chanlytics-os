@@ -342,7 +342,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(queue).toBeVisible();
       // One rule (standing.ts): a thread you took by replying is yours, and the Inbox lists it under Handled as yours
       // (#852). What Today must never be quiet about is the failure itself: since Today in three zones (2 Nov 2026) a reply
-      // of yours that never left is yours to answer (today-facts.ts YOURS_STILL_WAIT), one row of Need you with its words
+      // of yours that never left is yours to answer (today/facts.ts YOURS_STILL_WAIT), one row of Need you with its words
       // kept and Try again, and nothing under the head. Try again is not pressed here: it sends.
       const row = queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name });
       await expect(row).toHaveCount(1);

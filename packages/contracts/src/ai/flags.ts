@@ -86,7 +86,7 @@ export const FLAGS: readonly Flag[] = [
     weaker: {
       allows:
         "Unset, the three voice doors (the inbound webhook, the booking-link and availability functions) open for " +
-        "RETELL_FN_SECRET (?key= or x-fn-secret) as well as for Retell's signature (lib/voice/voice-door-auth.ts).",
+        "RETELL_FN_SECRET (?key= or x-fn-secret) as well as for Retell's signature (lib/voice/door-auth.ts).",
       readiness: {
         event: "voice_door_auth",
         when: "sig: true on each of the three doors on real deliveries, read from 3 October 2026",
@@ -221,12 +221,12 @@ export const FLAGS: readonly Flag[] = [
     does: "The model Ask answers on, any Claude model's id; empty is the registry's (MODEL_ROUTES.ask).",
     owner: "Ruben",
     sunset: null,
-    kept: "Ask is built to switch models by one variable (ask-model.ts), so trying one is never a code change.",
+    kept: "Ask is built to switch models by one variable (ask/model.ts), so trying one is never a code change.",
   },
   {
     name: "ASK_EFFORT",
     mechanism: "dashboard_env",
-    does: "How hard Ask's model is asked to think: low, medium or high; empty is low (ask-model.ts ASK_EFFORT).",
+    does: "How hard Ask's model is asked to think: low, medium or high; empty is low (ask/model.ts ASK_EFFORT).",
     owner: "Ruben",
     sunset: null,
     kept: "It rides with ASK_MODEL: a model tried at another effort is the same variable-and-redeploy.",
@@ -234,7 +234,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "ASK_SPEED",
     mechanism: "dashboard_env",
-    does: "Fast mode for Ask's rounds on a model that runs it; empty is fast, standard turns it off (ask-model.ts ASK_SPEED).",
+    does: "Fast mode for Ask's rounds on a model that runs it; empty is fast, standard turns it off (ask/model.ts ASK_SPEED).",
     owner: "Ruben",
     sunset: null,
     kept: "Fast mode is a research preview at twice the price: the switch off is a variable, never a code change.",
@@ -242,7 +242,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "ASK_ANSWER_TOOL",
     mechanism: "dashboard_env",
-    does: "Ask writes its answer through the answer tool, whose input streams after a read; on unless it says off (the eval pair, 17 Oct 2026; ask-model.ts).",
+    does: "Ask writes its answer through the answer tool, whose input streams after a read; on unless it says off (the eval pair, 17 Oct 2026; ask/model.ts).",
     owner: "Ruben",
     sunset: "2026-11-30",
   },
